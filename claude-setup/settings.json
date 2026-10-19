@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && if [ -f Makefile ] && grep -q \"^arch-gate:\" Makefile; then make arch-gate; fi",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  }
+}
