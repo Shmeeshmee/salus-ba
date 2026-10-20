@@ -126,6 +126,16 @@
   mobile workflows each check their own client is up to date (`git status --porcelain` empty).
 - 2026-10-20, package 9: actions pinned by commit SHA (`actions/checkout` v7.0.1). Dependabot covers gomod
   (`/`, `/tools`), npm, pub, the Dockerfiles, the compose file and the actions, weekly and grouped.
+- 2026-10-20, review fix (supersedes the package 6 `-coverpkg` entry): `make cover` drops `-coverpkg=./...`.
+  Each package counts only what its own tests run, and the 80% floor applies to every package, not the
+  total. Only the six `cmd/*/main.go` files are left out of the profile, file by file (composition,
+  exercised by the e2e suite). Measured that way four packages were short: `api/fhir` and `pkg/fhir` (0%,
+  covered only through the router), `pkg/postgres/pgtest` (75.9%), `pkg/redis/redistest` (71.4%).
+- 2026-10-20, review fix: Dependabot groups minor and patch updates into one PR per ecosystem per week;
+  each major update comes as its own PR (the group's `update-types: [minor, patch]`, majors left out).
+  The two Go modules get one group PR each: a group does not span `directories`, and a single PR across
+  both would need `multi-ecosystem-groups`, which does not document filtering by update type
+  (owner's choice).
 
 ## Waiting on people
 
@@ -342,3 +352,19 @@ valid. Branch protection still refused (see "Waiting on people").
 
 Definition of done: `make arch-gate`, `make lint` and `make e2e` pass locally (package 6 and later) and in
 CI; every package is recorded above.
+
+### 2026-10-20 — review fixes: coverage per package, Dependabot groups
+
+Coverage: `scripts/cover.sh` runs `go test -coverprofile` without `-coverpkg`, removes the
+`cmd/*/main.go` lines by exact path, and prints and checks each package. Before: four packages under 80%
+(above). Tests added for what they do: `pkg/fhir` (`WriteError` status, content type and exact
+OperationOutcome JSON, empty diagnostics omitted), `api/fhir` (the embedded CapabilityStatement is R4 JSON),
+`pgtest` (`migrate` returns the error for a bad URL, no migrations and bad SQL; `withDatabase` panics on an
+unparsable URL), `redistest` (each reason the server is unusable). For `redistest` the setup is split into
+`connect(raw)`, the test seam: `setup` reads the environment once behind a `sync.Once`, so its errors could
+not be reached in-process; `connect` now also closes the admin client when it fails. After: every package
+at or above 80% (`pgtest` 81.0%, `redistest` 84.9%, the rest 90% or more), total 90.8%.
+
+Dependabot: `update-types: [minor, patch]` on every group, and a group added for the Dockerfiles, compose
+and actions, which had none.
+

@@ -1,25 +1,30 @@
-# Weekly update PRs, grouped per ecosystem to keep the noise down. Versions stay pinned; Dependabot moves
-# the pins. Toolchain image tags in Dockerfiles and compose are covered too.
+# Weekly update PRs: one per ecosystem for minor and patch updates (one per directory for the two Go modules,
+# since a group does not span directories), and one PR per major update, so a breaking change is reviewed
+# on its own. Versions stay pinned; Dependabot moves the pins. Toolchain image tags in Dockerfiles and
+# compose are covered too.
 version: 2
 updates:
   - package-ecosystem: gomod
     directories: ["/", "/tools"]
     schedule: {interval: weekly}
-    groups: {go: {patterns: ["*"]}}
+    groups: {go: {patterns: ["*"], update-types: [minor, patch]}}
   - package-ecosystem: npm
     directory: /web
     schedule: {interval: weekly}
-    groups: {npm: {patterns: ["*"]}}
+    groups: {npm: {patterns: ["*"], update-types: [minor, patch]}}
   - package-ecosystem: pub
     directory: /mobile
     schedule: {interval: weekly}
-    groups: {pub: {patterns: ["*"]}}
+    groups: {pub: {patterns: ["*"], update-types: [minor, patch]}}
   - package-ecosystem: docker
     directory: /build/package
     schedule: {interval: weekly}
+    groups: {docker: {patterns: ["*"], update-types: [minor, patch]}}
   - package-ecosystem: docker-compose
     directory: /deployments
     schedule: {interval: weekly}
+    groups: {docker-compose: {patterns: ["*"], update-types: [minor, patch]}}
   - package-ecosystem: github-actions
     directory: /
     schedule: {interval: weekly}
+    groups: {github-actions: {patterns: ["*"], update-types: [minor, patch]}}
