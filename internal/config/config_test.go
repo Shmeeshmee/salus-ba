@@ -10,6 +10,7 @@ import (
 func TestLoad_ReadsEnvironment(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
 	t.Setenv("HTTP_ADDR", ":9000")
+	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -20,6 +21,9 @@ func TestLoad_ReadsEnvironment(t *testing.T) {
 	}
 	if cfg.HTTPAddr != ":9000" {
 		t.Errorf("HTTPAddr = %q, want :9000", cfg.HTTPAddr)
+	}
+	if cfg.RedisURL != "redis://localhost:6379/0" {
+		t.Errorf("RedisURL = %q", cfg.RedisURL)
 	}
 }
 

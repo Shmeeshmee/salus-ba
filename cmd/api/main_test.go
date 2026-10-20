@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
+	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 )
 
 func TestMain(m *testing.M) { pgtest.Main(m, nil) }
@@ -49,6 +50,7 @@ func (b *syncBuffer) lines(t *testing.T) []map[string]any {
 // line, calls /healthz, then cancels and expects a clean return with the request in the access log.
 func TestRun_ServesUntilCancelledThenShutsDown(t *testing.T) {
 	t.Setenv("DATABASE_URL", pgtest.NewDatabaseURL(t))
+	t.Setenv("REDIS_URL", redistest.URL(t))
 	t.Setenv("HTTP_ADDR", "127.0.0.1:0")
 	ctx, cancel := context.WithCancel(t.Context())
 	logs := &syncBuffer{}

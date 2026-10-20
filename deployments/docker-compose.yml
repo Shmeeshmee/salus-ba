@@ -24,6 +24,9 @@ services:
 
   redis:
     image: redis:8.10.2
+    # Temporary state only (ADR 0005): nothing is written to disk. 256 logical databases so redistest can
+    # give each parallel test its own.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--databases", "256"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 1s

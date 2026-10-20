@@ -10,6 +10,7 @@ import (
 type Config struct {
 	DatabaseURL string
 	HTTPAddr    string
+	RedisURL    string // only the binaries that use Redis require it (redis.Open rejects an empty URL)
 }
 
 // Load reads the configuration from the environment. Errors name the missing variable, never a value.
@@ -17,6 +18,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		HTTPAddr:    os.Getenv("HTTP_ADDR"),
+		RedisURL:    os.Getenv("REDIS_URL"),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("config: DATABASE_URL is required")

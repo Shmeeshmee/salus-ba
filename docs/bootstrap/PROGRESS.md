@@ -6,7 +6,7 @@
 | 1b Docker-only toolchain | done 2026-10-20 (committed after 2) | see `git log` |
 | 2 Migrations | done 2026-10-20 | see `git log` |
 | 3 API binary | done 2026-10-20 | see `git log` |
-| 4 Redis and jobs | not started | |
+| 4 Redis and jobs | done 2026-10-20 | see `git log` |
 | 5 Local stack | not started | |
 | 6 Quality gates | not started | |
 | 7 Web | not started | |
@@ -58,6 +58,19 @@
   generic `OperationOutcome` type.
 - 2026-10-20, package 3: `cmd/api` logs JSON to stderr; its test logs to a mutex-guarded buffer and
   polls it (owner's fix for the pipe deadlock).
+- 2026-10-20, package 4: `redistest` has no `TestMain` hook: `pgtest.Main` and a Redis `Main` would both
+  call `os.Exit(m.Run())` and could not be combined in one package. Redis needs no teardown, so
+  `redistest.URL`/`NewClient` set up lazily on first use and fail the test (never skip) without
+  `TEST_REDIS_URL`. Each test gets its own logical database (1–255, round-robin through a counter in
+  database 0), flushed before and after the test. Database 0 is the dev stack's.
+- 2026-10-20, package 4: compose Redis runs with `--save "" --appendonly no` (temporary state only, nothing
+  on disk; ADR 0005) and `--databases 256` for redistest.
+- 2026-10-20, package 4: `REDIS_URL` is read by `config.Load` but not required there; `redis.Open` rejects
+  an empty URL, so only binaries that use Redis need it (`cmd/migrate` does not).
+- 2026-10-20, package 4: `internal/worker` builds the River client and registers job workers (added to
+  CLAUDE.md as a composition root). `cmd/worker` starts River with a context that is not cancelled by the
+  signal (River stops hard when its start context ends) and calls `Stop` (soft, 30 s) on the signal.
+  River runs on the goose-applied schema without its own `river_migration` table.
 
 ## Waiting on people
 
@@ -157,3 +170,19 @@ access-log line (`GET /healthz`, 200, with a request id) after shutdown.
 Checks, all in Docker: `make test TESTFLAGS="-count=1 -race"` passes; gofmt clean; `go vet ./...` passes.
 `api/openapi.yaml` validated with Redocly CLI 2.11.1 (`redocly/cli` image): no errors; 3 warnings left on
 purpose (no license field yet; health endpoints have no 4xx response).
+
+### 2026-10-20 — package 4, Redis and jobs
+
+Built: `pkg/redis` (`Open`: rejects an empty URL, parses, pings), `pkg/redis/redistest` (`URL`, `NewClient`),
+`config.RedisURL`, `/readyz` checks Redis too (`internal/api/app.go`), `internal/worker` (River client,
+`NoopArgs` job), `cmd/worker`, and `cmd/scheduler`, `cmd/notifier`, `cmd/agent` (start, log, stop).
+Dependencies: go-redis v9.23.0, River v0.49.0 (`riverpgxv5`).
+
+Test first: every new package's tests failed on the missing API first. The noop job test enqueues with
+`InsertTx` inside a transaction, commits, and waits for River's completed event.
+
+Readings: the unreachable-Redis tests took 1.68 s (`pkg/redis`) and 2.01 s (`internal/api`), go-redis
+retrying with backoff; with `max_retries=-1` in the test URLs, 0.40 s and 0.78 s.
+
+Checks, in Docker: gofmt clean, `go vet ./...` passes, `go test -race -count=1 ./...` passes (via the tools
+container; `make test` is the same command).

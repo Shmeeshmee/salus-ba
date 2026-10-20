@@ -45,6 +45,7 @@ directory when something goes in it.
 | `internal/<domain>/` | Application code, one package per domain — see "Go architecture" |
 | `internal/config` | The only package that reads the environment |
 | `internal/api` | `app.go` builds every domain (the shared composition root); `router/` mounts middleware and routes |
+| `internal/worker` | The River client for `cmd/worker` and the registration of every job's worker |
 | `pkg/` | Infrastructure with no knowledge of this product: `postgres`, `httpx`, `clock`, `middleware`, `redis`, `fhir` (generic FHIR primitives: `Reference`, `CodeableConcept`, `OperationOutcome`, bundles). Never imports `internal/` |
 | `api/` | Contracts: `openapi.yaml` for non-FHIR endpoints, `fhir/` for the CapabilityStatement, profiles (StructureDefinitions) and ValueSets we use. The TypeScript client (openapi-typescript) and the Dart client (openapi-generator) are generated from `openapi.yaml` into `web/` and `mobile/` with `make gen-clients`; never edit them by hand |
 | `configs/` | Config templates and defaults (`.env.example`) |
@@ -103,8 +104,8 @@ service → service, never service → another domain's repository.
 **Rules:**
 - A port is declared by the package that consumes it. When a sibling service already has a method of that
   shape, wire the concrete service in rather than writing an adapter.
-- Objects are built only in `cmd/*/main.go` and `internal/api/app.go`. No DI framework, no package-level
-  mutable state, no `init()` side effects.
+- Objects are built only in `cmd/*/main.go`, `internal/api/app.go` and `internal/worker` (the River client
+  and its job registrations). No DI framework, no package-level mutable state, no `init()` side effects.
 - The environment is read only in `internal/config`. Clocks and HTTP clients are injected;
   `http.DefaultClient` and `http.Get` are not used.
 - Middleware is mounted only in `internal/api/router`; routes are declared only there and in each domain's

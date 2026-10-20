@@ -9,12 +9,17 @@ import (
 	"github.com/Shmeeshmee/salus/internal/api"
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
+	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 )
 
 func TestMain(m *testing.M) { pgtest.Main(m, nil) }
 
+func testConfig(t *testing.T) config.Config {
+	return config.Config{DatabaseURL: pgtest.NewDatabaseURL(t), RedisURL: redistest.URL(t)}
+}
+
 func TestNew_ServesReadinessAgainstTheDatabase(t *testing.T) {
-	app, err := api.New(t.Context(), config.Config{DatabaseURL: pgtest.NewDatabaseURL(t)}, slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), testConfig(t), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -28,10 +33,15 @@ func TestNew_ServesReadinessAgainstTheDatabase(t *testing.T) {
 	}
 }
 
-func TestNew_FailsWhenTheDatabaseIsUnreachable(t *testing.T) {
-	cfg := config.Config{DatabaseURL: "postgres://nobody@127.0.0.1:1/none?connect_timeout=1"}
+func TestNew_FailsWhenADependencyIsUnreachable(t *testing.T) {
+	noDB := testConfig(t)
+	noDB.DatabaseURL = "postgres://nobody@127.0.0.1:1/none?connect_timeout=1"
+	noRedis := testConfig(t)
+	noRedis.RedisURL = "redis://127.0.0.1:1/0?dial_timeout=1s&max_retries=-1"
 
-	if _, err := api.New(t.Context(), cfg, slog.New(slog.DiscardHandler)); err == nil {
-		t.Fatal("New() error = nil, want a connection error")
+	for name, cfg := range map[string]config.Config{"postgres": noDB, "redis": noRedis} {
+		if _, err := api.New(t.Context(), cfg, slog.New(slog.DiscardHandler)); err == nil {
+			t.Errorf("New() with %s unreachable: error = nil, want a connection error", name)
+		}
 	}
 }
