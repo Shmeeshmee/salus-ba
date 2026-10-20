@@ -37,7 +37,7 @@ Checks: Go.
 
 `migrations/` with the embed package; `00001_extensions.sql` (`btree_gist`, `pgcrypto`); River's schema as
 goose migrations. `cmd/migrate` with `up`, `status`, `create` (goose as a library). `pgtest` applies the
-migrations. `docs/architecture/archcheck/ownership.yaml` lists River's tables under owner `jobs` (infrastructure).
+migrations. `docs/architecture/archcheck/ownership.yaml` lists River's tables under owner `river`.
 Checks: Go; `go run ./cmd/migrate up` and `status` against a local Postgres.
 
 ### 3. API binary

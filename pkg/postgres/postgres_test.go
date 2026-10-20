@@ -11,7 +11,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-func TestMain(m *testing.M) { pgtest.Main(m) }
+func TestMain(m *testing.M) { pgtest.Main(m, nil) }
 
 // newItemsDB returns a fresh database with one table to write to.
 func newItemsDB(t *testing.T) *pgxpool.Pool {
@@ -39,7 +39,7 @@ func countItems(t *testing.T, pool *pgxpool.Pool) int {
 
 func TestOpen_ConnectsAndPings(t *testing.T) {
 	t.Parallel()
-	url := pgtest.NewDatabase(t).Config().ConnString()
+	url := pgtest.NewDatabaseURL(t)
 
 	pool, err := postgres.Open(t.Context(), url)
 	if err != nil {
