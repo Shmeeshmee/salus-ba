@@ -11,7 +11,7 @@
 | 6 Quality gates | done 2026-10-20 | see `git log` |
 | 7 Web | done 2026-10-20 | see `git log` |
 | 8 Mobile | done 2026-10-20 | see `git log` |
-| 9 CI | not started | |
+| 9 CI | in review 2026-10-20 | see `git log` |
 
 ## Decisions
 
@@ -117,6 +117,15 @@
   on Android and iOS. The API address is a build-time `--dart-define=API_BASE_URL` (default
   `http://localhost:8080`). Android debug builds allow cleartext HTTP to the local API (debug manifest
   only); for iOS, README.md describes a local, uncommitted ATS exception.
+- 2026-10-20, package 9: each workflow (go, web, mobile) runs on every pull request; a `changes` job
+  (`scripts/ci-changed.sh`, plain `git diff`, no third-party action) decides whether its paths changed,
+  and the other jobs are skipped otherwise. A skipped job counts as passed, so the checks can be required
+  without blocking pull requests that do not touch them. Pushes to main run everything. Every step is a
+  `make` target, so CI runs the same containers as a developer machine; the runner needs only Docker.
+- 2026-10-20, package 9: `gen-clients` is split into `gen-client-ts` and `gen-client-dart` so the web and
+  mobile workflows each check their own client is up to date (`git status --porcelain` empty).
+- 2026-10-20, package 9: actions pinned by commit SHA (`actions/checkout` v7.0.1). Dependabot covers gomod
+  (`/`, `/tools`), npm, pub, the Dockerfiles, the compose file and the actions, weekly and grouped.
 
 ## Waiting on people
 
@@ -311,3 +320,13 @@ Checks, through make: `mobile-test` (3 passed), `mobile-analyze` (no issues; it 
 Image readings: the SDK layer is 2.94 GB on a 87.5 MB base; `docker image ls` reports 4.86 GB both before
 and after the one-layer change, so no size saving is claimed. Not done: running the app on a device or
 emulator (manual by design, README.md).
+
+### 2026-10-20 — package 9, CI
+
+Built: `.github/workflows/go.yml` (jobs lint, archcheck, test via `make cover`, generated via `make sqlc`,
+e2e, fhir-validate), `web.yml` (web job: lint, typecheck, test, build, TypeScript client), `mobile.yml`
+(mobile job: analyze, test, Dart client), `scripts/ci-changed.sh`, `.github/dependabot.yml`, Makefile
+`gen-client-ts` and `gen-client-dart`.
+
+Checks: actionlint 1.7.9 (with shellcheck) clean; `ci-changed.sh` with this branch's diff marks all three
+workflows changed, and a docs-only path skips Go. CI results on the pull request: see the next entry.

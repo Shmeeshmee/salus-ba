@@ -1,0 +1,25 @@
+# Weekly update PRs, grouped per ecosystem to keep the noise down. Versions stay pinned; Dependabot moves
+# the pins. Toolchain image tags in Dockerfiles and compose are covered too.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directories: ["/", "/tools"]
+    schedule: {interval: weekly}
+    groups: {go: {patterns: ["*"]}}
+  - package-ecosystem: npm
+    directory: /web
+    schedule: {interval: weekly}
+    groups: {npm: {patterns: ["*"]}}
+  - package-ecosystem: pub
+    directory: /mobile
+    schedule: {interval: weekly}
+    groups: {pub: {patterns: ["*"]}}
+  - package-ecosystem: docker
+    directory: /build/package
+    schedule: {interval: weekly}
+  - package-ecosystem: docker-compose
+    directory: /deployments
+    schedule: {interval: weekly}
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly}

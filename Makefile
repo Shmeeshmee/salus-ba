@@ -11,7 +11,7 @@ NODE    := $(COMPOSE) run --rm -T node
 FLUTTER := $(COMPOSE) run --rm -T flutter
 
 .PHONY: test cover lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create sqlc \
-	gen-clients mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev flutter-image tools-image node-image up psql down
+	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev flutter-image tools-image node-image up psql down
 
 ## test: Go tests of both modules against the compose Postgres and Redis (TESTFLAGS="-run X -count=1")
 test: tools-image
@@ -57,8 +57,10 @@ sqlc: tools-image
 
 ## gen-clients: regenerate the API clients from api/openapi.yaml: TypeScript into web/src/api, Dart into
 ## mobile/packages/salus_api (generator options in mobile/openapi-generator.yaml)
-gen-clients: web-install flutter-image
+gen-clients: gen-client-ts gen-client-dart
+gen-client-ts: web-install
 	$(NODE) npm run -s gen:api
+gen-client-dart: flutter-image
 	$(COMPOSE) run --rm -T openapi-generator generate -g dart -i api/openapi.yaml -c mobile/openapi-generator.yaml \
 		--global-property apiTests=false,modelTests=false,apiDocs=false,modelDocs=false -o mobile/packages/salus_api
 	$(FLUTTER) dart format packages/salus_api

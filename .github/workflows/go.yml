@@ -1,0 +1,83 @@
+# Go: lint (with the migration immutability check), archcheck, tests with coverage, generated code, e2e, FHIR validation.
+# Runs on every pull request so its required checks always report; the jobs skip when no path matching the
+# filter changed (a skipped job counts as passed). Everything runs through make in Docker, as locally.
+name: go
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: go-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      changed: ${{ steps.filter.outputs.changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: filter
+        run: bash scripts/ci-changed.sh '^(cmd|internal|pkg|migrations|api|tools|test|deployments|scripts|docs/architecture/archcheck)/|^build/package/(Dockerfile|dev\.Dockerfile|fhir-validator\.Dockerfile)$|^(go\.mod|go\.sum|Makefile|\.golangci\.yml|\.dockerignore|\.github/workflows/go\.yml)$' >> "$GITHUB_OUTPUT"
+
+  lint:
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # check-migrations compares with main
+      - run: make lint
+
+  archcheck:
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: make archcheck
+
+  test:
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: make cover
+
+  generated:
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: make sqlc
+      - name: Generated code is up to date
+        run: git status --porcelain && test -z "$(git status --porcelain)"
+
+  e2e:
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: make e2e
+      - if: failure()
+        run: docker compose -f deployments/docker-compose.yml logs --no-color
+
+  fhir-validate:
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: make fhir-validate
