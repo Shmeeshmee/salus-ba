@@ -94,9 +94,10 @@ Checks: Go, Stack, `make lint`, `make archcheck`, `make arch-gate`, `make e2e`, 
 
 ### 7. Web
 
-`npm create vite` (React + TypeScript) in `web/`, run in the `node` service; ESLint; `typecheck` script (`tsc --noEmit`); generated
-client from `api/openapi.yaml` (openapi-typescript, plus `openapi-fetch` to call it); one page that calls
-`/healthz` and shows the status. Vitest for that page. No UI library.
+`npm create vite` (React + TypeScript) in `web/`, run in the `node` service; the template's linter
+(oxlint); `typecheck` script (`tsc -b`); generated client from `api/openapi.yaml` (openapi-typescript,
+plus `openapi-fetch` to call it); one page that calls `/healthz` and shows the status. Vitest for that
+page. No UI library. `make gen-clients` lands here.
 `make web-lint`, `web-typecheck`, `web-test`, `web-build`, `web-dev` (Vite on 5173).
 Checks: Web, `make gen-clients` leaves no diff.
 

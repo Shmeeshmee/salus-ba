@@ -24,6 +24,9 @@ toolchain in a container, with versions pinned in `build/package/`, `deployments
 | `make fhir-validate` | HL7 validator over the golden FHIR responses |
 | `make migrate`, `make migrate-status`, `make migrate-create name=add_x` | goose migrations on the compose Postgres |
 | `make sqlc` | Regenerate the domains' query packages |
+| `make gen-clients` | Regenerate the API clients from `api/openapi.yaml` |
+| `make web-lint`, `web-typecheck`, `web-test`, `web-build` | The web app's checks (`web/`, `node` service) |
+| `make web-dev` | Vite dev server on 127.0.0.1:5173, proxying the API (run `make up` first) |
 | `make psql` | psql on the compose Postgres (no port is published to the host) |
 | `make down` | Stop the containers (volumes and caches are kept) |
 
@@ -32,7 +35,7 @@ Local stack ports, all on 127.0.0.1: API 8080 (`/healthz`, `/readyz`, `/fhir/R4/
 the matching `SALUS_*_PORT` from `configs/.env.example` in `deployments/.env` (git-ignored). Postgres and
 Redis publish no port; use `make psql`.
 
-The web and mobile targets arrive with packages 7 and 8 of `docs/bootstrap/IMPLEMENTATION_PLAN.md`.
+The mobile targets arrive with package 8 of `docs/bootstrap/IMPLEMENTATION_PLAN.md`.
 
 To run a command no target covers: `docker compose -f deployments/docker-compose.yml run --rm tools <command>`.
 

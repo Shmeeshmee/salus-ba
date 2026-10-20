@@ -9,7 +9,7 @@
 | 4 Redis and jobs | done 2026-10-20 | see `git log` |
 | 5 Local stack | done 2026-10-20 | see `git log` |
 | 6 Quality gates | done 2026-10-20 | see `git log` |
-| 7 Web | not started | |
+| 7 Web | done 2026-10-20 | see `git log` |
 | 8 Mobile | not started | |
 | 9 CI | not started | |
 
@@ -94,6 +94,20 @@
   before and 80.3% after this package's added tests. Most of what is left is the six `main()` wrappers.
 - 2026-10-20, package 6: `gen-clients` moves to package 7/8 and `sqlc.yaml` to the first domain (sqlc
   rejects a config with no packages); `make sqlc` says so until then.
+- 2026-10-20, package 7: the `node` service gets its own small image (`build/package/node.Dockerfile`) with
+  a world-writable `/cache` for the npm cache volume (a fresh named volume is root-owned, and npm runs as
+  the host user); `node_modules` lives in `web/` (git-ignored) instead of a volume, which would leave a
+  root-owned directory in the repo.
+- 2026-10-20, package 7: create-vite 9.3.1's React + TypeScript template ships TypeScript 6 and oxlint;
+  both kept (lint is the template's oxlint, not ESLint). Every npm dependency is pinned exactly
+  (`web/.npmrc` `save-exact`, lockfile committed).
+- 2026-10-20, package 7: openapi-typescript (7.13.0, latest; `next` too) declares a peer dependency on
+  TypeScript 5 and refuses TypeScript 6. It is not an app dependency: `npm run gen:api` runs it as
+  `npx --yes openapi-typescript@7.13.0`, pinned by version, with its own TypeScript 5 in the npm cache.
+  The generated `web/src/api/schema.d.ts` is committed.
+- 2026-10-20, package 7: the app calls the API on its own origin; the Vite dev server proxies `/healthz` and
+  `/readyz` to `API_URL` (`http://api:8080` in compose). How the built app is served in production is
+  not decided here.
 
 ## Waiting on people
 
@@ -251,3 +265,22 @@ Checks, all through make: `make lint` (0 issues in both modules), `make archchec
 did not pass `E2E_BASE_URL`, fixed), `make fhir-validate` (0 errors on both golden files; dom-6 narrative
 warnings, best practice), `make migrate-status`, `make sqlc` (reports no sqlc.yaml). Stack stopped with
 `make down` afterwards.
+
+### 2026-10-20 — package 7, Web
+
+Built: `web/` from create-vite 9.3.1 (React 19.3.1, Vite 8.3.4, TypeScript 6.0.3, oxlint 1.88.0) with the
+template's demo page, assets and README removed; `openapi-fetch` 0.17.0 client (`src/api/client.ts`) on the
+generated `src/api/schema.d.ts`; `HealthStatus` page (checking, ok, unavailable); Vitest 5.0.5 with jsdom
+and Testing Library. Scripts `lint`, `typecheck`, `test`, `build`, `gen:api`. `build/package/node.Dockerfile`;
+Makefile `gen-clients`, `web-install` (npm ci only when package.json or the lockfile changed), `web-lint`,
+`web-typecheck`, `web-test`, `web-build`, `web-dev`.
+
+Test first: `HealthStatus.test.tsx` (four cases: checking while pending, ok with the request going to
+`/healthz`, unavailable on 503, unavailable on a network error) failed on the missing component first.
+
+Checks, through make: `web-lint` (0 warnings, 0 errors), `web-typecheck`, `web-test` (4 passed),
+`web-build` (226.5 kB JS, 71.1 kB gzip), `gen-clients` (no change to the committed client). Against the
+stack (`make up` plus the `node` service): the dev server serves the page, and `/healthz` through its proxy
+returns 200 `{"status":"ok"}`, seen in the API's access log. Not done: a walk in a real browser at desktop
+and 390 px; the page is one status line and its states are covered by the jsdom tests. Stack stopped
+afterwards.

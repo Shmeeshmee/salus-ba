@@ -129,18 +129,19 @@ services:
   # Web toolchain and the Vite dev server (port 5173): `make web-dev`.
   node:
     profiles: [web]
-    image: node:24.22.0-trixie-slim
+    build:
+      context: ..
+      dockerfile: build/package/node.Dockerfile
+    image: salus-node:24.22.0
     <<: *host-user
     working_dir: /src/web
     environment:
-      HOME: /tmp
-      npm_config_cache: /tmp/npm-cache
+      API_URL: http://api:8080 # the Vite dev server proxies API calls here
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
     ports: ["127.0.0.1:${SALUS_WEB_PORT:-5173}:5173"]
     volumes:
       - ..:/src
-      - node_modules:/src/web/node_modules
-      - npm:/tmp/npm-cache
+      - npm:/cache/npm
 
   # Flutter toolchain: analyze, test, codegen. Devices and emulators stay on the host (README.md).
   flutter:
@@ -160,7 +161,6 @@ volumes:
   gomod:
   gobuild:
   golangci:
-  node_modules:
   npm:
   pub:
   fhir:
