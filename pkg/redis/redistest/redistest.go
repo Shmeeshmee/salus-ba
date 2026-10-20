@@ -31,34 +31,35 @@ var server struct {
 }
 
 func setup() {
-	raw := os.Getenv("TEST_REDIS_URL")
+	server.admin, server.url, server.databases, server.err = connect(os.Getenv("TEST_REDIS_URL"))
+}
+
+// connect opens an admin client on database 0 of the server at raw and reads how many databases it has.
+func connect(raw string) (*goredis.Client, *url.URL, int64, error) {
 	if raw == "" {
-		server.err = errors.New("TEST_REDIS_URL is not set; run the tests with `make test`, which points it at the compose Redis")
-		return
+		return nil, nil, 0, errors.New("TEST_REDIS_URL is not set; run the tests with `make test`, which points it at the compose Redis")
 	}
 	u, err := url.Parse(raw)
 	if err != nil {
-		server.err = fmt.Errorf("parse TEST_REDIS_URL: %w", err)
-		return
+		return nil, nil, 0, fmt.Errorf("parse TEST_REDIS_URL: %w", err)
 	}
 	opts, err := goredis.ParseURL(raw)
 	if err != nil {
-		server.err = fmt.Errorf("parse TEST_REDIS_URL: %w", err)
-		return
+		return nil, nil, 0, fmt.Errorf("parse TEST_REDIS_URL: %w", err)
 	}
 	opts.DB = 0
 	admin := goredis.NewClient(opts)
 	cfg, err := admin.ConfigGet(context.Background(), "databases").Result()
 	if err != nil {
-		server.err = fmt.Errorf("read the server's databases setting: %w", err)
-		return
+		_ = admin.Close()
+		return nil, nil, 0, fmt.Errorf("read the server's databases setting: %w", err)
 	}
 	n, err := strconv.ParseInt(cfg["databases"], 10, 64)
 	if err != nil || n < 2 {
-		server.err = fmt.Errorf("the server has %q databases; redistest needs at least 2", cfg["databases"])
-		return
+		_ = admin.Close()
+		return nil, nil, 0, fmt.Errorf("the server has %q databases; redistest needs at least 2", cfg["databases"])
 	}
-	server.admin, server.url, server.databases = admin, u, n
+	return admin, u, n, nil
 }
 
 // URL returns the URL of an empty database for this test. It is flushed again when the test ends.

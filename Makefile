@@ -17,7 +17,7 @@ FLUTTER := $(COMPOSE) run --rm -T flutter
 test: tools-image
 	$(GO) sh -c 'go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...'
 
-## cover: tests with coverage, failing below 80%
+## cover: tests with coverage, failing when any package is below 80% (cmd/*/main.go excluded)
 cover: tools-image
 	$(GO) bash scripts/cover.sh
 
