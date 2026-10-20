@@ -61,8 +61,10 @@ Decisions taken in this plan (reopen only with the owner):
   never the error text.
 - Container images: one multi-stage Dockerfile builds every binary into a distroless `static` image; the
   binary is chosen by the compose `command`.
-- Go dev tools (sqlc, goose, golangci-lint) are pinned as `tool` lines in `go.mod` and run with `go tool` in
-  the `tools` container; goose is also the library behind `cmd/migrate`.
+- Go dev tools (sqlc, goose, golangci-lint) are pinned as `tool` lines in `tools/go.mod`, a separate module,
+  and run with `go tool -modfile=tools/go.mod <tool>` in the `tools` container; the app's `go.mod` holds only
+  what the app needs (goose is also the library behind `cmd/migrate`). `tools/archcheck` lives in the tools
+  module; `make test` tests both modules.
 
 ## 3. Personal data
 

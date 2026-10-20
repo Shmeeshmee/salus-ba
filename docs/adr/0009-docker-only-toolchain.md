@@ -11,9 +11,11 @@ already runs in Docker.
 ## Decision
 
 The host needs Docker and make only. Every `make` target runs its tool in a compose service: `tools`
-(`build/package/dev.Dockerfile`: Go 1.27.2; sqlc, goose and golangci-lint as `go tool`), `node` (24.22.0)
+(`build/package/dev.Dockerfile`: Go 1.27.2; sqlc, goose and golangci-lint pinned as `tool` lines in a
+separate `tools/go.mod` and run with `go tool -modfile=tools/go.mod`, so the app's `go.mod` holds only what
+the app needs), `node` (24.22.0)
 and `flutter` (3.47.7, built from the official SDK archive), the last two behind compose profiles. Versions
-are image tags and `tool` lines in `go.mod`. Tests use the compose Postgres and Redis through
+are image tags and `tool` lines in `tools/go.mod`. Tests use the compose Postgres and Redis through
 `TEST_DATABASE_URL` and `TEST_REDIS_URL`; there is no testcontainers fallback. CI runs the same `make`
 targets. Claude Code sessions run checks only through `make`.
 

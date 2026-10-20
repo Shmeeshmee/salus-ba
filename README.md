@@ -15,6 +15,7 @@ toolchain in a container, with versions pinned in `build/package/`, `deployments
 | Command | What it does |
 | --- | --- |
 | `make test` | Go tests against the compose Postgres and Redis |
+| `make psql` | psql on the compose Postgres (no port is published to the host) |
 | `make down` | Stop the containers (volumes and caches are kept) |
 
 More targets arrive with the bootstrap plan (`docs/bootstrap/IMPLEMENTATION_PLAN.md`): lint, archcheck,

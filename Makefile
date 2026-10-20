@@ -7,7 +7,7 @@ export HOST_GID := $(shell id -g)
 COMPOSE := docker compose -f deployments/docker-compose.yml
 GO      := $(COMPOSE) run --rm tools
 
-.PHONY: test tools-image down
+.PHONY: test tools-image psql down
 
 ## test: run the Go tests against the compose Postgres and Redis (TESTFLAGS="-run X -count=1" to narrow)
 test: tools-image
@@ -16,6 +16,11 @@ test: tools-image
 ## tools-image: build the Go toolchain image (cached; rebuilt when its Dockerfile changes)
 tools-image:
 	$(COMPOSE) build -q tools
+
+## psql: open psql on the compose Postgres (no host port is published)
+psql:
+	$(COMPOSE) up -d --wait postgres
+	$(COMPOSE) exec postgres psql -U salus -d salus
 
 ## down: stop the stack (volumes and caches are kept)
 down:

@@ -1,5 +1,6 @@
-# Development and CI toolchain: Go plus the Go tools pinned as `tool` lines in go.mod (sqlc, goose,
-# golangci-lint), run with `go tool <name>` and compiled into the cached build directory on first use.
+# Development and CI toolchain: Go plus the Go tools pinned as `tool` lines in tools/go.mod (sqlc, goose,
+# golangci-lint), run from the repo root with `go tool -modfile=tools/go.mod <name>` and compiled into the
+# cached build directory on first use. The app's go.mod stays free of tool dependencies.
 # Used by the `tools` service in deployments/docker-compose.yml. Nothing runs on the host but Docker and make.
 FROM golang:1.27.2-trixie
 

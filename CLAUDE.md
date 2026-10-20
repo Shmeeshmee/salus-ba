@@ -7,8 +7,9 @@ monorepo. Everything runs through `docker compose` (`deployments/`): the host ne
 No `go`, `npm`, `node` or `flutter` on the host; `make` wraps every command in `docker compose run --rm`.
 
 Module path: `github.com/Shmeeshmee/salus`. Toolchain versions are pinned as image tags in `build/package/`
-and `deployments/`; Go tools (sqlc, goose, golangci-lint) as `tool` lines in `go.mod`; Go itself also by the
-`go` and `toolchain` lines in `go.mod`.
+and `deployments/`; Go tools (sqlc, goose, golangci-lint) as `tool` lines in a separate `tools/go.mod`, run
+with `go tool -modfile=tools/go.mod <tool>`, so the app's `go.mod` holds only what the app needs; Go itself
+also by the `go` and `toolchain` lines in `go.mod`.
 
 ## Top rules
 
@@ -53,7 +54,7 @@ directory when something goes in it.
 | `migrations/` | goose SQL migrations, numbered, forward-only (no `-- +goose Down`), embedded and applied by `cmd/migrate`. River's schema is migrated here too. A file on `main` is never modified or deleted (`scripts/check-migrations.sh`) |
 | `scripts/` | Scripts the `Makefile` calls. Keep the `Makefile` small |
 | `test/` | End-to-end tests and their fixtures (`test/e2e/`, `test/testdata/`) |
-| `tools/` | Repo tooling, e.g. `tools/archcheck` |
+| `tools/` | Repo tooling, its own module (`tools/go.mod`): the pinned Go tools and `tools/archcheck` |
 | `docs/` | `architecture/`, ADRs (`docs/adr/NNNN-title.md`), and one folder per feature (see "Working on a feature") |
 | `web/` | React + TypeScript (Vite) app for practitioners and admins |
 | `mobile/` | Flutter app (iOS and Android) for patients only |
