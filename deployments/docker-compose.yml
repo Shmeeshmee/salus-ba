@@ -1,8 +1,22 @@
 # The local stack and the dev toolchain. Run everything through make (see the Makefile); the host needs
 # only Docker and make. Toolchain services (tools, node, flutter) sit behind profiles, so `docker compose up`
 # starts the stack only. Postgres and Redis publish no host ports: everything reaches them on the compose
-# network (use `make psql` style targets rather than a host client).
+# network (`make psql` opens a client). Published ports bind to 127.0.0.1 and can be moved with the SALUS_*_PORT
+# variables in deployments/.env (see configs/.env.example) when another project holds the defaults.
 name: salus
+
+x-app: &app
+  build:
+    context: ..
+    dockerfile: build/package/Dockerfile
+  image: salus:dev
+  environment: &app-env
+    DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable # local only
+    REDIS_URL: redis://redis:6379/0
+  restart: unless-stopped
+  depends_on: &app-deps
+    migrate: {condition: service_completed_successfully}
+    redis: {condition: service_healthy}
 
 x-host-user: &host-user
   # Files the toolchains write into the repo stay owned by the host user. make exports HOST_UID/HOST_GID.
@@ -32,6 +46,52 @@ services:
       interval: 1s
       timeout: 3s
       retries: 30
+
+  # Applies the embedded goose migrations, then exits; the app services start after it succeeds.
+  migrate:
+    <<: *app
+    command: ["/usr/local/bin/migrate", "up"]
+    restart: "no"
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  api:
+    <<: *app
+    command: ["/usr/local/bin/api"]
+    environment:
+      <<: *app-env
+      HTTP_ADDR: ":8080"
+    ports: ["127.0.0.1:${SALUS_API_PORT:-8080}:8080"]
+
+  worker:
+    <<: *app
+    command: ["/usr/local/bin/worker"]
+
+  scheduler:
+    <<: *app
+    command: ["/usr/local/bin/scheduler"]
+
+  notifier:
+    <<: *app
+    command: ["/usr/local/bin/notifier"]
+
+  agent:
+    <<: *app
+    command: ["/usr/local/bin/agent"]
+
+  # Video, dev mode only: API key `devkey`, secret `secret`, published on 127.0.0.1 for a local browser.
+  livekit:
+    image: livekit/livekit-server:v1.13.10
+    command: ["--dev", "--bind", "0.0.0.0"]
+    ports:
+      - "127.0.0.1:${SALUS_LIVEKIT_PORT:-7880}:7880"
+      - "127.0.0.1:7881:7881"
+      - "127.0.0.1:7882:7882/udp"
+
+  # Catches every e-mail sent locally; web UI on 127.0.0.1:8025 (SMTP 1025 on the compose network only).
+  mailpit:
+    image: axllent/mailpit:v1.31.6
+    ports: ["127.0.0.1:${SALUS_MAILPIT_PORT:-8025}:8025"]
 
   # Go toolchain: tests, lint, migrations, sqlc. `make test` runs `docker compose run --rm tools go test ./...`.
   tools:
@@ -65,7 +125,7 @@ services:
       HOME: /tmp
       npm_config_cache: /tmp/npm-cache
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
-    ports: ["127.0.0.1:5173:5173"]
+    ports: ["127.0.0.1:${SALUS_WEB_PORT:-5173}:5173"]
     volumes:
       - ..:/src
       - node_modules:/src/web/node_modules

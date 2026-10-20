@@ -14,9 +14,15 @@ toolchain in a container, with versions pinned in `build/package/`, `deployments
 
 | Command | What it does |
 | --- | --- |
+| `make up` | Build and start the local stack: migrations, then the API, worker, scheduler, notifier, agent, LiveKit and Mailpit |
 | `make test` | Go tests against the compose Postgres and Redis |
 | `make psql` | psql on the compose Postgres (no port is published to the host) |
 | `make down` | Stop the containers (volumes and caches are kept) |
+
+Local stack ports, all on 127.0.0.1: API 8080 (`/healthz`, `/readyz`, `/fhir/R4/metadata`), Mailpit web UI
+8025, LiveKit 7880 (dev mode, key `devkey`, secret `secret`), Vite 5173. If another project holds one, set
+the matching `SALUS_*_PORT` from `configs/.env.example` in `deployments/.env` (git-ignored). Postgres and
+Redis publish no port; use `make psql`.
 
 More targets arrive with the bootstrap plan (`docs/bootstrap/IMPLEMENTATION_PLAN.md`): lint, archcheck,
 migrations, the local stack, the web and mobile checks.

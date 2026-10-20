@@ -1,0 +1,10 @@
+# Only what build/package/Dockerfile copies matters; keep the build context small.
+.git
+.claude
+docs
+web
+mobile
+tools
+test
+*.md
+**/testdata

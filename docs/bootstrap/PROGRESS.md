@@ -7,7 +7,7 @@
 | 2 Migrations | done 2026-10-20 | see `git log` |
 | 3 API binary | done 2026-10-20 | see `git log` |
 | 4 Redis and jobs | done 2026-10-20 | see `git log` |
-| 5 Local stack | not started | |
+| 5 Local stack | done 2026-10-20 | see `git log` |
 | 6 Quality gates | not started | |
 | 7 Web | not started | |
 | 8 Mobile | not started | |
@@ -71,6 +71,14 @@
   CLAUDE.md as a composition root). `cmd/worker` starts River with a context that is not cancelled by the
   signal (River stops hard when its start context ends) and calls `Stop` (soft, 30 s) on the signal.
   River runs on the goose-applied schema without its own `river_migration` table.
+- 2026-10-20, package 5: published ports bind to 127.0.0.1 and are overridable (`SALUS_API_PORT`,
+  `SALUS_MAILPIT_PORT`, `SALUS_LIVEKIT_PORT`, `SALUS_WEB_PORT`) through the git-ignored `deployments/.env`;
+  the owner's machine has another project on 8080 and 8025, so its local `deployments/.env` uses 18080 and
+  18025. `configs/.env.example` documents them.
+- 2026-10-20, package 5: one runtime image (`salus:dev`, distroless `static-debian13:nonroot` pinned by
+  digest) holds every binary; compose picks one with `command`. No compose healthcheck for the app
+  services (the image has no shell or curl); `make up --wait` waits for them to run, and e2e polls
+  `/readyz`.
 
 ## Waiting on people
 
@@ -186,3 +194,17 @@ retrying with backoff; with `max_retries=-1` in the test URLs, 0.40 s and 0.78 s
 
 Checks, in Docker: gofmt clean, `go vet ./...` passes, `go test -race -count=1 ./...` passes (via the tools
 container; `make test` is the same command).
+
+### 2026-10-20 — package 5, Local stack
+
+Built: `build/package/Dockerfile` (multi-stage, static binaries, distroless non-root), `.dockerignore`,
+compose services `migrate` (runs once), `api`, `worker`, `scheduler`, `notifier`, `agent` (after migrate
+succeeds and Redis is healthy), `livekit` (v1.13.10, dev mode), `mailpit` (v1.31.6), `configs/.env.example`,
+`make up`.
+
+Checks: `make up` from scratch 24.8 s (image build included); every service running, `migrate` exited 0
+after applying 8 files. `curl 127.0.0.1:18080/readyz` 200 `{"status":"ok"}` with an `X-Request-Id`;
+`/fhir/R4/metadata` serves the CapabilityStatement; Mailpit and LiveKit answer 200. Access-log lines carry
+route, status, duration and request id only. Redis `config get save` is empty. `docker compose stop`:
+api, worker, scheduler, notifier and agent log "shutting down"/"stopped" and exit 0. Image `salus:dev`
+63.8 MB. `make down` cleans up. No Go code changed; `make test` unaffected.
