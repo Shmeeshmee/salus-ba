@@ -9,7 +9,10 @@ if [ "${GITHUB_EVENT_NAME:-}" != "pull_request" ]; then
   echo "changed=true"
   exit 0
 fi
-if git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" | grep -Eq "$pattern"; then
+# Read the whole list first: piping git diff into grep -q lets grep exit on the first match, git dies of
+# SIGPIPE, and pipefail turns a match into "changed=false". A failing git diff fails the job.
+files=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")
+if grep -Eq "$pattern" <<<"$files"; then
   echo "changed=true"
 else
   echo "changed=false"

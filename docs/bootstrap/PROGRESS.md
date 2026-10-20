@@ -368,3 +368,10 @@ at or above 80% (`pgtest` 81.0%, `redistest` 84.9%, the rest 90% or more), total
 Dependabot: `update-types: [minor, patch]` on every group, and a group added for the Dockerfiles, compose
 and actions, which had none.
 
+
+CI on these fixes, first push: every Go job was skipped although `pkg/` and `scripts/` changed.
+`scripts/ci-changed.sh` piped `git diff` into `grep -q`; grep exits on the first match, git dies of SIGPIPE,
+and `pipefail` turned the match into `changed=false`. It depends on timing: the earlier runs on this branch
+had reported `true`. Reproduced with a stub `git` that writes in two bursts (`changed=false` for a `pkg/`
+path); the script now reads the whole list before matching, and a failing `git diff` fails the job instead
+of skipping it.
