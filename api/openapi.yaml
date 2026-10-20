@@ -1,0 +1,67 @@
+openapi: 3.1.0
+info:
+  title: Salus API
+  version: 0.1.0
+  description: >-
+    Non-FHIR endpoints of the Salus API. FHIR endpoints live under /fhir/R4/ and are described by
+    api/fhir/CapabilityStatement.json. The TypeScript and Dart clients are generated from this file
+    (`make gen-clients`).
+servers:
+  - url: /
+    description: Same origin as the client
+security: []
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      summary: Liveness
+      description: The process serves requests. Touches no dependency.
+      tags: [health]
+      security: [] # public: used by orchestrators before any login
+      responses:
+        "200":
+          description: Alive.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Status"}
+  /readyz:
+    get:
+      operationId: getReadiness
+      summary: Readiness
+      description: >-
+        Every dependency (Postgres, Redis) answers. A failing check is named; its error is only logged.
+      tags: [health]
+      security: [] # public: used by orchestrators before any login
+      responses:
+        "200":
+          description: Ready.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Status"}
+        "503":
+          description: A dependency is not available.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Unavailable"}
+components:
+  schemas:
+    Status:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+    Unavailable:
+      type: object
+      required: [status, failed]
+      properties:
+        status:
+          type: string
+          const: unavailable
+        failed:
+          type: array
+          description: Names of the failing checks.
+          items:
+            type: string
+            enum: [postgres, redis]

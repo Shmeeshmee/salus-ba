@@ -5,7 +5,7 @@
 | 1 Go foundation | done 2026-10-20 | see `git log` |
 | 1b Docker-only toolchain | done 2026-10-20 (committed after 2) | see `git log` |
 | 2 Migrations | done 2026-10-20 | see `git log` |
-| 3 API binary | not started | |
+| 3 API binary | done 2026-10-20 | see `git log` |
 | 4 Redis and jobs | not started | |
 | 5 Local stack | not started | |
 | 6 Quality gates | not started | |
@@ -43,6 +43,21 @@
   `ghcr.io/cirruslabs/flutter` tag is 3.44.0.
 - 2026-10-20, package 1b: Postgres and Redis publish no host ports; another project's container held
   5432 on the owner's machine.
+- 2026-10-20, owner: Go tools moved to their own module, `tools/go.mod`, run with
+  `go tool -modfile=tools/go.mod <tool>`; the app's `go.mod` keeps only what the app needs. `make psql` added.
+  Consequence: `tools/archcheck` (package 6) belongs to the tools module.
+- 2026-10-20, package 3: middleware lives in `pkg/middleware`, mounted only in `internal/api/router`.
+  Order: request id, access log, recover, `http.TimeoutHandler`, mux. The access log looks the route
+  pattern up on the mux (`mux.Handler(r)`) because `TimeoutHandler` serves a copy of the request, so
+  `r.Pattern` is not visible outside it. It logs method, route pattern, status, duration and request id;
+  never the path, query, headers or body. A `slog` handler adds the request id to every context log.
+- 2026-10-20, package 3: an incoming `X-Request-ID` is kept only if it matches `[A-Za-z0-9._-]{1,64}`;
+  otherwise a new one is generated (no log injection, no e-mail addresses as ids).
+- 2026-10-20, package 3: every path under `/fhir/R4/` that the CapabilityStatement does not list answers
+  404 with an `OperationOutcome` (CLAUDE.md: FHIR errors are OperationOutcome). `pkg/fhir` holds the
+  generic `OperationOutcome` type.
+- 2026-10-20, package 3: `cmd/api` logs JSON to stderr; its test logs to a mutex-guarded buffer and
+  polls it (owner's fix for the pipe deadlock).
 
 ## Waiting on people
 
@@ -118,3 +133,27 @@ Files the container writes (go.mod, go.sum) are owned by the host user. Readings
 warm caches, two runs each: whole suite 3.6–3.8 s wall with packages in parallel, 4.0–4.3 s with `-p 1`;
 `pkg/postgres` alone 0.5 s (each test about 0.38 s, mostly the database clone). No contention from
 packages sharing the compose Postgres.
+
+### 2026-10-20 — 1b follow-up and package 3, API binary
+
+1b follow-up: `tools/go.mod` (sqlc v1.31.1, goose v3.29.0, golangci-lint v2.15.0) with `go mod tidy`; the
+app's `go.mod` is now 21 lines (pgx, goose as a library, their indirect modules). All three tools run from
+the repo root with `go tool -modfile=tools/go.mod`. `make psql` (starts Postgres if needed, then
+`compose exec`). ADR 0009, CLAUDE.md, SPEC, dev Dockerfile updated.
+
+Package 3 built: `pkg/middleware` (RequestID, LogHandler, AccessLog, Recover), `pkg/fhir`
+(`OperationOutcome`, `WriteError`), `api/fhir` (embedded `CapabilityStatement.json`: R4, kind `instance`,
+only the capabilities interaction), `internal/api/router` (`/healthz`, `/readyz` with named checks and a
+2 s deadline, `/fhir/R4/metadata`, FHIR 404 catch-all, 30 s request timeout), `internal/api/app.go`
+(Postgres check; Redis comes in package 4), `cmd/api` (JSON logs to stderr, server timeouts, graceful
+shutdown within 15 s), `api/openapi.yaml` (OpenAPI 3.1, `/healthz`, `/readyz`).
+
+Test first: middleware, router, app and cmd/api tests failed on the missing API first; the panic stack
+trace was added after its own failing assertion. Golden files: `testdata/metadata.json`,
+`testdata/fhir_not_found.json`. The first cmd/api test deadlocked (server logging into an unread pipe);
+replaced as the owner asked: `run(ctx, io.Writer)`, a concurrent-safe buffer, and an assertion on the
+access-log line (`GET /healthz`, 200, with a request id) after shutdown.
+
+Checks, all in Docker: `make test TESTFLAGS="-count=1 -race"` passes; gofmt clean; `go vet ./...` passes.
+`api/openapi.yaml` validated with Redocly CLI 2.11.1 (`redocly/cli` image): no errors; 3 warnings left on
+purpose (no license field yet; health endpoints have no 4xx response).
