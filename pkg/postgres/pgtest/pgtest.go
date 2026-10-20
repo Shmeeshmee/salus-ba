@@ -1,8 +1,9 @@
 // Package pgtest gives each test its own throwaway Postgres database.
 //
-// A test package calls Main from TestMain. Main uses the server at TEST_DATABASE_URL, or starts one Postgres
-// container for the package when that is unset, and creates a template database once, migrated with the
-// given goose migrations. NewDatabase then clones the template for each test, so tests can run in parallel.
+// A test package calls Main from TestMain. Main uses the Postgres server at TEST_DATABASE_URL (the compose
+// Postgres when run through `make test`) and creates a template database once, migrated with the given goose
+// migrations. NewDatabase then clones the template for each test, so tests can run in parallel. Without
+// TEST_DATABASE_URL the tests fail; they never skip.
 package pgtest
 
 import (
@@ -18,12 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
-	"github.com/testcontainers/testcontainers-go"
-	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 )
-
-// Image is the Postgres image started when TEST_DATABASE_URL is unset. Keep it in step with compose.
-const Image = "postgres:18.6"
 
 // server is set once by Main, before any test runs, and only read afterwards: TestMain has no other way to
 // hand it to the tests.
@@ -41,12 +37,11 @@ func Main(m *testing.M, migrations fs.FS) {
 
 func run(m *testing.M, migrations fs.FS) int {
 	ctx := context.Background()
-	serverURL, stop, err := startServer(ctx)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "pgtest:", err)
+	serverURL := os.Getenv("TEST_DATABASE_URL")
+	if serverURL == "" {
+		fmt.Fprintln(os.Stderr, "pgtest: TEST_DATABASE_URL is not set; run the tests with `make test`, which points it at the compose Postgres")
 		return 1
 	}
-	defer stop()
 
 	admin, err := pgxpool.New(ctx, serverURL)
 	if err != nil {
@@ -71,23 +66,6 @@ func run(m *testing.M, migrations fs.FS) int {
 
 	server.admin, server.url, server.template = admin, serverURL, template
 	return m.Run()
-}
-
-func startServer(ctx context.Context) (serverURL string, stop func(), err error) {
-	if u := os.Getenv("TEST_DATABASE_URL"); u != "" {
-		return u, func() {}, nil
-	}
-	ctr, err := tcpostgres.Run(ctx, Image, tcpostgres.BasicWaitStrategies())
-	if err != nil {
-		return "", nil, fmt.Errorf("start container: %w", err)
-	}
-	stop = func() { _ = testcontainers.TerminateContainer(ctr) }
-	serverURL, err = ctr.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		stop()
-		return "", nil, fmt.Errorf("container url: %w", err)
-	}
-	return serverURL, stop, nil
 }
 
 // migrate applies the migrations and closes every connection, so the database can serve as a template.

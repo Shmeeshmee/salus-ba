@@ -62,5 +62,5 @@ argument-hint: 'Add a numbered SQL migration and apply it'
 - `make migrate` applies the file; `make migrate-status` shows nothing pending.
 - `scripts/check-migrations.sh` passes (no existing migration changed).
 - `make sqlc` leaves no diff.
-- `make test` passes with `TEST_DATABASE_URL` set.
+- `make test` passes (it runs against the compose Postgres).
 - `make archcheck` passes (ownership covers the new table).

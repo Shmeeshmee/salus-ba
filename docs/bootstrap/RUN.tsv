@@ -2,6 +2,7 @@
 # title: Repository bootstrap
 # base: main
 1		Go foundation
+1b		Docker-only toolchain
 2		Migrations
 3		API binary
 4		Redis and jobs

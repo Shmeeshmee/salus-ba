@@ -84,7 +84,8 @@ Size
 ## Default checks
 
 - `make lint`
-- `make test` (with `TEST_DATABASE_URL` set so database tests run)
+- `make test` (in Docker, against the compose Postgres and Redis)
 - `make archcheck`
 - `make fhir-validate` when a FHIR response changed
-- `go test ./... -update` only on purpose, then read the diff
+- `-update` for golden files only on purpose (`docker compose -f deployments/docker-compose.yml run --rm tools
+  go test ./<pkg> -update`), then read the diff

@@ -29,21 +29,27 @@ See the ADRs in `docs/adr/` (0001 to 0008). In short:
 
 Decisions taken in this plan (reopen only with the owner):
 
-- Test databases are fast and never skip. `pkg/postgres/pgtest`: a test package calls `pgtest.Main(m)` (or
-  equivalent) from `TestMain`, which uses the server at `TEST_DATABASE_URL` or, when unset, starts one
-  Postgres container for the package with testcontainers-go. It migrates a template database once;
-  `pgtest.NewDatabase(t)` then runs `CREATE DATABASE ... TEMPLATE <template>` so each test has its own
-  database and tests run with `t.Parallel()`. Dropped on cleanup. `pkg/redis/redistest` does the same with
-  `TEST_REDIS_URL` and one Redis container per package, giving each test its own logical database (key prefix
-  when databases run out). The template name is unique per package run so parallel packages sharing one
-  server do not collide.
+- Everything runs in Docker (ADR 0009): the host needs Docker and make only; every `make` target runs in a
+  compose service (`tools`, `node`, `flutter`), locally, in CI and in Claude Code sessions.
+- Test databases are fast and never skip. `pkg/postgres/pgtest`: a test package calls
+  `pgtest.Main(m, migrations)` from `TestMain`, which uses the server at `TEST_DATABASE_URL` (the compose
+  Postgres inside the `tools` container) and fails with a clear message when it is unset. It migrates a
+  template database once; `pgtest.NewDatabase(t)` then runs `CREATE DATABASE ... TEMPLATE <template>` so each
+  test has its own database and tests run with `t.Parallel()`. Dropped on cleanup. The template name is unique
+  per package run so parallel packages sharing one server do not collide. `pkg/redis/redistest` does the same
+  with `TEST_REDIS_URL`, giving each test its own logical database (key prefix when databases run out).
 - sqlc: one `sqlc.yaml` at the root, one entry per domain, output `internal/<domain>/<domain>db/`; only that
   domain's `repository_postgres.go` imports it (archcheck), and it maps rows to the domain model. No domain
   exists yet, so `sqlc.yaml` starts with no entries.
 - Migrations are immutable once on `main`: `scripts/check-migrations.sh` diffs `migrations/` against
   `origin/main` (or `main`) and fails on any modified, renamed or deleted file. Run by `make lint` and CI.
-- Toolchain: `.mise.toml` pins Go 1.27.2, Node 24.22.0 (LTS), Flutter 3.47.7; CI reads the same file.
-  `go.mod` has `go 1.27` and `toolchain go1.27.2`.
+- Toolchain, pinned as image tags: `build/package/dev.Dockerfile` (`golang:1.27.2-trixie`),
+  `node:24.22.0-trixie-slim`, `build/package/flutter.Dockerfile` (Flutter 3.47.7 from the official SDK
+  archive; no maintained image publishes 3.47.7). `go.mod` has `go 1.27` and `toolchain go1.27.2`; the
+  image sets `GOTOOLCHAIN=local`.
+- Compose: Postgres and Redis publish no host ports (another project on a developer machine may hold 5432);
+  toolchain services reach them on the compose network. The Vite dev server publishes 5173. Running the
+  mobile app on a device or emulator is manual (README.md).
 - GitHub: private repo `Shmeeshmee/salus`; `main` protected (PR required, CI must pass; the required checks
   are added once the workflows exist in package 9).
 - Migrations are embedded by a small Go package at `migrations/` (`migrations.FS`); the CapabilityStatement
@@ -55,8 +61,8 @@ Decisions taken in this plan (reopen only with the owner):
   never the error text.
 - Container images: one multi-stage Dockerfile builds every binary into a distroless `static` image; the
   binary is chosen by the compose `command`.
-- Go dev tools (sqlc, golangci-lint) are pinned as `tool` lines in `go.mod` and run with `go tool`; goose is a
-  library dependency of `cmd/migrate`.
+- Go dev tools (sqlc, goose, golangci-lint) are pinned as `tool` lines in `go.mod` and run with `go tool` in
+  the `tools` container; goose is also the library behind `cmd/migrate`.
 
 ## 3. Personal data
 

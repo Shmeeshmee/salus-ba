@@ -3,10 +3,12 @@
 Telemedicine platform: patients book and attend remote consultations with practitioners, and the
 clinical record of those consultations is kept as FHIR resources. Go binaries + Postgres + Redis + object
 store, LiveKit for video, a React web app for practitioners and admins, a Flutter app for patients. One
-monorepo. Everything runs through `docker compose` (`deployments/`).
+monorepo. Everything runs through `docker compose` (`deployments/`): the host needs only Docker and make.
+No `go`, `npm`, `node` or `flutter` on the host; `make` wraps every command in `docker compose run --rm`.
 
-Module path: `github.com/Shmeeshmee/salus`. Toolchain versions (Go, Node, Flutter) are pinned in `.mise.toml`
-and used by CI; Go is also pinned by the `go` and `toolchain` lines in `go.mod`.
+Module path: `github.com/Shmeeshmee/salus`. Toolchain versions are pinned as image tags in `build/package/`
+and `deployments/`; Go tools (sqlc, goose, golangci-lint) as `tool` lines in `go.mod`; Go itself also by the
+`go` and `toolchain` lines in `go.mod`.
 
 ## Top rules
 
@@ -45,8 +47,8 @@ directory when something goes in it.
 | `pkg/` | Infrastructure with no knowledge of this product: `postgres`, `httpx`, `clock`, `middleware`, `redis`, `fhir` (generic FHIR primitives: `Reference`, `CodeableConcept`, `OperationOutcome`, bundles). Never imports `internal/` |
 | `api/` | Contracts: `openapi.yaml` for non-FHIR endpoints, `fhir/` for the CapabilityStatement, profiles (StructureDefinitions) and ValueSets we use. The TypeScript client (openapi-typescript) and the Dart client (openapi-generator) are generated from `openapi.yaml` into `web/` and `mobile/` with `make gen-clients`; never edit them by hand |
 | `configs/` | Config templates and defaults (`.env.example`) |
-| `deployments/` | `docker-compose.yml`, and later the orchestration manifests |
-| `build/` | Dockerfiles (`build/package/`) |
+| `deployments/` | `docker-compose.yml` (the stack, plus the `tools`, `node` and `flutter` toolchain services behind profiles), and later the orchestration manifests |
+| `build/` | Dockerfiles (`build/package/`): `dev.Dockerfile` (the Go toolchain behind every `make` target), `flutter.Dockerfile`, and the runtime image |
 | `.github/` | GitHub Actions workflows, one per app (Go, web, mobile) with path filters, and Dependabot |
 | `migrations/` | goose SQL migrations, numbered, forward-only (no `-- +goose Down`), embedded and applied by `cmd/migrate`. River's schema is migrated here too. A file on `main` is never modified or deleted (`scripts/check-migrations.sh`) |
 | `scripts/` | Scripts the `Makefile` calls. Keep the `Makefile` small |
@@ -238,7 +240,7 @@ tests green at the end of every package. Measure before claiming a performance g
 
 | Path | What it is |
 | --- | --- |
-| `.claude/settings.json` | Stop hook: runs `make arch-gate` (`go vet`, tests, archcheck) once the Makefile has that target |
+| `.claude/settings.json` | Stop hook: runs `make arch-gate` (`go vet`, tests, archcheck, all in Docker) once the Makefile has that target |
 | `.claude/agents/package-runner.md` | Implements and commits exactly one work package |
 | `.claude/commands/run-package.md` | `/run-package <plan> <package>` |
 | `.claude/skills/go-domain/` | The test-first loop inside a domain: layers, FHIR handlers, consent and audit |
@@ -248,9 +250,14 @@ tests green at the end of every package. Measure before claiming a performance g
 
 ## Checks
 
-- `make test` — `go test ./...`. Database and Redis tests use `TEST_DATABASE_URL` and `TEST_REDIS_URL` when
-  set (CI, or the compose stack), e.g. `postgres://salus:salus@localhost:5432/salus?sslmode=disable`;
-  otherwise they start throwaway containers with testcontainers-go. They never skip.
+Every check runs in Docker through `make`, locally, in CI and in Claude Code sessions alike: never run `go`,
+`npm`, `npx` or `flutter` on the host. To run something there is no target for, use
+`docker compose -f deployments/docker-compose.yml run --rm tools <command>` (or the `node` / `flutter`
+service).
+
+- `make test` — `go test ./...` in the `tools` container. Its `TEST_DATABASE_URL` and `TEST_REDIS_URL` point
+  at the compose Postgres and Redis; `pgtest` migrates a template database once per test package and gives
+  each test its own copy. Without the URLs the tests fail with a message; they never skip.
 - `make cover` — tests with coverage, failing below 80%.
 - `make e2e` — the end-to-end suite against `docker compose`.
 - `make lint` — gofmt, `go vet`, golangci-lint (depguard, forbidigo, funlen, gocognit, govet fieldalignment,
@@ -261,12 +268,15 @@ tests green at the end of every package. Measure before claiming a performance g
   `allowlist.yaml` **only shrinks**: never add an entry to make a new violation pass.
 - `make fhir-validate` — validates the golden FHIR responses against `api/fhir/` profiles.
 - `make arch-gate` — archcheck, `go vet` and the tests; the Claude Code Stop hook runs it at the end of every
-  session. Export `TEST_DATABASE_URL` and `TEST_REDIS_URL` to reuse a running stack instead of containers.
+  session.
 - `make migrate`, `make sqlc`, `make gen-clients`, `make up`, `make down` — apply migrations, regenerate
   queries, regenerate the API clients, start and stop the local stack.
-- Web (`web/`): `npm run lint`, `npm run typecheck`. Mobile (`mobile/`): `flutter analyze`, `flutter test`.
-- Before saying a change is done: `gofmt -l` is empty, `go vet ./...`, `go build ./...`, `make test`,
-  `make lint`, `make archcheck` all pass.
+- Web (`web/`, `node` service): `make web-lint`, `make web-typecheck`, `make web-test`; `make web-dev` runs the
+  Vite dev server on port 5173. Mobile (`mobile/`, `flutter` service): `make mobile-analyze`,
+  `make mobile-test`. Running the app on a device or emulator is a manual step on the host (README.md), not
+  a check.
+- Before saying a change is done: `make lint` (gofmt, `go vet`, golangci-lint), `make test` and
+  `make archcheck` all pass.
 - Never run `git stash`; use `git worktree add` to compare with and without a change.
 
 ## Copy

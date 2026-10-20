@@ -3,6 +3,7 @@
 | Package | Status | Commit |
 | --- | --- | --- |
 | 1 Go foundation | done 2026-10-20 | see `git log` |
+| 1b Docker-only toolchain | done 2026-10-20 (committed after 2) | see `git log` |
 | 2 Migrations | done 2026-10-20 | see `git log` |
 | 3 API binary | not started | |
 | 4 Redis and jobs | not started | |
@@ -34,6 +35,14 @@
   `pgtest.NewDatabaseURL` added for code that connects by URL.
 - 2026-10-20, package 2: `cmd/migrate create` numbers files itself (next `NNNNN`): goose's `Create`
   numbers by timestamp unless a package-level switch is flipped.
+- 2026-10-20, owner: nothing runs on the host but Docker and make (ADR 0009). mise and `.mise.toml`
+  removed; toolchains pinned as image tags; tests use the compose Postgres and Redis; CI and Claude Code
+  run checks only through `make`. Supersedes the mise and testcontainers decisions above. Added as package
+  1b; it lands after package 2 because 2 was already pushed (owner chose not to rewrite history).
+- 2026-10-20, package 1b: Flutter image built from the official 3.47.7 SDK archive; the newest
+  `ghcr.io/cirruslabs/flutter` tag is 3.44.0.
+- 2026-10-20, package 1b: Postgres and Redis publish no host ports; another project's container held
+  5432 on the owner's machine.
 
 ## Waiting on people
 
@@ -83,3 +92,29 @@ tables River ends with and that those two are gone. Fixed on the way: package 1'
 Checks: `gofmt -l .` empty; `go vet ./...` passes; `go test ./...` passes with containers and with
 `-race` against a shared Postgres 18.6. Manual: `go run ./cmd/migrate status` (8 pending), `up` (8
 applied, 2–26 ms each), `up` again (nothing applied), `status` (8 applied), `down` (rejected, exit 1).
+
+### 2026-10-20 — package 1b, Docker-only toolchain
+
+Built: removed `.mise.toml`; uninstalled mise with the owner's approval (`~/.local/bin/mise`,
+`~/.local/share/mise`, `~/.cache/mise`, `~/.local/state/mise`, `~/.config/mise`; 4.6 GB). Added
+`build/package/dev.Dockerfile`, `build/package/flutter.Dockerfile`, `deployments/docker-compose.yml`
+(`postgres`, `redis`; `tools`, `node`, `flutter` behind profiles; named volumes for module, build, lint,
+npm and pub caches), `Makefile` (`test`, `tools-image`, `down`), README.md, ADR 0009. CLAUDE.md "Checks"
+and the two skills now say: checks only through `make`, never host `go`/`npm`/`flutter`. The Stop hook
+already calls `make arch-gate`, which will run in Docker; unchanged.
+
+Test first: `TestMain_FailsClearlyWithoutTestDatabaseURL` re-runs the pgtest test binary without
+`TEST_DATABASE_URL`. It failed first ("start container: ... rootless Docker not found"), then passed once
+the testcontainers fallback was removed. `go mod tidy` dropped testcontainers and 50 indirect modules.
+
+Go tools: `go get -tool` pinned sqlc v1.31.1, goose v3.29.0 and golangci-lint v2.15.0; each runs with
+`go tool <name>` in the container. Their dependencies add about 280 indirect requirements to `go.mod` (module
+graph only; none is linked into our binaries). `make test` takes `TESTFLAGS` (for example `-run`, `-count=1`).
+
+Checks: `make test` passes with nothing on the host but Docker and make: run under `env -i` with
+`PATH=/usr/bin:/bin` (no go, node, npm, npx, flutter, dart or mise found), `TESTFLAGS=-count=1`, 6.3 s
+wall including container start. gofmt clean, `go vet ./...` and `go build ./...` pass in the container.
+Files the container writes (go.mod, go.sum) are owned by the host user. Readings in the `tools` container,
+warm caches, two runs each: whole suite 3.6–3.8 s wall with packages in parallel, 4.0–4.3 s with `-p 1`;
+`pkg/postgres` alone 0.5 s (each test about 0.38 s, mostly the database clone). No contention from
+packages sharing the compose Postgres.
