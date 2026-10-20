@@ -11,7 +11,7 @@
 | 6 Quality gates | done 2026-10-20 | see `git log` |
 | 7 Web | done 2026-10-20 | see `git log` |
 | 8 Mobile | done 2026-10-20 | see `git log` |
-| 9 CI | in review 2026-10-20 | see `git log` |
+| 9 CI | done 2026-10-20 | see `git log` |
 
 ## Decisions
 
@@ -132,7 +132,10 @@
 - Branch protection on `main`: GitHub refused it (HTTP 403, "Upgrade to GitHub Pro or make this
   repository public") for a private repo on a free account. Owner is upgrading to GitHub Pro (2026-10-20);
   retried before package 2, still refused. Then: PR required, no force pushes, no deletions; CI checks
-  required in package 9. Until then only `chore/bootstrap` is pushed.
+  required in package 9. Until then only `chore/bootstrap` is pushed. Retried after CI went green
+  (2026-10-20): still refused. Ready to apply once Pro is active: PR required (0 approvals), strict
+  status checks `changes`, `lint`, `archcheck`, `test`, `generated`, `e2e`, `fhir-validate`, `web`,
+  `mobile`, admins included, no force pushes, no deletions.
 
 ## Log
 
@@ -330,3 +333,12 @@ e2e, fhir-validate), `web.yml` (web job: lint, typecheck, test, build, TypeScrip
 
 Checks: actionlint 1.7.9 (with shellcheck) clean; `ci-changed.sh` with this branch's diff marks all three
 workflows changed, and a docs-only path skips Go. CI results on the pull request: see the next entry.
+
+### 2026-10-20 — CI on the pull request
+
+PR #1 (`chore/bootstrap` into `main`): every check passed on the first run: go (changes, lint, archcheck,
+test, generated, e2e, fhir-validate) in 4 min 4 s, web in 40 s, mobile in 1 min 44 s, Dependabot config
+valid. Branch protection still refused (see "Waiting on people").
+
+Definition of done: `make arch-gate`, `make lint` and `make e2e` pass locally (package 6 and later) and in
+CI; every package is recorded above.
