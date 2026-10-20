@@ -278,7 +278,8 @@ service).
 - Web (`web/`, `node` service): `make web-lint` (oxlint), `make web-typecheck`, `make web-test` (Vitest),
   `make web-build`; `make web-dev` runs the Vite dev server on port 5173. `make gen-clients` regenerates the
   API clients; CI fails when they are stale. Mobile (`mobile/`, `flutter` service): `make mobile-analyze`,
-  `make mobile-test`. Running the app on a device or emulator is a manual step on the host (README.md), not
+  `make mobile-test`; the Dart client in `mobile/packages/salus_api` is generated (`make gen-clients`) and
+  excluded from analysis. Running the app on a device or emulator is a manual step on the host (README.md), not
   a check.
 - Before saying a change is done: `make lint` (gofmt, `go vet`, golangci-lint), `make test` and
   `make archcheck` all pass.

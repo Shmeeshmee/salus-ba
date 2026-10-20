@@ -8,9 +8,10 @@ COMPOSE := docker compose -f deployments/docker-compose.yml
 GO      := $(COMPOSE) run --rm tools
 TOOL    := go tool -modfile=tools/go.mod
 NODE    := $(COMPOSE) run --rm -T node
+FLUTTER := $(COMPOSE) run --rm -T flutter
 
 .PHONY: test cover lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create sqlc \
-	gen-clients web-install web-lint web-typecheck web-test web-build web-dev tools-image node-image up psql down
+	gen-clients mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev flutter-image tools-image node-image up psql down
 
 ## test: Go tests of both modules against the compose Postgres and Redis (TESTFLAGS="-run X -count=1")
 test: tools-image
@@ -54,9 +55,13 @@ migrate-create: tools-image
 sqlc: tools-image
 	@if [ -f sqlc.yaml ]; then $(GO) $(TOOL) sqlc generate; else echo "sqlc: no sqlc.yaml yet; it arrives with the first domain's queries"; fi
 
-## gen-clients: regenerate the API clients from api/openapi.yaml (TypeScript into web/src/api)
-gen-clients: web-install
+## gen-clients: regenerate the API clients from api/openapi.yaml: TypeScript into web/src/api, Dart into
+## mobile/packages/salus_api (generator options in mobile/openapi-generator.yaml)
+gen-clients: web-install flutter-image
 	$(NODE) npm run -s gen:api
+	$(COMPOSE) run --rm -T openapi-generator generate -g dart -i api/openapi.yaml -c mobile/openapi-generator.yaml \
+		--global-property apiTests=false,modelTests=false,apiDocs=false,modelDocs=false -o mobile/packages/salus_api
+	$(FLUTTER) dart format packages/salus_api
 
 ## web-install: npm ci in web/, only when package.json or the lockfile changed
 web-install: node-image web/node_modules/.package-lock.json
@@ -76,6 +81,16 @@ web-build: web-install
 ## web-dev: the Vite dev server on 127.0.0.1:5173 (SALUS_WEB_PORT), proxying the API; run `make up` first
 web-dev: web-install
 	$(COMPOSE) --profile web up node
+
+## mobile-analyze, mobile-test: the Flutter app's checks (mobile/, flutter service). Device runs are manual.
+mobile-analyze: flutter-image
+	$(FLUTTER) flutter analyze
+mobile-test: flutter-image
+	$(FLUTTER) flutter test
+
+## flutter-image: build the Flutter toolchain image (cached)
+flutter-image:
+	$(COMPOSE) build -q flutter
 
 ## node-image: build the Node toolchain image (cached)
 node-image:

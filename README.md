@@ -27,6 +27,7 @@ toolchain in a container, with versions pinned in `build/package/`, `deployments
 | `make gen-clients` | Regenerate the API clients from `api/openapi.yaml` |
 | `make web-lint`, `web-typecheck`, `web-test`, `web-build` | The web app's checks (`web/`, `node` service) |
 | `make web-dev` | Vite dev server on 127.0.0.1:5173, proxying the API (run `make up` first) |
+| `make mobile-analyze`, `make mobile-test` | The Flutter app's checks (`mobile/`, `flutter` service) |
 | `make psql` | psql on the compose Postgres (no port is published to the host) |
 | `make down` | Stop the containers (volumes and caches are kept) |
 
@@ -35,12 +36,17 @@ Local stack ports, all on 127.0.0.1: API 8080 (`/healthz`, `/readyz`, `/fhir/R4/
 the matching `SALUS_*_PORT` from `configs/.env.example` in `deployments/.env` (git-ignored). Postgres and
 Redis publish no port; use `make psql`.
 
-The mobile targets arrive with package 8 of `docs/bootstrap/IMPLEMENTATION_PLAN.md`.
-
 To run a command no target covers: `docker compose -f deployments/docker-compose.yml run --rm tools <command>`.
 
 ## Mobile on a device or emulator
 
 Docker covers `flutter analyze`, `flutter test` and code generation only. To run the app on a device or an
-emulator, install the Flutter SDK at the version in `build/package/flutter.Dockerfile` on your machine and
-run `flutter run` in `mobile/`. This is a manual step and not part of any check.
+emulator, install the Flutter SDK at the version in `build/package/flutter.Dockerfile` on your machine, start
+the stack with `make up`, and in `mobile/`:
+
+    flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080   # Android emulator (10.0.2.2 is the host)
+    flutter run --dart-define=API_BASE_URL=http://localhost:8080  # iOS simulator
+
+Use your `SALUS_API_PORT` if you moved it. Android debug builds allow plain HTTP to the local API; on iOS,
+add an App Transport Security exception for local networking in your local `Info.plist` and do not commit it.
+This is a manual step and not part of any check.

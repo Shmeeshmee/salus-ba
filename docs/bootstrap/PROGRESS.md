@@ -10,7 +10,7 @@
 | 5 Local stack | done 2026-10-20 | see `git log` |
 | 6 Quality gates | done 2026-10-20 | see `git log` |
 | 7 Web | done 2026-10-20 | see `git log` |
-| 8 Mobile | not started | |
+| 8 Mobile | done 2026-10-20 | see `git log` |
 | 9 CI | not started | |
 
 ## Decisions
@@ -108,6 +108,15 @@
 - 2026-10-20, package 7: the app calls the API on its own origin; the Vite dev server proxies `/healthz` and
   `/readyz` to `API_URL` (`http://api:8080` in compose). How the built app is served in production is
   not decided here.
+- 2026-10-20, package 8: the Dart client uses openapi-generator v7.26.0's `dart` generator (plain
+  `package:http`), not `dart-dio`, which would add build_runner code generation. Options in
+  `mobile/openapi-generator.yaml`; generated tests, docs, `.travis.yml` and `git_push.sh` are skipped. The
+  output is `dart format`ted so regeneration is deterministic, and excluded from `flutter analyze`: the
+  generator returns futures inside `try` without `await` (3 warnings, upstream).
+- 2026-10-20, package 8: `flutter create --org ba.salus --project-name salus` gives the id `ba.salus.salus`
+  on Android and iOS. The API address is a build-time `--dart-define=API_BASE_URL` (default
+  `http://localhost:8080`). Android debug builds allow cleartext HTTP to the local API (debug manifest
+  only); for iOS, README.md describes a local, uncommitted ATS exception.
 
 ## Waiting on people
 
@@ -284,3 +293,21 @@ stack (`make up` plus the `node` service): the dev server serves the page, and `
 returns 200 `{"status":"ok"}`, seen in the API's access log. Not done: a walk in a real browser at desktop
 and 390 px; the page is one status line and its states are covered by the jsdom tests. Stack stopped
 afterwards.
+
+### 2026-10-20 — package 8, Mobile
+
+Built: `mobile/` from `flutter create` (Flutter 3.47.7, iOS and Android, org `ba.salus`) in the `flutter`
+service; the counter template replaced by `HealthScreen` (checking, ok, unavailable) wired in `main.dart`;
+the generated client `mobile/packages/salus_api` as a path dependency; `openapi-generator` compose service;
+`make gen-clients` now generates TypeScript and Dart; `make mobile-analyze`, `make mobile-test`. The Flutter
+image is now one layer for download, precache and permissions.
+
+Test first: `test/health_screen_test.dart` (three cases, driving the generated `HealthApi` through
+`package:http`'s `MockClient`: ok with the request going to `/healthz`, unavailable on 503, unavailable on a
+network error) failed first on the missing screen.
+
+Checks, through make: `mobile-test` (3 passed), `mobile-analyze` (no issues; it first found a duplicate
+`analyzer:` key I had added, fixed by merging into the template's block), `gen-clients` twice with no diff.
+Image readings: the SDK layer is 2.94 GB on a 87.5 MB base; `docker image ls` reports 4.86 GB both before
+and after the one-layer change, so no size saving is claimed. Not done: running the app on a device or
+emulator (manual by design, README.md).
