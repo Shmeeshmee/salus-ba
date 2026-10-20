@@ -1,6 +1,6 @@
 ---
 name: database-migrations
-description: 'Use when adding or changing a Postgres migration in migrations/: the next numbered NNN_name.sql file, conventions (UUID keys, timestamps, snake_case, column order), table ownership and retention for personal data, idempotent and forward-only DDL, and applying it with make migrate.'
+description: 'Use when adding or changing a Postgres migration in migrations/: the next numbered goose NNNNN_name.sql file, conventions (UUID keys, timestamps, snake_case, column order), table ownership and retention for personal data, idempotent and forward-only DDL, and applying it with make migrate.'
 argument-hint: 'Add a numbered SQL migration and apply it'
 ---
 
@@ -8,16 +8,25 @@ argument-hint: 'Add a numbered SQL migration and apply it'
 
 ## How migrations run
 
-- `migrations/NNN_short_name.sql`, numbered, forward-only. Each file runs once, in its own transaction, with
-  its row in the `schema_migrations` ledger (checksum included).
-- An applied file is immutable: add a new file instead of editing an old one.
-- The Go tests build their database from `migrations/` (`pgtest.NewDatabase`), so a new file reaches every
-  repository test automatically.
+- goose SQL files: `migrations/NNNNN_short_name.sql` (five digits), numbered, forward-only. Each starts with
+  `-- +goose Up`; there is no `-- +goose Down`. Each file runs once, in its own transaction, with its row in
+  goose's `goose_db_version` ledger. Statements that cannot run in a transaction (`CREATE INDEX
+  CONCURRENTLY`) go in their own file with `-- +goose NO TRANSACTION`.
+- The files are embedded (`migrations.FS`) and applied by `cmd/migrate up`; `make migrate-create name=...`
+  creates the next file.
+- A file that exists on `main` is immutable: add a new file instead of editing, renaming or deleting an old
+  one. goose keeps no checksums, so `scripts/check-migrations.sh` (in `make lint` and CI) fails when a
+  migration that exists on `main` was modified or deleted.
+- River's schema is migrated through goose too: upgrading River adds the migration it ships as a new file.
+- The Go tests build their database from `migrations/` (`pgtest.NewDatabase` migrates a template database
+  once and clones it per test), so a new file reaches every repository test automatically.
 
 ## Conventions
 
 - Next free number, short name, and a header comment saying what the file does. Check both the folder and the
-  ledger for the next number.
+  ledger (`make migrate-status`) for the next number.
+- A table that a domain queries gets its queries in `internal/<domain>/query.sql`; run `make sqlc` after the
+  migration so the generated `<domain>db` package matches the schema.
 - Primary keys: `id uuid DEFAULT gen_random_uuid() NOT NULL`. FHIR ids are these UUIDs; never derive a key or
   id from personal data.
 - Every table has `created_at timestamptz DEFAULT now() NOT NULL`; mutable tables also have `updated_at` and
@@ -51,5 +60,7 @@ argument-hint: 'Add a numbered SQL migration and apply it'
 ## Default checks
 
 - `make migrate` applies the file; `make migrate-status` shows nothing pending.
+- `scripts/check-migrations.sh` passes (no existing migration changed).
+- `make sqlc` leaves no diff.
 - `make test` passes with `TEST_DATABASE_URL` set.
 - `make archcheck` passes (ownership covers the new table).

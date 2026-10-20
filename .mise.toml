@@ -1,0 +1,5 @@
+# Toolchain pins for local development and CI. Go is also pinned by the go/toolchain lines in go.mod.
+[tools]
+go = "1.27.2"
+node = "24.22.0"
+flutter = "3.47.7-stable"
