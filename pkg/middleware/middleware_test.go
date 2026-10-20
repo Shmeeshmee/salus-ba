@@ -38,7 +38,7 @@ func TestRequestID_GeneratesOneWhenMissing(t *testing.T) {
 	}))
 	rec := httptest.NewRecorder()
 
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
 
 	if seen == "" {
 		t.Fatal("no request id in the context")
@@ -53,7 +53,7 @@ func TestRequestID_KeepsAValidIncomingID(t *testing.T) {
 	h := middleware.RequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = middleware.RequestIDFrom(r.Context())
 	}))
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	req.Header.Set("X-Request-ID", "edge-7f3a.42_b")
 
 	h.ServeHTTP(httptest.NewRecorder(), req)
@@ -69,7 +69,7 @@ func TestRequestID_ReplacesAnUnsafeIncomingID(t *testing.T) {
 		h := middleware.RequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			seen = middleware.RequestIDFrom(r.Context())
 		}))
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 		req.Header.Set("X-Request-ID", bad)
 
 		h.ServeHTTP(httptest.NewRecorder(), req)
@@ -86,7 +86,7 @@ func TestLogHandler_AddsTheRequestID(t *testing.T) {
 	h := middleware.RequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.InfoContext(r.Context(), "hello")
 	}))
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	req.Header.Set("X-Request-ID", "req-1")
 
 	h.ServeHTTP(httptest.NewRecorder(), req)
@@ -103,7 +103,7 @@ func TestAccessLog_LogsRoutePatternNotPathOrQuery(t *testing.T) {
 		w.WriteHeader(http.StatusTeapot)
 	})
 	h := middleware.RequestID(middleware.AccessLog(jsonLogger(&buf), mux)(mux))
-	req := httptest.NewRequest(http.MethodGet, "/things/abc123?name=Jane+Placeholder", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/things/abc123?name=Jane+Placeholder", nil)
 	req.Header.Set("X-Request-ID", "req-2")
 
 	h.ServeHTTP(httptest.NewRecorder(), req)
@@ -133,7 +133,7 @@ func TestAccessLog_DefaultsStatusTo200AndMarksUnmatchedRoutes(t *testing.T) {
 		_, _ = w.Write([]byte("ok"))
 	}))
 
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/nowhere", nil))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/nowhere", nil))
 
 	line := logLines(t, &buf)[0]
 	if line["status"] != float64(http.StatusOK) || line["route"] != "unmatched" {
@@ -148,7 +148,7 @@ func TestRecover_TurnsAPanicIntoAFixed500(t *testing.T) {
 	}))
 	rec := httptest.NewRecorder()
 
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("status = %d, want 500", rec.Code)
@@ -175,11 +175,60 @@ func TestRecover_LetsAbortHandlerThrough(t *testing.T) {
 		}
 	}()
 
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
 }
 
 func TestRequestIDFrom_EmptyWithoutMiddleware(t *testing.T) {
 	if got := middleware.RequestIDFrom(context.Background()); got != "" {
 		t.Errorf("RequestIDFrom(background) = %q, want empty", got)
+	}
+}
+
+func TestLogHandler_KeepsTheRequestIDThroughWithAndWithGroup(t *testing.T) {
+	var buf bytes.Buffer
+	log := jsonLogger(&buf)
+	h := middleware.RequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.With("component", "test").InfoContext(r.Context(), "with")
+		log.WithGroup("g").InfoContext(r.Context(), "group", "k", "v")
+	}))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
+	req.Header.Set("X-Request-ID", "req-3")
+
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	lines := logLines(t, &buf)
+	if lines[0]["request_id"] != "req-3" || lines[0]["component"] != "test" {
+		t.Errorf("With: line = %v, want request_id and component", lines[0])
+	}
+	if g, _ := lines[1]["g"].(map[string]any); g["request_id"] != "req-3" || g["k"] != "v" {
+		t.Errorf("WithGroup: line = %v, want request_id and k in the group", lines[1])
+	}
+}
+
+func TestAccessLog_LetsResponseControllerReachTheWriter(t *testing.T) {
+	mux := http.NewServeMux()
+	h := middleware.AccessLog(slog.New(slog.DiscardHandler), mux)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := http.NewResponseController(w).Flush(); err != nil {
+			t.Errorf("Flush through the access log: %v", err)
+		}
+	}))
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
+
+	if !rec.Flushed {
+		t.Error("the underlying writer was not flushed")
+	}
+}
+
+func TestAccessLog_LogsAnEmptyResponseAs200(t *testing.T) {
+	var buf bytes.Buffer
+	mux := http.NewServeMux()
+	h := middleware.AccessLog(jsonLogger(&buf), mux)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
+
+	if status := logLines(t, &buf)[0]["status"]; status != float64(http.StatusOK) {
+		t.Errorf("status = %v, want 200", status)
 	}
 }

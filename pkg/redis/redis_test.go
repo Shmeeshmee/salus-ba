@@ -14,7 +14,7 @@ func TestOpen_ConnectsAndPings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	if err := c.Ping(t.Context()).Err(); err != nil {
 		t.Fatalf("Ping() error = %v", err)
 	}

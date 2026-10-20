@@ -82,12 +82,13 @@ Checks: Go, Stack.
 ### 6. Quality gates
 
 `Makefile` targets, each `docker compose run --rm <service> ...`: `cover` (80% floor), `lint`, `archcheck`,
-`arch-gate`, `e2e`, `fhir-validate`, `migrate`, `migrate-status`, `migrate-create`, `sqlc`, `gen-clients`
-(`test`, `down` since 1b; `up` since 5). `.golangci.yml` with the linters CLAUDE.md
+`arch-gate`, `e2e`, `fhir-validate`, `migrate`, `migrate-status`, `migrate-create`, `sqlc` (`test`, `down`
+since 1b; `up` since 5). `gen-clients` lands with the first client in package 7 (and gains the Dart client
+in 8): there is nothing to generate into before `web/` exists. `.golangci.yml` with the linters CLAUDE.md
 lists. `tools/archcheck`: `pkg/` never imports `internal/`; forbidden package names; table ownership
 (every `CREATE TABLE` in `migrations/` appears in `ownership.yaml`); `<domain>db` packages imported only by their
-domain's `repository_postgres.go`; empty `allowlist.yaml`. `sqlc.yaml` (root, one entry per domain, none yet).
-`scripts/check-migrations.sh` in `make lint`. `test/e2e/`: stack up, `/readyz` returns 200 (build tag `e2e`).
+domain's `repository_postgres.go`; empty `allowlist.yaml`. `sqlc.yaml` arrives with the first domain (sqlc
+rejects a config with no packages). `scripts/check-migrations.sh` in `make lint`. `test/e2e/`: stack up, `/readyz` returns 200 (build tag `e2e`).
 `make fhir-validate` runs the HL7 validator (Docker) on the metadata golden file.
 Checks: Go, Stack, `make lint`, `make archcheck`, `make arch-gate`, `make e2e`, `make cover`.
 

@@ -8,7 +8,7 @@
 | 3 API binary | done 2026-10-20 | see `git log` |
 | 4 Redis and jobs | done 2026-10-20 | see `git log` |
 | 5 Local stack | done 2026-10-20 | see `git log` |
-| 6 Quality gates | not started | |
+| 6 Quality gates | done 2026-10-20 | see `git log` |
 | 7 Web | not started | |
 | 8 Mobile | not started | |
 | 9 CI | not started | |
@@ -79,6 +79,21 @@
   digest) holds every binary; compose picks one with `command`. No compose healthcheck for the app
   services (the image has no shell or curl); `make up --wait` waits for them to run, and e2e polls
   `/readyz`.
+- 2026-10-20, package 6: `tools/archcheck` checks, from the repository files: `pkg/` never imports
+  `internal/`; forbidden package names; every package under `internal/` listed in `config.yaml` (as a
+  domain in a context, or as infrastructure: `api`, `config`, `worker`); `<domain>db` imported only by
+  `internal/<domain>/repository_postgres.go`; no domain referring to another domain's
+  `New...Repository`; every `CREATE TABLE` in `migrations/` owned, every owned table created, every owner a
+  listed domain or library (`river`). `config.yaml` lists no contexts yet: a domain is added with its package.
+- 2026-10-20, package 6: golangci-lint has CLAUDE.md's linter set; depguard denies chi, ORMs,
+  `pkg/errors`, testcontainers everywhere, pgx and `net/http` in `internal/*/service*.go`, and middleware
+  in repositories; forbidigo denies `os.Getenv` outside `internal/config` (and the test helpers),
+  `http.DefaultClient`/`http.Get`, and `time.Now` outside `pkg/clock` and `pkg/middleware`.
+- 2026-10-20, package 6: `make cover` measures with `-coverpkg=./...`, so code counts as covered when any
+  test runs it (the router's golden tests run `pkg/fhir`). Without it the total is 77.6%; with it 79.1%
+  before and 80.3% after this package's added tests. Most of what is left is the six `main()` wrappers.
+- 2026-10-20, package 6: `gen-clients` moves to package 7/8 and `sqlc.yaml` to the first domain (sqlc
+  rejects a config with no packages); `make sqlc` says so until then.
 
 ## Waiting on people
 
@@ -208,3 +223,31 @@ after applying 8 files. `curl 127.0.0.1:18080/readyz` 200 `{"status":"ok"}` with
 route, status, duration and request id only. Redis `config get save` is empty. `docker compose stop`:
 api, worker, scheduler, notifier and agent log "shutting down"/"stopped" and exit 0. Image `salus:dev`
 63.8 MB. `make down` cleans up. No Go code changed; `make test` unaffected.
+
+### 2026-10-20 — package 6, Quality gates
+
+Built: `Makefile` targets `cover`, `lint`, `archcheck`, `arch-gate`, `e2e`, `fhir-validate`, `migrate`,
+`migrate-status`, `migrate-create`, `sqlc` (`test` now covers the tools module too); `scripts/lint.sh`,
+`scripts/cover.sh`, `scripts/check-migrations.sh`, `scripts/fhir-validate.sh`; `.golangci.yml`;
+`tools/archcheck` with `config.yaml` and an empty `allowlist.yaml`; `river_migration` added to
+`ownership.yaml` (River 005 names it in a conditional `CREATE TABLE`); `test/e2e` (`/readyz` returns 200,
+build tag `e2e`); `build/package/fhir-validator.Dockerfile` (HL7 validator 7.0.2, pinned by checksum) and its
+compose service.
+
+Test first: archcheck's tests (one fixture repository per rule, plus allowlist and messages) failed on the
+missing `check` first, then passed. Lint found 15 issues in existing code (unchecked `Close` and write
+errors, `net.Listen` and `httptest.NewRequest`/`exec.Command` without a context, `time.Now` in a test
+loop), all fixed in code, none excluded. A padded probe struct confirmed fieldalignment is active (then
+removed). Coverage tests added for `LogHandler.WithAttrs`/`WithGroup`, `Unwrap` (ResponseController
+flush), the empty-response status and `postgres.Open` on a malformed URL; they cover existing code, so they
+passed at once; breaking `WithAttrs` on purpose made the first one fail.
+
+check-migrations, in a throwaway clone with `origin/main` at HEAD: unchanged passes, an edited migration
+fails (M), a renamed one fails (D), a new file passes. On this branch it passes because `main` has no
+migrations yet.
+
+Checks, all through make: `make lint` (0 issues in both modules), `make archcheck`, `make arch-gate`
+(10.6 s), `make cover` (80.3%), `make e2e` (stack up, `/readyz` 200; first run failed because the Makefile
+did not pass `E2E_BASE_URL`, fixed), `make fhir-validate` (0 errors on both golden files; dom-6 narrative
+warnings, best practice), `make migrate-status`, `make sqlc` (reports no sqlc.yaml). Stack stopped with
+`make down` afterwards.

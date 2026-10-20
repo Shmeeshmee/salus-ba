@@ -83,7 +83,7 @@ func URL(t testing.TB) string {
 			return err
 		}
 		c := goredis.NewClient(opts)
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 		return c.FlushDB(ctx).Err()
 	}
 	if err := flush(); err != nil {

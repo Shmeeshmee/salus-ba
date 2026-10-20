@@ -1,0 +1,78 @@
+# golangci-lint v2, run by `make lint` in the tools container. The linter set is CLAUDE.md's ("Checks");
+# depguard and forbidigo encode its architecture rules, archcheck covers the rest.
+version: "2"
+
+run:
+  timeout: 5m
+  build-tags: [e2e]
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - depguard
+    - errcheck
+    - forbidigo
+    - funlen
+    - gocognit
+    - govet
+    - noctx
+    - staticcheck
+    - unused
+  settings:
+    funlen:
+      lines: 80
+      statements: -1
+    gocognit:
+      min-complexity: 30
+    govet:
+      enable: [fieldalignment]
+    depguard:
+      rules:
+        everywhere:
+          deny:
+            - pkg: github.com/go-chi/chi
+              desc: routing is net/http (Go 1.22+ patterns), ADR 0003 and CLAUDE.md
+            - pkg: gorm.io
+              desc: no ORM; queries are SQL through sqlc
+            - pkg: github.com/pkg/errors
+              desc: use the standard errors package
+            - pkg: github.com/testcontainers
+              desc: tests use the compose databases (ADR 0009)
+        services:
+          files: ["**/internal/*/service*.go"]
+          deny:
+            - pkg: github.com/jackc/pgx
+              desc: a service never touches pgx; take a repository port
+            - pkg: net/http
+              desc: a service never touches HTTP; handlers decode and encode
+        repositories:
+          files: ["**/internal/*/repository_*.go"]
+          deny:
+            - pkg: github.com/Shmeeshmee/salus/pkg/middleware
+              desc: repositories do not know about HTTP middleware
+    forbidigo:
+      forbid:
+        - pattern: ^os\.(Getenv|LookupEnv|Environ)$
+          msg: the environment is read only in internal/config
+        - pattern: ^http\.(DefaultClient|Get|Post|PostForm|Head)$
+          msg: inject an *http.Client with a timeout
+        - pattern: ^time\.Now$
+          msg: take a clock.Clock (pkg/clock) so tests can fix the time
+  exclusions:
+    rules:
+      # The one reader of the environment, and the test helpers that read TEST_*_URL.
+      - path: ^internal/config/
+        linters: [forbidigo]
+        text: environment
+      - path: ^pkg/(postgres/pgtest|redis/redistest)/
+        linters: [forbidigo]
+        text: environment
+      # Re-running the test binary without a variable is how those helpers test their failure message.
+      - path: _test\.go$
+        linters: [forbidigo]
+        text: environment
+      # The real clock, and request timing in the access log, are the only uses of time.Now.
+      - path: ^pkg/(clock|middleware)/
+        linters: [forbidigo]
+        text: clock

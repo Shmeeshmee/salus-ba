@@ -76,7 +76,7 @@ func migrate(ctx context.Context, dbURL string, migrations fs.FS) error {
 	}
 	defer pool.Close()
 	db := stdlib.OpenDBFromPool(pool)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	provider, err := goose.NewProvider(goose.DialectPostgres, db, migrations)
 	if err != nil {
 		return err

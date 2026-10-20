@@ -57,6 +57,14 @@ func TestOpen_FailsWhenServerIsUnreachable(t *testing.T) {
 	}
 }
 
+func TestOpen_RejectsAMalformedURL(t *testing.T) {
+	t.Parallel()
+
+	if _, err := postgres.Open(t.Context(), "postgres://%zz"); err == nil {
+		t.Fatal("Open() error = nil, want a parse error")
+	}
+}
+
 func TestWithTx_CommitsWhenFnSucceeds(t *testing.T) {
 	t.Parallel()
 	pool := newItemsDB(t)

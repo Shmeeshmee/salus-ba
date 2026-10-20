@@ -33,7 +33,7 @@ func TestNewClient_GivesEachTestAnEmptyDatabaseOfItsOwn(t *testing.T) {
 // it must fail, never skip, and say how to run the tests.
 func TestNewClient_FailsClearlyWithoutTestRedisURL(t *testing.T) {
 	t.Parallel()
-	cmd := exec.Command(os.Args[0], "-test.run=^TestNewClient_GivesEachTestAnEmptyDatabaseOfItsOwn$") //nolint:gosec // re-runs this test binary
+	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestNewClient_GivesEachTestAnEmptyDatabaseOfItsOwn$") // re-runs this test binary
 	cmd.Env = slices.DeleteFunc(os.Environ(), func(kv string) bool {
 		return strings.HasPrefix(kv, "TEST_REDIS_URL=")
 	})

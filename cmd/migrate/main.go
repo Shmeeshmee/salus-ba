@@ -65,7 +65,7 @@ func withProvider(ctx context.Context, fn func(*goose.Provider) error) error {
 	}
 	defer pool.Close()
 	db := stdlib.OpenDBFromPool(pool)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	p, err := goose.NewProvider(goose.DialectPostgres, db, migrations.FS)
 	if err != nil {
 		return err
@@ -76,7 +76,9 @@ func withProvider(ctx context.Context, fn func(*goose.Provider) error) error {
 func up(ctx context.Context, p *goose.Provider, stdout io.Writer) error {
 	results, err := p.Up(ctx)
 	for _, r := range results {
-		fmt.Fprintf(stdout, "applied  %s  %s\n", filepath.Base(r.Source.Path), r.Duration)
+		if _, werr := fmt.Fprintf(stdout, "applied  %s  %s\n", filepath.Base(r.Source.Path), r.Duration); werr != nil {
+			return werr
+		}
 	}
 	return err
 }
@@ -87,7 +89,9 @@ func status(ctx context.Context, p *goose.Provider, stdout io.Writer) error {
 		return err
 	}
 	for _, s := range statuses {
-		fmt.Fprintf(stdout, "%-8s %s\n", s.State, filepath.Base(s.Source.Path))
+		if _, err := fmt.Fprintf(stdout, "%-8s %s\n", s.State, filepath.Base(s.Source.Path)); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -129,6 +133,6 @@ func create(args []string, stdout io.Writer) error {
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		return err
 	}
-	fmt.Fprintln(stdout, "created", path)
-	return nil
+	_, err = fmt.Fprintln(stdout, "created", path)
+	return err
 }

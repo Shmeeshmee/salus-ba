@@ -26,7 +26,7 @@ func TestNew_ServesReadinessAgainstTheDatabase(t *testing.T) {
 	defer app.Close()
 
 	rec := httptest.NewRecorder()
-	app.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	app.Handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("GET /readyz = %d %q, want 200", rec.Code, rec.Body)

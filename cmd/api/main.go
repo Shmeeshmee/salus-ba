@@ -44,7 +44,7 @@ func run(ctx context.Context, logOut io.Writer) error {
 	}
 	defer app.Close()
 
-	ln, err := net.Listen("tcp", cfg.HTTPAddr)
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", cfg.HTTPAddr)
 	if err != nil {
 		return err
 	}

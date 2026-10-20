@@ -88,8 +88,8 @@ func TestRun_ServesUntilCancelledThenShutsDown(t *testing.T) {
 
 func waitForListening(t *testing.T, logs *syncBuffer, done <-chan error) string {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
+	timeout := time.After(10 * time.Second)
+	for {
 		for _, line := range logs.lines(t) {
 			if line["msg"] == "listening" {
 				addr, _ := line["addr"].(string)
@@ -99,11 +99,11 @@ func waitForListening(t *testing.T, logs *syncBuffer, done <-chan error) string 
 		select {
 		case err := <-done:
 			t.Fatalf("run() returned before listening: %v", err)
+		case <-timeout:
+			t.Fatal("run() did not log \"listening\" within 10s")
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
-	t.Fatal("run() did not log \"listening\" within 10s")
-	return ""
 }
 
 func hasAccessLine(lines []map[string]any, route string, status int) bool {

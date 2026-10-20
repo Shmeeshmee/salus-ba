@@ -32,7 +32,7 @@ func TestInternalError_LogsErrorAndSendsFixedMessage(t *testing.T) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/things", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/things", nil)
 
 	httpx.InternalError(rec, req, logger, errors.New("connection refused to 10.0.0.7"))
 

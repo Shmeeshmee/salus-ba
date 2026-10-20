@@ -260,7 +260,8 @@ service).
 - `make test` — `go test ./...` in the `tools` container. Its `TEST_DATABASE_URL` and `TEST_REDIS_URL` point
   at the compose Postgres and Redis; `pgtest` migrates a template database once per test package and gives
   each test its own copy. Without the URLs the tests fail with a message; they never skip.
-- `make cover` — tests with coverage, failing below 80%.
+- `make cover` — tests with coverage (`-coverpkg=./...`: code counts when any package's tests run it),
+  failing below 80%.
 - `make e2e` — the end-to-end suite against `docker compose`.
 - `make lint` — gofmt, `go vet`, golangci-lint (depguard, forbidigo, funlen, gocognit, govet fieldalignment,
   errcheck, staticcheck, bodyclose, noctx, unused) over `cmd/ internal/ pkg/`, and
@@ -268,7 +269,8 @@ service).
 - `make archcheck` — `tools/archcheck`: `pkg/` never imports `internal/`; no domain imports another's
   repository; table ownership is respected; forbidden package names are rejected. Its
   `allowlist.yaml` **only shrinks**: never add an entry to make a new violation pass.
-- `make fhir-validate` — validates the golden FHIR responses against `api/fhir/` profiles.
+- `make fhir-validate` — the HL7 validator (pinned jar, `fhir-validator` service) over every golden FHIR
+  response in `testdata/`, against R4 and the `api/fhir/` profiles once there are any. No terminology server.
 - `make arch-gate` — archcheck, `go vet` and the tests; the Claude Code Stop hook runs it at the end of every
   session.
 - `make migrate`, `make sqlc`, `make gen-clients`, `make up`, `make down` — apply migrations, regenerate

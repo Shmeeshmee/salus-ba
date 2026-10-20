@@ -76,7 +76,7 @@ func TestNewDatabase_DatabasesAreIsolated(t *testing.T) {
 // exit non-zero and say how to run the tests, never skip and never start a server of its own.
 func TestMain_FailsClearlyWithoutTestDatabaseURL(t *testing.T) {
 	t.Parallel()
-	cmd := exec.Command(os.Args[0], "-test.run=^$") //nolint:gosec // re-runs this test binary
+	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^$") // re-runs this test binary
 	cmd.Env = slices.DeleteFunc(os.Environ(), func(kv string) bool {
 		return strings.HasPrefix(kv, "TEST_DATABASE_URL=")
 	})

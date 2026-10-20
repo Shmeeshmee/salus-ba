@@ -115,6 +115,17 @@ services:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
 
+  # HL7 FHIR validator: `make fhir-validate`. Reads the repo only.
+  fhir-validator:
+    profiles: [tools]
+    build:
+      context: ..
+      dockerfile: build/package/fhir-validator.Dockerfile
+    image: salus-fhir-validator:7.0.2
+    volumes:
+      - ..:/src:ro
+      - fhir:/cache
+
   # Web toolchain and the Vite dev server (port 5173): `make web-dev`.
   node:
     profiles: [web]
@@ -152,3 +163,4 @@ volumes:
   node_modules:
   npm:
   pub:
+  fhir:
