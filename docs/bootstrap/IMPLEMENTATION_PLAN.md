@@ -23,10 +23,10 @@ Read `SPEC.md` first. Packages run in order; each is one commit `bootstrap(<n>):
 
 ### 1. Go foundation
 
-`go.mod` (Go 1.27). `internal/config`: a `Load(getenv func(string) string) (Config, error)` with required
-and defaulted values, tested with a map-backed `getenv`. `pkg/clock`: `Clock` interface, `System`, `Fixed`.
-`pkg/httpx`: `JSON(w, status, v)`, `DecodeJSON` (size limit, unknown fields rejected), `InternalError` (logs
-via `slog`, fixed body). `pkg/postgres`: `Open` (pgxpool), `Transactor.WithTx` (nested call joins the outer
+`go.mod` (Go 1.27). `internal/config`: `Load() (Config, error)` with required and defaulted values, tested
+with `t.Setenv`. `pkg/clock`: `Clock` interface, `System`, `Fixed`.
+`pkg/httpx`: `JSON(w, status, v)`, `InternalError` (logs via `slog`, fixed body). A
+JSON decoder is added with the first endpoint that reads a body. `pkg/postgres`: `Open` (pgxpool), `Transactor.WithTx` (nested call joins the outer
 transaction, rollback on error or panic), `Conn(ctx, db)`. `pkg/postgres/pgtest.NewDatabase`. Repository-style
 tests for `WithTx` commit, rollback and nesting against a real database. `pgtest`: one container per test
 package from `TestMain`, template database migrated once, `CREATE DATABASE ... TEMPLATE` per test, parallel
