@@ -93,6 +93,23 @@ services:
     image: axllent/mailpit:v1.31.6
     ports: ["127.0.0.1:${SALUS_MAILPIT_PORT:-8025}:8025"]
 
+  # Marketing landing page (landing/): static nginx on 127.0.0.1:8090. Fonts are self-hosted, so the page
+  # makes no third-party request. `make landing` starts it alone.
+  landing:
+    build:
+      context: ../landing
+      dockerfile: ../build/package/landing.Dockerfile
+    image: salus-landing:dev
+    ports: ["127.0.0.1:${SALUS_LANDING_PORT:-8090}:8080"]
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # Go toolchain: tests, lint, migrations, sqlc. `make test` runs `docker compose run --rm tools go test ./...`.
   tools:
     profiles: [tools]

@@ -11,7 +11,7 @@ NODE    := $(COMPOSE) run --rm -T node
 FLUTTER := $(COMPOSE) run --rm -T flutter
 
 .PHONY: test cover lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create sqlc \
-	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev flutter-image tools-image node-image up psql down
+	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev flutter-image tools-image node-image up landing psql down
 
 ## test: Go tests of both modules against the compose Postgres and Redis (TESTFLAGS="-run X -count=1")
 test: tools-image
@@ -105,6 +105,10 @@ tools-image:
 ## up: build and start the local stack (migrations first); see README.md for the ports
 up:
 	$(COMPOSE) up -d --build --wait --remove-orphans
+
+## landing: build and serve only the landing page (landing/) on 127.0.0.1:8090 (SALUS_LANDING_PORT)
+landing:
+	$(COMPOSE) up -d --build --wait landing
 
 ## psql: open psql on the compose Postgres (no host port is published)
 psql:
