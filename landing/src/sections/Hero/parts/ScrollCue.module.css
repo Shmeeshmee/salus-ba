@@ -1,0 +1,54 @@
+.cue {
+  composes: fadeUp from '../../../styles/motion.module.css';
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  margin-left: -40px;
+  width: 80px;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  opacity: .75;
+  z-index: 5;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+}
+
+.cue:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.track {
+  position: relative;
+  width: 1px;
+  height: 32px;
+  background: currentColor;
+  opacity: .35;
+  overflow: hidden;
+}
+
+.line {
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  animation: cue 1.8s cubic-bezier(.6, 0, .2, 1) infinite;
+}
+
+@keyframes cue {
+  0% {
+    transform: translateY(-100%);
+  }
+  60%,
+  100% {
+    transform: translateY(100%);
+  }
+}

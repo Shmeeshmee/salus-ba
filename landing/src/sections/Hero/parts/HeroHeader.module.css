@@ -1,0 +1,73 @@
+.header {
+  composes: fadeUp from '../../../styles/motion.module.css';
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: var(--width-wide);
+  margin: 0 auto;
+  padding: 22px var(--space-gutter);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.home,
+.home:hover {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.logoDisc,
+.logoUpright,
+.logoBar {
+  transition: fill var(--recolour);
+}
+
+.logoDisc {
+  fill: var(--ink);
+}
+
+.logoUpright {
+  fill: var(--acc);
+}
+
+.logoBar {
+  fill: var(--bg);
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 21px;
+  letter-spacing: -.02em;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  flex-wrap: wrap;
+}
+
+.link {
+  color: inherit;
+  opacity: .75;
+  text-decoration: none;
+  font-size: 15px;
+}
+
+.link:hover {
+  opacity: 1;
+  color: inherit;
+}
+
+@media (max-width: 820px) {
+  .link {
+    display: none;
+  }
+}
