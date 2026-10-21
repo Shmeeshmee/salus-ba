@@ -1,0 +1,41 @@
+# Mobile: flutter analyze, flutter test, and the generated Dart client.
+# Runs on every pull request so its required checks always report; the jobs skip when no path matching the
+# filter changed (a skipped job counts as passed). Everything runs through make in Docker, as locally.
+name: mobile
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      changed: ${{ steps.filter.outputs.changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: filter
+        run: bash scripts/ci-changed.sh '^mobile/|^api/openapi\.yaml$|^build/package/flutter\.Dockerfile$|^deployments/|^(Makefile|\.github/workflows/mobile\.yml)$' >> "$GITHUB_OUTPUT"
+
+  mobile:
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: make mobile-analyze
+      - run: make mobile-test
+      - run: make gen-client-dart
+      - name: Generated client is up to date
+        run: git status --porcelain && test -z "$(git status --porcelain)"

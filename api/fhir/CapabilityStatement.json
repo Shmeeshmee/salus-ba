@@ -1,0 +1,18 @@
+{
+  "resourceType": "CapabilityStatement",
+  "status": "active",
+  "date": "2026-10-20",
+  "publisher": "Salus",
+  "kind": "instance",
+  "implementation": {
+    "description": "Salus FHIR R4 API"
+  },
+  "fhirVersion": "4.0.1",
+  "format": ["application/fhir+json"],
+  "rest": [
+    {
+      "mode": "server",
+      "documentation": "Only the capabilities interaction (GET /fhir/R4/metadata) is supported. Resources are added as features need them."
+    }
+  ]
+}

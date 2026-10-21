@@ -1,0 +1,3 @@
+# Known violations archcheck tolerates. This list only shrinks: never add an entry to make a new violation
+# pass (CLAUDE.md "Checks").
+violations: []

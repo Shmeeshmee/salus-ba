@@ -1,0 +1,8 @@
+# Options for the Dart client generated from api/openapi.yaml by `make gen-clients` (openapi-generator,
+# `dart` generator: plain package:http, no build_runner). The output, packages/salus_api, is never edited by
+# hand.
+pubName: salus_api
+pubLibrary: salus_api
+pubVersion: 0.1.0
+pubDescription: Generated client for the Salus API (api/openapi.yaml). Do not edit by hand.
+pubAuthor: Salus

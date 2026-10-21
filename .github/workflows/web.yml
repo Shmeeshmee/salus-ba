@@ -1,0 +1,43 @@
+# Web: lint, typecheck, tests, build, and the generated TypeScript client.
+# Runs on every pull request so its required checks always report; the jobs skip when no path matching the
+# filter changed (a skipped job counts as passed). Everything runs through make in Docker, as locally.
+name: web
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      changed: ${{ steps.filter.outputs.changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: filter
+        run: bash scripts/ci-changed.sh '^web/|^api/openapi\.yaml$|^build/package/node\.Dockerfile$|^deployments/|^(Makefile|\.github/workflows/web\.yml)$' >> "$GITHUB_OUTPUT"
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: make web-lint
+      - run: make web-typecheck
+      - run: make web-test
+      - run: make web-build
+      - run: make gen-client-ts
+      - name: Generated client is up to date
+        run: git status --porcelain && test -z "$(git status --porcelain)"

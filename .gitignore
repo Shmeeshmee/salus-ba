@@ -1,0 +1,8 @@
+# Local environment and run artefacts
+.env
+.claude/runs/
+.claude/settings.local.json
+
+# Build and test output
+/bin/
+coverage.out

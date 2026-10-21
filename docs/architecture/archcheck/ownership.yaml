@@ -1,0 +1,17 @@
+# Every table created in migrations/ and the one package that owns it. Only the owner's repository reads or
+# writes the table; everyone else goes through the owner's service. A new table is added here in the same
+# commit as its migration. archcheck checks this file against every CREATE TABLE in migrations/.
+#
+# owner: a domain in internal/, or `river` for River's job queue tables (written only through River's
+# client; job arguments carry opaque ids, never personal data). dropped: true for a table a later
+# migration removes.
+tables:
+  river_job: {owner: river}
+  river_leader: {owner: river}
+  river_queue: {owner: river}
+  river_notification: {owner: river}
+  river_client: {owner: river, dropped: true}
+  river_client_queue: {owner: river, dropped: true}
+  # River 005 recreates its own ledger only when that table already exists; River 001 is not applied here
+  # (docs/bootstrap/PROGRESS.md), so it never does.
+  river_migration: {owner: river, dropped: true}

@@ -1,21 +1,31 @@
 # Salus
 
 Telemedicine platform: patients book and attend remote consultations with practitioners, and the
-clinical record of those consultations is kept as FHIR resources. Go API + Postgres + object store.
-Everything runs through `docker compose` (`deployments/`).
+clinical record of those consultations is kept as FHIR resources. Go binaries + Postgres + Redis + object
+store, LiveKit for video, a React web app for practitioners and admins, a Flutter app for patients. One
+monorepo. Everything runs through `docker compose` (`deployments/`): the host needs only Docker and make.
+No `go`, `npm`, `node` or `flutter` on the host; `make` wraps every command in `docker compose run --rm`.
 
-Module path: `github.com/Shmeeshmee/salus`.
+Module path: `github.com/Shmeeshmee/salus`. Toolchain versions are pinned as image tags in `build/package/`
+and `deployments/`; Go tools (sqlc, goose, golangci-lint) as `tool` lines in a separate `tools/go.mod`, run
+with `go tool -modfile=tools/go.mod <tool>`, so the app's `go.mod` holds only what the app needs; Go itself
+also by the `go` and `toolchain` lines in `go.mod`.
 
 ## Top rules
 
 These four beat everything else in this file. When two rules pull against each other, the earlier one wins
-unless it would break the law: GDPR is never traded for simplicity.
+unless it would break the law: GDPR is never traded for performance, simplicity or elegance.
 
-1. **Keep the code simple.** The simplest thing that passes the tests is the right thing.
+1. **Fast, then simple, then elegant.** In that order. Performance is measured, never assumed: a benchmark,
+   a profile or a load test justifies any trade of simplicity for speed, and the numbers go in the package's
+   `PROGRESS.md`. Without a measurement, the simplest thing that passes the tests is the right thing.
    - No abstraction without a second real use or a test seam that needs it. No interface with one
      implementation unless a test fakes it.
-   - No DI framework, no code generators beyond what Go ships, no ORM, no event bus, no CQRS, no
-     microservices until one process is demonstrably not enough.
+   - No DI framework, no ORM, no event bus, no CQRS. The only code generators are what Go ships, sqlc for
+     queries, and the OpenAPI client generators (see "Layout").
+   - No microservices. Several binaries in `cmd/` share `internal/` and one database; they are one
+     application deployed as separate processes, not separately owned services. Split a binary out only
+     when its load or lifecycle differs, and never give it its own copy of another domain's data.
    - Do not add a dependency for what the standard library does in under ~50 lines.
    - Prefer boring, explicit code over clever code. A reader new to the repo should follow a request
      from handler to SQL without a debugger.
@@ -31,21 +41,24 @@ directory when something goes in it.
 
 | Path | What it is |
 | --- | --- |
-| `cmd/<app>/main.go` | One executable each (`api`, `worker`, ...). Composition only: load config, connect, build, run, shut down |
+| `cmd/<app>/main.go` | One executable each, composition only: load config, connect, build, run, shut down. `api` (HTTP and FHIR), `migrate` (goose), `worker` (River jobs), `scheduler` (periodic jobs), `notifier` (e-mail, later SMS and push), `agent` (LiveKit agent for live transcription) |
 | `internal/<domain>/` | Application code, one package per domain — see "Go architecture" |
 | `internal/config` | The only package that reads the environment |
 | `internal/api` | `app.go` builds every domain (the shared composition root); `router/` mounts middleware and routes |
-| `pkg/` | Infrastructure with no knowledge of this product: `postgres`, `httpx`, `clock`, `middleware`, `fhir` (generic FHIR primitives: `Reference`, `CodeableConcept`, `OperationOutcome`, bundles). Never imports `internal/` |
-| `api/` | Contracts: `openapi.yaml` for non-FHIR endpoints, `fhir/` for the CapabilityStatement, profiles (StructureDefinitions) and ValueSets we use |
+| `internal/worker` | The River client for `cmd/worker` and the registration of every job's worker |
+| `pkg/` | Infrastructure with no knowledge of this product: `postgres`, `httpx`, `clock`, `middleware`, `redis`, `fhir` (generic FHIR primitives: `Reference`, `CodeableConcept`, `OperationOutcome`, bundles). Never imports `internal/` |
+| `api/` | Contracts: `openapi.yaml` for non-FHIR endpoints, `fhir/` for the CapabilityStatement, profiles (StructureDefinitions) and ValueSets we use. The TypeScript client (openapi-typescript) and the Dart client (openapi-generator) are generated from `openapi.yaml` into `web/` and `mobile/` with `make gen-clients`; never edit them by hand |
 | `configs/` | Config templates and defaults (`.env.example`) |
-| `deployments/` | `docker-compose.yml`, and later the orchestration manifests |
-| `build/` | Dockerfiles (`build/package/`) and CI config (`build/ci/`) |
-| `migrations/` | SQL migrations, numbered, forward-only |
+| `deployments/` | `docker-compose.yml` (the stack, plus the `tools`, `node` and `flutter` toolchain services behind profiles), and later the orchestration manifests |
+| `build/` | Dockerfiles (`build/package/`): `dev.Dockerfile` (the Go toolchain behind every `make` target), `flutter.Dockerfile`, and the runtime image |
+| `.github/` | GitHub Actions workflows, one per app (Go, web, mobile) with path filters, and Dependabot |
+| `migrations/` | goose SQL migrations, numbered, forward-only (no `-- +goose Down`), embedded and applied by `cmd/migrate`. River's schema is migrated here too. A file on `main` is never modified or deleted (`scripts/check-migrations.sh`) |
 | `scripts/` | Scripts the `Makefile` calls. Keep the `Makefile` small |
 | `test/` | End-to-end tests and their fixtures (`test/e2e/`, `test/testdata/`) |
-| `tools/` | Repo tooling, e.g. `tools/archcheck` |
+| `tools/` | Repo tooling, its own module (`tools/go.mod`): the pinned Go tools and `tools/archcheck` |
 | `docs/` | `architecture/`, ADRs (`docs/adr/NNNN-title.md`), and one folder per feature (see "Working on a feature") |
-| `web/` | Frontend, if and when there is one |
+| `web/` | React + TypeScript (Vite) app for practitioners and admins |
+| `mobile/` | Flutter app (iOS and Android) for patients only |
 
 Never: `/src`, `internal/utils`, `internal/common`, `internal/shared`, `internal/helpers`, or top-level
 technical-layer packages (`internal/services`, `internal/repositories`, `internal/handlers`).
@@ -81,7 +94,8 @@ in the same commit.
 | `errors.go` | Stable domain errors: `Err…` values and `…Error` types | leak vendor errors |
 | `service.go`, `service_*.go` | `Service`, the ports it consumes, every business rule, authorization, transaction boundaries | import pgx or `net/http`; call `time.Now` (take a `clock.Clock`) |
 | `repository.go` | The `Repository` interface and other outbound ports | declare a struct |
-| `repository_postgres.go`, `repository_<impl>.go` | Implementations: Postgres, an HTTP client, the video provider | import chi or middleware; export anything but its constructor; hold business policy |
+| `repository_postgres.go`, `repository_<impl>.go` | Implementations: Postgres (through the domain's sqlc package), Redis, an HTTP client, the video provider (LiveKit), the e-mail sender (SES, Mailpit locally) | import `net/http` handlers or middleware; export anything but its constructor; hold business policy |
+| `query.sql` → `<domain>db/` | sqlc input and its generated package (`make sqlc`, one entry per domain in the root `sqlc.yaml`), e.g. `internal/patient/patientdb`. `repository_postgres.go` maps its rows to the domain model | be imported by anything but this domain's `repository_postgres.go` (archcheck); be edited by hand |
 | `handler_http.go`, `handler_fhir.go` | Decode, call the service, encode; map domain errors to status codes / `OperationOutcome` | import pgx; hold SQL; make business decisions |
 
 Dependency direction: handler → service → repository port ← repository implementation. Across domains:
@@ -90,8 +104,8 @@ service → service, never service → another domain's repository.
 **Rules:**
 - A port is declared by the package that consumes it. When a sibling service already has a method of that
   shape, wire the concrete service in rather than writing an adapter.
-- Objects are built only in `cmd/*/main.go` and `internal/api/app.go`. No DI framework, no package-level
-  mutable state, no `init()` side effects.
+- Objects are built only in `cmd/*/main.go`, `internal/api/app.go` and `internal/worker` (the River client
+  and its job registrations). No DI framework, no package-level mutable state, no `init()` side effects.
 - The environment is read only in `internal/config`. Clocks and HTTP clients are injected;
   `http.DefaultClient` and `http.Get` are not used.
 - Middleware is mounted only in `internal/api/router`; routes are declared only there and in each domain's
@@ -103,6 +117,14 @@ service → service, never service → another domain's repository.
   context; a repository reaches it through `postgres.Conn(ctx, r.db)`. A nested `WithTx` joins the outer one.
   Collect rows before the next query. Calls to the video provider, email and blob writes stay outside the
   transaction where they can.
+- Background work is a River job, enqueued in the same transaction as the write that causes it (River's
+  `InsertTx`). Job arguments carry opaque ids only, never personal data. The worker loads what it needs.
+- Redis holds temporary state only: slot holds, rate limits, idempotency keys, session revocation, caches,
+  pub/sub. Every key has a TTL. Nothing in Redis is the only copy of anything, and nothing durable (jobs,
+  audit, clinical data) goes there.
+- Video goes through a provider port in `consultation`, implemented for self-hosted LiveKit. Speech-to-text
+  for live transcription sits behind its own port in `cmd/agent`, so the engine can be swapped.
+- E-mail goes through a port in `notification`: SES in production (EU region), Mailpit locally.
 - A 500 goes through `httpx.InternalError`, which logs the error and sends a fixed message; internal error
   text never reaches a client.
 - One model per domain. Introduce a separate transport type only when representations really diverge (the
@@ -124,7 +146,8 @@ Red, green, refactor — in that order, every time.
 - **Service tests are mandatory** for every business rule: hand-written fakes for the ports (prefer fakes to
   mocks), `clock.Fixed` for time, table-driven where cases share a shape. Test behaviour through the exported
   `Service`; do not export anything to make a test easier.
-- Repository tests run against a throwaway database (`pgtest.NewDatabase`), never mocked SQL.
+- Repository tests run against a throwaway database (`pgtest.NewDatabase`, built from `migrations/`), never
+  mocked SQL. Redis code is tested against a real Redis (`redistest`), never a fake.
 - Handler tests use `httptest` and a stub service. FHIR handlers assert the exact JSON against golden files in
   `testdata/`; change them only on purpose with `-update` and review the diff.
 - **End-to-end tests** in `test/e2e/` cover the critical journeys through the real stack: register → consent
@@ -219,7 +242,7 @@ tests green at the end of every package. Measure before claiming a performance g
 
 | Path | What it is |
 | --- | --- |
-| `.claude/settings.json` | Stop hook: runs `make arch-gate` (lint, `go vet`, tests, archcheck) once the Makefile has that target |
+| `.claude/settings.json` | Stop hook: runs `make arch-gate` (`go vet`, tests, archcheck, all in Docker) once the Makefile has that target |
 | `.claude/agents/package-runner.md` | Implements and commits exactly one work package |
 | `.claude/commands/run-package.md` | `/run-package <plan> <package>` |
 | `.claude/skills/go-domain/` | The test-first loop inside a domain: layers, FHIR handlers, consent and audit |
@@ -229,20 +252,37 @@ tests green at the end of every package. Measure before claiming a performance g
 
 ## Checks
 
-- `make test` — `go test ./...`. Database tests need `TEST_DATABASE_URL`, e.g.
-  `postgres://salus:salus@localhost:5432/salus?sslmode=disable`.
-- `make cover` — tests with coverage, failing below 80%.
+Every check runs in Docker through `make`, locally, in CI and in Claude Code sessions alike: never run `go`,
+`npm`, `npx` or `flutter` on the host. To run something there is no target for, use
+`docker compose -f deployments/docker-compose.yml run --rm tools <command>` (or the `node` / `flutter`
+service).
+
+- `make test` — `go test ./...` in the `tools` container. Its `TEST_DATABASE_URL` and `TEST_REDIS_URL` point
+  at the compose Postgres and Redis; `pgtest` migrates a template database once per test package and gives
+  each test its own copy. Without the URLs the tests fail with a message; they never skip.
+- `make cover` — tests with coverage, each package measured by its own tests, failing when any package is
+  below 80%. Only `cmd/*/main.go` is excluded.
 - `make e2e` — the end-to-end suite against `docker compose`.
 - `make lint` — gofmt, `go vet`, golangci-lint (depguard, forbidigo, funlen, gocognit, govet fieldalignment,
-  errcheck, staticcheck, bodyclose, noctx, unused) over `cmd/ internal/ pkg/`.
+  errcheck, staticcheck, bodyclose, noctx, unused) over `cmd/ internal/ pkg/`, and
+  `scripts/check-migrations.sh` (no migration that exists on `main` was modified or deleted).
 - `make archcheck` — `tools/archcheck`: `pkg/` never imports `internal/`; no domain imports another's
   repository; table ownership is respected; forbidden package names are rejected. Its
   `allowlist.yaml` **only shrinks**: never add an entry to make a new violation pass.
-- `make fhir-validate` — validates the golden FHIR responses against `api/fhir/` profiles.
+- `make fhir-validate` — the HL7 validator (pinned jar, `fhir-validator` service) over every golden FHIR
+  response in `testdata/`, against R4 and the `api/fhir/` profiles once there are any. No terminology server.
 - `make arch-gate` — archcheck, `go vet` and the tests; the Claude Code Stop hook runs it at the end of every
-  session. Export `TEST_DATABASE_URL` so database tests run rather than skip.
-- Before saying a change is done: `gofmt -l` is empty, `go vet ./...`, `go build ./...`, `make test`,
-  `make lint`, `make archcheck` all pass.
+  session.
+- `make migrate`, `make sqlc`, `make gen-clients`, `make up`, `make down` — apply migrations, regenerate
+  queries, regenerate the API clients, start and stop the local stack.
+- Web (`web/`, `node` service): `make web-lint` (oxlint), `make web-typecheck`, `make web-test` (Vitest),
+  `make web-build`; `make web-dev` runs the Vite dev server on port 5173. `make gen-clients` regenerates the
+  API clients; CI fails when they are stale. Mobile (`mobile/`, `flutter` service): `make mobile-analyze`,
+  `make mobile-test`; the Dart client in `mobile/packages/salus_api` is generated (`make gen-clients`) and
+  excluded from analysis. Running the app on a device or emulator is a manual step on the host (README.md), not
+  a check.
+- Before saying a change is done: `make lint` (gofmt, `go vet`, golangci-lint), `make test` and
+  `make archcheck` all pass.
 - Never run `git stash`; use `git worktree add` to compare with and without a change.
 
 ## Copy

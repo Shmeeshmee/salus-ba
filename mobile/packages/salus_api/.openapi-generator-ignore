@@ -1,0 +1,5 @@
+# Files openapi-generator must not write.
+.travis.yml
+git_push.sh
+doc/**
+test/**
