@@ -49,9 +49,9 @@ directory when something goes in it.
 | `pkg/` | Infrastructure with no knowledge of this product: `postgres`, `httpx`, `clock`, `middleware`, `redis`, `fhir` (generic FHIR primitives: `Reference`, `CodeableConcept`, `OperationOutcome`, bundles). Never imports `internal/` |
 | `api/` | Contracts: `openapi.yaml` for non-FHIR endpoints, `fhir/` for the CapabilityStatement, profiles (StructureDefinitions) and ValueSets we use. The TypeScript client (openapi-typescript) and the Dart client (openapi-generator) are generated from `openapi.yaml` into `web/` and `mobile/` with `make gen-clients`; never edit them by hand |
 | `configs/` | Config templates and defaults (`.env.example`) |
-| `deployments/` | `docker-compose.yml` (the stack, plus the `tools`, `node` and `flutter` toolchain services behind profiles), and later the orchestration manifests |
-| `build/` | Dockerfiles (`build/package/`): `dev.Dockerfile` (the Go toolchain behind every `make` target), `flutter.Dockerfile`, `landing.Dockerfile` (nginx for `landing/`), and the runtime image |
-| `.github/` | GitHub Actions workflows, one per app (Go, web, mobile) with path filters, and Dependabot |
+| `deployments/` | `docker-compose.yml` (the stack, plus the `tools`, `node`, `landing-dev` and `flutter` toolchain services behind profiles), and later the orchestration manifests |
+| `build/` | Dockerfiles (`build/package/`): `dev.Dockerfile` (the Go toolchain behind every `make` target), `flutter.Dockerfile`, `landing.Dockerfile` (builds `landing/` and serves it with nginx), and the runtime image |
+| `.github/` | GitHub Actions workflows, one per app (Go, web, landing, mobile) with path filters, and Dependabot |
 | `migrations/` | goose SQL migrations, numbered, forward-only (no `-- +goose Down`), embedded and applied by `cmd/migrate`. River's schema is migrated here too. A file on `main` is never modified or deleted (`scripts/check-migrations.sh`) |
 | `scripts/` | Scripts the `Makefile` calls. Keep the `Makefile` small |
 | `test/` | End-to-end tests and their fixtures (`test/e2e/`, `test/testdata/`) |
@@ -59,7 +59,7 @@ directory when something goes in it.
 | `docs/` | `architecture/`, ADRs (`docs/adr/NNNN-title.md`), and one folder per feature (see "Working on a feature") |
 | `web/` | React + TypeScript (Vite) app for practitioners and admins |
 | `mobile/` | Flutter app (iOS and Android) for patients only |
-| `landing/` | Marketing landing page: one static `index.html` and its `nginx.conf`, served by the `landing` compose service. No build step, no framework, no third-party requests (fonts are self-hosted at image build time). Not deployed yet: fill in the `[PRICE]` and `[YOUR EMAIL]` placeholders in `index.html` before it is |
+| `landing/` | Marketing landing page: React + TypeScript (Vite), its own app beside `web/`, prerendered to static HTML at build time (`scripts/prerender.ts`) and served with its `nginx.conf` by the `landing` compose service. Copy and data in `src/content/`, one folder per page section in `src/sections/`. No third-party requests (fonts are bundled from npm). Not deployed yet: fill in the `[PRICE]`, `[X]`, `[YOUR EMAIL]`, `[Hosting]` and `[Certification]` placeholders in `src/content/` before it is |
 
 Never: `/src`, `internal/utils`, `internal/common`, `internal/shared`, `internal/helpers`, or top-level
 technical-layer packages (`internal/services`, `internal/repositories`, `internal/handlers`).
@@ -281,7 +281,9 @@ service).
   API clients; CI fails when they are stale. Mobile (`mobile/`, `flutter` service): `make mobile-analyze`,
   `make mobile-test`; the Dart client in `mobile/packages/salus_api` is generated (`make gen-clients`) and
   excluded from analysis. Running the app on a device or emulator is a manual step on the host (README.md), not
-  a check.
+  a check. Landing (`landing/`, `node` service): `make landing-lint`, `make landing-typecheck`,
+  `make landing-test`, `make landing-build` (prerenders into `landing/dist`); `make landing-dev` runs its Vite
+  dev server on port 5174, and `make landing` serves the built image on port 8090.
 - Before saying a change is done: `make lint` (gofmt, `go vet`, golangci-lint), `make test` and
   `make archcheck` all pass.
 - Never run `git stash`; use `git worktree add` to compare with and without a change.

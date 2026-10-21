@@ -1,0 +1,22 @@
+.controls {
+  margin-top: auto;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.control {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+}
+
+.end {
+  background: var(--color-ink);
+  color: var(--color-surface);
+}

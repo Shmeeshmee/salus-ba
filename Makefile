@@ -9,9 +9,11 @@ GO      := $(COMPOSE) run --rm tools
 TOOL    := go tool -modfile=tools/go.mod
 NODE    := $(COMPOSE) run --rm -T node
 FLUTTER := $(COMPOSE) run --rm -T flutter
+LANDING := $(COMPOSE) run --rm -T -w /src/landing node
 
 .PHONY: test cover lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create sqlc \
-	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev flutter-image tools-image node-image up landing psql down
+	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
+	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
 ## test: Go tests of both modules against the compose Postgres and Redis (TESTFLAGS="-run X -count=1")
 test: tools-image
@@ -84,6 +86,26 @@ web-build: web-install
 web-dev: web-install
 	$(COMPOSE) --profile web up node
 
+## landing-install: npm ci in landing/, only when package.json or the lockfile changed
+landing-install: node-image landing/node_modules/.package-lock.json
+landing/node_modules/.package-lock.json: landing/package.json landing/package-lock.json
+	$(LANDING) npm ci
+
+## landing-lint, landing-typecheck, landing-test, landing-build: the landing page's checks; the build prerenders
+## the page into landing/dist
+landing-lint: landing-install
+	$(LANDING) npm run lint
+landing-typecheck: landing-install
+	$(LANDING) npm run typecheck
+landing-test: landing-install
+	$(LANDING) npm test
+landing-build: landing-install
+	$(LANDING) npm run build
+
+## landing-dev: the landing page's Vite dev server on 127.0.0.1:5174 (SALUS_LANDING_DEV_PORT)
+landing-dev: landing-install
+	$(COMPOSE) --profile landing up landing-dev
+
 ## mobile-analyze, mobile-test: the Flutter app's checks (mobile/, flutter service). Device runs are manual.
 mobile-analyze: flutter-image
 	$(FLUTTER) flutter analyze
@@ -117,4 +139,4 @@ psql:
 
 ## down: stop everything (volumes and caches are kept)
 down:
-	$(COMPOSE) --profile tools --profile web --profile mobile down
+	$(COMPOSE) --profile tools --profile web --profile landing --profile mobile down

@@ -1,0 +1,63 @@
+.standards {
+  padding-block: 100px 40px;
+}
+
+.panel {
+  composes: reveal from '../../styles/motion.module.css';
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: clamp(28px, 5vw, 64px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 48px;
+  align-items: center;
+}
+
+.text {
+  flex: 1 1 380px;
+  min-width: 0;
+}
+
+.title {
+  margin: 14px 0 0;
+  font-size: clamp(30px, 3.8vw, 48px);
+  line-height: 1.05;
+  letter-spacing: -.03em;
+}
+
+.body {
+  margin: 18px 0 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  max-width: 480px;
+}
+
+.tiles {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tile {
+  padding: 22px;
+  border-radius: var(--radius-tile);
+  background: var(--color-surface-muted);
+}
+
+.tileTitle {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 22px;
+}
+
+.tileDetail {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}

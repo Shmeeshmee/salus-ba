@@ -15,7 +15,7 @@ toolchain in a container, with versions pinned in `build/package/`, `deployments
 | Command | What it does |
 | --- | --- |
 | `make up` | Build and start the local stack: migrations, then the API, worker, scheduler, notifier, agent, LiveKit, Mailpit and the landing page |
-| `make landing` | Build and serve only the landing page (`landing/`) on 127.0.0.1:8090 |
+| `make landing` | Build and serve only the landing page image (`landing/`) on 127.0.0.1:8090 |
 | `make test` | Go tests (both modules) against the compose Postgres and Redis; `TESTFLAGS="-run X -count=1"` narrows |
 | `make lint` | gofmt, go vet, golangci-lint, and the check that no migration on main changed |
 | `make archcheck` | Architecture rules (`tools/archcheck`, config in `docs/architecture/archcheck/`) |
@@ -28,12 +28,14 @@ toolchain in a container, with versions pinned in `build/package/`, `deployments
 | `make gen-clients` | Regenerate the API clients from `api/openapi.yaml` |
 | `make web-lint`, `web-typecheck`, `web-test`, `web-build` | The web app's checks (`web/`, `node` service) |
 | `make web-dev` | Vite dev server on 127.0.0.1:5173, proxying the API (run `make up` first) |
+| `make landing-lint`, `landing-typecheck`, `landing-test`, `landing-build` | The landing page's checks and its prerendering build (`landing/`, `node` service) |
+| `make landing-dev` | The landing page's Vite dev server on 127.0.0.1:5174 |
 | `make mobile-analyze`, `make mobile-test` | The Flutter app's checks (`mobile/`, `flutter` service) |
 | `make psql` | psql on the compose Postgres (no port is published to the host) |
 | `make down` | Stop the containers (volumes and caches are kept) |
 
 Local stack ports, all on 127.0.0.1: API 8080 (`/healthz`, `/readyz`, `/fhir/R4/metadata`), Mailpit web UI
-8025, LiveKit 7880 (dev mode, key `devkey`, secret `secret`), Vite 5173, landing page 8090. If another project holds one, set
+8025, LiveKit 7880 (dev mode, key `devkey`, secret `secret`), Vite 5173, landing page 8090, landing Vite 5174. If another project holds one, set
 the matching `SALUS_*_PORT` from `configs/.env.example` in `deployments/.env` (git-ignored). Postgres and
 Redis publish no port; use `make psql`.
 

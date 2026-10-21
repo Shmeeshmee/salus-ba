@@ -1,0 +1,36 @@
+:root {
+  --font-display: 'Inter Tight Variable', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-text: 'Inter Variable', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+  --color-page: #F6F7F5;
+  --color-ink: #0E1512;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #F1F4F2;
+  --color-track: #EEF2F0;
+  --color-border: #E2E7E4;
+  --color-border-strong: #D5DBD8;
+  --color-text-muted: #4A5651;
+  --color-text-subtle: #5C6863;
+  --color-text-marquee: #3F4A45;
+  --color-text-on-dark: #C3CEC9;
+  --color-brand: #0A6E4F;
+  --color-brand-hover: #064A35;
+  --color-mint: #34D399;
+  --color-mint-faint: rgba(159, 240, 207, .35);
+  --color-scrim: rgba(14, 21, 18, .82);
+
+  --shadow-phone: 0 60px 90px -40px rgba(0, 0, 0, .45), 0 0 0 1px rgba(0, 0, 0, .08);
+  --shadow-chip: 0 24px 48px -26px rgba(0, 0, 0, .35);
+
+  --space-gutter: 32px;
+  --width-wide: 1360px;
+  --width-content: 1240px;
+
+  --radius-pill: 999px;
+  --radius-tile: 18px;
+  --radius-card: 24px;
+  --radius-panel: 32px;
+
+  --ease-out: cubic-bezier(.2, .75, .12, 1);
+  --recolour: .9s ease;
+}

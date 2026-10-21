@@ -1,0 +1,53 @@
+.ribbon {
+  position: absolute;
+  left: -110%;
+  width: 320%;
+  top: 58%;
+  height: 220px;
+  z-index: 1;
+  overflow: visible;
+}
+
+/* The front copy is clipped to the stretch that crosses the phone's left edge, so the line seems to pass
+   in front of the phone there and behind it everywhere else. */
+.front {
+  z-index: 3;
+  clip-path: inset(0 63.5% 0 33%);
+}
+
+.line {
+  fill: none;
+  stroke: var(--acc);
+  stroke-width: 12;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1700;
+  transition: stroke var(--recolour);
+}
+
+/* Two identical animations: switching between them restarts the draw on every specialty change. */
+.drawA {
+  animation: drawA 1.6s cubic-bezier(.4, .1, .2, 1) both;
+}
+
+.drawB {
+  animation: drawB 1.6s cubic-bezier(.4, .1, .2, 1) both;
+}
+
+@keyframes drawA {
+  from {
+    stroke-dashoffset: 1700;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes drawB {
+  from {
+    stroke-dashoffset: 1700;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}

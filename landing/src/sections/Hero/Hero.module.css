@@ -1,0 +1,91 @@
+.hero {
+  view-timeline: --hero block;
+  position: relative;
+  min-height: 100vh;
+  min-height: 100svh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  transition: background-color var(--recolour), color var(--recolour);
+}
+
+.exit {
+  min-height: inherit;
+}
+
+/* The hero shrinks and fades as it scrolls away, where scroll-driven animations are supported. */
+@supports (animation-timeline: view()) {
+  .exit {
+    animation: heroOut linear both;
+    animation-timeline: --hero;
+    animation-range: exit 0% exit 100%;
+  }
+}
+
+.scene {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  animation: introZoom 2s cubic-bezier(.75, 0, .2, 1) both;
+  transform-origin: 52% 52%;
+}
+
+.row {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  width: 100%;
+  max-width: var(--width-wide);
+  margin: 0 auto;
+  padding: 0 var(--space-gutter) 96px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+.stage {
+  position: relative;
+  flex: 0 0 360px;
+  height: 660px;
+  perspective: 1400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 1080px) {
+  .row {
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+@media (max-width: 820px) {
+  .stage {
+    transform: scale(.82);
+    margin: -50px 0;
+  }
+}
+
+@keyframes introZoom {
+  0% {
+    transform: scale(2.6);
+    filter: blur(10px);
+  }
+  100% {
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes heroOut {
+  to {
+    transform: translateY(-6%) scale(.92);
+    opacity: 0;
+    filter: blur(6px);
+  }
+}

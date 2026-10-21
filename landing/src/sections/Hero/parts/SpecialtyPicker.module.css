@@ -1,0 +1,121 @@
+.picker {
+  flex: 1 1 280px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.count {
+  composes: fadeUp from '../../../styles/motion.module.css';
+  font-size: 13px;
+  letter-spacing: .12em;
+  font-variant-numeric: tabular-nums;
+  opacity: .7;
+}
+
+/* Names and blurbs stack in one grid cell; the one on show slides or fades in over the others. */
+.names {
+  composes: fadeUp from '../../../styles/motion.module.css';
+  display: grid;
+  overflow: hidden;
+  margin-top: 14px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(34px, 3.6vw, 58px);
+  line-height: 1;
+  letter-spacing: -.035em;
+  color: var(--acc);
+  transition: color var(--recolour);
+}
+
+.name {
+  grid-area: 1 / 1;
+  transform: translateY(105%);
+  transition: transform .9s var(--ease-out);
+}
+
+.name.shown {
+  transform: none;
+  transition-delay: .15s;
+}
+
+.blurbs {
+  composes: fadeUp from '../../../styles/motion.module.css';
+  display: grid;
+  overflow: hidden;
+  margin-top: 18px;
+  max-width: 280px;
+  font-size: 15px;
+  line-height: 1.5;
+  opacity: .8;
+}
+
+.blurb {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity .5s ease, transform .6s ease;
+}
+
+.blurb.shown {
+  opacity: 1;
+  transform: none;
+  transition-delay: .35s;
+}
+
+.dots {
+  composes: fadeUp from '../../../styles/motion.module.css';
+  margin-top: 22px;
+  margin-right: -12px;
+  display: flex;
+}
+
+.dot {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dot span {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  opacity: .3;
+  transition: width .4s ease, opacity .4s ease;
+}
+
+.dot[aria-pressed='true'] span {
+  width: 30px;
+  opacity: 1;
+}
+
+.dot:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.note {
+  composes: fadeUp from '../../../styles/motion.module.css';
+  margin: 10px 0 0;
+  font-size: 12px;
+  opacity: .6;
+}
+
+@media (max-width: 1080px) {
+  .picker {
+    align-items: center;
+    order: 3;
+  }
+}

@@ -1,0 +1,18 @@
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--color-ink);
+  color: var(--color-surface);
+}
+
+.skip:hover {
+  color: var(--color-surface);
+}
+
+.skip:focus {
+  left: 16px;
+}

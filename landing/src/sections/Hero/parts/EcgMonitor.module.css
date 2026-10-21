@@ -1,0 +1,95 @@
+.monitor {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ECG paper: 5 mm squares over 1 mm ones, faded out towards the edges. */
+.grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--acc) 22%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--acc) 22%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--acc) 9%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--acc) 9%, transparent) 1px, transparent 1px);
+  background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
+  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 55%, #000 30%, transparent 100%);
+  mask-image: radial-gradient(ellipse 75% 70% at 50% 55%, #000 30%, transparent 100%);
+}
+
+.band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 30%;
+  height: 38%;
+  color: var(--acc);
+  transition: color var(--recolour);
+}
+
+.trace {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* The fresh trace is revealed behind the sweep while the old one is wiped just ahead of it. */
+.old {
+  opacity: .28;
+  animation: sweepOld 7s linear infinite;
+}
+
+.fresh {
+  opacity: .7;
+  animation: sweepNew 7s linear infinite;
+}
+
+.path {
+  fill: none;
+  stroke: currentColor;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 140px;
+  margin-left: -140px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--acc) 16%, transparent));
+  border-right: 2px solid color-mix(in srgb, var(--acc) 60%, transparent);
+  transition: border-color var(--recolour);
+  animation: sweepHead 7s linear infinite;
+}
+
+@keyframes sweepNew {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes sweepOld {
+  from {
+    clip-path: inset(0 0 0 3%);
+  }
+  to {
+    clip-path: inset(0 0 0 103%);
+  }
+}
+
+@keyframes sweepHead {
+  from {
+    left: 0%;
+  }
+  to {
+    left: 100%;
+  }
+}
