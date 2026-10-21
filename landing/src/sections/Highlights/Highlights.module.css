@@ -1,0 +1,29 @@
+.highlights {
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.track {
+  display: flex;
+  width: max-content;
+  gap: 56px;
+  padding: 22px 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: -.01em;
+  color: var(--color-text-marquee);
+  white-space: nowrap;
+  animation: marquee 38s linear infinite;
+}
+
+.separator {
+  color: var(--color-mint);
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}

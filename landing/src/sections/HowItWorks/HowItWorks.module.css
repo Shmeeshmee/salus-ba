@@ -1,0 +1,37 @@
+.how {
+  padding-block: 100px 40px;
+}
+
+.steps {
+  composes: reveal from '../../styles/motion.module.css';
+  list-style: none;
+  margin: 56px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  border-top: 1px solid var(--color-border-strong);
+}
+
+.step {
+  padding: 28px 28px 28px 0;
+}
+
+.number {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--color-brand);
+  font-variant-numeric: tabular-nums;
+}
+
+.title {
+  margin: 18px 0 0;
+  font-size: 22px;
+  letter-spacing: -.02em;
+}
+
+.body {
+  margin: 10px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}

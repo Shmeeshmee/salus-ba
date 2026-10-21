@@ -1,0 +1,45 @@
+.pricing {
+  padding-block: 100px 40px;
+}
+
+.plans {
+  composes: reveal from '../../styles/motion.module.css';
+  margin-top: 48px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.plan {
+  flex: 1 1 320px;
+  padding: 32px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.label {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.amount {
+  margin-top: 10px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 48px;
+  letter-spacing: -.03em;
+}
+
+.unit {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.body {
+  margin: 12px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}

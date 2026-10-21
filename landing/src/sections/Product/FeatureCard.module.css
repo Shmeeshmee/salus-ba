@@ -1,0 +1,40 @@
+.card {
+  padding: 28px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.icon {
+  stroke: var(--color-ink);
+}
+
+.title {
+  margin: 12px 0 0;
+  font-size: 22px;
+  letter-spacing: -.02em;
+}
+
+.body {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.dark {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-surface);
+}
+
+.dark .icon {
+  stroke: var(--color-mint);
+}
+
+.dark .body {
+  color: var(--color-text-on-dark);
+}
