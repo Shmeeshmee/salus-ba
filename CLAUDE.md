@@ -50,7 +50,7 @@ directory when something goes in it.
 | `api/` | Contracts: `openapi.yaml` for non-FHIR endpoints, `fhir/` for the CapabilityStatement, profiles (StructureDefinitions) and ValueSets we use. The TypeScript client (openapi-typescript) and the Dart client (openapi-generator) are generated from `openapi.yaml` into `web/` and `mobile/` with `make gen-clients`; never edit them by hand |
 | `configs/` | Config templates and defaults (`.env.example`) |
 | `deployments/` | `docker-compose.yml` (the stack, plus the `tools`, `node` and `flutter` toolchain services behind profiles), and later the orchestration manifests |
-| `build/` | Dockerfiles (`build/package/`): `dev.Dockerfile` (the Go toolchain behind every `make` target), `flutter.Dockerfile`, and the runtime image |
+| `build/` | Dockerfiles (`build/package/`): `dev.Dockerfile` (the Go toolchain behind every `make` target), `flutter.Dockerfile`, `landing.Dockerfile` (nginx for `landing/`), and the runtime image |
 | `.github/` | GitHub Actions workflows, one per app (Go, web, mobile) with path filters, and Dependabot |
 | `migrations/` | goose SQL migrations, numbered, forward-only (no `-- +goose Down`), embedded and applied by `cmd/migrate`. River's schema is migrated here too. A file on `main` is never modified or deleted (`scripts/check-migrations.sh`) |
 | `scripts/` | Scripts the `Makefile` calls. Keep the `Makefile` small |
@@ -59,6 +59,7 @@ directory when something goes in it.
 | `docs/` | `architecture/`, ADRs (`docs/adr/NNNN-title.md`), and one folder per feature (see "Working on a feature") |
 | `web/` | React + TypeScript (Vite) app for practitioners and admins |
 | `mobile/` | Flutter app (iOS and Android) for patients only |
+| `landing/` | Marketing landing page: one static `index.html` and its `nginx.conf`, served by the `landing` compose service. No build step, no framework, no third-party requests (fonts are self-hosted at image build time) |
 
 Never: `/src`, `internal/utils`, `internal/common`, `internal/shared`, `internal/helpers`, or top-level
 technical-layer packages (`internal/services`, `internal/repositories`, `internal/handlers`).
