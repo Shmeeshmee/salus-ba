@@ -171,6 +171,21 @@ services:
       - ..:/src
       - npm:/cache/npm
 
+  # Vite dev server for the landing page (landing/): `make landing-dev`, on 127.0.0.1:5174.
+  landing-dev:
+    profiles: [landing]
+    build:
+      context: ..
+      dockerfile: build/package/node.Dockerfile
+    image: salus-node:24.22.0
+    <<: *host-user
+    working_dir: /src/landing
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5174"]
+    ports: ["127.0.0.1:${SALUS_LANDING_DEV_PORT:-5174}:5174"]
+    volumes:
+      - ..:/src
+      - npm:/cache/npm
+
   # Flutter toolchain: analyze, test, codegen. Devices and emulators stay on the host (README.md).
   flutter:
     profiles: [mobile]
