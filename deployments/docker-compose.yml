@@ -93,8 +93,8 @@ services:
     image: axllent/mailpit:v1.31.6
     ports: ["127.0.0.1:${SALUS_MAILPIT_PORT:-8025}:8025"]
 
-  # Marketing landing page (landing/): static nginx on 127.0.0.1:8090. Fonts are self-hosted, so the page
-  # makes no third-party request. `make landing` starts it alone.
+  # Marketing landing page (landing/): the prerendered React app on nginx, 127.0.0.1:8090. Fonts are bundled,
+  # so the page makes no third-party request. `make landing` starts it alone.
   landing:
     build:
       context: ../landing
