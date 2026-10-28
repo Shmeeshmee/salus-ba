@@ -1,6 +1,6 @@
 # Node toolchain for web/: npm scripts, the Vite dev server and the TypeScript client generator. The npm
 # cache lives in a named volume at /cache; world-writable so the container can run as the host user.
-FROM node:26.11.1-trixie-slim
+FROM node:26.12.0-trixie-slim
 RUN mkdir -p /cache/npm /cache/home && chmod -R 0777 /cache
 ENV npm_config_cache=/cache/npm \
     npm_config_update_notifier=false \

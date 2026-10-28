@@ -2,7 +2,7 @@
 # unprivileged nginx. The build context is landing/ (deployments/docker-compose.yml). The fonts are bundled
 # from npm and served from this origin, so a visitor's browser never calls a font CDN (GDPR: no IP address
 # goes to a third party). Same Node image as node.Dockerfile.
-FROM node:26.11.1-trixie-slim AS build
+FROM node:26.12.0-trixie-slim AS build
 WORKDIR /src
 COPY package.json package-lock.json .npmrc ./
 RUN npm ci --no-audit --no-fund
