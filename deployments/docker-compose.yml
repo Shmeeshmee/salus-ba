@@ -90,7 +90,7 @@ services:
 
   # Catches every e-mail sent locally; web UI on 127.0.0.1:8025 (SMTP 1025 on the compose network only).
   mailpit:
-    image: axllent/mailpit:v1.31.6
+    image: axllent/mailpit:v1.32.0
     ports: ["127.0.0.1:${SALUS_MAILPIT_PORT:-8025}:8025"]
 
   # Marketing landing page (landing/): the prerendered React app on nginx, 127.0.0.1:8090. Fonts are bundled,
