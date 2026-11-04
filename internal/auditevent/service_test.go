@@ -15,6 +15,13 @@ type fakeRepository struct {
 	err     error
 	inserts []auditevent.AuditEvent
 	inTx    []bool
+	counted []time.Time // the cut-offs of CountRecordedBefore
+	count   int64
+}
+
+func (r *fakeRepository) CountRecordedBefore(_ context.Context, before time.Time) (int64, error) {
+	r.counted = append(r.counted, before)
+	return r.count, r.err
 }
 
 type txKey struct{}
@@ -135,5 +142,24 @@ func TestRecord_ReturnsTheRepositoryError(t *testing.T) {
 
 	if err := svc.Record(t.Context(), login()); !errors.Is(err, repo.err) {
 		t.Errorf("Record() error = %v, want the repository's error", err)
+	}
+}
+
+func TestCountRecordedBefore_CountsThroughTheRepository(t *testing.T) {
+	svc, repo := newService()
+	repo.count = 2
+	before := now.Add(-3653 * 24 * time.Hour)
+
+	n, err := svc.CountRecordedBefore(t.Context(), before)
+
+	if err != nil || n != 2 {
+		t.Errorf("CountRecordedBefore() = %d, %v; want 2, nil", n, err)
+	}
+	if len(repo.counted) != 1 || !repo.counted[0].Equal(before) {
+		t.Errorf("repository asked for %v, want [%v]", repo.counted, before)
+	}
+	repo.err = errors.New("synthetic failure")
+	if _, err := svc.CountRecordedBefore(t.Context(), before); err == nil {
+		t.Error("CountRecordedBefore() error = nil when the repository fails")
 	}
 }

@@ -164,6 +164,34 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (p
 	return id, err
 }
 
+const deleteInvitesEndedBefore = `-- name: DeleteInvitesEndedBefore :execrows
+DELETE FROM invite WHERE least(accepted_at, expires_at) < $1
+`
+
+// Retention (salus_retention, past row-level security): an invite ends at accepted_at or expires_at,
+// whichever comes first.
+func (q *Queries) DeleteInvitesEndedBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteInvitesEndedBefore, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteSessionsEndedBefore = `-- name: DeleteSessionsEndedBefore :execrows
+DELETE FROM session WHERE least(revoked_at, expires_at) < $1
+`
+
+// Retention (salus_retention): a session ends at revoked_at or expires_at, whichever comes first (least()
+// skips a null revoked_at).
+func (q *Queries) DeleteSessionsEndedBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSessionsEndedBefore, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const inviteByID = `-- name: InviteByID :one
 SELECT id, created_at, expires_at, accepted_at, organization_id, invited_by, role, email, given_name, family_name
 FROM invite

@@ -2,7 +2,11 @@ package config_test
 
 import (
 	"encoding/base64"
+	"fmt"
+	"io/fs"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -117,5 +121,72 @@ func TestLoad_ReadsTheFHIRBaseURL(t *testing.T) {
 	cfg, err := config.Load()
 	if err != nil || cfg.FHIRBaseURL != "http://localhost:8080/fhir/R4" {
 		t.Errorf("Load() = FHIRBaseURL %q, %v", cfg.FHIRBaseURL, err)
+	}
+}
+
+func TestLoadRetention_ReadsTheRetentionRolesCredentials(t *testing.T) {
+	t.Setenv("RETENTION_DATABASE_URL", "postgres://salus_retention:synthetic@localhost/test")
+	t.Setenv("RETENTION_DATABASE_PASSWORD", "synthetic")
+
+	ret := config.LoadRetention()
+
+	if ret.DatabaseURL != "postgres://salus_retention:synthetic@localhost/test" || ret.Password != "synthetic" {
+		t.Error("LoadRetention() does not read RETENTION_DATABASE_URL and RETENTION_DATABASE_PASSWORD")
+	}
+}
+
+// The api, the notifier and the scheduler load only Load's configuration: with the retention credentials
+// in the environment, none of them reaches what they load.
+func TestLoad_NeverReadsTheRetentionRolesCredentials(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+	t.Setenv("RETENTION_DATABASE_URL", "postgres://salus_retention:retention-url-marker@localhost/test")
+	t.Setenv("RETENTION_DATABASE_PASSWORD", "retention-password-marker")
+
+	cfg, err := config.Load()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprintf("%#v", cfg); strings.Contains(got, "retention-url-marker") || strings.Contains(got, "retention-password-marker") {
+		t.Errorf("Load() holds the retention credentials: %s", got)
+	}
+}
+
+// Only cmd/worker (for the retention_apply job's pool) and cmd/migrate (to set the role's password) call
+// LoadRetention, and no other Go file reads the variables.
+func TestLoadRetention_IsCalledOnlyByTheWorkerAndMigrate(t *testing.T) {
+	root := filepath.Join("..", "..")
+	var callers, readers []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && (d.Name() == "node_modules" || d.Name() == ".git" || d.Name() == "tools") {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(root, path)
+		if strings.Contains(string(src), "config.LoadRetention(") {
+			callers = append(callers, filepath.ToSlash(rel))
+		}
+		if strings.Contains(string(src), `Getenv("RETENTION_DATABASE_`) {
+			readers = append(readers, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"cmd/migrate/main.go", "cmd/worker/main.go"}; !slices.Equal(callers, want) {
+		t.Errorf("LoadRetention is called by %v, want %v", callers, want)
+	}
+	if want := []string{"internal/config/config.go"}; !slices.Equal(readers, want) {
+		t.Errorf("the retention variables are named in %v, want only %v", readers, want)
 	}
 }

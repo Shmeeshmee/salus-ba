@@ -19,20 +19,21 @@ func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
 // transaction (InsertTx). The worker runs it once the transaction commits.
 func TestNoop_RunsAJobEnqueuedInATransaction(t *testing.T) {
 	t.Parallel()
-	pool := pgtest.NewDatabase(t)
-	runNoop(t, pool)
+	owner, retention := pgtest.NewRetentionDatabase(t)
+	runNoop(t, owner, retention)
 }
 
-// The worker and notifier log in as the application role; its grants must cover what River does.
+// The worker and notifier log in as the application role; its grants must cover what River does. The
+// retention role has no grant on River's tables, so the job also proves River runs on the app pool.
 func TestNoop_RunsAsTheAppRole(t *testing.T) {
 	t.Parallel()
-	_, app := pgtest.NewAppDatabase(t)
-	runNoop(t, app)
+	db := newLogins(t)
+	runNoop(t, db.app, db.retention)
 }
 
-func runNoop(t *testing.T, pool *pgxpool.Pool) {
+func runNoop(t *testing.T, pool, retention *pgxpool.Pool) {
 	t.Helper()
-	client, err := worker.New(pool, slog.New(slog.DiscardHandler))
+	client, err := worker.New(pool, retention, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

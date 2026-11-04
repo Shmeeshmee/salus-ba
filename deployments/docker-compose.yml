@@ -60,6 +60,7 @@ services:
     environment:
       DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable # the owner; local only
       APP_DATABASE_PASSWORD: local-app-password # set on salus_app after the migrations; synthetic, local only
+      RETENTION_DATABASE_PASSWORD: local-retention-password # set on salus_retention likewise
     restart: "no"
     depends_on:
       postgres: {condition: service_healthy}
@@ -81,7 +82,13 @@ services:
   worker:
     <<: *app
     command: ["/usr/local/bin/worker"]
+    environment:
+      <<: *app-env
+      # The retention_apply job's own login, salus_retention (BYPASSRLS, SELECT and DELETE on the tables whose
+      # rule is delete). Only this service has it (internal/worker's tests check). Synthetic, local only.
+      RETENTION_DATABASE_URL: postgres://salus_retention:local-retention-password@postgres:5432/salus?sslmode=disable
 
+  # Enqueues the periodic jobs (retention_apply daily at 03:00 UTC) and is River's only leader.
   scheduler:
     <<: *app
     command: ["/usr/local/bin/scheduler"]
@@ -147,12 +154,15 @@ services:
       TEST_DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable
       # salus_app is cluster-wide: the same synthetic password migrate sets, so tests and the stack agree.
       TEST_APP_DATABASE_PASSWORD: local-app-password
+      # salus_retention, the retention job's login, is cluster-wide too: the value migrate sets.
+      TEST_RETENTION_DATABASE_PASSWORD: local-retention-password
       TEST_REDIS_URL: redis://redis:6379/0
       # The SMTP sender's tests deliver to the compose Mailpit and read its API, then delete what they sent.
       TEST_SMTP_ADDR: mailpit:1025
       TEST_MAILPIT_URL: http://mailpit:8025
       DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable # make migrate: the owner
       APP_DATABASE_PASSWORD: local-app-password
+      RETENTION_DATABASE_PASSWORD: local-retention-password # make migrate sets it on salus_retention
     volumes:
       - ..:/src
       - gomod:/cache/gomod

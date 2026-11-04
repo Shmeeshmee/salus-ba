@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -137,5 +138,24 @@ func TestRecord_StoresAnAgentThatIsNoAccountByName(t *testing.T) {
 	}
 	if got := readOnly(t, owner); got.agent != "<null>" || got.agentName != "salusctl" {
 		t.Errorf("stored agent %q named %q, want no account and the operator command, salusctl", got.agent, got.agentName)
+	}
+}
+
+func TestCountRecordedBefore_CountsTheEventsRecordedBeforeTheCutOffAsTheAppRole(t *testing.T) {
+	t.Parallel()
+	_, app := pgtest.NewAppDatabase(t)
+	repo := auditevent.NewPostgresRepository(app)
+	for _, at := range []time.Time{now.Add(-2 * time.Second), now.Add(-time.Second), now, now.Add(time.Second)} {
+		e := login()
+		e.Recorded = at
+		if err := repo.Insert(t.Context(), e); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	n, err := repo.CountRecordedBefore(t.Context(), now)
+
+	if err != nil || n != 2 {
+		t.Errorf("CountRecordedBefore() = %d, %v; want the 2 events recorded before the cut-off", n, err)
 	}
 }

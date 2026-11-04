@@ -11,6 +11,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countRecordedBefore = `-- name: CountRecordedBefore :one
+SELECT count(*) FROM audit_event WHERE recorded < $1
+`
+
+// The retention job's daily overdue check. A sequential scan: no index leads with recorded, and partitioning
+// by year (docs/booking/SPEC.md §6) will make this a partition lookup.
+func (q *Queries) CountRecordedBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	row := q.db.QueryRow(ctx, countRecordedBefore, before)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const insertAuditEvent = `-- name: InsertAuditEvent :exec
 INSERT INTO audit_event (
     recorded, agent_account_id, agent_name, organization_id, outcome, action,

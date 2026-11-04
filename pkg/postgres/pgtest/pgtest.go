@@ -7,7 +7,8 @@
 //
 // NewAppDatabase also connects as the application role (AppRole, created by the migrations) with the
 // password in TEST_APP_DATABASE_PASSWORD, so a test sees exactly what the api and worker see: grants and
-// row-level security apply.
+// row-level security apply. NewRetentionDatabase connects as the retention job's role (RetentionRole) with
+// the password in TEST_RETENTION_DATABASE_PASSWORD.
 package pgtest
 
 import (
@@ -29,6 +30,16 @@ import (
 
 // AppRole is the role the application binaries log in as: no superuser, no BYPASSRLS, owner of nothing.
 const AppRole = "salus_app"
+
+// RetentionRole is the retention job's role: BYPASSRLS, no superuser, owner of nothing, granted only SELECT
+// and DELETE on the tables whose rows are deleted after their period.
+const RetentionRole = "salus_retention"
+
+// The variables that hold the passwords Main sets on the roles, and the tests log in with.
+const (
+	appPasswordVar       = "TEST_APP_DATABASE_PASSWORD"
+	retentionPasswordVar = "TEST_RETENTION_DATABASE_PASSWORD"
+)
 
 // server is set once by Main, before any test runs, and only read afterwards: TestMain has no other way to
 // hand it to the tests.
@@ -72,9 +83,11 @@ func run(m *testing.M, migrations fs.FS) int {
 			return 1
 		}
 	}
-	if err := setAppPassword(ctx, admin); err != nil {
-		fmt.Fprintln(os.Stderr, "pgtest: set the", AppRole, "password:", err)
-		return 1
+	for role, variable := range map[string]string{AppRole: appPasswordVar, RetentionRole: retentionPasswordVar} {
+		if err := setRolePassword(ctx, admin, role, os.Getenv(variable)); err != nil {
+			fmt.Fprintln(os.Stderr, "pgtest: set the", role, "password:", err)
+			return 1
+		}
 	}
 
 	server.admin, server.url, server.template = admin, serverURL, template
@@ -129,29 +142,61 @@ func NewDatabase(t testing.TB) *pgxpool.Pool {
 // Main set from TEST_APP_DATABASE_PASSWORD.
 func NewAppDatabase(t testing.TB) (owner, app *pgxpool.Pool) {
 	t.Helper()
-	password := os.Getenv("TEST_APP_DATABASE_PASSWORD")
-	if password == "" {
-		t.Fatal("pgtest: TEST_APP_DATABASE_PASSWORD is not set; run the tests with `make test`, which sets it for the compose Postgres")
-	}
-	dbURL := NewDatabaseURL(t)
-	u, _ := url.Parse(dbURL) // built by withDatabase from a URL that parsed
-	u.User = url.UserPassword(AppRole, password)
-	return connect(t, dbURL), connect(t, u.String())
+	return newRoleDatabase(t, AppRole, appPasswordVar)
 }
 
-// setAppPassword sets AppRole's password from TEST_APP_DATABASE_PASSWORD when the migrations created the
-// role and the variable is set. The role is cluster-wide and every test package sets the same value (in the
-// compose stack, the one cmd/migrate sets too); SetPassword retries the race between packages.
-func setAppPassword(ctx context.Context, admin *pgxpool.Pool) error {
-	password := os.Getenv("TEST_APP_DATABASE_PASSWORD")
+// NewRetentionDatabase is NewAppDatabase for RetentionRole, with the password Main set from
+// TEST_RETENTION_DATABASE_PASSWORD.
+func NewRetentionDatabase(t testing.TB) (owner, retention *pgxpool.Pool) {
+	t.Helper()
+	return newRoleDatabase(t, RetentionRole, retentionPasswordVar)
+}
+
+// AppURL returns dbURL logged in as AppRole, for a test that needs it beside another role's login.
+func AppURL(t testing.TB, dbURL string) string {
+	t.Helper()
+	return roleURL(t, dbURL, AppRole, appPasswordVar)
+}
+
+// RetentionURL returns dbURL logged in as RetentionRole, for a test that hands a binary its URL.
+func RetentionURL(t testing.TB, dbURL string) string {
+	t.Helper()
+	return roleURL(t, dbURL, RetentionRole, retentionPasswordVar)
+}
+
+func newRoleDatabase(t testing.TB, role, passwordVar string) (owner, as *pgxpool.Pool) {
+	t.Helper()
+	dbURL := NewDatabaseURL(t)
+	return connect(t, dbURL), connect(t, roleURL(t, dbURL, role, passwordVar))
+}
+
+// roleURL returns dbURL with role and the password in the variable passwordVar.
+func roleURL(t testing.TB, dbURL, role, passwordVar string) string {
+	t.Helper()
+	password := os.Getenv(passwordVar)
+	if password == "" {
+		t.Fatal("pgtest: " + passwordVar + " is not set; run the tests with `make test`, which sets it for the compose Postgres")
+	}
+	u, err := url.Parse(dbURL)
+	if err != nil {
+		t.Fatal("pgtest: the database URL does not parse")
+	}
+	u.User = url.UserPassword(role, password)
+	return u.String()
+}
+
+// setRolePassword sets role's password when the migrations created the role and password is not empty.
+// Roles are cluster-wide and every test package sets the same value (in the compose stack, the one
+// cmd/migrate sets too); SetPassword retries the race between packages.
+func setRolePassword(ctx context.Context, admin *pgxpool.Pool, role, password string) error {
 	var exists bool
-	if err := admin.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)", AppRole).Scan(&exists); err != nil {
+	if err := admin.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)", role).Scan(&exists); err != nil {
 		return err
 	}
 	if !exists || password == "" {
 		return nil
 	}
-	return postgres.SetPassword(ctx, admin, AppRole, password)
+	return postgres.SetPassword(ctx, admin, role, password)
 }
 
 func connect(t testing.TB, dbURL string) *pgxpool.Pool {

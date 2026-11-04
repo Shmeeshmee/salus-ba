@@ -348,3 +348,11 @@ func toInvite(row authdb.InviteByIDRow) Invite {
 	}
 	return inv
 }
+
+func (r *postgresRepository) DeleteSessionsEndedBefore(ctx context.Context, before time.Time) (int64, error) {
+	return r.q(ctx).DeleteSessionsEndedBefore(ctx, pgtype.Timestamptz{Time: before, Valid: true})
+}
+
+func (r *postgresRepository) DeleteInvitesEndedBefore(ctx context.Context, before time.Time) (int64, error) {
+	return r.q(ctx).DeleteInvitesEndedBefore(ctx, pgtype.Timestamptz{Time: before, Valid: true})
+}

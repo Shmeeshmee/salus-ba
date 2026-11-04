@@ -21,6 +21,8 @@ Ids are opaque UUIDs, so an audit row says nothing about a person without the ac
 
 **Retention.** Ten years, then removed by whole time ranges as the schema owner
 (`internal/retention/rules.go`). The period is a default that needs a legal decision before production.
+No role can remove an audit row yet; the daily retention job counts rows past the period and fails, with the
+count only, if there are any (see "Booking, package 1" below).
 archcheck fails when a table marked `personal_data: true` in `ownership.yaml` has no retention rule.
 
 **Risks and measures.**
@@ -84,7 +86,7 @@ e-mail is readable in Redis; it is never logged. The `otpauth://` URI carries th
 the account holder only, and is not cached (`Cache-Control: no-store`).
 
 **Retention.** Sessions are deleted 30 days after they were revoked or expired (`internal/retention`,
-`delete`; applied by the retention job, the next privacy feature). Redis keys expire on their own. The TOTP
+`delete`; applied daily by the retention job, booking package 1). Redis keys expire on their own. The TOTP
 columns follow the account.
 
 **Risks and measures.**
@@ -153,7 +155,8 @@ name, role or inviter. The job carries only the invite and clinic ids. Inviting 
 whether the e-mail already has an account (it might be a patient's); only the invitee learns it, on
 acceptance.
 
-**Retention.** `invite`: deleted 30 days after `accepted_at` or `expires_at` (`internal/retention`, `delete`).
+**Retention.** `invite`: deleted 30 days after `accepted_at` or `expires_at` (`internal/retention`, `delete`;
+applied daily by the retention job, booking package 1).
 
 **Risks and measures.**
 
@@ -241,3 +244,32 @@ deletes it); the session itself expires after 30 days (package 3).
 | A staff account's session lingers on a patient device | Staff are not signed in: a `next: enrol` login stops before enrolment, and a staff session opened with a code is ended at once (`POST /auth/logout`) and never stored (tested) |
 | The token outlives sign-out | Sign-out revokes the session on the API and then deletes the stored token; when the API cannot be reached the app stays signed in and says so, so the session is never left valid without the user knowing (tested) |
 | Credentials, codes or tokens reach a log | The app logs nothing (`avoid_print`; a test asserts nothing is printed during sign-in); error text is a fixed sentence per API error code, never a response body |
+
+## Patients, consent and booking (`docs/booking`)
+
+### Package 1: retention job
+
+**What.** The retention rules are applied, not only recorded. `retention_apply` (River, default queue,
+`cmd/worker`) runs daily at 03:00 UTC, enqueued by `cmd/scheduler`. It deletes sessions and invites 30 days
+after they ended, does nothing for `keep` and `restrict` rules (closure, erasure and deactivation are later
+features), and counts audit events past their ten years: nothing can remove them yet, so any overdue row
+fails the job, with the count only. It refuses to start when a rule that removes rows has no applier.
+
+**Who can delete.** A dedicated role, `salus_retention`: `BYPASSRLS` (invites are row-level secured by
+clinic), not a superuser, owner of nothing, `SELECT` and `DELETE` on exactly the tables whose rule is
+`delete` (`session`, `invite`), and no privilege on `audit_event`. Its own login, `RETENTION_DATABASE_URL`, is
+given only to the worker service and loaded only by `cmd/worker`, for this job's purgers alone; the api,
+notifier and scheduler never read it, and every other job runs as `salus_app` (tests in `internal/config`,
+`internal/worker` and `migrations/`).
+
+**What is processed and logged.** The job reads no personal field: each purger is one `DELETE … WHERE` on
+the end timestamps. It logs the table and the counts per rule, nothing else; job arguments are empty.
+
+**Risks and measures.** A role that bypasses row-level security could read every clinic's invites: it holds
+only `SELECT`/`DELETE` on two tables, its credentials reach one process, and the SQL lives with the owning
+domain (`auth`). Deletions are not audited row by row: the role cannot write `audit_event` by design, and the
+deleted rows are expired credentials and invitations; the log keeps the daily counts.
+
+**Open before production.** The retention periods (legal decision, unchanged); provisioning
+`salus_retention` where `migrate` does not run as a superuser: creating a `BYPASSRLS` role needs a superuser
+or a role that has `BYPASSRLS` itself (Postgres 16+), as well as `CREATEROLE`.

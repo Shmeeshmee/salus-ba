@@ -1,6 +1,7 @@
 // Package retention says how long each table with personal data is kept and what happens after
 // (docs/accounts/SPEC.md "Retention hook"). The rules are data; archcheck checks that every table marked
-// personal_data in ownership.yaml has one. The scheduled job that applies them is the next privacy feature.
+// personal_data in ownership.yaml has one. Service applies them; the retention_apply job (internal/worker)
+// runs it daily (docs/booking/SPEC.md §2 "Applying the rules").
 package retention
 
 import "time"
@@ -31,4 +32,12 @@ type Rule struct {
 	Basis string        // why the rows are kept that long: the legal ground
 	Then  Then          // what happens after Keep
 	Keep  time.Duration // how long a row is kept; zero for ThenKeep and ThenRestrict
+}
+
+// Result is what applying one rule did: rows deleted (delete), or rows past their period that cannot be
+// removed yet (remove-range). Table names and counts only.
+type Result struct {
+	Table   string
+	Deleted int64
+	Overdue int64
 }

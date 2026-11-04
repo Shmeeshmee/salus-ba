@@ -70,3 +70,23 @@ func Load() (Config, error) {
 	}
 	return cfg, nil
 }
+
+// Retention holds the retention job's credentials: the salus_retention role, which bypasses row-level
+// security and may delete the rows whose period is over (docs/booking/SPEC.md §2 "Retention privileges").
+// Load never reads them; only cmd/worker (the pool of the retention_apply job) and cmd/migrate (which sets
+// the role's password) call LoadRetention.
+type Retention struct {
+	// DatabaseURL is the role's login (RETENTION_DATABASE_URL); cmd/worker requires it.
+	DatabaseURL string
+	// Password is set on the role by `migrate up` when not empty (RETENTION_DATABASE_PASSWORD), like
+	// AppDatabasePassword.
+	Password string
+}
+
+// LoadRetention reads the retention job's credentials from the environment.
+func LoadRetention() Retention {
+	return Retention{
+		DatabaseURL: os.Getenv("RETENTION_DATABASE_URL"),
+		Password:    os.Getenv("RETENTION_DATABASE_PASSWORD"),
+	}
+}

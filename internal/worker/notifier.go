@@ -41,13 +41,14 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, smtpAddr, webBaseURL stri
 	mail := notification.NewService(invites, clinics, notification.NewSMTPSender(smtpAddr), webBaseURL)
 
 	workers := river.NewWorkers()
+	addEmailWorkers(workers, mail)
+	return river.NewClient(riverpgxv5.New(pool), workConfig(log, emailQueue, workers))
+}
+
+// addEmailWorkers registers the email queue's jobs; the scheduler registers them with a nil mail, like
+// addDefaultWorkers.
+func addEmailWorkers(workers *river.Workers, mail *notification.Service) {
 	river.AddWorker(workers, &inviteEmailWorker{mail: mail})
-	return river.NewClient(riverpgxv5.New(pool), &river.Config{
-		Logger:              log,
-		Queues:              map[string]river.QueueConfig{emailQueue: {MaxWorkers: maxWorkers}},
-		ReindexerIndexNames: []string{}, // as in config: the notifier logs in as salus_app, which owns nothing
-		Workers:             workers,
-	})
 }
 
 // inviteEmailWorker sends an invite's e-mail. A retry issues a new token, so only the newest link works

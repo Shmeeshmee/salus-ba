@@ -1,6 +1,6 @@
 // Command migrate applies the embedded goose migrations: migrate up | status | create [-dir migrations] <name>.
 // It connects as the schema owner. After up, it sets the password of the application role from
-// APP_DATABASE_PASSWORD when that is set.
+// APP_DATABASE_PASSWORD, and of the retention job's role from RETENTION_DATABASE_PASSWORD, each when set.
 package main
 
 import (
@@ -27,8 +27,12 @@ import (
 
 const usage = "usage: migrate up | status | create [-dir migrations] <name>"
 
-// appRole is the role the application binaries log in as, created by the migrations.
-const appRole = "salus_app"
+// The roles the migrations create: appRole, which the application binaries log in as, and retentionRole,
+// which only the retention_apply job logs in as.
+const (
+	appRole       = "salus_app"
+	retentionRole = "salus_retention"
+)
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -48,7 +52,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	case "up", "status":
 		return withProvider(ctx, func(p *goose.Provider, db postgres.Querier, cfg config.Config) error {
 			if args[0] == "up" {
-				return up(ctx, p, db, cfg.AppDatabasePassword, stdout)
+				passwords := [][2]string{{appRole, cfg.AppDatabasePassword}, {retentionRole, config.LoadRetention().Password}}
+				return up(ctx, p, db, passwords, stdout)
 			}
 			return status(ctx, p, stdout)
 		})
@@ -78,21 +83,29 @@ func withProvider(ctx context.Context, fn func(*goose.Provider, postgres.Querier
 	return fn(p, pool, cfg)
 }
 
-func up(ctx context.Context, p *goose.Provider, db postgres.Querier, appPassword string, stdout io.Writer) error {
+// up applies the migrations, then sets each {role, password} whose password is not empty.
+func up(ctx context.Context, p *goose.Provider, db postgres.Querier, passwords [][2]string, stdout io.Writer) error {
 	results, err := p.Up(ctx)
 	for _, r := range results {
 		if _, werr := fmt.Fprintf(stdout, "applied  %s  %s\n", filepath.Base(r.Source.Path), r.Duration); werr != nil {
 			return werr
 		}
 	}
-	if err != nil || appPassword == "" {
+	if err != nil {
 		return err
 	}
-	if err := postgres.SetPassword(ctx, db, appRole, appPassword); err != nil {
-		return err
+	for _, rp := range passwords {
+		if rp[1] == "" {
+			continue
+		}
+		if err := postgres.SetPassword(ctx, db, rp[0], rp[1]); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintln(stdout, "set the password of", rp[0]); err != nil {
+			return err
+		}
 	}
-	_, err = fmt.Fprintln(stdout, "set the password of", appRole)
-	return err
+	return nil
 }
 
 func status(ctx context.Context, p *goose.Provider, stdout io.Writer) error {

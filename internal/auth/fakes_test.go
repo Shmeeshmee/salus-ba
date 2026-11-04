@@ -37,6 +37,8 @@ type fakeRepository struct {
 	inTx       func()                  // called on the first repository call inside a transaction, when set
 	fakeInvites
 	outside []string // the calls made outside a transaction
+	purges  []purge  // the retention deletes, in order
+	purged  int64    // the row count every retention delete returns
 }
 
 type fakeSession struct {

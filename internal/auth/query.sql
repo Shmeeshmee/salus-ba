@@ -93,3 +93,13 @@ SELECT invite_organization(@token_hash::bytea)::uuid AS organization_id;
 -- name: AcceptInvite :execrows
 UPDATE invite SET accepted_at = @accepted_at
 WHERE id = @id AND accepted_at IS NULL AND expires_at > @accepted_at;
+
+-- name: DeleteSessionsEndedBefore :execrows
+-- Retention (salus_retention): a session ends at revoked_at or expires_at, whichever comes first (least()
+-- skips a null revoked_at).
+DELETE FROM session WHERE least(revoked_at, expires_at) < @before;
+
+-- name: DeleteInvitesEndedBefore :execrows
+-- Retention (salus_retention, past row-level security): an invite ends at accepted_at or expires_at,
+-- whichever comes first.
+DELETE FROM invite WHERE least(accepted_at, expires_at) < @before;
