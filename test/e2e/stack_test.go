@@ -1,0 +1,279 @@
+//go:build e2e
+
+package e2e_test
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"encoding/base32"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"regexp"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/Shmeeshmee/salus/internal/auth"
+	"github.com/Shmeeshmee/salus/pkg/clock"
+)
+
+// The synthetic password every journey's accounts use (12 to 128 characters, SPEC.md "Passwords").
+const password = "e2e-synthetic-password"
+
+// env returns the variable `make e2e` sets, failing the test without it: the suite never skips.
+func env(t *testing.T, name string) string {
+	t.Helper()
+	v := os.Getenv(name)
+	if v == "" {
+		t.Fatalf("%s is not set; run the end-to-end tests with `make e2e`", name)
+	}
+	return v
+}
+
+// email returns a fresh synthetic address for who, so reruns against the same stack never collide.
+func email(t *testing.T, who string) string {
+	t.Helper()
+	b := make([]byte, 6)
+	_, _ = rand.Read(b)
+	return "e2e-" + who + "-" + hex.EncodeToString(b) + "@example.test"
+}
+
+// waitReady waits up to 30 s for the API's /readyz to answer 200: `make up` does not wait for the API.
+func waitReady(t *testing.T) string {
+	t.Helper()
+	base := env(t, "E2E_BASE_URL")
+	client := &http.Client{Timeout: 2 * time.Second}
+	timeout := time.After(30 * time.Second)
+	for {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, base+"/readyz", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := client.Do(req)
+		status := 0
+		if err == nil {
+			status = resp.StatusCode
+			_ = resp.Body.Close()
+			if status == http.StatusOK {
+				return base
+			}
+		}
+		select {
+		case <-timeout:
+			t.Fatalf("GET %s/readyz did not return 200 within 30s (last: status %d, %v)", base, status, err)
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
+}
+
+// api is a client of the JSON and FHIR APIs, signed in with a bearer token as the mobile app is.
+type api struct {
+	t      *testing.T
+	http   *http.Client
+	base   string
+	bearer string
+}
+
+func newAPI(t *testing.T) *api {
+	t.Helper()
+	return &api{t: t, http: &http.Client{Timeout: 10 * time.Second}, base: waitReady(t)}
+}
+
+// do sends body (JSON, or none when nil) and decodes a JSON answer into out when out is not nil. It returns
+// the status.
+func (a *api) do(method, path string, body, out any) int {
+	a.t.Helper()
+	var r io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			a.t.Fatal(err)
+		}
+		r = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(a.t.Context(), method, a.base+path, r)
+	if err != nil {
+		a.t.Fatal(err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if strings.HasPrefix(path, "/fhir/") {
+		req.Header.Set("Accept", "application/fhir+json")
+	}
+	if a.bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+a.bearer)
+	}
+	resp, err := a.http.Do(req)
+	if err != nil {
+		a.t.Fatalf("%s %s: %v", method, path, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		a.t.Fatal(err)
+	}
+	if out != nil && len(raw) > 0 && resp.StatusCode < 300 {
+		if err := json.Unmarshal(raw, out); err != nil {
+			a.t.Fatalf("%s %s = %d: decoding %s: %v", method, path, resp.StatusCode, raw, err)
+		}
+	}
+	return resp.StatusCode
+}
+
+// must is do that fails the test unless the status is want.
+func (a *api) must(want int, method, path string, body, out any) {
+	a.t.Helper()
+	if got := a.do(method, path, body, out); got != want {
+		a.t.Fatalf("%s %s = %d, want %d", method, path, got, want)
+	}
+}
+
+// login is the LoginResponse schema, and the challenge's next step.
+type login struct {
+	Next      string `json:"next"`
+	Challenge string `json:"challenge"`
+	Token     string `json:"token"`
+}
+
+func (a *api) login(addr string) login {
+	a.t.Helper()
+	var l login
+	a.must(http.StatusOK, http.MethodPost, "/auth/login", map[string]string{"email": addr, "password": password}, &l)
+	return l
+}
+
+// account is the Account schema.
+type account struct {
+	ID             string `json:"id"`
+	Email          string `json:"email"`
+	Role           string `json:"role"`
+	OrganizationID string `json:"organizationId"`
+	MFAEnrolled    bool   `json:"mfaEnrolled"`
+}
+
+func (a *api) me() account {
+	a.t.Helper()
+	var acc account
+	a.must(http.StatusOK, http.MethodGet, "/auth/me", nil, &acc)
+	return acc
+}
+
+// authenticator computes the TOTP codes an authenticator app would show for an enrolment's secret.
+type authenticator struct {
+	secret []byte
+	last   int64 // the step of the last code used; the API rejects a step already used
+}
+
+func newAuthenticator(t *testing.T, secret string) *authenticator {
+	t.Helper()
+	b, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secret)
+	if err != nil || len(b) == 0 {
+		t.Fatalf("the enrolment's secret is not base32: %v", err)
+	}
+	return &authenticator{secret: b}
+}
+
+// code returns a code of a step not used yet: the current one, or the one after the last used, which the API
+// accepts as one step of drift. It waits when that would be more than one step ahead.
+func (a *authenticator) code() string {
+	now := func() int64 { return clock.System{}.Now().Unix() / 30 }
+	step := max(now(), a.last+1)
+	for step > now()+1 {
+		time.Sleep(time.Second)
+	}
+	a.last = step
+	return auth.TOTPCode(a.secret, time.Unix(step*30, 0))
+}
+
+// salusctl runs the operator command (built by `make e2e`) on the owner's connection and returns its output.
+func salusctl(t *testing.T, args ...string) string {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), env(t, "E2E_SALUSCTL"), args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("salusctl %s: %v: %s", args[0], err, stderr.String())
+	}
+	return string(out)
+}
+
+// field returns the value after "<name> " on a line of salusctl's output.
+func field(t *testing.T, out, name string) string {
+	t.Helper()
+	for line := range strings.Lines(out) {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), name+" "); ok {
+			return v
+		}
+	}
+	t.Fatalf("salusctl printed no %q line: %q", name, out)
+	return ""
+}
+
+var inviteLink = regexp.MustCompile(`/invite#([A-Za-z0-9_-]+)`)
+
+// inviteToken waits up to 30 s for the invite e-mail to addr in Mailpit, deletes it so Mailpit is left as it
+// was, and returns the token from its link.
+func inviteToken(t *testing.T, addr string) string {
+	t.Helper()
+	mailpit := env(t, "E2E_MAILPIT_URL")
+	client := &http.Client{Timeout: 5 * time.Second}
+	timeout := time.After(30 * time.Second)
+	for {
+		var found struct{ Messages []struct{ ID string } }
+		mailpitDo(t, client, http.MethodGet, mailpit+"/api/v1/search?query="+url.QueryEscape(`to:"`+addr+`"`), nil, &found)
+		if len(found.Messages) == 1 {
+			id := found.Messages[0].ID
+			var msg struct{ Text string }
+			mailpitDo(t, client, http.MethodGet, mailpit+"/api/v1/message/"+id, nil, &msg)
+			mailpitDo(t, client, http.MethodDelete, mailpit+"/api/v1/messages", map[string][]string{"IDs": {id}}, nil)
+			m := inviteLink.FindStringSubmatch(msg.Text)
+			if m == nil {
+				t.Fatal("the invite e-mail holds no invite link")
+			}
+			return m[1]
+		}
+		if len(found.Messages) > 1 {
+			t.Fatalf("%d invite e-mails to the address in Mailpit, want 1", len(found.Messages))
+		}
+		select {
+		case <-timeout:
+			t.Fatal("no invite e-mail to the address in Mailpit within 30s")
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
+}
+
+func mailpitDo(t *testing.T, client *http.Client, method, u string, body, out any) {
+	t.Helper()
+	var r io.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		r = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(context.WithoutCancel(t.Context()), method, u, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Mailpit %s: %v", method, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Mailpit %s %s = %d", method, req.URL.Path, resp.StatusCode)
+	}
+	if out != nil {
+		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+			t.Fatal(fmt.Errorf("Mailpit %s: %w", req.URL.Path, err))
+		}
+	}
+}

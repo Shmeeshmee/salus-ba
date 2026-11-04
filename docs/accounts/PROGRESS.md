@@ -10,7 +10,7 @@
 | 6 FHIR reads | done, 2026-11-04 | `accounts(6)` |
 | 7 Web | done, 2026-11-04 | `accounts(7)` |
 | 8 Mobile | done, 2026-11-04 | `accounts(8)` |
-| 9 End-to-end | todo | |
+| 9 End-to-end | done, 2026-11-04 | `accounts(9)` |
 
 ## Decisions
 
@@ -817,3 +817,74 @@ Deferred:
 Dev stack left: postgres, redis and mailpit running, as found; only `flutter` and `tools` run containers were
 started (and removed). No API was started, so nothing was written to the dev database. The `pub` volume now
 also caches `flutter_secure_storage` and its dependencies. `deployments/.env` was not touched.
+
+### 2026-11-04 — package 9, end-to-end
+
+Built:
+- `test/e2e/` (build tag `e2e`, the real stack through `make e2e`):
+  - `accounts_test.go`, two journeys. `TestPatient_RegistersLogsInAndLogsOut`: register, login answers
+    `next: done` with a token, `GET /auth/me` returns the registered patient (no clinic), logout 204, then
+    `/auth/me` with the same token is 401. `TestClinic_AdminAndPractitionerSignInAndReadTheDirectory`:
+    `salusctl create-clinic` (the clinic id read from its output), the admin's invite link read from
+    Mailpit, `POST /invites/accept`, the first code to `/auth/mfa/confirm`, a fresh login answering
+    `next: verify` and `/auth/mfa/verify` with the next code; `/auth/me` is an enrolled admin of the clinic.
+    `salusctl reset-mfa <account-id>`: the earlier session is 401 and the next login answers `next: enrol`;
+    the admin enrols again from that challenge (`/auth/mfa/enrol`, `/auth/mfa/confirm`) and invites a
+    practitioner, who accepts, enrols and logs in with a code the same way. The practitioner reads
+    `Organization/<clinic>` and `PractitionerRole?organization=<clinic>&_include=PractitionerRole:practitioner`
+    returns a `searchset` with the clinic's one role and the invited `Practitioner` it references.
+  - `stack_test.go`, the helpers: `waitReady` (the API's `/readyz`, as before), a bearer client of the JSON
+    and FHIR APIs, `authenticator` (codes from the enrolment's base32 secret with `auth.TOTPCode`),
+    `salusctl` (runs the binary, returns its output), `inviteToken` (polls Mailpit's API for the e-mail to
+    the address, takes the token from the `/invite#` link, deletes the message).
+  - `readyz_test.go` now calls `waitReady`.
+- `Makefile`: `make e2e` depends on `up` and `tools-image`, builds `cmd/salusctl` to `/tmp/salusctl` in the
+  `tools` container and passes `E2E_BASE_URL=http://api:8080`, `E2E_MAILPIT_URL=http://mailpit:8025` and
+  `E2E_SALUSCTL`. salusctl uses the `tools` service's owner `DATABASE_URL`. Everything is addressed on the
+  compose network, so nothing depends on the host ports or `deployments/.env`, and the CI job
+  (`.github/workflows/go.yml`, `make e2e`) runs it unchanged.
+
+Test first, failure seen before the Makefile change: the patient journey passed and the clinic journey failed
+with "E2E_SALUSCTL is not set; run the end-to-end tests with `make e2e`". With the Makefile change both
+pass. Lint then flagged `time.Now` in the helpers (forbidigo, `go vet -tags e2e` and golangci-lint cover
+`test/`); they use `clock.System{}` as the API's integration tests do.
+
+Checks: `make e2e` passed twice in a row (1.1 s and 1.2 s of tests; earlier runs while building it also
+passed); `make lint` 0 issues, check-migrations ok; `make archcheck` ok; `make test` ok; `make cover` ok
+(total 94.8%, unchanged: no production code); `make fhir-validate` ok (warnings only, as before);
+`make gen-clients` no diff; `make web-lint` 0 warnings, 0 errors; `make web-typecheck` ok; `make web-test`
+56 passed; `make web-build` ok; `make mobile-analyze` no issues; `make mobile-test` 31 passed. After the runs
+the api, notifier and worker logs hold no `example.test` address, invite link or bearer token.
+
+Readings:
+- **Fresh synthetic e-mails per run**: `e2e-<who>-<12 hex>@example.test`, so reruns against the same dev
+  database never collide (no 409, no replaced invite). The clinic is new per run, so the directory search
+  has exactly one role.
+- **TOTP steps.** `account.totp_last_step` rejects a step already used, so the login after enrolment uses the
+  next step's code (one step of drift is accepted); the helper waits if that would be more than one step
+  ahead. No sleep is needed in a normal run.
+- **Login rate limit.** Every e2e login comes from the `tools` container's address; a run makes four login
+  attempts (patient, admin, admin after `reset-mfa`, practitioner), all successful, against the limit of 30
+  per IP in 15 minutes. About seven runs fit in a window; more fail with 429 until it passes. Not worked
+  around: the limit is the API's real behaviour.
+- **salusctl is built from source in the `tools` container** rather than taken from the runtime image: the
+  test calls it mid-journey and reads its output, and the `tools` container already has the owner's
+  connection; the code is the same commit the `salus:dev` image is built from.
+- **Mailpit is left as found**: each invite e-mail the test reads is deleted. The journeys' rows stay in the
+  dev database (append-only audit rows cannot be removed, and the e2e suite runs against the real stack).
+- The admin's role and clinic come from `/auth/me`; the `Account` schema has no practitioner id, so the
+  practitioner is checked through the role's reference and the invited names.
+
+Deferred: none.
+
+Definition of done (plan, SPEC §7): all nine packages committed on `feat/accounts`; `PROGRESS.md` records
+every package with its readings; locally every check set passes (Go, FHIR, Clients, Web, Mobile, `make e2e`
+twice). Passing in CI is confirmed on the PR into `main`, which is opened after this commit.
+
+Dev stack left: postgres, redis and mailpit running, as found; the api, worker, scheduler, notifier, agent,
+livekit, landing and migrate containers started by `make e2e` were removed again; `salus:dev` and
+`salus-tools:dev` were rebuilt. Dev database still at migration 13, now also holding the e2e runs' synthetic
+rows: 5 clinics "E2E synthetic clinic", 16 `e2e-*@example.test` accounts (patients, admins, practitioners)
+with their sessions, accepted invites, `Practitioner` and `PractitionerRole` rows, completed `invite_email`
+jobs and the audit rows. Mailpit holds only what it held before (the package 7 walk's two e-mails).
+`deployments/.env` was not touched.

@@ -47,9 +47,11 @@ arch-gate: archcheck tools-image
 	$(GO) go vet ./...
 	$(MAKE) test
 
-## e2e: start the stack and run the end-to-end tests against it
-e2e: up
-	$(COMPOSE) run --rm -e E2E_BASE_URL=http://api:8080 tools go test -tags e2e -count=1 ./test/e2e/...
+## e2e: start the stack and run the end-to-end tests against it, on the compose network: the API, Mailpit's API
+## and salusctl (built here, run on the owner's DATABASE_URL of the tools service)
+e2e: up tools-image
+	$(COMPOSE) run --rm -e E2E_BASE_URL=http://api:8080 -e E2E_MAILPIT_URL=http://mailpit:8025 -e E2E_SALUSCTL=/tmp/salusctl \
+		tools sh -c 'go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e -count=1 ./test/e2e/...'
 
 ## fhir-validate: validate the golden FHIR responses with the HL7 validator
 fhir-validate:
