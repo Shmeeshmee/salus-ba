@@ -14,6 +14,9 @@ type Repository interface {
 	SetDirectory(ctx context.Context) error
 	// ByID returns the role, or ErrNotFound (also for one outside the scope, or an id that is not a UUID).
 	ByID(ctx context.Context, id string) (PractitionerRole, error)
+	// ByPractitioner returns the role of the practitioner, or ErrNotFound (also outside the scope, or for an
+	// id that is not a UUID).
+	ByPractitioner(ctx context.Context, practitionerID string) (PractitionerRole, error)
 	// ByOrganization returns the roles of the clinic org, oldest first; none for an id that is not a UUID.
 	ByOrganization(ctx context.Context, org string) ([]PractitionerRole, error)
 	// PublicByOrganization returns the active roles of the clinic org that the scope shows, oldest first;

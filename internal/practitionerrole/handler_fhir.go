@@ -15,16 +15,18 @@ import (
 // includePractitioner is the one _include this server supports.
 const includePractitioner = "PractitionerRole:practitioner"
 
-// Roles reads and searches practitioner roles for a caller (Service).
+// Roles reads and searches practitioner roles for a caller, and the public directory's for anyone (Service).
 type Roles interface {
 	Read(ctx context.Context, c Caller, id string) (PractitionerRole, error)
 	Search(ctx context.Context, c Caller, org string) ([]PractitionerRole, error)
+	PublicByOrganization(ctx context.Context, org string) ([]PractitionerRole, error)
 }
 
-// Practitioners reads a practitioner for a caller (practitioner.Service): each one a search includes is read,
-// and audited, as a read of its own.
+// Practitioners reads a practitioner for a caller (practitioner.Service): each one a staff search includes is
+// read, and audited, as a read of its own; a public search includes their public names.
 type Practitioners interface {
 	Read(ctx context.Context, c practitioner.Caller, id string) (practitioner.Practitioner, error)
+	PublicNames(ctx context.Context, ids []string) ([]practitioner.Practitioner, error)
 }
 
 // Handler serves the PractitionerRole read and search of the FHIR API (api/fhir/CapabilityStatement.json).
@@ -49,22 +51,31 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /fhir/R4/PractitionerRole", h.search)
 }
 
-// resource is a PractitionerRole as FHIR R4 JSON: only the elements SPEC.md "Directory model" names.
+// resource is a PractitionerRole as FHIR R4 JSON: only the elements the accounts SPEC "Directory model" and
+// the booking SPEC "Specialty" name.
 type resource struct {
-	ResourceType string         `json:"resourceType"`
-	ID           string         `json:"id"`
-	Practitioner fhir.Reference `json:"practitioner"`
-	Organization fhir.Reference `json:"organization"`
-	Meta         fhir.Meta      `json:"meta"`
-	Active       bool           `json:"active"`
+	ResourceType string                 `json:"resourceType"`
+	ID           string                 `json:"id"`
+	Practitioner fhir.Reference         `json:"practitioner"`
+	Organization fhir.Reference         `json:"organization"`
+	Meta         fhir.Meta              `json:"meta"`
+	Specialty    []fhir.CodeableConcept `json:"specialty,omitempty"`
+	Active       bool                   `json:"active"`
 }
 
 func toFHIR(p PractitionerRole) resource {
-	return resource{
+	res := resource{
 		ResourceType: "PractitionerRole", ID: p.ID, Meta: fhir.NewMeta(p.VersionID, p.LastUpdated), Active: p.Active,
 		Practitioner: fhir.Reference{Reference: "Practitioner/" + p.PractitionerID},
 		Organization: fhir.Reference{Reference: "Organization/" + p.OrganizationID},
 	}
+	if p.SpecialtyCode != "" {
+		sp, _ := SpecialtyByCode(p.SpecialtyCode) // the service stores listed codes only
+		res.Specialty = []fhir.CodeableConcept{{
+			Coding: []fhir.Coding{{System: SystemSNOMED, Code: p.SpecialtyCode, Display: sp.Display}}, Text: sp.Text,
+		}}
+	}
+	return res
 }
 
 func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
@@ -83,19 +94,24 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 }
 
 // search answers PractitionerRole?organization=<id>[&_include=PractitionerRole:practitioner] with a
-// searchset Bundle.
+// searchset Bundle: to staff of the clinic its roles, audited; to anyone else, signed in or not, the public
+// directory's (the active roles of a listed clinic, none for another).
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
-	c, ok := h.signedIn(w, r)
-	if !ok {
-		return
-	}
 	org, include, ok := searchQuery(r.URL.RawQuery)
 	if !ok {
 		fhir.WriteError(w, http.StatusBadRequest, "not-supported",
 			"Search by one organization, optionally with _include=PractitionerRole:practitioner.")
 		return
 	}
-	roles, err := h.roles.Search(r.Context(), c, org)
+	c, signedIn := h.caller(r.Context())
+	staff := signedIn && c.OrganizationID == org
+	var roles []PractitionerRole
+	var err error
+	if staff {
+		roles, err = h.roles.Search(r.Context(), c, org)
+	} else {
+		roles, err = h.roles.PublicByOrganization(r.Context(), org)
+	}
 	if err != nil {
 		h.writeError(w, r, err)
 		return
@@ -108,7 +124,12 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	var included []fhir.BundleEntry
 	if include {
 		self += "&_include=" + includePractitioner
-		if included, err = h.practitioners(r.Context(), c, roles); err != nil {
+		if staff {
+			included, err = h.practitioners(r.Context(), c, roles)
+		} else {
+			included, err = h.publicPractitioners(r.Context(), roles)
+		}
+		if err != nil {
 			fhir.InternalError(w, r, h.log, err)
 			return
 		}
@@ -129,6 +150,26 @@ func (h *Handler) practitioners(ctx context.Context, c Caller, roles []Practitio
 		default:
 			out = append(out, fhir.BundleEntry{FullURL: h.base + "/Practitioner/" + p.ID, Resource: practitioner.ToFHIR(p)})
 		}
+	}
+	return out, nil
+}
+
+// publicPractitioners gives the public names of the roles' practitioners.
+func (h *Handler) publicPractitioners(ctx context.Context, roles []PractitionerRole) ([]fhir.BundleEntry, error) {
+	if len(roles) == 0 {
+		return nil, nil
+	}
+	ids := make([]string, 0, len(roles))
+	for _, role := range roles {
+		ids = append(ids, role.PractitionerID)
+	}
+	people, err := h.people.PublicNames(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]fhir.BundleEntry, 0, len(people))
+	for _, p := range people {
+		out = append(out, fhir.BundleEntry{FullURL: h.base + "/Practitioner/" + p.ID, Resource: practitioner.ToFHIR(p)})
 	}
 	return out, nil
 }

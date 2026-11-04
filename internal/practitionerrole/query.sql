@@ -3,6 +3,12 @@ SELECT id, updated_at, organization_id, practitioner_id, version_id, active, spe
 FROM practitioner_role
 WHERE id = @id;
 
+-- name: PractitionerRoleByPractitioner :one
+-- A practitioner has one role (unique practitioner_id).
+SELECT id, updated_at, organization_id, practitioner_id, version_id, active, specialty_code
+FROM practitioner_role
+WHERE practitioner_id = @practitioner_id;
+
 -- name: PractitionerRolesByOrganization :many
 -- PractitionerRole?organization=…, oldest first so a search answers in a stable order.
 SELECT id, updated_at, organization_id, practitioner_id, version_id, active, specialty_code

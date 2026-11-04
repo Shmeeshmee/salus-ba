@@ -49,6 +49,21 @@ func (r *postgresRepository) ByID(ctx context.Context, id string) (PractitionerR
 	return toRole(practitionerroledb.PractitionerRolesByOrganizationRow(row)), nil
 }
 
+func (r *postgresRepository) ByPractitioner(ctx context.Context, practitionerID string) (PractitionerRole, error) {
+	var u pgtype.UUID
+	if u.Scan(practitionerID) != nil {
+		return PractitionerRole{}, ErrNotFound
+	}
+	row, err := r.q(ctx).PractitionerRoleByPractitioner(ctx, u)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PractitionerRole{}, ErrNotFound
+	}
+	if err != nil {
+		return PractitionerRole{}, err
+	}
+	return toRole(practitionerroledb.PractitionerRolesByOrganizationRow(row)), nil
+}
+
 func (r *postgresRepository) ByOrganization(ctx context.Context, org string) ([]PractitionerRole, error) {
 	var u pgtype.UUID
 	if u.Scan(org) != nil {

@@ -1,14 +1,17 @@
 package api_test
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Shmeeshmee/salus/internal/api"
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
+	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
 // directory is a clinic with its admin and one practitioner, both signed in, and a signed-in patient.
@@ -58,10 +61,16 @@ func newDirectory(t *testing.T, h http.Handler, owner *pgxpool.Pool) directory {
 }
 
 func TestNew_ServesTheDirectoryOverFHIRToStaffOfTheClinicAndAuditsIt(t *testing.T) {
-	app, cfg := newApp(t)
+	cfg := testConfig(t)
 	owner := ownerPool(t, cfg)
-	d := newDirectory(t, app.Handler, owner)
 	count := openDB(t, cfg)
+	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL) // row-level security on, as in production
+	app, err := api.New(t.Context(), cfg, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(app.Close)
+	d := newDirectory(t, app.Handler, owner)
 	audited := func(where string, args ...any) int {
 		t.Helper()
 		return count("SELECT count(*) FROM audit_event WHERE type_code = 'rest' AND "+where, args...)
@@ -98,14 +107,7 @@ func TestNew_ServesTheDirectoryOverFHIRToStaffOfTheClinicAndAuditsIt(t *testing.
 		}
 	}
 
-	for _, path := range []string{org, "/fhir/R4/Practitioner/" + d.practitionerID, "/fhir/R4/PractitionerRole/" + d.roleID, search} {
-		if rec := d.patient.do(http.MethodGet, path, ""); rec.Code != http.StatusNotFound {
-			t.Errorf("GET %s as a patient = %d %s, want 404", path, rec.Code, rec.Body)
-		}
-		if rec := (&client{t: t, h: app.Handler}).do(http.MethodGet, path, ""); rec.Code != http.StatusUnauthorized {
-			t.Errorf("GET %s signed out = %d %s, want 401", path, rec.Code, rec.Body)
-		}
-	}
+	checkOutsiders(t, d, app.Handler, []string{org, "/fhir/R4/Practitioner/" + d.practitionerID, "/fhir/R4/PractitionerRole/" + d.roleID}, search)
 
 	var adminID, practitionerAccount string
 	if err := owner.QueryRow(t.Context(), `SELECT (SELECT id::text FROM account WHERE email = 'dee@example.test'),
@@ -129,14 +131,34 @@ func TestNew_ServesTheDirectoryOverFHIRToStaffOfTheClinicAndAuditsIt(t *testing.
 			[]any{"Practitioner/" + d.practitionerID, practitionerAccount}, 1},
 		{"the admin's reads", "subtype_code = 'read' AND outcome = 0 AND entity_reference IN ($1, $2) AND agent_account_id = $3 AND organization_id = $4",
 			[]any{"Practitioner/" + d.practitionerID, "PractitionerRole/" + d.roleID, adminID, inviteClinic}, 2},
-		{"the patient's refusals", "outcome = 4 AND entity_reference IS NULL AND organization_id IS NULL AND subtype_code IN ('read', 'search-type')", nil, 3},
+		{"the patient's refusals", "outcome = 4 AND entity_reference IS NULL AND organization_id IS NULL AND subtype_code IN ('read', 'search-type')", nil, 2},
 	} {
 		if n := audited(tt.where, tt.args...); n != tt.want {
 			t.Errorf("%s: %d audit events, want %d", tt.name, n, tt.want)
 		}
 	}
-	// Nothing else: Organization reads and signed-out requests are not audited.
-	if n := audited("true") - baseline; n != 10 {
-		t.Errorf("%d audit events for the FHIR requests, want 10", n)
+	// Nothing else: Organization reads, public searches and signed-out requests are not audited.
+	if n := audited("true") - baseline; n != 9 {
+		t.Errorf("%d audit events for the FHIR requests, want 9", n)
+	}
+}
+
+// checkOutsiders: a patient and a signed-out caller cannot read the directory's resources (404, 401), and get
+// the public directory from the search, where a clinic that is not listed has no roles
+// (docs/booking/SPEC.md "Public browse"); not audited.
+func checkOutsiders(t *testing.T, d directory, h http.Handler, reads []string, search string) {
+	t.Helper()
+	for _, path := range reads {
+		if rec := d.patient.do(http.MethodGet, path, ""); rec.Code != http.StatusNotFound {
+			t.Errorf("GET %s as a patient = %d %s, want 404", path, rec.Code, rec.Body)
+		}
+		if rec := (&client{t: t, h: h}).do(http.MethodGet, path, ""); rec.Code != http.StatusUnauthorized {
+			t.Errorf("GET %s signed out = %d %s, want 401", path, rec.Code, rec.Body)
+		}
+	}
+	for name, c := range map[string]*client{"a patient": d.patient, "signed out": {t: t, h: h}} {
+		if rec := c.do(http.MethodGet, search, ""); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"total":0`) {
+			t.Errorf("GET %s %s = %d %s, want an empty searchset", search, name, rec.Code, rec.Body)
+		}
 	}
 }

@@ -285,22 +285,51 @@ func (c *fakeClinics) Read(_ context.Context, cl organization.Caller, id string)
 	return organization.Organization{ID: id, Name: "Synthetic clinic", Listed: id != clinicU, TimeZone: "Europe/Sarajevo"}, nil
 }
 
-type fakeRoles struct{ err error }
+// fakeRoles knows the roles of clinics A and B, and records the clinic of each lookup.
+type fakeRoles struct {
+	err     error
+	lookups []string // "<org> <role or practitioner>", in a transaction or "outside:"
+}
+
+const practB = "p3000000-0000-4000-8000-0000000000b1"
+
+var knownRoles = map[string]practitionerrole.PractitionerRole{
+	roleA1: {ID: roleA1, OrganizationID: clinicA, PractitionerID: practA1, Active: true},
+	roleA2: {ID: roleA2, OrganizationID: clinicA, PractitionerID: practA2, Active: true},
+	roleB:  {ID: roleB, OrganizationID: clinicB, PractitionerID: practB, Active: true},
+}
 
 func (r *fakeRoles) Read(_ context.Context, c practitionerrole.Caller, id string) (practitionerrole.PractitionerRole, error) {
+	return r.find(c.OrganizationID, func(p practitionerrole.PractitionerRole) bool { return p.ID == id })
+}
+
+func (r *fakeRoles) Lookup(ctx context.Context, org, id string) (practitionerrole.PractitionerRole, error) {
+	r.record(ctx, org+" "+id)
+	return r.find(org, func(p practitionerrole.PractitionerRole) bool { return p.ID == id })
+}
+
+func (r *fakeRoles) OfPractitioner(ctx context.Context, org, practitionerID string) (practitionerrole.PractitionerRole, error) {
+	r.record(ctx, org+" "+practitionerID)
+	return r.find(org, func(p practitionerrole.PractitionerRole) bool { return p.PractitionerID == practitionerID })
+}
+
+func (r *fakeRoles) record(ctx context.Context, s string) {
+	if ctx.Value(txKey{}) == nil {
+		s = "outside:" + s
+	}
+	r.lookups = append(r.lookups, s)
+}
+
+func (r *fakeRoles) find(org string, match func(practitionerrole.PractitionerRole) bool) (practitionerrole.PractitionerRole, error) {
 	if r.err != nil {
 		return practitionerrole.PractitionerRole{}, r.err
 	}
-	roles := map[string]practitionerrole.PractitionerRole{
-		roleA1: {ID: roleA1, OrganizationID: clinicA, PractitionerID: practA1, Active: true},
-		roleA2: {ID: roleA2, OrganizationID: clinicA, PractitionerID: practA2, Active: true},
-		roleB:  {ID: roleB, OrganizationID: clinicB, PractitionerID: "p3000000-0000-4000-8000-0000000000b1", Active: true},
+	for _, p := range knownRoles {
+		if match(p) && p.OrganizationID == org {
+			return p, nil
+		}
 	}
-	ro, ok := roles[id]
-	if !ok || ro.OrganizationID != c.OrganizationID {
-		return practitionerrole.PractitionerRole{}, practitionerrole.ErrNotFound
-	}
-	return ro, nil
+	return practitionerrole.PractitionerRole{}, practitionerrole.ErrNotFound
 }
 
 // fakeJobs records what was enqueued: "<kind> <appointment id> <clinic id>[ at <time>]".

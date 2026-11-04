@@ -78,6 +78,38 @@ func (q *Queries) PractitionerRoleByID(ctx context.Context, id pgtype.UUID) (Pra
 	return i, err
 }
 
+const practitionerRoleByPractitioner = `-- name: PractitionerRoleByPractitioner :one
+SELECT id, updated_at, organization_id, practitioner_id, version_id, active, specialty_code
+FROM practitioner_role
+WHERE practitioner_id = $1
+`
+
+type PractitionerRoleByPractitionerRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	PractitionerID pgtype.UUID
+	VersionID      int32
+	Active         bool
+	SpecialtyCode  pgtype.Text
+}
+
+// A practitioner has one role (unique practitioner_id).
+func (q *Queries) PractitionerRoleByPractitioner(ctx context.Context, practitionerID pgtype.UUID) (PractitionerRoleByPractitionerRow, error) {
+	row := q.db.QueryRow(ctx, practitionerRoleByPractitioner, practitionerID)
+	var i PractitionerRoleByPractitionerRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.PractitionerID,
+		&i.VersionID,
+		&i.Active,
+		&i.SpecialtyCode,
+	)
+	return i, err
+}
+
 const practitionerRolesByOrganization = `-- name: PractitionerRolesByOrganization :many
 SELECT id, updated_at, organization_id, practitioner_id, version_id, active, specialty_code
 FROM practitioner_role

@@ -56,9 +56,12 @@ type Clinics interface {
 	Read(ctx context.Context, c organization.Caller, id string) (organization.Organization, error)
 }
 
-// Roles reads a practitioner role of the caller's clinic, to know whose it is (practitionerrole.Service).
+// Roles reads a practitioner role of the caller's clinic, to know whose it is, and looks up a role of a
+// clinic, or a practitioner's, in the transaction in ctx, unaudited (practitionerrole.Service).
 type Roles interface {
 	Read(ctx context.Context, c practitionerrole.Caller, id string) (practitionerrole.PractitionerRole, error)
+	Lookup(ctx context.Context, org, id string) (practitionerrole.PractitionerRole, error)
+	OfPractitioner(ctx context.Context, org, practitionerID string) (practitionerrole.PractitionerRole, error)
 }
 
 // Jobs enqueues the appointment's e-mails in the transaction in ctx.

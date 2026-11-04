@@ -63,9 +63,61 @@ func NewMeta(version int32, at time.Time) Meta {
 	return Meta{VersionID: strconv.FormatInt(int64(version), 10), LastUpdated: at.UTC()}
 }
 
-// Reference points at another resource as ResourceType/id.
+// Reference points at another resource as ResourceType/id, with a text for it when one is given.
 type Reference struct {
 	Reference string `json:"reference"`
+	Display   string `json:"display,omitempty"`
+}
+
+// ReferenceID returns the id of a search parameter's reference to a resource of type typ: "typ/id" or a bare
+// id. False for another type, an absolute URL, several values or none.
+func ReferenceID(value, typ string) (string, bool) {
+	id := strings.TrimPrefix(value, typ+"/")
+	if id == "" || strings.ContainsAny(id, "/,:") {
+		return "", false
+	}
+	return id, true
+}
+
+// Coding is a code from a code system, with its display when one is given.
+type Coding struct {
+	System  string `json:"system"`
+	Code    string `json:"code"`
+	Display string `json:"display,omitempty"`
+}
+
+// CodeableConcept is a concept as codings and text.
+type CodeableConcept struct {
+	Text   string   `json:"text,omitempty"`
+	Coding []Coding `json:"coding,omitempty"`
+}
+
+// Extension is an extension with a boolean or a code value.
+type Extension struct {
+	ValueBoolean *bool  `json:"valueBoolean,omitempty"`
+	URL          string `json:"url"`
+	ValueCode    string `json:"valueCode,omitempty"`
+}
+
+// DateRange reads the values of a date search parameter: at most one "ge" and one "lt", each an instant
+// with its offset (RFC 3339). It returns the range [from, to), zero for an open end, and false for any other
+// value.
+func DateRange(values []string) (from, to time.Time, ok bool) {
+	for _, v := range values {
+		prefix, instant := v[:min(2, len(v))], v[min(2, len(v)):]
+		t, err := time.Parse(time.RFC3339, instant)
+		switch {
+		case err != nil:
+			return time.Time{}, time.Time{}, false
+		case prefix == "ge" && from.IsZero():
+			from = t
+		case prefix == "lt" && to.IsZero():
+			to = t
+		default:
+			return time.Time{}, time.Time{}, false
+		}
+	}
+	return from, to, true
 }
 
 // ETag is the ETag header of a resource at versionID: a weak tag, as FHIR uses.

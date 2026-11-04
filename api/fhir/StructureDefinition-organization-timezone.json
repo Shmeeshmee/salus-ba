@@ -1,0 +1,44 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "organization-timezone",
+  "url": "https://salus.invalid/fhir/StructureDefinition/organization-timezone",
+  "version": "0.1.0",
+  "name": "OrganizationTimezone",
+  "title": "Organization time zone",
+  "status": "active",
+  "date": "2026-11-04",
+  "publisher": "Salus",
+  "description": "The clinic's IANA time zone (BCP 175), such as Europe/Sarajevo: schedules are kept and appointment times shown in it. The core tz-code extension of FHIR R4 applies to date and time elements only, not to an Organization.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [{ "type": "element", "expression": "Organization" }],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "IANA time zone of the clinic",
+        "definition": "The clinic's IANA time zone.",
+        "min": 0,
+        "max": "1"
+      },
+      { "id": "Extension.extension", "path": "Extension.extension", "max": "0" },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "https://salus.invalid/fhir/StructureDefinition/organization-timezone"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [{ "code": "code" }],
+        "binding": { "strength": "required", "valueSet": "http://hl7.org/fhir/ValueSet/timezones|4.0.1" }
+      }
+    ]
+  }
+}

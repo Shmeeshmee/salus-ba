@@ -236,6 +236,38 @@ func (s *Service) PublicByOrganization(ctx context.Context, org string) ([]Pract
 	return roles, nil
 }
 
+// Lookup returns the role id of the clinic org, or ErrNotFound: for a service that shows whose an
+// appointment is, inside its own audited access. It joins the transaction in ctx, sets the clinic's scope and
+// writes no event.
+func (s *Service) Lookup(ctx context.Context, org, id string) (PractitionerRole, error) {
+	return s.lookup(ctx, org, func(ctx context.Context) (PractitionerRole, error) { return s.repo.ByID(ctx, id) })
+}
+
+// OfPractitioner returns the role of the practitioner practitionerID in the clinic org, or ErrNotFound: to
+// know which role a signed-in practitioner acts in, or which one a search names. Like Lookup, unaudited.
+func (s *Service) OfPractitioner(ctx context.Context, org, practitionerID string) (PractitionerRole, error) {
+	return s.lookup(ctx, org, func(ctx context.Context) (PractitionerRole, error) { return s.repo.ByPractitioner(ctx, practitionerID) })
+}
+
+func (s *Service) lookup(ctx context.Context, org string, find func(ctx context.Context) (PractitionerRole, error)) (PractitionerRole, error) {
+	var p PractitionerRole
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetOrganization(ctx, org); err != nil {
+			return err
+		}
+		var err error
+		p, err = find(ctx)
+		return err
+	})
+	switch {
+	case errors.Is(err, ErrNotFound) || (err == nil && p.OrganizationID != org): // not on row-level security alone
+		return PractitionerRole{}, ErrNotFound
+	case err != nil:
+		return PractitionerRole{}, fmt.Errorf("practitionerrole: lookup: %w", err)
+	}
+	return p, nil
+}
+
 // record audits a read, a search, a create or an update (interaction) by c that disclosed the role id ("" for none: no id from
 // the request is stored). A search is an execute (FHIR AuditEvent.action), a read a read, a create a create.
 func (s *Service) record(ctx context.Context, c Caller, interaction, id string, outcome auditevent.Outcome) error {

@@ -133,3 +133,73 @@ func TestWrite_SendsURLsWithoutHTMLEscaping(t *testing.T) {
 		t.Errorf("body = %q, want %q", rec.Body, want)
 	}
 }
+
+func TestTypes_EncodeTheElementsTheySetOnly(t *testing.T) {
+	yes := true
+	for name, tc := range map[string]struct {
+		v    any
+		want string
+	}{
+		"a reference":                {fhir.Reference{Reference: "Patient/1"}, `{"reference":"Patient/1"}`},
+		"a reference with a display": {fhir.Reference{Reference: "Patient/1", Display: "Ana Example"}, `{"reference":"Patient/1","display":"Ana Example"}`},
+		"a codeable concept": {
+			fhir.CodeableConcept{Coding: []fhir.Coding{{System: "http://snomed.info/sct", Code: "394579002", Display: "Cardiology"}}, Text: "Cardiology"},
+			`{"text":"Cardiology","coding":[{"system":"http://snomed.info/sct","code":"394579002","display":"Cardiology"}]}`,
+		},
+		"a coding without display": {fhir.Coding{System: "s", Code: "c"}, `{"system":"s","code":"c"}`},
+		"a boolean extension":      {fhir.Extension{URL: "u", ValueBoolean: &yes}, `{"valueBoolean":true,"url":"u"}`},
+		"a code extension":         {fhir.Extension{URL: "u", ValueCode: "Europe/Sarajevo"}, `{"url":"u","valueCode":"Europe/Sarajevo"}`},
+	} {
+		got, err := json.Marshal(tc.v)
+		if err != nil || string(got) != tc.want {
+			t.Errorf("%s = %s (%v), want %s", name, got, err, tc.want)
+		}
+	}
+}
+
+func TestReferenceID_TakesTheIDOfAReferenceOrABareID(t *testing.T) {
+	for _, tc := range []struct {
+		value, typ, want string
+		ok               bool
+	}{
+		{"Patient/abc", "Patient", "abc", true},
+		{"abc", "Patient", "abc", true},
+		{"Practitioner/abc", "Patient", "", false},
+		{"Patient/", "Patient", "", false},
+		{"", "Patient", "", false},
+		{"Patient/a/b", "Patient", "", false},
+		{"a,b", "Patient", "", false},
+		{"https://elsewhere.test/fhir/Patient/abc", "Patient", "", false},
+	} {
+		got, ok := fhir.ReferenceID(tc.value, tc.typ)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("ReferenceID(%q, %q) = %q, %v; want %q, %v", tc.value, tc.typ, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+func TestDateRange_ReadsOneGeAndOneLtInstant(t *testing.T) {
+	from := time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 11, 9, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		from, to time.Time
+		name     string
+		values   []string
+		ok       bool
+	}{
+		{from, to, "both", []string{"ge2026-11-02T01:00:00+01:00", "lt2026-11-09T00:00:00Z"}, true},
+		{from, time.Time{}, "only ge", []string{"ge2026-11-02T00:00:00Z"}, true},
+		{time.Time{}, to, "only lt", []string{"lt2026-11-09T00:00:00Z"}, true},
+		{time.Time{}, time.Time{}, "none", nil, true},
+		{time.Time{}, time.Time{}, "two ge", []string{"ge2026-11-02T00:00:00Z", "ge2026-11-03T00:00:00Z"}, false},
+		{time.Time{}, time.Time{}, "another prefix", []string{"gt2026-11-02T00:00:00Z"}, false},
+		{time.Time{}, time.Time{}, "no prefix", []string{"2026-11-02T00:00:00Z"}, false},
+		{time.Time{}, time.Time{}, "a date without a zone", []string{"ge2026-11-02"}, false},
+		{time.Time{}, time.Time{}, "not a date", []string{"lttomorrow"}, false},
+	} {
+		gotFrom, gotTo, ok := fhir.DateRange(tc.values)
+		if !gotFrom.Equal(tc.from) || !gotTo.Equal(tc.to) || ok != tc.ok {
+			t.Errorf("DateRange(%s) = %v, %v, %v; want %v, %v, %v", tc.name, gotFrom, gotTo, ok, tc.from, tc.to, tc.ok)
+		}
+	}
+}

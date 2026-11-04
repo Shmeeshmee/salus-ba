@@ -43,7 +43,9 @@ type stubClinics struct {
 	id      string
 	changes organization.Changes
 	org     organization.Organization
+	all     []organization.Organization // what ListListed gives
 	calls   int
+	listed  int // calls of ListListed
 	version int32
 }
 
@@ -53,6 +55,12 @@ func (s *stubClinics) Read(_ context.Context, c organization.Caller, id string) 
 	return s.org, s.err
 }
 
+func (s *stubClinics) ListListed(context.Context) ([]organization.Organization, error) {
+	s.calls++
+	s.listed++
+	return s.all, s.err
+}
+
 func (s *stubClinics) Update(_ context.Context, c organization.Caller, id string, ch organization.Changes, version int32) (organization.Organization, error) {
 	s.caller, s.id, s.changes, s.version = c, id, ch, version
 	s.calls++
@@ -60,7 +68,7 @@ func (s *stubClinics) Update(_ context.Context, c organization.Caller, id string
 }
 
 func clinic(version int32) organization.Organization {
-	return organization.Organization{ID: clinicA, Name: "Synthetic clinic", VersionID: version, LastUpdated: now, Active: true}
+	return organization.Organization{ID: clinicA, Name: "Synthetic clinic", TimeZone: "Europe/Sarajevo", VersionID: version, LastUpdated: now, Active: true}
 }
 
 type orgServer struct {
@@ -80,7 +88,7 @@ func newOrgServer(svc *stubClinics) *orgServer {
 func (s *orgServer) do(t *testing.T, method, path, ifMatch, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	mux := http.NewServeMux()
-	organization.NewHandler(s.svc, s.caller, s.log).Routes(mux)
+	organization.NewHandler(s.svc, s.caller, "https://api.example.test/fhir/R4", s.log).Routes(mux)
 	r := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
 	if ifMatch != "" {
 		r.Header.Set("If-Match", ifMatch)
@@ -131,6 +139,110 @@ func TestHandlerUpdate_RenamesAtTheVersionOfIfMatchAndSendsTheNewVersion(t *test
 			t.Errorf(`ETag = %q, want W/"4"`, etag)
 		}
 		assertGolden(t, "organization_updated.json", rec.Body.Bytes())
+	}
+}
+
+const (
+	listedURL   = "https://salus.invalid/fhir/StructureDefinition/organization-listed"
+	timeZoneURL = "https://salus.invalid/fhir/StructureDefinition/organization-timezone"
+)
+
+// An admin lists the clinic and sets its time zone through the extensions (docs/booking/SPEC.md "Listed in
+// FHIR"); an extension left out keeps its value.
+func TestHandlerUpdate_SetsTheListingAndTimeZoneFromTheirExtensions(t *testing.T) {
+	updated := clinic(4)
+	updated.Listed, updated.TimeZone = true, "Europe/Vienna"
+	for name, tc := range map[string]struct {
+		extensions   string
+		wantZone     string
+		listed, zone bool
+		wantListed   bool
+	}{
+		"both":    {`[{"url":"` + listedURL + `","valueBoolean":true},{"url":"` + timeZoneURL + `","valueCode":"Europe/Vienna"}]`, "Europe/Vienna", true, true, true},
+		"listed":  {`[{"url":"` + listedURL + `","valueBoolean":false}]`, "", true, false, false},
+		"zone":    {`[{"url":"` + timeZoneURL + `","valueCode":"Europe/Vienna"}]`, "Europe/Vienna", false, true, false},
+		"another": {`[{"url":"https://elsewhere.test/x","valueString":"y"}]`, "", false, false, false},
+	} {
+		s := newOrgServer(&stubClinics{org: updated})
+		body := `{"resourceType":"Organization","id":"` + clinicA + `","name":"Synthetic clinic","extension":` + tc.extensions + `}`
+
+		rec := s.do(t, http.MethodPut, clinicPath, `W/"3"`, body)
+
+		ch := s.svc.changes
+		if rec.Code != http.StatusOK || ch.Name != "Synthetic clinic" || (ch.Listed != nil) != tc.listed || (ch.TimeZone != nil) != tc.zone {
+			t.Fatalf("%s: status = %d %s with changes %+v", name, rec.Code, rec.Body, ch)
+		}
+		if (tc.listed && *ch.Listed != tc.wantListed) || (tc.zone && *ch.TimeZone != tc.wantZone) {
+			t.Errorf("%s: listed %v, zone %v; want %v, %q", name, *ch.Listed, *ch.TimeZone, tc.wantListed, tc.wantZone)
+		}
+		if name == "both" {
+			assertGolden(t, "organization_listed.json", rec.Body.Bytes())
+		}
+	}
+}
+
+func TestHandlerUpdate_RejectsAnExtensionWithoutItsValueBeforeCallingTheService(t *testing.T) {
+	for _, extensions := range []string{
+		`[{"url":"` + listedURL + `"}]`,
+		`[{"url":"` + listedURL + `","valueCode":"true"}]`,
+		`[{"url":"` + timeZoneURL + `","valueBoolean":true}]`,
+		`[{"url":"` + timeZoneURL + `","valueCode":""}]`,
+		`[{"url":"` + listedURL + `","valueBoolean":true},{"url":"` + listedURL + `","valueBoolean":false}]`,
+	} {
+		s := newOrgServer(&stubClinics{})
+		body := `{"resourceType":"Organization","id":"` + clinicA + `","name":"Synthetic clinic","extension":` + extensions + `}`
+
+		rec := s.do(t, http.MethodPut, clinicPath, `W/"3"`, body)
+
+		if rec.Code != http.StatusBadRequest || s.svc.calls != 0 {
+			t.Errorf("extension %s: status = %d after %d service calls, want 400 and none", extensions, rec.Code, s.svc.calls)
+		}
+		assertGolden(t, "invalid_resource.json", rec.Body.Bytes())
+	}
+}
+
+// Organization?listed=true is the public directory: anyone, signed in or not, gets the listed clinics.
+func TestHandlerSearch_SendsTheListedClinicsToAnyone(t *testing.T) {
+	listed := clinic(4)
+	listed.Listed = true
+	for name, caller := range map[string]func(context.Context) (organization.Caller, bool, error){
+		"nobody signed in": func(context.Context) (organization.Caller, bool, error) { return organization.Caller{}, false, nil },
+		"the admin":        func(context.Context) (organization.Caller, bool, error) { return admin, true, nil },
+	} {
+		s := newOrgServer(&stubClinics{all: []organization.Organization{listed}})
+		s.caller = caller
+
+		rec := s.do(t, http.MethodGet, "/fhir/R4/Organization?listed=true", "", "")
+
+		if rec.Code != http.StatusOK || s.svc.listed != 1 {
+			t.Fatalf("%s: status = %d %s after %d listings, want 200 from ListListed", name, rec.Code, rec.Body, s.svc.listed)
+		}
+		assertGolden(t, "search_listed.json", rec.Body.Bytes())
+	}
+}
+
+func TestHandlerSearch_RejectsAnyOtherSearchWithoutCallingTheService(t *testing.T) {
+	for _, query := range []string{"", "listed=false", "listed=", "listed=true&listed=true", "listed=true&name=x", "active=true", "listed:missing=true"} {
+		s := newOrgServer(&stubClinics{})
+
+		rec := s.do(t, http.MethodGet, "/fhir/R4/Organization?"+query, "", "")
+
+		if rec.Code != http.StatusBadRequest || s.svc.calls != 0 {
+			t.Errorf("?%s: status = %d after %d service calls, want 400 and none", query, rec.Code, s.svc.calls)
+		}
+		assertGolden(t, "unsupported_search.json", rec.Body.Bytes())
+	}
+}
+
+func TestHandlerSearch_SendsAFixedOperationOutcomeOnAServiceError(t *testing.T) {
+	var logs bytes.Buffer
+	s := newOrgServer(&stubClinics{err: errors.New("db down")})
+	s.log = slog.New(slog.NewJSONHandler(&logs, nil))
+
+	rec := s.do(t, http.MethodGet, "/fhir/R4/Organization?listed=true", "", "")
+
+	if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "db down") || logs.Len() == 0 {
+		t.Errorf("status = %d %s, log %q; want 500 without the error, and the error logged", rec.Code, rec.Body, logs.String())
 	}
 }
 

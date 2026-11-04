@@ -456,3 +456,34 @@ No `DELETE` grant to any role; the slot of a cancelled appointment may be delete
 | A patient's appointments are seen by another patient or clinic | Row-level security per scope, checked again by the service, `access` per viewer; refusals are audited (tested) |
 | An e-mail says more than it should | Fixed texts with the clinic, time and link only (golden files); the recipient is read through `auth` with the job as agent, audited; SMTP errors keep the reply code only |
 | A reminder or confirmation of an appointment that changed | The job reads the appointment when it runs and sends nothing unless it is still in the status the e-mail is about (tested) |
+
+### Package 7: FHIR reads
+
+**Processing added.** The booking resources are served over the FHIR API: `Patient` and `Consent` read,
+`Appointment` read and search (`patient`, `practitioner`, `date`, `status`), and the public directory without a
+session: `Organization?listed=true`, a listed clinic's `PractitionerRole` search with its practitioners' names
+and specialty, `Schedule` read and search by `actor`, and the free future `Slot`s of a schedule. The clinic's
+admin lists the clinic and sets its time zone through the `Organization` update (two extensions). No new
+field or table.
+
+**Purpose and lawful basis.** As packages 2, 3, 4 and 6: the care relationship and the patient's consent for
+patient data; the clinic's legitimate interest in being found for the public directory.
+
+**Necessity and minimisation.** Each resource carries the elements of SPEC.md section 2 only. `Patient` goes to
+the patient and to a practitioner whom `access` gives all of the profile; the clinic's admin gets 404. An
+`Appointment` carries the patient's name only at a level `access.Profile` allows; after a revocation a past
+appointment shows the name, times and status, without its slot, creation time or cancellation details. The
+public reads show what a listed clinic publishes: its name and zone, its active roles with specialty, their
+practitioners' names, schedules and free slots.
+
+**Retention.** Nothing new is stored but `AuditEvent` rows (kept 10 years).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Patient data reaches someone outside the care relationship | The services decide through `access`, row-level security is the second guard; the access matrix (patient, their practitioner, another practitioner, the admin, another clinic, nobody, and the clinic after a revocation) is tested through HTTP on the application login |
+| A read goes unrecorded | Every `Patient`, `Consent` and `Appointment` read audits, refusals included; a search audits each appointment returned and each name given, or one event when it returns none (tested against the database) |
+| The public directory shows more than the clinic chose | Public reads run in the directory scope (listed clinics, active roles, free slots) and are not audited (tested: no event); a clinic that is not listed has no roles in the search |
+| Patient data is cached by a client or proxy | `Cache-Control: no-store` on `Patient`, `Consent` and `Appointment` answers |
+| Names in logs or errors | OperationOutcomes carry fixed text; a 500 logs the error only; handler and app tests assert the log holds no profile field |

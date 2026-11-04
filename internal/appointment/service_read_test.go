@@ -22,7 +22,7 @@ func minimal(a appointment.Appointment) appointment.Appointment {
 func TestRead_GivesThePatientTheirAppointmentWithTheirName(t *testing.T) {
 	f := cancelFixture(start)
 	got, err := f.svc.Read(t.Context(), me, apptA)
-	if want := (appointment.Seen{Appointment: f.repo.appts[0], Patient: nameA, Level: access.Full}); err != nil || got != want {
+	if want := (appointment.Seen{Appointment: f.repo.appts[0], Patient: nameA, PractitionerID: practA1, Level: access.Full}); err != nil || got != want {
 		t.Fatalf("Read() = %+v, %v;\nwant %+v", got, err, want)
 	}
 	if f.repo.patient != patientA {
@@ -50,7 +50,7 @@ func TestRead_GivesStaffWhatAccessAllows(t *testing.T) {
 		f := cancelFixture(tt.at)
 		f.consents.state[patientA+clinicA] = tt.consent
 		got, err := f.svc.Read(t.Context(), tt.caller, apptA)
-		want := appointment.Seen{Appointment: f.repo.appts[0], Patient: nameA, Level: tt.level}
+		want := appointment.Seen{Appointment: f.repo.appts[0], Patient: nameA, PractitionerID: practA1, Level: tt.level}
 		if tt.level == access.Name {
 			want.Appointment = minimal(want.Appointment)
 		}
@@ -147,6 +147,59 @@ func TestSearch_TheAdminSearchesTheClinicAsAccessAllows(t *testing.T) {
 	if got[1].Appointment.ID != apptA || got[1].Level != access.Full {
 		t.Errorf("patient A's = %+v, want Full", got[1])
 	}
+}
+
+// The practitioner participant is the role's practitioner, looked up in the appointment's clinic inside the
+// read's transaction: the patient sees whom they booked with.
+func TestRead_GivesThePractitionerOfTheRoleLookedUpInTheAppointmentsClinic(t *testing.T) {
+	f := cancelFixture(start)
+	got, err := f.svc.Read(t.Context(), me, apptX)
+	if err != nil || got.PractitionerID != practB {
+		t.Fatalf("Read(clinic B's appointment) = %+v, %v; want role B's practitioner", got, err)
+	}
+	if !slices.Equal(f.roles.lookups, []string{clinicB + " " + roleB}) {
+		t.Errorf("role lookups %v, want role B in clinic B, in the transaction", f.roles.lookups)
+	}
+}
+
+// A search by practitioner: the clinic's admin for any of its practitioners, a practitioner for themselves
+// only, a patient among their own.
+func TestSearch_ByPractitionerFindsTheAppointmentsOfTheirRole(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		caller appointment.Caller
+		pract  string
+		want   []string
+	}{
+		{"the admin, practitioner A1", admin, practA1, []string{apptA, apptB}},
+		{"the admin, practitioner A2", admin, practA2, []string{apptA2}},
+		{"the admin, a practitioner of another clinic", admin, practB, nil},
+		{"practitioner A1, themselves", pract, practA1, []string{apptA, apptB}},
+		{"patient A, practitioner A2", me, practA2, []string{apptA2}},
+		{"patient A, practitioner B", me, practB, []string{apptX}},
+	} {
+		f := cancelFixture(start)
+		f.consents.state[patientB+clinicA] = access.Consent{Active: true}
+		got, err := f.svc.Search(t.Context(), tt.caller, appointment.Filter{PractitionerID: tt.pract})
+		var ids []string
+		for _, s := range got {
+			ids = append(ids, s.Appointment.ID)
+			if s.PractitionerID != tt.pract {
+				t.Errorf("%s: %s has practitioner %q, want %q", tt.name, s.Appointment.ID, s.PractitionerID, tt.pract)
+			}
+		}
+		if err != nil || !slices.Equal(ids, tt.want) {
+			t.Errorf("%s: Search() = %v, %v; want %v", tt.name, ids, err, tt.want)
+		}
+		if len(tt.want) == 0 {
+			checkEvents(t, tt.name, f.audit, event(tt.caller, auditevent.CodeSearchType, "", "", auditevent.OutcomeSuccess))
+		}
+	}
+	f := cancelFixture(start)
+	if _, err := f.svc.Search(t.Context(), pract, appointment.Filter{PractitionerID: practA2}); !errors.Is(err, appointment.ErrForbidden) {
+		t.Errorf("practitioner A1 searching practitioner A2 = %v, want ErrForbidden", err)
+	}
+	checkEvents(t, "another practitioner", f.audit, event(pract, auditevent.CodeSearchType, "", "", auditevent.OutcomeMinorFailure))
 }
 
 func TestSearch_FindingNoneAuditsOneEvent(t *testing.T) {

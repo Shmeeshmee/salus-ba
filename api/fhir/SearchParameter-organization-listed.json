@@ -1,0 +1,16 @@
+{
+  "resourceType": "SearchParameter",
+  "id": "organization-listed",
+  "url": "https://salus.invalid/fhir/SearchParameter/organization-listed",
+  "version": "0.1.0",
+  "name": "OrganizationListed",
+  "status": "active",
+  "date": "2026-11-04",
+  "publisher": "Salus",
+  "description": "The clinics listed in the public directory (the organization-listed extension). The server supports listed=true only.",
+  "code": "listed",
+  "base": ["Organization"],
+  "type": "token",
+  "expression": "Organization.extension('https://salus.invalid/fhir/StructureDefinition/organization-listed').value",
+  "xpathUsage": "normal"
+}

@@ -8,7 +8,7 @@
 | 4 Directory additions | done | `booking(4)` |
 | 5 Schedule and slot | done | `booking(5)` |
 | 6 Appointment | done | `booking(6)` |
-| 7 FHIR | to do | |
+| 7 FHIR | done | `booking(7)` |
 | 8 Web | to do | |
 | 9 Mobile | to do | |
 | 10 End-to-end | to do | |
@@ -47,6 +47,14 @@
 - Owner (package 6): after a revocation, staff see a past appointment at the name, times and status only and
   cannot change it (403), so a practitioner cannot mark a past visit fulfilled or no-show once the patient has
   revoked; confirm, or say whether the care record needs that change (readings, package 6).
+- Before production (package 7): the canonical base of our FHIR definitions, `https://salus.invalid/fhir` (the
+  `organization-listed` and `organization-timezone` extensions and the `listed` SearchParameter), a placeholder
+  like `PATIENT_APP_URL`. It must be the product's real domain before any client depends on it: a changed
+  extension URL breaks every client.
+- Owner (package 7): `practitionerrole.Service.PublicByOrganization` cannot check that the clinic is listed (a
+  role row does not carry it), so for roles the listing rests on row-level security alone; run on a login that
+  bypasses it, an unlisted clinic's roles show. Production runs as `salus_app`, so nothing leaks; a service-level
+  check would need the organization service in the role domain. Say whether to add it.
 - Specialty codes (package 4): the R4 `c80-practice-codes` value set has no paediatrics concept; paediatrics
   is `394733009` "Medical specialty--OTHER--NOT LISTED" with the text "Paediatrics" until someone confirms a
   code (a concept from outside this value set would need the SPEC changed). ENT
@@ -669,3 +677,105 @@ events; two messages in Mailpit; the reminder job, scheduled for 2026-11-06 19:0
 without sending (the appointment is cancelled). Two empty flag files of the connection sampler
 (`/tmp/stop-sampler-6-1`, `-2`) sit in the Postgres container's `/tmp` until it is next recreated.
 
+
+### 2026-11-04 — package 7: FHIR
+
+**Built.**
+- `pkg/fhir`: `Coding`, `CodeableConcept`, `Extension` (boolean or code value), `Reference.Display`,
+  `ReferenceID` (a search parameter's `Type/id` or bare id) and `DateRange` (at most one `ge` and one `lt`, each
+  an RFC 3339 instant with its offset).
+- `organization`: the `listed` and time-zone extensions on read and update (a left-out extension keeps its
+  value; one of ours repeated or without its value is 400); `Organization?listed=true` for anyone
+  (`ListListed`). The handler takes the FHIR base URL for the Bundle.
+- `practitionerrole`: `specialty` as a CodeableConcept (`http://snomed.info/sct`, code and display from the
+  value set, `text` the owner's name); the search gives staff of the clinic its roles (audited, as before) and
+  anyone else, signed in or not, the public directory (`PublicByOrganization`, practitioners through
+  `practitioner.PublicNames`), an empty searchset for a clinic that is not listed. `Lookup(org, id)` and
+  `OfPractitioner(org, practitionerID)`: the role in the clinic's scope, in the caller's transaction,
+  unaudited; repository `ByPractitioner` (query `PractitionerRoleByPractitioner`).
+- `patient/handler_fhir.go`: `Patient` read (`name` official, `birthDate`, `telecom` mobile phone); the caller
+  (`patientReadCaller` in `internal/api`) carries the admin flag and a practitioner's role, read through
+  `auth.ClinicMember` and `practitionerrole.OfPractitioner`.
+- `consent/handler_fhir.go`: `Consent` read as SPEC §2 "Consent shape" (scope, LOINC category, patient and
+  performer, organization, `OPTIN`, provision permit for `TREAT` with the clinic as `IRCP`).
+- `schedule/handler_fhir.go`: `Schedule` read and search by `actor` (public, unaudited; actor and active).
+  `slot/handler_fhir.go`: `Slot?schedule=…&status=free&start=lt…[&start=ge…]` (public, unaudited).
+- `appointment`: `Seen.PractitionerID` (the role's practitioner, through `Roles.Lookup` once per role) and
+  `Filter.PractitionerID` (staff: mapped to the role in the clinic, a practitioner may name only themselves;
+  a patient: among their own); `handler_fhir.go`: read and search by `patient`, `practitioner`, `date` (`ge`,
+  `lt`), `status`; participants the patient (with `display` only where the service gave the name), the
+  practitioner and the role, each `accepted`; `slot`, `created` and `cancelationReason` when the level shows
+  them.
+- `api/fhir/`: `StructureDefinition-organization-listed.json` (`valueBoolean`),
+  `StructureDefinition-organization-timezone.json` (`valueCode`, bound to the R4 `timezones` value set),
+  `SearchParameter-organization-listed.json`; `CapabilityStatement.json` lists exactly the interactions and
+  parameters served (tested), and documents the public reads. `scripts/fhir-validate.sh` validates the
+  `api/fhir/` documents as well as the goldens.
+- `Cache-Control: no-store` on `Patient`, `Consent` and `Appointment` answers. `docs/privacy/dpia.md`: package 7.
+
+**Red first.** pkg/fhir: `undefined: fhir.CodeableConcept`, `fhir.Coding`, `fhir.Extension`, `fhir.ReferenceID`,
+`fhir.DateRange`, `unknown field Display`. practitionerrole: `repo.ByPractitioner undefined`, `s.Lookup
+undefined`, `s.OfPractitioner undefined`; the handler: the public search answered 401 to nobody signed in
+(`want 200 from the public directory`), and the read golden lacked the specialty. organization: the update
+ignored the extensions (`status = 200 after 1 service calls, want 400 and none`), `Organization?listed=true` =
+`404 page not found`. patient, consent: `undefined: patient.NewFHIRHandler`, `consent.NewFHIRHandler`.
+schedule, slot, appointment: `undefined: …NewHandler`; appointment service: `Seen has no field
+PractitionerID`, `unknown field PractitionerID in … Filter`. api/fhir: `the CapabilityStatement does not
+define listed by https://salus.invalid/fhir/SearchParameter/organization-listed` and the interaction list.
+internal/api: the matrix test run with the new routes left out of `app.go` (restored after): `GET
+/fhir/R4/Schedule?actor=… = 404`, `Slot?… = 404`, and so on; the directory test then failed on the public
+search's new answer (below). The schedule, slot and organization handler tests' first failures were their
+missing golden files; the goldens were written with `-update` and reviewed.
+
+**Checks.** `make lint` 0 issues, migrations unchanged; `make test` passes; `make archcheck` ok; `make cover`
+passes, every package at 80% or more (appointment 92.8%, consent 96.7%, organization 95.9%, patient 98.2%,
+practitionerrole 96.3%, schedule 91.3%, slot 94.0%, api 90.9%, pkg/fhir 100%, api/fhir 100%; total 94.7%);
+`make sqlc` leaves no diff; `make fhir-validate` passes with `-ig api/fhir` (0 errors in every file; the
+warnings are `dom-6`, no narrative, and the notes that codes cannot be checked without a terminology server).
+No `openapi.yaml` change, so the clients are untouched.
+
+**Readings and decisions.**
+- **Time-zone extension: ours.** The pinned validator's `hl7.fhir.r4.core#4.0.1` has `tz-code` (IANA code),
+  but its context is `date`, `dateTime` and `instant` only; the extension pack it also loads
+  (`hl7.fhir.uv.extensions.r4#5.2.0`) has `timezone` with the same contexts plus `Meta` and `time`. Neither may
+  sit on an Organization, so `organization-timezone` is ours, `valueCode` bound (required) to the core
+  `timezones` value set, which is what `tz-code` uses.
+- **Canonical base.** `https://salus.invalid/fhir` for our definitions, a placeholder (Waiting on people).
+- **Organization update.** An extension left out keeps its value (both columns are `NOT NULL`, so "remove" has
+  no meaning); unknown extensions are ignored like the other elements the update does not set. The read answers
+  both extensions always. Read stays staff-only; anyone lists through the search.
+- **Public role search.** Staff of the clinic get its roles as before (inactive ones too, audited); everyone
+  else the public directory, unaudited. A clinic that is not listed answers an empty searchset, not 404: a
+  search that matches nothing is an empty Bundle in FHIR, and it discloses nothing. The accounts-era directory
+  test asked 404 and 401 of that search; its expectation now follows SPEC "Public browse", and it runs on the
+  `salus_app` login (as production does), which is what showed the listing check resting on row-level security
+  (Waiting on people).
+- **Slot search.** `status=free` is required of everyone (no staff slot search exists or is planned; the
+  calendar reads appointments); `start=lt` is required to bound the answer, `start=ge` defaults to now.
+  The self link is rebuilt from the parsed values. The Schedule resource carries its actor and `active` only:
+  the weekly rules are not FHIR elements, the slots are what a client books.
+- **Practitioner participant.** The appointment table holds the role; the practitioner comes from
+  `practitionerrole.Lookup` in the read's transaction, in the appointment's clinic scope. In a patient's
+  transaction that sets the clinic beside `app.patient_id`, as booking does; the clinic branches of
+  `patient`, `consent` and `appointment` require the patient settings unset, so the patient still sees only
+  their own. The lookups are not audited: a role is not patient data, and the read they serve is audited.
+- **`practitioner` search parameter.** Staff: mapped to the practitioner's role in the caller's clinic
+  (`OfPractitioner`); a practitioner may name only themselves (403, audited), the admin anyone (none for a
+  practitioner of another clinic). A patient: filtered among their own before anything is audited. The
+  `patient` parameter keeps package 6's rule: a patient always gets their own.
+- **Dates.** Search dates are instants with an offset, `ge` and `lt` only (`DateRange`); a date without a time
+  or another prefix is 400. Simplest unambiguous form; the web calendar sends instants.
+- **Patient read for a practitioner.** The caller's role is resolved in the composition root, like the admin
+  flag (`ClinicMember`), unaudited; an admin is at `Name` for a profile, so 404 (SPEC "FHIR reads and
+  searches"). The name with an appointment is how an admin sees it.
+- **Specialty.** Code and display from the value set, `text` from the list's `Text`. Paediatrics untouched and
+  in no golden or fixture (cardiology is used).
+- **Field layout.** `govet` fieldalignment orders the struct fields, so a few JSON keys come in a different
+  order (for example `meta` before `extension`, `text` before `coding`); FHIR JSON does not depend on key
+  order.
+
+**Deferred.** The web calendar, availability editor, status buttons, specialty editor and listing toggle
+(package 8); mobile (package 9); the e2e journeys (package 10).
+
+**Dev stack.** Untouched: no migration in this package; tests ran in throwaway databases; the running images
+were not rebuilt. The `node` dev server kept running.

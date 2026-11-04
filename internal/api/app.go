@@ -110,14 +110,19 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		Session: authHandler.Session,
 		Routes: []func(*http.ServeMux){
 			authHandler.Routes,
-			organization.NewHandler(clinics, organizationCaller(accounts), log).Routes,
+			organization.NewHandler(clinics, organizationCaller(accounts), fhirBase, log).Routes,
 			practitioner.NewHandler(practitioners, practitionerCaller, log).Routes,
 			practitionerrole.NewHandler(roles, practitioners, roleCaller, fhirBase, log).Routes,
 			practitionerrole.NewHTTPHandler(roles, roleAdminCaller(accounts), log).Routes,
 			patient.NewHandler(patients, patientCaller, log).Routes,
+			patient.NewFHIRHandler(patients, patientReadCaller(accounts, roles), log).Routes,
 			consent.NewHandler(consents, consentCaller(patients), log).Routes,
+			consent.NewFHIRHandler(consents, consentCaller(patients), log).Routes,
 			schedule.NewHTTPHandler(schedules, scheduleCaller(accounts), log).Routes,
+			schedule.NewHandler(schedules, fhirBase, log).Routes,
+			slot.NewHandler(slots, fhirBase, log).Routes,
 			appointment.NewHTTPHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
+			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 		},
 		Timeout: RequestTimeout,
 	})
@@ -194,6 +199,39 @@ func scheduleCaller(accounts *auth.Service) func(ctx context.Context) (schedule.
 func patientCaller(ctx context.Context) (patient.Caller, bool) {
 	s, ok := auth.SessionFrom(ctx)
 	return patient.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}, ok
+}
+
+// patientReadCaller is the patient domain's view of the signed-in session for a FHIR read: for staff, with
+// whether the account is the clinic's admin and, for a practitioner, their role in the clinic, as read from
+// the database (the session holds neither; access compares the role with the patient's appointments).
+func patientReadCaller(accounts *auth.Service, roles *practitionerrole.Service) func(ctx context.Context) (patient.Caller, bool, error) {
+	return func(ctx context.Context) (patient.Caller, bool, error) {
+		s, ok := auth.SessionFrom(ctx)
+		if !ok {
+			return patient.Caller{}, false, nil
+		}
+		c := patient.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}
+		if c.OrganizationID == "" {
+			return c, true, nil
+		}
+		m, err := accounts.ClinicMember(ctx, s)
+		if err != nil {
+			return patient.Caller{}, false, err
+		}
+		c.Admin = m.Admin
+		if m.PractitionerID == "" {
+			return c, true, nil
+		}
+		role, err := roles.OfPractitioner(ctx, c.OrganizationID, m.PractitionerID)
+		switch {
+		case errors.Is(err, practitionerrole.ErrNotFound):
+		case err != nil:
+			return patient.Caller{}, false, err
+		default:
+			c.PractitionerRoleID = role.ID
+		}
+		return c, true, nil
+	}
 }
 
 // consentCaller is the consent domain's view of the signed-in session: for a patient, with their profile's

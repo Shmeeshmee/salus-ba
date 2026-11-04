@@ -257,3 +257,31 @@ func TestPublicByOrganization_ShowsOnlyActiveRolesOfAListedClinicInTheDirectoryS
 		t.Errorf("SetDirectory() outside a transaction: %v, want postgres.ErrNoTx", err)
 	}
 }
+
+func TestByPractitioner_SeesOnlyTheClinicSet(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	practitionerA1 := seed(t, owner)
+	repo := practitionerrole.NewPostgresRepository(app)
+	find := func(org, practitioner string) (practitionerrole.PractitionerRole, error) {
+		var p practitionerrole.PractitionerRole
+		err := inClinic(t, app, repo, org, func(ctx context.Context) error {
+			var err error
+			p, err = repo.ByPractitioner(ctx, practitioner)
+			return err
+		})
+		return p, err
+	}
+
+	if got, err := find(clinicA, practitionerA1); err != nil || got.ID != roleA1 || got.PractitionerID != practitionerA1 {
+		t.Errorf("ByPractitioner(A1) in clinic A = %+v, %v; want role A1", got, err)
+	}
+	for name, org := range map[string]string{"another clinic": clinicB, "no clinic": ""} {
+		if _, err := find(org, practitionerA1); !errors.Is(err, practitionerrole.ErrNotFound) {
+			t.Errorf("ByPractitioner(A1) in %s: %v, want ErrNotFound", name, err)
+		}
+	}
+	if _, err := find(clinicA, "not-a-uuid"); !errors.Is(err, practitionerrole.ErrNotFound) {
+		t.Errorf("ByPractitioner(not a UUID): %v, want ErrNotFound", err)
+	}
+}

@@ -1,0 +1,38 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "organization-listed",
+  "url": "https://salus.invalid/fhir/StructureDefinition/organization-listed",
+  "version": "0.1.0",
+  "name": "OrganizationListed",
+  "title": "Organization listed",
+  "status": "active",
+  "date": "2026-11-04",
+  "publisher": "Salus",
+  "description": "Whether the clinic is listed in the public directory: anyone, signed in or not, may find a listed clinic, its active practitioner roles with their specialty, its schedules and its free slots. Set by the clinic's admin. Not Organization.active, which says whether the record is in use.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [{ "type": "element", "expression": "Organization" }],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "Listed in the public directory",
+        "definition": "Whether the clinic is listed in the public directory.",
+        "min": 0,
+        "max": "1"
+      },
+      { "id": "Extension.extension", "path": "Extension.extension", "max": "0" },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "https://salus.invalid/fhir/StructureDefinition/organization-listed"
+      },
+      { "id": "Extension.value[x]", "path": "Extension.value[x]", "min": 1, "type": [{ "code": "boolean" }] }
+    ]
+  }
+}

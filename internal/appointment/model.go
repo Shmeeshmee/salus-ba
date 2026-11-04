@@ -61,19 +61,22 @@ type Name struct {
 
 // Seen is an appointment as a viewer may see it: at Full everything; at Name (a past appointment after a
 // revocation) only the times, the status and the participants. Patient is the patient's name, set only when
-// the viewer may see it (and its read was audited).
+// the viewer may see it (and its read was audited). PractitionerID is the practitioner of the appointment's
+// role, a participant beside the role.
 type Seen struct {
-	Patient     Name
-	Appointment Appointment
-	Level       access.Level
+	Patient        Name
+	PractitionerID string
+	Appointment    Appointment
+	Level          access.Level
 }
 
-// Filter narrows a search: the start in [From, To) (zero for open), and the patient, the practitioner role
-// and the status when set.
+// Filter narrows a search: the start in [From, To) (zero for open), and the patient, the practitioner (or
+// their role) and the status when set.
 type Filter struct {
 	From               time.Time
 	To                 time.Time
 	PatientID          string
+	PractitionerID     string // the practitioner participant (FHIR practitioner)
 	PractitionerRoleID string
 	Status             Status
 	OrganizationID     string // set by the service, never by a caller
