@@ -1,0 +1,251 @@
+//
+// AUTO-GENERATED FILE, DO NOT MODIFY!
+//
+// @dart=2.18
+
+// ignore_for_file: unused_element, unused_import
+// ignore_for_file: always_put_required_named_parameters_first
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: lines_longer_than_80_chars
+
+part of salus_api;
+
+class InviteRequest {
+  /// Returns a new [InviteRequest] instance.
+  InviteRequest({
+    required this.email,
+    required this.role,
+    this.givenName,
+    this.familyName,
+  });
+
+  String email;
+
+  InviteRequestRoleEnum role;
+
+  /// Required for a practitioner; absent for an admin.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? givenName;
+
+  /// Required for a practitioner; absent for an admin.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? familyName;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is InviteRequest &&
+          other.email == email &&
+          other.role == role &&
+          other.givenName == givenName &&
+          other.familyName == familyName;
+
+  @override
+  int get hashCode =>
+      // ignore: unnecessary_parenthesis
+      (email.hashCode) +
+      (role.hashCode) +
+      (givenName == null ? 0 : givenName!.hashCode) +
+      (familyName == null ? 0 : familyName!.hashCode);
+
+  @override
+  String toString() =>
+      'InviteRequest[email=$email, role=$role, givenName=$givenName, familyName=$familyName]';
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{};
+    json[r'email'] = this.email;
+    json[r'role'] = this.role;
+    if (this.givenName != null) {
+      json[r'givenName'] = this.givenName;
+    } else {
+      json[r'givenName'] = null;
+    }
+    if (this.familyName != null) {
+      json[r'familyName'] = this.familyName;
+    } else {
+      json[r'familyName'] = null;
+    }
+    return json;
+  }
+
+  /// Returns a new [InviteRequest] instance and imports its values from
+  /// [value] if it's a [Map], null otherwise.
+  // ignore: prefer_constructors_over_static_methods
+  static InviteRequest? fromJson(dynamic value) {
+    if (value is Map) {
+      final json = value.cast<String, dynamic>();
+
+      // Ensure that the map contains the required keys.
+      // Note 1: the values aren't checked for validity beyond being non-null.
+      // Note 2: this code is stripped in release mode!
+      assert(() {
+        assert(json.containsKey(r'email'),
+            'Required key "InviteRequest[email]" is missing from JSON.');
+        assert(json[r'email'] != null,
+            'Required key "InviteRequest[email]" has a null value in JSON.');
+        assert(json.containsKey(r'role'),
+            'Required key "InviteRequest[role]" is missing from JSON.');
+        assert(json[r'role'] != null,
+            'Required key "InviteRequest[role]" has a null value in JSON.');
+        return true;
+      }());
+
+      return InviteRequest(
+        email: mapValueOfType<String>(json, r'email')!,
+        role: InviteRequestRoleEnum.fromJson(json[r'role'])!,
+        givenName: mapValueOfType<String>(json, r'givenName'),
+        familyName: mapValueOfType<String>(json, r'familyName'),
+      );
+    }
+    return null;
+  }
+
+  static List<InviteRequest> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final result = <InviteRequest>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = InviteRequest.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+
+  static Map<String, InviteRequest> mapFromJson(dynamic json) {
+    final map = <String, InviteRequest>{};
+    if (json is Map && json.isNotEmpty) {
+      json = json.cast<String, dynamic>(); // ignore: parameter_assignments
+      for (final entry in json.entries) {
+        final value = InviteRequest.fromJson(entry.value);
+        if (value != null) {
+          map[entry.key] = value;
+        }
+      }
+    }
+    return map;
+  }
+
+  // maps a json object with a list of InviteRequest-objects as value to a dart map
+  static Map<String, List<InviteRequest>> mapListFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final map = <String, List<InviteRequest>>{};
+    if (json is Map && json.isNotEmpty) {
+      // ignore: parameter_assignments
+      json = json.cast<String, dynamic>();
+      for (final entry in json.entries) {
+        map[entry.key] = InviteRequest.listFromJson(
+          entry.value,
+          growable: growable,
+        );
+      }
+    }
+    return map;
+  }
+
+  /// The list of required keys that must be present in a JSON.
+  static const requiredKeys = <String>{
+    'email',
+    'role',
+  };
+}
+
+enum InviteRequestRoleEnum {
+  admin._(r'admin'),
+  practitioner._(r'practitioner'),
+  ;
+
+  /// Instantiate a new enum with the provided value.
+  const InviteRequestRoleEnum._(this._value);
+
+  /// The underlying value of this enum member.
+  final String _value;
+
+  @override
+  String toString() => _value;
+
+  /// Encodes this enum as a value suitable for JSON.
+  String toJson() => _value;
+
+  /// Returns the instance of [InviteRequestRoleEnum] that was successfully decoded
+  /// from the passed [value] on success, null otherwise.
+  static InviteRequestRoleEnum? fromJson(dynamic value) =>
+      InviteRequestRoleEnumTypeTransformer().decode(value);
+
+  /// Returns a [List] containing instances of [InviteRequestRoleEnum]
+  /// that were successfully decoded from the passed [JSON][json].
+  static List<InviteRequestRoleEnum> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final result = <InviteRequestRoleEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = InviteRequestRoleEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [InviteRequestRoleEnum] to String,
+/// and [decode] dynamic data back to [InviteRequestRoleEnum].
+class InviteRequestRoleEnumTypeTransformer {
+  factory InviteRequestRoleEnumTypeTransformer() =>
+      _instance ??= const InviteRequestRoleEnumTypeTransformer._();
+
+  const InviteRequestRoleEnumTypeTransformer._();
+
+  String encode(InviteRequestRoleEnum data) => data._value;
+
+  /// Returns the instance of [InviteRequestRoleEnum] that was successfully decoded
+  /// from the passed [data] value on success, null otherwise.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  InviteRequestRoleEnum? decode(dynamic data, {bool allowNull = true}) {
+    if (data is InviteRequestRoleEnum) {
+      return data;
+    }
+    if (data != null) {
+      switch (data) {
+        case r'admin':
+          return InviteRequestRoleEnum.admin;
+        case r'practitioner':
+          return InviteRequestRoleEnum.practitioner;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// The singleton instance of this transformer.
+  static InviteRequestRoleEnumTypeTransformer? _instance;
+}

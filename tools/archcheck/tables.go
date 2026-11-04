@@ -12,18 +12,19 @@ var (
 	sqlComment  = regexp.MustCompile(`--[^\n]*`)
 )
 
-// checkTables matches every CREATE TABLE in migrations/ against ownership.yaml.
-func checkTables(fsys fs.FS, own ownership, domains map[string]bool, libraryOwners []string) ([]violation, error) {
+// checkTables matches every CREATE TABLE in migrations/ against ownership.yaml. It also returns the set of
+// tables the migrations create.
+func checkTables(fsys fs.FS, own ownership, domains map[string]bool, libraryOwners []string) ([]violation, map[string]bool, error) {
 	files, err := fs.Glob(fsys, "migrations/*.sql")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	created := map[string]bool{}
 	var vs []violation
 	for _, file := range files {
 		src, err := fs.ReadFile(fsys, file)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, m := range createTable.FindAllStringSubmatch(sqlComment.ReplaceAllString(string(src), ""), -1) {
 			table := strings.ToLower(m[1])
@@ -42,5 +43,5 @@ func checkTables(fsys fs.FS, own ownership, domains map[string]bool, libraryOwne
 			vs = append(vs, violation{"unknown-table-owner", ownFile, "table " + table + " is owned by " + t.Owner + ", which is no listed domain or library"})
 		}
 	}
-	return vs, nil
+	return vs, created, nil
 }

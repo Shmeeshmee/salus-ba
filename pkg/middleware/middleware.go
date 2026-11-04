@@ -31,8 +31,13 @@ func RequestID(next http.Handler) http.Handler {
 			id = rand.Text()
 		}
 		w.Header().Set("X-Request-ID", id)
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), requestIDKey{}, id)))
+		next.ServeHTTP(w, r.WithContext(WithRequestID(r.Context(), id)))
 	})
+}
+
+// WithRequestID returns ctx carrying the request id id, as RequestID sets it for a request.
+func WithRequestID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, requestIDKey{}, id)
 }
 
 // RequestIDFrom returns the request id in ctx, or "" when there is none.

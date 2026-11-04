@@ -1,7 +1,7 @@
 {
   "resourceType": "CapabilityStatement",
   "status": "active",
-  "date": "2026-10-20",
+  "date": "2026-11-04",
   "publisher": "Salus",
   "kind": "instance",
   "implementation": {
@@ -12,7 +12,34 @@
   "rest": [
     {
       "mode": "server",
-      "documentation": "Only the capabilities interaction (GET /fhir/R4/metadata) is supported. Resources are added as features need them."
+      "documentation": "The clinic directory. Every request needs a signed-in session (bearer token or the web app's cookie); only staff of a clinic see its resources, anyone else gets 404. Also GET /fhir/R4/metadata.",
+      "resource": [
+        {
+          "type": "Organization",
+          "interaction": [{ "code": "read" }, { "code": "update" }],
+          "versioning": "versioned-update",
+          "readHistory": false,
+          "updateCreate": false,
+          "documentation": "Update renames the clinic (only the name changes) and needs If-Match with the version read; a stale or missing version gives 412. Only the clinic's admin may update."
+        },
+        {
+          "type": "Practitioner",
+          "interaction": [{ "code": "read" }]
+        },
+        {
+          "type": "PractitionerRole",
+          "interaction": [{ "code": "read" }, { "code": "search-type" }],
+          "searchInclude": ["PractitionerRole:practitioner"],
+          "searchParam": [
+            {
+              "name": "organization",
+              "definition": "http://hl7.org/fhir/SearchParameter/PractitionerRole-organization",
+              "type": "reference",
+              "documentation": "Required, one clinic id. No other search parameter is supported; any other gives 400."
+            }
+          ]
+        }
+      ]
     }
   ]
 }

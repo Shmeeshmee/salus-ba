@@ -53,6 +53,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: make cover
+      - name: Password hashing benchmark (argon2id parameters, docs/accounts/PROGRESS.md)
+        run: make bench-hash
 
   generated:
     needs: changes

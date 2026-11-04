@@ -262,7 +262,8 @@ service).
   at the compose Postgres and Redis; `pgtest` migrates a template database once per test package and gives
   each test its own copy. Without the URLs the tests fail with a message; they never skip.
 - `make cover` — tests with coverage, each package measured by its own tests, failing when any package is
-  below 80%. Only `cmd/*/main.go` is excluded.
+  below 80%. Excluded: `cmd/*/main.go`, and the generated sqlc packages `internal/<domain>/<domain>db`
+  (exercised by their domain's repository tests).
 - `make e2e` — the end-to-end suite against `docker compose`.
 - `make lint` — gofmt, `go vet`, golangci-lint (depguard, forbidigo, funlen, gocognit, govet fieldalignment,
   errcheck, staticcheck, bodyclose, noctx, unused) over `cmd/ internal/ pkg/`, and

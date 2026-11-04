@@ -11,7 +11,7 @@ NODE    := $(COMPOSE) run --rm -T node
 FLUTTER := $(COMPOSE) run --rm -T flutter
 LANDING := $(COMPOSE) run --rm -T -w /src/landing node
 
-.PHONY: test cover lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create sqlc \
+.PHONY: test cover bench-hash bench-auth lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
@@ -22,6 +22,17 @@ test: tools-image
 ## cover: tests with coverage, failing when any package is below 80% (cmd/*/main.go excluded)
 cover: tools-image
 	$(GO) bash scripts/cover.sh
+
+## bench-hash: the argon2id parameter grid and the parallel throughput that size auth's password hashing
+## (docs/accounts/PROGRESS.md, package 2)
+bench-hash: tools-image
+	$(GO) go test -run '^$$' -bench 'BenchmarkHash' -benchtime=20x -cpu 1,2,4 ./internal/auth
+
+## bench-auth: the per-request session check, and a login burst against a pool of 4 and 16 connections
+## (docs/accounts/PROGRESS.md, package 3)
+bench-auth: tools-image
+	$(GO) sh -c "go test -run '^$$' -bench 'BenchmarkAuthenticate' -benchtime=3s ./internal/auth && \
+		go test -run '^$$' -bench 'BenchmarkLoginBurst' -benchtime=5x ./internal/auth"
 
 ## lint: gofmt, go vet, golangci-lint (both modules) and the migration immutability check
 lint: tools-image
@@ -36,9 +47,11 @@ arch-gate: archcheck tools-image
 	$(GO) go vet ./...
 	$(MAKE) test
 
-## e2e: start the stack and run the end-to-end tests against it
-e2e: up
-	$(COMPOSE) run --rm -e E2E_BASE_URL=http://api:8080 tools go test -tags e2e -count=1 ./test/e2e/...
+## e2e: start the stack and run the end-to-end tests against it, on the compose network: the API, Mailpit's API
+## and salusctl (built here, run on the owner's DATABASE_URL of the tools service)
+e2e: up tools-image
+	$(COMPOSE) run --rm -e E2E_BASE_URL=http://api:8080 -e E2E_MAILPIT_URL=http://mailpit:8025 -e E2E_SALUSCTL=/tmp/salusctl \
+		tools sh -c 'go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e -count=1 ./test/e2e/...'
 
 ## fhir-validate: validate the golden FHIR responses with the HL7 validator
 fhir-validate:
@@ -52,6 +65,11 @@ migrate-status: tools-image
 	$(GO) go run ./cmd/migrate status
 migrate-create: tools-image
 	$(GO) go run ./cmd/migrate create $(name)
+
+## salusctl args="create-clinic -name <name> -admin-email <e-mail>" | args="reset-mfa <account-id>": the operator
+## command against the compose Postgres, connected as the owner (docs/accounts/SPEC.md "Operator commands")
+salusctl: tools-image
+	$(GO) go run ./cmd/salusctl $(args)
 
 ## sqlc: generate the domains' query packages (sqlc.yaml arrives with the first domain)
 sqlc: tools-image

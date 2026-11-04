@@ -1,0 +1,1 @@
+{"resourceType":"Bundle","type":"searchset","link":[{"relation":"self","url":"https://api.example.test/fhir/R4/PractitionerRole?organization=a0000000-0000-4000-8000-00000000000a"}],"total":0}

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/api/router"
+	"github.com/Shmeeshmee/salus/pkg/middleware"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files in testdata/")
@@ -141,5 +142,46 @@ func TestRouter_TimesOutSlowRequests(t *testing.T) {
 
 	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "timeout") {
 		t.Errorf("GET /readyz with a hanging check = %d %q, want 503 timeout", rec.Code, rec.Body)
+	}
+}
+
+func TestRouter_MountsTheDomainsRoutes(t *testing.T) {
+	h := router.New(router.Config{
+		Logger:  slog.New(slog.DiscardHandler),
+		Timeout: time.Second,
+		Routes: []func(*http.ServeMux){func(mux *http.ServeMux) {
+			mux.HandleFunc("GET /auth/me", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTeapot) })
+		}},
+	})
+
+	rec := get(t, h, "/auth/me")
+
+	if rec.Code != http.StatusTeapot || rec.Header().Get("X-Request-ID") == "" {
+		t.Errorf("GET /auth/me = %d, request id %q; want the domain's handler behind the middleware", rec.Code, rec.Header().Get("X-Request-ID"))
+	}
+}
+
+func TestRouter_RunsTheSessionMiddlewareInsideTheRequestIDAndTimeout(t *testing.T) {
+	var sawRequestID, sawDeadline bool
+	h := router.New(router.Config{
+		Logger:  slog.New(slog.DiscardHandler),
+		Timeout: time.Second,
+		Session: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				sawRequestID = middleware.RequestIDFrom(r.Context()) != ""
+				_, sawDeadline = r.Context().Deadline()
+				w.Header().Set("X-Session-Checked", "yes")
+				next.ServeHTTP(w, r)
+			})
+		},
+	})
+
+	rec := get(t, h, "/healthz")
+
+	if rec.Header().Get("X-Session-Checked") != "yes" || rec.Code != http.StatusOK {
+		t.Fatalf("= %d, X-Session-Checked %q; want the session middleware in front of the routes", rec.Code, rec.Header().Get("X-Session-Checked"))
+	}
+	if !sawRequestID || !sawDeadline {
+		t.Errorf("request id seen %v, deadline seen %v; want both", sawRequestID, sawDeadline)
 	}
 }

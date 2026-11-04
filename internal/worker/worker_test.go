@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
 	"github.com/Shmeeshmee/salus/internal/worker"
@@ -19,6 +20,18 @@ func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
 func TestNoop_RunsAJobEnqueuedInATransaction(t *testing.T) {
 	t.Parallel()
 	pool := pgtest.NewDatabase(t)
+	runNoop(t, pool)
+}
+
+// The worker and notifier log in as the application role; its grants must cover what River does.
+func TestNoop_RunsAsTheAppRole(t *testing.T) {
+	t.Parallel()
+	_, app := pgtest.NewAppDatabase(t)
+	runNoop(t, app)
+}
+
+func runNoop(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
 	client, err := worker.New(pool, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)

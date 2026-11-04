@@ -1,7 +1,11 @@
 # The bounded contexts are lists of domain packages under internal/; the tree stays flat. CLAUDE.md
 # ("Go architecture") names the planned domains; a domain is listed here in the same commit that adds its
 # package. archcheck fails on a package under internal/ that is in no list.
-contexts: {}
+contexts:
+  directory: [organization, practitioner, practitionerrole]
+  identity: [auth]
+  notification: [notification]
+  privacy: [auditevent, retention]
 
 # Packages under internal/ that are not domains: configuration and composition roots.
 infrastructure: [api, config, worker]

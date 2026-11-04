@@ -232,3 +232,14 @@ func TestAccessLog_LogsAnEmptyResponseAs200(t *testing.T) {
 		t.Errorf("status = %v, want 200", status)
 	}
 }
+
+func TestWithRequestID_IsReadByRequestIDFrom(t *testing.T) {
+	ctx := middleware.WithRequestID(context.Background(), "job-7")
+
+	if got := middleware.RequestIDFrom(ctx); got != "job-7" {
+		t.Errorf("RequestIDFrom() = %q, want job-7", got)
+	}
+	if got := middleware.RequestIDFrom(context.Background()); got != "" {
+		t.Errorf("RequestIDFrom(empty) = %q, want empty", got)
+	}
+}

@@ -1,0 +1,45 @@
+# sqlc: one entry per domain with queries (CLAUDE.md "Go architecture"). `make sqlc` generates
+# internal/<domain>/<domain>db from the domain's query.sql against the schema in migrations/; the generated
+# package is imported only by that domain's repository_postgres.go (archcheck) and never edited by hand.
+version: "2"
+sql:
+  - engine: postgresql
+    schema: migrations
+    queries: internal/auditevent/query.sql
+    gen:
+      go:
+        package: auditeventdb
+        out: internal/auditevent/auditeventdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/auth/query.sql
+    gen:
+      go:
+        package: authdb
+        out: internal/auth/authdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/organization/query.sql
+    gen:
+      go:
+        package: organizationdb
+        out: internal/organization/organizationdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/practitioner/query.sql
+    gen:
+      go:
+        package: practitionerdb
+        out: internal/practitioner/practitionerdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/practitionerrole/query.sql
+    gen:
+      go:
+        package: practitionerroledb
+        out: internal/practitionerrole/practitionerroledb
+        sql_package: pgx/v5
