@@ -888,3 +888,16 @@ rows: 5 clinics "E2E synthetic clinic", 16 `e2e-*@example.test` accounts (patien
 with their sessions, accepted invites, `Practitioner` and `PractitionerRole` rows, completed `invite_email`
 jobs and the audit rows. Mailpit holds only what it held before (the package 7 walk's two e-mails).
 `deployments/.env` was not touched.
+
+### 2026-11-04 — rebase on main and a flaky start-up test
+
+Rebased `feat/accounts` on `main` at `86299fe` (the Dependabot merges, including River 0.51 and pgx 5.12).
+The one conflict was `go.mod`: River 0.51 from `main` kept, `golang.org/x/crypto` from package 2 added;
+`go mod tidy` made `rivertype` a direct requirement, folded into the package 5 commit that first imports it.
+
+After the rebase, `make test -count=1` failed twice in `cmd/worker` and `cmd/notifier`
+(`postgres: ping: context deadline exceeded`). Their bootstrap-era run tests gave all of `run()` a 500 ms
+context, including the first Postgres connection; with this feature's test packages running in parallel on
+one server, connecting can take longer. The tests now cancel `run()` once it logs "started" (up to 15 s for
+start-up), through a mutex-guarded log buffer, and still assert a clean start and stop. Checked three times
+with `-race`, then `make lint`, `make test -count=1` and `make cover` (94.8% total).
