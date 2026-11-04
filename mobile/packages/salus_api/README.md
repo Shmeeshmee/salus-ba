@@ -52,12 +52,14 @@ import 'package:salus_api/api.dart';
 //defaultApiClient.getAuthentication<HttpBearerAuth>('bearerAuth').setAccessToken(yourTokenGeneratorFunction);
 
 final api_instance = AuthApi();
+final confirmRequest = ConfirmRequest(); // ConfirmRequest | 
+final xSalusCSRF = xSalusCSRF_example; // String | Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
 
 try {
-    final result = api_instance.getMe();
+    final result = api_instance.confirmMfa(confirmRequest, xSalusCSRF);
     print(result);
 } catch (e) {
-    print('Exception when calling AuthApi->getMe: $e\n');
+    print('Exception when calling AuthApi->confirmMfa: $e\n');
 }
 
 ```
@@ -68,8 +70,13 @@ All URIs are relative to *http://localhost*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
+*AuthApi* | [**confirmMfa**](doc//AuthApi.md#confirmmfa) | **POST** /auth/mfa/confirm | Confirm TOTP enrolment with the first code
+*AuthApi* | [**enrolMfa**](doc//AuthApi.md#enrolmfa) | **POST** /auth/mfa/enrol | Start TOTP enrolment
 *AuthApi* | [**getMe**](doc//AuthApi.md#getme) | **GET** /auth/me | The signed-in account
+*AuthApi* | [**login**](doc//AuthApi.md#login) | **POST** /auth/login | Sign in with e-mail and password
+*AuthApi* | [**logout**](doc//AuthApi.md#logout) | **POST** /auth/logout | Sign out
 *AuthApi* | [**register**](doc//AuthApi.md#register) | **POST** /auth/register | Register a patient account
+*AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
 *HealthApi* | [**getHealth**](doc//HealthApi.md#gethealth) | **GET** /healthz | Liveness
 *HealthApi* | [**getReadiness**](doc//HealthApi.md#getreadiness) | **GET** /readyz | Readiness
 
@@ -77,10 +84,16 @@ Class | Method | HTTP request | Description
 ## Documentation For Models
 
  - [Account](doc//Account.md)
+ - [ConfirmRequest](doc//ConfirmRequest.md)
+ - [EnrolRequest](doc//EnrolRequest.md)
+ - [Enrolment](doc//Enrolment.md)
  - [Error](doc//Error.md)
+ - [LoginRequest](doc//LoginRequest.md)
+ - [LoginResponse](doc//LoginResponse.md)
  - [RegisterRequest](doc//RegisterRequest.md)
  - [Status](doc//Status.md)
  - [Unavailable](doc//Unavailable.md)
+ - [VerifyRequest](doc//VerifyRequest.md)
 
 
 ## Documentation For Authorization

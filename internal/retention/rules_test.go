@@ -51,3 +51,15 @@ func TestRules_KeepAccountsWhileTheyExist(t *testing.T) {
 	}
 	t.Fatal("no rule for account")
 }
+
+func TestRules_DeleteSessionsThirtyDaysAfterTheyEnd(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "session" {
+			if r.Then != retention.ThenDelete || r.Keep != 30*24*time.Hour {
+				t.Errorf("session kept %v then %q, want 30 days then %q", r.Keep, r.Then, retention.ThenDelete)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for session")
+}

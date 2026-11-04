@@ -16,6 +16,9 @@ const (
 	// ThenKeep keeps the row while its subject exists: no period runs (Keep is zero). Removing it is a
 	// decision of the subject-rights feature (closure, erasure), not of the retention job.
 	ThenKeep Then = "keep"
+	// ThenDelete deletes each row once its period has run from the moment the row stopped being used (for a
+	// session: from revoked_at or expires_at, whichever comes first).
+	ThenDelete Then = "delete"
 )
 
 // Rule is the retention of one table.

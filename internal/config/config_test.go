@@ -1,6 +1,9 @@
 package config_test
 
 import (
+	"encoding/base64"
+	"net/netip"
+	"slices"
 	"strings"
 	"testing"
 
@@ -57,5 +60,41 @@ func TestLoad_RequiresDatabaseURLWithoutEchoingValues(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "secret-looking-value") {
 		t.Errorf("error %q leaks an environment value", err)
+	}
+}
+
+func TestLoad_ReadsTheAuthKeysAndTrustedProxies(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+	t.Setenv("TOTP_KEY", base64.StdEncoding.EncodeToString([]byte("synthetic 32-byte key for tests!")))
+	t.Setenv("RATE_LIMIT_KEY", base64.StdEncoding.EncodeToString([]byte("synthetic rate-limit key, 32 b.")))
+	t.Setenv("TRUSTED_PROXY_CIDRS", " 10.0.0.0/8, fd00::/8 ,")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if string(cfg.TOTPKey) != "synthetic 32-byte key for tests!" || string(cfg.RateLimitKey) != "synthetic rate-limit key, 32 b." {
+		t.Error("TOTPKey or RateLimitKey is not the base64-decoded variable")
+	}
+	want := []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("fd00::/8")}
+	if !slices.Equal(cfg.TrustedProxies, want) {
+		t.Errorf("TrustedProxies = %v, want %v", cfg.TrustedProxies, want)
+	}
+}
+
+func TestLoad_RejectsMalformedAuthSettingsWithoutEchoingThem(t *testing.T) {
+	for name, value := range map[string]string{
+		"TOTP_KEY":            "not*base64*secret",
+		"RATE_LIMIT_KEY":      "not*base64*secret",
+		"TRUSTED_PROXY_CIDRS": "10.0.0.0/8,not*base64*secret",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+			t.Setenv(name, value)
+			_, err := config.Load()
+			if err == nil || !strings.Contains(err.Error(), name) || strings.Contains(err.Error(), "secret") {
+				t.Errorf("Load() error = %v, want one naming %s without its value", err, name)
+			}
+		})
 	}
 }

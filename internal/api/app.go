@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -29,8 +30,18 @@ type App struct {
 	redis   *goredis.Client
 }
 
+// minRateLimitKey is the shortest RATE_LIMIT_KEY accepted: as long as the HMAC-SHA256 output.
+const minRateLimitKey = 32
+
 // New connects to the dependencies and builds the handler.
 func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error) {
+	box, err := auth.NewAESSecretBox(cfg.TOTPKey)
+	if err != nil {
+		return nil, err
+	}
+	if len(cfg.RateLimitKey) < minRateLimitKey {
+		return nil, errors.New("api: RATE_LIMIT_KEY must be at least 32 bytes")
+	}
 	pool, err := postgres.Open(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return nil, err
@@ -43,7 +54,12 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
 	hasher := auth.NewArgon2Hasher(auth.DefaultArgon2Params(), auth.MaxConcurrentHashes)
-	accounts := auth.NewService(auth.NewPostgresRepository(pool), hasher, audit, tx)
+	accounts := auth.NewService(auth.Ports{
+		Repo: auth.NewPostgresRepository(pool), Hasher: hasher, Audit: audit, Tx: tx, Clock: clock.System{},
+		Challenges: auth.NewRedisChallengeStore(rdb), Counters: auth.NewRedisCounters(rdb), Box: box,
+		RateLimitKey: cfg.RateLimitKey,
+	})
+	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies)
 
 	h := router.New(router.Config{
 		Logger: log,
@@ -51,7 +67,8 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 			{Name: "postgres", Ping: pool.Ping},
 			{Name: "redis", Ping: func(ctx context.Context) error { return rdb.Ping(ctx).Err() }},
 		},
-		Routes:  []func(*http.ServeMux){auth.NewHandler(accounts, log).Routes},
+		Session: authHandler.Session,
+		Routes:  []func(*http.ServeMux){authHandler.Routes},
 		Timeout: RequestTimeout,
 	})
 	return &App{Handler: h, pool: pool, redis: rdb}, nil

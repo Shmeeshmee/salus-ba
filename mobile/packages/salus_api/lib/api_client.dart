@@ -206,14 +206,26 @@ class ApiClient {
           return value is DateTime ? value : DateTime.tryParse(value);
         case 'Account':
           return Account.fromJson(value);
+        case 'ConfirmRequest':
+          return ConfirmRequest.fromJson(value);
+        case 'EnrolRequest':
+          return EnrolRequest.fromJson(value);
+        case 'Enrolment':
+          return Enrolment.fromJson(value);
         case 'Error':
           return Error.fromJson(value);
+        case 'LoginRequest':
+          return LoginRequest.fromJson(value);
+        case 'LoginResponse':
+          return LoginResponse.fromJson(value);
         case 'RegisterRequest':
           return RegisterRequest.fromJson(value);
         case 'Status':
           return Status.fromJson(value);
         case 'Unavailable':
           return Unavailable.fromJson(value);
+        case 'VerifyRequest':
+          return VerifyRequest.fromJson(value);
         default:
           dynamic match;
           if (value is List &&

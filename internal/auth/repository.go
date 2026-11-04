@@ -1,6 +1,9 @@
 package auth
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Repository stores accounts.
 type Repository interface {
@@ -13,6 +16,52 @@ type Repository interface {
 	ByID(ctx context.Context, id string) (Account, error)
 	// SetPasswordHash replaces the account's password hash.
 	SetPasswordHash(ctx context.Context, id, hash string) error
+
+	// TOTPSecret returns the account's sealed TOTP secret, or nil when there is none.
+	TOTPSecret(ctx context.Context, id string) ([]byte, error)
+	// SetTOTPSecret stores a sealed secret, pending until ConfirmMFA, in place of any earlier pending one.
+	SetTOTPSecret(ctx context.Context, id string, sealed []byte) error
+	// ConfirmMFA marks the account enrolled at at, with step as its last used TOTP step, or returns
+	// ErrAlreadyEnrolled when it is enrolled.
+	ConfirmMFA(ctx context.Context, id string, step int64, at time.Time) error
+	// UseTOTPStep records step as the last used one and reports whether it was newer than the last; false for
+	// an account that does not exist.
+	UseTOTPStep(ctx context.Context, id string, step int64) (bool, error)
+
+	// CreateSession stores s under the token's hash and returns its id.
+	CreateSession(ctx context.Context, s Session, tokenHash []byte, at time.Time) (string, error)
+	// SessionByTokenHash returns the session with the token hash that is neither revoked nor expired at now,
+	// or ErrNotFound.
+	SessionByTokenHash(ctx context.Context, tokenHash []byte, now time.Time) (Session, error)
+	// RevokeSession ends the session at at, or returns ErrNotFound when it is not open.
+	RevokeSession(ctx context.Context, id string, at time.Time) error
+}
+
+// ChallengeStore keeps MFA challenges (Redis): the step between password and code, by the challenge's hash.
+type ChallengeStore interface {
+	// Put stores the challenge for accountID for ttl.
+	Put(ctx context.Context, hash []byte, accountID string, ttl time.Duration) error
+	// Get returns the challenge's account id, or ErrInvalidChallenge.
+	Get(ctx context.Context, hash []byte) (string, error)
+	// Fail counts a wrong code and deletes the challenge at the limit-th.
+	Fail(ctx context.Context, hash []byte, limit int) error
+	// Delete removes the challenge.
+	Delete(ctx context.Context, hash []byte) error
+}
+
+// Counters are fixed-window counters (Redis), for the login rate limit.
+type Counters interface {
+	// Incr adds one to the counter key, starting a window of window when there is none, and returns the
+	// count and how long the window has left.
+	Incr(ctx context.Context, key string, window time.Duration) (int64, time.Duration, error)
+	// Get returns the counter key and how long its window has left; zero for none.
+	Get(ctx context.Context, key string) (int64, time.Duration, error)
+}
+
+// SecretBox seals TOTP secrets at rest, bound to their account (AESSecretBox; a KMS in production).
+type SecretBox interface {
+	Seal(plaintext []byte, accountID string) ([]byte, error)
+	Open(sealed []byte, accountID string) ([]byte, error)
 }
 
 // Hasher hashes and verifies passwords (Argon2Hasher). Both wait for a free slot and give up when ctx ends.

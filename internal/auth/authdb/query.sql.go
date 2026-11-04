@@ -69,6 +69,26 @@ func (q *Queries) AccountByID(ctx context.Context, id pgtype.UUID) (AccountByIDR
 	return i, err
 }
 
+const confirmMFA = `-- name: ConfirmMFA :execrows
+UPDATE account SET mfa_enrolled_at = $1, totp_last_step = $2::bigint
+WHERE id = $3 AND mfa_enrolled_at IS NULL
+`
+
+type ConfirmMFAParams struct {
+	EnrolledAt pgtype.Timestamptz
+	Step       int64
+	ID         pgtype.UUID
+}
+
+// Only once: an enrolled account keeps its secret until reset.
+func (q *Queries) ConfirmMFA(ctx context.Context, arg ConfirmMFAParams) (int64, error) {
+	result, err := q.db.Exec(ctx, confirmMFA, arg.EnrolledAt, arg.Step, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const createAccount = `-- name: CreateAccount :one
 INSERT INTO account (email, password_hash, role)
 VALUES ($1, $2, $3)
@@ -91,6 +111,85 @@ func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (p
 	return id, err
 }
 
+const createSession = `-- name: CreateSession :one
+INSERT INTO session (created_at, expires_at, account_id, organization_id, mfa_verified, token_hash)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id
+`
+
+type CreateSessionParams struct {
+	CreatedAt      pgtype.Timestamptz
+	ExpiresAt      pgtype.Timestamptz
+	AccountID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	MfaVerified    bool
+	TokenHash      []byte
+}
+
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, createSession,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.AccountID,
+		arg.OrganizationID,
+		arg.MfaVerified,
+		arg.TokenHash,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const revokeSession = `-- name: RevokeSession :execrows
+UPDATE session SET revoked_at = $1 WHERE id = $2 AND revoked_at IS NULL
+`
+
+type RevokeSessionParams struct {
+	RevokedAt pgtype.Timestamptz
+	ID        pgtype.UUID
+}
+
+func (q *Queries) RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeSession, arg.RevokedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const sessionByTokenHash = `-- name: SessionByTokenHash :one
+SELECT id, expires_at, account_id, organization_id, mfa_verified
+FROM session
+WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > $2
+`
+
+type SessionByTokenHashParams struct {
+	TokenHash []byte
+	Now       pgtype.Timestamptz
+}
+
+type SessionByTokenHashRow struct {
+	ID             pgtype.UUID
+	ExpiresAt      pgtype.Timestamptz
+	AccountID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	MfaVerified    bool
+}
+
+// The per-request check: one read on the unique token_hash index.
+func (q *Queries) SessionByTokenHash(ctx context.Context, arg SessionByTokenHashParams) (SessionByTokenHashRow, error) {
+	row := q.db.QueryRow(ctx, sessionByTokenHash, arg.TokenHash, arg.Now)
+	var i SessionByTokenHashRow
+	err := row.Scan(
+		&i.ID,
+		&i.ExpiresAt,
+		&i.AccountID,
+		&i.OrganizationID,
+		&i.MfaVerified,
+	)
+	return i, err
+}
+
 const setPasswordHash = `-- name: SetPasswordHash :execrows
 UPDATE account SET password_hash = $1 WHERE id = $2
 `
@@ -102,6 +201,53 @@ type SetPasswordHashParams struct {
 
 func (q *Queries) SetPasswordHash(ctx context.Context, arg SetPasswordHashParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setPasswordHash, arg.PasswordHash, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setTOTPSecret = `-- name: SetTOTPSecret :execrows
+UPDATE account SET totp_secret = $1 WHERE id = $2
+`
+
+type SetTOTPSecretParams struct {
+	TotpSecret []byte
+	ID         pgtype.UUID
+}
+
+func (q *Queries) SetTOTPSecret(ctx context.Context, arg SetTOTPSecretParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setTOTPSecret, arg.TotpSecret, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const tOTPSecret = `-- name: TOTPSecret :one
+SELECT totp_secret FROM account WHERE id = $1
+`
+
+func (q *Queries) TOTPSecret(ctx context.Context, id pgtype.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, tOTPSecret, id)
+	var totp_secret []byte
+	err := row.Scan(&totp_secret)
+	return totp_secret, err
+}
+
+const useTOTPStep = `-- name: UseTOTPStep :execrows
+UPDATE account SET totp_last_step = $1::bigint
+WHERE id = $2 AND (totp_last_step IS NULL OR totp_last_step < $1::bigint)
+`
+
+type UseTOTPStepParams struct {
+	Step int64
+	ID   pgtype.UUID
+}
+
+// A step is used at most once: a code is rejected unless its step is newer than the last used one.
+func (q *Queries) UseTOTPStep(ctx context.Context, arg UseTOTPStepParams) (int64, error) {
+	result, err := q.db.Exec(ctx, useTOTPStep, arg.Step, arg.ID)
 	if err != nil {
 		return 0, err
 	}

@@ -2,8 +2,11 @@
 package config
 
 import (
+	"encoding/base64"
 	"errors"
+	"net/netip"
 	"os"
+	"strings"
 )
 
 // Config holds the settings the binaries need.
@@ -14,9 +17,16 @@ type Config struct {
 	// AppDatabasePassword is set on the salus_app role by `migrate up` when not empty. Production leaves it
 	// unset when the role is provisioned outside migrate.
 	AppDatabasePassword string
+	// TOTPKey seals TOTP secrets (TOTP_KEY, base64, 32 bytes). Local and CI only: production takes it from
+	// the KMS, which is not decided yet (docs/accounts/SPEC.md "TOTP").
+	TOTPKey []byte
+	// RateLimitKey keys the HMAC that names the login rate-limit counters (RATE_LIMIT_KEY, base64).
+	RateLimitKey []byte
+	// TrustedProxies may set X-Forwarded-For (TRUSTED_PROXY_CIDRS, comma-separated CIDRs).
+	TrustedProxies []netip.Prefix
 }
 
-// Load reads the configuration from the environment. Errors name the missing variable, never a value.
+// Load reads the configuration from the environment. Errors name the variable, never a value.
 func Load() (Config, error) {
 	cfg := Config{
 		DatabaseURL: os.Getenv("DATABASE_URL"),
@@ -30,6 +40,23 @@ func Load() (Config, error) {
 	}
 	if cfg.HTTPAddr == "" {
 		cfg.HTTPAddr = ":8080"
+	}
+	var err error
+	if cfg.TOTPKey, err = base64.StdEncoding.DecodeString(os.Getenv("TOTP_KEY")); err != nil {
+		return Config{}, errors.New("config: TOTP_KEY is not base64")
+	}
+	if cfg.RateLimitKey, err = base64.StdEncoding.DecodeString(os.Getenv("RATE_LIMIT_KEY")); err != nil {
+		return Config{}, errors.New("config: RATE_LIMIT_KEY is not base64")
+	}
+	for _, s := range strings.Split(os.Getenv("TRUSTED_PROXY_CIDRS"), ",") {
+		if s = strings.TrimSpace(s); s == "" {
+			continue
+		}
+		p, err := netip.ParsePrefix(s)
+		if err != nil {
+			return Config{}, errors.New("config: TRUSTED_PROXY_CIDRS holds an entry that is not a CIDR")
+		}
+		cfg.TrustedProxies = append(cfg.TrustedProxies, p)
 	}
 	return cfg, nil
 }

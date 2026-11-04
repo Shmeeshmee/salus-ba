@@ -11,6 +11,7 @@
 tables:
   account: {owner: auth, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
+  session: {owner: auth, personal_data: true}
   river_job: {owner: river}
   river_leader: {owner: river}
   river_queue: {owner: river}

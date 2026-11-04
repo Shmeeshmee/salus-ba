@@ -1,8 +1,8 @@
 package auth_test
 
 import (
-	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,152 +16,15 @@ const (
 	password  = "a long enough secret"
 )
 
-type txKey struct{}
-
-// fakeTransactor marks the context it hands fn, as postgres.Transactor carries its transaction, and keeps
-// what fn returned.
-type fakeTransactor struct{ calls int }
-
-func (f *fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context) error) error {
-	f.calls++
-	return fn(context.WithValue(ctx, txKey{}, true))
-}
-
-// fakeRepository holds accounts by id.
-type fakeRepository struct {
-	err       error // returned by every call when set
-	rehashErr error // returned by SetPasswordHash when set
-	accounts  map[string]auth.Account
-	rehashed  map[string]string
-	outside   int // calls made outside a transaction
-}
-
-func newFakeRepository(accounts ...auth.Account) *fakeRepository {
-	r := &fakeRepository{accounts: map[string]auth.Account{}, rehashed: map[string]string{}}
-	for _, a := range accounts {
-		r.accounts[a.ID] = a
-	}
-	return r
-}
-
-func (r *fakeRepository) seen(ctx context.Context) {
-	if ctx.Value(txKey{}) == nil {
-		r.outside++
-	}
-}
-
-func (r *fakeRepository) Create(ctx context.Context, a auth.Account) (string, error) {
-	r.seen(ctx)
-	if r.err != nil {
-		return "", r.err
-	}
-	for _, existing := range r.accounts {
-		if existing.Email == a.Email {
-			return "", auth.ErrEmailTaken
-		}
-	}
-	a.ID = accountID
-	r.accounts[a.ID] = a
-	return a.ID, nil
-}
-
-func (r *fakeRepository) ByEmail(ctx context.Context, email string) (auth.Account, error) {
-	r.seen(ctx)
-	if r.err != nil {
-		return auth.Account{}, r.err
-	}
-	for _, a := range r.accounts {
-		if a.Email == email {
-			return a, nil
-		}
-	}
-	return auth.Account{}, auth.ErrNotFound
-}
-
-func (r *fakeRepository) ByID(ctx context.Context, id string) (auth.Account, error) {
-	r.seen(ctx)
-	if r.err != nil {
-		return auth.Account{}, r.err
-	}
-	a, ok := r.accounts[id]
-	if !ok {
-		return auth.Account{}, auth.ErrNotFound
-	}
-	return a, nil
-}
-
-func (r *fakeRepository) SetPasswordHash(ctx context.Context, id, hash string) error {
-	r.seen(ctx)
-	r.rehashed[id] = hash
-	return r.rehashErr
-}
-
-// fakeHasher "hashes" by prefixing, and counts the hashes it computes: the timing seam for unknown e-mails.
-type fakeHasher struct {
-	err    error
-	stale  bool
-	hashes int
-}
-
-func (h *fakeHasher) Hash(_ context.Context, password string) (string, error) {
-	h.hashes++
-	return "hashed:" + strings.ToUpper(password), h.err
-}
-
-func (h *fakeHasher) Verify(_ context.Context, password, encoded string) (ok, stale bool, err error) {
-	h.hashes++
-	ok = encoded == "hashed:"+strings.ToUpper(password)
-	return ok, ok && h.stale, h.err
-}
-
-// fakeAuditor keeps the events it records and whether each was recorded inside a transaction.
-type fakeAuditor struct {
-	err    error
-	events []auditevent.AuditEvent
-	inTx   []bool
-}
-
-func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error {
-	a.events = append(a.events, e)
-	a.inTx = append(a.inTx, ctx.Value(txKey{}) != nil)
-	return a.err
-}
-
-type fixture struct {
-	svc    *auth.Service
-	repo   *fakeRepository
-	hasher *fakeHasher
-	audit  *fakeAuditor
-}
-
-func newFixture(accounts ...auth.Account) fixture {
-	f := fixture{repo: newFakeRepository(accounts...), hasher: &fakeHasher{}, audit: &fakeAuditor{}}
-	f.svc = auth.NewService(f.repo, f.hasher, f.audit, &fakeTransactor{})
-	return f
-}
-
-// onlyEvent returns the one recorded event, failing unless exactly one was recorded inside the transaction.
-func (f fixture) onlyEvent(t *testing.T) auditevent.AuditEvent {
-	t.Helper()
-	if len(f.audit.events) != 1 {
-		t.Fatalf("%d audit events, want 1", len(f.audit.events))
-	}
-	if !f.audit.inTx[0] {
-		t.Error("the audit event was recorded outside the transaction")
-	}
-	if f.repo.outside != 0 {
-		t.Errorf("%d repository calls outside the transaction", f.repo.outside)
-	}
-	return f.audit.events[0]
-}
-
 var (
 	hoperat  = auditevent.Coding{System: auditevent.SystemActReason, Code: auditevent.CodeHOPERAT}
 	rest     = auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest}
 	create   = auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: auditevent.CodeCreate}
 	read     = auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: auditevent.CodeRead}
+	update   = auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: auditevent.CodeUpdate}
 	userAuth = auditevent.Coding{System: auditevent.SystemDCM, Code: auditevent.CodeUserAuthentication}
 	login    = auditevent.Coding{System: auditevent.SystemDCM, Code: auditevent.CodeLogin}
+	logout   = auditevent.Coding{System: auditevent.SystemDCM, Code: auditevent.CodeLogout}
 )
 
 func TestRegister_CreatesAPatientWithTheNormalisedEmailAndOnlyTheHash(t *testing.T) {
@@ -275,100 +138,38 @@ func staff() auth.Account {
 	}
 }
 
-func TestCheckPassword_ReturnsTheAccountAndAuditsTheLogin(t *testing.T) {
-	f := newFixture(staff())
-
-	got, err := f.svc.CheckPassword(t.Context(), " Ben@Example.test", password)
-
-	if err != nil || got.ID != accountID {
-		t.Fatalf("CheckPassword() = %+v, %v; want the account", got, err)
-	}
-	if got.PasswordHash != "" {
-		t.Error("CheckPassword returned the password hash")
-	}
-	want := auditevent.AuditEvent{
-		Type: userAuth, Subtype: login, Purpose: hoperat, Action: auditevent.ActionExecute, Outcome: auditevent.OutcomeSuccess,
-		AgentAccountID: accountID, EntityReference: "Account/" + accountID, OrganizationID: clinicID,
-	}
-	if e := f.onlyEvent(t); e != want {
-		t.Errorf("audit event %+v,\nwant %+v", e, want)
-	}
-	if len(f.repo.rehashed) != 0 {
-		t.Error("a current hash was re-hashed")
-	}
+func patientWithoutMFA() auth.Account {
+	return auth.Account{ID: accountID, Email: "ana@example.test", Role: auth.RolePatient, PasswordHash: "hashed:" + strings.ToUpper(password)}
 }
 
-func TestCheckPassword_RejectsAWrongPasswordAndAuditsTheFailure(t *testing.T) {
-	f := newFixture(staff())
-
-	_, err := f.svc.CheckPassword(t.Context(), "ben@example.test", "not the password")
-
-	if !errors.Is(err, auth.ErrWrongCredentials) {
-		t.Fatalf("CheckPassword() error = %v, want ErrWrongCredentials", err)
+func TestService_ReadsAndWritesAccountsInTheAuditedTransaction(t *testing.T) {
+	tests := []struct {
+		call        func(f fixture) error
+		name        string
+		wantOutside []string
+	}{
+		{name: "Register", call: func(f fixture) error {
+			_, err := f.svc.Register(t.Context(), "cleo@example.test", password)
+			return err
+		}},
+		{name: "Me", call: func(f fixture) error { _, err := f.svc.Me(t.Context(), accountID); return err }},
+		// The account is read once before the transaction, only to verify the password without holding a
+		// connection; the decision rests on the read inside it.
+		{name: "Login", call: func(f fixture) error {
+			_, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP)
+			return err
+		}, wantOutside: []string{"ByEmail"}},
 	}
-	want := auditevent.AuditEvent{
-		Type: userAuth, Subtype: login, Purpose: hoperat, Action: auditevent.ActionExecute, Outcome: auditevent.OutcomeMinorFailure,
-		AgentAccountID: accountID, EntityReference: "Account/" + accountID, OrganizationID: clinicID,
-	}
-	if e := f.onlyEvent(t); e != want {
-		t.Errorf("audit event %+v,\nwant %+v", e, want)
-	}
-}
-
-func TestCheckPassword_HashesADummyForAnUnknownEmail(t *testing.T) {
-	f := newFixture(staff())
-
-	_, err := f.svc.CheckPassword(t.Context(), "nobody@example.test", password)
-
-	if !errors.Is(err, auth.ErrWrongCredentials) {
-		t.Fatalf("CheckPassword() error = %v, want ErrWrongCredentials (the same as a wrong password)", err)
-	}
-	if f.hasher.hashes != 1 {
-		t.Errorf("%d hashes for an unknown e-mail, want 1, as for a known one", f.hasher.hashes)
-	}
-	want := auditevent.AuditEvent{
-		Type: userAuth, Subtype: login, Purpose: hoperat, Action: auditevent.ActionExecute, Outcome: auditevent.OutcomeMinorFailure,
-	}
-	if e := f.onlyEvent(t); e != want {
-		t.Errorf("audit event %+v,\nwant %+v (no agent, no entity)", e, want)
-	}
-}
-
-func TestCheckPassword_ReHashesAHashWithOlderParameters(t *testing.T) {
-	f := newFixture(staff())
-	f.hasher.stale = true
-
-	if _, err := f.svc.CheckPassword(t.Context(), "ben@example.test", password); err != nil {
-		t.Fatal(err)
-	}
-	if got := f.repo.rehashed[accountID]; got != "hashed:"+strings.ToUpper(password) {
-		t.Errorf("re-hashed to %q, want a fresh hash", got)
-	}
-	f.onlyEvent(t)
-}
-
-func TestCheckPassword_PassesFailuresOn(t *testing.T) {
-	boom := errors.New("boom")
-	for name, change := range map[string]func(*fixture){
-		"hasher":     func(f *fixture) { f.hasher.err = boom },
-		"repository": func(f *fixture) { f.repo.err = boom },
-		"audit":      func(f *fixture) { f.audit.err = boom },
-		"re-hash":    func(f *fixture) { f.hasher.stale = true; f.repo.rehashErr = boom },
-	} {
-		f := newFixture(staff())
-		change(&f)
-		_, err := f.svc.CheckPassword(t.Context(), "ben@example.test", password)
-		if err == nil || errors.Is(err, auth.ErrWrongCredentials) {
-			t.Errorf("%s fails: CheckPassword() error = %v, want the failure", name, err)
-		}
-	}
-}
-
-func TestCheckPassword_PassesAnUnknownEmailsHashFailureOn(t *testing.T) {
-	f := newFixture()
-	f.hasher.err = context.Canceled
-	if _, err := f.svc.CheckPassword(t.Context(), "nobody@example.test", password); !errors.Is(err, context.Canceled) {
-		t.Errorf("CheckPassword() error = %v, want context.Canceled", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(patientWithoutMFA())
+			if err := tt.call(f); err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(f.repo.outside, tt.wantOutside) {
+				t.Errorf("repository calls outside the transaction: %v, want %v", f.repo.outside, tt.wantOutside)
+			}
+		})
 	}
 }
 

@@ -66,6 +66,10 @@ services:
     environment:
       <<: *app-env
       HTTP_ADDR: ":8080"
+      # Synthetic, local only. TOTP_KEY seals TOTP secrets (production: the KMS, not decided yet);
+      # RATE_LIMIT_KEY names the login rate-limit counters in Redis by HMAC.
+      TOTP_KEY: bG9jYWwtb25seS1zeW50aGV0aWMtdG90cC1rZXktMzI=
+      RATE_LIMIT_KEY: bG9jYWwtb25seS1zeW50aGV0aWMtcmF0ZWxpbWl0LWs=
     ports: ["127.0.0.1:${SALUS_API_PORT:-8080}:8080"]
 
   worker:

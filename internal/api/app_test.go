@@ -18,7 +18,11 @@ import (
 func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
 
 func testConfig(t *testing.T) config.Config {
-	return config.Config{DatabaseURL: pgtest.NewDatabaseURL(t), RedisURL: redistest.URL(t)}
+	return config.Config{
+		DatabaseURL: pgtest.NewDatabaseURL(t), RedisURL: redistest.URL(t),
+		TOTPKey:      []byte("synthetic 32-byte TOTP key, test"),
+		RateLimitKey: []byte("synthetic 32-byte rate-limit key"),
+	}
 }
 
 func TestNew_ServesReadinessAgainstTheDatabase(t *testing.T) {
@@ -42,9 +46,17 @@ func TestNew_FailsWhenADependencyIsUnreachable(t *testing.T) {
 	noRedis := testConfig(t)
 	noRedis.RedisURL = "redis://127.0.0.1:1/0?dial_timeout=1s&max_retries=-1"
 
-	for name, cfg := range map[string]config.Config{"postgres": noDB, "redis": noRedis} {
+	shortTOTPKey := testConfig(t)
+	shortTOTPKey.TOTPKey = []byte("16 bytes, no more")
+	shortRateKey := testConfig(t)
+	shortRateKey.RateLimitKey = []byte("short")
+
+	for name, cfg := range map[string]config.Config{
+		"postgres unreachable": noDB, "redis unreachable": noRedis,
+		"a TOTP key that is not 32 bytes": shortTOTPKey, "a rate-limit key under 32 bytes": shortRateKey,
+	} {
 		if _, err := api.New(t.Context(), cfg, slog.New(slog.DiscardHandler)); err == nil {
-			t.Errorf("New() with %s unreachable: error = nil, want a connection error", name)
+			t.Errorf("New() with %s: error = nil", name)
 		}
 	}
 }

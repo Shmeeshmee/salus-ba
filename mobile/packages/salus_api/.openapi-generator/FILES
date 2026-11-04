@@ -13,8 +13,14 @@ lib/auth/http_basic_auth.dart
 lib/auth/http_bearer_auth.dart
 lib/auth/oauth.dart
 lib/model/account.dart
+lib/model/confirm_request.dart
+lib/model/enrol_request.dart
+lib/model/enrolment.dart
 lib/model/error.dart
+lib/model/login_request.dart
+lib/model/login_response.dart
 lib/model/register_request.dart
 lib/model/status.dart
 lib/model/unavailable.dart
+lib/model/verify_request.dart
 pubspec.yaml

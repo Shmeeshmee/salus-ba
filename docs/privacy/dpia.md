@@ -64,3 +64,44 @@ come with the subject-rights feature.
 | An account access goes unrecorded | Registration (also a taken e-mail), each password check (success, wrong password, unknown e-mail) and reading one's own account each write an `AuditEvent` in the same transaction |
 | E-mails or passwords reach logs or error text | Logs carry the route, status and request id; errors carry fixed codes; a handler test asserts the log holds no e-mail, password or hash |
 | The application deletes accounts or audit rows | `salus_app` has `SELECT, INSERT, UPDATE` on `account`, no `DELETE` or `TRUNCATE` |
+
+### Package 3: sessions and MFA
+
+**Processing added.** Table `session`: the account, for staff the clinic, the SHA-256 of the session token
+(the token itself is sent to the client once and never stored), whether the sign-in passed a TOTP code, and
+when it was created, expires and was revoked. On `account`, the TOTP secret (sealed with AES-256-GCM, bound
+to the account id), the last used TOTP step and the enrolment time. In Redis, with a TTL: the MFA challenge
+(`mfa:challenge:<sha256>` → account id and a count of wrong codes, 5 minutes) and the login rate-limit
+counters (`ratelimit:login:email:<hmac>`, `ratelimit:login:ip:<hmac>`, 15 minutes). Endpoints: login, MFA
+enrol, confirm and verify, logout; a session middleware reads the session row on each request.
+
+**Purpose and lawful basis.** Sessions and MFA: performance of the contract (Art. 6(1)(b)). Rate limiting:
+security of processing (Art. 32), legitimate interest (Art. 6(1)(f)).
+
+**Necessity and minimisation.** No IP address, user agent or device data is stored with a session. The
+client IP is used only to name a rate-limit counter, by HMAC (`RATE_LIMIT_KEY`), so neither it nor the
+e-mail is readable in Redis; it is never logged. The `otpauth://` URI carries the e-mail as its label, to
+the account holder only, and is not cached (`Cache-Control: no-store`).
+
+**Retention.** Sessions are deleted 30 days after they were revoked or expired (`internal/retention`,
+`delete`; applied by the retention job, the next privacy feature). Redis keys expire on their own. The TOTP
+columns follow the account.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A stolen database gives working sessions | Only the SHA-256 of each 32-byte random token is stored |
+| A stolen database gives working TOTP secrets | Secrets are sealed with AES-256-GCM, the account id as additional data; the key is outside the database (`TOTP_KEY` locally, a KMS in production, not decided yet) |
+| A signed-out or revoked session keeps working | Every request reads the session row (`revoked_at IS NULL AND expires_at > now`), so logout takes effect on the next request; there is no cached copy in Redis |
+| Password guessing | 5 failures per e-mail and 30 attempts per IP in 15 minutes; over the limit the password is not checked (429, `Retry-After`) |
+| TOTP guessing or replay | Five wrong codes end the challenge; a code is accepted one step either way and only once (`totp_last_step`) |
+| Staff without a second factor | Staff get no session before a TOTP code: login answers `next: enrol` or `verify`, and a check constraint refuses a staff session that is not MFA-verified |
+| Cross-site requests with the web app's cookie | The cookie is `HttpOnly; Secure; SameSite=Strict`, and a write with it needs `X-Salus-CSRF: 1` (403 otherwise) |
+| A login burst starves other requests | The password hash runs outside the database transaction, so a waiting login holds no connection (`docs/accounts/PROGRESS.md`, package 3) |
+| A spoofed `X-Forwarded-For` evades the IP limit | The header is read only from proxies in `TRUSTED_PROXY_CIDRS` |
+| An access goes unrecorded | Each login attempt that checks a password, each enrolment step, each code verification and each logout writes an `AuditEvent` in the same transaction; a rate-limited attempt or an unknown challenge touches no account and is not audited |
+| Tokens, codes or e-mails reach logs | Handler tests assert the log holds no e-mail, password, token, challenge or code |
+
+**Open before production.** The KMS for the TOTP key, and `TRUSTED_PROXY_CIDRS` for the production load
+balancer.

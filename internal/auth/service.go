@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
 // Password length limits in characters, without composition rules (NIST SP 800-63B).
@@ -32,18 +33,41 @@ type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
+// Ports are what the Service runs on.
+type Ports struct {
+	Repo       Repository
+	Hasher     Hasher
+	Audit      Auditor
+	Tx         Transactor
+	Clock      clock.Clock
+	Challenges ChallengeStore
+	Counters   Counters
+	Box        SecretBox
+	// RateLimitKey keys the HMAC that names the rate-limit counters, so neither e-mail nor IP is readable in
+	// Redis (RATE_LIMIT_KEY).
+	RateLimitKey []byte
+}
+
 // Service holds the account rules. Every access to an account writes an AuditEvent in the same
 // transaction as the access, also when it fails.
 type Service struct {
-	repo   Repository
-	hasher Hasher
-	audit  Auditor
-	tx     Transactor
+	repo       Repository
+	hasher     Hasher
+	audit      Auditor
+	tx         Transactor
+	clock      clock.Clock
+	challenges ChallengeStore
+	counters   Counters
+	box        SecretBox
+	rateKey    []byte
 }
 
 // NewService returns a Service on its ports.
-func NewService(repo Repository, hasher Hasher, audit Auditor, tx Transactor) *Service {
-	return &Service{repo: repo, hasher: hasher, audit: audit, tx: tx}
+func NewService(p Ports) *Service {
+	return &Service{
+		repo: p.Repo, hasher: p.Hasher, audit: p.Audit, tx: p.Tx, clock: p.Clock,
+		challenges: p.Challenges, counters: p.Counters, box: p.Box, rateKey: p.RateLimitKey,
+	}
 }
 
 // Register creates a patient account. The e-mail is trimmed and lower-cased; the password is stored only as
@@ -86,62 +110,10 @@ func (s *Service) Register(ctx context.Context, email, password string) (Account
 	return a, nil
 }
 
-// CheckPassword returns the account whose e-mail and password match, or ErrWrongCredentials for an unknown
-// e-mail and a wrong password alike. An unknown e-mail costs one hash too, so timing does not tell them
-// apart. A hash made with older parameters is replaced. Every attempt is audited as a login.
-func (s *Service) CheckPassword(ctx context.Context, email, password string) (Account, error) {
-	email = normaliseEmail(email)
-	var a Account
-	var wrong bool
-	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
-		var err error
-		a, err = s.repo.ByEmail(ctx, email)
-		if errors.Is(err, ErrNotFound) {
-			if _, err := s.hasher.Hash(ctx, dummyPassword); err != nil {
-				return err
-			}
-			wrong, a = true, Account{}
-			return s.recordLogin(ctx, a, auditevent.OutcomeMinorFailure)
-		}
-		if err != nil {
-			return err
-		}
-		ok, stale, err := s.hasher.Verify(ctx, password, a.PasswordHash)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			wrong = true
-			return s.recordLogin(ctx, a, auditevent.OutcomeMinorFailure)
-		}
-		if stale {
-			if err := s.rehash(ctx, a.ID, password); err != nil {
-				return err
-			}
-		}
-		return s.recordLogin(ctx, a, auditevent.OutcomeSuccess)
-	})
-	switch {
-	case err != nil:
-		return Account{}, fmt.Errorf("auth: check password: %w", err)
-	case wrong:
-		return Account{}, ErrWrongCredentials
-	}
-	a.PasswordHash = ""
-	return a, nil
-}
-
-func (s *Service) rehash(ctx context.Context, id, password string) error {
-	hash, err := s.hasher.Hash(ctx, password)
-	if err != nil {
-		return err
-	}
-	return s.repo.SetPasswordHash(ctx, id, hash)
-}
-
-func (s *Service) recordLogin(ctx context.Context, a Account, outcome auditevent.Outcome) error {
+// recordLogin audits a user authentication by a: subtype is auditevent.CodeLogin or CodeLogout.
+func (s *Service) recordLogin(ctx context.Context, a Account, subtype string, outcome auditevent.Outcome) error {
 	return s.audit.Record(ctx, event(auditevent.Coding{System: auditevent.SystemDCM, Code: auditevent.CodeUserAuthentication},
-		auditevent.Coding{System: auditevent.SystemDCM, Code: auditevent.CodeLogin}, auditevent.ActionExecute, a, outcome))
+		auditevent.Coding{System: auditevent.SystemDCM, Code: subtype}, auditevent.ActionExecute, a, outcome))
 }
 
 // Me returns the signed-in account (GET /auth/me), or ErrNotFound. The read is audited.

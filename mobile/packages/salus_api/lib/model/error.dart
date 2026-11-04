@@ -122,6 +122,13 @@ enum ErrorErrorEnum {
   invalidPassword._(r'invalid_password'),
   emailTaken._(r'email_taken'),
   unauthenticated._(r'unauthenticated'),
+  wrongCredentials._(r'wrong_credentials'),
+  rateLimited._(r'rate_limited'),
+  invalidChallenge._(r'invalid_challenge'),
+  wrongCode._(r'wrong_code'),
+  alreadyEnrolled._(r'already_enrolled'),
+  notEnrolled._(r'not_enrolled'),
+  csrf._(r'csrf'),
   internalError._(r'internal error'),
   timeout._(r'timeout'),
   ;
@@ -197,6 +204,20 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.emailTaken;
         case r'unauthenticated':
           return ErrorErrorEnum.unauthenticated;
+        case r'wrong_credentials':
+          return ErrorErrorEnum.wrongCredentials;
+        case r'rate_limited':
+          return ErrorErrorEnum.rateLimited;
+        case r'invalid_challenge':
+          return ErrorErrorEnum.invalidChallenge;
+        case r'wrong_code':
+          return ErrorErrorEnum.wrongCode;
+        case r'already_enrolled':
+          return ErrorErrorEnum.alreadyEnrolled;
+        case r'not_enrolled':
+          return ErrorErrorEnum.notEnrolled;
+        case r'csrf':
+          return ErrorErrorEnum.csrf;
         case r'internal error':
           return ErrorErrorEnum.internalError;
         case r'timeout':

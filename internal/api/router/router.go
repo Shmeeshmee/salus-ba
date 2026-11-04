@@ -26,14 +26,18 @@ type Check struct {
 // Config is what the router needs.
 type Config struct {
 	Logger *slog.Logger
-	Checks []Check
+	// Session authenticates the request and puts its session in the context (auth.Handler.Session); nil for
+	// none. It runs inside the timeout, so its read of the session is bounded too.
+	Session func(http.Handler) http.Handler
+	Checks  []Check
 	// Routes are the domains' registration functions (such as auth.Handler.Routes), each declaring its
 	// routes on the mux.
 	Routes  []func(mux *http.ServeMux)
 	Timeout time.Duration // per request
 }
 
-// New returns the API's handler: request id, access log, recover and timeout around the routes.
+// New returns the API's handler: request id, access log, recover, timeout and the session check around the
+// routes.
 func New(cfg Config) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthz)
@@ -45,6 +49,9 @@ func New(cfg Config) http.Handler {
 	}
 
 	var h http.Handler = mux
+	if cfg.Session != nil {
+		h = cfg.Session(h)
+	}
 	h = http.TimeoutHandler(h, cfg.Timeout, `{"error":"timeout"}`)
 	h = middleware.Recover(cfg.Logger)(h)
 	h = middleware.AccessLog(cfg.Logger, mux)(h)

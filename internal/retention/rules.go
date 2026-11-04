@@ -20,5 +20,11 @@ func Rules() []Rule {
 			Basis: "Performance of the contract the user signed up for (GDPR Art. 6(1)(b)); closure and erasure come with the subject-rights feature",
 			Then:  ThenKeep,
 		},
+		{
+			Table: "session",
+			Basis: "Performance of the contract (GDPR Art. 6(1)(b)) while signed in; then security of processing (Art. 32) for 30 days",
+			Keep:  30 * day, // after revoked_at or expires_at
+			Then:  ThenDelete,
+		},
 	}
 }

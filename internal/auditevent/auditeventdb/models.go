@@ -132,3 +132,14 @@ type RiverQueue struct {
 	PausedAt  pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz
 }
+
+type Session struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	ExpiresAt      pgtype.Timestamptz
+	RevokedAt      pgtype.Timestamptz
+	AccountID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	MfaVerified    bool
+	TokenHash      []byte
+}

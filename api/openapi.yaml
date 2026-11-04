@@ -103,7 +103,233 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+  /auth/login:
+    post:
+      operationId: login
+      summary: Sign in with e-mail and password
+      description: >-
+        Checks the password. A patient without MFA gets the session; an account with MFA gets a challenge
+        with `next: verify`, and staff who have not set up MFA one with `next: enrol` (MFA is required for
+        staff). The challenge lasts 5 minutes. The web app sends `X-Salus-CSRF: 1` and gets the session in the
+        `salus_session` cookie; the mobile app gets the token in the body. Limited per e-mail (5 failures in
+        15 minutes) and per client IP (30 attempts): over the limit the password is not checked and the answer
+        is 429 with `Retry-After`. Audited.
+      tags: [auth]
+      security: [] # public: this is how a session starts
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginRequest"}
+      responses:
+        "200":
+          $ref: "#/components/responses/LoginStep"
+        "400":
+          description: "`invalid_request`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`wrong_credentials`: an unknown e-mail or a wrong password, alike."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /auth/mfa/enrol:
+    post:
+      operationId: enrolMfa
+      summary: Start TOTP enrolment
+      description: >-
+        With a login challenge (staff at their first login) or, without one, with a patient's session:
+        returns a new TOTP secret and its `otpauth://` URI. The secret is pending until confirmed. Audited.
+      tags: [auth]
+      security:
+        - {}
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EnrolRequest"}
+      responses:
+        "200":
+          description: The pending secret. Not cached.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Enrolment"}
+        "400":
+          description: "`invalid_request`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`invalid_challenge` or `unauthenticated`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          $ref: "#/components/responses/CSRF"
+        "409":
+          description: "`already_enrolled`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /auth/mfa/confirm:
+    post:
+      operationId: confirmMfa
+      summary: Confirm TOTP enrolment with the first code
+      description: >-
+        Marks MFA as set up. With a challenge it also opens the session (as `/auth/login` does); with a
+        session it answers 204. A wrong code counts against the challenge; the fifth ends it. Audited.
+      tags: [auth]
+      security:
+        - {}
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ConfirmRequest"}
+      responses:
+        "200":
+          $ref: "#/components/responses/LoginStep"
+        "204":
+          description: Enrolled from a session.
+        "400":
+          description: "`invalid_request`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`invalid_challenge`, `wrong_code` or `unauthenticated`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          $ref: "#/components/responses/CSRF"
+        "409":
+          description: "`already_enrolled`, or `not_enrolled` before `/auth/mfa/enrol`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /auth/mfa/verify:
+    post:
+      operationId: verifyMfa
+      summary: Finish signing in with a TOTP code
+      description: >-
+        With the challenge of `/auth/login` and a code: opens the session. A code is accepted one 30-second
+        step either way, and only once. A wrong code counts against the challenge; the fifth ends it. Audited.
+      tags: [auth]
+      security: [] # the challenge is the credential
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VerifyRequest"}
+      responses:
+        "200":
+          $ref: "#/components/responses/LoginStep"
+        "400":
+          description: "`invalid_request`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`invalid_challenge` or `wrong_code`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`not_enrolled`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Sign out
+      description: Ends the session; the next request with it is refused. Clears the cookie. Audited.
+      tags: [auth]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204":
+          description: Signed out.
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          $ref: "#/components/responses/CSRF"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
+  parameters:
+    CSRF:
+      name: X-Salus-CSRF
+      in: header
+      required: false
+      description: >-
+        Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and
+        DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of
+        the body.
+      schema:
+        type: string
+        const: "1"
+  responses:
+    LoginStep:
+      description: >-
+        The next step (`verify` or `enrol`, with the challenge), or `done` with the session: in the
+        `salus_session` cookie (HttpOnly, Secure, SameSite=Strict) when `X-Salus-CSRF: 1` was sent, else as
+        `token`. Not cached.
+      headers:
+        Cache-Control: {schema: {type: string, const: no-store}}
+        Set-Cookie: {schema: {type: string}, description: "salus_session, for the web app"}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/LoginResponse"}
+    RateLimited:
+      description: "`rate_limited`: too many attempts; the password was not checked."
+      headers:
+        Retry-After: {schema: {type: integer}, description: Seconds until the window ends.}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    CSRF:
+      description: "`csrf`: a write with the session cookie and no `X-Salus-CSRF: 1`."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    InternalError:
+      description: "`internal error`."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
   securitySchemes:
     sessionCookie:
       type: apiKey
@@ -115,6 +341,70 @@ components:
       scheme: bearer
       description: The mobile app's session token.
   schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+    LoginResponse:
+      type: object
+      required: [next]
+      properties:
+        next:
+          type: string
+          enum: [done, verify, enrol]
+        challenge:
+          type: string
+          description: For `verify` and `enrol`; valid 5 minutes.
+        token:
+          type: string
+          description: "The session token, for `done` without `X-Salus-CSRF`; send it as `Authorization: Bearer <token>`."
+        expiresAt:
+          type: string
+          format: date-time
+          description: For `done`. Absolute; 12 hours for staff, 30 days for patients.
+    EnrolRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        challenge:
+          type: string
+          description: The login challenge; omitted when enrolling from a session.
+    Enrolment:
+      type: object
+      required: [secret, uri]
+      properties:
+        secret:
+          type: string
+          description: Base32, for manual entry.
+        uri:
+          type: string
+          description: The otpauth:// URI, for a QR code.
+    ConfirmRequest:
+      type: object
+      required: [code]
+      additionalProperties: false
+      properties:
+        challenge:
+          type: string
+          description: The login challenge; omitted when enrolling from a session.
+        code:
+          type: string
+          description: Six digits from the authenticator app.
+    VerifyRequest:
+      type: object
+      required: [challenge, code]
+      additionalProperties: false
+      properties:
+        challenge:
+          type: string
+        code:
+          type: string
+          description: Six digits from the authenticator app.
     RegisterRequest:
       type: object
       required: [email, password]
@@ -153,7 +443,21 @@ components:
       properties:
         error:
           type: string
-          enum: [invalid_request, invalid_email, invalid_password, email_taken, unauthenticated, internal error, timeout]
+          enum:
+            - invalid_request
+            - invalid_email
+            - invalid_password
+            - email_taken
+            - unauthenticated
+            - wrong_credentials
+            - rate_limited
+            - invalid_challenge
+            - wrong_code
+            - already_enrolled
+            - not_enrolled
+            - csrf
+            - internal error
+            - timeout
     Status:
       type: object
       required: [status]

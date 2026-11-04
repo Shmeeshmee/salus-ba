@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | 1 Privacy foundation | done, 2026-11-04 | `accounts(1)` |
 | 2 Identity: accounts | done, 2026-11-04 | `accounts(2)` |
-| 3 Identity: sessions and MFA | todo | |
+| 3 Identity: sessions and MFA | done, 2026-11-04 | `accounts(3)` |
 | 4 Directory | todo | |
 | 5 Practitioner invites | todo | |
 | 6 FHIR reads | todo | |
@@ -212,3 +212,121 @@ Deferred: login, sessions, MFA and the session middleware that sets the account 
 
 Dev stack left: postgres and redis running, as found. Dev database at migration 10 (`account`, empty). The
 api was not started (no stack check in this package), so no account or audit rows were written.
+
+### 2026-11-04 — package 3, identity: sessions and MFA
+
+Built:
+- Migration `00011_session.sql`: `session` (SPEC §4: account, clinic for staff, SHA-256 of the token,
+  `mfa_verified`, `created_at`, `expires_at`, `revoked_at`), unique index on `token_hash`, index on
+  `account_id`, foreign key to `account`, check that a staff session (clinic set) is MFA-verified;
+  `SELECT, INSERT, UPDATE` to `salus_app` (no `DELETE`, `TRUNCATE`). Not row-level secured, like `account`
+  (a patient's session has no clinic, and the session is found by token before the clinic is known).
+  `ownership.yaml` gains `session` (`personal_data: true`); `internal/retention` gains `ThenDelete` and the
+  `session` rule (30 days after `revoked_at` or `expires_at`).
+- `internal/auth`:
+  - `Service.Login` (rate limit, password, then a session for a patient without MFA or a challenge:
+    `next: verify` when enrolled, `next: enrol` for staff without MFA), `Authenticate` (one indexed read, no
+    Redis, not audited), `Logout` (sets `revoked_at`, audited), `Enrol`, `Confirm`, `Verify`
+    (`service_session.go`, `service_mfa.go`). `CheckPassword` is folded into `Login`, its only caller; its
+    tests became `Login` tests. `NewService` takes a `Ports` struct.
+  - TOTP (`totp.go`, RFC 6238 with the standard library: HMAC-SHA-1, 6 digits, 30 s, one step of drift);
+    exported `TOTPCode` (package 9's e2e test computes codes with it).
+  - `SecretBox` port and `AESSecretBox` (`secretbox.go`, AES-256-GCM, nonce || ciphertext, the account id as
+    additional data so a sealed secret opens only for its account).
+  - `repository_redis.go`: `NewRedisChallengeStore` (`mfa:challenge:<sha256 hex>`, a hash with the account
+    id and the wrong-code count; a Lua script counts only on an existing key and deletes at the limit) and
+    `NewRedisCounters` (`ratelimit:<key>`, `INCR` + `PEXPIRE … NX` + `PTTL` in one `MULTI`: a fixed window).
+  - Postgres repository: session and TOTP queries (`authdb`).
+  - `handler_http_login.go`: `POST /auth/login`, `/auth/mfa/enrol`, `/auth/mfa/confirm`,
+    `/auth/mfa/verify`, `/auth/logout`; the `Session` middleware (bearer token, else the `salus_session`
+    cookie; a cookie write without `X-Salus-CSRF: 1` is 403 `csrf` before the session is read; an invalid
+    token goes on anonymously); the client IP (remote address; `X-Forwarded-For` read from the right only
+    while the hop is a trusted proxy). Error codes: `wrong_credentials`, `rate_limited` (429,
+    `Retry-After` rounded up to whole seconds), `invalid_challenge`, `wrong_code`, `already_enrolled`,
+    `not_enrolled`, `csrf`.
+- `router.Config.Session` mounted inside the timeout and the request id; `app.go` builds the Redis stores,
+  the AES box and the handler, and refuses a `TOTP_KEY` that is not 32 bytes or a `RATE_LIMIT_KEY` under 32.
+- `internal/config`: `TOTP_KEY`, `RATE_LIMIT_KEY` (both base64), `TRUSTED_PROXY_CIDRS`. Compose gives the api
+  synthetic keys; `configs/.env.example` documents them.
+- `api/openapi.yaml`: the five endpoints, `LoginRequest`, `LoginResponse`, `EnrolRequest`, `Enrolment`,
+  `ConfirmRequest`, `VerifyRequest`, the `X-Salus-CSRF` parameter, the new error codes; `make gen-clients`.
+- `make bench-auth` (`internal/auth/login_bench_test.go`).
+- `docs/privacy/dpia.md`: package 3 section.
+
+Test first, failures seen before the code: the hashing-outside-the-transaction tests (`1 of 1 hashes inside
+the transaction`, `repository calls outside the transaction: [], want [ByEmail]`); migration tests
+(`relation "session" does not exist`); retention (`undefined: retention.ThenDelete`) and archcheck
+(`retention-rule-missing: table session`); TOTP (`undefined: auth.TOTPCode`); the secret box
+(`undefined: ErrSealedSecret`); service, repository and handler tests (`*postgresRepository does not
+implement Repository (missing method ConfirmMFA)`, then the missing `Login`, `Enrol`, …); config
+(`cfg.TOTPKey undefined`); router (`unknown field Session`); the app (`not enough arguments in call to
+auth.NewHandler`). The Redis tests were written before `repository_redis.go` but first run after it.
+
+Checks: `make lint` 0 issues, check-migrations ok; `make test` ok; `make archcheck` ok; `make cover` ok
+(total 96.5%; auth 98.9%, api, router, config, retention 100%); `make sqlc` and a second `make gen-clients`
+leave no diff; `make web-typecheck` ok and `make mobile-analyze` no issues on the regenerated clients. Stack
+smoke (not required by this package): the api from compose on `SALUS_API_PORT=18080` (as an environment
+variable, `deployments/.env` untouched) answered `/readyz` 200 and the expected 401/400 to requests that
+touch no data, so no audit row was written to the dev database.
+
+Readings:
+- **The password hash no longer holds a database connection (owner's question).** Package 2's
+  `CheckPassword` hashed inside its transaction. `BenchmarkLoginBurst` (`make bench-auth`): 32 concurrent
+  patient logins with real argon2id (m = 32 MiB, t = 4, `MaxConcurrentHashes` = 4) against a pool of 4
+  connections (the pgxpool default on a 4-vCPU host) and of 16, while an indexed read (what every other
+  request does) arrives every 5 ms; tools container, i7-14700HX, three runs each:
+
+  | pool | hash | burst | other reads p50 | p99 | max |
+  | --- | --- | --- | --- | --- | --- |
+  | 4 | inside the transaction | 602–656 ms | 272–281 ms | 589–623 ms | 613–653 ms |
+  | 16 | inside the transaction | 573–610 ms | 59–67 ms | 364–391 ms | 382–420 ms |
+  | 4 | before the transaction | 560–565 ms | 0.24–0.26 ms | 0.46–0.54 ms | 2.8–8.1 ms |
+  | 16 | before the transaction | 568–577 ms | 0.24 ms | 0.46–0.69 ms | 0.7–3.5 ms |
+
+  With the hash inside, every connection was held by a login hashing or waiting for a hash slot, and every
+  other request waited for the backlog to drain: a real bottleneck. The burst itself is bound by the hash
+  semaphore either way (32 / 4 × ~60 ms). Restructured: `Login` reads the account by e-mail with no
+  transaction, verifies (and, for stale parameters, re-hashes) outside it, then in one transaction reads the
+  account again by id, decides on that read, writes the new hash, opens the session when there is no MFA
+  step, and writes the AuditEvent. The decision rests on the read inside the audited transaction; when the
+  hash that was verified was replaced in between (a concurrent re-hash) the attempt fails as a wrong
+  password, and the user signs in again. An unknown e-mail still costs one hash.
+- **`Authenticate`, `BenchmarkAuthenticate`** (as `salus_app`, 10 000 sessions, the default pool of 28):
+  34–36 µs per call serially (one round trip on the unique `token_hash` index), 3.5 µs per call of
+  throughput in parallel (about 280 000 checks/s). No change needed.
+- **The web app is told apart by `X-Salus-CSRF: 1`.** SPEC gives the cookie to the web app and the token in
+  the body to the mobile app but not how the server knows which; the web app already sends the header on
+  every write, so a login step with it gets the cookie (and no token in the body), one without it the token.
+  Documented in `openapi.yaml`.
+- **An invalid or stale session token is ignored, not refused**, so a browser with an expired cookie can
+  still reach `/auth/login`; handlers that need a session answer 401. The CSRF check needs only the cookie's
+  presence, so it runs before the session read.
+- **Not audited: a rate-limited attempt, and a challenge that is unknown, expired or malformed.** Neither
+  touches an account (package 2's reading for requests rejected before any account is accessed), and
+  auditing throttled attempts would let one IP write unbounded rows into a table kept ten years. Audited:
+  each login attempt that checks a password (DCM 110114/110122, E, also unknown e-mail and wrong password),
+  each verify (110122, also wrong or reused codes), enrol and confirm (rest/update, U, also refusals), logout
+  (110123, E, a second logout of the same session as outcome 4).
+- **Counting:** every attempt counts against the IP (successes too, 30 per 15 minutes); only failures count
+  against the e-mail (5 per 15 minutes); a success does not reset the e-mail's count. Fixed windows: the
+  first count starts the window (`PEXPIRE … NX`) and later ones do not extend it.
+- **Pending TOTP secret on the account.** Enrol stores the sealed secret in `account.totp_secret` with
+  `mfa_enrolled_at` still null; a repeated enrol replaces it; confirm sets `mfa_enrolled_at` and
+  `totp_last_step` once (`WHERE mfa_enrolled_at IS NULL`). A verify uses a step only if it is newer than the
+  last (`UPDATE … WHERE totp_last_step < step`), race-free.
+- **A successful verify or confirm deletes the challenge after the commit.** If that delete fails the answer
+  is 500 and the session row exists but its token never left the server, so it is unusable and expires.
+- **The failed-code limit lives in the Redis script** (`HINCRBY` only on an existing key, so a late wrong
+  code never leaves a key without a TTL). The challenge holds the account id and the count in one hash.
+- **The session table is not row-level secured** and is not clinic-scoped, for the same reason as
+  `account`; package 4's RLS checks do not apply to it.
+- `TOTPCode` is exported for package 9's end-to-end test, which computes codes from the enrolment secret.
+- `golang.org/x/crypto` was not needed beyond argon2: TOTP and AES-GCM are the standard library's.
+
+Deferred: none from this package. `RATE_LIMIT_KEY` and `TOTP_KEY` need production values (the KMS decision
+for the TOTP key is already under "Waiting on people"); `TRUSTED_PROXY_CIDRS` is set when the load balancer
+is chosen.
+
+Dev stack left: postgres and redis running, as found. Dev database at migration 11 (`session`, empty;
+`account` and `audit_event` empty). The api and migrate containers were started for the smoke check and
+removed; the `salus:dev` image was rebuilt.

@@ -18,8 +18,47 @@ import (
 // stubService answers with what it is given and keeps what it was called with.
 type stubService struct {
 	err                    error
+	authErr                error // returned by Authenticate
 	account                auth.Account
+	result                 auth.LoginResult
+	enrolment              auth.Enrolment
 	email, password, meFor string
+	ip, challenge, code    string
+	token                  string       // passed to Authenticate
+	session                auth.Session // returned by Authenticate
+	gotSession             auth.Session // passed to Enrol, Confirm or Logout
+	authenticated          int          // Authenticate calls
+}
+
+func (s *stubService) Login(_ context.Context, email, password, clientIP string) (auth.LoginResult, error) {
+	s.email, s.password, s.ip = email, password, clientIP
+	return s.result, s.err
+}
+
+func (s *stubService) Enrol(_ context.Context, challenge string, sess auth.Session) (auth.Enrolment, error) {
+	s.challenge, s.gotSession = challenge, sess
+	return s.enrolment, s.err
+}
+
+func (s *stubService) Confirm(_ context.Context, challenge string, sess auth.Session, code string) (auth.LoginResult, error) {
+	s.challenge, s.gotSession, s.code = challenge, sess, code
+	return s.result, s.err
+}
+
+func (s *stubService) Verify(_ context.Context, challenge, code string) (auth.LoginResult, error) {
+	s.challenge, s.code = challenge, code
+	return s.result, s.err
+}
+
+func (s *stubService) Logout(_ context.Context, sess auth.Session) error {
+	s.gotSession = sess
+	return s.err
+}
+
+func (s *stubService) Authenticate(_ context.Context, token string) (auth.Session, error) {
+	s.token = token
+	s.authenticated++
+	return s.session, s.authErr
 }
 
 func (s *stubService) Register(_ context.Context, email, password string) (auth.Account, error) {
@@ -35,7 +74,7 @@ func (s *stubService) Me(_ context.Context, id string) (auth.Account, error) {
 func serve(t *testing.T, svc *stubService, log *slog.Logger, r *http.Request) *httptest.ResponseRecorder {
 	t.Helper()
 	mux := http.NewServeMux()
-	auth.NewHandler(svc, log).Routes(mux)
+	auth.NewHandler(svc, log, nil).Routes(mux)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, r)
 	return rec
@@ -52,7 +91,7 @@ func registerRequest(t *testing.T, body string) *http.Request {
 func meRequest(t *testing.T, accountID string) *http.Request {
 	ctx := t.Context()
 	if accountID != "" {
-		ctx = auth.WithAccountID(ctx, accountID)
+		ctx = auth.WithSession(ctx, auth.Session{ID: sessionID, AccountID: accountID})
 	}
 	return httptest.NewRequestWithContext(ctx, http.MethodGet, "/auth/me", nil)
 }

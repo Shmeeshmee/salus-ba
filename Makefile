@@ -11,7 +11,7 @@ NODE    := $(COMPOSE) run --rm -T node
 FLUTTER := $(COMPOSE) run --rm -T flutter
 LANDING := $(COMPOSE) run --rm -T -w /src/landing node
 
-.PHONY: test cover bench-hash lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create sqlc \
+.PHONY: test cover bench-hash bench-auth lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create sqlc \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
@@ -27,6 +27,12 @@ cover: tools-image
 ## (docs/accounts/PROGRESS.md, package 2)
 bench-hash: tools-image
 	$(GO) go test -run '^$$' -bench 'BenchmarkHash' -benchtime=20x -cpu 1,2,4 ./internal/auth
+
+## bench-auth: the per-request session check, and a login burst against a pool of 4 and 16 connections
+## (docs/accounts/PROGRESS.md, package 3)
+bench-auth: tools-image
+	$(GO) sh -c "go test -run '^$$' -bench 'BenchmarkAuthenticate' -benchtime=3s ./internal/auth && \
+		go test -run '^$$' -bench 'BenchmarkLoginBurst' -benchtime=5x ./internal/auth"
 
 ## lint: gofmt, go vet, golangci-lint (both modules) and the migration immutability check
 lint: tools-image
