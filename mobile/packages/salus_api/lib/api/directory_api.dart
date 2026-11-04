@@ -16,6 +16,63 @@ class DirectoryApi {
 
   final ApiClient apiClient;
 
+  /// List the specialties a role can have
+  ///
+  /// The specialties an admin may give a practitioner role, in display order: the directory's SNOMED CT codes from FHIR R4 ValueSet c80-practice-codes, with the name the apps show. Fixed and public; needs no session. Not audited: it holds no personal data.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  Future<Response> listSpecialtiesWithHttpInfo({
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/specialties';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// List the specialties a role can have
+  ///
+  /// The specialties an admin may give a practitioner role, in display order: the directory's SNOMED CT codes from FHIR R4 ValueSet c80-practice-codes, with the name the apps show. Fixed and public; needs no session. Not audited: it holds no personal data.
+  Future<SpecialtyList?> listSpecialties({
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await listSpecialtiesWithHttpInfo(
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'SpecialtyList',
+      ) as SpecialtyList;
+    }
+    return null;
+  }
+
   /// Set a practitioner role's specialty
   ///
   /// The clinic's admin sets the specialty of a role of the clinic: one of the twelve SNOMED CT codes the directory offers (FHIR R4 ValueSet c80-practice-codes). Patients see it when the clinic is listed. Send If-Match with the version the role was read at (`PractitionerRole.meta.versionId`); the answer carries the new version as its ETag. Audited, also when refused.

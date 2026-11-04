@@ -332,6 +332,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/specialties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the specialties a role can have
+         * @description The specialties an admin may give a practitioner role, in display order: the directory's SNOMED CT codes from FHIR R4 ValueSet c80-practice-codes, with the name the apps show. Fixed and public; needs no session. Not audited: it holds no personal data.
+         */
+        get: operations["listSpecialties"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/practitioner-roles/{id}/availability": {
         parameters: {
             query?: never;
@@ -513,6 +533,11 @@ export interface components {
              * @description The clinic of a staff account; absent for a patient.
              */
             organizationId?: string;
+            /**
+             * Format: uuid
+             * @description The directory's Practitioner of a practitioner account, for searches by practitioner; absent otherwise.
+             */
+            practitionerId?: string;
             mfaEnrolled: boolean;
         };
         /** @description The patient's profile (docs/booking/SPEC.md "Profile"). Health data. */
@@ -631,6 +656,9 @@ export interface components {
             display: string;
             /** @description The name the apps show. */
             text: string;
+        };
+        SpecialtyList: {
+            specialties: components["schemas"]["Specialty"][];
         };
         RoleSpecialty: {
             /** Format: uuid */
@@ -1644,6 +1672,26 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
+        };
+    };
+    listSpecialties: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The specialties. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialtyList"];
+                };
+            };
         };
     };
     getAvailability: {

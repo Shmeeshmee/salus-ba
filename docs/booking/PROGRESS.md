@@ -9,7 +9,7 @@
 | 5 Schedule and slot | done | `booking(5)` |
 | 6 Appointment | done | `booking(6)` |
 | 7 FHIR | done | `booking(7)` |
-| 8 Web | to do | |
+| 8 Web | done | `booking(8)` |
 | 9 Mobile | to do | |
 | 10 End-to-end | to do | |
 
@@ -779,3 +779,113 @@ No `openapi.yaml` change, so the clients are untouched.
 
 **Dev stack.** Untouched: no migration in this package; tests ran in throwaway databases; the running images
 were not rebuilt. The `node` dev server kept running.
+
+
+### 2026-11-04 — package 8: web
+
+**Built.**
+- `web/src/Calendar.tsx`: the week, Monday to Sunday in the clinic's time zone, from
+  `Appointment?practitioner=Practitioner/<id>&date=ge…&date=lt…` (instants of local midnight, UTC with `Z`); the
+  practitioner's own, the admin's chosen practitioner (`PractitionerPicker.tsx`); previous, this and next week;
+  each card the local times, the patient's name only where the appointment carries it, a status tag when not
+  booked; the appointment under way gets the gradient and "Now", the only gradient in the app. At phone width the
+  days stack and empty days are hidden.
+- `web/src/AppointmentDetail.tsx` (`/appointments/<id>`): date and times in the zone, the status; for a
+  practitioner the `Patient` read, its birth date and phone behind a "Patient details" disclosure, and on a 404
+  the name from the appointment or none ("Appointment"); "Mark fulfilled" and "Mark no-show" (practitioner only,
+  disabled before the start, with a hint), "Cancel appointment" with a confirmation (practitioner and admin);
+  no actions once the appointment is no longer booked. Error codes map to fixed sentences.
+- `web/src/Availability.tsx` ("Working hours", `/availability`): slot length and weekly rows (day, from, to,
+  remove), "Add hours", save with `If-Match` of the version read (`W/"0"` before the first edit), reload after a
+  412; the admin picks the practitioner.
+- `web/src/Practitioners.tsx` (now `/practitioners`): each practitioner's specialty; for the admin a select per
+  role, saved on change with `If-Match` of the role's version, the previous choice restored on a refusal. The
+  options are `GET /specialties` as they come, in their order and with their names.
+- `web/src/ClinicSettings.tsx`: the time zone (a select of the browser's IANA zones) and "List the clinic in the
+  patient app", written as the `organization-timezone` and `organization-listed` extensions in the same
+  `Organization` update (other extensions kept).
+- Shared: `load.ts` (`useLoad`, a load per set of dependencies, stale answers dropped), `staff.ts` (roles with
+  their practitioners, specialty and version; the clinic's zone), `time.ts` (days and instants in a zone without
+  a library), `api/fhir.ts` (hand-written `Appointment`, `Patient`, `CodeableConcept`, `Extension`, the
+  participant and settings helpers), `test/fixtures.ts` (synthetic accounts, clinic and staff), three icons.
+- `App.tsx`: the calendar is the home screen; nav Calendar, Working hours, Practitioners, Clinic settings (admin).
+  A practitioner on `/clinic` now gets "This page does not exist." instead of the practitioner list.
+- API, two small additions the screens need (below): `GET /specialties` in `practitionerrole/handler_http.go`
+  and `practitionerId` on the `Account` of `GET /auth/me`; `api/openapi.yaml` (`listSpecialties`,
+  `SpecialtyList`, `Account.practitionerId`); `make gen-clients` (TypeScript and Dart).
+- `web/vite.config.ts`: the dev server proxies `/practitioner-roles`, `/specialties` and only
+  `^/appointments/<id>/(cancel|status)$`, since `/appointments/<id>` is a screen of the app.
+- `docs/privacy/dpia.md`: package 8.
+
+**Red first.** practitionerrole: `GET /specialties = 404 404 page not found`. auth: the `/auth/me` body without
+`practitionerId`. internal/api: the app test passed at once (the handler test had already added the route); run
+with the route removed it failed, and was restored. Web: `time.test.ts` and `Calendar`, `AppointmentDetail`,
+`Availability` failed on the missing modules; `api/fhir.test.ts` 4 failed (`settingsOf`, `withSettings`,
+`participant` undefined); `Practitioners` 6 failed (no specialty shown, no `Specialty of …` select);
+`ClinicSettings` 3 failed (no `List the clinic…` or `Time zone`), then 2 when the hint sat inside the label;
+`App` 7 failed (no Calendar heading, no routes).
+
+**Checks.** `make lint` 0 issues, migrations unchanged; `make test` passes; `make archcheck` ok; `make cover`
+passes, every package at 80% or more (auth 95.7%, practitionerrole 96.3%, api 90.9%; total 94.7%);
+`make web-lint` 0 warnings, 0 errors; `make web-typecheck` ok; `make web-test` 113 passed (13 files);
+`make web-build` ok (283.66 kB JS, 88.53 kB gzip; 8.88 kB CSS); `make gen-clients`
+leaves no diff; `make mobile-analyze` no issues (the Dart client changed). No FHIR change, so no
+`make fhir-validate` run.
+
+**Browser walk.** The dev stack with `salus:dev` rebuilt from this branch (api, worker, scheduler, notifier
+recreated; packages 6 and 7 were not in the running api before), the owner's Vite dev server on 5173 reused. A
+scratch Playwright script (not in the repo; `mcr.microsoft.com/playwright:v1.56.1-noble`, Chromium, host network)
+on a clinic made with `salusctl`. At 1280 × 800: the admin listed the clinic (time zone kept) and gave the
+practitioner a specialty; the practitioner set 5-minute slots on three days; a synthetic patient (API only)
+completed a profile, consented and booked three slots; the practitioner's week showed them in local time, the
+detail showed the profile behind the disclosure with the outcome buttons disabled before the start; the admin's
+week with the picker, the admin cancelled one after the confirmation (no `Patient` request from the admin's
+pages); once the soonest started, its card carried the gradient and "Now" and the practitioner marked it
+fulfilled. At 390 × 844 every screen for both roles. No horizontal overflow, no console error. The api,
+notifier, worker and dev-server logs held no name, address or phone. Found and fixed on the way: the
+confirmation's red button was invisible (`.actions button:not(.primary)` outranked `button.danger`); a direct
+load of `/appointments/<id>` was proxied to the API (404) by the `/appointments` prefix; at 390 px the nav
+labels wrapped inside their links and the hours rows broke mid-row.
+
+**Readings and decisions.**
+- **The specialty list comes from the API.** No endpoint listed the specialties, and a copy in the web app would
+  drift from `practitionerrole.Specialties()` (paediatrics' code is still open). `GET /specialties` answers that
+  list to anyone: it is fixed, public like the directory that shows it, and holds no personal data, so it is not
+  audited. The editor shows it as it comes, paediatrics included, with no special case; no test fixture uses
+  paediatrics.
+- **`practitionerId` on `/auth/me`.** A practitioner must search appointments by themselves (package 7), and the
+  web app had no way to know its own `Practitioner` id: the account holds it, `/auth/me` did not give it. Added
+  as an optional field (opaque id, practitioner accounts only); the role for the working hours is found in the
+  clinic's role search by that id.
+- **The admin's detail does not ask for the `Patient`.** The API answers an admin 404 by rule, so asking would
+  only write a refused-read audit event per view; the name comes with the appointment. A practitioner's 404
+  (no full access) hides the profile, as the plan asks.
+- **Outcome buttons for practitioners only.** An admin cannot set a status (SPEC); the buttons are not shown to
+  them. Cancel is shown to both.
+- **Specialty saved on change.** One control per row, no separate save; a refused save restores the previous
+  choice. A role without a specialty shows "Choose a specialty" as a disabled first option (the API cannot clear
+  one).
+- **Time zones in the browser.** `Intl` only (no date library): the start of a local day is found by
+  correcting a UTC guess with the zone's offset twice, tested across both 2027 changes in Europe/Sarajevo and
+  in America/New_York. The time zone select lists `Intl.supportedValuesOf('timeZone')`; the API validates.
+- **Cancelled appointments stay in the calendar**, muted and struck through, so staff see that the time was
+  booked and cancelled.
+- **`useLoad` and the hooks rule.** The hook takes its dependencies from the caller, which
+  `react-hooks/exhaustive-deps` cannot check; one `oxlint-disable-next-line` on that line, with the reason.
+- **Search cost** (package 6's open note): one practitioner-week per request; not measured, and nothing in the
+  walk was slow.
+
+**Deferred.** Mobile (package 9); the e2e journeys (package 10). The browser's own `<input type="time">`
+follows the browser's locale (12-hour in an en-US browser); not changed.
+
+**Dev stack.** No migration. `salus:dev` rebuilt from this branch; api, worker, scheduler and notifier recreated
+with it; agent, landing, livekit, mailpit, redis, postgres untouched; the owner's `node` dev server kept running
+(it reloaded `vite.config.ts` by itself). The owner's demo clinic and package 6's stack-check data untouched.
+Left from the walk, all synthetic: the listed clinic "Synthetic walk clinic (booking 8)" with its admin
+`walk8-admin@example.test` (MFA reset once with `salusctl` and enrolled again during the script's setup) and
+practitioner `walk8-cy@example.test` (Cy Walkexample, cardiology, 5-minute slots on Wednesday, Thursday and
+Friday), their open sessions (12 h); the patient `walk8-patient@example.test` (Ada Walksample) with a profile, an
+active consent and three appointments (one fulfilled, one cancelled, one booked for Thursday 5 November 09:00
+local); the slots generated for 28 days; the e-mail and reminder jobs; the audit events; the invite and
+appointment e-mails in Mailpit.
+

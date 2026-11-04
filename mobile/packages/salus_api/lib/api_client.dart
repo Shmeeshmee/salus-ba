@@ -258,6 +258,8 @@ class ApiClient {
           return SetSpecialtyRequest.fromJson(value);
         case 'Specialty':
           return Specialty.fromJson(value);
+        case 'SpecialtyList':
+          return SpecialtyList.fromJson(value);
         case 'Status':
           return Status.fromJson(value);
         case 'Unavailable':

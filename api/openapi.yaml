@@ -701,6 +701,21 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /specialties:
+    get:
+      operationId: listSpecialties
+      summary: List the specialties a role can have
+      description: >-
+        The specialties an admin may give a practitioner role, in display order: the directory's SNOMED CT codes
+        from FHIR R4 ValueSet c80-practice-codes, with the name the apps show. Fixed and public; needs no
+        session. Not audited: it holds no personal data.
+      tags: [directory]
+      responses:
+        "200":
+          description: The specialties.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SpecialtyList"}
   /practitioner-roles/{id}/availability:
     parameters:
       - name: id
@@ -1198,6 +1213,12 @@ components:
           type: string
           format: uuid
           description: The clinic of a staff account; absent for a patient.
+        practitionerId:
+          type: string
+          format: uuid
+          description: >-
+            The directory's Practitioner of a practitioner account, for searches by practitioner; absent
+            otherwise.
         mfaEnrolled:
           type: boolean
     Patient:
@@ -1370,6 +1391,13 @@ components:
         text:
           type: string
           description: The name the apps show.
+    SpecialtyList:
+      type: object
+      required: [specialties]
+      properties:
+        specialties:
+          type: array
+          items: {$ref: "#/components/schemas/Specialty"}
     RoleSpecialty:
       type: object
       required: [id, versionId]

@@ -64,6 +64,7 @@ part 'model/save_patient_request.dart';
 part 'model/set_appointment_status_request.dart';
 part 'model/set_specialty_request.dart';
 part 'model/specialty.dart';
+part 'model/specialty_list.dart';
 part 'model/status.dart';
 part 'model/unavailable.dart';
 part 'model/verify_request.dart';

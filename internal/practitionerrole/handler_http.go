@@ -39,6 +39,20 @@ func NewHTTPHandler(svc SpecialtySetter, caller func(ctx context.Context) (Calle
 // Routes declares the JSON practitioner role routes on mux.
 func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /practitioner-roles/{id}/specialty", h.setSpecialty)
+	mux.HandleFunc("GET /specialties", listSpecialties)
+}
+
+// listSpecialties answers the specialties an admin may give a role, in the list's order, to anyone: the
+// list is fixed and public, like the directory that shows it.
+func listSpecialties(w http.ResponseWriter, _ *http.Request) {
+	list := Specialties()
+	out := make([]specialtyJSON, 0, len(list))
+	for _, s := range list {
+		out = append(out, specialtyJSON{System: SystemSNOMED, Code: s.Code, Display: s.Display, Text: s.Text})
+	}
+	httpx.JSON(w, http.StatusOK, struct {
+		Specialties []specialtyJSON `json:"specialties"`
+	}{out})
 }
 
 // specialtyJSON is the Specialty schema of api/openapi.yaml.

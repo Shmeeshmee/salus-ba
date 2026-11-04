@@ -66,11 +66,14 @@ type accountJSON struct {
 	Email          string `json:"email"`
 	Role           Role   `json:"role"`
 	OrganizationID string `json:"organizationId,omitempty"`
+	PractitionerID string `json:"practitionerId,omitempty"`
 	MFAEnrolled    bool   `json:"mfaEnrolled"`
 }
 
 func toJSON(a Account) accountJSON {
-	return accountJSON{ID: a.ID, Email: a.Email, Role: a.Role, OrganizationID: a.OrganizationID, MFAEnrolled: a.MFAEnrolled()}
+	return accountJSON{
+		ID: a.ID, Email: a.Email, Role: a.Role, OrganizationID: a.OrganizationID, PractitionerID: a.PractitionerID, MFAEnrolled: a.MFAEnrolled(),
+	}
 }
 
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {

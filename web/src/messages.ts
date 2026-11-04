@@ -9,3 +9,5 @@ export function tooManyAttempts(retryAfter: string | null): string {
   const minutes = Math.ceil(seconds / 60)
   return `Too many attempts. Try again in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`
 }
+
+export const statusLabels = { booked: 'Booked', cancelled: 'Cancelled', fulfilled: 'Fulfilled', noshow: 'No-show' } as const

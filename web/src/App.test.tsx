@@ -23,7 +23,9 @@ function renderAt(path: string, routes: Record<string, Route>) {
 const staff = (account: Account): Record<string, Route> => ({
   'GET /auth/me': () => Response.json(account),
   'GET /fhir/R4/PractitionerRole': emptyBundle,
+  'GET /fhir/R4/Appointment': emptyBundle,
   'GET /invites': () => Response.json({ invites: [] }),
+  'GET /specialties': () => Response.json({ specialties: [] }),
   [`GET /fhir/R4/Organization/${org}`]: organization,
 })
 
@@ -35,14 +37,14 @@ describe('App', () => {
     expect(location.pathname).toBe('/sign-in')
   })
 
-  it('opens the practitioners after signing in', async () => {
+  it('opens the calendar after signing in', async () => {
     renderAt('/sign-in', { ...staff(admin), 'POST /auth/login': () => Response.json({ next: 'done' }) })
 
     fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'admin@example.test' } })
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'correct horse battery' } })
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('heading', { name: 'Practitioners' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Calendar' })).toBeTruthy()
     expect(location.pathname).toBe('/')
   })
 
@@ -52,10 +54,34 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Accept your invite' })).toBeTruthy()
   })
 
-  it('gives an admin the practitioners and the clinic settings', async () => {
+  it.each([
+    ['Working hours', '/availability'],
+    ['Practitioners', '/practitioners'],
+  ])('gives staff the calendar and %s', async (screenName, path) => {
+    renderAt('/', staff({ ...admin, role: 'practitioner', practitionerId: 'a3000000-0000-4000-8000-0000000000a1' }))
+
+    expect(await screen.findByRole('heading', { name: 'Calendar' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('link', { name: screenName }))
+
+    expect(await screen.findByRole('heading', { name: screenName })).toBeTruthy()
+    expect(location.pathname).toBe(path)
+  })
+
+  it('opens an appointment from its path', async () => {
+    const id = 'e1000000-0000-4000-8000-000000000001'
+    renderAt(`/appointments/${id}`, {
+      ...staff(admin),
+      [`GET /fhir/R4/Appointment/${id}`]: () =>
+        fhirJSON({ resourceType: 'Appointment', id, status: 'booked', start: '2026-11-09T08:00:00Z', end: '2026-11-09T08:30:00Z', participant: [], meta: { versionId: '1', lastUpdated: '2026-11-04T09:30:00Z' } }),
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Appointment' })).toBeTruthy()
+  })
+
+  it('gives an admin the clinic settings', async () => {
     renderAt('/', staff(admin))
 
-    expect(await screen.findByRole('heading', { name: 'Practitioners' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Calendar' })).toBeTruthy()
     fireEvent.click(screen.getByRole('link', { name: 'Clinic settings' }))
 
     expect(await screen.findByRole('heading', { name: 'Clinic settings' })).toBeTruthy()
@@ -65,7 +91,7 @@ describe('App', () => {
   it('gives a practitioner no clinic settings', async () => {
     renderAt('/clinic', staff({ ...admin, role: 'practitioner' }))
 
-    expect(await screen.findByRole('heading', { name: 'Practitioners' })).toBeTruthy()
+    expect(await screen.findByText('This page does not exist.')).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Clinic settings' })).toBeNull()
   })
 
@@ -73,7 +99,7 @@ describe('App', () => {
     renderAt('/', { 'GET /auth/me': () => Response.json({ id: admin.id, email: 'pat@example.test', role: 'patient', mfaEnrolled: false }) })
 
     expect(await screen.findByText('The web app is for clinic staff. Patients use the Salus mobile app.')).toBeTruthy()
-    expect(screen.queryByRole('heading', { name: 'Practitioners' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Calendar' })).toBeNull()
   })
 
   it('says when a page does not exist', async () => {
@@ -103,6 +129,6 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
 
     await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Signing out failed. Try again.'))
-    expect(screen.getByRole('heading', { name: 'Practitioners' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Calendar' })).toBeTruthy()
   })
 })

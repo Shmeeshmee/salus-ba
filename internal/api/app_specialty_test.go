@@ -68,3 +68,17 @@ func TestNew_TheClinicsAdminSetsARolesSpecialtyAuditedAndNobodyElseCan(t *testin
 		t.Errorf("the log holds the specialty: %s", log.String())
 	}
 }
+
+func TestNew_AnyoneListsTheSpecialties(t *testing.T) {
+	cfg := testConfig(t)
+	app, err := api.New(t.Context(), cfg, slog.New(slog.NewTextHandler(&syncBuffer{}, nil)))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(app.Close)
+
+	rec := (&client{t: t, h: app.Handler}).do(http.MethodGet, "/specialties", "")
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `{"system":"http://snomed.info/sct","code":"394579002","display":"Cardiology","text":"Cardiology"}`) {
+		t.Errorf("GET /specialties signed out = %d %s, want 200 with the list", rec.Code, rec.Body)
+	}
+}

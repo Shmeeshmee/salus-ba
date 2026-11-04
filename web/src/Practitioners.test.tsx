@@ -12,22 +12,34 @@ const admin: Account = { id: 'a1000000-0000-4000-8000-000000000001', email: 'adm
 const practitioner: Account = { ...admin, id: 'a1000000-0000-4000-8000-000000000002', email: 'cy@example.test', role: 'practitioner' }
 const meta = { versionId: '1', lastUpdated: '2026-11-04T09:30:00Z' }
 
+const cardiology = { system: 'http://snomed.info/sct', code: '394579002', display: 'Cardiology', text: 'Cardiology' }
+const dermatology = { system: 'http://snomed.info/sct', code: '394582007', display: 'Dermatology', text: 'Dermatology' }
+const specialties = () => Response.json({ specialties: [cardiology, dermatology] })
+
 const bundle: Bundle = {
   resourceType: 'Bundle',
   type: 'searchset',
   total: 2,
   entry: [
-    role('a4000000-0000-4000-8000-0000000000a1', 'a3000000-0000-4000-8000-0000000000a1', true),
+    role('a4000000-0000-4000-8000-0000000000a1', 'a3000000-0000-4000-8000-0000000000a1', true, cardiology),
     role('a4000000-0000-4000-8000-0000000000a2', 'a3000000-0000-4000-8000-0000000000a2', false),
     person('a3000000-0000-4000-8000-0000000000a1', 'Cy', 'Example'),
     person('a3000000-0000-4000-8000-0000000000a2', 'Dee', 'Sample'),
   ],
 }
 
-function role(id: string, practitionerId: string, active: boolean): NonNullable<Bundle['entry']>[number] {
+function role(id: string, practitionerId: string, active: boolean, specialty?: typeof cardiology): NonNullable<Bundle['entry']>[number] {
   return {
     fullUrl: `https://api.example.test/fhir/R4/PractitionerRole/${id}`,
-    resource: { resourceType: 'PractitionerRole', id, meta, active, practitioner: { reference: `Practitioner/${practitionerId}` }, organization: { reference: `Organization/${org}` } },
+    resource: {
+      resourceType: 'PractitionerRole',
+      id,
+      meta,
+      active,
+      practitioner: { reference: `Practitioner/${practitionerId}` },
+      organization: { reference: `Organization/${org}` },
+      specialty: specialty && [{ coding: [{ system: specialty.system, code: specialty.code, display: specialty.display }], text: specialty.text }],
+    },
     search: { mode: 'match' },
   }
 }
@@ -64,6 +76,7 @@ describe('Practitioners', () => {
     expect(await screen.findByText('Cy Example')).toBeTruthy()
     expect(screen.getByText('Dee Sample')).toBeTruthy()
     expect(screen.getByText('Inactive')).toBeTruthy()
+    expect(screen.getByText('Cardiology')).toBeTruthy()
     const url = new URL(requests[0].url)
     expect(url.searchParams.get('organization')).toBe(org)
     expect(url.searchParams.get('_include')).toBe('PractitionerRole:practitioner')
@@ -95,6 +108,7 @@ describe('Practitioners', () => {
     renderPractitioners(admin, {
       [search]: () => fhirJSON(bundle),
       'GET /invites': () => Response.json({ invites: [openInvite] }),
+      'GET /specialties': specialties,
     })
 
     const invites = await screen.findByRole('list', { name: 'Open invites' })
@@ -106,6 +120,7 @@ describe('Practitioners', () => {
     const { requests } = renderPractitioners(admin, {
       [search]: () => fhirJSON(bundle),
       'GET /invites': () => Response.json({ invites: [] }),
+      'GET /specialties': specialties,
       'POST /invites': () => Response.json(openInvite, { status: 201 }),
     })
 
@@ -128,6 +143,7 @@ describe('Practitioners', () => {
     const { requests } = renderPractitioners(admin, {
       [search]: () => fhirJSON(bundle),
       'GET /invites': () => Response.json({ invites: [] }),
+      'GET /specialties': specialties,
       'POST /invites': () => Response.json(adminInvite, { status: 201 }),
     })
 
@@ -145,6 +161,7 @@ describe('Practitioners', () => {
     renderPractitioners(admin, {
       [search]: () => fhirJSON(bundle),
       'GET /invites': () => Response.json({ invites: [openInvite] }),
+      'GET /specialties': specialties,
       'POST /invites': () => Response.json({ ...openInvite, id: 'a5000000-0000-4000-8000-000000000003' }, { status: 201 }),
     })
 
@@ -167,6 +184,7 @@ describe('Practitioners', () => {
     renderPractitioners(admin, {
       [search]: () => fhirJSON(bundle),
       'GET /invites': () => Response.json({ invites: [] }),
+      'GET /specialties': specialties,
       'POST /invites': () => apiError(status, code),
     })
 
@@ -174,5 +192,66 @@ describe('Practitioners', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send invite' }))
 
     await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toBe(message))
+  })
+
+  it('gives an admin a specialty editor that saves with If-Match of the role version and the CSRF header', async () => {
+    const { requests } = renderPractitioners(admin, {
+      [search]: () => fhirJSON(bundle),
+      'GET /invites': () => Response.json({ invites: [] }),
+      'GET /specialties': specialties,
+      'PUT /practitioner-roles/a4000000-0000-4000-8000-0000000000a1/specialty': async (r) => {
+        const { code } = (await r.json()) as { code: string }
+        const version = r.headers.get('If-Match') === 'W/"1"' ? 2 : 3
+        return Response.json({ id: 'a4000000-0000-4000-8000-0000000000a1', versionId: version, specialty: code === dermatology.code ? dermatology : cardiology })
+      },
+    })
+
+    const select = (await screen.findByLabelText('Specialty of Cy Example')) as HTMLSelectElement
+    await vi.waitFor(() => expect(select.value).toBe(cardiology.code))
+    expect([...select.options].map((o) => o.textContent)).toEqual(['Cardiology', 'Dermatology'])
+    fireEvent.change(select, { target: { value: dermatology.code } })
+    expect((await screen.findByRole('status')).textContent).toBe('Specialty saved.')
+    fireEvent.change(select, { target: { value: cardiology.code } })
+
+    const puts = () => requests.filter((r) => r.method === 'PUT')
+    await vi.waitFor(() => expect(puts()).toHaveLength(2))
+    expect(puts()[0].headers.get('If-Match')).toBe('W/"1"')
+    expect(await puts()[0].json()).toEqual({ code: dermatology.code })
+    expect(puts()[1].headers.get('If-Match')).toBe('W/"2"')
+    expectCsrfOnWrites(requests)
+  })
+
+  it('offers a role without a specialty a choice, not a value', async () => {
+    renderPractitioners(admin, {
+      [search]: () => fhirJSON(bundle),
+      'GET /invites': () => Response.json({ invites: [] }),
+      'GET /specialties': specialties,
+    })
+
+    const select = (await screen.findByLabelText('Specialty of Dee Sample')) as HTMLSelectElement
+    await vi.waitFor(() => expect(select.options).toHaveLength(3))
+    expect(select.value).toBe('')
+    expect(select.options[0].textContent).toBe('Choose a specialty')
+    expect(select.options[0].disabled).toBe(true)
+  })
+
+  it.each([
+    [412, 'version_conflict', 'Someone else changed this practitioner. Reload the page to see the change.'],
+    [400, 'invalid_specialty', 'Choose a specialty from the list.'],
+    [500, 'internal error', 'Something went wrong. Try again.'],
+  ])('maps a specialty save %i %s to a message', async (status, code, message) => {
+    renderPractitioners(admin, {
+      [search]: () => fhirJSON(bundle),
+      'GET /invites': () => Response.json({ invites: [] }),
+      'GET /specialties': specialties,
+      'PUT /practitioner-roles/a4000000-0000-4000-8000-0000000000a1/specialty': () => apiError(status, code),
+    })
+
+    const select = (await screen.findByLabelText('Specialty of Cy Example')) as HTMLSelectElement
+    await vi.waitFor(() => expect(select.options.length).toBeGreaterThan(1))
+    fireEvent.change(select, { target: { value: dermatology.code } })
+
+    await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toBe(message))
+    expect(select.value).toBe(cardiology.code)
   })
 })

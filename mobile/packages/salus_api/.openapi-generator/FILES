@@ -45,6 +45,7 @@ lib/model/save_patient_request.dart
 lib/model/set_appointment_status_request.dart
 lib/model/set_specialty_request.dart
 lib/model/specialty.dart
+lib/model/specialty_list.dart
 lib/model/status.dart
 lib/model/unavailable.dart
 lib/model/verify_request.dart

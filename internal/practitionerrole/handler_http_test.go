@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -137,5 +138,32 @@ func TestHTTPHandler_SendsAFixedErrorAndLogsNoSpecialty(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("PUT when the caller cannot be resolved = %d, want 500", rec.Code)
+	}
+}
+
+func TestHTTPHandler_ListsTheSpecialtiesToAnyone(t *testing.T) {
+	svc := &stubSpecialties{}
+	h := practitionerrole.NewHTTPHandler(svc, func(context.Context) (practitionerrole.Caller, bool, error) {
+		return practitionerrole.Caller{}, false, nil
+	}, slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))
+	mux := http.NewServeMux()
+	h.Routes(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/specialties", nil))
+
+	var want strings.Builder
+	want.WriteString(`{"specialties":[`)
+	for i, s := range practitionerrole.Specialties() {
+		if i > 0 {
+			want.WriteString(",")
+		}
+		fmt.Fprintf(&want, `{"system":"http://snomed.info/sct","code":%q,"display":%q,"text":%q}`, s.Code, s.Display, s.Text)
+	}
+	want.WriteString("]}\n")
+	if rec.Code != http.StatusOK || rec.Body.String() != want.String() {
+		t.Errorf("GET /specialties = %d %s, want 200 %s", rec.Code, rec.Body, want.String())
+	}
+	if svc.called {
+		t.Error("the list called the service; it is the fixed list")
 	}
 }

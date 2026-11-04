@@ -172,6 +172,18 @@ func TestMeHandler_ReturnsTheSignedInAccount(t *testing.T) {
 	}
 }
 
+func TestMeHandler_GivesAPractitionerTheirPractitionerID(t *testing.T) {
+	const practitionerID = "a3000000-0000-4000-8000-0000000000a1"
+	a := patientAccount()
+	a.Role, a.OrganizationID, a.PractitionerID, a.MFAEnrolledAt = auth.RolePractitioner, clinicID, practitionerID, now
+	rec := serve(t, &stubService{account: a}, discard(), meRequest(t, accountID))
+
+	want := `{"id":"` + accountID + `","email":"ana@example.test","role":"practitioner","organizationId":"` + clinicID + `","practitionerId":"` + practitionerID + `","mfaEnrolled":true}` + "\n"
+	if rec.Code != http.StatusOK || rec.Body.String() != want {
+		t.Errorf("GET /auth/me = %d %s, want 200 %s", rec.Code, rec.Body, want)
+	}
+}
+
 func TestHandlers_LogNoEmailPasswordOrHash(t *testing.T) {
 	var logs bytes.Buffer
 	log := slog.New(slog.NewJSONHandler(&logs, nil))

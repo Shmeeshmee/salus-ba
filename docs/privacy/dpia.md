@@ -487,3 +487,31 @@ practitioners' names, schedules and free slots.
 | The public directory shows more than the clinic chose | Public reads run in the directory scope (listed clinics, active roles, free slots) and are not audited (tested: no event); a clinic that is not listed has no roles in the search |
 | Patient data is cached by a client or proxy | `Cache-Control: no-store` on `Patient`, `Consent` and `Appointment` answers |
 | Names in logs or errors | OperationOutcomes carry fixed text; a 500 logs the error only; handler and app tests assert the log holds no profile field |
+
+### Package 8: web app
+
+**What it is.** The staff web app gains a practitioner's week calendar (their own; the clinic's admin picks a
+practitioner), the appointment detail with the outcome and cancel actions, the working-hours editor, the
+specialty editor and, in clinic settings, the listing and the time zone. It reads through the FHIR reads and
+searches of package 7 and writes through the JSON actions. Two small additions to the API: `GET /specialties`
+(the fixed public list of specialties, no personal data, not audited) and `practitionerId` on `GET /auth/me` for
+a practitioner account (an opaque id, so the calendar can search by practitioner). No new field or table.
+
+**Purpose and lawful basis.** As packages 6 and 7: care records and the patient's consent.
+
+**Necessity and minimisation.** The calendar shows times, status and the patient's name only where the
+appointment carries it. The detail shows the profile only when the `Patient` read answers (a practitioner with
+full access); otherwise the name the appointment gives, or none. The birth date and phone sit behind a
+"Patient details" disclosure, not on the screen by default. The admin's detail never asks for the `Patient`
+(the API answers it 404 to an admin, SPEC "FHIR reads and searches"), so no refused read is audited for nothing.
+
+**Retention.** Nothing is stored in the browser: no local or session storage, the session is the `HttpOnly`
+cookie; the API's `Cache-Control: no-store` keeps patient answers out of the browser cache.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A profile shown to someone the access rules exclude | The screen shows only what the API returns; the API decides through `access` (package 7). Vitest covers the profile hidden on a 404 and the admin's detail without a `Patient` read; the browser walk confirmed no `Patient` request from the admin |
+| Patient data on a shared screen | Secondary fields behind a disclosure; the calendar shows the name and times only |
+| Personal data in logs | No logging in the web app; the walk's api, notifier, worker and dev-server logs held no name, address or phone |
