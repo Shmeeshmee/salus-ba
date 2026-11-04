@@ -10,8 +10,12 @@ import (
 func TestRules_AreCompleteAndNameEachTableOnce(t *testing.T) {
 	seen := map[string]bool{}
 	for _, r := range retention.Rules() {
-		if r.Table == "" || r.Basis == "" || r.Keep <= 0 || r.Then == "" {
-			t.Errorf("rule %+v: want a table, a basis, a positive period and what happens then", r)
+		if r.Table == "" || r.Basis == "" || r.Then == "" {
+			t.Errorf("rule %+v: want a table, a basis and what happens then", r)
+		}
+		// A row kept while its subject exists has no period; every other rule has a positive one.
+		if (r.Then == retention.ThenKeep) != (r.Keep == 0) || r.Keep < 0 {
+			t.Errorf("rule %+v: want no period exactly when the row is kept, a positive one otherwise", r)
 		}
 		if seen[r.Table] {
 			t.Errorf("table %s has two rules", r.Table)
@@ -34,4 +38,16 @@ func TestRules_KeepAuditEventsTenYearsThenRemoveThemByRange(t *testing.T) {
 		return
 	}
 	t.Fatal("no rule for audit_event")
+}
+
+func TestRules_KeepAccountsWhileTheyExist(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "account" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("account then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for account")
 }

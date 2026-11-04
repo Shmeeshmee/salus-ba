@@ -40,14 +40,24 @@ Please follow the [installation procedure](#installation--usage) and then run th
 ```dart
 import 'package:salus_api/api.dart';
 
+// TODO Configure API key authorization: sessionCookie
+//defaultApiClient.getAuthentication<ApiKeyAuth>('sessionCookie').apiKey = 'YOUR_API_KEY';
+// uncomment below to setup prefix (e.g. Bearer) for API key, if needed
+//defaultApiClient.getAuthentication<ApiKeyAuth>('sessionCookie').apiKeyPrefix = 'Bearer';
+// TODO Configure HTTP Bearer authorization: bearerAuth
+// Case 1. Use String Token
+//defaultApiClient.getAuthentication<HttpBearerAuth>('bearerAuth').setAccessToken('YOUR_ACCESS_TOKEN');
+// Case 2. Use Function which generate token.
+// String yourTokenGeneratorFunction() { ... }
+//defaultApiClient.getAuthentication<HttpBearerAuth>('bearerAuth').setAccessToken(yourTokenGeneratorFunction);
 
-final api_instance = HealthApi();
+final api_instance = AuthApi();
 
 try {
-    final result = api_instance.getHealth();
+    final result = api_instance.getMe();
     print(result);
 } catch (e) {
-    print('Exception when calling HealthApi->getHealth: $e\n');
+    print('Exception when calling AuthApi->getMe: $e\n');
 }
 
 ```
@@ -58,19 +68,34 @@ All URIs are relative to *http://localhost*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
+*AuthApi* | [**getMe**](doc//AuthApi.md#getme) | **GET** /auth/me | The signed-in account
+*AuthApi* | [**register**](doc//AuthApi.md#register) | **POST** /auth/register | Register a patient account
 *HealthApi* | [**getHealth**](doc//HealthApi.md#gethealth) | **GET** /healthz | Liveness
 *HealthApi* | [**getReadiness**](doc//HealthApi.md#getreadiness) | **GET** /readyz | Readiness
 
 
 ## Documentation For Models
 
+ - [Account](doc//Account.md)
+ - [Error](doc//Error.md)
+ - [RegisterRequest](doc//RegisterRequest.md)
  - [Status](doc//Status.md)
  - [Unavailable](doc//Unavailable.md)
 
 
 ## Documentation For Authorization
 
-Endpoints do not require authorization.
+
+Authentication schemes defined for the API:
+### sessionCookie
+
+- **Type**: API key
+- **API key parameter name**: salus_session
+- **Location**: 
+
+### bearerAuth
+
+- **Type**: HTTP Bearer authentication
 
 
 ## Author

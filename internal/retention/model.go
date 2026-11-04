@@ -13,6 +13,9 @@ const (
 	// ThenRemoveRange removes whole time ranges of rows at once, as the table's owner (the application role
 	// cannot delete them).
 	ThenRemoveRange Then = "remove-range"
+	// ThenKeep keeps the row while its subject exists: no period runs (Keep is zero). Removing it is a
+	// decision of the subject-rights feature (closure, erasure), not of the retention job.
+	ThenKeep Then = "keep"
 )
 
 // Rule is the retention of one table.
@@ -20,5 +23,5 @@ type Rule struct {
 	Table string        // the table, as in ownership.yaml
 	Basis string        // why the rows are kept that long: the legal ground
 	Then  Then          // what happens after Keep
-	Keep  time.Duration // how long a row is kept
+	Keep  time.Duration // how long a row is kept; zero for ThenKeep
 }

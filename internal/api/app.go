@@ -11,7 +11,10 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/Shmeeshmee/salus/internal/api/router"
+	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/config"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/redis"
 )
@@ -37,12 +40,18 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		pool.Close()
 		return nil, err
 	}
+	tx := postgres.NewTransactor(pool)
+	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
+	hasher := auth.NewArgon2Hasher(auth.DefaultArgon2Params(), auth.MaxConcurrentHashes)
+	accounts := auth.NewService(auth.NewPostgresRepository(pool), hasher, audit, tx)
+
 	h := router.New(router.Config{
 		Logger: log,
 		Checks: []router.Check{
 			{Name: "postgres", Ping: pool.Ping},
 			{Name: "redis", Ping: func(ctx context.Context) error { return rdb.Ping(ctx).Err() }},
 		},
+		Routes:  []func(*http.ServeMux){auth.NewHandler(accounts, log).Routes},
 		Timeout: RequestTimeout,
 	})
 	return &App{Handler: h, pool: pool, redis: rdb}, nil

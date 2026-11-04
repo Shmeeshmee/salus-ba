@@ -9,6 +9,7 @@
 # personal_data: true|false, required on every table a domain owns. A table with personal data needs a rule
 # in internal/retention/rules.go (archcheck), and its personal fields a line in the feature's SPEC.md.
 tables:
+  account: {owner: auth, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
   river_job: {owner: river}
   river_leader: {owner: river}

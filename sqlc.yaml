@@ -11,3 +11,11 @@ sql:
         package: auditeventdb
         out: internal/auditevent/auditeventdb
         sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/auth/query.sql
+    gen:
+      go:
+        package: authdb
+        out: internal/auth/authdb
+        sql_package: pgx/v5

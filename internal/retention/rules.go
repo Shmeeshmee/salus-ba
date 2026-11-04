@@ -15,5 +15,10 @@ func Rules() []Rule {
 			Keep:  3653 * day, // ten years, leap days included
 			Then:  ThenRemoveRange,
 		},
+		{
+			Table: "account",
+			Basis: "Performance of the contract the user signed up for (GDPR Art. 6(1)(b)); closure and erasure come with the subject-rights feature",
+			Then:  ThenKeep,
+		},
 	}
 }

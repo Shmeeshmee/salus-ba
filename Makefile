@@ -11,7 +11,7 @@ NODE    := $(COMPOSE) run --rm -T node
 FLUTTER := $(COMPOSE) run --rm -T flutter
 LANDING := $(COMPOSE) run --rm -T -w /src/landing node
 
-.PHONY: test cover lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create sqlc \
+.PHONY: test cover bench-hash lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create sqlc \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
@@ -22,6 +22,11 @@ test: tools-image
 ## cover: tests with coverage, failing when any package is below 80% (cmd/*/main.go excluded)
 cover: tools-image
 	$(GO) bash scripts/cover.sh
+
+## bench-hash: the argon2id parameter grid and the parallel throughput that size auth's password hashing
+## (docs/accounts/PROGRESS.md, package 2)
+bench-hash: tools-image
+	$(GO) go test -run '^$$' -bench 'BenchmarkHash' -benchtime=20x -cpu 1,2,4 ./internal/auth
 
 ## lint: gofmt, go vet, golangci-lint (both modules) and the migration immutability check
 lint: tools-image

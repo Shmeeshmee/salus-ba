@@ -143,3 +143,19 @@ func TestRouter_TimesOutSlowRequests(t *testing.T) {
 		t.Errorf("GET /readyz with a hanging check = %d %q, want 503 timeout", rec.Code, rec.Body)
 	}
 }
+
+func TestRouter_MountsTheDomainsRoutes(t *testing.T) {
+	h := router.New(router.Config{
+		Logger:  slog.New(slog.DiscardHandler),
+		Timeout: time.Second,
+		Routes: []func(*http.ServeMux){func(mux *http.ServeMux) {
+			mux.HandleFunc("GET /auth/me", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTeapot) })
+		}},
+	})
+
+	rec := get(t, h, "/auth/me")
+
+	if rec.Code != http.StatusTeapot || rec.Header().Get("X-Request-ID") == "" {
+		t.Errorf("GET /auth/me = %d, request id %q; want the domain's handler behind the middleware", rec.Code, rec.Header().Get("X-Request-ID"))
+	}
+}

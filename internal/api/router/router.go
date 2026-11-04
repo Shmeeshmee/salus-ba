@@ -25,8 +25,11 @@ type Check struct {
 
 // Config is what the router needs.
 type Config struct {
-	Logger  *slog.Logger
-	Checks  []Check
+	Logger *slog.Logger
+	Checks []Check
+	// Routes are the domains' registration functions (such as auth.Handler.Routes), each declaring its
+	// routes on the mux.
+	Routes  []func(mux *http.ServeMux)
 	Timeout time.Duration // per request
 }
 
@@ -37,6 +40,9 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("GET /readyz", readyz(cfg.Logger, cfg.Checks))
 	mux.HandleFunc("GET /fhir/R4/metadata", metadata)
 	mux.HandleFunc("/fhir/R4/", fhirNotFound)
+	for _, routes := range cfg.Routes {
+		routes(mux)
+	}
 
 	var h http.Handler = mux
 	h = http.TimeoutHandler(h, cfg.Timeout, `{"error":"timeout"}`)

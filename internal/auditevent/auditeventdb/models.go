@@ -59,6 +59,19 @@ func (ns NullRiverJobState) Value() (driver.Value, error) {
 	return string(ns.RiverJobState), nil
 }
 
+type Account struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	MfaEnrolledAt  pgtype.Timestamptz
+	TotpLastStep   pgtype.Int8
+	OrganizationID pgtype.UUID
+	PractitionerID pgtype.UUID
+	Role           string
+	Email          string
+	PasswordHash   string
+	TotpSecret     []byte
+}
+
 type AuditEvent struct {
 	ID              pgtype.UUID
 	Recorded        pgtype.Timestamptz

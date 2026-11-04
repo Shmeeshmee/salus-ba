@@ -3,7 +3,7 @@
 | Package | Status | Commit |
 | --- | --- | --- |
 | 1 Privacy foundation | done, 2026-11-04 | `accounts(1)` |
-| 2 Identity: accounts | todo | |
+| 2 Identity: accounts | done, 2026-11-04 | `accounts(2)` |
 | 3 Identity: sessions and MFA | todo | |
 | 4 Directory | todo | |
 | 5 Practitioner invites | todo | |
@@ -128,3 +128,87 @@ Readings:
 
 Dev stack left: postgres and redis running, as found. Dev database at migration 9 (`audit_event`), role
 `salus_app` with the synthetic password `local-app-password`. The other containers were removed again.
+
+### 2026-11-04 — package 2, identity: accounts
+
+Built:
+- Migration `00010_account.sql`: `account` with the SPEC §4 fields (the MFA columns stay empty until
+  package 3, `practitioner_id` until 5), unique index on `email`, checks that `organization_id` is null
+  exactly for `role = 'patient'`, that `role` is one of the three, and that `email` is stored trimmed and
+  lower-cased; `SELECT, INSERT, UPDATE` to `salus_app` (no `DELETE`, `TRUNCATE`). No foreign keys to the
+  directory yet: its tables arrive in package 4.
+- `internal/auth` (context `identity`, in `config.yaml`; `account` in `ownership.yaml` with
+  `personal_data: true`; `authdb` in `sqlc.yaml`): model (`Account`, `Role`, `WithAccountID` /
+  `AccountIDFrom`), errors, `Argon2Hasher` (`password.go`: PHC string, 16-byte salt, 32-byte key,
+  constant-time compare, `stale` for older parameters, a semaphore that waits on the context),
+  `Service.Register` (patient), `Service.CheckPassword` (for login in 3: dummy hash on an unknown e-mail,
+  re-hash on older parameters), `Service.Me`, each auditing in the same transaction, also on failure;
+  Postgres repository; `Handler` with `POST /auth/register` and `GET /auth/me` (account id from the context
+  value the session middleware will set in package 3; until then `/auth/me` answers 401), errors as
+  `{"error": "<code>"}`.
+- `internal/retention`: `ThenKeep` (kept while the subject exists, no period) and the `account` rule. The
+  rules test now requires a zero period exactly for `ThenKeep` and a positive one otherwise.
+- `router.Config.Routes` mounts each domain's registration function behind the middleware; `app.go` builds
+  `auditevent` and `auth` on the `salus_app` pool.
+- `api/openapi.yaml`: both endpoints, `Account`, `RegisterRequest`, `Error` (fixed code enum), the
+  `sessionCookie` and `bearerAuth` security schemes; `make gen-clients` regenerated the TypeScript and Dart
+  clients.
+- `make bench-hash` and a step in the Go workflow's test job, so CI prints the same numbers.
+- `golang.org/x/crypto v0.58.0` (argon2; the version `tools/go.mod` already pinned).
+- `docs/privacy/dpia.md`: package 2 section.
+
+Test first, failures seen before the code: migration tests (`relation "account" does not exist`); retention
+(`undefined: retention.ThenKeep`); password and service tests (`no non-test Go files`, then
+`undefined: auth.Account`); handler (`undefined: auth.NewHandler`); router (`unknown field Routes`). The
+repository tests and the `app.go` wiring tests were written before their code but first run after it.
+
+Checks: `make lint` 0 issues, check-migrations ok; `make archcheck` ok; `make test` ok; `make cover` ok
+(total 94.5%; auth 99.0%, api, router, auditevent, retention 100%); `make sqlc` and a second
+`make gen-clients` leave no diff; `make mobile-analyze` no issues and `make web-typecheck` ok on the
+regenerated clients.
+
+Readings:
+- **argon2id parameters, `BenchmarkHash` (p = 1, 20 iterations × 3 runs, tools container, Intel i7-14700HX,
+  28 threads), ms per hash:**
+
+  | m \ t | 2 | 3 | 4 |
+  | --- | --- | --- | --- |
+  | 19 MiB | 19.8 | 26.2 | 33.6 |
+  | 32 MiB | 30.9 | 44.7 | **58.5** |
+  | 46 MiB | 44.8 | 65.5 | 86.2 |
+  | 64 MiB | 63.8 | 93.5 | 123.1 |
+
+  Chosen: **m = 32 MiB, t = 4, p = 1**, the cheapest setting at or above the floor inside 50–100 ms (58.5 ms;
+  the next are 64 MiB/t=2 at 63.8 ms and 46 MiB/t=3 at 65.5 ms). The SPEC asks for the CI runner; these are
+  the tools container's numbers. CI prints its own with `make bench-hash` in the Go workflow; if the runner
+  lands outside 50–100 ms, `DefaultArgon2Params` changes and stored hashes are re-hashed on the next login.
+- **Semaphore, `BenchmarkHashParallel` (m = 32 MiB, t = 4), ms per hash of throughput:** 1 at a time 56.9,
+  2: 30.7, 4: 16.7, 8: 9.8, 16: 8.6. Throughput scales almost linearly to 4 and flattens past 8 (memory
+  bandwidth). `MaxConcurrentHashes = 4`: about 60 hashes/s with at most 128 MiB in use; a GitHub runner has 4 vCPUs.
+- **The password check holds a transaction while it hashes.** SPEC requires the read and its audit event in
+  one transaction, so `CheckPassword` keeps a pooled connection for one hash (about 60 ms), and longer when
+  it waits for a hash slot. `Register` hashes before its transaction. Package 3's `Authenticate` benchmark
+  should look at the pool size against `MaxConcurrentHashes` under a login burst.
+- **A taken e-mail is detected with `ON CONFLICT (email) DO NOTHING`**, not by catching the unique violation:
+  a violation aborts the transaction, and the failure has to be audited in it.
+- **What is audited.** Registration: rest/create, C (success: agent and entity the new account; taken
+  e-mail: outcome 4, no agent, no entity). Password check: DCM 110114/110122, E (outcome 0, or 4 for a wrong
+  password with the account as agent and entity, or 4 with neither for an unknown e-mail). `GET /auth/me`:
+  rest/read, R (an unknown account: outcome 4). The clinic is set for staff. A request rejected by
+  validation before any account is touched (bad JSON, short password, invalid e-mail) is not audited: no
+  account was accessed.
+- **Audit rows in the database are checked in `internal/api`'s tests**, not `internal/auth`'s: archcheck
+  (`foreign-repository`) forbids a domain, its tests included, to build `auditevent`'s repository. auth's
+  Postgres tests use the fake auditor.
+- `GET /auth/me` maps a missing account to 401 `unauthenticated` (the session points at nothing), not 404.
+- The JSON 500 body stays `{"error":"internal error"}` from `httpx.InternalError`, and the timeout body
+  `{"error":"timeout"}`; both are in the `Error` enum.
+- E-mail validity: `net/mail.ParseAddress` must give back exactly the normalised input (no display name or
+  comment), at most 254 characters. Password length is counted in characters (runes), 12 to 128.
+- `TestHasher_BoundsConcurrentHashes` is timing-based (one slot held by a ~115 ms hash, a 20 ms deadline on
+  the second); stable in every run here.
+
+Deferred: login, sessions, MFA and the session middleware that sets the account id (package 3).
+
+Dev stack left: postgres and redis running, as found. Dev database at migration 10 (`account`, empty). The
+api was not started (no stack check in this package), so no account or audit rows were written.

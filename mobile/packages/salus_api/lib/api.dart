@@ -28,8 +28,12 @@ part 'auth/oauth.dart';
 part 'auth/http_basic_auth.dart';
 part 'auth/http_bearer_auth.dart';
 
+part 'api/auth_api.dart';
 part 'api/health_api.dart';
 
+part 'model/account.dart';
+part 'model/error.dart';
+part 'model/register_request.dart';
 part 'model/status.dart';
 part 'model/unavailable.dart';
 
