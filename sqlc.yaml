@@ -51,3 +51,11 @@ sql:
         package: practitionerroledb
         out: internal/practitionerrole/practitionerroledb
         sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/consent/query.sql
+    gen:
+      go:
+        package: consentdb
+        out: internal/consent/consentdb
+        sql_package: pgx/v5

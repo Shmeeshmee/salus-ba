@@ -13,10 +13,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	goredis "github.com/redis/go-redis/v9"
 
+	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/api/router"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/config"
+	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
@@ -74,7 +76,8 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{})
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx)
 	roles := practitionerrole.NewService(practitionerrole.NewPostgresRepository(pool), audit, tx)
-	patients := patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clock.System{})
+	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clock.System{})
+	patients := patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clock.System{}, consents, noAppointments{})
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Hasher: hasher, Audit: audit, Tx: tx, Clock: clock.System{},
 		Challenges: auth.NewRedisChallengeStore(rdb), Counters: auth.NewRedisCounters(rdb), Box: box,
@@ -96,6 +99,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 			practitioner.NewHandler(practitioners, practitionerCaller, log).Routes,
 			practitionerrole.NewHandler(roles, practitioners, roleCaller, fhirBase, log).Routes,
 			patient.NewHandler(patients, patientCaller, log).Routes,
+			consent.NewHandler(consents, consentCaller(patients), log).Routes,
 		},
 		Timeout: RequestTimeout,
 	})
@@ -140,6 +144,38 @@ func roleCaller(ctx context.Context) (practitionerrole.Caller, bool) {
 func patientCaller(ctx context.Context) (patient.Caller, bool) {
 	s, ok := auth.SessionFrom(ctx)
 	return patient.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}, ok
+}
+
+// consentCaller is the consent domain's view of the signed-in session: for a patient, with their profile's
+// id, read (and audited) through the patient service; empty before the profile exists.
+func consentCaller(patients *patient.Service) func(ctx context.Context) (consent.Caller, bool, error) {
+	return func(ctx context.Context) (consent.Caller, bool, error) {
+		s, ok := auth.SessionFrom(ctx)
+		if !ok {
+			return consent.Caller{}, false, nil
+		}
+		c := consent.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}
+		if c.OrganizationID != "" {
+			return c, true, nil
+		}
+		p, err := patients.Me(ctx, patient.Caller{AccountID: s.AccountID})
+		switch {
+		case errors.Is(err, patient.ErrNotFound):
+			return c, true, nil
+		case err != nil:
+			return consent.Caller{}, false, err
+		}
+		c.PatientID = p.ID
+		return c, true, nil
+	}
+}
+
+// noAppointments gives no appointments: the patient's appointment facts for access come from the
+// appointment domain, with docs/booking package 6.
+type noAppointments struct{}
+
+func (noAppointments) Visits(context.Context, string, string) ([]access.Visit, error) {
+	return nil, nil
 }
 
 // Close releases the dependencies.

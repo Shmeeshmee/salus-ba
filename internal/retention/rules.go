@@ -47,5 +47,10 @@ func Rules() []Rule {
 			Basis: "Provision of health care (GDPR Art. 9(2)(h)) and the contract with the patient (Art. 6(1)(b)) while the account exists; erasure comes with the subject-rights feature (docs/booking/SPEC.md section 4)",
 			Then:  ThenKeep,
 		},
+		{
+			Table: "consent",
+			Basis: "Proof of the patient's decision (GDPR Art. 7(1)), kept with the clinical record (Art. 9(2)(h)); needs a legal decision before production (docs/booking/SPEC.md section 4)",
+			Then:  ThenKeep,
+		},
 	}
 }

@@ -11,6 +11,7 @@
 tables:
   account: {owner: auth, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
+  consent: {owner: consent, personal_data: true}
   invite: {owner: auth, personal_data: true}
   organization: {owner: organization, personal_data: false}
   patient: {owner: patient, personal_data: true}

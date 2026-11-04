@@ -179,3 +179,44 @@ func TestSetAccount_NeedsATransaction(t *testing.T) {
 		t.Errorf("SetAccount() outside a transaction = %v, want ErrNoTx", err)
 	}
 }
+
+func TestByID_InAClinicSeesAPatientOnlyWhileTheirConsentIsActive(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seedAccounts(t, owner)
+	repo := patient.NewPostgresRepository(app)
+	_, err := owner.Exec(t.Context(), "INSERT INTO organization (id, name) VALUES ($1, 'Synthetic clinic')", clinicA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readInClinic := func() error {
+		return postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+			if err := repo.SetClinic(ctx, clinicA); err != nil {
+				return err
+			}
+			p, err := repo.ByID(ctx, patientA)
+			if err == nil && !samePatient(p, profileA) {
+				t.Errorf("ByID() in clinic A = %+v, want profile A", p)
+			}
+			return err
+		})
+	}
+	if err := readInClinic(); !errors.Is(err, patient.ErrNotFound) {
+		t.Errorf("without a consent: %v, want ErrNotFound", err)
+	}
+	var consentID string
+	err = owner.QueryRow(t.Context(), "INSERT INTO consent (patient_id, organization_id, status, date_time) VALUES ($1, $2, 'active', now()) RETURNING id",
+		patientA, clinicA).Scan(&consentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := readInClinic(); err != nil {
+		t.Errorf("with an active consent: %v, want profile A", err)
+	}
+	if _, err := owner.Exec(t.Context(), "UPDATE consent SET status = 'inactive', revoked_at = now() WHERE id = $1", consentID); err != nil {
+		t.Fatal(err)
+	}
+	if err := readInClinic(); !errors.Is(err, patient.ErrNotFound) {
+		t.Errorf("right after the revocation: %v, want ErrNotFound", err)
+	}
+}

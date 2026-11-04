@@ -137,6 +137,9 @@ enum ErrorErrorEnum {
   invalidPhone._(r'invalid_phone'),
   notFound._(r'not_found'),
   versionConflict._(r'version_conflict'),
+  consentActive._(r'consent_active'),
+  consentInactive._(r'consent_inactive'),
+  profileRequired._(r'profile_required'),
   internalError._(r'internal error'),
   timeout._(r'timeout'),
   ;
@@ -242,6 +245,12 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.notFound;
         case r'version_conflict':
           return ErrorErrorEnum.versionConflict;
+        case r'consent_active':
+          return ErrorErrorEnum.consentActive;
+        case r'consent_inactive':
+          return ErrorErrorEnum.consentInactive;
+        case r'profile_required':
+          return ErrorErrorEnum.profileRequired;
         case r'internal error':
           return ErrorErrorEnum.internalError;
         case r'timeout':

@@ -212,12 +212,18 @@ class ApiClient {
           return Account.fromJson(value);
         case 'ConfirmRequest':
           return ConfirmRequest.fromJson(value);
+        case 'Consent':
+          return Consent.fromJson(value);
+        case 'ConsentList':
+          return ConsentList.fromJson(value);
         case 'EnrolRequest':
           return EnrolRequest.fromJson(value);
         case 'Enrolment':
           return Enrolment.fromJson(value);
         case 'Error':
           return Error.fromJson(value);
+        case 'GrantConsentRequest':
+          return GrantConsentRequest.fromJson(value);
         case 'Invite':
           return Invite.fromJson(value);
         case 'InviteList':

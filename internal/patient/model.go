@@ -18,11 +18,14 @@ type Patient struct {
 	VersionID   int32  // meta.versionId
 }
 
-// Caller is who asks: the signed-in account and, for staff, its clinic. A caller without a clinic is a
-// patient (an account has a clinic exactly when it is staff).
+// Caller is who asks: the signed-in account and, for staff, its clinic, whether they are its admin and a
+// practitioner's role there (set by the composition root where a route needs staff access). A caller without
+// a clinic is a patient (an account has a clinic exactly when it is staff).
 type Caller struct {
-	AccountID      string
-	OrganizationID string // the caller's clinic; empty for a patient
+	AccountID          string
+	OrganizationID     string // the caller's clinic; empty for a patient
+	PractitionerRoleID string // a practitioner's role in that clinic
+	Admin              bool   // the clinic's admin
 }
 
 func (c Caller) patient() bool { return c.OrganizationID == "" }

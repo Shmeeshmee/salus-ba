@@ -18,13 +18,17 @@ type postgresRepository struct {
 
 // NewPostgresRepository returns the Repository on db, using the transaction in the context when there is one.
 // Its queries run as salus_app, so row-level security shows only the patient of the account set by
-// SetAccount.
+// SetAccount, or the patients with an active consent for the clinic set by SetClinic.
 func NewPostgresRepository(db postgres.Querier) Repository {
 	return &postgresRepository{db: db}
 }
 
 func (r *postgresRepository) SetAccount(ctx context.Context, id string) error {
 	return postgres.SetLocal(ctx, "app.account_id", id)
+}
+
+func (r *postgresRepository) SetClinic(ctx context.Context, id string) error {
+	return postgres.SetLocal(ctx, "app.organization_id", id)
 }
 
 func (r *postgresRepository) ByAccount(ctx context.Context, accountID string) (Patient, error) {

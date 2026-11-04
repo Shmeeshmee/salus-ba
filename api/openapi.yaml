@@ -494,6 +494,144 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /consents:
+    post:
+      operationId: grantConsent
+      summary: Consent to share the profile and appointments with a clinic
+      description: >-
+        The signed-in patient consents to share their profile and appointments with the clinic for care
+        (FHIR Consent, docs/booking/SPEC.md "Consent shape"). At most one consent per clinic is active;
+        granting again after a revocation creates a new consent, so the history is kept. Needs a profile.
+        Patients only. Not cached. Audited, also when refused.
+      tags: [consents]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/GrantConsentRequest"}
+      responses:
+        "201":
+          description: The active consent.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Consent"}
+        "400":
+          description: "`invalid_request`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: >-
+            `consent_active`: a consent with the clinic is active already; `profile_required`: the patient has
+            no profile yet.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /consents/{id}/revoke:
+    post:
+      operationId: revokeConsent
+      summary: Revoke a consent
+      description: >-
+        The signed-in patient revokes their active consent. The clinic's access to the profile and to every
+        future appointment ends at once; past appointments stay, as the clinic's records, with the name, times
+        and status only. Patients only. Not cached. Audited, also when refused.
+      tags: [consents]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The revoked consent.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Consent"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such consent of the patient."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`consent_inactive`: the consent is revoked already."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/consents:
+    get:
+      operationId: listMyConsents
+      summary: The signed-in patient's consents
+      description: >-
+        Every consent of the signed-in patient, active and revoked, the latest granted first; none before the
+        profile exists. Patients only. Not cached. Audited.
+      tags: [consents]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The consents.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ConsentList"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   parameters:
     CSRF:
@@ -761,6 +899,46 @@ components:
           format: int32
           minimum: 1
           description: The version being updated; absent to create the profile.
+    GrantConsentRequest:
+      type: object
+      required: [organizationId]
+      additionalProperties: false
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+          description: The clinic the profile and appointments are shared with.
+    Consent:
+      type: object
+      required: [id, organizationId, status, dateTime]
+      description: >-
+        A patient's consent to share their profile and appointments with a clinic for care (FHIR Consent).
+        Health data: it shows whom the patient consults.
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, inactive]
+        dateTime:
+          type: string
+          format: date-time
+          description: When it was granted.
+        revokedAt:
+          type: string
+          format: date-time
+          description: When it was revoked; absent while active.
+    ConsentList:
+      type: object
+      required: [consents]
+      properties:
+        consents:
+          type: array
+          items: {$ref: "#/components/schemas/Consent"}
     Error:
       type: object
       required: [error]
@@ -789,6 +967,9 @@ components:
             - invalid_phone
             - not_found
             - version_conflict
+            - consent_active
+            - consent_inactive
+            - profile_required
             - internal error
             - timeout
     Status:

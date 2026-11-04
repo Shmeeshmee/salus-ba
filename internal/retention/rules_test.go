@@ -105,3 +105,15 @@ func TestRules_KeepPatientsWhileTheAccountExists(t *testing.T) {
 	}
 	t.Fatal("no rule for patient")
 }
+
+func TestRules_KeepConsentsWithTheClinicalRecord(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "consent" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("consent then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for consent")
+}

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -21,6 +22,8 @@ const (
 	patientB = "d2000000-0000-4000-8000-0000000000d2"
 	clinicA  = "a0000000-0000-4000-8000-00000000000a"
 	staffA   = "a1000000-0000-4000-8000-0000000000a1"
+	roleA    = "e1000000-0000-4000-8000-0000000000e1" // a practitioner's role in clinic A
+	roleA2   = "e2000000-0000-4000-8000-0000000000e2" // another practitioner's role in clinic A
 )
 
 var now = time.Date(2026, 11, 4, 9, 30, 0, 0, time.UTC)
@@ -31,6 +34,9 @@ var (
 	me    = patient.Caller{AccountID: accountA}
 	other = patient.Caller{AccountID: "c3000000-0000-4000-8000-0000000000c3"}
 	staff = patient.Caller{AccountID: staffA, OrganizationID: clinicA}
+	// practitioner holds role A in clinic A; admin is the clinic's admin.
+	practitioner = patient.Caller{AccountID: staffA, OrganizationID: clinicA, PractitionerRoleID: roleA}
+	admin        = patient.Caller{AccountID: staffA, OrganizationID: clinicA, Admin: true}
 )
 
 type txKey struct{}
@@ -47,6 +53,7 @@ type fakeRepository struct {
 	err      error // returned by every read and write when set
 	profiles map[string]patient.Patient
 	account  string   // set by SetAccount
+	clinic   string   // set by SetClinic
 	calls    []string // the calls, "outside:" prefixed when made outside a transaction
 }
 
@@ -70,6 +77,12 @@ func (r *fakeRepository) SetAccount(ctx context.Context, id string) error {
 	return nil
 }
 
+func (r *fakeRepository) SetClinic(ctx context.Context, id string) error {
+	r.seen(ctx, "SetClinic")
+	r.clinic = id
+	return nil
+}
+
 func (r *fakeRepository) ByAccount(ctx context.Context, accountID string) (patient.Patient, error) {
 	r.seen(ctx, "ByAccount")
 	if r.err != nil {
@@ -86,6 +99,13 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (patient.Patient, 
 	r.seen(ctx, "ByID")
 	if r.err != nil {
 		return patient.Patient{}, r.err
+	}
+	if r.account == "" && r.clinic != "" { // a clinic's scope: the rows of active consents, all here
+		for _, p := range r.profiles {
+			if p.ID == id {
+				return p, nil
+			}
+		}
 	}
 	p, ok := r.profiles[r.account]
 	if !ok || p.ID != id {
@@ -134,8 +154,32 @@ func (a *fakeAuditor) Record(_ context.Context, e auditevent.AuditEvent) error {
 	return nil
 }
 
+// fakeConsents is consent.Service.State: the given state, whatever is asked.
+type fakeConsents struct {
+	err   error
+	state access.Consent
+	args  []string
+}
+
+func (f *fakeConsents) State(_ context.Context, patientID, organizationID string) (access.Consent, error) {
+	f.args = append(f.args, patientID, organizationID)
+	return f.state, f.err
+}
+
+// fakeAppointments gives the patient's appointments in the clinic: the given ones, whatever is asked.
+type fakeAppointments struct {
+	err    error
+	visits []access.Visit
+	args   []string
+}
+
+func (f *fakeAppointments) Visits(_ context.Context, patientID, organizationID string) ([]access.Visit, error) {
+	f.args = append(f.args, patientID, organizationID)
+	return f.visits, f.err
+}
+
 func newService(repo *fakeRepository, audit *fakeAuditor) *patient.Service {
-	return patient.NewService(repo, audit, fakeTransactor{}, clock.Fixed{T: now})
+	return patient.NewService(repo, audit, fakeTransactor{}, clock.Fixed{T: now}, &fakeConsents{}, &fakeAppointments{})
 }
 
 // event is the audit event of interaction by c on Patient/id ("" for none).
@@ -311,7 +355,7 @@ func TestSaveMe_ValidatesTheProfileBeforeAnyAccess(t *testing.T) {
 func TestSaveMe_ValidatesAgainstTheDateInUTC(t *testing.T) {
 	// 00:30 in Sarajevo on 5 November is still 4 November in UTC: a birth date of 4 November is today.
 	clk := clock.Fixed{T: time.Date(2026, 11, 4, 23, 30, 0, 0, time.UTC)}
-	svc := patient.NewService(newFakeRepository(), &fakeAuditor{}, fakeTransactor{}, clk)
+	svc := patient.NewService(newFakeRepository(), &fakeAuditor{}, fakeTransactor{}, clk, &fakeConsents{}, &fakeAppointments{})
 	in := patient.Patient{GivenName: "Ada", FamilyName: "Example", BirthDate: date(2026, 11, 4)}
 	if _, err := svc.SaveMe(t.Context(), other, in); !errors.Is(err, patient.ErrInvalidBirthDate) {
 		t.Errorf("SaveMe(born today in UTC) = %v, want ErrInvalidBirthDate", err)
@@ -337,7 +381,7 @@ func TestRead_HidesAnotherPatientAndEveryProfileFromStaffAndAuditsIt(t *testing.
 		calls  []string
 	}{
 		{name: "another patient", caller: me, calls: []string{"SetAccount", "ByID"}},
-		{name: "staff", caller: staff},
+		{name: "staff", caller: staff, calls: []string{"SetClinic"}},
 	}
 	for _, tt := range tests {
 		repo, audit := newFakeRepository(), &fakeAuditor{}
@@ -378,6 +422,75 @@ func TestService_FailsOnARepositoryOrAuditError(t *testing.T) {
 			if !errors.Is(err, boom) {
 				t.Errorf("%s with a broken %s = %v, want the error", name, broken, err)
 			}
+		}
+	}
+}
+
+func TestRead_GivesStaffTheProfileOnlyAtFullAccessAndAuditsIt(t *testing.T) {
+	revokedAt := now.Add(-time.Hour)
+	past := access.Visit{PractitionerRole: roleA, Start: revokedAt.Add(-24 * time.Hour)}
+	future := access.Visit{PractitionerRole: roleA, Start: now.Add(24 * time.Hour)}
+	tests := []struct {
+		consent access.Consent
+		name    string
+		id      string
+		visits  []access.Visit
+		calls   []string
+		caller  patient.Caller
+		want    bool // the profile is returned
+	}{
+		{name: "practitioner, active consent, an appointment with them", caller: practitioner, id: patientA,
+			consent: access.Consent{Active: true}, visits: []access.Visit{future}, want: true, calls: []string{"SetClinic", "ByID"}},
+		{name: "practitioner, active consent, no appointment (none until package 6)", caller: practitioner, id: patientA,
+			consent: access.Consent{Active: true}, calls: []string{"SetClinic"}},
+		{name: "practitioner, active consent, another practitioner's appointment", caller: practitioner, id: patientA,
+			consent: access.Consent{Active: true}, visits: []access.Visit{{PractitionerRole: roleA2, Start: future.Start}}, calls: []string{"SetClinic"}},
+		{name: "practitioner, revoked, a past appointment: the name only", caller: practitioner, id: patientA,
+			consent: access.Consent{RevokedAt: revokedAt}, visits: []access.Visit{past}, calls: []string{"SetClinic"}},
+		{name: "practitioner, never consented", caller: practitioner, id: patientA, visits: []access.Visit{future}, calls: []string{"SetClinic"}},
+		{name: "admin, active consent: the name only", caller: admin, id: patientA,
+			consent: access.Consent{Active: true}, visits: []access.Visit{future}, calls: []string{"SetClinic"}},
+		{name: "full access but no row visible", caller: practitioner, id: "d9000000-0000-4000-8000-0000000000d9",
+			consent: access.Consent{Active: true}, visits: []access.Visit{future}, calls: []string{"SetClinic", "ByID"}},
+	}
+	for _, tt := range tests {
+		repo, audit := newFakeRepository(), &fakeAuditor{}
+		consents, appts := &fakeConsents{state: tt.consent}, &fakeAppointments{visits: tt.visits}
+		svc := patient.NewService(repo, audit, fakeTransactor{}, clock.Fixed{T: now}, consents, appts)
+		got, err := svc.Read(t.Context(), tt.caller, tt.id)
+		switch {
+		case tt.want && (err != nil || got != repo.profiles[accountA]):
+			t.Errorf("%s: Read() = %+v, %v; want profile A", tt.name, got, err)
+		case !tt.want && !errors.Is(err, patient.ErrNotFound):
+			t.Errorf("%s: Read() = %+v, %v; want ErrNotFound", tt.name, got, err)
+		}
+		if !slices.Equal(repo.calls, tt.calls) || repo.clinic != clinicA || repo.account != "" {
+			t.Errorf("%s: calls %v in clinic %q, account %q; want %v in clinic A only", tt.name, repo.calls, repo.clinic, repo.account, tt.calls)
+		}
+		if want := []string{tt.id, clinicA}; !slices.Equal(consents.args, want) || !slices.Equal(appts.args, want) {
+			t.Errorf("%s: facts asked for %v and %v, want %v", tt.name, consents.args, appts.args, want)
+		}
+		if tt.want {
+			checkEvents(t, audit, event(tt.caller, auditevent.CodeRead, patientA, auditevent.OutcomeSuccess))
+		} else {
+			checkEvents(t, audit, event(tt.caller, auditevent.CodeRead, "", auditevent.OutcomeMinorFailure))
+		}
+	}
+}
+
+func TestRead_FailsForStaffOnAConsentOrAppointmentError(t *testing.T) {
+	boom := errors.New("connection reset")
+	for name, ports := range map[string]struct {
+		consents *fakeConsents
+		appts    *fakeAppointments
+	}{
+		"consents":     {consents: &fakeConsents{err: boom}, appts: &fakeAppointments{}},
+		"appointments": {consents: &fakeConsents{state: access.Consent{Active: true}}, appts: &fakeAppointments{err: boom}},
+	} {
+		audit := &fakeAuditor{}
+		svc := patient.NewService(newFakeRepository(), audit, fakeTransactor{}, clock.Fixed{T: now}, ports.consents, ports.appts)
+		if _, err := svc.Read(t.Context(), practitioner, patientA); !errors.Is(err, boom) {
+			t.Errorf("Read() with broken %s = %v, want the error", name, err)
 		}
 	}
 }

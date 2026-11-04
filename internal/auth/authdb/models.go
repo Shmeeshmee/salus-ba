@@ -91,6 +91,18 @@ type AuditEvent struct {
 	AgentName       pgtype.Text
 }
 
+type Consent struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	DateTime       pgtype.Timestamptz
+	RevokedAt      pgtype.Timestamptz
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
+}
+
 type Invite struct {
 	ID             pgtype.UUID
 	CreatedAt      pgtype.Timestamptz

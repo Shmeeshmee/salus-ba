@@ -77,6 +77,9 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**logout**](doc//AuthApi.md#logout) | **POST** /auth/logout | Sign out
 *AuthApi* | [**register**](doc//AuthApi.md#register) | **POST** /auth/register | Register a patient account
 *AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
+*ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic
+*ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
+*ConsentsApi* | [**revokeConsent**](doc//ConsentsApi.md#revokeconsent) | **POST** /consents/{id}/revoke | Revoke a consent
 *HealthApi* | [**getHealth**](doc//HealthApi.md#gethealth) | **GET** /healthz | Liveness
 *HealthApi* | [**getReadiness**](doc//HealthApi.md#getreadiness) | **GET** /readyz | Readiness
 *InvitesApi* | [**acceptInvite**](doc//InvitesApi.md#acceptinvite) | **POST** /invites/accept | Accept an invite
@@ -92,9 +95,12 @@ Class | Method | HTTP request | Description
  - [Acceptance](doc//Acceptance.md)
  - [Account](doc//Account.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)
+ - [Consent](doc//Consent.md)
+ - [ConsentList](doc//ConsentList.md)
  - [EnrolRequest](doc//EnrolRequest.md)
  - [Enrolment](doc//Enrolment.md)
  - [Error](doc//Error.md)
+ - [GrantConsentRequest](doc//GrantConsentRequest.md)
  - [Invite](doc//Invite.md)
  - [InviteList](doc//InviteList.md)
  - [InviteRequest](doc//InviteRequest.md)

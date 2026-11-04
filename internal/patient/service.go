@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -32,19 +33,33 @@ type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
-// Service holds the profile rules: a patient reads and saves only their own profile, staff reach none yet
-// (their access, through consent, comes with docs/booking package 3), and every read and write is audited,
-// also when it is refused.
+// Consents gives the state of the patient's consents with a clinic, in the caller's transaction and scope
+// (consent.Service).
+type Consents interface {
+	State(ctx context.Context, patientID, organizationID string) (access.Consent, error)
+}
+
+// Appointments gives the patient's appointments in a clinic, in the caller's transaction and scope (the
+// appointment domain, docs/booking package 6; none before it).
+type Appointments interface {
+	Visits(ctx context.Context, patientID, organizationID string) ([]access.Visit, error)
+}
+
+// Service holds the profile rules: a patient reads and saves only their own profile; staff read one only
+// when access gives them all of it (SPEC.md "Access rule"); every read and write is audited, also when it is
+// refused.
 type Service struct {
-	repo  Repository
-	audit Auditor
-	tx    Transactor
-	clock clock.Clock
+	repo         Repository
+	audit        Auditor
+	tx           Transactor
+	clock        clock.Clock
+	consents     Consents
+	appointments Appointments
 }
 
 // NewService returns a Service on its ports.
-func NewService(repo Repository, audit Auditor, tx Transactor, clk clock.Clock) *Service {
-	return &Service{repo: repo, audit: audit, tx: tx, clock: clk}
+func NewService(repo Repository, audit Auditor, tx Transactor, clk clock.Clock, consents Consents, appointments Appointments) *Service {
+	return &Service{repo: repo, audit: audit, tx: tx, clock: clk, consents: consents, appointments: appointments}
 }
 
 // Me returns the calling patient's profile, ErrNotFound before their first save, or ErrForbidden to staff.
@@ -129,28 +144,23 @@ func (s *Service) SaveMe(ctx context.Context, c Caller, in Patient) (Patient, er
 	return p, nil
 }
 
-// Read returns the profile id to its own patient, and ErrNotFound to anyone else: staff access, through an
-// active consent, comes with docs/booking package 3.
+// Read returns the profile id to its own patient and to staff whose access to it is Full (a practitioner
+// with an active consent and an appointment with the patient), and ErrNotFound to anyone else: the name-only
+// level is given with an appointment, not here (SPEC.md "FHIR reads and searches").
 func (s *Service) Read(ctx context.Context, c Caller, id string) (Patient, error) {
-	if !c.patient() {
-		if err := s.record(ctx, c, auditevent.CodeRead, "", auditevent.OutcomeMinorFailure); err != nil {
-			return Patient{}, fmt.Errorf("patient: read: %w", err)
-		}
-		return Patient{}, ErrNotFound
-	}
 	var p Patient
 	var missing bool
 	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
-		if err := s.repo.SetAccount(ctx, c.AccountID); err != nil {
-			return err
-		}
 		var err error
-		p, err = s.repo.ByID(ctx, id)
-		if err != nil && !errors.Is(err, ErrNotFound) {
+		if c.patient() {
+			p, missing, err = s.readOwn(ctx, c, id)
+		} else {
+			p, missing, err = s.readAsStaff(ctx, c, id)
+		}
+		if err != nil {
 			return err
 		}
-		// The owner check does not rest on row-level security alone.
-		if missing = err != nil || p.AccountID != c.AccountID; missing {
+		if missing {
 			return s.record(ctx, c, auditevent.CodeRead, "", auditevent.OutcomeMinorFailure)
 		}
 		return s.record(ctx, c, auditevent.CodeRead, p.ID, auditevent.OutcomeSuccess)
@@ -162,6 +172,48 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (Patient, error
 		return Patient{}, ErrNotFound
 	}
 	return p, nil
+}
+
+// readOwn reads the profile id in the calling patient's scope and reports it missing unless it is theirs.
+func (s *Service) readOwn(ctx context.Context, c Caller, id string) (Patient, bool, error) {
+	if err := s.repo.SetAccount(ctx, c.AccountID); err != nil {
+		return Patient{}, false, err
+	}
+	p, err := s.repo.ByID(ctx, id)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return Patient{}, false, err
+	}
+	// The owner check does not rest on row-level security alone.
+	return p, err != nil || p.AccountID != c.AccountID, nil
+}
+
+// readAsStaff gathers the facts of the patient id in the caller's clinic, in the clinic's scope, and reads
+// the profile only when access gives the caller all of it; otherwise it reports it missing.
+func (s *Service) readAsStaff(ctx context.Context, c Caller, id string) (Patient, bool, error) {
+	if err := s.repo.SetClinic(ctx, c.OrganizationID); err != nil {
+		return Patient{}, false, err
+	}
+	state, err := s.consents.State(ctx, id, c.OrganizationID)
+	if err != nil {
+		return Patient{}, false, err
+	}
+	visits, err := s.appointments.Visits(ctx, id, c.OrganizationID)
+	if err != nil {
+		return Patient{}, false, err
+	}
+	viewer := access.Viewer{Role: access.RolePractitioner, Clinic: c.OrganizationID, PractitionerRole: c.PractitionerRoleID}
+	if c.Admin {
+		viewer = access.Viewer{Role: access.RoleAdmin, Clinic: c.OrganizationID}
+	}
+	facts := access.Facts{Patient: id, Clinic: c.OrganizationID, Consent: state, Visits: visits}
+	if access.Profile(viewer, facts) != access.Full {
+		return Patient{}, true, nil
+	}
+	p, err := s.repo.ByID(ctx, id)
+	if errors.Is(err, ErrNotFound) {
+		return Patient{}, true, nil
+	}
+	return p, false, err
 }
 
 // valid returns in with its names trimmed, or the error of the first field that breaks SPEC.md "Profile".

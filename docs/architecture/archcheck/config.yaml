@@ -6,7 +6,7 @@ contexts:
   identity: [auth]
   notification: [notification]
   patient: [patient]
-  privacy: [auditevent, retention]
+  privacy: [access, auditevent, consent, retention]
 
 # Packages under internal/ that are not domains: configuration and composition roots.
 infrastructure: [api, config, worker]

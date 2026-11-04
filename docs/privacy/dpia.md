@@ -305,3 +305,38 @@ feature. **Needs a legal decision before production.**
 | Profile fields leak into logs or errors | Handlers log only through the fixed internal-error path, with the route and the error, which never holds a field; domain errors carry no value; a test sends a synthetic profile through every path and checks the log holds none of its fields |
 | Lost updates | An update names the version it changes; a stale version, or a second create, is 409 |
 | The application deletes a profile | `salus_app` has `SELECT`, `INSERT` and column-level `UPDATE` only; no `DELETE` or `TRUNCATE`, and the account of a profile cannot change (tested) |
+
+### Package 3: consent and access
+
+**Processing added.** Table `consent` (FHIR `Consent`): one row per patient and clinic each time the patient
+consents to share their profile and appointments with that clinic for care, with `patient_id`,
+`organization_id`, `status` (`active` | `inactive`), `date_time` (granted), `revoked_at`, `version_id` and
+timestamps. The patient grants (`POST /consents`), revokes (`POST /consents/{id}/revoke`) and lists
+(`GET /me/consents`) their own; staff cannot. At most one is active per clinic; granting again after a
+revocation adds a row, so the history is kept. The pure `access` package decides what a viewer may see of a
+profile or an appointment (SPEC.md "Access rule"); the patient service now lets staff read a profile only at
+`Full` access, which needs an appointment with the practitioner, so no staff read succeeds before
+appointments exist (package 6).
+
+**Purpose and lawful basis.** The consent is the basis for sharing the profile before care and for new
+bookings (Art. 9(2)(a)); the row is the proof of the decision, when it was given and withdrawn (Art. 7(1)).
+Care records rest on Art. 9(2)(h): after a revocation the clinic keeps the name, times and status of past
+appointments only (package 6). **Needs legal confirmation before production** (SPEC.md section 3).
+
+**Necessity and minimisation.** Only who, with which clinic, when granted and when revoked (SPEC.md section
+4); no free text. Responses are never cached (`Cache-Control: no-store`): a consent shows whom the patient
+consults.
+
+**Retention.** `keep`, with the clinical record, as proof (`internal/retention`). **Needs a legal decision
+before production.**
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A clinic sees a patient without consent | Row-level security shows a clinic's transaction (`app.organization_id`) a `patient` row only while an active consent for that clinic exists, and `consent` rows only of that clinic, read-only (tested); the service also checks `access` before it reads the profile |
+| Access outlives the revocation | Revocation sets `inactive` and `revoked_at` in one transaction; row-level security and `access` read the consent's state, so the clinic loses the row when that transaction commits (tested at the database and the repository) |
+| A patient's transaction sees another patient | The clinic branches of `patient` and `consent` apply only while neither `app.patient_id` nor `app.account_id` is set, so a patient's transaction that also sets a clinic sees only that patient (tested) |
+| A patient changes another patient's consent, or a clinic changes any | The patient branch covers only `patient_id = app.patient_id`; the clinic branch is `SELECT` only; `salus_app` may update only `status`, `revoked_at`, `updated_at` and `version_id`, and has no `DELETE` or `TRUNCATE` (tested) |
+| A consent is granted, revoked or read unnoticed | Every grant, revocation, list and read writes an `AuditEvent` in its transaction (`PATRQT` for the patient, `TREAT` for staff), refusals included; a grant to an unknown clinic, which aborts its transaction, is audited in a transaction of its own; the profile read that finds the calling patient is audited by the patient service |
+| Consent details leak into logs or errors | Handlers log only through the fixed internal-error path; domain errors carry no value; a test runs the whole flow and checks the log holds no profile field or e-mail |
