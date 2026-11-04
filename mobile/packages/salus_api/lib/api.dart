@@ -30,6 +30,7 @@ part 'auth/http_bearer_auth.dart';
 
 part 'api/auth_api.dart';
 part 'api/consents_api.dart';
+part 'api/directory_api.dart';
 part 'api/health_api.dart';
 part 'api/invites_api.dart';
 part 'api/patient_api.dart';
@@ -51,7 +52,10 @@ part 'model/login_request.dart';
 part 'model/login_response.dart';
 part 'model/patient.dart';
 part 'model/register_request.dart';
+part 'model/role_specialty.dart';
 part 'model/save_patient_request.dart';
+part 'model/set_specialty_request.dart';
+part 'model/specialty.dart';
 part 'model/status.dart';
 part 'model/unavailable.dart';
 part 'model/verify_request.dart';

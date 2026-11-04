@@ -13,7 +13,7 @@ import (
 
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organization (name) VALUES ($1)
-RETURNING id, updated_at, version_id, active, name
+RETURNING id, updated_at, version_id, active, listed, name, time_zone
 `
 
 type CreateOrganizationRow struct {
@@ -21,7 +21,9 @@ type CreateOrganizationRow struct {
 	UpdatedAt pgtype.Timestamptz
 	VersionID int32
 	Active    bool
+	Listed    bool
 	Name      string
+	TimeZone  string
 }
 
 // The operator command only (salusctl, as the owner): salus_app has no INSERT on organization.
@@ -33,13 +35,61 @@ func (q *Queries) CreateOrganization(ctx context.Context, name string) (CreateOr
 		&i.UpdatedAt,
 		&i.VersionID,
 		&i.Active,
+		&i.Listed,
 		&i.Name,
+		&i.TimeZone,
 	)
 	return i, err
 }
 
+const listedOrganizations = `-- name: ListedOrganizations :many
+SELECT id, updated_at, version_id, active, listed, name, time_zone
+FROM organization
+WHERE listed
+ORDER BY name, id
+`
+
+type ListedOrganizationsRow struct {
+	ID        pgtype.UUID
+	UpdatedAt pgtype.Timestamptz
+	VersionID int32
+	Active    bool
+	Listed    bool
+	Name      string
+	TimeZone  string
+}
+
+// Organization?listed=true: row-level security shows only listed clinics in the directory scope.
+func (q *Queries) ListedOrganizations(ctx context.Context) ([]ListedOrganizationsRow, error) {
+	rows, err := q.db.Query(ctx, listedOrganizations)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListedOrganizationsRow
+	for rows.Next() {
+		var i ListedOrganizationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UpdatedAt,
+			&i.VersionID,
+			&i.Active,
+			&i.Listed,
+			&i.Name,
+			&i.TimeZone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const organizationByID = `-- name: OrganizationByID :one
-SELECT id, updated_at, version_id, active, name
+SELECT id, updated_at, version_id, active, listed, name, time_zone
 FROM organization
 WHERE id = $1
 `
@@ -49,7 +99,9 @@ type OrganizationByIDRow struct {
 	UpdatedAt pgtype.Timestamptz
 	VersionID int32
 	Active    bool
+	Listed    bool
 	Name      string
+	TimeZone  string
 }
 
 func (q *Queries) OrganizationByID(ctx context.Context, id pgtype.UUID) (OrganizationByIDRow, error) {
@@ -60,48 +112,58 @@ func (q *Queries) OrganizationByID(ctx context.Context, id pgtype.UUID) (Organiz
 		&i.UpdatedAt,
 		&i.VersionID,
 		&i.Active,
+		&i.Listed,
 		&i.Name,
+		&i.TimeZone,
 	)
 	return i, err
 }
 
-const renameOrganization = `-- name: RenameOrganization :one
+const updateOrganization = `-- name: UpdateOrganization :one
 UPDATE organization
-SET name = $1, version_id = version_id + 1, updated_at = $2
-WHERE id = $3 AND version_id = $4
-RETURNING id, updated_at, version_id, active, name
+SET name = $1, listed = $2, time_zone = $3, version_id = version_id + 1, updated_at = $4
+WHERE id = $5 AND version_id = $6
+RETURNING id, updated_at, version_id, active, listed, name, time_zone
 `
 
-type RenameOrganizationParams struct {
+type UpdateOrganizationParams struct {
 	Name      string
+	Listed    bool
+	TimeZone  string
 	UpdatedAt pgtype.Timestamptz
 	ID        pgtype.UUID
 	VersionID int32
 }
 
-type RenameOrganizationRow struct {
+type UpdateOrganizationRow struct {
 	ID        pgtype.UUID
 	UpdatedAt pgtype.Timestamptz
 	VersionID int32
 	Active    bool
+	Listed    bool
 	Name      string
+	TimeZone  string
 }
 
 // Optimistic locking: only the current version changes.
-func (q *Queries) RenameOrganization(ctx context.Context, arg RenameOrganizationParams) (RenameOrganizationRow, error) {
-	row := q.db.QueryRow(ctx, renameOrganization,
+func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (UpdateOrganizationRow, error) {
+	row := q.db.QueryRow(ctx, updateOrganization,
 		arg.Name,
+		arg.Listed,
+		arg.TimeZone,
 		arg.UpdatedAt,
 		arg.ID,
 		arg.VersionID,
 	)
-	var i RenameOrganizationRow
+	var i UpdateOrganizationRow
 	err := row.Scan(
 		&i.ID,
 		&i.UpdatedAt,
 		&i.VersionID,
 		&i.Active,
+		&i.Listed,
 		&i.Name,
+		&i.TimeZone,
 	)
 	return i, err
 }

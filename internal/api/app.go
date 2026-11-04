@@ -75,7 +75,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 	hasher := auth.NewArgon2Hasher(auth.DefaultArgon2Params(), auth.MaxConcurrentHashes)
 	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{})
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx)
-	roles := practitionerrole.NewService(practitionerrole.NewPostgresRepository(pool), audit, tx)
+	roles := practitionerrole.NewService(practitionerrole.NewPostgresRepository(pool), audit, tx, clock.System{})
 	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clock.System{})
 	patients := patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clock.System{}, consents, noAppointments{})
 	accounts := auth.NewService(auth.Ports{
@@ -98,6 +98,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 			organization.NewHandler(clinics, organizationCaller(accounts), log).Routes,
 			practitioner.NewHandler(practitioners, practitionerCaller, log).Routes,
 			practitionerrole.NewHandler(roles, practitioners, roleCaller, fhirBase, log).Routes,
+			practitionerrole.NewHTTPHandler(roles, roleAdminCaller(accounts), log).Routes,
 			patient.NewHandler(patients, patientCaller, log).Routes,
 			consent.NewHandler(consents, consentCaller(patients), log).Routes,
 		},
@@ -139,6 +140,22 @@ func practitionerCaller(ctx context.Context) (practitioner.Caller, bool) {
 func roleCaller(ctx context.Context) (practitionerrole.Caller, bool) {
 	s, ok := auth.SessionFrom(ctx)
 	return practitionerrole.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}, ok
+}
+
+// roleAdminCaller is the role domain's view of the signed-in session, with whether the account is the clinic's
+// admin as read from the database, for the actions only an admin may take.
+func roleAdminCaller(accounts *auth.Service) func(ctx context.Context) (practitionerrole.Caller, bool, error) {
+	return func(ctx context.Context) (practitionerrole.Caller, bool, error) {
+		s, ok := auth.SessionFrom(ctx)
+		if !ok {
+			return practitionerrole.Caller{}, false, nil
+		}
+		admin, err := accounts.IsClinicAdmin(ctx, s)
+		if err != nil {
+			return practitionerrole.Caller{}, false, err
+		}
+		return practitionerrole.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID, Admin: admin}, true, nil
+	}
 }
 
 func patientCaller(ctx context.Context) (patient.Caller, bool) {

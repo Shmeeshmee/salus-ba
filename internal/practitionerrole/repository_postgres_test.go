@@ -162,3 +162,98 @@ func TestCreate_InsertsARoleIntoTheClinicSetOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestSetSpecialty_MovesToTheNextVersionOrConflicts(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo := practitionerrole.NewPostgresRepository(app)
+	at := time.Date(2026, 11, 4, 9, 30, 0, 0, time.UTC)
+	set := func(id string, version int32) (practitionerrole.PractitionerRole, error) {
+		var p practitionerrole.PractitionerRole
+		err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
+			var err error
+			p, err = repo.SetSpecialty(ctx, id, "394579002", version, at)
+			return err
+		})
+		return p, err
+	}
+
+	got, err := set(roleA1, 1)
+	if err != nil || got.ID != roleA1 || got.SpecialtyCode != "394579002" || got.VersionID != 2 || !got.LastUpdated.Equal(at) {
+		t.Errorf("SetSpecialty() = %+v, %v; want cardiology at version 2, updated at %v", got, err, at)
+	}
+	var read practitionerrole.PractitionerRole
+	if err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
+		read, err = repo.ByID(ctx, roleA1)
+		return err
+	}); err != nil || read.SpecialtyCode != "394579002" {
+		t.Errorf("ByID() after SetSpecialty = %+v, %v; want the code", read, err)
+	}
+	for name, tc := range map[string]struct {
+		id      string
+		version int32
+	}{
+		"a stale version":  {roleA1, 1},
+		"another clinic":   {roleB, 1},
+		"an id not a UUID": {"not-a-uuid", 1},
+	} {
+		if _, err := set(tc.id, tc.version); !errors.Is(err, practitionerrole.ErrConflict) {
+			t.Errorf("SetSpecialty() of %s: %v, want ErrConflict", name, err)
+		}
+	}
+}
+
+func TestPublicByOrganization_ShowsOnlyActiveRolesOfAListedClinicInTheDirectoryScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	practitionerA1 := seed(t, owner)
+	ctx := t.Context()
+	_, err := owner.Exec(ctx, `UPDATE organization SET listed = true;
+		UPDATE organization SET listed = false WHERE id = '`+clinicB+`';
+		UPDATE practitioner_role SET active = false WHERE id = '`+roleA2+`';
+		UPDATE practitioner_role SET specialty_code = '394579002' WHERE id = '`+roleA1+`'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := practitionerrole.NewPostgresRepository(app)
+	public := func(org string, directory bool) ([]practitionerrole.PractitionerRole, error) {
+		var roles []practitionerrole.PractitionerRole
+		err := postgres.NewTransactor(app).WithTx(ctx, func(ctx context.Context) error {
+			if directory {
+				if err := repo.SetDirectory(ctx); err != nil {
+					return err
+				}
+			}
+			var err error
+			roles, err = repo.PublicByOrganization(ctx, org)
+			return err
+		})
+		return roles, err
+	}
+
+	got, err := public(clinicA, true)
+	want := practitionerrole.PractitionerRole{ID: roleA1, OrganizationID: clinicA, PractitionerID: practitionerA1, SpecialtyCode: "394579002",
+		VersionID: 1, Active: true, LastUpdated: time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)}
+	if err != nil || len(got) != 1 {
+		t.Fatalf("PublicByOrganization(listed clinic A) = %+v, %v; want only the active role A1", got, err)
+	}
+	if got[0].LastUpdated = got[0].LastUpdated.UTC(); got[0] != want {
+		t.Errorf("PublicByOrganization(listed clinic A) = %+v,\nwant %+v", got[0], want)
+	}
+	for name, tc := range map[string]struct {
+		org       string
+		directory bool
+	}{
+		"an unlisted clinic": {clinicB, true},
+		"no directory scope": {clinicA, false},
+		"an id not a UUID":   {"not-a-uuid", true},
+	} {
+		if got, err := public(tc.org, tc.directory); err != nil || len(got) != 0 {
+			t.Errorf("PublicByOrganization() of %s = %+v, %v; want none", name, got, err)
+		}
+	}
+	if err := repo.SetDirectory(ctx); !errors.Is(err, postgres.ErrNoTx) {
+		t.Errorf("SetDirectory() outside a transaction: %v, want postgres.ErrNoTx", err)
+	}
+}

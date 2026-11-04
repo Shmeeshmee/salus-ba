@@ -312,6 +312,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/practitioner-roles/{id}/specialty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set a practitioner role's specialty
+         * @description The clinic's admin sets the specialty of a role of the clinic: one of the twelve SNOMED CT codes the directory offers (FHIR R4 ValueSet c80-practice-codes). Patients see it when the clinic is listed. Send If-Match with the version the role was read at (`PractitionerRole.meta.versionId`); the answer carries the new version as its ETag. Audited, also when refused.
+         */
+        put: operations["setPractitionerRoleSpecialty"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -471,10 +491,34 @@ export interface components {
         ConsentList: {
             consents: components["schemas"]["Consent"][];
         };
+        SetSpecialtyRequest: {
+            /**
+             * @description A SNOMED CT code, one of the directory's twelve specialties.
+             * @example 394579002
+             */
+            code: string;
+        };
+        /** @description A practitioner role's specialty, a coding from FHIR R4 ValueSet c80-practice-codes. */
+        Specialty: {
+            /** @constant */
+            system: "http://snomed.info/sct";
+            code: string;
+            /** @description The concept's display in the value set. */
+            display: string;
+            /** @description The name the apps show. */
+            text: string;
+        };
+        RoleSpecialty: {
+            /** Format: uuid */
+            id: string;
+            specialty?: components["schemas"]["Specialty"];
+            /** Format: int32 */
+            versionId: number;
+        };
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "internal error" | "timeout";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "internal error" | "timeout";
         };
         Status: {
             /** @constant */
@@ -1349,6 +1393,85 @@ export interface operations {
             };
             /** @description `forbidden`: a staff account. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setPractitionerRoleSpecialty: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The role's version as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSpecialtyRequest"];
+            };
+        };
+        responses: {
+            /** @description The role with its specialty, at its new version. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleSpecialty"];
+                };
+            };
+            /** @description `invalid_request`: no or an unreadable If-Match, or a body that is not the request; `invalid_specialty`: a code that is not one of the directory's specialties. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a member of the clinic who is not its admin; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such role in the caller's clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the role changed since it was read; read it again. */
+            412: {
                 headers: {
                     [name: string]: unknown;
                 };

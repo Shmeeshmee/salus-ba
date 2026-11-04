@@ -16,7 +16,7 @@ const maxBody = 64 << 10 // bytes of an update's body
 // Clinics reads and renames a clinic for a caller (Service).
 type Clinics interface {
 	Read(ctx context.Context, c Caller, id string) (Organization, error)
-	Update(ctx context.Context, c Caller, id, name string, version int32) (Organization, error)
+	Update(ctx context.Context, c Caller, id string, ch Changes, version int32) (Organization, error)
 }
 
 // Handler serves the Organization read and update of the FHIR API (api/fhir/CapabilityStatement.json).
@@ -87,7 +87,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		fhir.WriteError(w, http.StatusBadRequest, "invalid", "Send this Organization, with its id, as FHIR JSON.")
 		return
 	}
-	o, err := h.svc.Update(r.Context(), c, id, body.Name, version)
+	o, err := h.svc.Update(r.Context(), c, id, Changes{Name: body.Name}, version)
 	h.write(w, r, o, err)
 }
 
@@ -124,6 +124,8 @@ func (h *Handler) write(w http.ResponseWriter, r *http.Request, o Organization, 
 		fhir.WriteError(w, http.StatusForbidden, "forbidden", "Only an admin of the clinic may change it.")
 	case errors.Is(err, ErrInvalidName):
 		fhir.WriteError(w, http.StatusUnprocessableEntity, "business-rule", "The name must be 1 to 200 characters.")
+	case errors.Is(err, ErrInvalidTimeZone):
+		fhir.WriteError(w, http.StatusBadRequest, "value", "The time zone must be an IANA time zone name.")
 	case err != nil:
 		fhir.InternalError(w, r, h.log, err)
 	default:

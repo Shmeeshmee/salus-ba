@@ -30,6 +30,22 @@ func (r *postgresRepository) SetOrganization(ctx context.Context, id string) err
 	return postgres.SetLocal(ctx, "app.organization_id", id)
 }
 
+func (r *postgresRepository) SetDirectory(ctx context.Context) error {
+	return postgres.SetLocal(ctx, "app.directory", "public")
+}
+
+func (r *postgresRepository) Listed(ctx context.Context) ([]Organization, error) {
+	rows, err := r.q(ctx).ListedOrganizations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Organization, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toOrganization(organizationdb.OrganizationByIDRow(row)))
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ByID(ctx context.Context, id string) (Organization, error) {
 	var u pgtype.UUID
 	if u.Scan(id) != nil {
@@ -45,13 +61,14 @@ func (r *postgresRepository) ByID(ctx context.Context, id string) (Organization,
 	return toOrganization(row), nil
 }
 
-func (r *postgresRepository) Rename(ctx context.Context, id, name string, version int32, at time.Time) (Organization, error) {
+func (r *postgresRepository) Update(ctx context.Context, o Organization, at time.Time) (Organization, error) {
 	var u pgtype.UUID
-	if u.Scan(id) != nil {
+	if u.Scan(o.ID) != nil {
 		return Organization{}, ErrConflict
 	}
-	row, err := r.q(ctx).RenameOrganization(ctx, organizationdb.RenameOrganizationParams{
-		ID: u, Name: name, VersionID: version, UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
+	row, err := r.q(ctx).UpdateOrganization(ctx, organizationdb.UpdateOrganizationParams{
+		ID: u, Name: o.Name, Listed: o.Listed, TimeZone: o.TimeZone, VersionID: o.VersionID,
+		UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Organization{}, ErrConflict
@@ -72,6 +89,7 @@ func (r *postgresRepository) Create(ctx context.Context, name string) (Organizat
 
 func toOrganization(row organizationdb.OrganizationByIDRow) Organization {
 	return Organization{
-		ID: row.ID.String(), Name: row.Name, VersionID: row.VersionID, Active: row.Active, LastUpdated: row.UpdatedAt.Time,
+		ID: row.ID.String(), Name: row.Name, TimeZone: row.TimeZone, VersionID: row.VersionID, Active: row.Active,
+		Listed: row.Listed, LastUpdated: row.UpdatedAt.Time,
 	}
 }

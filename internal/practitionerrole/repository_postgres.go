@@ -3,6 +3,7 @@ package practitionerrole
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -27,6 +28,10 @@ func (r *postgresRepository) q(ctx context.Context) *practitionerroledb.Queries 
 
 func (r *postgresRepository) SetOrganization(ctx context.Context, id string) error {
 	return postgres.SetLocal(ctx, "app.organization_id", id)
+}
+
+func (r *postgresRepository) SetDirectory(ctx context.Context) error {
+	return postgres.SetLocal(ctx, "app.directory", "public")
 }
 
 func (r *postgresRepository) ByID(ctx context.Context, id string) (PractitionerRole, error) {
@@ -60,6 +65,22 @@ func (r *postgresRepository) ByOrganization(ctx context.Context, org string) ([]
 	return roles, nil
 }
 
+func (r *postgresRepository) PublicByOrganization(ctx context.Context, org string) ([]PractitionerRole, error) {
+	var u pgtype.UUID
+	if u.Scan(org) != nil {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).PublicPractitionerRolesByOrganization(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	roles := make([]PractitionerRole, 0, len(rows))
+	for _, row := range rows {
+		roles = append(roles, toRole(practitionerroledb.PractitionerRolesByOrganizationRow(row)))
+	}
+	return roles, nil
+}
+
 func (r *postgresRepository) Create(ctx context.Context, org, practitionerID string) (PractitionerRole, error) {
 	var o, p pgtype.UUID
 	if o.Scan(org) != nil || p.Scan(practitionerID) != nil {
@@ -72,10 +93,28 @@ func (r *postgresRepository) Create(ctx context.Context, org, practitionerID str
 	return toRole(practitionerroledb.PractitionerRolesByOrganizationRow(row)), nil
 }
 
+func (r *postgresRepository) SetSpecialty(ctx context.Context, id, code string, version int32, at time.Time) (PractitionerRole, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return PractitionerRole{}, ErrConflict
+	}
+	row, err := r.q(ctx).SetPractitionerRoleSpecialty(ctx, practitionerroledb.SetPractitionerRoleSpecialtyParams{
+		ID: u, SpecialtyCode: pgtype.Text{String: code, Valid: true}, VersionID: version,
+		UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PractitionerRole{}, ErrConflict
+	}
+	if err != nil {
+		return PractitionerRole{}, err
+	}
+	return toRole(practitionerroledb.PractitionerRolesByOrganizationRow(row)), nil
+}
+
 // toRole maps a row; every role query selects the same columns.
 func toRole(row practitionerroledb.PractitionerRolesByOrganizationRow) PractitionerRole {
 	return PractitionerRole{
 		ID: row.ID.String(), OrganizationID: row.OrganizationID.String(), PractitionerID: row.PractitionerID.String(),
-		VersionID: row.VersionID, Active: row.Active, LastUpdated: row.UpdatedAt.Time,
+		SpecialtyCode: row.SpecialtyCode.String, VersionID: row.VersionID, Active: row.Active, LastUpdated: row.UpdatedAt.Time,
 	}
 }

@@ -238,8 +238,14 @@ class ApiClient {
           return Patient.fromJson(value);
         case 'RegisterRequest':
           return RegisterRequest.fromJson(value);
+        case 'RoleSpecialty':
+          return RoleSpecialty.fromJson(value);
         case 'SavePatientRequest':
           return SavePatientRequest.fromJson(value);
+        case 'SetSpecialtyRequest':
+          return SetSpecialtyRequest.fromJson(value);
+        case 'Specialty':
+          return Specialty.fromJson(value);
         case 'Status':
           return Status.fromJson(value);
         case 'Unavailable':

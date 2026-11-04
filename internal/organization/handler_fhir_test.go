@@ -41,7 +41,7 @@ type stubClinics struct {
 	err     error
 	caller  organization.Caller
 	id      string
-	name    string
+	changes organization.Changes
 	org     organization.Organization
 	calls   int
 	version int32
@@ -53,8 +53,8 @@ func (s *stubClinics) Read(_ context.Context, c organization.Caller, id string) 
 	return s.org, s.err
 }
 
-func (s *stubClinics) Update(_ context.Context, c organization.Caller, id, name string, version int32) (organization.Organization, error) {
-	s.caller, s.id, s.name, s.version = c, id, name, version
+func (s *stubClinics) Update(_ context.Context, c organization.Caller, id string, ch organization.Changes, version int32) (organization.Organization, error) {
+	s.caller, s.id, s.changes, s.version = c, id, ch, version
 	s.calls++
 	return s.org, s.err
 }
@@ -124,8 +124,8 @@ func TestHandlerUpdate_RenamesAtTheVersionOfIfMatchAndSendsTheNewVersion(t *test
 		if rec.Code != http.StatusOK {
 			t.Fatalf("If-Match %s: status = %d %s, want 200", ifMatch, rec.Code, rec.Body)
 		}
-		if s.svc.caller != admin || s.svc.id != clinicA || s.svc.name != "Renamed synthetic clinic" || s.svc.version != 3 {
-			t.Errorf("Update(%+v, %q, %q, %d), want the caller, the URL's id, the name and version 3", s.svc.caller, s.svc.id, s.svc.name, s.svc.version)
+		if s.svc.caller != admin || s.svc.id != clinicA || s.svc.changes != (organization.Changes{Name: "Renamed synthetic clinic"}) || s.svc.version != 3 {
+			t.Errorf("Update(%+v, %q, %+v, %d), want the caller, the URL's id, the name only and version 3", s.svc.caller, s.svc.id, s.svc.changes, s.svc.version)
 		}
 		if etag := rec.Header().Get("ETag"); etag != `W/"4"` {
 			t.Errorf(`ETag = %q, want W/"4"`, etag)
@@ -189,6 +189,7 @@ func TestHandler_MapsTheServiceErrors(t *testing.T) {
 		{err: organization.ErrConflict, method: http.MethodPut, status: http.StatusPreconditionFailed, golden: "version_conflict.json"},
 		{err: organization.ErrForbidden, method: http.MethodPut, status: http.StatusForbidden, golden: "forbidden.json"},
 		{err: organization.ErrInvalidName, method: http.MethodPut, status: http.StatusUnprocessableEntity, golden: "invalid_name.json"},
+		{err: organization.ErrInvalidTimeZone, method: http.MethodPut, status: http.StatusBadRequest, golden: "invalid_time_zone.json"},
 	}
 	for _, tt := range tests {
 		s := newOrgServer(&stubClinics{err: tt.err})

@@ -80,6 +80,7 @@ Class | Method | HTTP request | Description
 *ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic
 *ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
 *ConsentsApi* | [**revokeConsent**](doc//ConsentsApi.md#revokeconsent) | **POST** /consents/{id}/revoke | Revoke a consent
+*DirectoryApi* | [**setPractitionerRoleSpecialty**](doc//DirectoryApi.md#setpractitionerrolespecialty) | **PUT** /practitioner-roles/{id}/specialty | Set a practitioner role's specialty
 *HealthApi* | [**getHealth**](doc//HealthApi.md#gethealth) | **GET** /healthz | Liveness
 *HealthApi* | [**getReadiness**](doc//HealthApi.md#getreadiness) | **GET** /readyz | Readiness
 *InvitesApi* | [**acceptInvite**](doc//InvitesApi.md#acceptinvite) | **POST** /invites/accept | Accept an invite
@@ -108,7 +109,10 @@ Class | Method | HTTP request | Description
  - [LoginResponse](doc//LoginResponse.md)
  - [Patient](doc//Patient.md)
  - [RegisterRequest](doc//RegisterRequest.md)
+ - [RoleSpecialty](doc//RoleSpecialty.md)
  - [SavePatientRequest](doc//SavePatientRequest.md)
+ - [SetSpecialtyRequest](doc//SetSpecialtyRequest.md)
+ - [Specialty](doc//Specialty.md)
  - [Status](doc//Status.md)
  - [Unavailable](doc//Unavailable.md)
  - [VerifyRequest](doc//VerifyRequest.md)

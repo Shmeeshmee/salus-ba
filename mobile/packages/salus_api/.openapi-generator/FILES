@@ -4,6 +4,7 @@ analysis_options.yaml
 lib/api.dart
 lib/api/auth_api.dart
 lib/api/consents_api.dart
+lib/api/directory_api.dart
 lib/api/health_api.dart
 lib/api/invites_api.dart
 lib/api/patient_api.dart
@@ -32,7 +33,10 @@ lib/model/login_request.dart
 lib/model/login_response.dart
 lib/model/patient.dart
 lib/model/register_request.dart
+lib/model/role_specialty.dart
 lib/model/save_patient_request.dart
+lib/model/set_specialty_request.dart
+lib/model/specialty.dart
 lib/model/status.dart
 lib/model/unavailable.dart
 lib/model/verify_request.dart

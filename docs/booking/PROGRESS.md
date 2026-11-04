@@ -5,7 +5,7 @@
 | 1 Retention job | done | `booking(1)` |
 | 2 Patient | done | `booking(2)` |
 | 3 Consent and access | done | `booking(3)` |
-| 4 Directory additions | to do | |
+| 4 Directory additions | done | `booking(4)` |
 | 5 Schedule and slot | to do | |
 | 6 Appointment | to do | |
 | 7 FHIR | to do | |
@@ -41,6 +41,11 @@
   `RETENTION_DATABASE_URL` for the worker only, and `RETENTION_DATABASE_PASSWORD` for `migrate` (or neither,
   when provisioned elsewhere).
 - Before 2036-11: removal of audit ranges (`SPEC.md` §6).
+- Specialty codes (package 4): the R4 `c80-practice-codes` value set has no paediatrics concept; paediatrics
+  is `394733009` "Medical specialty--OTHER--NOT LISTED" with the text "Paediatrics" until someone confirms a
+  code (a concept from outside this value set would need the SPEC changed). ENT
+  (`418960008` "Otolaryngology") and orthopaedics (`394801008` "Surgery-Trauma and orthopedics") were chosen
+  among the value set's options; confirm.
 
 ## Log
 
@@ -263,3 +268,96 @@ branch of the `patient` policy and the appointment facts (package 6); the FHIR `
 
 **Dev stack.** Untouched: migration 00016 is not applied to the dev database (no stack check in this
 package; the running images do not use it); `make migrate` applies it. Tests ran in throwaway databases.
+
+### 2026-11-04 — package 4: directory additions
+
+**Built.**
+- `migrations/00017_directory_listing.sql`: `organization.listed` (default false), `organization.time_zone`
+  (default `Europe/Sarajevo`, not blank), `practitioner_role.specialty_code` (nullable); a partial index on
+  listed clinics; `GRANT UPDATE (listed, time_zone) ON organization` and `GRANT UPDATE (specialty_code,
+  updated_at, version_id) ON practitioner_role` to `salus_app`; the directory scope's `SELECT`-only policies
+  (`app.directory = 'public'`, through `NULLIF`): listed clinics, and the active practitioners and roles of
+  listed clinics.
+- `organization`: `Listed` and `TimeZone` in the model; `Update(c, id, Changes, version)` (the name, and the
+  listing and zone when given; nil keeps them), the zone validated with `time.LoadLocation` (`""` and `Local`
+  refused) before any access, `ErrInvalidTimeZone` (FHIR 400 `value`, golden `invalid_time_zone.json`);
+  `ListListed` in the directory scope, not audited. The repository's `Rename` became `Update`.
+- `practitionerrole`: `Specialties()` (the owner's twelve, below), `SpecialtyByCode`, `SystemSNOMED`;
+  `SpecialtyCode` on the model, `Admin` on `Caller`; `SetSpecialty` (admin of the clinic, version-checked,
+  audited as an update, refusals included; `ErrInvalidSpecialty` before any access; `ErrConflict`);
+  `PublicByOrganization` (directory scope, active roles, not audited). `NewService` takes a clock. JSON
+  `PUT /practitioner-roles/{id}/specialty` in `handler_http.go`, wired in `internal/api` with
+  `roleAdminCaller` (the admin flag read from `account` per request).
+- `practitioner`: `PublicNames(ids)` in the directory scope: id, name, meta and active only (no clinic), not
+  audited.
+- `cmd/api`, `cmd/worker`, `cmd/notifier`, `cmd/scheduler` import `_ "time/tzdata"`.
+- `api/openapi.yaml`: the path, `SetSpecialtyRequest`, `Specialty`, `RoleSpecialty`, error code
+  `invalid_specialty`; `make gen-clients`. `docs/privacy/dpia.md`: the directory additions.
+
+**Specialties** (owner's list; code and display copied from `ValueSet-c80-practice-codes.json` in
+`hl7.fhir.r4.core#4.0.1`, read from the `fhir-validator` cache volume, sha256 `4a0a295c…434fac893`; system
+`http://snomed.info/sct`):
+
+| Owner's name (text) | Code | Display in the value set |
+| --- | --- | --- |
+| General practice | `394814009` | General practice |
+| Internal medicine | `419192003` | Internal medicine |
+| Cardiology | `394579002` | Cardiology |
+| Dermatology | `394582007` | Dermatology |
+| Gynaecology | `394586005` | Gynecology |
+| Paediatrics | `394733009` | Medical specialty--OTHER--NOT LISTED |
+| Psychiatry | `394587001` | Psychiatry |
+| Neurology | `394591006` | Neurology |
+| ENT | `418960008` | Otolaryngology |
+| Ophthalmology | `394594003` | Ophthalmology |
+| Orthopaedics | `394801008` | Surgery-Trauma and orthopedics |
+| Endocrinology | `394583002` | Endocrinology |
+
+**Red first.** migrations: `column "listed" of relation "organization" does not exist` (42703).
+practitionerrole: the handler test `undefined: practitionerrole.NewHTTPHandler`; the model, service and
+repository tests were written before their code but first run after it was in, so their red run was not
+observed. practitioner: `repo.SetDirectory undefined`, `PublicNames undefined`. organization:
+`undefined: organization.Changes`. api: `PUT /practitioner-roles/{id}/specialty` = `404 page not found`
+before the wiring. cmd: `main.go does not import _ "time/tzdata"` (four binaries).
+
+**Checks.** `make lint` 0 issues, migrations unchanged; `make test` passes; `make archcheck` ok; `make cover`
+passes, every package at 80% or more (organization 95.5%, practitioner 95.2%, practitionerrole 96.4%, api
+90.7%; total 95.3%); `make sqlc` and `make gen-clients` leave no diff (hashes compared); `make fhir-validate`
+passes (the new golden included); `make web-typecheck` and `make mobile-analyze` clean.
+
+**Readings and decisions.**
+- **Paediatrics has no concept in c80-practice-codes** (only paediatric sub-specialties). The closest honest
+  choice is `394733009` "Medical specialty--OTHER--NOT LISTED"; a sub-specialty would mislabel a general
+  paediatrician. To keep it findable, each specialty carries `Text`, the owner's name, for
+  `CodeableConcept.text` (package 7) and the apps; the JSON answer has it. Listed under "Waiting on people".
+- **ENT and orthopaedics.** ENT is `418960008` "Otolaryngology" (the specialty) rather than `394604002`
+  "Surgery-Ear, nose and throat surgery"; orthopaedics has only `394801008` "Surgery-Trauma and orthopedics".
+  Gynaecology is `394586005` "Gynecology", not "Obstetrics and gynecology".
+- **Code only in the table.** The SPEC names the column `specialty_code`; the system is always SNOMED CT and
+  the display comes from the list, so the database skill's "system + code (+ display)" is met by the code
+  plus the fixed list. The database does not check the code (the list may grow without a migration); the
+  service does.
+- **Organization update.** The FHIR handler passes only the name until package 7 reads the `listed` and
+  time-zone extensions, so `Changes` keeps the listing and zone when they are not given. Until then no
+  endpoint lists a clinic: only the service can (and the owner, by SQL).
+- **Specialty endpoint.** `If-Match` as the SPEC says (`W/"n"` or `"n"`): missing or unreadable is 400
+  `invalid_request`, a stale version 412 `version_conflict` (HTTP's precondition status, as on the FHIR side;
+  the patient profile's 409 is for a version in the body). The answer carries the new `ETag`. A practitioner
+  gets 403, anyone outside the clinic 404; all audited. No way to clear a specialty (not in the SPEC).
+- **Public reads.** `ListListed`, `PublicByOrganization` and `PublicNames` set `app.directory = 'public'`, are
+  not audited (SPEC "Public browse"), and re-check what the rows carry (`listed`, `active`, the clinic id) so
+  they do not rest on row-level security alone. A role search of an unlisted clinic gives none rather than
+  not found; package 7 decides the HTTP form. The practitioner query selects no clinic; the repository test
+  compares the whole returned value.
+- **Consent grant** still does not check `listed` (as package 3 left it): the SPEC asks for a listed clinic
+  at booking (package 6), not at consent.
+- **Time zones.** `UTC` is accepted (an IANA name); `time.LoadLocation`'s `""` (UTC) and `Local` are refused;
+  the four binaries embed `time/tzdata`, checked by a source test in each.
+
+**Deferred.** FHIR: `Organization?listed=true`, the `listed` and time-zone extensions on read and update,
+anonymous `PractitionerRole` search with `specialty`, the `StructureDefinition`s and `SearchParameter`
+(package 7). The web specialty editor and listing toggle (package 8).
+
+**Dev stack.** Untouched: migration 00017 is not applied to the dev database (no stack check in this
+package; the running images do not use it); `make migrate` applies it. Tests ran in throwaway databases.
+`alpine:3` was pulled to read the value set from the `salus_fhir` volume (read-only) and removed again.

@@ -14,7 +14,7 @@ import (
 const createPractitionerRole = `-- name: CreatePractitionerRole :one
 INSERT INTO practitioner_role (organization_id, practitioner_id)
 VALUES ($1, $2)
-RETURNING id, updated_at, organization_id, practitioner_id, version_id, active
+RETURNING id, updated_at, organization_id, practitioner_id, version_id, active, specialty_code
 `
 
 type CreatePractitionerRoleParams struct {
@@ -29,6 +29,7 @@ type CreatePractitionerRoleRow struct {
 	PractitionerID pgtype.UUID
 	VersionID      int32
 	Active         bool
+	SpecialtyCode  pgtype.Text
 }
 
 func (q *Queries) CreatePractitionerRole(ctx context.Context, arg CreatePractitionerRoleParams) (CreatePractitionerRoleRow, error) {
@@ -41,12 +42,13 @@ func (q *Queries) CreatePractitionerRole(ctx context.Context, arg CreatePractiti
 		&i.PractitionerID,
 		&i.VersionID,
 		&i.Active,
+		&i.SpecialtyCode,
 	)
 	return i, err
 }
 
 const practitionerRoleByID = `-- name: PractitionerRoleByID :one
-SELECT id, updated_at, organization_id, practitioner_id, version_id, active
+SELECT id, updated_at, organization_id, practitioner_id, version_id, active, specialty_code
 FROM practitioner_role
 WHERE id = $1
 `
@@ -58,6 +60,7 @@ type PractitionerRoleByIDRow struct {
 	PractitionerID pgtype.UUID
 	VersionID      int32
 	Active         bool
+	SpecialtyCode  pgtype.Text
 }
 
 func (q *Queries) PractitionerRoleByID(ctx context.Context, id pgtype.UUID) (PractitionerRoleByIDRow, error) {
@@ -70,12 +73,13 @@ func (q *Queries) PractitionerRoleByID(ctx context.Context, id pgtype.UUID) (Pra
 		&i.PractitionerID,
 		&i.VersionID,
 		&i.Active,
+		&i.SpecialtyCode,
 	)
 	return i, err
 }
 
 const practitionerRolesByOrganization = `-- name: PractitionerRolesByOrganization :many
-SELECT id, updated_at, organization_id, practitioner_id, version_id, active
+SELECT id, updated_at, organization_id, practitioner_id, version_id, active, specialty_code
 FROM practitioner_role
 WHERE organization_id = $1
 ORDER BY created_at, id
@@ -88,6 +92,7 @@ type PractitionerRolesByOrganizationRow struct {
 	PractitionerID pgtype.UUID
 	VersionID      int32
 	Active         bool
+	SpecialtyCode  pgtype.Text
 }
 
 // PractitionerRole?organization=…, oldest first so a search answers in a stable order.
@@ -107,6 +112,7 @@ func (q *Queries) PractitionerRolesByOrganization(ctx context.Context, organizat
 			&i.PractitionerID,
 			&i.VersionID,
 			&i.Active,
+			&i.SpecialtyCode,
 		); err != nil {
 			return nil, err
 		}
@@ -116,4 +122,95 @@ func (q *Queries) PractitionerRolesByOrganization(ctx context.Context, organizat
 		return nil, err
 	}
 	return items, nil
+}
+
+const publicPractitionerRolesByOrganization = `-- name: PublicPractitionerRolesByOrganization :many
+SELECT id, updated_at, organization_id, practitioner_id, version_id, active, specialty_code
+FROM practitioner_role
+WHERE organization_id = $1 AND active
+ORDER BY created_at, id
+`
+
+type PublicPractitionerRolesByOrganizationRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	PractitionerID pgtype.UUID
+	VersionID      int32
+	Active         bool
+	SpecialtyCode  pgtype.Text
+}
+
+// The public directory: the active roles of a clinic, which row-level security shows only when it is listed.
+func (q *Queries) PublicPractitionerRolesByOrganization(ctx context.Context, organizationID pgtype.UUID) ([]PublicPractitionerRolesByOrganizationRow, error) {
+	rows, err := q.db.Query(ctx, publicPractitionerRolesByOrganization, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PublicPractitionerRolesByOrganizationRow
+	for rows.Next() {
+		var i PublicPractitionerRolesByOrganizationRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.PractitionerID,
+			&i.VersionID,
+			&i.Active,
+			&i.SpecialtyCode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setPractitionerRoleSpecialty = `-- name: SetPractitionerRoleSpecialty :one
+UPDATE practitioner_role
+SET specialty_code = $1, version_id = version_id + 1, updated_at = $2
+WHERE id = $3 AND version_id = $4
+RETURNING id, updated_at, organization_id, practitioner_id, version_id, active, specialty_code
+`
+
+type SetPractitionerRoleSpecialtyParams struct {
+	SpecialtyCode pgtype.Text
+	UpdatedAt     pgtype.Timestamptz
+	ID            pgtype.UUID
+	VersionID     int32
+}
+
+type SetPractitionerRoleSpecialtyRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	PractitionerID pgtype.UUID
+	VersionID      int32
+	Active         bool
+	SpecialtyCode  pgtype.Text
+}
+
+// Optimistic locking: only the current version changes.
+func (q *Queries) SetPractitionerRoleSpecialty(ctx context.Context, arg SetPractitionerRoleSpecialtyParams) (SetPractitionerRoleSpecialtyRow, error) {
+	row := q.db.QueryRow(ctx, setPractitionerRoleSpecialty,
+		arg.SpecialtyCode,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.VersionID,
+	)
+	var i SetPractitionerRoleSpecialtyRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.PractitionerID,
+		&i.VersionID,
+		&i.Active,
+		&i.SpecialtyCode,
+	)
+	return i, err
 }

@@ -25,6 +25,32 @@ func (r *postgresRepository) SetOrganization(ctx context.Context, id string) err
 	return postgres.SetLocal(ctx, "app.organization_id", id)
 }
 
+func (r *postgresRepository) SetDirectory(ctx context.Context) error {
+	return postgres.SetLocal(ctx, "app.directory", "public")
+}
+
+func (r *postgresRepository) PublicByIDs(ctx context.Context, ids []string) ([]Practitioner, error) {
+	uuids := make([]pgtype.UUID, 0, len(ids))
+	for _, id := range ids {
+		var u pgtype.UUID
+		if u.Scan(id) == nil {
+			uuids = append(uuids, u)
+		}
+	}
+	rows, err := practitionerdb.New(postgres.Conn(ctx, r.db)).PublicPractitionersByIDs(ctx, uuids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Practitioner, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, Practitioner{
+			ID: row.ID.String(), GivenName: row.GivenName, FamilyName: row.FamilyName, VersionID: row.VersionID,
+			Active: row.Active, LastUpdated: row.UpdatedAt.Time,
+		})
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ByID(ctx context.Context, id string) (Practitioner, error) {
 	var u pgtype.UUID
 	if u.Scan(id) != nil {

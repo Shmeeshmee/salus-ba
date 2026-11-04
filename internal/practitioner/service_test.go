@@ -32,11 +32,12 @@ func (fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context) e
 // fakeRepository holds practitioners by id and, unless leak is set, shows only those of the clinic set on
 // the transaction, as row-level security does.
 type fakeRepository struct {
-	err    error
-	byID   map[string]practitioner.Practitioner
-	clinic string
-	calls  []string // "outside:" prefixed when made outside a transaction
-	leak   bool     // ignore the clinic set: a database without the policy
+	err       error
+	byID      map[string]practitioner.Practitioner
+	clinic    string
+	calls     []string // "outside:" prefixed when made outside a transaction
+	leak      bool     // ignore the clinic set: a database without the policy
+	directory bool     // the public directory scope is set
 }
 
 func newFakeRepository() *fakeRepository {

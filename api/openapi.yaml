@@ -632,6 +632,75 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /practitioner-roles/{id}/specialty:
+    put:
+      operationId: setPractitionerRoleSpecialty
+      summary: Set a practitioner role's specialty
+      description: >-
+        The clinic's admin sets the specialty of a role of the clinic: one of the twelve SNOMED CT codes the
+        directory offers (FHIR R4 ValueSet c80-practice-codes). Patients see it when the clinic is listed.
+        Send If-Match with the version the role was read at (`PractitionerRole.meta.versionId`); the answer
+        carries the new version as its ETag. Audited, also when refused.
+      tags: [directory]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: If-Match
+          in: header
+          required: true
+          description: The role's version as a weak ETag, `W/"<versionId>"`.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SetSpecialtyRequest"}
+      responses:
+        "200":
+          description: The role with its specialty, at its new version.
+          headers:
+            ETag: {schema: {type: string}, description: 'The new version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RoleSpecialty"}
+        "400":
+          description: >-
+            `invalid_request`: no or an unreadable If-Match, or a body that is not the request;
+            `invalid_specialty`: a code that is not one of the directory's specialties.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a member of the clinic who is not its admin; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such role in the caller's clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_conflict`: the role changed since it was read; read it again."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   parameters:
     CSRF:
@@ -939,6 +1008,43 @@ components:
         consents:
           type: array
           items: {$ref: "#/components/schemas/Consent"}
+    SetSpecialtyRequest:
+      type: object
+      required: [code]
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          description: A SNOMED CT code, one of the directory's twelve specialties.
+          examples: ["394579002"]
+    Specialty:
+      type: object
+      required: [system, code, display, text]
+      description: A practitioner role's specialty, a coding from FHIR R4 ValueSet c80-practice-codes.
+      properties:
+        system:
+          type: string
+          const: http://snomed.info/sct
+        code:
+          type: string
+        display:
+          type: string
+          description: The concept's display in the value set.
+        text:
+          type: string
+          description: The name the apps show.
+    RoleSpecialty:
+      type: object
+      required: [id, versionId]
+      properties:
+        id:
+          type: string
+          format: uuid
+        specialty:
+          $ref: "#/components/schemas/Specialty"
+        versionId:
+          type: integer
+          format: int32
     Error:
       type: object
       required: [error]
@@ -970,6 +1076,7 @@ components:
             - consent_active
             - consent_inactive
             - profile_required
+            - invalid_specialty
             - internal error
             - timeout
     Status:

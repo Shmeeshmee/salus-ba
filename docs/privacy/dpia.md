@@ -340,3 +340,33 @@ before production.**
 | A patient changes another patient's consent, or a clinic changes any | The patient branch covers only `patient_id = app.patient_id`; the clinic branch is `SELECT` only; `salus_app` may update only `status`, `revoked_at`, `updated_at` and `version_id`, and has no `DELETE` or `TRUNCATE` (tested) |
 | A consent is granted, revoked or read unnoticed | Every grant, revocation, list and read writes an `AuditEvent` in its transaction (`PATRQT` for the patient, `TREAT` for staff), refusals included; a grant to an unknown clinic, which aborts its transaction, is audited in a transaction of its own; the profile read that finds the calling patient is audited by the patient service |
 | Consent details leak into logs or errors | Handlers log only through the fixed internal-error path; domain errors carry no value; a test runs the whole flow and checks the log holds no profile field or e-mail |
+
+### Package 4: directory additions
+
+**Processing added.** A clinic is listed in a public directory or not (`organization.listed`, off by
+default) and has a time zone (`organization.time_zone`, IANA, default `Europe/Sarajevo`); a practitioner role
+has a specialty (`practitioner_role.specialty_code`, one of twelve SNOMED CT codes from the R4
+`c80-practice-codes` value set), set by the clinic's admin (`PUT /practitioner-roles/{id}/specialty`). The
+services can now read, for anyone, the listed clinics, the active roles of a listed clinic with their
+specialty, and the names of those roles' practitioners. No endpoint serves the public reads yet (FHIR in
+package 7).
+
+**Purpose and lawful basis.** So patients can find a clinic and the right practitioner: the clinic's
+employment relationship with the practitioner and its legitimate interest in being found (Art. 6(1)(b), (f));
+the clinic decides when it is listed (SPEC.md section 3).
+
+**Necessity and minimisation.** The public reads return a clinic's name, time zone and listing, a role's
+clinic, practitioner and specialty, and a practitioner's name: nothing else (no clinic, contact details or
+qualifications for the practitioner; tested on the public queries' results). An unlisted clinic and inactive
+practitioners and roles are not shown.
+
+**Retention.** No new table: the specialty follows `practitioner_role` (`restrict`).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| An unlisted clinic or its practitioners are published | The directory scope (`app.directory = 'public'`) has `SELECT`-only policies that show only listed clinics and the active practitioners and roles of listed clinics; unset or any other value shows nothing (tested at the database and in each repository); the services check again what the rows carry (`listed` on a clinic, `active` on a practitioner or role) |
+| The public directory changes data | Its policies are `SELECT` only; an update in the directory scope changes no row (tested) |
+| A non-admin changes a specialty or the listing | Whether the caller is the clinic's admin is read from `account` on each request; a practitioner gets 403, anyone outside the clinic 404, and the refusal is audited; `salus_app` may update only `listed` and `time_zone` (with the name) on `organization` and `specialty_code`, `updated_at` and `version_id` on `practitioner_role` (tested) |
+| Public reads go unrecorded | Deliberate: they hold only what a clinic chose to publish, and auditing anonymous traffic would turn each request into a write (SPEC.md "Public browse"). Staff reads and every change stay audited |

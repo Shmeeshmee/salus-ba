@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
@@ -24,9 +25,9 @@ type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
-// Service holds the clinic rules: only staff of a clinic see it, only its admin changes it, only the operator
-// command creates one. Reads are not audited (a clinic's name is not personal data); every write is, also
-// when it is refused.
+// Service holds the clinic rules: only staff of a clinic see it, only its admin changes it (its name, whether
+// it is listed, its time zone), only the operator command creates one, and anyone may list the listed clinics.
+// Reads are not audited (nothing in a clinic is personal data); every write is, also when it is refused.
 type Service struct {
 	repo  Repository
 	audit Auditor
@@ -86,13 +87,39 @@ func (s *Service) Create(ctx context.Context, name string) (Organization, error)
 	return o, nil
 }
 
-// Update renames the clinic id, at the version the caller last read, and returns it at its new version.
-// Only the clinic's admin may: a member who is not gets ErrForbidden, anyone else ErrNotFound. A version that
-// is not the current one gives ErrConflict.
-func (s *Service) Update(ctx context.Context, c Caller, id, name string, version int32) (Organization, error) {
-	name = strings.TrimSpace(name)
-	if name == "" || utf8.RuneCountInString(name) > maxName {
+// ListListed returns the listed clinics, by name: the public directory, for anyone, signed in or not. Not
+// audited: it holds only what the clinics chose to publish (docs/booking/SPEC.md "Public browse").
+func (s *Service) ListListed(ctx context.Context) ([]Organization, error) {
+	var out []Organization
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetDirectory(ctx); err != nil {
+			return err
+		}
+		all, err := s.repo.Listed(ctx)
+		for _, o := range all {
+			if o.Listed { // not on row-level security alone
+				out = append(out, o)
+			}
+		}
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("organization: list listed: %w", err)
+	}
+	return out, nil
+}
+
+// Update changes the clinic id as ch says, at the version the caller last read, and returns it at its new
+// version. Only the clinic's admin may: a member who is not gets ErrForbidden, anyone else ErrNotFound. A
+// blank or overlong name gives ErrInvalidName and a time zone that is not an IANA name ErrInvalidTimeZone,
+// before anything is accessed; a version that is not the current one ErrConflict.
+func (s *Service) Update(ctx context.Context, c Caller, id string, ch Changes, version int32) (Organization, error) {
+	ch.Name = strings.TrimSpace(ch.Name)
+	if ch.Name == "" || utf8.RuneCountInString(ch.Name) > maxName {
 		return Organization{}, ErrInvalidName
+	}
+	if ch.TimeZone != nil && !validTimeZone(*ch.TimeZone) {
+		return Organization{}, ErrInvalidTimeZone
 	}
 	if refused := refusal(c, id); refused != nil {
 		// Nothing was accessed: the event names no entity.
@@ -108,7 +135,7 @@ func (s *Service) Update(ctx context.Context, c Caller, id, name string, version
 			return err
 		}
 		var err error
-		o, failed, err = s.rename(ctx, id, name, version)
+		o, failed, err = s.update(ctx, id, ch, version)
 		if err != nil {
 			return err
 		}
@@ -130,9 +157,9 @@ func (s *Service) Update(ctx context.Context, c Caller, id, name string, version
 	return o, nil
 }
 
-// rename reads the clinic and renames it when version is current. A missing clinic or a stale version is
+// update reads the clinic and changes it when version is current. A missing clinic or a stale version is
 // returned as failed, with the clinic read when there is one; err is any other error.
-func (s *Service) rename(ctx context.Context, id, name string, version int32) (o Organization, failed, err error) {
+func (s *Service) update(ctx context.Context, id string, ch Changes, version int32) (o Organization, failed, err error) {
 	cur, err := s.repo.ByID(ctx, id)
 	if errors.Is(err, ErrNotFound) {
 		return Organization{}, ErrNotFound, nil
@@ -143,11 +170,29 @@ func (s *Service) rename(ctx context.Context, id, name string, version int32) (o
 	if cur.VersionID != version {
 		return cur, ErrConflict, nil
 	}
-	o, err = s.repo.Rename(ctx, id, name, version, s.clock.Now())
+	next := cur
+	next.Name = ch.Name
+	if ch.Listed != nil {
+		next.Listed = *ch.Listed
+	}
+	if ch.TimeZone != nil {
+		next.TimeZone = *ch.TimeZone
+	}
+	o, err = s.repo.Update(ctx, next, s.clock.Now())
 	if errors.Is(err, ErrConflict) { // changed since the read
 		return cur, ErrConflict, nil
 	}
 	return o, nil, err
+}
+
+// validTimeZone reports whether zone is an IANA time zone name (time.LoadLocation; the binaries embed the
+// zone data with time/tzdata). "" and "Local" load too, but name no zone.
+func validTimeZone(zone string) bool {
+	if zone == "" || zone == "Local" {
+		return false
+	}
+	_, err := time.LoadLocation(zone)
+	return err == nil
 }
 
 // refusal is why c may not change the clinic id, or nil when c is its admin.

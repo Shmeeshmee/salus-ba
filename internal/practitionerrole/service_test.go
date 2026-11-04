@@ -9,6 +9,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
 const (
@@ -32,11 +33,13 @@ func (fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context) e
 // fakeRepository holds roles in order and, unless leak is set, shows only those of the clinic set on the
 // transaction, as row-level security does.
 type fakeRepository struct {
-	err    error
-	roles  []practitionerrole.PractitionerRole
-	clinic string
-	calls  []string // "outside:" prefixed when made outside a transaction
-	leak   bool     // ignore the clinic set: a database without the policy
+	err       error
+	setErr    error // returned by SetSpecialty when set
+	roles     []practitionerrole.PractitionerRole
+	clinic    string
+	calls     []string // "outside:" prefixed when made outside a transaction
+	leak      bool     // ignore the clinic set: a database without the policy
+	directory bool     // the public directory scope is set
 }
 
 func role(id, org, practitioner string) practitionerrole.PractitionerRole {
@@ -109,7 +112,7 @@ func (a *fakeAuditor) Record(_ context.Context, e auditevent.AuditEvent) error {
 }
 
 func newService(repo *fakeRepository, audit *fakeAuditor) *practitionerrole.Service {
-	return practitionerrole.NewService(repo, audit, fakeTransactor{})
+	return practitionerrole.NewService(repo, audit, fakeTransactor{}, clock.Fixed{T: now})
 }
 
 var (
@@ -154,8 +157,8 @@ func TestRead_GivesStaffARoleOfTheirClinicAndAuditsIt(t *testing.T) {
 func TestRead_HidesAndAuditsARoleOutsideTheCallersClinic(t *testing.T) {
 	tests := []struct {
 		name   string
-		caller practitionerrole.Caller
 		id     string
+		caller practitionerrole.Caller
 		calls  int
 		leak   bool
 	}{

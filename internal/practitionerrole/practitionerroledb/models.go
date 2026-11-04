@@ -124,6 +124,8 @@ type Organization struct {
 	VersionID int32
 	Active    bool
 	Name      string
+	Listed    bool
+	TimeZone  string
 }
 
 type Patient struct {
@@ -157,6 +159,7 @@ type PractitionerRole struct {
 	PractitionerID pgtype.UUID
 	VersionID      int32
 	Active         bool
+	SpecialtyCode  pgtype.Text
 }
 
 type RiverJob struct {

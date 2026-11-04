@@ -13,4 +13,6 @@ var (
 	ErrConflict = errors.New("organization: version conflict")
 	// ErrInvalidName is returned for a name that is blank or longer than 200 characters.
 	ErrInvalidName = errors.New("organization: invalid name")
+	// ErrInvalidTimeZone is returned for a time zone that is not an IANA zone name.
+	ErrInvalidTimeZone = errors.New("organization: invalid time zone")
 )

@@ -49,9 +49,9 @@ func TestByID_SeesOnlyTheClinicSet(t *testing.T) {
 		got, err = repo.ByID(ctx, clinicA)
 		return err
 	})
-	want := organization.Organization{ID: clinicA, Name: "Synthetic clinic A", VersionID: 1, Active: true,
+	want := organization.Organization{ID: clinicA, Name: "Synthetic clinic A", TimeZone: "Europe/Sarajevo", VersionID: 1, Active: true,
 		LastUpdated: time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)}
-	if err != nil || got.ID != want.ID || got.Name != want.Name || got.VersionID != 1 || !got.Active || !got.LastUpdated.Equal(want.LastUpdated) {
+	if got.LastUpdated = got.LastUpdated.UTC(); err != nil || got != want {
 		t.Errorf("ByID(clinic A) in clinic A = %+v, %v;\nwant %+v", got, err, want)
 	}
 	for _, id := range []string{clinicB, "not-a-uuid"} {
@@ -68,7 +68,7 @@ func TestByID_SeesOnlyTheClinicSet(t *testing.T) {
 	}
 }
 
-func TestRename_MovesToTheNextVersionOrConflicts(t *testing.T) {
+func TestUpdate_MovesToTheNextVersionOrConflicts(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
 	seedClinics(t, owner)
@@ -78,11 +78,21 @@ func TestRename_MovesToTheNextVersionOrConflicts(t *testing.T) {
 	var got organization.Organization
 	err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
 		var err error
-		got, err = repo.Rename(ctx, clinicA, "Renamed clinic", 1, at)
+		got, err = repo.Update(ctx, organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", Listed: true, VersionID: 1}, at)
 		return err
 	})
-	if err != nil || got.Name != "Renamed clinic" || got.VersionID != 2 || !got.LastUpdated.Equal(at) {
-		t.Errorf("Rename() = %+v, %v; want the new name at version 2, updated at %v", got, err, at)
+	want := organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", Listed: true, Active: true, VersionID: 2, LastUpdated: at}
+	if got.LastUpdated = got.LastUpdated.UTC(); err != nil || got != want {
+		t.Errorf("Update() = %+v, %v;\nwant %+v", got, err, want)
+	}
+	var read organization.Organization
+	err = inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
+		var err error
+		read, err = repo.ByID(ctx, clinicA)
+		return err
+	})
+	if read.LastUpdated = read.LastUpdated.UTC(); err != nil || read != want {
+		t.Errorf("ByID() after Update = %+v, %v;\nwant %+v", read, err, want)
 	}
 	for name, tc := range map[string]struct {
 		id      string
@@ -93,11 +103,11 @@ func TestRename_MovesToTheNextVersionOrConflicts(t *testing.T) {
 		"an id not a UUID": {id: "not-a-uuid", version: 1},
 	} {
 		err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
-			_, err := repo.Rename(ctx, tc.id, "Again", tc.version, at)
+			_, err := repo.Update(ctx, organization.Organization{ID: tc.id, Name: "Again", TimeZone: "UTC", VersionID: tc.version}, at)
 			return err
 		})
 		if !errors.Is(err, organization.ErrConflict) {
-			t.Errorf("Rename() of %s: %v, want ErrConflict", name, err)
+			t.Errorf("Update() of %s: %v, want ErrConflict", name, err)
 		}
 	}
 	var name string
@@ -123,5 +133,54 @@ func TestCreate_StoresAnActiveClinicAtVersionOne(t *testing.T) {
 
 	if err != nil || got.ID == "" || got.Name != "Synthetic clinic C" || got.VersionID != 1 || !got.Active || got.LastUpdated.IsZero() {
 		t.Errorf("Create() = %+v, %v; want the new clinic at version 1", got, err)
+	}
+}
+
+func TestListed_ShowsOnlyListedClinicsInTheDirectoryScopeByName(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seedClinics(t, owner)
+	const clinicC = "c0000000-0000-4000-8000-00000000000c"
+	_, err := owner.Exec(t.Context(), `INSERT INTO organization (id, name, listed, time_zone, updated_at)
+		VALUES ($1, 'Another synthetic clinic', true, 'Europe/Vienna', '2026-11-01T08:00:00Z')`, clinicC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(t.Context(), "UPDATE organization SET listed = true WHERE id = $1", clinicB); err != nil {
+		t.Fatal(err)
+	}
+	repo := organization.NewPostgresRepository(app)
+	listed := func(directory bool) ([]organization.Organization, error) {
+		var out []organization.Organization
+		err := postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+			if directory {
+				if err := repo.SetDirectory(ctx); err != nil {
+					return err
+				}
+			}
+			var err error
+			out, err = repo.Listed(ctx)
+			return err
+		})
+		return out, err
+	}
+
+	got, err := listed(true)
+	at := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
+	want := []organization.Organization{
+		{ID: clinicC, Name: "Another synthetic clinic", TimeZone: "Europe/Vienna", VersionID: 1, Active: true, Listed: true, LastUpdated: at},
+		{ID: clinicB, Name: "Synthetic clinic B", TimeZone: "Europe/Sarajevo", VersionID: 1, Active: true, Listed: true, LastUpdated: at},
+	}
+	for i := range got {
+		got[i].LastUpdated = got[i].LastUpdated.UTC()
+	}
+	if err != nil || len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("Listed() = %+v, %v;\nwant %+v", got, err, want)
+	}
+	if got, err := listed(false); err != nil || len(got) != 0 {
+		t.Errorf("Listed() without the directory scope = %+v, %v; want none", got, err)
+	}
+	if err := repo.SetDirectory(t.Context()); !errors.Is(err, postgres.ErrNoTx) {
+		t.Errorf("SetDirectory() outside a transaction: %v, want postgres.ErrNoTx", err)
 	}
 }
