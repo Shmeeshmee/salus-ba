@@ -68,6 +68,21 @@ func (r *postgresRepository) Search(ctx context.Context, scheduleID string, from
 	return out, nil
 }
 
+func (r *postgresRepository) ByID(ctx context.Context, id string) (Slot, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Slot{}, ErrUnavailable
+	}
+	row, err := r.q(ctx).SlotByID(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Slot{}, ErrUnavailable
+	case err != nil:
+		return Slot{}, err
+	}
+	return toSlot(slotdb.HoldSlotRow(row)), nil
+}
+
 func (r *postgresRepository) Hold(ctx context.Context, id string, at time.Time) (Slot, error) {
 	var u pgtype.UUID
 	if u.Scan(id) != nil {

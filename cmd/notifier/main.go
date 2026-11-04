@@ -42,7 +42,7 @@ func run(ctx context.Context, logOut io.Writer) error {
 		return err
 	}
 	defer pool.Close()
-	client, err := worker.NewNotifier(pool, log, cfg.SMTPAddr, cfg.WebBaseURL)
+	client, err := worker.NewNotifier(pool, log, cfg.SMTPAddr, cfg.WebBaseURL, cfg.PatientAppURL)
 	if err != nil {
 		return err
 	}

@@ -7,7 +7,7 @@
 | 3 Consent and access | done | `booking(3)` |
 | 4 Directory additions | done | `booking(4)` |
 | 5 Schedule and slot | done | `booking(5)` |
-| 6 Appointment | to do | |
+| 6 Appointment | done | `booking(6)` |
 | 7 FHIR | to do | |
 | 8 Web | to do | |
 | 9 Mobile | to do | |
@@ -41,6 +41,12 @@
   `RETENTION_DATABASE_URL` for the worker only, and `RETENTION_DATABASE_PASSWORD` for `migrate` (or neither,
   when provisioned elsewhere).
 - Before 2036-11: removal of audit ranges (`SPEC.md` §6).
+- Owner (package 6): the notifier's e-mail jobs read in the clinic's scope narrowed to the one appointment the
+  job names (`app.appointment_id`), so a cancellation after a revocation still reaches the patient; confirm
+  this reading of SPEC §2 "Row-level security scopes" (readings, package 6).
+- Owner (package 6): after a revocation, staff see a past appointment at the name, times and status only and
+  cannot change it (403), so a practitioner cannot mark a past visit fulfilled or no-show once the patient has
+  revoked; confirm, or say whether the care record needs that change (readings, package 6).
 - Specialty codes (package 4): the R4 `c80-practice-codes` value set has no paediatrics concept; paediatrics
   is `394733009` "Medical specialty--OTHER--NOT LISTED" with the text "Paediatrics" until someone confirms a
   code (a concept from outside this value set would need the SPEC changed). ENT
@@ -521,3 +527,145 @@ the concurrent book-and-cancel test over `Hold`/`Release` (package 6); the web a
 **Dev stack.** Untouched: migration 00018 is not applied to the dev database (no stack check in this package;
 the running images do not use it); `make migrate` applies it. Tests and the benchmark ran in throwaway
 databases. The `node` dev server kept running.
+
+### 2026-11-04 — package 6: appointment
+
+**Built.**
+- `migrations/00019_appointment.sql`: `appointment` (SPEC §2 "Double booking", §4): patient, practitioner
+  role with its clinic (foreign key on both), slot (no foreign key: a freed slot may be deleted while the
+  cancelled appointment is kept), `period` (half-open, bounded), `status` (`booked`, `cancelled`, `fulfilled`,
+  `noshow`), `cancelled_at`, `cancellation_reason` (`pat` | `prov`) and `cancelled_by_account_id`, consistent
+  by a check; `EXCLUDE USING gist (practitioner_role_id WITH =, period WITH &&) WHERE (status <> 'cancelled')`.
+  RLS: `appointment_own` (patient scope, all commands); `appointment_clinic` (`SELECT`: clinic scope with both
+  patient settings unset, and an active consent or a start before the latest `revoked_at`);
+  `appointment_clinic_update` (`UPDATE`: the same with an active consent only); `appointment_notice` (`SELECT`:
+  the clinic scope with `app.appointment_id`, the one appointment). `patient` gains `patient_past_appointment`
+  and `patient_notice` (`SELECT`). Grants: `SELECT, INSERT` and `UPDATE` of the status and cancellation columns,
+  `updated_at`, `version_id`; no `DELETE`. Retention `keep`; `ownership.yaml`, `config.yaml`
+  (`scheduling: [appointment, schedule, slot]`), `sqlc.yaml`.
+- `internal/appointment` (context `scheduling`): `Book`, `Cancel`, `SetStatus`, `Read`, `Search`,
+  `CancelForRevokedConsent`, `Notice` (the e-mail jobs' read), `Facts.Visits` (the patient domain's
+  appointment facts); ports `Consents`, `Slots`, `Patients`, `Clinics`, `Roles`, `Jobs`; access through
+  `access`; every call audited, refusals included, with a `Patient` read event whenever the name is given.
+  JSON `POST /appointments`, `/appointments/{id}/cancel`, `/appointments/{id}/status` (`handler_http.go`);
+  River jobs `appointment_booked_email`, `appointment_cancelled_email`, `appointment_reminder_email` (queue
+  `email`, the appointment and clinic ids; the reminder `ScheduledAt` start − 24 h).
+- `internal/slot`: `Bookable(id)` (directory scope: the free slot with its schedule's role), `ByID` and the
+  `SlotByID` query; the `Schedules` port gains `Read`. `internal/patient`: `Lookup(id)` (the caller's
+  transaction and scope, unaudited; the appointment service audits).
+- `internal/consent`: `Revoke` enqueues `consent_revoked` (`RevokedArgs`: patient id, clinic id) with
+  `InsertTx` in its transaction through the new `Jobs` port (`repository_river.go`). `consent` imports nothing
+  of appointments.
+- `internal/auth`: `AccountEmail(agent, id)`, audited with the job as agent.
+- `internal/notification`: `Ports`; `SendAppointmentBooked`, `SendAppointmentCancelled`,
+  `SendAppointmentReminder` (`service_appointment.go`), golden texts in `testdata/`.
+- `internal/worker`: the `consent_revoked` worker (default queue, `revocation.go`, logs the count only); the
+  three e-mail workers on the notifier (an unknown appointment cancels the job); the scheduler registers all
+  four new kinds. `NewNotifier` takes `PATIENT_APP_URL`.
+- `internal/config`: `PatientAppURL` (`PATIENT_APP_URL`); compose sets it on the notifier to the placeholder
+  `https://patient.salus.invalid`; `configs/.env.example`. `cmd/notifier` passes it.
+- `internal/api`: the appointment service and handler, `appointmentCaller`; `patient`'s facts are
+  `appointment.NewFacts` (the `noAppointments` placeholder is gone); the consent service gets its jobs.
+- `api/openapi.yaml`: the three paths, `BookAppointmentRequest`, `SetAppointmentStatusRequest`, `Appointment`,
+  codes `consent_required`, `slot_unavailable`, `cancellation_window_closed`, `appointment_closed`,
+  `appointment_not_started`, `invalid_status`; `make gen-clients`.
+- `deployments/docker-compose.yml`: Postgres `max_connections` 200 → 400 (below). `docs/privacy/dpia.md`:
+  appointments; `docs/privacy/processors.md`: appointment e-mails, no new processor.
+
+**Red first.** migrations: `relation "appointment" does not exist` (42P01, seven tests). retention: `no rule
+for appointment`. appointment: `undefined: slot.Bookable` (then `appointment.Service`, `NewPostgresRepository`,
+`NewRiverJobs`, `NewHTTPHandler`, each before its code). slot: `Bookable undefined`, then `SlotByID undefined`
+before `make sqlc`. patient: `Lookup undefined`. consent: `not enough arguments in call to
+consent.NewService` (the jobs port), `undefined: consent.NewRiverJobs`. auth: `AccountEmail undefined`.
+notification: `undefined: notification.Ports`. config: `cfg.PatientAppURL undefined`. worker: the build
+failed on `notification.NewService` (the scheduler's kind test was not run red on its own). api: `POST
+/appointments` = `404 page not found` before the wiring (both app tests). The appointment service tests passed
+on their first run after the code; their red was the compile failure. The concurrent book-and-cancel test was
+checked against a mutation (cancellation without the slot's release): it failed at round 1 with "6 slots
+disagree"; the mutation was reverted.
+
+**Checks.** `make lint` 0 issues, migrations unchanged; `make test` passes; `make archcheck` ok; `make cover`
+passes, every package at 80% or more (appointment 92.3%, api 90.3%, notification 90.5%, worker 97.7%, consent
+96.4%, slot 93.1%, patient 98.0%, auth 95.7%, config 100%, retention 100%; total 94.7%); `make sqlc` and
+`make gen-clients` leave no diff (hashes compared); `make web-typecheck` and `make mobile-analyze` clean. The
+concurrency tests repeated: the repository's 30 times, the api's 5 times, all green. Stack (dev stack, API on
+18080, Mailpit on 18025): a synthetic patient registered, got 409 `profile_required`, saved a profile, got 409
+`consent_required`, consented, booked (201; a second booking of the slot 409 `slot_unavailable`), and
+"Your appointment is booked" arrived in Mailpit with the clinic, "Saturday 7 November 2026, 20:00
+(Europe/Sarajevo)" and `https://patient.salus.invalid/appointments`; the patient cancelled (200, `pat`), the
+slot was free again and "Your appointment is cancelled" arrived. River held the two ids only; the audit held
+the create and update by the account and, per e-mail, the job's reads of the appointment, the patient and the
+account; the api and notifier logs held no profile field or address.
+
+**Postgres connections.** The first uncached `make cover` with this package failed with 53300 (too many
+clients) in seven tests: the suite needs more than the 200 connections set in accounts package 5. Measured
+with a 30 ms sampler of `pg_stat_activity` inside the Postgres container: 205 at the moment of failure with
+the limit at 200; with the limit at 400, peaks of 229 and 222 over two uncached runs, both green. Compose (and
+so CI) now sets 400.
+
+**Readings and decisions.**
+- **The notifier's scope.** SPEC §2 puts the notifier's jobs in the clinic scope, and "Past and future after
+  revocation" hides a future appointment from that scope once the consent is revoked; the revocation job's
+  cancellation e-mails would then find nothing to send, though the e-mail and the e2e journey require them. The
+  e-mail jobs therefore set `app.appointment_id` beside the clinic, and two `SELECT` policies show that one
+  appointment of the clinic and its patient's row (for the account to write to), whatever the consent. Staff
+  transactions never set it, both policies need the patient settings unset, and the clinic still sees nothing
+  else (tested). Read as the clinic scope narrowed to the job's appointment, not a new scope; listed under
+  "Waiting on people" for confirmation.
+- **Changes need full access.** A cancellation or status change needs `access` at `Full`: after a revocation a
+  past appointment is at `Name`, so staff get 403 (row-level security agrees: a clinic updates only with an
+  active consent). Listed under "Waiting on people".
+- **Booking order.** The slot is resolved in the directory in a transaction of its own (`slot.Bookable`), so
+  the directory setting never mixes into the patient's transaction; then, in the patient's scope with the
+  slot's clinic: the clinic is read and checked listed (not on the directory's row-level security alone), the
+  consent's state, the hold (free to busy), the insert, the e-mails, the audit. A slot taken in between is
+  refused at the hold (409). A refusal is audited in a transaction of its own after the booking's (the
+  exclusion violation aborts the booking's).
+- **The exclusion constraint deadlocks.** Two concurrent inserts that overlap on an exclusion constraint can
+  each wait for the other; Postgres aborts one with 40P01 and the other commits (seen once, in round 3 of 10, under
+  the full suite). The repository maps 40P01 on the insert, like 23P01, to `slot_unavailable`. Overlapping slots
+  of one role cannot exist (one schedule per role, slots never overlap within one), so the plan's "overlapping
+  slots of one role" test runs at the repository, on the constraint itself; the HTTP test books one slot twice
+  at once.
+- **Concurrent book and cancel.** On the composed services as `salus_app`: two patients, six slots, 25 rounds,
+  each round cancelling the holder of every slot while booking it again at once. After each round no slot is
+  busy without a booked appointment or free with one, none is held twice, and the exclusion constraint never
+  refused a booking (counted through a wrapping repository): the hold refused every taken slot first.
+- **Revocation job.** It cancels the patient's booked appointments in the clinic that start at or after the
+  latest `revoked_at` and were created at or before it, so an appointment booked after consenting again stays;
+  reason `pat`, no canceller account, audited with `consent_revoked` as agent (`HOPERAT`); slots freed while
+  ahead; one cancellation e-mail each; one transaction; a retry cancels nothing. `created_at` is set from the
+  service's clock for this comparison.
+- **Times.** The patient may cancel while the start is 24 h or more ahead (24 h + 1 s yes, 24 h − 1 s no, as
+  tested); a status may be set from the start on. The reminder is enqueued only when start − 24 h is after now.
+- **Who the practitioner is.** As in package 5: the account's practitioner, compared with the appointment's
+  role's practitioner through `practitionerrole.Service.Read` (audited as a role read). A practitioner's search
+  must name their own role; package 7 maps FHIR `practitioner` to it.
+- **No cycle.** The patient service needs the appointment facts and the appointment service reads profiles
+  through the patient service: the facts are `appointment.NewFacts(repository)`, built before both.
+- **What the JSON answer holds.** The appointment without its patient and its canceller; reads with the name go
+  through FHIR (package 7) on `Read` and `Search`, which give the name only where `access.Profile` allows and
+  audit it as a `Patient` read. At `Name` level the appointment is reduced to its times, status and
+  participants.
+- **E-mails.** Plain text, golden files. The job reads the appointment first (audited) and sends nothing when
+  it is no longer in the status the e-mail is about (a reminder or confirmation of a cancelled one, a
+  cancellation of a booked one); an unknown appointment cancels the job. The recipient comes from
+  `auth.AccountEmail`, audited with the job as agent. The time is "Monday 2 January 2006, 15:04" in the clinic's
+  zone with the zone's name.
+- **Search cost.** A staff search gathers each distinct patient's consent state and visits (two queries per
+  patient). Not measured; the calendar of package 8 will show whether it needs batching.
+
+**Deferred.** FHIR `Appointment` read and search, the `Patient` and `Consent` reads, the mapping of FHIR
+`practitioner` to the role (package 7); the web calendar and status buttons (package 8); mobile booking and
+cancelling (package 9); the e2e journeys (package 10).
+
+**Dev stack.** Migrations 00015 to 00019 applied to the dev database. The Postgres container was recreated
+with `max_connections=400` (its volume kept); api, worker, scheduler, notifier and agent rebuilt and
+restarted; `node`, `landing`, `livekit`, `mailpit` and `redis` untouched, and the owner's "Demo clinic Bihać"
+untouched. Left from the stack check, all synthetic: the unlisted clinic "Stack check clinic (booking package
+6)" with a placeholder practitioner, role, schedule and one free slot; the patient account
+`stack6.patient@example.test` with a profile, an active consent and one cancelled appointment; their audit
+events; two messages in Mailpit; the reminder job, scheduled for 2026-11-06 19:00 UTC, which will complete
+without sending (the appointment is cancelled). Two empty flag files of the connection sampler
+(`/tmp/stop-sampler-6-1`, `-2`) sit in the Postgres container's `/tmp` until it is next recreated.
+

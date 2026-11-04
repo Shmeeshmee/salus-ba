@@ -811,6 +811,176 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /appointments:
+    post:
+      operationId: bookAppointment
+      summary: Book a free slot
+      description: >-
+        The signed-in patient books a free slot of a listed clinic (FHIR Appointment, docs/booking/SPEC.md
+        "Booking rules"): booked at once, the slot held in the same transaction. Needs a profile and an active
+        consent with the clinic. A confirmation is e-mailed, and a reminder 24 hours before the start when that
+        is ahead. Patients only. Not cached. Audited, also when refused.
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/BookAppointmentRequest"}
+      responses:
+        "201":
+          description: The booked appointment.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Appointment"}
+        "400":
+          description: "`invalid_request`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: >-
+            `profile_required`: the patient has no profile yet; `consent_required`: no active consent with the
+            slot's clinic (consent, then book again); `slot_unavailable`: the slot is not free, has started, or
+            its clinic is not listed.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /appointments/{id}/cancel:
+    post:
+      operationId: cancelAppointment
+      summary: Cancel an appointment
+      description: >-
+        Cancels a booked appointment: the patient their own up to 24 hours before the start (reason `pat`), the
+        appointment's practitioner and the clinic's admin at any time (reason `prov`). The slot is freed while
+        its start is ahead, and the patient is e-mailed. Not cached. Audited, also when refused.
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The cancelled appointment.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Appointment"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: >-
+            `forbidden`: the clinic sees the appointment at the name, times and status only (a past one after a
+            revocation); or `csrf`.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such appointment the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: >-
+            `cancellation_window_closed`: a patient, less than 24 hours before the start; `appointment_closed`:
+            the appointment is no longer booked.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /appointments/{id}/status:
+    post:
+      operationId: setAppointmentStatus
+      summary: Mark an appointment fulfilled or no-show
+      description: >-
+        The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once. Not
+        cached. Audited, also when refused.
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SetAppointmentStatusRequest"}
+      responses:
+        "200":
+          description: The appointment in its new status.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Appointment"}
+        "400":
+          description: "`invalid_request`; `invalid_status`: a status other than fulfilled and noshow."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: >-
+            `forbidden`: a patient or an admin; the clinic sees the appointment at the name, times and status
+            only; or `csrf`.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such appointment of the practitioner."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: >-
+            `appointment_not_started`: the start has not passed; `appointment_closed`: the appointment is no
+            longer booked.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   parameters:
     CSRF:
@@ -1212,6 +1382,64 @@ components:
         versionId:
           type: integer
           format: int32
+    BookAppointmentRequest:
+      type: object
+      required: [slotId]
+      additionalProperties: false
+      properties:
+        slotId:
+          type: string
+          format: uuid
+          description: A free slot, as Slot?schedule=…&status=free gives it.
+    SetAppointmentStatusRequest:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [fulfilled, noshow]
+    Appointment:
+      type: object
+      required: [id, organizationId, practitionerRoleId, slotId, start, end, status, versionId]
+      description: >-
+        An appointment after a booking or a change (FHIR Appointment; reads go through FHIR). Health data: it
+        shows whom the patient consults. Neither the patient nor who cancelled is in it.
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        practitionerRoleId:
+          type: string
+          format: uuid
+        slotId:
+          type: string
+          format: uuid
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [booked, cancelled, fulfilled, noshow]
+        cancellationReason:
+          type: string
+          enum: [pat, prov]
+          description: >-
+            http://terminology.hl7.org/CodeSystem/appointment-cancellation-reason: `pat` the patient (also by
+            revoking consent), `prov` staff. Absent unless cancelled.
+        cancelledAt:
+          type: string
+          format: date-time
+          description: Absent unless cancelled.
+        versionId:
+          type: integer
+          format: int32
     Error:
       type: object
       required: [error]
@@ -1246,6 +1474,12 @@ components:
             - invalid_specialty
             - invalid_slot_minutes
             - invalid_availability
+            - consent_required
+            - slot_unavailable
+            - cancellation_window_closed
+            - appointment_closed
+            - appointment_not_started
+            - invalid_status
             - internal error
             - timeout
     Status:

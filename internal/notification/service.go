@@ -18,17 +18,36 @@ type Clinics interface {
 	Read(ctx context.Context, c organization.Caller, id string) (organization.Organization, error)
 }
 
+// Ports are what the Service runs on, and the bases of its links.
+type Ports struct {
+	Invites      Invites
+	Appointments Appointments
+	Accounts     Accounts
+	Clinics      Clinics
+	Sender       Sender
+	// WebBaseURL is WEB_BASE_URL: invite links point at <WebBaseURL>/invite#<token>.
+	WebBaseURL string
+	// PatientAppURL is PATIENT_APP_URL: appointment e-mails link to <PatientAppURL>/appointments.
+	PatientAppURL string
+}
+
 // Service composes and sends the e-mails.
 type Service struct {
-	invites    Invites
-	clinics    Clinics
-	sender     Sender
-	webBaseURL string // WEB_BASE_URL: links point at <webBaseURL>/invite#<token>
+	invites       Invites
+	appointments  Appointments
+	accounts      Accounts
+	clinics       Clinics
+	sender        Sender
+	webBaseURL    string
+	patientAppURL string
 }
 
 // NewService returns a Service on its ports.
-func NewService(invites Invites, clinics Clinics, sender Sender, webBaseURL string) *Service {
-	return &Service{invites: invites, clinics: clinics, sender: sender, webBaseURL: strings.TrimRight(webBaseURL, "/")}
+func NewService(p Ports) *Service {
+	return &Service{
+		invites: p.Invites, appointments: p.Appointments, accounts: p.Accounts, clinics: p.Clinics, sender: p.Sender,
+		webBaseURL: strings.TrimRight(p.WebBaseURL, "/"), patientAppURL: strings.TrimRight(p.PatientAppURL, "/"),
+	}
 }
 
 // SendInvite sends the e-mail of the invite inviteID of the clinic org (the invite_email job): the clinic's

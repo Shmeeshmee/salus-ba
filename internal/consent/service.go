@@ -21,23 +21,32 @@ type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
+// Jobs enqueues background work in the transaction in ctx.
+type Jobs interface {
+	// EnqueueConsentRevoked enqueues consent_revoked with the two ids.
+	EnqueueConsentRevoked(ctx context.Context, patientID, organizationID string) error
+}
+
 // errNoProfile is a patient without a profile, mapped by each method to its own refusal.
 var errNoProfile = errors.New("consent: no profile")
 
 // Service holds the consent rules: a patient grants, revokes and lists their own consents; a consent is
 // read by its patient and by staff of its clinic; every call is audited, also when it is refused.
 // Revocation ends the clinic's access when its transaction commits, because row-level security and access
-// read the consent's state.
+// read the consent's state; the job it enqueues cancels what was booked ahead. The package knows nothing of
+// appointments.
 type Service struct {
 	repo  Repository
 	audit Auditor
 	tx    Transactor
 	clock clock.Clock
+	jobs  Jobs
 }
 
-// NewService returns a Service on its ports.
-func NewService(repo Repository, audit Auditor, tx Transactor, clk clock.Clock) *Service {
-	return &Service{repo: repo, audit: audit, tx: tx, clock: clk}
+// NewService returns a Service on its ports. jobs may be nil where Revoke is never called (the worker, which
+// asks State only).
+func NewService(repo Repository, audit Auditor, tx Transactor, clk clock.Clock, jobs Jobs) *Service {
+	return &Service{repo: repo, audit: audit, tx: tx, clock: clk, jobs: jobs}
 }
 
 // Grant gives the clinic organizationID the calling patient's consent and returns it. ErrActive when one is
@@ -80,9 +89,11 @@ func (s *Service) Grant(ctx context.Context, c Caller, organizationID string) (C
 	return out, nil
 }
 
-// Revoke ends the calling patient's active consent id and returns it: from its commit the clinic sees no
-// more of the patient than SPEC.md "Past and future after revocation" leaves it. ErrNotFound for a consent
-// that is not the caller's, ErrInactive for one revoked already, ErrForbidden to staff.
+// Revoke ends the calling patient's active consent id and returns it, and enqueues consent_revoked (the
+// patient and the clinic) in the same transaction: from its commit the clinic sees no more of the patient
+// than SPEC.md "Past and future after revocation" leaves it, and the job cancels the future appointments
+// there. ErrNotFound for a consent that is not the caller's, ErrInactive for one revoked already,
+// ErrForbidden to staff.
 func (s *Service) Revoke(ctx context.Context, c Caller, id string) (Consent, error) {
 	if !c.patient() {
 		return Consent{}, s.refuse(ctx, c, auditevent.CodeUpdate, ErrForbidden)
@@ -96,6 +107,9 @@ func (s *Service) Revoke(ctx context.Context, c Caller, id string) (Consent, err
 		}
 		if refused != nil {
 			return s.record(ctx, c, auditevent.CodeUpdate, "", auditevent.OutcomeMinorFailure)
+		}
+		if err := s.jobs.EnqueueConsentRevoked(ctx, out.PatientID, out.OrganizationID); err != nil {
+			return err
 		}
 		return s.record(ctx, c, auditevent.CodeUpdate, out.ID, auditevent.OutcomeSuccess)
 	})

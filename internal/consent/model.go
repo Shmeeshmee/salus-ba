@@ -37,3 +37,14 @@ type Caller struct {
 }
 
 func (c Caller) patient() bool { return c.OrganizationID == "" }
+
+// RevokedArgs is the consent_revoked job on the default queue: cancel the patient's future appointments with
+// the clinic after a revocation (the appointment domain does, docs/booking/SPEC.md "Revocation"). Opaque ids
+// only.
+type RevokedArgs struct {
+	PatientID      string `json:"patient_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (RevokedArgs) Kind() string { return "consent_revoked" }

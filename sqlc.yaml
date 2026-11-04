@@ -75,3 +75,11 @@ sql:
         package: slotdb
         out: internal/slot/slotdb
         sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/appointment/query.sql
+    gen:
+      go:
+        package: appointmentdb
+        out: internal/appointment/appointmentdb
+        sql_package: pgx/v5

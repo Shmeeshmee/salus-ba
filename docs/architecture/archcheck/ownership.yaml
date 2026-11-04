@@ -10,6 +10,7 @@
 # in internal/retention/rules.go (archcheck), and its personal fields a line in the feature's SPEC.md.
 tables:
   account: {owner: auth, personal_data: true}
+  appointment: {owner: appointment, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
   consent: {owner: consent, personal_data: true}
   invite: {owner: auth, personal_data: true}

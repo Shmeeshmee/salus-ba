@@ -72,6 +72,22 @@ type Account struct {
 	TotpSecret     []byte
 }
 
+type Appointment struct {
+	ID                   pgtype.UUID
+	CreatedAt            pgtype.Timestamptz
+	UpdatedAt            pgtype.Timestamptz
+	CancelledAt          pgtype.Timestamptz
+	PatientID            pgtype.UUID
+	PractitionerRoleID   pgtype.UUID
+	OrganizationID       pgtype.UUID
+	SlotID               pgtype.UUID
+	CancelledByAccountID pgtype.UUID
+	VersionID            int32
+	Status               string
+	CancellationReason   pgtype.Text
+	Period               pgtype.Range[pgtype.Timestamptz]
+}
+
 type AuditEvent struct {
 	ID              pgtype.UUID
 	Recorded        pgtype.Timestamptz

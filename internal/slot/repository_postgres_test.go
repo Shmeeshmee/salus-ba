@@ -279,3 +279,24 @@ func TestPurger_DeletesFreeSlotsOfEveryClinicThirtyDaysAfterTheyEnd(t *testing.T
 		t.Errorf("%d slots of A and %d of B left, want the busy and the recent one of A", a, b)
 	}
 }
+
+func TestBookable_GivesAFreeSlotOfAListedClinicWithItsRole(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	free := addSlot(t, owner, scheduleA1, clinicA, monday.Add(time.Hour), slot.StatusFree)
+	busy := addSlot(t, owner, scheduleA1, clinicA, monday.Add(2*time.Hour), slot.StatusBusy)
+	unlisted := addSlot(t, owner, scheduleB, clinicB, monday.Add(time.Hour), slot.StatusFree)
+	svc := newService(app, monday)
+
+	got, err := svc.Bookable(t.Context(), free)
+	if err != nil || got.ID != free || got.PractitionerRoleID != roleA1 || got.OrganizationID != clinicA || got.ScheduleID != scheduleA1 ||
+		!got.Start.Equal(monday.Add(time.Hour)) || !got.End.Equal(monday.Add(2*time.Hour)) || got.Status != slot.StatusFree {
+		t.Errorf("Bookable(free) = %+v, %v; want the slot with role A1", got, err)
+	}
+	for name, id := range map[string]string{"busy": busy, "of an unlisted clinic": unlisted, "not a UUID": "x", "unknown": scheduleA1} {
+		if _, err := svc.Bookable(t.Context(), id); !errors.Is(err, slot.ErrUnavailable) {
+			t.Errorf("Bookable(%s) = %v, want ErrUnavailable", name, err)
+		}
+	}
+}

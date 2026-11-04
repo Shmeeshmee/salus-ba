@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/api/router"
+	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/config"
@@ -24,6 +24,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/schedule"
+	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
@@ -77,11 +78,20 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{})
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx)
 	roles := practitionerrole.NewService(practitionerrole.NewPostgresRepository(pool), audit, tx, clock.System{})
-	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clock.System{})
-	patients := patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clock.System{}, consents, noAppointments{})
+	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clock.System{}, consent.NewRiverJobs(jobs))
+	appointmentRepo := appointment.NewPostgresRepository(pool)
+	// The patient's appointment facts come from the appointment repository alone, so the patient service can
+	// be built before the appointment service, which reads profiles through it.
+	patients := patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clock.System{}, consents, appointment.NewFacts(appointmentRepo))
 	schedules := schedule.NewService(schedule.Ports{
 		Repo: schedule.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
 		Roles: roles, Jobs: schedule.NewRiverJobs(jobs), // an edit enqueues its slot generation in its transaction
+	})
+	slots := slot.NewService(slot.NewPostgresRepository(pool), tx, clock.System{}, schedules, clinics)
+	appointments := appointment.NewService(appointment.Ports{
+		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clock.System{},
+		Consents: consents, Slots: slots, Patients: patients, Clinics: clinics, Roles: roles,
+		Jobs: appointment.NewRiverJobs(jobs), // a booking or cancellation enqueues its e-mails in its transaction
 	})
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Hasher: hasher, Audit: audit, Tx: tx, Clock: clock.System{},
@@ -107,6 +117,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 			patient.NewHandler(patients, patientCaller, log).Routes,
 			consent.NewHandler(consents, consentCaller(patients), log).Routes,
 			schedule.NewHTTPHandler(schedules, scheduleCaller(accounts), log).Routes,
+			appointment.NewHTTPHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 		},
 		Timeout: RequestTimeout,
 	})
@@ -209,12 +220,34 @@ func consentCaller(patients *patient.Service) func(ctx context.Context) (consent
 	}
 }
 
-// noAppointments gives no appointments: the patient's appointment facts for access come from the
-// appointment domain, with docs/booking package 6.
-type noAppointments struct{}
-
-func (noAppointments) Visits(context.Context, string, string) ([]access.Visit, error) {
-	return nil, nil
+// appointmentCaller is the appointment domain's view of the signed-in session: for staff, with whether the
+// account is the clinic's admin and which practitioner it is, as read from the database; for a patient, with
+// their profile's id, read (and audited) through the patient service, empty before the profile exists.
+func appointmentCaller(accounts *auth.Service, patients *patient.Service) func(ctx context.Context) (appointment.Caller, bool, error) {
+	return func(ctx context.Context) (appointment.Caller, bool, error) {
+		s, ok := auth.SessionFrom(ctx)
+		if !ok {
+			return appointment.Caller{}, false, nil
+		}
+		c := appointment.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}
+		if c.OrganizationID != "" {
+			m, err := accounts.ClinicMember(ctx, s)
+			if err != nil {
+				return appointment.Caller{}, false, err
+			}
+			c.PractitionerID, c.Admin = m.PractitionerID, m.Admin
+			return c, true, nil
+		}
+		p, err := patients.Me(ctx, patient.Caller{AccountID: s.AccountID})
+		switch {
+		case errors.Is(err, patient.ErrNotFound):
+			return c, true, nil
+		case err != nil:
+			return appointment.Caller{}, false, err
+		}
+		c.PatientID = p.ID
+		return c, true, nil
+	}
 }
 
 // Close releases the dependencies.

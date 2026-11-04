@@ -405,3 +405,54 @@ is granted `SELECT, DELETE` on `slot` in the same migration; a busy slot is kept
 | Booked times leak through the public directory | The directory policy on `slot` shows `free` slots only, of schedules its own policy shows (active roles of listed clinics); directory reads change nothing (tested) |
 | Generation removes a booking | Generation deletes only future free slots; a `RESTRICTIVE` policy lets `salus_app` delete free slots only, and an overlapping new slot is skipped (`ON CONFLICT DO NOTHING` on the exclusion constraint), so a busy slot and its appointment stay (tested) |
 | The retention role reaches more than slots | It gains `SELECT, DELETE` on `slot` only, which the grant test ties to the `delete` rules; it still cannot read `schedule` or touch `audit_event` (tested) |
+
+### Package 6: appointments
+
+**Processing added.** A patient books a free slot of a listed clinic (`appointment`: patient, practitioner
+role, clinic, slot, period, status, and on cancellation when, why as a code (`pat`, `prov`) and by which
+account). The patient cancels their own up to 24 hours before the start; the appointment's practitioner and
+the clinic's admin cancel at any time; the practitioner marks it fulfilled or no-show once it has started
+(`POST /appointments`, `/appointments/{id}/cancel`, `/appointments/{id}/status`). The notifier e-mails the
+patient a confirmation, a cancellation, and a reminder 24 hours before. Revoking a consent now enqueues
+`consent_revoked`, whose worker cancels the patient's future appointments with that clinic, frees their slots
+and e-mails each cancellation. Reads (`Read`, `Search`) are built in the service; their FHIR endpoints arrive
+in package 7.
+
+**Purpose and lawful basis.** The booking is the care relationship: Art. 9(2)(h) for the care record, with
+Art. 6(1)(b); booking itself requires the patient's active consent with the clinic (Art. 9(2)(a), SPEC.md
+section 3). E-mails about the appointment: the contract with the patient (Art. 6(1)(b)). **Needs legal
+confirmation before production.**
+
+**Necessity and minimisation.** The table holds the fields of SPEC.md section 4 and nothing else: no reason
+for the visit, no free text; the cancellation reason is who cancelled. The JSON answers carry neither the
+patient nor who cancelled. Staff see an appointment through `access`: with an active consent its practitioner
+and the clinic's admin see all of it; after a revocation they see a past appointment's times, status and the
+patient's name only, and nothing future. The patient's name is given with an appointment only at a level
+`access.Profile` allows, and that read is audited as a `Patient` read. Job arguments are the appointment and
+clinic ids (e-mails) or the patient and clinic ids (`consent_revoked`); logs hold counts and opaque ids only
+(tested). E-mails hold the clinic's name, the date and time in its zone with the zone's name, and the link
+`<PATIENT_APP_URL>/appointments` (golden texts, tested); never the practitioner, the specialty or anything
+clinical.
+
+**Access.** Row-level security on `appointment`: the patient's own scope; a clinic's scope with an active
+consent, or, after a revocation, for an appointment that started before the latest one; changes by a clinic
+only with an active consent; no booking in a clinic's scope. The `patient` table gains the clinic's
+past-appointment branch (the name is the service's to give). The notifier's e-mail jobs read in the clinic's
+scope narrowed to the one appointment the job names (`app.appointment_id`), and that appointment's patient
+row: a cancellation after a revocation must still reach the patient, though the clinic itself no longer sees
+it. Staff transactions never set that setting. All of it fails closed when no scope is set (tested).
+
+**Retention.** `appointment`: `keep` with the clinical record. **Needs a legal decision before production.**
+No `DELETE` grant to any role; the slot of a cancelled appointment may be deleted later as a free slot, so
+`slot_id` has no foreign key.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The clinic keeps seeing a patient after a revocation | Access ends when the revocation commits: row-level security and `access` read the consent's state, not the appointments' (tested before the job runs: no profile, no future appointment; the past one at the name only) |
+| Future appointments survive a revocation | `consent_revoked` is enqueued in the revocation's transaction (a rollback leaves no job, tested); its worker cancels them in one transaction with their slots and e-mails, and a retry changes nothing (tested) |
+| A double booking | The slot is held (free to busy) in the booking's transaction, and the database's exclusion constraint refuses overlapping appointments of one role; concurrent bookings give one booking (tested); book and cancel run concurrently for many rounds and the slots never disagree with their appointments (tested) |
+| A patient's appointments are seen by another patient or clinic | Row-level security per scope, checked again by the service, `access` per viewer; refusals are audited (tested) |
+| An e-mail says more than it should | Fixed texts with the clinic, time and link only (golden files); the recipient is read through `auth` with the job as agent, audited; SMTP errors keep the reply code only |
+| A reminder or confirmation of an appointment that changed | The job reads the appointment when it runs and sends nothing unless it is still in the status the e-mail is about (tested) |

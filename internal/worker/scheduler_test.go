@@ -10,7 +10,9 @@ import (
 
 	"github.com/riverqueue/river"
 
+	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auth"
+	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
@@ -105,7 +107,10 @@ func TestScheduler_KnowsEveryKindTheWorkerAndTheNotifierWork(t *testing.T) {
 		t.Fatalf("NewScheduler() error = %v", err)
 	}
 
-	for _, args := range []river.JobArgs{NoopArgs{}, RetentionApplyArgs{}, schedule.SlotsGenerateArgs{}, auth.InviteEmailArgs{}} {
+	for _, args := range []river.JobArgs{
+		NoopArgs{}, RetentionApplyArgs{}, schedule.SlotsGenerateArgs{}, consent.RevokedArgs{}, auth.InviteEmailArgs{},
+		appointment.BookedEmailArgs{}, appointment.CancelledEmailArgs{}, appointment.ReminderEmailArgs{},
+	} {
 		var unknown *river.UnknownJobKindError
 		if _, err := client.Insert(t.Context(), args, nil); errors.As(err, &unknown) || err != nil {
 			t.Errorf("Insert(%s) error = %v, want the kind known", args.Kind(), err)

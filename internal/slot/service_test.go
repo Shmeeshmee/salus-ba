@@ -85,6 +85,17 @@ func (r *fakeRepository) Search(ctx context.Context, scheduleID string, from, to
 	return []slot.Slot{{ID: slotA1, ScheduleID: scheduleID, Status: slot.StatusFree}}, r.err
 }
 
+func (r *fakeRepository) ByID(ctx context.Context, id string) (slot.Slot, error) {
+	r.seen(ctx, "ByID:"+id)
+	if r.err != nil {
+		return slot.Slot{}, r.err
+	}
+	if id != slotA1 {
+		return slot.Slot{}, slot.ErrUnavailable
+	}
+	return slot.Slot{ID: id, ScheduleID: scheduleA1, OrganizationID: clinicA, Status: slot.StatusFree, Period: slot.Period{Start: now, End: now.Add(time.Hour)}}, nil
+}
+
 func (r *fakeRepository) Hold(ctx context.Context, id string, at time.Time) (slot.Slot, error) {
 	r.seen(ctx, "Hold:"+id)
 	if r.holdErr != nil {
@@ -121,6 +132,16 @@ func (s *fakeSchedules) ForGeneration(ctx context.Context, org, id string) (sche
 	}
 	for _, sc := range s.schedules {
 		if sc.ID == id && sc.OrganizationID == org {
+			return sc, nil
+		}
+	}
+	return schedule.Schedule{}, schedule.ErrNotFound
+}
+
+func (s *fakeSchedules) Read(ctx context.Context, id string) (schedule.Schedule, error) {
+	s.seen(ctx, "Read:"+id)
+	for _, sc := range s.schedules {
+		if sc.ID == id && sc.ID != s.failing {
 			return sc, nil
 		}
 	}

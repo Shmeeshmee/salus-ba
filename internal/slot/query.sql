@@ -28,6 +28,13 @@ WHERE schedule_id = @schedule_id
   AND lower(period) < @to_at::timestamptz
 ORDER BY lower(period);
 
+-- name: SlotByID :one
+-- Booking: the slot to book, as the directory shows it (free, of an active role of a listed clinic).
+SELECT id, updated_at, schedule_id, organization_id, version_id, status, lower(period)::timestamptz AS start_at,
+       upper(period)::timestamptz AS end_at
+FROM slot
+WHERE id = @id;
+
 -- name: HoldSlot :one
 -- Booking: free to busy, in the appointment's transaction; no row when the slot is not free.
 UPDATE slot

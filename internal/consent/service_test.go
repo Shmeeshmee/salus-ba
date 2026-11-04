@@ -33,15 +33,35 @@ type txKey struct{}
 
 // fakeTransactor runs fn in a "transaction" and, when fn fails, drops the audit events recorded in it, as a
 // rollback does.
-type fakeTransactor struct{ audit *fakeAuditor }
+type fakeTransactor struct {
+	audit *fakeAuditor
+	jobs  *fakeJobs
+}
 
 func (f fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context) error) error {
-	before := len(f.audit.events)
+	before, jobs := len(f.audit.events), len(f.jobs.enqueued)
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
-		f.audit.events = f.audit.events[:before]
+		f.audit.events, f.jobs.enqueued = f.audit.events[:before], f.jobs.enqueued[:jobs]
 	}
 	return err
+}
+
+// fakeJobs records the consent_revoked jobs enqueued: "<patient id> <clinic id>".
+type fakeJobs struct {
+	err      error
+	enqueued []string
+}
+
+func (j *fakeJobs) EnqueueConsentRevoked(ctx context.Context, patientID, organizationID string) error {
+	if ctx.Value(txKey{}) == nil {
+		return errors.New("enqueued outside a transaction")
+	}
+	if j.err != nil {
+		return j.err
+	}
+	j.enqueued = append(j.enqueued, patientID+" "+organizationID)
+	return nil
 }
 
 // fakeRepository holds consents and shows only those of the patient or clinic set on the transaction, as
@@ -177,12 +197,13 @@ func (a *fakeAuditor) Record(_ context.Context, e auditevent.AuditEvent) error {
 type fixture struct {
 	repo  *fakeRepository
 	audit *fakeAuditor
+	jobs  *fakeJobs
 	svc   *consent.Service
 }
 
 func newFixture() fixture {
-	f := fixture{repo: newFakeRepository(), audit: &fakeAuditor{}}
-	f.svc = consent.NewService(f.repo, f.audit, fakeTransactor{audit: f.audit}, clock.Fixed{T: now})
+	f := fixture{repo: newFakeRepository(), audit: &fakeAuditor{}, jobs: &fakeJobs{}}
+	f.svc = consent.NewService(f.repo, f.audit, fakeTransactor{audit: f.audit, jobs: f.jobs}, clock.Fixed{T: now}, f.jobs)
 	return f
 }
 
@@ -275,6 +296,26 @@ func TestRevoke_EndsTheCallingPatientsActiveConsentAndAuditsIt(t *testing.T) {
 		t.Errorf("calls %v with patient %q, want %v inside the transaction with patient A", f.repo.calls, f.repo.patient, want)
 	}
 	checkEvents(t, "Revoke", f.audit, event(me, auditevent.CodeUpdate, consentAA, auditevent.OutcomeSuccess))
+	if want := []string{patientA + " " + clinicA}; !slices.Equal(f.jobs.enqueued, want) {
+		t.Errorf("enqueued %v, want consent_revoked for patient A and clinic A %v in the transaction", f.jobs.enqueued, want)
+	}
+}
+
+// The job is enqueued in the revocation's transaction: when the revocation fails, no job is left.
+func TestRevoke_EnqueuesNothingWhenTheRevocationFails(t *testing.T) {
+	f := newFixture()
+	f.audit.err = errors.New("connection reset")
+	if _, err := f.svc.Revoke(t.Context(), me, consentAA); err == nil {
+		t.Fatal("Revoke() error = nil with a failing audit")
+	}
+	if len(f.jobs.enqueued) != 0 {
+		t.Errorf("enqueued %v after the rollback, want nothing", f.jobs.enqueued)
+	}
+	g := newFixture()
+	g.jobs.err = errors.New("connection reset")
+	if _, err := g.svc.Revoke(t.Context(), me, consentAA); err == nil || len(g.audit.events) != 0 {
+		t.Errorf("Revoke() with a failing queue = %v with events %v, want the error and nothing audited", err, g.audit.events)
+	}
 }
 
 func TestRevoke_RefusesAndAuditsEveryCaseOfRefusal(t *testing.T) {
@@ -300,6 +341,9 @@ func TestRevoke_RefusesAndAuditsEveryCaseOfRefusal(t *testing.T) {
 			t.Errorf("%s: consent A-A became %+v", tt.name, f.repo.consents[0])
 		}
 		checkEvents(t, tt.name, f.audit, event(tt.caller, auditevent.CodeUpdate, "", auditevent.OutcomeMinorFailure))
+		if len(f.jobs.enqueued) != 0 {
+			t.Errorf("%s: enqueued %v, want nothing", tt.name, f.jobs.enqueued)
+		}
 	}
 }
 
@@ -307,7 +351,7 @@ func TestRevoke_LosingARaceIsInactive(t *testing.T) {
 	f := newFixture()
 	// Another revocation commits between the read and the update: ByID still saw it active.
 	repo := &racingRepository{fakeRepository: f.repo}
-	svc := consent.NewService(repo, f.audit, fakeTransactor{audit: f.audit}, clock.Fixed{T: now})
+	svc := consent.NewService(repo, f.audit, fakeTransactor{audit: f.audit, jobs: f.jobs}, clock.Fixed{T: now}, f.jobs)
 	if _, err := svc.Revoke(t.Context(), me, consentAA); !errors.Is(err, consent.ErrInactive) {
 		t.Errorf("Revoke() = %v, want ErrInactive", err)
 	}
@@ -398,7 +442,7 @@ func TestRead_HidesAConsentFromEveryoneElseAndAuditsIt(t *testing.T) {
 func TestRead_DoesNotRestOnRowLevelSecurityAlone(t *testing.T) {
 	f := newFixture()
 	leaky := &leakyRepository{fakeRepository: f.repo}
-	svc := consent.NewService(leaky, f.audit, fakeTransactor{audit: f.audit}, clock.Fixed{T: now})
+	svc := consent.NewService(leaky, f.audit, fakeTransactor{audit: f.audit, jobs: f.jobs}, clock.Fixed{T: now}, f.jobs)
 	for _, c := range []consent.Caller{other, staffB} {
 		if _, err := svc.Read(t.Context(), c, consentAA); !errors.Is(err, consent.ErrNotFound) {
 			t.Errorf("Read(%+v) through a repository that shows every row = %v, want ErrNotFound", c, err)

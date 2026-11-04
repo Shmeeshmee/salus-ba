@@ -19,6 +19,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
+	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -50,17 +51,22 @@ func New(pool, retentionPool *pgxpool.Pool, log *slog.Logger) (*river.Client[pgx
 	if err != nil {
 		return nil, err
 	}
+	inserter, err := NewInserter(pool) // the revocation enqueues its cancellation e-mails in its transaction
+	if err != nil {
+		return nil, err
+	}
 	workers := river.NewWorkers()
-	addDefaultWorkers(workers, rules, newSlots(pool, clock.System{}), log)
+	addDefaultWorkers(workers, rules, newSlots(pool, clock.System{}), newRevocations(pool, inserter, clock.System{}), log)
 	return river.NewClient(riverpgxv5.New(pool), workConfig(log, river.QueueDefault, workers))
 }
 
 // addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with nil
 // dependencies: it never works them, but as the leader its rescuer must know every kind.
-func addDefaultWorkers(workers *river.Workers, rules *retention.Service, slots *slot.Service, log *slog.Logger) {
+func addDefaultWorkers(workers *river.Workers, rules *retention.Service, slots *slot.Service, appointments *appointment.Service, log *slog.Logger) {
 	river.AddWorker(workers, &noopWorker{})
 	river.AddWorker(workers, &retentionWorker{rules: rules, log: log})
 	river.AddWorker(workers, &slotsWorker{slots: slots, log: log})
+	river.AddWorker(workers, &revocationWorker{appointments: appointments, log: log})
 }
 
 // workConfig is the configuration of a client that works queue with workers and never leads.

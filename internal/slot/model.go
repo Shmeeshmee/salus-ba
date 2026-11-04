@@ -32,6 +32,13 @@ type Slot struct {
 	VersionID      int32 // meta.versionId
 }
 
+// Bookable is a free slot of the directory with the practitioner role of its schedule, which a booking is
+// made with.
+type Bookable struct {
+	PractitionerRoleID string
+	Slot
+}
+
 // Generated is what a generation did: the schedules it went through and the slots it added and removed.
 type Generated struct {
 	Schedules int

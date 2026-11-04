@@ -143,6 +143,12 @@ enum ErrorErrorEnum {
   invalidSpecialty._(r'invalid_specialty'),
   invalidSlotMinutes._(r'invalid_slot_minutes'),
   invalidAvailability._(r'invalid_availability'),
+  consentRequired._(r'consent_required'),
+  slotUnavailable._(r'slot_unavailable'),
+  cancellationWindowClosed._(r'cancellation_window_closed'),
+  appointmentClosed._(r'appointment_closed'),
+  appointmentNotStarted._(r'appointment_not_started'),
+  invalidStatus._(r'invalid_status'),
   internalError._(r'internal error'),
   timeout._(r'timeout'),
   ;
@@ -260,6 +266,18 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.invalidSlotMinutes;
         case r'invalid_availability':
           return ErrorErrorEnum.invalidAvailability;
+        case r'consent_required':
+          return ErrorErrorEnum.consentRequired;
+        case r'slot_unavailable':
+          return ErrorErrorEnum.slotUnavailable;
+        case r'cancellation_window_closed':
+          return ErrorErrorEnum.cancellationWindowClosed;
+        case r'appointment_closed':
+          return ErrorErrorEnum.appointmentClosed;
+        case r'appointment_not_started':
+          return ErrorErrorEnum.appointmentNotStarted;
+        case r'invalid_status':
+          return ErrorErrorEnum.invalidStatus;
         case r'internal error':
           return ErrorErrorEnum.internalError;
         case r'timeout':

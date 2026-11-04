@@ -118,6 +118,18 @@ func TestRules_KeepConsentsWithTheClinicalRecord(t *testing.T) {
 	t.Fatal("no rule for consent")
 }
 
+func TestRules_KeepAppointmentsWithTheClinicalRecord(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "appointment" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("appointment then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for appointment")
+}
+
 func TestRules_RestrictSchedulesAndDeleteFreeSlotsThirtyDaysAfterTheyEnd(t *testing.T) {
 	want := map[string]retention.Rule{
 		"schedule": {Table: "schedule", Then: retention.ThenRestrict},

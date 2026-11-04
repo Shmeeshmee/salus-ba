@@ -51,15 +51,15 @@ import 'package:salus_api/api.dart';
 // String yourTokenGeneratorFunction() { ... }
 //defaultApiClient.getAuthentication<HttpBearerAuth>('bearerAuth').setAccessToken(yourTokenGeneratorFunction);
 
-final api_instance = AuthApi();
-final confirmRequest = ConfirmRequest(); // ConfirmRequest | 
+final api_instance = AppointmentsApi();
+final bookAppointmentRequest = BookAppointmentRequest(); // BookAppointmentRequest | 
 final xSalusCSRF = xSalusCSRF_example; // String | Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
 
 try {
-    final result = api_instance.confirmMfa(confirmRequest, xSalusCSRF);
+    final result = api_instance.bookAppointment(bookAppointmentRequest, xSalusCSRF);
     print(result);
 } catch (e) {
-    print('Exception when calling AuthApi->confirmMfa: $e\n');
+    print('Exception when calling AppointmentsApi->bookAppointment: $e\n');
 }
 
 ```
@@ -70,6 +70,9 @@ All URIs are relative to *http://localhost*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
+*AppointmentsApi* | [**bookAppointment**](doc//AppointmentsApi.md#bookappointment) | **POST** /appointments | Book a free slot
+*AppointmentsApi* | [**cancelAppointment**](doc//AppointmentsApi.md#cancelappointment) | **POST** /appointments/{id}/cancel | Cancel an appointment
+*AppointmentsApi* | [**setAppointmentStatus**](doc//AppointmentsApi.md#setappointmentstatus) | **POST** /appointments/{id}/status | Mark an appointment fulfilled or no-show
 *AuthApi* | [**confirmMfa**](doc//AuthApi.md#confirmmfa) | **POST** /auth/mfa/confirm | Confirm TOTP enrolment with the first code
 *AuthApi* | [**enrolMfa**](doc//AuthApi.md#enrolmfa) | **POST** /auth/mfa/enrol | Start TOTP enrolment
 *AuthApi* | [**getMe**](doc//AuthApi.md#getme) | **GET** /auth/me | The signed-in account
@@ -97,8 +100,10 @@ Class | Method | HTTP request | Description
  - [AcceptInviteRequest](doc//AcceptInviteRequest.md)
  - [Acceptance](doc//Acceptance.md)
  - [Account](doc//Account.md)
+ - [Appointment](doc//Appointment.md)
  - [Availability](doc//Availability.md)
  - [AvailabilityRule](doc//AvailabilityRule.md)
+ - [BookAppointmentRequest](doc//BookAppointmentRequest.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)
  - [Consent](doc//Consent.md)
  - [ConsentList](doc//ConsentList.md)
@@ -116,6 +121,7 @@ Class | Method | HTTP request | Description
  - [RoleSpecialty](doc//RoleSpecialty.md)
  - [SaveAvailabilityRequest](doc//SaveAvailabilityRequest.md)
  - [SavePatientRequest](doc//SavePatientRequest.md)
+ - [SetAppointmentStatusRequest](doc//SetAppointmentStatusRequest.md)
  - [SetSpecialtyRequest](doc//SetSpecialtyRequest.md)
  - [Specialty](doc//Specialty.md)
  - [Status](doc//Status.md)

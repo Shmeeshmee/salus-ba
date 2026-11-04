@@ -20,6 +20,8 @@ type Repository interface {
 	Insert(ctx context.Context, scheduleID, org string, periods []Period) (int64, error)
 	// Search returns the free slots of the schedule that start in [from, to), by start.
 	Search(ctx context.Context, scheduleID string, from, to time.Time) ([]Slot, error)
+	// ByID returns the slot as the scope shows it, or ErrUnavailable (also for an id that is not a UUID).
+	ByID(ctx context.Context, id string) (Slot, error)
 	// Hold marks the free slot id busy, last updated at at, and returns it; or ErrUnavailable.
 	Hold(ctx context.Context, id string, at time.Time) (Slot, error)
 	// Release marks the busy slot id free, last updated at at, when it starts after at, and reports whether

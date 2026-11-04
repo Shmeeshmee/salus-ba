@@ -23,6 +23,9 @@ type Schedules interface {
 	ForGeneration(ctx context.Context, org, id string) (schedule.Schedule, error)
 	// Listed returns the schedules of the active roles of listed clinics.
 	Listed(ctx context.Context) ([]schedule.Schedule, error)
+	// Read returns the schedule id as the directory shows it (of an active role of a listed clinic), or
+	// schedule.ErrNotFound.
+	Read(ctx context.Context, id string) (schedule.Schedule, error)
 }
 
 // Clinics reads a clinic, for its time zone (organization.Service).
@@ -169,4 +172,33 @@ func (s *Service) Release(ctx context.Context, org, id string) (bool, error) {
 		return false, fmt.Errorf("slot: release: %w", err)
 	}
 	return freed, nil
+}
+
+// Bookable returns the free slot id with the practitioner role it is booked with, as the public directory
+// shows it (a free slot of an active role of a listed clinic), in a transaction of its own, before the
+// booking's: ErrUnavailable when the directory does not show it. Not audited, like the directory.
+func (s *Service) Bookable(ctx context.Context, id string) (Bookable, error) {
+	var out Bookable
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetDirectory(ctx); err != nil {
+			return err
+		}
+		sl, err := s.repo.ByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		sc, err := s.schedules.Read(ctx, sl.ScheduleID)
+		if errors.Is(err, schedule.ErrNotFound) {
+			return ErrUnavailable
+		}
+		out = Bookable{Slot: sl, PractitionerRoleID: sc.PractitionerRoleID}
+		return err
+	})
+	switch {
+	case errors.Is(err, ErrUnavailable):
+		return Bookable{}, ErrUnavailable
+	case err != nil:
+		return Bookable{}, fmt.Errorf("slot: bookable: %w", err)
+	}
+	return out, nil
 }

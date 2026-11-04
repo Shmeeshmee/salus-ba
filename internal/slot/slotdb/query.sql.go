@@ -204,3 +204,38 @@ func (q *Queries) SearchFreeSlots(ctx context.Context, arg SearchFreeSlotsParams
 	}
 	return items, nil
 }
+
+const slotByID = `-- name: SlotByID :one
+SELECT id, updated_at, schedule_id, organization_id, version_id, status, lower(period)::timestamptz AS start_at,
+       upper(period)::timestamptz AS end_at
+FROM slot
+WHERE id = $1
+`
+
+type SlotByIDRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	ScheduleID     pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
+	StartAt        pgtype.Timestamptz
+	EndAt          pgtype.Timestamptz
+}
+
+// Booking: the slot to book, as the directory shows it (free, of an active role of a listed clinic).
+func (q *Queries) SlotByID(ctx context.Context, id pgtype.UUID) (SlotByIDRow, error) {
+	row := q.db.QueryRow(ctx, slotByID, id)
+	var i SlotByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.ScheduleID,
+		&i.OrganizationID,
+		&i.VersionID,
+		&i.Status,
+		&i.StartAt,
+		&i.EndAt,
+	)
+	return i, err
+}

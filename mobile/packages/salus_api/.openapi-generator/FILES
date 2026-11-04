@@ -2,6 +2,7 @@
 README.md
 analysis_options.yaml
 lib/api.dart
+lib/api/appointments_api.dart
 lib/api/auth_api.dart
 lib/api/consents_api.dart
 lib/api/directory_api.dart
@@ -20,8 +21,10 @@ lib/auth/oauth.dart
 lib/model/accept_invite_request.dart
 lib/model/acceptance.dart
 lib/model/account.dart
+lib/model/appointment.dart
 lib/model/availability.dart
 lib/model/availability_rule.dart
+lib/model/book_appointment_request.dart
 lib/model/confirm_request.dart
 lib/model/consent.dart
 lib/model/consent_list.dart
@@ -39,6 +42,7 @@ lib/model/register_request.dart
 lib/model/role_specialty.dart
 lib/model/save_availability_request.dart
 lib/model/save_patient_request.dart
+lib/model/set_appointment_status_request.dart
 lib/model/set_specialty_request.dart
 lib/model/specialty.dart
 lib/model/status.dart

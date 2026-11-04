@@ -53,6 +53,11 @@ func Rules() []Rule {
 			Then:  ThenKeep,
 		},
 		{
+			Table: "appointment",
+			Basis: "The clinic's care record (GDPR Art. 9(2)(h)) and the contract with the patient (Art. 6(1)(b)); kept with the clinical record, needs a legal decision before production (docs/booking/SPEC.md sections 3 and 4)",
+			Then:  ThenKeep,
+		},
+		{
 			Table: "schedule",
 			Basis: "The clinic's employment relationship and its legitimate interest in being booked (GDPR Art. 6(1)(b), (f)) while the role is active; after the practitioner leaves, restricted like practitioner_role (docs/booking/SPEC.md section 4)",
 			Then:  ThenRestrict,

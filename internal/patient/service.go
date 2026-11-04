@@ -216,6 +216,21 @@ func (s *Service) readAsStaff(ctx context.Context, c Caller, id string) (Patient
 	return p, false, err
 }
 
+// Lookup returns the profile id as the caller's transaction and scope show it (ErrNotFound otherwise), for a
+// service that has decided the caller's access and audits the Patient read itself (the appointment domain,
+// which shows the patient's name with an appointment, and gives an e-mail job the patient's account). It
+// sets no scope and writes no event.
+func (s *Service) Lookup(ctx context.Context, id string) (Patient, error) {
+	p, err := s.repo.ByID(ctx, id)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return Patient{}, ErrNotFound
+	case err != nil:
+		return Patient{}, fmt.Errorf("patient: lookup: %w", err)
+	}
+	return p, nil
+}
+
 // valid returns in with its names trimmed, or the error of the first field that breaks SPEC.md "Profile".
 // A birth date must be before today (UTC) and not before 1900-01-01.
 func (s *Service) valid(in Patient) (Patient, error) {
