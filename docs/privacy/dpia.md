@@ -105,3 +105,32 @@ columns follow the account.
 
 **Open before production.** The KMS for the TOTP key, and `TRUSTED_PROXY_CIDRS` for the production load
 balancer.
+
+### Package 4: directory
+
+**Processing added.** Tables `organization` (the clinic: name, whether active; not personal data),
+`practitioner` (one name: given and family; the clinic; whether active) and `practitioner_role` (the
+practitioner's membership of the clinic). Services only: reading a clinic, renaming it, reading a
+practitioner or a role, and listing a clinic's roles. No endpoint serves them yet (FHIR reads come in
+package 6), and no rows are created yet (invites, package 5).
+
+**Purpose and lawful basis.** Practitioners' names and roles: the clinic's employment relationship and the
+contract with the clinic (Art. 6(1)(b), (f)), to identify the practitioner to colleagues now and to patients
+when booking arrives.
+
+**Necessity and minimisation.** One name per practitioner and no contact details, qualifications, specialty
+or photo. The directory knows nothing about accounts: `account.practitioner_id` links the two from the
+identity side.
+
+**Retention.** `practitioner` and `practitioner_role`: kept while active; restricted, not deleted, after the
+practitioner leaves, for as long as clinical records reference them (`internal/retention`, `restrict`).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A clinic sees another clinic's staff | The service scopes every query to the caller's clinic, and Postgres row-level security shows only that clinic's rows to `salus_app`; no clinic set means no rows, and the service checks each row's clinic again |
+| The application turns row-level security off | `salus_app` has no `BYPASSRLS` and owns no table; with `row_security = off` a query on these tables fails (tested) |
+| A probe learns that a record exists | Patients and other clinics get "not found", not "forbidden" |
+| A practitioner's details are read unnoticed | Every read and search of `Practitioner` and `PractitionerRole`, and every change of a clinic, writes an `AuditEvent` in the same transaction, also when refused; a refused or empty access records no entity, so no id from the request is stored |
+| Lost updates on the clinic settings | Renaming names the version it changes; a stale version is refused |

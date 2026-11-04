@@ -26,5 +26,15 @@ func Rules() []Rule {
 			Keep:  30 * day, // after revoked_at or expires_at
 			Then:  ThenDelete,
 		},
+		{
+			Table: "practitioner",
+			Basis: "The clinic's employment relationship and the contract with the clinic (GDPR Art. 6(1)(b), (f)); after leaving, the medical-record retention that references the practitioner",
+			Then:  ThenRestrict,
+		},
+		{
+			Table: "practitioner_role",
+			Basis: "The clinic's employment relationship and the contract with the clinic (GDPR Art. 6(1)(b), (f)); after leaving, the medical-record retention that references the role",
+			Then:  ThenRestrict,
+		},
 	}
 }

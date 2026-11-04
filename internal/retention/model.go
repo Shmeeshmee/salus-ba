@@ -19,6 +19,10 @@ const (
 	// ThenDelete deletes each row once its period has run from the moment the row stopped being used (for a
 	// session: from revoked_at or expires_at, whichever comes first).
 	ThenDelete Then = "delete"
+	// ThenRestrict keeps the row while it is active and restricts it, not deletes it, once it is not (for a
+	// practitioner: after leaving the clinic), for as long as clinical records reference it. No period runs
+	// (Keep is zero): the end of the restriction follows the records that reference the row.
+	ThenRestrict Then = "restrict"
 )
 
 // Rule is the retention of one table.
@@ -26,5 +30,5 @@ type Rule struct {
 	Table string        // the table, as in ownership.yaml
 	Basis string        // why the rows are kept that long: the legal ground
 	Then  Then          // what happens after Keep
-	Keep  time.Duration // how long a row is kept; zero for ThenKeep
+	Keep  time.Duration // how long a row is kept; zero for ThenKeep and ThenRestrict
 }

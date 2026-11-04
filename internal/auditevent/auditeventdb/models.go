@@ -90,6 +90,36 @@ type AuditEvent struct {
 	RequestID       pgtype.Text
 }
 
+type Organization struct {
+	ID        pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	VersionID int32
+	Active    bool
+	Name      string
+}
+
+type Practitioner struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Active         bool
+	GivenName      string
+	FamilyName     string
+}
+
+type PractitionerRole struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	PractitionerID pgtype.UUID
+	VersionID      int32
+	Active         bool
+}
+
 type RiverJob struct {
 	ID           int64
 	State        RiverJobState

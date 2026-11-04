@@ -5,7 +5,7 @@
 | 1 Privacy foundation | done, 2026-11-04 | `accounts(1)` |
 | 2 Identity: accounts | done, 2026-11-04 | `accounts(2)` |
 | 3 Identity: sessions and MFA | done, 2026-11-04 | `accounts(3)` |
-| 4 Directory | todo | |
+| 4 Directory | done, 2026-11-04 | `accounts(4)` |
 | 5 Practitioner invites | todo | |
 | 6 FHIR reads | todo | |
 | 7 Web | todo | |
@@ -330,3 +330,93 @@ is chosen.
 Dev stack left: postgres and redis running, as found. Dev database at migration 11 (`session`, empty;
 `account` and `audit_event` empty). The api and migrate containers were started for the smoke check and
 removed; the `salus:dev` image was rebuilt.
+
+### 2026-11-04 — package 4, directory
+
+Built:
+- Migration `00012_directory.sql`: `organization` (`name`, `active`), `practitioner` (`given_name`,
+  `family_name`, `organization_id`, `active`) and `practitioner_role` (`practitioner_id`, `organization_id`,
+  `active`), each with `updated_at` and `version_id` (`meta.lastUpdated`, `meta.versionId`). Every table has
+  `ENABLE ROW LEVEL SECURITY` and one policy in package 1's form,
+  `… = NULLIF(current_setting('app.organization_id', true), '')::uuid` (`organization`'s compares `id`).
+  `practitioner_role` references `(practitioner_id, organization_id)` of `practitioner`, so a role is always
+  in its practitioner's clinic, with a unique index on `practitioner_id` (one role per practitioner) and an
+  index on `organization_id` (the search). Grants to `salus_app`: `SELECT` and `UPDATE (name, updated_at,
+  version_id)` on `organization` (clinics are created by `salusctl` as the owner); `SELECT, INSERT` on
+  `practitioner` and `practitioner_role` (created on invite acceptance, package 5). No `DELETE`, `TRUNCATE`.
+- `internal/organization`, `internal/practitioner`, `internal/practitionerrole` (context `directory` in
+  `config.yaml`; the tables in `ownership.yaml`, `organization` with `personal_data: false`, the other two
+  `true`; three `sqlc.yaml` entries): model, errors, `Repository` port, service, Postgres repository through
+  the domain's sqlc package.
+  - Each service takes a `Caller` (account id and, for staff, the clinic; `organization.Caller` also says
+    whether the caller is the clinic's admin), sets the caller's clinic on its transaction through the
+    repository's `SetOrganization` (`postgres.SetLocal`), and checks the clinic itself as well, so the
+    rule does not rest on RLS alone. A patient (no clinic) and a caller of another clinic get `ErrNotFound`.
+  - `organization.Service`: `Read`; `Update` (rename at the version read: `ErrConflict` for a stale version,
+    also when it changes between the read and the `UPDATE … WHERE version_id = …`; `ErrForbidden` for a
+    practitioner of the clinic; `ErrInvalidName` for a blank name or one over 200 characters; the name is
+    trimmed).
+  - `practitioner.Service.Read`; `practitionerrole.Service.Read` and `Search` (`PractitionerRole?organization=`,
+    oldest first).
+- `internal/retention`: `ThenRestrict` and the rules for `practitioner` and `practitioner_role` (kept while
+  active, restricted after leaving while records reference them; no period). The rules test now allows no
+  period exactly for `ThenKeep` and `ThenRestrict`.
+- `docs/privacy/dpia.md`: package 4 section.
+- `make sqlc` also regenerated `models.go` in `auditeventdb` and `authdb` (every generated package lists all
+  tables of the schema).
+
+Test first, failures seen before the code: migration tests (`relation "organization" does not exist`);
+archcheck (`table-without-owner` for the three tables, then `retention-rule-missing` for `practitioner` and
+`practitioner_role`); retention (`undefined: retention.ThenRestrict`); the three services (`no non-test Go
+files`); the repositories (`undefined: organization.NewPostgresRepository`, and build failures for the other
+two).
+
+Checks: `make lint` 0 issues, check-migrations ok; `make archcheck` ok; `make test` ok; `make cover` ok
+(total 96.1%; organization 93.8%, practitioner 94.6%, practitionerrole 94.7%, retention 100%); `make sqlc`
+leaves no diff. No stack check in this package.
+
+Readings:
+- **Package 1's "salus_app cannot bypass RLS" checks, repeated on the real tables** (`migrations/directory_test.go`,
+  as `salus_app` through `pgtest.NewAppDatabase`): with no clinic set nothing is visible, also on a pooled
+  connection after a transaction that set one (the `''` case); with clinic A set only A's rows are visible;
+  an `INSERT` of a practitioner or a role for clinic B with A set is refused (42501, RLS); an `UPDATE` of
+  clinic B with A set touches no row; `SET LOCAL row_security = off` makes a query on each table fail
+  (42501); `DELETE`, `TRUNCATE`, `INSERT` into `organization` and updates of columns outside the grants are
+  denied by privilege. The package-1 tests that `salus_app` is not a superuser, has no `BYPASSRLS` and owns
+  nothing run over the whole schema, now including these tables. The repository tests also run as
+  `salus_app`: another clinic's id, an id that is not a UUID and no clinic set all give "not found".
+- **What is audited.** `Practitioner` read: rest/read, R. `PractitionerRole` read: rest/read, R; search:
+  rest/search-type, E (FHIR `AuditEvent.action`: a query is an execute), **one event per role returned**, so
+  "who saw this record" is answered by the `(entity_reference, recorded)` index; a search that returns
+  nothing writes one event without an entity. `Organization` update: rest/update, U. `Organization` reads
+  are not audited: a clinic's name is not personal data and SPEC §2 asks for reads of `Practitioner` and
+  `PractitionerRole` and for every write. All with purpose `HOPERAT`, the caller's account as agent and the
+  caller's clinic.
+- **A refused or empty access records no entity.** A patient, another clinic's caller, an unknown id or a
+  stale version that never read the row: the event has outcome 4 and no `entity_reference`. The entity is
+  written only from a row the database returned (a stale-version update does read the row, so it names the
+  clinic), so no id from a request (a URL in package 6) is ever stored unvalidated. The agent and the clinic
+  still say who tried.
+- **A refusal is audited and committed.** The service returns nil from `WithTx` after recording the refusal
+  and gives the error after the commit, as `auth` does; returning the error inside would roll the event back.
+- **Organization: refused before the database for anyone but the clinic's members**; a practitioner of the
+  clinic gets `ErrForbidden` for an update (they may read it, so its existence is no secret), everyone else
+  `ErrNotFound`.
+- **Foreign keys from `account` to the directory are not added.** `account.organization_id` and
+  `practitioner_id` stay without them: the package's plan does not list them, and the identity tests insert
+  staff accounts with synthetic clinic ids that have no `organization` row. Adding them is a separate change
+  (with those tests creating clinics), best taken with package 5, which creates the first linked rows.
+
+Deferred:
+- Creating directory rows (`organization` by `salusctl create-clinic`, `practitioner` and `practitioner_role`
+  on invite acceptance) is package 5's: the services have no `Create` yet, because nothing in this package
+  calls one. The grants for those writes are already in `00012`.
+- `_include=PractitionerRole:practitioner` (package 6): the search returns roles; the handler or a
+  `practitioner` read of the listed ids adds the practitioners, audited as reads.
+- Wiring the three services in `internal/api/app.go` comes with their FHIR handlers in package 6; the audit
+  rows they write are checked against the database there, as package 2 did for `auth`.
+- The role search is not paginated (a clinic has few practitioners); `_count` is not supported.
+
+Dev stack left: postgres and redis running, as found. Dev database at migration 12 (`organization`,
+`practitioner`, `practitioner_role`, all empty); `make migrate` set the `salus_app` password again (the same
+synthetic value). No other container was started.

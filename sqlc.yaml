@@ -19,3 +19,27 @@ sql:
         package: authdb
         out: internal/auth/authdb
         sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/organization/query.sql
+    gen:
+      go:
+        package: organizationdb
+        out: internal/organization/organizationdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/practitioner/query.sql
+    gen:
+      go:
+        package: practitionerdb
+        out: internal/practitioner/practitionerdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/practitionerrole/query.sql
+    gen:
+      go:
+        package: practitionerroledb
+        out: internal/practitionerrole/practitionerroledb
+        sql_package: pgx/v5

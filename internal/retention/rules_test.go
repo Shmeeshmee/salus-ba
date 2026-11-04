@@ -13,9 +13,11 @@ func TestRules_AreCompleteAndNameEachTableOnce(t *testing.T) {
 		if r.Table == "" || r.Basis == "" || r.Then == "" {
 			t.Errorf("rule %+v: want a table, a basis and what happens then", r)
 		}
-		// A row kept while its subject exists has no period; every other rule has a positive one.
-		if (r.Then == retention.ThenKeep) != (r.Keep == 0) || r.Keep < 0 {
-			t.Errorf("rule %+v: want no period exactly when the row is kept, a positive one otherwise", r)
+		// A row kept while its subject exists, or restricted once it is no longer active, has no period; every
+		// other rule has a positive one.
+		noPeriod := r.Then == retention.ThenKeep || r.Then == retention.ThenRestrict
+		if noPeriod != (r.Keep == 0) || r.Keep < 0 {
+			t.Errorf("rule %+v: want no period exactly when the row is kept or restricted, a positive one otherwise", r)
 		}
 		if seen[r.Table] {
 			t.Errorf("table %s has two rules", r.Table)
@@ -62,4 +64,20 @@ func TestRules_DeleteSessionsThirtyDaysAfterTheyEnd(t *testing.T) {
 		}
 	}
 	t.Fatal("no rule for session")
+}
+
+func TestRules_RestrictPractitionersAndTheirRolesAfterTheyLeave(t *testing.T) {
+	want := map[string]bool{"practitioner": true, "practitioner_role": true}
+	for _, r := range retention.Rules() {
+		if !want[r.Table] {
+			continue
+		}
+		if r.Then != retention.ThenRestrict {
+			t.Errorf("%s then %q, want %q", r.Table, r.Then, retention.ThenRestrict)
+		}
+		delete(want, r.Table)
+	}
+	for table := range want {
+		t.Errorf("no rule for %s", table)
+	}
 }
