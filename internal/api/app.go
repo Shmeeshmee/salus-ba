@@ -6,6 +6,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,6 +17,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/config"
+	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/worker"
@@ -45,6 +48,10 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 	if len(cfg.RateLimitKey) < minRateLimitKey {
 		return nil, errors.New("api: RATE_LIMIT_KEY must be at least 32 bytes")
 	}
+	fhirBase, err := absoluteURL(cfg.FHIRBaseURL)
+	if err != nil {
+		return nil, err
+	}
 	pool, err := postgres.Open(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return nil, err
@@ -63,13 +70,14 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
 	hasher := auth.NewArgon2Hasher(auth.DefaultArgon2Params(), auth.MaxConcurrentHashes)
+	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{})
+	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx)
+	roles := practitionerrole.NewService(practitionerrole.NewPostgresRepository(pool), audit, tx)
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Hasher: hasher, Audit: audit, Tx: tx, Clock: clock.System{},
 		Challenges: auth.NewRedisChallengeStore(rdb), Counters: auth.NewRedisCounters(rdb), Box: box,
-		Jobs:              auth.NewRiverJobs(jobs),
-		Practitioners:     practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx),
-		PractitionerRoles: practitionerrole.NewService(practitionerrole.NewPostgresRepository(pool), audit, tx),
-		RateLimitKey:      cfg.RateLimitKey,
+		Jobs: auth.NewRiverJobs(jobs), Practitioners: practitioners, PractitionerRoles: roles,
+		RateLimitKey: cfg.RateLimitKey,
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies)
 
@@ -80,10 +88,50 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 			{Name: "redis", Ping: func(ctx context.Context) error { return rdb.Ping(ctx).Err() }},
 		},
 		Session: authHandler.Session,
-		Routes:  []func(*http.ServeMux){authHandler.Routes},
+		Routes: []func(*http.ServeMux){
+			authHandler.Routes,
+			organization.NewHandler(clinics, organizationCaller(accounts), log).Routes,
+			practitioner.NewHandler(practitioners, practitionerCaller, log).Routes,
+			practitionerrole.NewHandler(roles, practitioners, roleCaller, fhirBase, log).Routes,
+		},
 		Timeout: RequestTimeout,
 	})
 	return &App{Handler: h, pool: pool, redis: rdb}, nil
+}
+
+// absoluteURL is FHIR_BASE_URL without a trailing slash, or an error when it is not an absolute http(s) URL.
+func absoluteURL(s string) (string, error) {
+	u, err := url.Parse(s)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return "", errors.New("api: FHIR_BASE_URL must be an absolute http(s) URL")
+	}
+	return strings.TrimSuffix(s, "/"), nil
+}
+
+// organizationCaller is the directory's view of the signed-in session, with whether the account is the
+// clinic's admin as read from the database (the session does not hold the role).
+func organizationCaller(accounts *auth.Service) func(ctx context.Context) (organization.Caller, bool, error) {
+	return func(ctx context.Context) (organization.Caller, bool, error) {
+		s, ok := auth.SessionFrom(ctx)
+		if !ok {
+			return organization.Caller{}, false, nil
+		}
+		admin, err := accounts.IsClinicAdmin(ctx, s)
+		if err != nil {
+			return organization.Caller{}, false, err
+		}
+		return organization.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID, Admin: admin}, true, nil
+	}
+}
+
+func practitionerCaller(ctx context.Context) (practitioner.Caller, bool) {
+	s, ok := auth.SessionFrom(ctx)
+	return practitioner.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}, ok
+}
+
+func roleCaller(ctx context.Context) (practitionerrole.Caller, bool) {
+	s, ok := auth.SessionFrom(ctx)
+	return practitionerrole.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}, ok
 }
 
 // Close releases the dependencies.

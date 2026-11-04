@@ -22,6 +22,7 @@ func testConfig(t *testing.T) config.Config {
 		DatabaseURL: pgtest.NewDatabaseURL(t), RedisURL: redistest.URL(t),
 		TOTPKey:      []byte("synthetic 32-byte TOTP key, test"),
 		RateLimitKey: []byte("synthetic 32-byte rate-limit key"),
+		FHIRBaseURL:  "https://api.example.test/fhir/R4",
 	}
 }
 
@@ -50,10 +51,15 @@ func TestNew_FailsWhenADependencyIsUnreachable(t *testing.T) {
 	shortTOTPKey.TOTPKey = []byte("16 bytes, no more")
 	shortRateKey := testConfig(t)
 	shortRateKey.RateLimitKey = []byte("short")
+	noFHIRBase := testConfig(t)
+	noFHIRBase.FHIRBaseURL = ""
+	relativeFHIRBase := testConfig(t)
+	relativeFHIRBase.FHIRBaseURL = "/fhir/R4"
 
 	for name, cfg := range map[string]config.Config{
 		"postgres unreachable": noDB, "redis unreachable": noRedis,
 		"a TOTP key that is not 32 bytes": shortTOTPKey, "a rate-limit key under 32 bytes": shortRateKey,
+		"no FHIR base URL": noFHIRBase, "a relative FHIR base URL": relativeFHIRBase,
 	} {
 		if _, err := api.New(t.Context(), cfg, slog.New(slog.DiscardHandler)); err == nil {
 			t.Errorf("New() with %s: error = nil", name)

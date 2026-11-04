@@ -7,7 +7,7 @@
 | 3 Identity: sessions and MFA | done, 2026-11-04 | `accounts(3)` |
 | 4 Directory | done, 2026-11-04 | `accounts(4)` |
 | 5 Practitioner invites | done, 2026-11-04 | `accounts(5)` |
-| 6 FHIR reads | todo | |
+| 6 FHIR reads | done, 2026-11-04 | `accounts(6)` |
 | 7 Web | todo | |
 | 8 Mobile | todo | |
 | 9 End-to-end | todo | |
@@ -50,6 +50,8 @@
   above, this is decided with the hosting choice.
 - Before production: the e-mail sender address (`no-reply@salus.invalid` now, a constant in
   `internal/notification`) becomes configuration with a verified domain when SES is wired (needs its DPA).
+- Before production: `FHIR_BASE_URL`, the api's public FHIR base (`https://<host>/fhir/R4`), set with the
+  hosting choice; compose sets `http://localhost:${SALUS_API_PORT}/fhir/R4`.
 - Branch protection on `main` (carried over from `docs/bootstrap/PROGRESS.md`): needs GitHub Pro.
 
 ## Log
@@ -550,3 +552,99 @@ stack clinic", its admin invite to `stack-check@example.test` (token issued, not
 `invite_email` job and two `audit_event` rows (append-only, so they stay). The api, worker, scheduler,
 notifier, agent, livekit, mailpit, landing and migrate containers were removed again (Mailpit's in-memory
 messages with them); the temporary `deployments/.env` was deleted.
+
+### 2026-11-04 — package 6, FHIR reads
+
+Built:
+- `internal/organization/handler_fhir.go`: `GET /fhir/R4/Organization/{id}` and `PUT /fhir/R4/Organization/{id}`
+  (the body is the Organization; only `name` changes; `If-Match` names the version). `internal/practitioner/
+  handler_fhir.go`: `GET /fhir/R4/Practitioner/{id}`, and `ToFHIR`/`Resource` for the include.
+  `internal/practitionerrole/handler_fhir.go`: `GET /fhir/R4/PractitionerRole/{id}` and
+  `GET /fhir/R4/PractitionerRole?organization=<id>|Organization/<id>[&_include=PractitionerRole:practitioner]`,
+  a `searchset` Bundle. Every resource carries `meta.versionId` and `meta.lastUpdated` and is sent with
+  `ETag: W/"<version>"`. Each handler takes its caller as a function from the composition root (the
+  directory packages cannot import `auth`: `auth` imports `practitioner` and `practitionerrole`).
+- Status mapping: no session 401 (`login`); not found or not allowed to see 404 (`not-found`); unsupported
+  search 400 (`not-supported`); a body that is not this Organization 400 (`invalid`); missing, malformed or
+  stale `If-Match` 412 (`conflict`); a practitioner renaming the clinic 403 (`forbidden`); a blank or
+  over-long name 422 (`business-rule`); anything else 500 through `fhir.InternalError`. Fixed diagnostics only.
+- `pkg/fhir`: `Meta`/`NewMeta`, `Reference`, `ETag`, `IfMatch`, `Bundle`/`BundleEntry`/`BundleLink`/
+  `BundleSearch`/`NewSearchset`, `InternalError` (`httpx.InternalError` for FHIR endpoints: logs the error,
+  sends a fixed `exception` OperationOutcome); `Write` no longer HTML-escapes (`&` in links stays `&`).
+- `auth.Service.IsClinicAdmin` (whether the session's account is its clinic's admin, read from `account`).
+- `internal/api/app.go`: builds the three directory services once (shared with `auth`), mounts the three
+  handlers with their callers, and requires `FHIR_BASE_URL` (absolute http(s)); `internal/config`
+  `FHIRBaseURL`; compose gives the api `FHIR_BASE_URL`; `configs/.env.example` documents it.
+- `api/fhir/CapabilityStatement.json`: exactly Organization read and update (`versioned-update`),
+  Practitioner read, PractitionerRole read and search-type with `organization` (reference) and
+  `searchInclude` `PractitionerRole:practitioner`; the metadata golden updated on purpose.
+- Golden files (all reviewed): organization (`organization`, `organization_updated`, `not_found`,
+  `forbidden`, `if_match_required`, `version_conflict`, `invalid_resource`, `invalid_name`,
+  `unauthenticated`), practitioner (`practitioner`, `not_found`, `unauthenticated`), practitionerrole
+  (`practitioner_role`, `search`, `search_include`, `search_empty`, `unsupported_search`, `not_found`,
+  `unauthenticated`).
+- `docs/privacy/dpia.md`: package 6 section.
+
+Test first, failures seen before the code: `pkg/fhir` (`undefined: fhir.ETag`, `fhir.IfMatch`,
+`fhir.NewMeta`, `fhir.NewSearchset`, `fhir.InternalError`; then `unknown field FullURL`; then the escaped
+`\u0026`); auth (`f.svc.IsClinicAdmin undefined`); the three handlers (`undefined: …NewHandler`); the
+CapabilityStatement test (no resources listed); the metadata golden (differs); config (`cfg.FHIRBaseURL
+undefined`); the api journey (every FHIR path 404 from the catch-all, 0 audit events, a missing or relative
+`FHIR_BASE_URL` accepted); `cmd/api` (refused to start without `FHIR_BASE_URL`, before its test set it);
+`make fhir-validate` on the first searchset goldens (errors: entries without `fullUrl`, relative references
+inside them; warning: no self link).
+
+Checks: `make lint` 0 issues, check-migrations ok; `make archcheck` ok; `make test` ok; `make cover` ok
+(total 94.8%; organization 95.8%, practitioner 96.1%, practitionerrole 96.3%, auth 95.6%, api 91.8%,
+config 100%, `pkg/fhir` 100%, `api/fhir` 100%); `make fhir-validate` 0 errors on all 21 goldens (the only
+warnings are dom-6, no narrative, as on the existing goldens). No migration, query or `openapi.yaml`
+change, so `make sqlc` and `make gen-clients` are not affected. No stack check in this package (plan: Go,
+FHIR).
+
+Readings:
+- **Audit rows checked against the database** (`internal/api/app_directory_test.go`, deferred from package
+  4): through the real app, an admin and a practitioner of one clinic (from invites) and a patient. Rename,
+  stale rename (outcome 4, names the clinic, since the row was read) and the practitioner's refused rename
+  (outcome 4, no entity) each write one `update`; the search writes one `search-type`/E per role returned and
+  the include one `read`/R per practitioner; the admin's two reads one each; the patient's three refusals
+  have outcome 4, no entity and no clinic; Organization reads and signed-out requests write nothing. Exactly
+  10 events for the requests, agents checked against the accounts.
+- **No session is 401, not 404.** SPEC §2's 404 is for signed-in callers who may not see the resource. A
+  request without a session is answered before any service call and is not audited (package 2 and 3's
+  reading: nothing was accessed, and auditing anonymous requests would let anyone write rows kept ten years).
+  The 401 is the same for every id, so it discloses nothing.
+- **The admin flag is read from `account` per Organization request** (`auth.Service.IsClinicAdmin`, one
+  indexed read by id), as `Invite` does: the session row holds no role. Not audited, like the session check
+  (SPEC §2 "What every access to an account means"); the Organization access it serves is audited.
+- **`_include` is done in the handler, through `practitioner.Service.Read`**, one audited read per included
+  practitioner (package 4's deferred note). Each read is its own transaction; the role search and the reads
+  are not one snapshot, which only matters if a practitioner changed in between (they cannot be deleted). A
+  practitioner the read refuses is left out of the Bundle. No measurement needed: a clinic has few
+  practitioners (one role each, unique index), so at most a handful of reads.
+- **`FHIR_BASE_URL`.** The HL7 validator rejects a searchset entry without an absolute `fullUrl` (and
+  relative references inside it), so the api needs its public base. A setting, not the request's Host and
+  scheme: behind a TLS-terminating load balancer the scheme would be wrong, and the Host header is the
+  client's. The self link is the search as understood (`organization=<id>`, plus the include), so both
+  accepted forms of the parameter give the same Bundle.
+- **Search parameters are strict** (plan): only `organization` (exactly once, one id, `<id>` or
+  `Organization/<id>`) and `_include=PractitionerRole:practitioner` (at most once); anything else, a
+  modifier, a comma list or `_count` gives 400 without calling the service. A query that does not parse is
+  400 too.
+- **Organization update.** `If-Match` is required (R4 http: a server that requires version-aware updates
+  answers 412 without it); `W/"n"` and `"n"` are accepted, a version that is not an int32 is 412. The body
+  must be an Organization with the URL's id (400 otherwise), at most 64 KiB; only `name` is applied (the
+  clinic settings screen changes only that; `active` and the rest are ignored, as documented in the
+  CapabilityStatement). A blank or over-long name is 422 `business-rule`: valid FHIR, refused by our rule.
+- **Element order in the JSON follows the structs**, which `fieldalignment` orders; FHIR JSON has no
+  element order, so no custom marshalers.
+- **`fhir.InternalError` instead of `httpx.InternalError` on FHIR endpoints**: the same log line, but the
+  body is an OperationOutcome (CLAUDE.md "FHIR": errors on FHIR endpoints are OperationOutcomes).
+
+Deferred:
+- `make e2e` covers the practitioner reading their `Organization` and the role search (package 9).
+- Patients reading the directory (scheduling feature, SPEC §5).
+- `POST /fhir/R4/PractitionerRole/_search`, paging and `_count` are not supported (not in SPEC).
+
+Dev stack left: postgres, redis and mailpit running, as found; no other container started, and the dev
+database untouched (still at migration 13 with package 5's synthetic rows). The `salus-tools:dev` and
+`fhir-validator` images were rebuilt by make. `deployments/.env` was not touched.

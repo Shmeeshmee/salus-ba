@@ -54,6 +54,7 @@ func TestRun_ServesUntilCancelledThenShutsDown(t *testing.T) {
 	t.Setenv("HTTP_ADDR", "127.0.0.1:0")
 	t.Setenv("TOTP_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtdG90cC1rZXktMzI=")       // synthetic, as in compose
 	t.Setenv("RATE_LIMIT_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtcmF0ZWxpbWl0LWs=") // synthetic, as in compose
+	t.Setenv("FHIR_BASE_URL", "http://localhost:8080/fhir/R4")
 	ctx, cancel := context.WithCancel(t.Context())
 	logs := &syncBuffer{}
 	done := make(chan error, 1)

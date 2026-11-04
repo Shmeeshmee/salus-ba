@@ -166,3 +166,30 @@ acceptance.
 | Header injection through the e-mail | The subject is fixed, the recipient is a validated plain address, and the sender refuses a line break in either |
 | An operator action goes unrecorded | `salusctl create-clinic` and `reset-mfa` audit with `agent_name = salusctl`; `reset-mfa` also revokes the account's sessions, in the same transaction |
 | E-mail to a third party without a DPA | Only Mailpit, locally; SES stays unwired until its DPA (`processors.md`) |
+
+### Package 6: FHIR reads
+
+**Processing added.** The directory is served over the FHIR API: `GET /fhir/R4/Organization/{id}`,
+`PUT /fhir/R4/Organization/{id}` (rename, with `If-Match`), `GET /fhir/R4/Practitioner/{id}`,
+`GET /fhir/R4/PractitionerRole/{id}` and `GET /fhir/R4/PractitionerRole?organization=…`, optionally with
+`_include=PractitionerRole:practitioner`. A practitioner's name now leaves the database, to the staff of
+their own clinic only. No new field or table.
+
+**Purpose and lawful basis.** As package 4: the clinic's employment relationship and the contract with the
+clinic (Art. 6(1)(b), (f)).
+
+**Necessity and minimisation.** The resources carry only the elements of `docs/accounts/SPEC.md` "Directory
+model" (name, active, the references, `meta`); nothing about accounts, e-mail or roles in the identity
+sense. Patients do not read the directory yet.
+
+**Retention.** Nothing new is stored but `AuditEvent` rows (kept 10 years, package 1).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Someone outside the clinic reads its staff | Every request needs a session (401 otherwise, nothing read or audited); the services refuse a patient or another clinic's staff with 404, so even existence is not disclosed; row-level security is the second guard |
+| A read goes unrecorded | Each `Practitioner` read, each role read, each role a search returns, and each practitioner a search includes (read through the practitioner service) writes an `AuditEvent`; refusals too. Checked against the database in `internal/api` |
+| A non-admin changes the clinic | Whether the caller is the clinic's admin is read from `account` on each request, not taken from the session; a practitioner gets 403 and the refusal is audited |
+| Lost updates on the clinic settings | `If-Match` is required; a missing or stale version gets 412 |
+| Names in logs or errors | OperationOutcomes carry fixed text; a 500 logs the error only; handler tests assert no name is logged |

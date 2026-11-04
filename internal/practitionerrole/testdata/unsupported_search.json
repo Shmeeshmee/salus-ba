@@ -1,0 +1,1 @@
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"Search by one organization, optionally with _include=PractitionerRole:practitioner."}]}

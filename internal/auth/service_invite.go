@@ -136,6 +136,17 @@ func (s *Service) ListInvites(ctx context.Context, sess Session) ([]Invite, erro
 	return invites, nil
 }
 
+// IsClinicAdmin reports whether the account signed in with sess is an admin of the session's clinic, as read
+// from the database (the session does not hold the role), for the directory's FHIR handlers. Not audited: it
+// is part of the request's authentication, and the directory access it is for is audited there.
+func (s *Service) IsClinicAdmin(ctx context.Context, sess Session) (bool, error) {
+	_, ok, err := s.clinicAdmin(ctx, sess)
+	if err != nil {
+		return false, fmt.Errorf("auth: clinic admin: %w", err)
+	}
+	return ok, nil
+}
+
 // clinicAdmin reads the account signed in with sess and reports whether it is an admin of the session's
 // clinic. The returned account is the agent to audit: the session's when the account is gone.
 func (s *Service) clinicAdmin(ctx context.Context, sess Session) (Account, bool, error) {

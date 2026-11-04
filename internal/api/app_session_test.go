@@ -24,11 +24,12 @@ const testPassword = "a long enough secret"
 // client sends requests to the app as one caller: the mobile app (bearer token) or the web app (cookie and
 // X-Salus-CSRF).
 type client struct {
-	t      *testing.T
-	h      http.Handler
-	cookie *http.Cookie
-	bearer string
-	web    bool
+	t       *testing.T
+	h       http.Handler
+	cookie  *http.Cookie
+	bearer  string
+	ifMatch string // sent as If-Match when set
+	web     bool
 }
 
 func (c *client) do(method, path, body string) *httptest.ResponseRecorder {
@@ -43,6 +44,9 @@ func (c *client) do(method, path, body string) *httptest.ResponseRecorder {
 	}
 	if c.bearer != "" {
 		r.Header.Set("Authorization", "Bearer "+c.bearer)
+	}
+	if c.ifMatch != "" {
+		r.Header.Set("If-Match", c.ifMatch)
 	}
 	rec := httptest.NewRecorder()
 	c.h.ServeHTTP(rec, r)

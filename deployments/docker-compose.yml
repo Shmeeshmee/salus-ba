@@ -74,6 +74,8 @@ services:
       # RATE_LIMIT_KEY names the login rate-limit counters in Redis by HMAC.
       TOTP_KEY: bG9jYWwtb25seS1zeW50aGV0aWMtdG90cC1rZXktMzI=
       RATE_LIMIT_KEY: bG9jYWwtb25seS1zeW50aGV0aWMtcmF0ZWxpbWl0LWs=
+      # The FHIR API's public base, for the links and fullUrls of a search's Bundle.
+      FHIR_BASE_URL: http://localhost:${SALUS_API_PORT:-8080}/fhir/R4
     ports: ["127.0.0.1:${SALUS_API_PORT:-8080}:8080"]
 
   worker:

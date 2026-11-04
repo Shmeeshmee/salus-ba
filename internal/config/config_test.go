@@ -109,3 +109,13 @@ func TestLoad_ReadsTheNotifiersSettings(t *testing.T) {
 		t.Errorf("Load() = SMTPAddr %q, WebBaseURL %q, %v", cfg.SMTPAddr, cfg.WebBaseURL, err)
 	}
 }
+
+func TestLoad_ReadsTheFHIRBaseURL(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+	t.Setenv("FHIR_BASE_URL", "http://localhost:8080/fhir/R4")
+
+	cfg, err := config.Load()
+	if err != nil || cfg.FHIRBaseURL != "http://localhost:8080/fhir/R4" {
+		t.Errorf("Load() = FHIRBaseURL %q, %v", cfg.FHIRBaseURL, err)
+	}
+}
