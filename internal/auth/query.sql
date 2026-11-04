@@ -7,12 +7,12 @@ ON CONFLICT (email) DO NOTHING
 RETURNING id;
 
 -- name: AccountByEmail :one
-SELECT id, mfa_enrolled_at, organization_id, role, email, password_hash
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash
 FROM account
 WHERE email = @email;
 
 -- name: AccountByID :one
-SELECT id, mfa_enrolled_at, organization_id, role, email, password_hash
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash
 FROM account
 WHERE id = @id;
 

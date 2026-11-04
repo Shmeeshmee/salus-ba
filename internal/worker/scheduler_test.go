@@ -11,6 +11,7 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/Shmeeshmee/salus/internal/auth"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
@@ -104,10 +105,45 @@ func TestScheduler_KnowsEveryKindTheWorkerAndTheNotifierWork(t *testing.T) {
 		t.Fatalf("NewScheduler() error = %v", err)
 	}
 
-	for _, args := range []river.JobArgs{NoopArgs{}, RetentionApplyArgs{}, auth.InviteEmailArgs{}} {
+	for _, args := range []river.JobArgs{NoopArgs{}, RetentionApplyArgs{}, schedule.SlotsGenerateArgs{}, auth.InviteEmailArgs{}} {
 		var unknown *river.UnknownJobKindError
 		if _, err := client.Insert(t.Context(), args, nil); errors.As(err, &unknown) || err != nil {
 			t.Errorf("Insert(%s) error = %v, want the kind known", args.Kind(), err)
 		}
+	}
+}
+
+// slots_generate runs hourly, and once as soon as the scheduler leads, so a deploy does not wait an hour.
+func TestScheduler_EnqueuesTheHourlySlotGenerationWhenItStartsLeading(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	client, err := NewScheduler(app, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("NewScheduler() error = %v", err)
+	}
+	if err := client.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = client.Stop(context.WithoutCancel(t.Context())) })
+
+	wall := clock.System{}
+	deadline := wall.Now().Add(15 * time.Second)
+	for {
+		var n int
+		var args string
+		err := owner.QueryRow(t.Context(), "SELECT count(*), coalesce(min(args::text), '') FROM river_job WHERE kind = 'slots_generate'").Scan(&n, &args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n > 0 {
+			if n != 1 || args != "{}" {
+				t.Errorf("%d slots_generate jobs with %s, want one without ids", n, args)
+			}
+			return
+		}
+		if wall.Now().After(deadline) {
+			t.Fatal("no slots_generate job within 15 s")
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }

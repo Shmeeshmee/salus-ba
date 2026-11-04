@@ -82,6 +82,9 @@ func toAccount(row authdb.AccountByEmailRow, err error) (Account, error) {
 	if row.OrganizationID.Valid {
 		a.OrganizationID = row.OrganizationID.String()
 	}
+	if row.PractitionerID.Valid {
+		a.PractitionerID = row.PractitionerID.String()
+	}
 	if row.MfaEnrolledAt.Valid {
 		a.MFAEnrolledAt = row.MfaEnrolledAt.Time
 	}

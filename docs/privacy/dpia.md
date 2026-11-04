@@ -370,3 +370,38 @@ practitioners and roles are not shown.
 | The public directory changes data | Its policies are `SELECT` only; an update in the directory scope changes no row (tested) |
 | A non-admin changes a specialty or the listing | Whether the caller is the clinic's admin is read from `account` on each request; a practitioner gets 403, anyone outside the clinic 404, and the refusal is audited; `salus_app` may update only `listed` and `time_zone` (with the name) on `organization` and `specialty_code`, `updated_at` and `version_id` on `practitioner_role` (tested) |
 | Public reads go unrecorded | Deliberate: they hold only what a clinic chose to publish, and auditing anonymous traffic would turn each request into a write (SPEC.md "Public browse"). Staff reads and every change stay audited |
+
+### Package 5: schedules and slots
+
+**Processing added.** A practitioner role has a schedule (`schedule`): a slot length and weekly availability
+rules (day, start, end in the clinic's time zone), edited by the practitioner for their own role or by the
+clinic's admin (`GET`/`PUT /practitioner-roles/{id}/availability`). The scheduler's `slots_generate` job
+materialises the schedule as bookable slots (`slot`: schedule, clinic, period, `free` or `busy`) 28 days ahead,
+hourly and after each edit. The services can read, for anyone, the schedules and free future slots of listed
+clinics; no endpoint serves those public reads yet (FHIR in package 7). Appointments that hold a slot arrive
+in package 6.
+
+**Purpose and lawful basis.** To offer bookable times: the clinic's employment relationship with the
+practitioner and its legitimate interest in being booked (Art. 6(1)(b), (f); SPEC.md section 3). A schedule
+reveals a practitioner's working hours; a slot's status reveals whether a time is taken, not by whom.
+
+**Necessity and minimisation.** A schedule holds the role, the clinic, a length and the rules; a slot its
+schedule, clinic, period and status (SPEC.md section 4). No patient data: who holds a busy slot is the
+appointment's (package 6). The public directory sees the schedules of active roles of listed clinics and only
+their free slots; a busy slot is not shown outside the clinic. The `slots_generate` job's arguments are the
+schedule and clinic ids, or nothing for the hourly run; its log holds counts only (tested).
+
+**Retention.** `schedule`: `restrict`, like `practitioner_role` (no applier until practitioners can leave).
+`slot`: `delete` free slots 30 days after their end, by the `retention_apply` job as `salus_retention`, which
+is granted `SELECT, DELETE` on `slot` in the same migration; a busy slot is kept with its appointment.
+**Needs a legal decision before production**, like every period here.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A practitioner sees or changes another practitioner's working hours | The service allows the role's own practitioner (the account's `practitioner_id`, read per request) and the clinic's admin only; another member gets 403, anyone outside the clinic 404; reads and edits are audited, refusals included (tested) |
+| Another clinic's schedules or slots are read or changed | Both tables are row-level secured by clinic, fail closed when no scope is set, and the services check the clinic again (tested) |
+| Booked times leak through the public directory | The directory policy on `slot` shows `free` slots only, of schedules its own policy shows (active roles of listed clinics); directory reads change nothing (tested) |
+| Generation removes a booking | Generation deletes only future free slots; a `RESTRICTIVE` policy lets `salus_app` delete free slots only, and an overlapping new slot is skipped (`ON CONFLICT DO NOTHING` on the exclusion constraint), so a busy slot and its appointment stay (tested) |
+| The retention role reaches more than slots | It gains `SELECT, DELETE` on `slot` only, which the grant test ties to the `delete` rules; it still cannot read `schedule` or touch `audit_event` (tested) |

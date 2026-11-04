@@ -10,6 +10,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/retention"
+	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
@@ -46,5 +47,6 @@ func newRetention(pool, retentionPool *pgxpool.Pool) (*retention.Service, error)
 	return retention.NewService(map[string]retention.Purger{
 		"session": auth.NewSessionPurger(accounts),
 		"invite":  auth.NewInvitePurger(accounts),
+		"slot":    slot.NewPurger(slot.NewPostgresRepository(retentionPool)),
 	}, audit, clock.System{})
 }

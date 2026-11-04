@@ -52,5 +52,16 @@ func Rules() []Rule {
 			Basis: "Proof of the patient's decision (GDPR Art. 7(1)), kept with the clinical record (Art. 9(2)(h)); needs a legal decision before production (docs/booking/SPEC.md section 4)",
 			Then:  ThenKeep,
 		},
+		{
+			Table: "schedule",
+			Basis: "The clinic's employment relationship and its legitimate interest in being booked (GDPR Art. 6(1)(b), (f)) while the role is active; after the practitioner leaves, restricted like practitioner_role (docs/booking/SPEC.md section 4)",
+			Then:  ThenRestrict,
+		},
+		{
+			Table: "slot",
+			Basis: "Offering bookable times (GDPR Art. 6(1)(b), (f)); a free slot is deleted 30 days after its end, a busy one is kept with its appointment (docs/booking/SPEC.md section 4)",
+			Keep:  30 * day, // after the end of a free slot
+			Then:  ThenDelete,
+		},
 	}
 }

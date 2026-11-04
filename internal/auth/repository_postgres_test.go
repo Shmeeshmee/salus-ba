@@ -333,3 +333,28 @@ func TestLogin_ReHashesOlderParametersInTheDatabase(t *testing.T) {
 		t.Error("the hash was not replaced with the newer parameters")
 	}
 }
+
+func TestByID_ReadsAPractitionersPractitioner(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	const practitionerID = "a3000000-0000-4000-8000-0000000000a1"
+	var id string
+	if _, err := owner.Exec(t.Context(), `INSERT INTO organization (id, name) VALUES ($1, 'Synthetic clinic')`, clinicID); err != nil {
+		t.Fatal(err)
+	}
+	err := owner.QueryRow(t.Context(), `WITH p AS (INSERT INTO practitioner (id, organization_id, given_name, family_name)
+			VALUES ($2, $1, 'Ada', 'Example') RETURNING id, organization_id)
+		INSERT INTO account (email, password_hash, role, organization_id, practitioner_id)
+		SELECT 'ada@example.test', 'h', 'practitioner', organization_id, id FROM p RETURNING id`, clinicID, practitionerID).Scan(&id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := auth.NewPostgresRepository(app)
+	got, err := repo.ByID(t.Context(), id)
+	if err != nil || got.Role != auth.RolePractitioner || got.PractitionerID != practitionerID {
+		t.Errorf("ByID() = %+v, %v; want the practitioner %s", got, err, practitionerID)
+	}
+	if got, err := repo.ByEmail(t.Context(), "ada@example.test"); err != nil || got.PractitionerID != practitionerID {
+		t.Errorf("ByEmail() = %+v, %v; want the practitioner %s", got, err, practitionerID)
+	}
+}

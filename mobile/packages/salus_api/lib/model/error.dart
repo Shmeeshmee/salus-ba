@@ -141,6 +141,8 @@ enum ErrorErrorEnum {
   consentInactive._(r'consent_inactive'),
   profileRequired._(r'profile_required'),
   invalidSpecialty._(r'invalid_specialty'),
+  invalidSlotMinutes._(r'invalid_slot_minutes'),
+  invalidAvailability._(r'invalid_availability'),
   internalError._(r'internal error'),
   timeout._(r'timeout'),
   ;
@@ -254,6 +256,10 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.profileRequired;
         case r'invalid_specialty':
           return ErrorErrorEnum.invalidSpecialty;
+        case r'invalid_slot_minutes':
+          return ErrorErrorEnum.invalidSlotMinutes;
+        case r'invalid_availability':
+          return ErrorErrorEnum.invalidAvailability;
         case r'internal error':
           return ErrorErrorEnum.internalError;
         case r'timeout':

@@ -41,17 +41,21 @@ func (a *fakeAudit) CountRecordedBefore(_ context.Context, before time.Time) (in
 }
 
 type appliers struct {
-	sessions, invites *fakePurger
-	audit             *fakeAudit
+	sessions, invites, slots *fakePurger
+	audit                    *fakeAudit
 }
 
 func newAppliers() appliers {
-	return appliers{sessions: &fakePurger{rows: 4}, invites: &fakePurger{rows: 1}, audit: &fakeAudit{}}
+	return appliers{sessions: &fakePurger{rows: 4}, invites: &fakePurger{rows: 1}, slots: &fakePurger{rows: 9}, audit: &fakeAudit{}}
+}
+
+func (a appliers) purgers() map[string]retention.Purger {
+	return map[string]retention.Purger{"session": a.sessions, "invite": a.invites, "slot": a.slots}
 }
 
 func (a appliers) service(t *testing.T) *retention.Service {
 	t.Helper()
-	svc, err := retention.NewService(map[string]retention.Purger{"session": a.sessions, "invite": a.invites}, a.audit, clock.Fixed{T: now})
+	svc, err := retention.NewService(a.purgers(), a.audit, clock.Fixed{T: now})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
@@ -66,14 +70,17 @@ func TestApply_CallsEachApplierOnceWithItsRulesCutOffAndCountsTheRows(t *testing
 	if err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
-	if want := []time.Time{now.Add(-30 * day)}; !slices.Equal(a.sessions.before, want) || !slices.Equal(a.invites.before, want) {
-		t.Errorf("purged sessions before %v and invites before %v, want once each before %v", a.sessions.before, a.invites.before, want)
+	if want := []time.Time{now.Add(-30 * day)}; !slices.Equal(a.sessions.before, want) || !slices.Equal(a.invites.before, want) ||
+		!slices.Equal(a.slots.before, want) {
+		t.Errorf("purged sessions before %v, invites before %v and slots before %v, want once each before %v",
+			a.sessions.before, a.invites.before, a.slots.before, want)
 	}
 	if want := []time.Time{now.Add(-3653 * day)}; !slices.Equal(a.audit.before, want) {
 		t.Errorf("counted audit events before %v, want once before %v", a.audit.before, want)
 	}
-	// keep and restrict apply nothing: account, practitioner and practitioner_role have no result.
-	want := []retention.Result{{Table: "audit_event"}, {Table: "session", Deleted: 4}, {Table: "invite", Deleted: 1}}
+	// keep and restrict apply nothing: account, practitioner, practitioner_role, patient, consent and schedule
+	// have no result.
+	want := []retention.Result{{Table: "audit_event"}, {Table: "session", Deleted: 4}, {Table: "invite", Deleted: 1}, {Table: "slot", Deleted: 9}}
 	if !slices.Equal(results, want) {
 		t.Errorf("results %+v, want %+v", results, want)
 	}
@@ -126,10 +133,12 @@ func TestNewService_RefusesRulesWithoutAnApplierAndAppliersWithoutARule(t *testi
 		name    string
 		table   string
 	}{
-		{name: "no session purger", purgers: map[string]retention.Purger{"invite": purger}, audit: &fakeAudit{}, table: "session"},
-		{name: "no invite purger", purgers: map[string]retention.Purger{"session": purger}, audit: &fakeAudit{}, table: "invite"},
-		{name: "no audit check", purgers: map[string]retention.Purger{"session": purger, "invite": purger}, table: "audit_event"},
-		{name: "a purger for a kept table", purgers: map[string]retention.Purger{"session": purger, "invite": purger, "account": purger}, audit: &fakeAudit{}, table: "account"},
+		{name: "no session purger", purgers: map[string]retention.Purger{"invite": purger, "slot": purger}, audit: &fakeAudit{}, table: "session"},
+		{name: "no invite purger", purgers: map[string]retention.Purger{"session": purger, "slot": purger}, audit: &fakeAudit{}, table: "invite"},
+		{name: "no slot purger", purgers: map[string]retention.Purger{"session": purger, "invite": purger}, audit: &fakeAudit{}, table: "slot"},
+		{name: "no audit check", purgers: map[string]retention.Purger{"session": purger, "invite": purger, "slot": purger}, table: "audit_event"},
+		{name: "a purger for a kept table", purgers: map[string]retention.Purger{"session": purger, "invite": purger, "slot": purger, "account": purger}, audit: &fakeAudit{}, table: "account"},
+		{name: "a purger for a restricted table", purgers: map[string]retention.Purger{"session": purger, "invite": purger, "slot": purger, "schedule": purger}, audit: &fakeAudit{}, table: "schedule"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

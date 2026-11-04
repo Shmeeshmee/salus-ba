@@ -87,25 +87,32 @@ func seedRetention(t *testing.T, owner *pgxpool.Pool) {
 // the job's first attempt ended (completed or failed) and the worker's log.
 func runRetention(t *testing.T, db logins) (river.EventKind, string) {
 	t.Helper()
+	return runWorkerJob(t, db, worker.RetentionApplyArgs{})
+}
+
+// runWorkerJob starts the worker on db, enqueues args, and returns how the job's first attempt ended (completed,
+// failed or cancelled) and the worker's log.
+func runWorkerJob(t *testing.T, db logins, args river.JobArgs) (river.EventKind, string) {
+	t.Helper()
 	logs := &syncBuffer{}
 	client, err := worker.New(db.app, db.retention, slog.New(slog.NewJSONHandler(logs, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	events, cancel := client.Subscribe(river.EventKindJobCompleted, river.EventKindJobFailed)
+	events, cancel := client.Subscribe(river.EventKindJobCompleted, river.EventKindJobFailed, river.EventKindJobCancelled)
 	defer cancel()
 	if err := client.Start(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = client.Stop(context.WithoutCancel(t.Context())) }()
-	if _, err := client.Insert(t.Context(), worker.RetentionApplyArgs{}, nil); err != nil {
+	if _, err := client.Insert(t.Context(), args, nil); err != nil {
 		t.Fatalf("Insert() error = %v", err)
 	}
 	select {
 	case ev := <-events:
 		return ev.Kind, logs.String()
 	case <-time.After(15 * time.Second):
-		t.Fatal("the retention_apply job did not finish within 15s")
+		t.Fatalf("the %s job did not finish within 15s", args.Kind())
 	}
 	return "", ""
 }
@@ -136,6 +143,7 @@ func TestRetentionApply_DeletesEndedSessionsAndInvitesAndLogsOnlyTablesAndCounts
 		`"msg":"retention applied","table":"audit_event","deleted":0,"overdue":0`,
 		`"msg":"retention applied","table":"session","deleted":1,"overdue":0`,
 		`"msg":"retention applied","table":"invite","deleted":1,"overdue":0`,
+		`"msg":"retention applied","table":"slot","deleted":0,"overdue":0`,
 	} {
 		if !strings.Contains(logs, line) {
 			t.Errorf("log lacks %s:\n%s", line, logs)
@@ -218,7 +226,7 @@ func TestCompose_OnlyTheWorkerHasTheRetentionDatabaseURL(t *testing.T) {
 }
 
 // The retention pool reaches one place: New hands it to newRetention, which builds the retention purgers'
-// repository on it. Every other job, and River itself, runs on the salus_app pool.
+// repositories on it. Every other job, and River itself, runs on the salus_app pool.
 func TestNew_HandsTheRetentionPoolToTheRetentionPurgersOnly(t *testing.T) {
 	fset := token.NewFileSet()
 	files, err := filepath.Glob("*.go")
@@ -248,7 +256,7 @@ func TestNew_HandsTheRetentionPoolToTheRetentionPurgersOnly(t *testing.T) {
 		})
 	}
 	slices.Sort(uses)
-	if want := []string{"auth.NewPostgresRepository", "newRetention"}; !slices.Equal(uses, want) {
+	if want := []string{"auth.NewPostgresRepository", "newRetention", "slot.NewPostgresRepository"}; !slices.Equal(uses, want) {
 		t.Errorf("retentionPool is passed to %v, want only %v", uses, want)
 	}
 }

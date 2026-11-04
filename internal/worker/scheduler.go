@@ -8,10 +8,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+
+	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
 // retentionHour is the UTC hour of the daily retention_apply job (docs/booking/SPEC.md §2 "Periodic jobs").
 const retentionHour = 3
+
+// slotsInterval is how often slots_generate runs (docs/booking/SPEC.md §2 "Periodic jobs").
+const slotsInterval = time.Hour
 
 // schedulerQueue is the scheduler's own queue. Nothing is enqueued on it; River starts, and so elects and
 // enqueues periodic jobs in, only a client that works a queue.
@@ -26,7 +31,7 @@ func NewScheduler(pool *pgxpool.Pool, log *slog.Logger) (*river.Client[pgx.Tx], 
 
 func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.PeriodicSchedule) (*river.Client[pgx.Tx], error) {
 	workers := river.NewWorkers()
-	addDefaultWorkers(workers, nil, nil)
+	addDefaultWorkers(workers, nil, nil, nil)
 	addEmailWorkers(workers, nil)
 	return river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Logger: log,
@@ -35,6 +40,11 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 			river.NewPeriodicJob(retentionSchedule, func() (river.JobArgs, *river.InsertOpts) {
 				return RetentionApplyArgs{}, nil
 			}, nil),
+			// Also when the scheduler starts leading, so slots do not wait an hour after a deploy; generation
+			// is idempotent.
+			river.NewPeriodicJob(river.PeriodicInterval(slotsInterval), func() (river.JobArgs, *river.InsertOpts) {
+				return schedule.SlotsGenerateArgs{}, nil
+			}, &river.PeriodicJobOpts{RunOnStart: true}),
 		},
 		ReindexerIndexNames: []string{}, // as in workConfig: salus_app owns nothing
 		Workers:             workers,

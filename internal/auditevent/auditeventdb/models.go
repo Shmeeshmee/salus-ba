@@ -205,6 +205,17 @@ type RiverQueue struct {
 	UpdatedAt pgtype.Timestamptz
 }
 
+type Schedule struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	VersionID          int32
+	SlotMinutes        int32
+	Availability       []byte
+}
+
 type Session struct {
 	ID             pgtype.UUID
 	CreatedAt      pgtype.Timestamptz
@@ -214,4 +225,15 @@ type Session struct {
 	OrganizationID pgtype.UUID
 	MfaVerified    bool
 	TokenHash      []byte
+}
+
+type Slot struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	ScheduleID     pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
+	Period         pgtype.Range[pgtype.Timestamptz]
 }

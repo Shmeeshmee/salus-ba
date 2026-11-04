@@ -491,3 +491,37 @@ func TestIsClinicAdmin_PassesARepositoryErrorOn(t *testing.T) {
 		t.Errorf("IsClinicAdmin() error = %v, want the repository's", err)
 	}
 }
+
+func TestClinicMember_GivesTheAdminFlagAndThePractitionerOfTheSessionsClinicAndAuditsNothing(t *testing.T) {
+	const practitionerID = "a3000000-0000-4000-8000-0000000000a1"
+	practitionerAccount := staff()
+	practitionerAccount.Role, practitionerAccount.PractitionerID = auth.RolePractitioner, practitionerID
+	tests := []struct {
+		name    string
+		account auth.Account
+		sess    auth.Session
+		want    auth.Member
+	}{
+		{name: "the clinic's admin", account: staff(), sess: adminSession(), want: auth.Member{Admin: true}},
+		{name: "a practitioner", account: practitionerAccount, sess: adminSession(), want: auth.Member{PractitionerID: practitionerID}},
+		{name: "a patient", account: patientWithoutMFA(), sess: auth.Session{ID: sessionID, AccountID: accountID}},
+		{name: "a session of another clinic", account: practitionerAccount, sess: auth.Session{ID: sessionID, AccountID: accountID, OrganizationID: "d0000000-0000-4000-8000-00000000000d"}},
+		{name: "an account that is gone", account: auth.Account{ID: "0b6c8a52-0000-4000-8000-000000000000"}, sess: adminSession()},
+	}
+	for _, tt := range tests {
+		f := newFixture(tt.account)
+		got, err := f.svc.ClinicMember(t.Context(), tt.sess)
+		if err != nil || got != tt.want {
+			t.Errorf("%s: ClinicMember() = %+v, %v; want %+v, nil", tt.name, got, err, tt.want)
+		}
+		if n := len(f.audit.events); n != 0 {
+			t.Errorf("%s: %d audit events, want none", tt.name, n)
+		}
+	}
+
+	f := newFixture(staff())
+	f.repo.err = errors.New("db down")
+	if _, err := f.svc.ClinicMember(t.Context(), adminSession()); !errors.Is(err, f.repo.err) {
+		t.Errorf("ClinicMember() error = %v, want the repository's", err)
+	}
+}

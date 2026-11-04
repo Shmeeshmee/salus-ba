@@ -210,6 +210,10 @@ class ApiClient {
           return Acceptance.fromJson(value);
         case 'Account':
           return Account.fromJson(value);
+        case 'Availability':
+          return Availability.fromJson(value);
+        case 'AvailabilityRule':
+          return AvailabilityRule.fromJson(value);
         case 'ConfirmRequest':
           return ConfirmRequest.fromJson(value);
         case 'Consent':
@@ -240,6 +244,8 @@ class ApiClient {
           return RegisterRequest.fromJson(value);
         case 'RoleSpecialty':
           return RoleSpecialty.fromJson(value);
+        case 'SaveAvailabilityRequest':
+          return SaveAvailabilityRequest.fromJson(value);
         case 'SavePatientRequest':
           return SavePatientRequest.fromJson(value);
         case 'SetSpecialtyRequest':

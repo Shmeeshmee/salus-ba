@@ -30,7 +30,7 @@ func (q *Queries) AcceptInvite(ctx context.Context, arg AcceptInviteParams) (int
 }
 
 const accountByEmail = `-- name: AccountByEmail :one
-SELECT id, mfa_enrolled_at, organization_id, role, email, password_hash
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash
 FROM account
 WHERE email = $1
 `
@@ -39,6 +39,7 @@ type AccountByEmailRow struct {
 	ID             pgtype.UUID
 	MfaEnrolledAt  pgtype.Timestamptz
 	OrganizationID pgtype.UUID
+	PractitionerID pgtype.UUID
 	Role           string
 	Email          string
 	PasswordHash   string
@@ -51,6 +52,7 @@ func (q *Queries) AccountByEmail(ctx context.Context, email string) (AccountByEm
 		&i.ID,
 		&i.MfaEnrolledAt,
 		&i.OrganizationID,
+		&i.PractitionerID,
 		&i.Role,
 		&i.Email,
 		&i.PasswordHash,
@@ -59,7 +61,7 @@ func (q *Queries) AccountByEmail(ctx context.Context, email string) (AccountByEm
 }
 
 const accountByID = `-- name: AccountByID :one
-SELECT id, mfa_enrolled_at, organization_id, role, email, password_hash
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash
 FROM account
 WHERE id = $1
 `
@@ -68,6 +70,7 @@ type AccountByIDRow struct {
 	ID             pgtype.UUID
 	MfaEnrolledAt  pgtype.Timestamptz
 	OrganizationID pgtype.UUID
+	PractitionerID pgtype.UUID
 	Role           string
 	Email          string
 	PasswordHash   string
@@ -80,6 +83,7 @@ func (q *Queries) AccountByID(ctx context.Context, id pgtype.UUID) (AccountByIDR
 		&i.ID,
 		&i.MfaEnrolledAt,
 		&i.OrganizationID,
+		&i.PractitionerID,
 		&i.Role,
 		&i.Email,
 		&i.PasswordHash,

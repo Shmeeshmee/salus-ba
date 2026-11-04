@@ -88,6 +88,8 @@ Class | Method | HTTP request | Description
 *InvitesApi* | [**listInvites**](doc//InvitesApi.md#listinvites) | **GET** /invites | The clinic's open invites
 *PatientApi* | [**getMyPatient**](doc//PatientApi.md#getmypatient) | **GET** /me/patient | The signed-in patient's profile
 *PatientApi* | [**saveMyPatient**](doc//PatientApi.md#savemypatient) | **PUT** /me/patient | Save the signed-in patient's profile
+*SchedulingApi* | [**getAvailability**](doc//SchedulingApi.md#getavailability) | **GET** /practitioner-roles/{id}/availability | Read a practitioner role's weekly availability
+*SchedulingApi* | [**saveAvailability**](doc//SchedulingApi.md#saveavailability) | **PUT** /practitioner-roles/{id}/availability | Set a practitioner role's weekly availability
 
 
 ## Documentation For Models
@@ -95,6 +97,8 @@ Class | Method | HTTP request | Description
  - [AcceptInviteRequest](doc//AcceptInviteRequest.md)
  - [Acceptance](doc//Acceptance.md)
  - [Account](doc//Account.md)
+ - [Availability](doc//Availability.md)
+ - [AvailabilityRule](doc//AvailabilityRule.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)
  - [Consent](doc//Consent.md)
  - [ConsentList](doc//ConsentList.md)
@@ -110,6 +114,7 @@ Class | Method | HTTP request | Description
  - [Patient](doc//Patient.md)
  - [RegisterRequest](doc//RegisterRequest.md)
  - [RoleSpecialty](doc//RoleSpecialty.md)
+ - [SaveAvailabilityRequest](doc//SaveAvailabilityRequest.md)
  - [SavePatientRequest](doc//SavePatientRequest.md)
  - [SetSpecialtyRequest](doc//SetSpecialtyRequest.md)
  - [Specialty](doc//Specialty.md)

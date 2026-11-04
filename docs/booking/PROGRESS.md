@@ -6,7 +6,7 @@
 | 2 Patient | done | `booking(2)` |
 | 3 Consent and access | done | `booking(3)` |
 | 4 Directory additions | done | `booking(4)` |
-| 5 Schedule and slot | to do | |
+| 5 Schedule and slot | done | `booking(5)` |
 | 6 Appointment | to do | |
 | 7 FHIR | to do | |
 | 8 Web | to do | |
@@ -361,3 +361,124 @@ anonymous `PractitionerRole` search with `specialty`, the `StructureDefinition`s
 **Dev stack.** Untouched: migration 00017 is not applied to the dev database (no stack check in this
 package; the running images do not use it); `make migrate` applies it. Tests ran in throwaway databases.
 `alpine:3` was pulled to read the value set from the `salus_fhir` volume (read-only) and removed again.
+
+### 2026-11-04 — package 5: schedule and slot
+
+**Built.**
+- `migrations/00018_schedule_slot.sql`: `schedule` (one per role, `slot_minutes` 5 to 240 in steps of 5,
+  `availability` a JSON array, `(practitioner_role_id, organization_id)` referencing the role, for which
+  `practitioner_role` gains `UNIQUE (id, organization_id)`) and `slot` (`period tstzrange`, half-open and
+  bounded; `status` `free` | `busy`; `(schedule_id, organization_id)` referencing the schedule;
+  `EXCLUDE USING gist (schedule_id WITH =, period WITH &&)`; a partial index on `upper(period)` of free slots
+  for retention). RLS: clinic scope (all commands) on both; directory scope `SELECT` on schedules of roles the
+  role policy shows (active, listed clinic) and on their `free` slots; a `RESTRICTIVE` `DELETE` policy lets the
+  application delete free slots only. Grants: `salus_app` `SELECT, INSERT` and `UPDATE (slot_minutes,
+  availability, updated_at, version_id)` on `schedule`; `SELECT, INSERT, DELETE` and `UPDATE (status,
+  updated_at, version_id)` on `slot`; `salus_retention` `SELECT, DELETE` on `slot`.
+- `internal/schedule` (context `scheduling`): `Availability`, `SaveAvailability` (create at version 0,
+  update of the current version; validation; enqueues `slots_generate` with the schedule and clinic ids in
+  its transaction), `Read` and `ByActor` (directory, not audited), `ForGeneration` (clinic scope, row locked
+  `FOR NO KEY UPDATE`) and `Listed` (directory) for generation; staff reads and edits audited (`HOPERAT`),
+  refusals included. `Ports` struct (the worker builds it without `Roles` and `Jobs`). River jobs port;
+  `SlotsGenerateArgs`. JSON `GET`/`PUT /practitioner-roles/{id}/availability` in `handler_http.go`.
+- `internal/slot` (context `scheduling`): `Generate(ctx, org, scheduleID)`, `GenerateAll`, `Search`
+  (directory, free, from now on), `Hold` and `Release` (clinic scope set by the call, in the caller's
+  transaction), `Purger` (`service_retention.go`). Generation (`service_generate.go`) in the clinic's zone,
+  28 days ahead.
+- `internal/auth`: `Account.PractitionerID` (read by `AccountByID`/`AccountByEmail`), `Member`,
+  `Service.ClinicMember` (admin flag and practitioner of the session's clinic, not audited, like
+  `IsClinicAdmin`). `internal/api`: the schedule service and handler, `scheduleCaller`.
+- `internal/worker`: the `slots_generate` worker (one schedule, or every listed schedule when the arguments
+  are empty; logs `schedules`, `inserted`, `deleted`; cancels the job of an unknown schedule); the scheduler
+  registers the kind and enqueues it hourly with `RunOnStart`; the retention job gets the slot purger on the
+  retention pool. `make bench-slots`.
+- `internal/retention`: `schedule` `restrict`, `slot` `delete` after 30 days. `ownership.yaml`, `config.yaml`
+  (`scheduling: [schedule, slot]`), `sqlc.yaml`. `api/openapi.yaml` (`Availability`, `AvailabilityRule`,
+  `SaveAvailabilityRequest`; codes `invalid_slot_minutes`, `invalid_availability`; tag `scheduling`);
+  `make gen-clients`. `docs/privacy/dpia.md`: schedules and slots.
+
+**Red first.** migrations: `relation "schedule" does not exist` (42P01). retention (rules restored after the
+red run): `no rule for schedule`/`slot`, `NewService() error = … has no applier … : slot`, and the grant test
+`salus_retention holds map[… slot:[DELETE SELECT]], want map[invite:… session:…]` (the migration was in before
+the rule). schedule: `undefined: schedule.Service`, `undefined: schedule.NewPostgresRepository`,
+`undefined: schedule.NewRiverJobs`, `undefined: schedule.NewHTTPHandler`, then the handler's field order (fixed
+in the test, as in package 2). slot: `undefined: slot.Service`, `undefined: slot.NewPostgresRepository`, then
+an overlapping fixture of my own (fixed in the test). auth: `Account has no field or method PractitionerID`,
+then `ClinicMember()` giving a practitioner of another clinic its practitioner id (fixed in the code: it read
+the account through `clinicAdmin`, which overwrites the clinic). worker: `undefined: slotsSchedule` (the
+helper was then dropped for a constant). api: the availability route answered 404 and wrote no audit or job
+before the wiring.
+
+**Checks.** `make lint` 0 issues, migrations unchanged; `make test` passes; `make archcheck` ok; `make cover`
+passes, every package at 80% or more (schedule 90.5%, slot 93.3%, worker 98.4%, auth 95.6%, api 90.5%,
+retention 100%; total 94.8%); `make sqlc` and `make gen-clients` leave no diff (hashes compared);
+`make web-typecheck` and `make mobile-analyze` clean.
+
+**Benchmark** (`make bench-slots`: `BenchmarkGenerate` in `internal/worker`, the services the worker builds,
+as `salus_app` with row-level security; 50 schedules of one listed clinic, weekdays 08:00 to 16:00 in
+quarter-hour slots, from Monday 09:00 Sarajevo: 31 950 slots; `-benchtime=5x -count=3`, i7-14700HX, the
+compose Postgres):
+
+| Run | Time per run (3 counts) | Per schedule |
+| --- | --- | --- |
+| First (no slots) | 1.60 s, 1.63 s, 1.33 s | about 30 ms for 639 slots |
+| Re-run (nothing changes) | 0.84 s, 0.84 s, 0.85 s | about 17 ms |
+
+`EXPLAIN ANALYZE` on one schedule: the delete of stale free slots takes 1.8 ms (hashed `NOT IN`); the insert
+of 639 periods that all conflict takes 13 ms, the cost of `ON CONFLICT DO NOTHING` on the exclusion
+constraint. Tried: skipping existing periods with `NOT EXISTS` before the insert; the re-run became slower
+(1.66 s), as each probe pays the row-level security policies, so it was reverted. Under a second an hour for
+50 practitioners, and about 17 to 30 ms for the one schedule an edit enqueues, needs nothing faster; if it
+ever does, generating only the days not yet generated is the next step.
+
+**Readings and decisions.**
+- **Practitioner of a role.** The session holds neither the role nor the practitioner. `account.practitioner_id`
+  (set at invite acceptance, accounts) is now read by `auth`, and `ClinicMember` gives the schedule handler the
+  admin flag and the practitioner; the service reads the role through `practitionerrole.Service.Read` (audited
+  there) and compares its practitioner. A staff account that is no practitioner and not the admin gets 403.
+- **Before the first edit.** `GET` answers an empty availability at version 0 (no `id`, no `slotMinutes`),
+  with `ETag: W/"0"`; a `PUT` with `If-Match: W/"0"` creates the schedule ("created with the role's first
+  availability edit"), a create when one exists is 412 like any stale version. Version mismatches are 412
+  `version_conflict`, as for the specialty (`If-Match`). An empty rule list is valid (no slots).
+- **Validation.** `HH:MM` strictly, 00:00 to 23:59, so a window cannot end at midnight (23:59 is the latest);
+  start before end; touching windows are allowed, overlapping or nested ones are not. Invalid input is 400 and
+  not audited (nothing accessed), as in packages 2 and 4. Rules are stored sorted by day and start. Body limit
+  64 KiB.
+- **Generation.** A slot is generated when its start is strictly after now and strictly before now + 28 × 24
+  h; slots step from the rule's start by the slot length while they end by the rule's end (wall-clock
+  minutes). A local time is resolved against the zone's offsets a day before and after: a time neither gives
+  is skipped (spring), and of two the earlier instant is taken (autumn; Go's `time.Date` takes the later one in
+  Europe/Sarajevo). Tested on 28 March and 31 October 2027. Order: delete the future free slots not in the
+  set, then insert (so a shorter slot length is not blocked by the old free slots); both in one transaction
+  with the schedule row locked, so a generation and an edit, or two generations, of one schedule do not
+  interleave. A new slot overlapping a busy one is skipped; an appointment outside new availability keeps its
+  busy slot.
+- **Which schedules the hourly run covers.** The scheduler and worker have no cross-clinic scope; the run lists
+  schedules in the directory scope (active roles of listed clinics) and generates each in its clinic's scope,
+  each in its own transaction (a failing one does not stop the others; the job then fails and River retries,
+  which is idempotent). An unlisted clinic gets slots when an availability is saved, not hourly; when it is
+  listed, the next hourly run (or `RunOnStart`) covers it. Nobody can book an unlisted clinic (package 6), so
+  nothing is lost.
+- **`RunOnStart`.** The hourly job is also enqueued when the scheduler starts leading, so slots do not wait
+  up to an hour after a deploy; the leader-only rule (package 1) still holds.
+- **Hold and Release.** Both set the clinic scope themselves and join the caller's transaction (tested: a
+  rolled-back booking leaves the slot free). `Hold` is free to busy, else `ErrUnavailable` (unknown, other
+  clinic, busy). `Release` frees a busy slot only while its start is ahead and reports whether it did; it is
+  not an error otherwise. Package 6 adds the future-start and listed-clinic checks of booking in its own
+  service.
+- **Slots stay out of the audit.** A slot holds no patient data; the appointment that holds one is audited in
+  package 6. Schedule reads and edits by staff are audited as directory operations (`HOPERAT`), like the role.
+- **Busy slots in the directory.** The SPEC says the directory scope shows the slot rows of listed clinics; the
+  policy shows only `free` ones (stricter, nothing in the product needs a busy slot outside the clinic). Package
+  6 resolves a slot for booking: a busy one then reads as not found, answered 409 there.
+- **Slot model.** `updated_at` and `version_id` on `slot` for `meta`; no practitioner role column (SPEC §4
+  lists none): package 6 reaches the role through the schedule.
+- **Benchmark place.** In `internal/worker`, where the real composition is: `internal/slot`'s tests may not
+  build other domains' repositories (archcheck), so they use fakes for the schedule and the clinic.
+
+**Deferred.** FHIR `Schedule` read and search by `actor`, `Slot` search (package 7); booking, cancelling and
+the concurrent book-and-cancel test over `Hold`/`Release` (package 6); the web availability editor (package 8).
+
+**Dev stack.** Untouched: migration 00018 is not applied to the dev database (no stack check in this package;
+the running images do not use it); `make migrate` applies it. Tests and the benchmark ran in throwaway
+databases. The `node` dev server kept running.

@@ -23,6 +23,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
@@ -78,6 +79,10 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 	roles := practitionerrole.NewService(practitionerrole.NewPostgresRepository(pool), audit, tx, clock.System{})
 	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clock.System{})
 	patients := patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clock.System{}, consents, noAppointments{})
+	schedules := schedule.NewService(schedule.Ports{
+		Repo: schedule.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
+		Roles: roles, Jobs: schedule.NewRiverJobs(jobs), // an edit enqueues its slot generation in its transaction
+	})
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Hasher: hasher, Audit: audit, Tx: tx, Clock: clock.System{},
 		Challenges: auth.NewRedisChallengeStore(rdb), Counters: auth.NewRedisCounters(rdb), Box: box,
@@ -101,6 +106,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 			practitionerrole.NewHTTPHandler(roles, roleAdminCaller(accounts), log).Routes,
 			patient.NewHandler(patients, patientCaller, log).Routes,
 			consent.NewHandler(consents, consentCaller(patients), log).Routes,
+			schedule.NewHTTPHandler(schedules, scheduleCaller(accounts), log).Routes,
 		},
 		Timeout: RequestTimeout,
 	})
@@ -155,6 +161,22 @@ func roleAdminCaller(accounts *auth.Service) func(ctx context.Context) (practiti
 			return practitionerrole.Caller{}, false, err
 		}
 		return practitionerrole.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID, Admin: admin}, true, nil
+	}
+}
+
+// scheduleCaller is the schedule domain's view of the signed-in session, with whether the account is the
+// clinic's admin and which practitioner it is, as read from the database (the session holds neither).
+func scheduleCaller(accounts *auth.Service) func(ctx context.Context) (schedule.Caller, bool, error) {
+	return func(ctx context.Context) (schedule.Caller, bool, error) {
+		s, ok := auth.SessionFrom(ctx)
+		if !ok {
+			return schedule.Caller{}, false, nil
+		}
+		m, err := accounts.ClinicMember(ctx, s)
+		if err != nil {
+			return schedule.Caller{}, false, err
+		}
+		return schedule.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID, PractitionerID: m.PractitionerID, Admin: m.Admin}, true, nil
 	}
 }
 

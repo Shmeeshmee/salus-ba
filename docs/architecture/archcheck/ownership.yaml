@@ -17,7 +17,9 @@ tables:
   patient: {owner: patient, personal_data: true}
   practitioner: {owner: practitioner, personal_data: true}
   practitioner_role: {owner: practitionerrole, personal_data: true}
+  schedule: {owner: schedule, personal_data: true}
   session: {owner: auth, personal_data: true}
+  slot: {owner: slot, personal_data: true}
   river_job: {owner: river}
   river_leader: {owner: river}
   river_queue: {owner: river}

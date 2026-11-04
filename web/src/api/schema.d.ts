@@ -332,6 +332,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/practitioner-roles/{id}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read a practitioner role's weekly availability
+         * @description The role's schedule: its slot length and weekly rules, times of day in the clinic's time zone. Before the first edit it is empty at version 0 (no `id`, no `slotMinutes`). The practitioner reads their own role's, the clinic's admin any role's. The answer carries the version as its ETag. Audited, also when refused.
+         */
+        get: operations["getAvailability"];
+        /**
+         * Set a practitioner role's weekly availability
+         * @description Sets the slot length and the weekly rules of the role; the first edit creates its schedule. Send If-Match with the version read (`W/"0"` before the first edit); the answer carries the new version as its ETag. The role's free slots for the next 28 days follow within seconds; booked slots are never changed. The practitioner edits their own role's, the clinic's admin any role's. Audited, also when refused.
+         */
+        put: operations["saveAvailability"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -491,6 +517,44 @@ export interface components {
         ConsentList: {
             consents: components["schemas"]["Consent"][];
         };
+        /** @description One weekly window, in the clinic's time zone. */
+        AvailabilityRule: {
+            /** @description ISO weekday, 1 Monday to 7 Sunday. */
+            day: number;
+            /** @example 09:00 */
+            start: string;
+            /**
+             * @description After start.
+             * @example 12:00
+             */
+            end: string;
+        };
+        Availability: {
+            /**
+             * Format: uuid
+             * @description The schedule's id (FHIR Schedule); absent before the first edit.
+             */
+            id?: string;
+            /** Format: uuid */
+            practitionerRoleId: string;
+            /**
+             * Format: int32
+             * @description Absent before the first edit.
+             */
+            slotMinutes?: number;
+            /** @description Sorted by day and start. */
+            availability: components["schemas"]["AvailabilityRule"][];
+            /**
+             * Format: int32
+             * @description 0 before the first edit.
+             */
+            versionId: number;
+        };
+        SaveAvailabilityRequest: {
+            /** Format: int32 */
+            slotMinutes: number;
+            availability: components["schemas"]["AvailabilityRule"][];
+        };
         SetSpecialtyRequest: {
             /**
              * @description A SNOMED CT code, one of the directory's twelve specialties.
@@ -518,7 +582,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "internal error" | "timeout";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "internal error" | "timeout";
         };
         Status: {
             /** @constant */
@@ -1471,6 +1535,137 @@ export interface operations {
                 };
             };
             /** @description `version_conflict`: the role changed since it was read; read it again. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAvailability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The role's availability. */
+            200: {
+                headers: {
+                    /** @description The version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Availability"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a member of the clinic who is neither the role's practitioner nor the admin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such role in the caller's clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    saveAvailability: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The availability's version as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveAvailabilityRequest"];
+            };
+        };
+        responses: {
+            /** @description The availability at its new version. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Availability"];
+                };
+            };
+            /** @description `invalid_request`: no or an unreadable If-Match, or a body that is not the request; `invalid_slot_minutes`: a slot length outside 5 to 240 or not a multiple of 5; `invalid_availability`: a day outside 1 to 7, a time that is not HH:MM, an end not after its start, or rules that overlap on a day. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a member of the clinic who is neither the role's practitioner nor the admin; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such role in the caller's clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the availability changed since it was read; read it again. */
             412: {
                 headers: {
                     [name: string]: unknown;
