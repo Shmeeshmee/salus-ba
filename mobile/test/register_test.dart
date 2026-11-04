@@ -53,9 +53,20 @@ void main() {
 
     expect(find.text('Signed in as $email'), findsOneWidget);
     expect(h.store.token, token);
-    expect(h.api.calls, ['POST /auth/register', 'POST /auth/login', 'GET /auth/me']);
+    expect(h.api.calls, ['POST /auth/register', 'POST /auth/login', 'GET /auth/me', 'GET /me/patient']);
     expect(jsonDecode(h.api.last('POST /auth/register').body), {'email': email, 'password': password});
     expectNoCsrfHeader(h.api);
+  });
+
+  testWidgets('a new account is asked to complete its profile next', (tester) async {
+    final h = await atRegister(tester);
+    h.api.answer('POST /auth/register', 201, account());
+    h.api.answer('POST /auth/login', 200, loginDone());
+    h.api.answer('GET /auth/me', 200, account());
+    h.api.answer('GET /me/patient', 404, error('not_found'));
+    await register(tester);
+
+    expect(find.text('Complete your profile'), findsOneWidget);
   });
 
   testWidgets('409 says the e-mail has an account', (tester) async {

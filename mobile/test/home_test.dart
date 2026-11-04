@@ -14,7 +14,7 @@ void main() {
   testWidgets('sign-out ends the session and clears the stored token', (tester) async {
     final h = await signedIn(tester);
     h.api.answer('POST /auth/logout', 204);
-    await tapButton(tester, 'Sign out');
+    await tapLink(tester, 'Sign out');
 
     expect(find.text('Sign in to Salus'), findsOneWidget);
     expect(h.store.token, isNull);
@@ -25,7 +25,7 @@ void main() {
   testWidgets('a session the API already ended also counts as signed out', (tester) async {
     final h = await signedIn(tester);
     h.api.answer('POST /auth/logout', 401, error('unauthenticated'));
-    await tapButton(tester, 'Sign out');
+    await tapLink(tester, 'Sign out');
 
     expect(find.text('Sign in to Salus'), findsOneWidget);
     expect(h.store.token, isNull);
@@ -34,7 +34,7 @@ void main() {
   testWidgets('after sign-out the next request carries no token', (tester) async {
     final h = await signedIn(tester);
     h.api.answer('POST /auth/logout', 204);
-    await tapButton(tester, 'Sign out');
+    await tapLink(tester, 'Sign out');
 
     h.api.answer('POST /auth/login', 401, error('wrong_credentials'));
     await enter(tester, 'E-mail', email);
@@ -47,7 +47,7 @@ void main() {
   testWidgets('a sign-out that does not reach the API keeps the session', (tester) async {
     final h = await signedIn(tester);
     h.api.on('POST /auth/logout', (_) async => throw http.ClientException('network'));
-    await tapButton(tester, 'Sign out');
+    await tapLink(tester, 'Sign out');
 
     expect(find.text('Could not sign out. Check your connection and try again.'), findsOneWidget);
     expect(find.text('Signed in as $email'), findsOneWidget);

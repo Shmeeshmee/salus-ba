@@ -79,7 +79,7 @@ class _SignInScreenState extends State<SignInScreen> {
             _notice = staffOnly;
         }
       });
-    } on AuthFailure catch (failure) {
+    } on ApiFailure catch (failure) {
       if (!mounted) return;
       setState(() {
         if (failure.code == 'invalid_challenge') {

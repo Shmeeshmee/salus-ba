@@ -10,7 +10,7 @@
 | 6 Appointment | done | `booking(6)` |
 | 7 FHIR | done | `booking(7)` |
 | 8 Web | done | `booking(8)` |
-| 9 Mobile | to do | |
+| 9 Mobile | done | `booking(9)` |
 | 10 End-to-end | to do | |
 
 ## Decisions
@@ -889,3 +889,83 @@ active consent and three appointments (one fulfilled, one cancelled, one booked 
 local); the slots generated for 28 days; the e-mail and reminder jobs; the audit events; the invite and
 appointment e-mails in Mailpit.
 
+
+### 2026-11-04 — package 9: mobile
+
+**Built.**
+- `mobile/lib/profile_screen.dart`: the profile, created on the first save and updated at the version read
+  (`versionId` in the body); given and family name, date of birth (`YYYY-MM-DD`), optional phone (spaces, dashes,
+  dots and brackets taken out, then E.164). The API's rules are checked before sending; a 409 `version_conflict`
+  reads the profile again and asks the patient to check it. After sign-in or registration, a patient without a
+  profile sees it first ("Not now" leads home with a reminder); a booking answered `profile_required` opens it.
+- `home_screen.dart`: the profile read, then "Book an appointment", "My appointments", "My consents", "My
+  profile" and "Sign out" (now a text button). A missing profile is read again when a pushed screen returns.
+- `clinics_screen.dart`: `Organization?listed=true`; a clinic's practitioners with the specialty as the API gives
+  it (`PractitionerRole?organization=…&_include=PractitionerRole:practitioner`).
+- `slots_screen.dart`: `Schedule?actor=PractitionerRole/…`, then `Slot?schedule=…&status=free&start=ge…&start=lt…`
+  for one local day at a time (the instants of local midnight, in UTC), today to 27 days ahead, times in the
+  clinic's zone with the zone named. `BookScreen`: `POST /appointments`; `profile_required` and
+  `consent_required` open the profile or the consent screen and book again; `slot_unavailable` says so and the
+  times are read again; then "My appointments" with "Your appointment is booked.".
+- `consent_screen.dart`: what is shared, who sees it, what for, how to revoke; "Agree and book" grants
+  (`POST /consents`), "Not now" books nothing.
+- `appointments_screen.dart`: `Appointment?patient=Patient/<own id>`, upcoming then past, each with the clinic's
+  date, times and zone, practitioner, clinic and status; "Cancel appointment" with a confirmation while the start
+  is 24 h or more ahead, disabled with a hint inside 24 h.
+- `consents_screen.dart`: `GET /me/consents` with the clinic's name, given and revoked dates; "Revoke consent"
+  with a confirmation that future appointments there are cancelled and past ones stay.
+- Shared: `fhir.dart` (hand-written `Organization`, `PractitionerRole`, `Slot`, `Appointment` and the searches,
+  through the generated client's `invokeAPI`, so they carry the bearer token), `booking.dart` (the JSON actions
+  through the generated `PatientApi`, `ConsentsApi`, `AppointmentsApi`; `places`), `zones.dart`, `loading.dart`,
+  fixed sentences in `messages.dart`, flat cards and a back button on pushed pages in `ui.dart`. `AuthFailure` is
+  now `ApiFailure` (it covers every call) and `apiCall` is shared. The clock is injected (`SalusApp.now`).
+- `pubspec.yaml`: `timezone` 0.11.2, pinned exact (below). `docs/privacy/dpia.md`: package 9.
+
+**Red first.** zones: the test failed to compile, `Zone` undefined, then 3 of 5 failed on the 10-year data set
+(below). fhir: the test failed to load without `package:salus/fhir.dart`. The widget tests (profile, book,
+appointments, consents, and the changed home, register and sign-in tests) failed to compile without
+`package:salus/booking.dart` and `SalusApp(booking:, now:)`; once the code was in, 12 failed because their taps
+hit widgets below the 800 × 600 test view (the tap helpers now scroll the target into view first). Three tests
+were written after their code (the home re-reading a missing profile, a grant answered `consent_active`, a failed
+list with "Try again"); the first two were checked against a mutation of the code (both failed, then restored).
+
+**Checks.** `make mobile-test` 77 passed; `make mobile-analyze` no issues; `make gen-clients` leaves no diff (no
+`openapi.yaml` change); `make lint` 0 issues, migrations unchanged; `make archcheck` ok; `make test` passes;
+`make cover` passes, every package at 80% or more (total 94.7%, no Go change). `dart format -l 120` (the width the
+existing files are formatted at) over `lib` and `test`. Phone width: a widget test runs the booking at 390 × 844
+and fails on any overflow. Smoke against the dev API, anonymous reads only: the app's exact query shapes for the
+listed clinics, the role search with the include, the schedule and a day's free slots answered 200 with data;
+the FHIR content type has no charset (below). Running the app on a device is the manual host step (README).
+
+**Readings and decisions.**
+- **Time zones need a package.** Dart's `DateTime` knows only UTC and the device's zone; showing a slot in the
+  clinic's IANA zone needs the zone rules. `timezone` (dart-lang, pinned 0.11.2) with its `latest_all` data:
+  `latest` and `latest_10y` leave out link zones, and `Europe/Sarajevo`, the API's default (accepted by Go's
+  `time.LoadLocation`), is a link. An unknown zone (or a clinic no longer listed) falls back to UTC, named. Dates
+  and month names are written out in `zones.dart`; no `intl`.
+- **FHIR bodies are decoded as UTF-8.** The API sends `application/fhir+json` without a charset, so `http` would
+  read the body as Latin-1; `fhir.dart` decodes the bytes (tested with a clinic name with "Č").
+- **Which clinic an appointment is at.** FHIR `Appointment` names the role but no organisation, and no role read
+  is public. Every booking needs a consent, so `GET /me/consents` names the clinics; the app reads the listed
+  clinics and, for each consented one, its public role search, and maps role to clinic and practitioner. A clinic
+  no longer listed shows as "A clinic no longer listed", its times in UTC. No API change.
+- **The patient's own id.** `Appointment?patient=Patient/<id>` with the id from `GET /me/patient`; without a
+  profile there are no appointments and no search.
+- **Consent is asked only when the API says so.** The app books first; `consent_required` opens the consent
+  screen, as the plan asks, so the app holds no copy of the consent rules. A grant answered `consent_active`
+  (granted elsewhere in the meantime) books. The profile is asked the same way on `profile_required`, which the
+  API checks before the consent.
+- **24 hours.** Cancel is enabled while `start − now ≥ 24 h` on the device's clock (24 h − 1 s disabled, 24 h
+  enabled, as the API); the API stays the judge and its 409 `cancellation_window_closed` is shown.
+- **Revocation copy.** The cancellation runs in the `consent_revoked` job, so the app says future appointments
+  "will be cancelled" and that an e-mail follows for each, not that they are cancelled already.
+- **Status names for patients.** `fulfilled` is "Attended", `noshow` "Not attended".
+- **Specialty** is shown as the API gives it (`text`, else the coding's display); no fixture uses paediatrics.
+- **Copy** is plain, sentence case, no exclamation marks; nothing reads as a diagnosis. The sample phone in the
+  hint is from the fake `+387 60 000 0xxx` range.
+
+**Deferred.** The e2e journeys (package 10). A date picker for the birth date (a text field with the format, for
+now).
+
+**Dev stack.** Untouched: no migration, no image rebuilt; the smoke made anonymous FHIR reads only. The owner's
+`node` dev server kept running; the owner's demo clinic and earlier packages' synthetic data untouched.

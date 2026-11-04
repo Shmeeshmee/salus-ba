@@ -515,3 +515,38 @@ cookie; the API's `Cache-Control: no-store` keeps patient answers out of the bro
 | A profile shown to someone the access rules exclude | The screen shows only what the API returns; the API decides through `access` (package 7). Vitest covers the profile hidden on a 404 and the admin's detail without a `Patient` read; the browser walk confirmed no `Patient` request from the admin |
 | Patient data on a shared screen | Secondary fields behind a disclosure; the calendar shows the name and times only |
 | Personal data in logs | No logging in the web app; the walk's api, notifier, worker and dev-server logs held no name, address or phone |
+
+### Package 9: mobile app
+
+**What it is.** The patient app gains the profile (completed after registration and before the first booking,
+editable after), the listed clinics, a clinic's practitioners with specialty, free times by day in the clinic's
+time zone, the consent screen on the first booking with a clinic, booking, the patient's appointments with
+cancellation until 24 hours before the start, and the patient's consents with revocation. It reads through the
+public FHIR searches and the patient's own `Appointment` search (package 7) and writes through the JSON actions
+of packages 2, 3 and 6. No change to the API, no new field or table.
+
+**Purpose and lawful basis.** As packages 2, 3 and 6: the profile and new bookings rest on the patient's consent
+per clinic, given on the consent screen; past appointments are the clinic's care records (`SPEC.md` §3).
+
+**Consent as given.** The screen names the clinic and says, before the patient agrees: what is shared (the profile:
+name, birth date, the phone if given; the appointments with that clinic), who sees it (the practitioner booked
+sees the profile, the clinic's administrators the name and times), what for (care at that clinic), and how to
+revoke (under "My consents"; the profile is no longer visible and future appointments there are cancelled, past
+ones stay as care records). Nothing is pre-ticked: the consent is granted only on "Agree and book", and "Not now"
+books nothing. Revoking asks for a confirmation that repeats these consequences.
+
+**Necessity and minimisation.** The device keeps only the session token, in the platform's secure storage
+(package 8 of accounts). The profile, appointments and consents are held in memory while a screen shows them
+and are not written to the device. The directory reads (clinics, practitioners, slots) are public data the
+clinics chose to publish.
+
+**Retention.** Nothing new on the device beyond the token; on the server as packages 2, 3 and 6.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Consent that is not informed or not explicit | A separate screen with the four points before "Agree and book"; widget tests check the screen comes before any grant and that declining grants and books nothing |
+| A revocation whose effect surprises the patient | A confirmation dialog states that future appointments with the clinic are cancelled and past ones stay; tested |
+| Personal data in logs or on screen from an error | The app prints nothing (a widget test captures `debugPrint` through a whole booking); API errors map to fixed sentences, never the response body |
+| Patient data left on the device | Nothing but the session token is stored, in secure storage |

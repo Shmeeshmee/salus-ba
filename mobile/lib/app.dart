@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:salus_api/api.dart';
 
+import 'booking.dart';
 import 'home_screen.dart';
 import 'messages.dart';
 import 'register_screen.dart';
@@ -10,11 +11,15 @@ import 'ui.dart' as ui;
 
 enum _Screen { loading, startFailed, signIn, register, home }
 
-/// The patient app: restores the stored session, then shows sign-in, registration or the signed-in screen.
+/// The patient app: restores the stored session, then shows sign-in, registration or the signed-in screens.
 class SalusApp extends StatefulWidget {
-  const SalusApp({super.key, required this.session});
+  const SalusApp({super.key, required this.session, required this.booking, required this.now});
 
   final Session session;
+  final Booking booking;
+
+  /// The clock, injected so tests fix it.
+  final DateTime Function() now;
 
   @override
   State<SalusApp> createState() => _SalusAppState();
@@ -41,7 +46,7 @@ class _SalusAppState extends State<SalusApp> {
       } else {
         _signedIn(account);
       }
-    } on AuthFailure catch (failure) {
+    } on ApiFailure catch (failure) {
       _show(_Screen.startFailed, failureMessage(failure));
     }
   }
@@ -89,7 +94,13 @@ class _SalusAppState extends State<SalusApp> {
         onRegistered: () => _show(_Screen.signIn, accountReady),
         onSignIn: () => _show(_Screen.signIn),
       ),
-      _Screen.home => HomeScreen(session: session, account: _account!, onSignedOut: () => _show(_Screen.signIn)),
+      _Screen.home => HomeScreen(
+        session: session,
+        booking: widget.booking,
+        now: widget.now,
+        account: _account!,
+        onSignedOut: () => _show(_Screen.signIn),
+      ),
     };
   }
 }

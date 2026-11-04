@@ -39,6 +39,10 @@ dependencies:
   # Pinned exact.
   flutter_secure_storage: 11.2.0
 
+  # IANA time zones: times are shown in the clinic's zone (docs/booking/SPEC.md "Time"), which Dart's
+  # DateTime (UTC or the device's zone only) cannot do. Pinned exact.
+  timezone: 0.11.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

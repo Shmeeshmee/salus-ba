@@ -50,7 +50,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
     try {
       await widget.session.register(email, password);
-    } on AuthFailure catch (failure) {
+    } on ApiFailure catch (failure) {
       if (mounted) {
         setState(() {
           _busy = false;
@@ -62,7 +62,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     SignIn? result;
     try {
       result = await widget.session.login(email, password);
-    } on AuthFailure {
+    } on ApiFailure {
       result = null;
     }
     if (!mounted) return;
