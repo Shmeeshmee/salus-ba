@@ -11,6 +11,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acceptInvite = `-- name: AcceptInvite :execrows
+UPDATE invite SET accepted_at = $1
+WHERE id = $2 AND accepted_at IS NULL AND expires_at > $1
+`
+
+type AcceptInviteParams struct {
+	AcceptedAt pgtype.Timestamptz
+	ID         pgtype.UUID
+}
+
+func (q *Queries) AcceptInvite(ctx context.Context, arg AcceptInviteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, acceptInvite, arg.AcceptedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const accountByEmail = `-- name: AccountByEmail :one
 SELECT id, mfa_enrolled_at, organization_id, role, email, password_hash
 FROM account
@@ -90,22 +108,28 @@ func (q *Queries) ConfirmMFA(ctx context.Context, arg ConfirmMFAParams) (int64, 
 }
 
 const createAccount = `-- name: CreateAccount :one
-INSERT INTO account (email, password_hash, role)
-VALUES ($1, $2, $3)
+INSERT INTO account (email, password_hash, role, organization_id)
+VALUES ($1, $2, $3, $4)
 ON CONFLICT (email) DO NOTHING
 RETURNING id
 `
 
 type CreateAccountParams struct {
-	Email        string
-	PasswordHash string
-	Role         string
+	Email          string
+	PasswordHash   string
+	Role           string
+	OrganizationID pgtype.UUID
 }
 
 // DO NOTHING on a taken e-mail returns no row and leaves the transaction usable, so the failure can be
 // audited in it.
 func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, createAccount, arg.Email, arg.PasswordHash, arg.Role)
+	row := q.db.QueryRow(ctx, createAccount,
+		arg.Email,
+		arg.PasswordHash,
+		arg.Role,
+		arg.OrganizationID,
+	)
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
@@ -140,6 +164,197 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (p
 	return id, err
 }
 
+const inviteByID = `-- name: InviteByID :one
+SELECT id, created_at, expires_at, accepted_at, organization_id, invited_by, role, email, given_name, family_name
+FROM invite
+WHERE id = $1
+`
+
+type InviteByIDRow struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	ExpiresAt      pgtype.Timestamptz
+	AcceptedAt     pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	InvitedBy      pgtype.UUID
+	Role           string
+	Email          string
+	GivenName      string
+	FamilyName     string
+}
+
+func (q *Queries) InviteByID(ctx context.Context, id pgtype.UUID) (InviteByIDRow, error) {
+	row := q.db.QueryRow(ctx, inviteByID, id)
+	var i InviteByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.AcceptedAt,
+		&i.OrganizationID,
+		&i.InvitedBy,
+		&i.Role,
+		&i.Email,
+		&i.GivenName,
+		&i.FamilyName,
+	)
+	return i, err
+}
+
+const inviteByTokenHash = `-- name: InviteByTokenHash :one
+SELECT id, created_at, expires_at, accepted_at, organization_id, invited_by, role, email, given_name, family_name
+FROM invite
+WHERE token_hash = $1
+`
+
+type InviteByTokenHashRow struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	ExpiresAt      pgtype.Timestamptz
+	AcceptedAt     pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	InvitedBy      pgtype.UUID
+	Role           string
+	Email          string
+	GivenName      string
+	FamilyName     string
+}
+
+func (q *Queries) InviteByTokenHash(ctx context.Context, tokenHash []byte) (InviteByTokenHashRow, error) {
+	row := q.db.QueryRow(ctx, inviteByTokenHash, tokenHash)
+	var i InviteByTokenHashRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.AcceptedAt,
+		&i.OrganizationID,
+		&i.InvitedBy,
+		&i.Role,
+		&i.Email,
+		&i.GivenName,
+		&i.FamilyName,
+	)
+	return i, err
+}
+
+const inviteOrganization = `-- name: InviteOrganization :one
+SELECT invite_organization($1::bytea)::uuid AS organization_id
+`
+
+// SECURITY DEFINER: the only way to find an invite's clinic before the clinic is set.
+func (q *Queries) InviteOrganization(ctx context.Context, tokenHash []byte) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, inviteOrganization, tokenHash)
+	var organization_id pgtype.UUID
+	err := row.Scan(&organization_id)
+	return organization_id, err
+}
+
+const openInvites = `-- name: OpenInvites :many
+SELECT id, created_at, expires_at, accepted_at, organization_id, invited_by, role, email, given_name, family_name
+FROM invite
+WHERE organization_id = $1 AND accepted_at IS NULL AND expires_at > $2
+ORDER BY created_at, id
+`
+
+type OpenInvitesParams struct {
+	OrganizationID pgtype.UUID
+	Now            pgtype.Timestamptz
+}
+
+type OpenInvitesRow struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	ExpiresAt      pgtype.Timestamptz
+	AcceptedAt     pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	InvitedBy      pgtype.UUID
+	Role           string
+	Email          string
+	GivenName      string
+	FamilyName     string
+}
+
+func (q *Queries) OpenInvites(ctx context.Context, arg OpenInvitesParams) ([]OpenInvitesRow, error) {
+	rows, err := q.db.Query(ctx, openInvites, arg.OrganizationID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OpenInvitesRow
+	for rows.Next() {
+		var i OpenInvitesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.AcceptedAt,
+			&i.OrganizationID,
+			&i.InvitedBy,
+			&i.Role,
+			&i.Email,
+			&i.GivenName,
+			&i.FamilyName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const putInvite = `-- name: PutInvite :one
+INSERT INTO invite (created_at, expires_at, organization_id, invited_by, role, email, given_name, family_name)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT (organization_id, email) WHERE accepted_at IS NULL
+DO UPDATE SET created_at = excluded.created_at, expires_at = excluded.expires_at, invited_by = excluded.invited_by,
+    role = excluded.role, given_name = excluded.given_name, family_name = excluded.family_name, token_hash = NULL
+RETURNING id
+`
+
+type PutInviteParams struct {
+	CreatedAt      pgtype.Timestamptz
+	ExpiresAt      pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	InvitedBy      pgtype.UUID
+	Role           string
+	Email          string
+	GivenName      string
+	FamilyName     string
+}
+
+// One open invite per e-mail and clinic: a new one replaces it, token included.
+func (q *Queries) PutInvite(ctx context.Context, arg PutInviteParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, putInvite,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.OrganizationID,
+		arg.InvitedBy,
+		arg.Role,
+		arg.Email,
+		arg.GivenName,
+		arg.FamilyName,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const resetMFA = `-- name: ResetMFA :execrows
+UPDATE account SET totp_secret = NULL, totp_last_step = NULL, mfa_enrolled_at = NULL WHERE id = $1
+`
+
+func (q *Queries) ResetMFA(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, resetMFA, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const revokeSession = `-- name: RevokeSession :execrows
 UPDATE session SET revoked_at = $1 WHERE id = $2 AND revoked_at IS NULL
 `
@@ -155,6 +370,20 @@ func (q *Queries) RevokeSession(ctx context.Context, arg RevokeSessionParams) (i
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const revokeSessions = `-- name: RevokeSessions :exec
+UPDATE session SET revoked_at = $1 WHERE account_id = $2 AND revoked_at IS NULL
+`
+
+type RevokeSessionsParams struct {
+	RevokedAt pgtype.Timestamptz
+	AccountID pgtype.UUID
+}
+
+func (q *Queries) RevokeSessions(ctx context.Context, arg RevokeSessionsParams) error {
+	_, err := q.db.Exec(ctx, revokeSessions, arg.RevokedAt, arg.AccountID)
+	return err
 }
 
 const sessionByTokenHash = `-- name: SessionByTokenHash :one
@@ -190,6 +419,23 @@ func (q *Queries) SessionByTokenHash(ctx context.Context, arg SessionByTokenHash
 	return i, err
 }
 
+const setInviteToken = `-- name: SetInviteToken :execrows
+UPDATE invite SET token_hash = $1 WHERE id = $2
+`
+
+type SetInviteTokenParams struct {
+	TokenHash []byte
+	ID        pgtype.UUID
+}
+
+func (q *Queries) SetInviteToken(ctx context.Context, arg SetInviteTokenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setInviteToken, arg.TokenHash, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setPasswordHash = `-- name: SetPasswordHash :execrows
 UPDATE account SET password_hash = $1 WHERE id = $2
 `
@@ -201,6 +447,23 @@ type SetPasswordHashParams struct {
 
 func (q *Queries) SetPasswordHash(ctx context.Context, arg SetPasswordHashParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setPasswordHash, arg.PasswordHash, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setPractitioner = `-- name: SetPractitioner :execrows
+UPDATE account SET practitioner_id = $1 WHERE id = $2
+`
+
+type SetPractitionerParams struct {
+	PractitionerID pgtype.UUID
+	ID             pgtype.UUID
+}
+
+func (q *Queries) SetPractitioner(ctx context.Context, arg SetPractitionerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setPractitioner, arg.PractitionerID, arg.ID)
 	if err != nil {
 		return 0, err
 	}

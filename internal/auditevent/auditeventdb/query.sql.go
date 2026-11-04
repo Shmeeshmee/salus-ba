@@ -13,19 +13,20 @@ import (
 
 const insertAuditEvent = `-- name: InsertAuditEvent :exec
 INSERT INTO audit_event (
-    recorded, agent_account_id, organization_id, outcome, action,
+    recorded, agent_account_id, agent_name, organization_id, outcome, action,
     type_system, type_code, subtype_system, subtype_code, purpose_system, purpose_code,
     entity_reference, request_id
 ) VALUES (
-    $1, $2, $3, $4, $5,
-    $6, $7, $8, $9, $10, $11,
-    $12, $13
+    $1, $2, $3, $4, $5, $6,
+    $7, $8, $9, $10, $11, $12,
+    $13, $14
 )
 `
 
 type InsertAuditEventParams struct {
 	Recorded        pgtype.Timestamptz
 	AgentAccountID  pgtype.UUID
+	AgentName       pgtype.Text
 	OrganizationID  pgtype.UUID
 	Outcome         int16
 	Action          string
@@ -43,6 +44,7 @@ func (q *Queries) InsertAuditEvent(ctx context.Context, arg InsertAuditEventPara
 	_, err := q.db.Exec(ctx, insertAuditEvent,
 		arg.Recorded,
 		arg.AgentAccountID,
+		arg.AgentName,
 		arg.OrganizationID,
 		arg.Outcome,
 		arg.Action,

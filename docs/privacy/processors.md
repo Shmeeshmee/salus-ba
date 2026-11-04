@@ -3,9 +3,10 @@
 Every third party that touches personal data on our behalf (GDPR Art. 28). A processor needs a signed DPA
 and an entry here **before** it is wired in (CLAUDE.md "GDPR and health data"). Data stays in the EU/EEA.
 
-Status as of 2026-11-04 (accounts feature, package 1): **no processor is wired in.** Everything that runs
+Status as of 2026-11-04 (accounts feature, package 5): **no processor is wired in.** Everything that runs
 today runs in our own compose stack: Postgres, Redis, Mailpit (local e-mail catcher, synthetic data only)
-and LiveKit in dev mode.
+and LiveKit in dev mode. Since package 5 the notifier sends invite e-mails, through SMTP to Mailpit only;
+there is no SMTP relay or SES configuration for any other environment.
 
 ## Wired in
 

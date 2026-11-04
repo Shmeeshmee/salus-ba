@@ -31,6 +31,7 @@ func (r *postgresRepository) Insert(ctx context.Context, e AuditEvent) error {
 	return auditeventdb.New(postgres.Conn(ctx, r.db)).InsertAuditEvent(ctx, auditeventdb.InsertAuditEventParams{
 		Recorded:        pgtype.Timestamptz{Time: e.Recorded, Valid: true},
 		AgentAccountID:  agent,
+		AgentName:       optionalText(e.AgentName),
 		OrganizationID:  org,
 		Outcome:         int16(e.Outcome),
 		Action:          string(e.Action),

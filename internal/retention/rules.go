@@ -27,6 +27,12 @@ func Rules() []Rule {
 			Then:  ThenDelete,
 		},
 		{
+			Table: "invite",
+			Basis: "The clinic's employment relationship and the contract with the clinic (GDPR Art. 6(1)(b), (f)) until the invite is accepted or expires; then accountability (Art. 5(2)) for 30 days",
+			Keep:  30 * day, // after accepted_at or expires_at
+			Then:  ThenDelete,
+		},
+		{
 			Table: "practitioner",
 			Basis: "The clinic's employment relationship and the contract with the clinic (GDPR Art. 6(1)(b), (f)); after leaving, the medical-record retention that references the practitioner",
 			Then:  ThenRestrict,

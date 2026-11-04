@@ -35,6 +35,39 @@ type Repository interface {
 	SessionByTokenHash(ctx context.Context, tokenHash []byte, now time.Time) (Session, error)
 	// RevokeSession ends the session at at, or returns ErrNotFound when it is not open.
 	RevokeSession(ctx context.Context, id string, at time.Time) error
+	// RevokeSessions ends every open session of the account at at.
+	RevokeSessions(ctx context.Context, accountID string, at time.Time) error
+	// ResetMFA clears the account's TOTP secret, its last used step and its enrolment.
+	ResetMFA(ctx context.Context, id string) error
+	// SetPractitioner links the account to its Practitioner.
+	SetPractitioner(ctx context.Context, id, practitionerID string) error
+
+	// SetOrganization scopes the rest of the transaction in ctx to the clinic id: invites are row-level
+	// secured.
+	SetOrganization(ctx context.Context, id string) error
+	// PutInvite stores inv as the open invite for its e-mail in its clinic, replacing an open one there (its
+	// token too), and returns its id.
+	PutInvite(ctx context.Context, inv Invite) (string, error)
+	// OpenInvites returns the clinic's invites that are neither accepted nor expired at now, oldest first.
+	OpenInvites(ctx context.Context, org string, now time.Time) ([]Invite, error)
+	// InviteByID returns the invite, or ErrInvalidInvite.
+	InviteByID(ctx context.Context, id string) (Invite, error)
+	// SetInviteToken replaces the invite's token hash.
+	SetInviteToken(ctx context.Context, id string, tokenHash []byte) error
+	// InviteOrganization returns the clinic of the invite with the token hash, before any clinic is set
+	// (invite_organization, SECURITY DEFINER), or ErrInvalidInvite.
+	InviteOrganization(ctx context.Context, tokenHash []byte) (string, error)
+	// InviteByTokenHash returns the invite with the token hash in the clinic set, or ErrInvalidInvite.
+	InviteByTokenHash(ctx context.Context, tokenHash []byte) (Invite, error)
+	// AcceptInvite marks the invite accepted at at, or returns ErrInvalidInvite when it was accepted or
+	// expired by then.
+	AcceptInvite(ctx context.Context, id string, at time.Time) error
+}
+
+// Jobs enqueues background jobs in the transaction in the context (River's InsertTx), so a job exists
+// exactly when the write that causes it commits.
+type Jobs interface {
+	EnqueueInviteEmail(ctx context.Context, inviteID, organizationID string) error
 }
 
 // ChallengeStore keeps MFA challenges (Redis): the step between password and code, by the challenge's hash.

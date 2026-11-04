@@ -11,6 +11,7 @@
 tables:
   account: {owner: auth, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
+  invite: {owner: auth, personal_data: true}
   organization: {owner: organization, personal_data: false}
   practitioner: {owner: practitioner, personal_data: true}
   practitioner_role: {owner: practitionerrole, personal_data: true}

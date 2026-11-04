@@ -15,6 +15,9 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/config"
+	"github.com/Shmeeshmee/salus/internal/practitioner"
+	"github.com/Shmeeshmee/salus/internal/practitionerrole"
+	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/redis"
@@ -51,13 +54,22 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		pool.Close()
 		return nil, err
 	}
+	jobs, err := worker.NewInserter(pool) // invites enqueue their e-mail in their transaction
+	if err != nil {
+		pool.Close()
+		_ = rdb.Close()
+		return nil, err
+	}
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
 	hasher := auth.NewArgon2Hasher(auth.DefaultArgon2Params(), auth.MaxConcurrentHashes)
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Hasher: hasher, Audit: audit, Tx: tx, Clock: clock.System{},
 		Challenges: auth.NewRedisChallengeStore(rdb), Counters: auth.NewRedisCounters(rdb), Box: box,
-		RateLimitKey: cfg.RateLimitKey,
+		Jobs:              auth.NewRiverJobs(jobs),
+		Practitioners:     practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx),
+		PractitionerRoles: practitionerrole.NewService(practitionerrole.NewPostgresRepository(pool), audit, tx),
+		RateLimitKey:      cfg.RateLimitKey,
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies)
 

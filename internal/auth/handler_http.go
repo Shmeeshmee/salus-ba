@@ -27,6 +27,9 @@ type AccountService interface {
 	Verify(ctx context.Context, challenge, code string) (LoginResult, error)
 	Logout(ctx context.Context, sess Session) error
 	Authenticate(ctx context.Context, token string) (Session, error)
+	Invite(ctx context.Context, sess Session, in Invite) (Invite, error)
+	ListInvites(ctx context.Context, sess Session) ([]Invite, error)
+	AcceptInvite(ctx context.Context, token, password string) (Acceptance, error)
 }
 
 // Handler serves the auth endpoints of api/openapi.yaml and the session middleware. Errors are
@@ -52,6 +55,9 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/mfa/confirm", h.confirm)
 	mux.HandleFunc("POST /auth/mfa/verify", h.verify)
 	mux.HandleFunc("POST /auth/logout", h.logout)
+	mux.HandleFunc("POST /invites", h.invite)
+	mux.HandleFunc("GET /invites", h.listInvites)
+	mux.HandleFunc("POST /invites/accept", h.acceptInvite)
 }
 
 // accountJSON is the Account schema: the password hash never crosses this boundary.
@@ -124,6 +130,10 @@ var errorCodes = []struct {
 	{ErrWrongCode, "wrong_code", http.StatusUnauthorized},
 	{ErrAlreadyEnrolled, "already_enrolled", http.StatusConflict},
 	{ErrNotEnrolled, "not_enrolled", http.StatusConflict},
+	{ErrForbidden, "forbidden", http.StatusForbidden},
+	{ErrInvalidRole, "invalid_role", http.StatusBadRequest},
+	{ErrInvalidName, "invalid_name", http.StatusBadRequest},
+	{ErrInvalidInvite, "invalid_invite", http.StatusNotFound},
 }
 
 func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, err error) {

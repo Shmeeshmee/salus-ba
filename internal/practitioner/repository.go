@@ -10,4 +10,7 @@ type Repository interface {
 	// ByID returns the practitioner, or ErrNotFound (also for one outside the scope, or an id that is not a
 	// UUID).
 	ByID(ctx context.Context, id string) (Practitioner, error)
+	// Create stores a new active practitioner of the clinic org and returns it; row-level security refuses a
+	// clinic other than the one set.
+	Create(ctx context.Context, org, givenName, familyName string) (Practitioner, error)
 }

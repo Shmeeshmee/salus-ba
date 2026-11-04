@@ -288,6 +288,119 @@ paths:
           $ref: "#/components/responses/CSRF"
         "500":
           $ref: "#/components/responses/InternalError"
+  /invites:
+    post:
+      operationId: createInvite
+      summary: Invite a practitioner or an admin to the clinic
+      description: >-
+        An admin of the clinic invites someone by e-mail: a practitioner with their given and family name, or
+        another admin. The invite is open for 72 hours; an open invite for the same e-mail in the clinic is
+        replaced. The e-mail with the link (`<web>/invite#<token>`) is sent by the notifier. Whether the e-mail
+        already has an account is not disclosed here. Audited.
+      tags: [invites]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/InviteRequest"}
+      responses:
+        "201":
+          description: The invite.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Invite"}
+        "400":
+          description: "`invalid_request`, `invalid_email`, `invalid_role` or `invalid_name`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: not an admin of the clinic; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      operationId: listInvites
+      summary: The clinic's open invites
+      description: Invites of the admin's clinic that are neither accepted nor expired, oldest first. Audited.
+      tags: [invites]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The open invites.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/InviteList"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: not an admin of the clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /invites/accept:
+    post:
+      operationId: acceptInvite
+      summary: Accept an invite
+      description: >-
+        With the token from the link's fragment and a password: creates the account (and, for a practitioner,
+        the Practitioner and PractitionerRole) and returns a pending TOTP secret with a challenge. Confirm the
+        first code with `/auth/mfa/confirm` and the challenge (valid 5 minutes) to finish enrolment and open the
+        session; if the challenge lapses, sign in with the password to enrol again. Only the newest link of an
+        invite works. Not cached. Audited.
+      tags: [invites]
+      security: [] # the token is the credential
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AcceptInviteRequest"}
+      responses:
+        "201":
+          description: The account was created; MFA enrolment is pending.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Acceptance"}
+        "400":
+          description: "`invalid_request` or `invalid_password`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`invalid_invite`: the token is unknown, replaced, expired or used."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`email_taken`: the e-mail has an account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   parameters:
     CSRF:
@@ -418,6 +531,77 @@ components:
           minLength: 12
           maxLength: 128
           description: Counted in characters, not bytes.
+    InviteRequest:
+      type: object
+      required: [email, role]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          maxLength: 254
+        role:
+          type: string
+          enum: [admin, practitioner]
+        givenName:
+          type: string
+          maxLength: 200
+          description: Required for a practitioner; absent for an admin.
+        familyName:
+          type: string
+          maxLength: 200
+          description: Required for a practitioner; absent for an admin.
+    Invite:
+      type: object
+      required: [id, email, role, expiresAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, practitioner]
+        givenName:
+          type: string
+        familyName:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    InviteList:
+      type: object
+      required: [invites]
+      properties:
+        invites:
+          type: array
+          items: {$ref: "#/components/schemas/Invite"}
+    AcceptInviteRequest:
+      type: object
+      required: [token, password]
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          description: From the invite link's fragment.
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+          description: Counted in characters, not bytes.
+    Acceptance:
+      type: object
+      required: [challenge, secret, uri]
+      properties:
+        challenge:
+          type: string
+          description: For `/auth/mfa/confirm`; valid 5 minutes.
+        secret:
+          type: string
+          description: Base32, for manual entry.
+        uri:
+          type: string
+          description: The otpauth:// URI, for a QR code.
     Account:
       type: object
       required: [id, email, role, mfaEnrolled]
@@ -456,6 +640,10 @@ components:
             - already_enrolled
             - not_enrolled
             - csrf
+            - forbidden
+            - invalid_role
+            - invalid_name
+            - invalid_invite
             - internal error
             - timeout
     Status:

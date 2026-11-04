@@ -19,8 +19,8 @@ func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
 
 // stored is an audit_event row as text, NULL as "<null>".
 type stored struct {
-	recorded, agent, org, entity, request        string
-	typ, subtype, purpose, action, outcomeAsText string
+	recorded, agent, agentName, org, entity, request string
+	typ, subtype, purpose, action, outcomeAsText     string
 }
 
 func readOnly(t *testing.T, owner *pgxpool.Pool) stored {
@@ -28,11 +28,11 @@ func readOnly(t *testing.T, owner *pgxpool.Pool) stored {
 	var s stored
 	err := owner.QueryRow(t.Context(), `SELECT
 		to_char(recorded AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS'),
-		coalesce(agent_account_id::text, '<null>'), coalesce(organization_id::text, '<null>'),
+		coalesce(agent_account_id::text, '<null>'), coalesce(agent_name, '<null>'), coalesce(organization_id::text, '<null>'),
 		coalesce(entity_reference, '<null>'), coalesce(request_id, '<null>'),
 		type_system || '|' || type_code, subtype_system || '|' || subtype_code,
 		purpose_system || '|' || purpose_code, action, outcome::text
-		FROM audit_event`).Scan(&s.recorded, &s.agent, &s.org, &s.entity, &s.request,
+		FROM audit_event`).Scan(&s.recorded, &s.agent, &s.agentName, &s.org, &s.entity, &s.request,
 		&s.typ, &s.subtype, &s.purpose, &s.action, &s.outcomeAsText)
 	if err != nil {
 		t.Fatalf("read the one audit event: %v", err)
@@ -60,7 +60,7 @@ func TestInsert_StoresEveryElementAsTheAppRole(t *testing.T) {
 	got := readOnly(t, owner)
 	want := stored{
 		recorded: "2026-11-04T09:30:00",
-		agent:    e.AgentAccountID, org: e.OrganizationID, entity: e.EntityReference, request: "req-1",
+		agent:    e.AgentAccountID, agentName: "<null>", org: e.OrganizationID, entity: e.EntityReference, request: "req-1",
 		typ:     auditevent.SystemDCM + "|" + auditevent.CodeUserAuthentication,
 		subtype: auditevent.SystemDCM + "|" + auditevent.CodeLogin,
 		purpose: auditevent.SystemActReason + "|" + auditevent.CodeHOPERAT,
@@ -81,8 +81,8 @@ func TestRecord_StoresNullForAbsentAgentClinicEntityAndRequest(t *testing.T) {
 		t.Fatalf("Record() error = %v", err)
 	}
 	got := readOnly(t, owner)
-	if got.agent != "<null>" || got.org != "<null>" || got.entity != "<null>" || got.request != "<null>" {
-		t.Errorf("stored %+v, want NULL agent, clinic, entity and request id", got)
+	if got.agent != "<null>" || got.agentName != "<null>" || got.org != "<null>" || got.entity != "<null>" || got.request != "<null>" {
+		t.Errorf("stored %+v, want NULL agents, clinic, entity and request id", got)
 	}
 }
 
@@ -123,5 +123,19 @@ func TestRecord_RollsBackWithTheCallersTransaction(t *testing.T) {
 	}
 	if n != 0 {
 		t.Errorf("%d audit events after the rollback, want 0: Record must join the caller's transaction", n)
+	}
+}
+
+func TestRecord_StoresAnAgentThatIsNoAccountByName(t *testing.T) {
+	t.Parallel()
+	svc, _, owner := newAppService(t)
+	e := login()
+	e.AgentAccountID, e.AgentName = "", auditevent.AgentOperator
+
+	if err := svc.Record(t.Context(), e); err != nil {
+		t.Fatalf("Record() error = %v", err)
+	}
+	if got := readOnly(t, owner); got.agent != "<null>" || got.agentName != "salusctl" {
+		t.Errorf("stored agent %q named %q, want no account and the operator command, salusctl", got.agent, got.agentName)
 	}
 }

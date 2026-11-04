@@ -184,6 +184,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's open invites
+         * @description Invites of the admin's clinic that are neither accepted nor expired, oldest first. Audited.
+         */
+        get: operations["listInvites"];
+        put?: never;
+        /**
+         * Invite a practitioner or an admin to the clinic
+         * @description An admin of the clinic invites someone by e-mail: a practitioner with their given and family name, or another admin. The invite is open for 72 hours; an open invite for the same e-mail in the clinic is replaced. The e-mail with the link (`<web>/invite#<token>`) is sent by the notifier. Whether the e-mail already has an account is not disclosed here. Audited.
+         */
+        post: operations["createInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invites/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept an invite
+         * @description With the token from the link's fragment and a password: creates the account (and, for a practitioner, the Practitioner and PractitionerRole) and returns a pending TOTP secret with a challenge. Confirm the first code with `/auth/mfa/confirm` and the challenge (valid 5 minutes) to finish enrolment and open the session; if the challenge lapses, sign in with the password to enrol again. Only the newest link of an invite works. Not cached. Audited.
+         */
+        post: operations["acceptInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -231,6 +275,43 @@ export interface components {
             /** @description Counted in characters, not bytes. */
             password: string;
         };
+        InviteRequest: {
+            email: string;
+            /** @enum {string} */
+            role: "admin" | "practitioner";
+            /** @description Required for a practitioner; absent for an admin. */
+            givenName?: string;
+            /** @description Required for a practitioner; absent for an admin. */
+            familyName?: string;
+        };
+        Invite: {
+            /** Format: uuid */
+            id: string;
+            email: string;
+            /** @enum {string} */
+            role: "admin" | "practitioner";
+            givenName?: string;
+            familyName?: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        InviteList: {
+            invites: components["schemas"]["Invite"][];
+        };
+        AcceptInviteRequest: {
+            /** @description From the invite link's fragment. */
+            token: string;
+            /** @description Counted in characters, not bytes. */
+            password: string;
+        };
+        Acceptance: {
+            /** @description For `/auth/mfa/confirm`; valid 5 minutes. */
+            challenge: string;
+            /** @description Base32, for manual entry. */
+            secret: string;
+            /** @description The otpauth:// URI, for a QR code. */
+            uri: string;
+        };
         Account: {
             /** Format: uuid */
             id: string;
@@ -247,7 +328,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "internal error" | "timeout";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "internal error" | "timeout";
         };
         Status: {
             /** @constant */
@@ -678,6 +759,156 @@ export interface operations {
                 };
             };
             403: components["responses"]["CSRF"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The open invites. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteList"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: not an admin of the clinic. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createInvite: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteRequest"];
+            };
+        };
+        responses: {
+            /** @description The invite. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invite"];
+                };
+            };
+            /** @description `invalid_request`, `invalid_email`, `invalid_role` or `invalid_name`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: not an admin of the clinic; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    acceptInvite: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptInviteRequest"];
+            };
+        };
+        responses: {
+            /** @description The account was created; MFA enrolment is pending. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Acceptance"];
+                };
+            };
+            /** @description `invalid_request` or `invalid_password`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `invalid_invite`: the token is unknown, replaced, expired or used. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `email_taken`: the e-mail has an account. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };

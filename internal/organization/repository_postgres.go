@@ -62,6 +62,14 @@ func (r *postgresRepository) Rename(ctx context.Context, id, name string, versio
 	return toOrganization(organizationdb.OrganizationByIDRow(row)), nil
 }
 
+func (r *postgresRepository) Create(ctx context.Context, name string) (Organization, error) {
+	row, err := r.q(ctx).CreateOrganization(ctx, name)
+	if err != nil {
+		return Organization{}, err
+	}
+	return toOrganization(organizationdb.OrganizationByIDRow(row)), nil
+}
+
 func toOrganization(row organizationdb.OrganizationByIDRow) Organization {
 	return Organization{
 		ID: row.ID.String(), Name: row.Name, VersionID: row.VersionID, Active: row.Active, LastUpdated: row.UpdatedAt.Time,

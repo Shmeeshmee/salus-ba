@@ -9,6 +9,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/practitioner"
+	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
@@ -33,7 +35,18 @@ type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
-// Ports are what the Service runs on.
+// Practitioners adds a practitioner to a clinic (practitioner.Service).
+type Practitioners interface {
+	Create(ctx context.Context, c practitioner.Caller, givenName, familyName string) (practitioner.Practitioner, error)
+}
+
+// PractitionerRoles gives a practitioner their role in the clinic (practitionerrole.Service).
+type PractitionerRoles interface {
+	Create(ctx context.Context, c practitionerrole.Caller, practitionerID string) (practitionerrole.PractitionerRole, error)
+}
+
+// Ports are what the Service runs on. A binary that calls only some methods may leave the ports of the
+// others nil: the notifier issues invite tokens with Repo, Tx and Clock alone.
 type Ports struct {
 	Repo       Repository
 	Hasher     Hasher
@@ -43,6 +56,10 @@ type Ports struct {
 	Challenges ChallengeStore
 	Counters   Counters
 	Box        SecretBox
+	Jobs       Jobs
+	// Practitioners and PractitionerRoles create the directory entries of an accepted practitioner invite.
+	Practitioners     Practitioners
+	PractitionerRoles PractitionerRoles
 	// RateLimitKey keys the HMAC that names the rate-limit counters, so neither e-mail nor IP is readable in
 	// Redis (RATE_LIMIT_KEY).
 	RateLimitKey []byte
@@ -59,6 +76,9 @@ type Service struct {
 	challenges ChallengeStore
 	counters   Counters
 	box        SecretBox
+	jobs       Jobs
+	directory  Practitioners
+	roles      PractitionerRoles
 	rateKey    []byte
 }
 
@@ -66,7 +86,8 @@ type Service struct {
 func NewService(p Ports) *Service {
 	return &Service{
 		repo: p.Repo, hasher: p.Hasher, audit: p.Audit, tx: p.Tx, clock: p.Clock,
-		challenges: p.Challenges, counters: p.Counters, box: p.Box, rateKey: p.RateLimitKey,
+		challenges: p.Challenges, counters: p.Counters, box: p.Box, jobs: p.Jobs, directory: p.Practitioners,
+		roles: p.PractitionerRoles, rateKey: p.RateLimitKey,
 	}
 }
 

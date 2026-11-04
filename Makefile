@@ -11,7 +11,7 @@ NODE    := $(COMPOSE) run --rm -T node
 FLUTTER := $(COMPOSE) run --rm -T flutter
 LANDING := $(COMPOSE) run --rm -T -w /src/landing node
 
-.PHONY: test cover bench-hash bench-auth lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create sqlc \
+.PHONY: test cover bench-hash bench-auth lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
@@ -63,6 +63,11 @@ migrate-status: tools-image
 	$(GO) go run ./cmd/migrate status
 migrate-create: tools-image
 	$(GO) go run ./cmd/migrate create $(name)
+
+## salusctl args="create-clinic -name <name> -admin-email <e-mail>" | args="reset-mfa <account-id>": the operator
+## command against the compose Postgres, connected as the owner (docs/accounts/SPEC.md "Operator commands")
+salusctl: tools-image
+	$(GO) go run ./cmd/salusctl $(args)
 
 ## sqlc: generate the domains' query packages (sqlc.yaml arrives with the first domain)
 sqlc: tools-image

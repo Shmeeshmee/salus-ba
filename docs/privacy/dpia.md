@@ -134,3 +134,35 @@ practitioner leaves, for as long as clinical records reference them (`internal/r
 | A probe learns that a record exists | Patients and other clinics get "not found", not "forbidden" |
 | A practitioner's details are read unnoticed | Every read and search of `Practitioner` and `PractitionerRole`, and every change of a clinic, writes an `AuditEvent` in the same transaction, also when refused; a refused or empty access records no entity, so no id from the request is stored |
 | Lost updates on the clinic settings | Renaming names the version it changes; a stale version is refused |
+
+### Package 5: practitioner invites
+
+**Processing added.** Table `invite`: the invitee's e-mail, for a practitioner their given and family name,
+the role, the inviting admin (none for the first admin, invited by the operator command), when it expires
+and when it was accepted, and the SHA-256 of the link's token. The notifier sends one plain-text e-mail per
+invite with the clinic's name and the link `<web>/invite#<token>`; nothing else. Accepting creates the
+account (and, for a practitioner, the `Practitioner` and `PractitionerRole`) and links the account to the
+practitioner (`account.practitioner_id`). `salusctl` creates a clinic with its first admin's invite and
+resets a staff member's MFA. `audit_event` gains `agent_name` for the operator command, which is no account.
+
+**Purpose and lawful basis.** The clinic's employment relationship and the contract with the clinic
+(Art. 6(1)(b), (f)): to bring the clinic's staff into the platform.
+
+**Necessity and minimisation.** Only the fields of `docs/accounts/SPEC.md` section 4. The e-mail holds no
+name, role or inviter. The job carries only the invite and clinic ids. Inviting does not tell the admin
+whether the e-mail already has an account (it might be a patient's); only the invitee learns it, on
+acceptance.
+
+**Retention.** `invite`: deleted 30 days after `accepted_at` or `expires_at` (`internal/retention`, `delete`).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A link is intercepted or leaks from a log | The token is 32 random bytes in the URL fragment (never sent to a server); only its SHA-256 is stored; it works once and for at most 72 hours; a newer link replaces it |
+| A clinic sees another clinic's invites | `invite` is row-level secured like the directory; the one lookup before the clinic is known is a `SECURITY DEFINER` function owned by `salus_invite_lookup` (no login, no superuser, no `BYPASSRLS`, two columns readable), with a fixed `search_path`, returning only the clinic id |
+| An admin learns that someone has a (patient) account | Invite creation never checks or reports it |
+| Personal data in job rows, logs or errors | Job arguments are two opaque ids; the SMTP sender keeps only the server's reply code (replies often echo the address); handler tests assert that no e-mail, name, token or password is logged |
+| Header injection through the e-mail | The subject is fixed, the recipient is a validated plain address, and the sender refuses a line break in either |
+| An operator action goes unrecorded | `salusctl create-clinic` and `reset-mfa` audit with `agent_name = salusctl`; `reset-mfa` also revokes the account's sessions, in the same transaction |
+| E-mail to a third party without a DPA | Only Mailpit, locally; SES stays unwired until its DPA (`processors.md`) |

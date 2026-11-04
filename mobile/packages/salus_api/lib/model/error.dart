@@ -129,6 +129,10 @@ enum ErrorErrorEnum {
   alreadyEnrolled._(r'already_enrolled'),
   notEnrolled._(r'not_enrolled'),
   csrf._(r'csrf'),
+  forbidden._(r'forbidden'),
+  invalidRole._(r'invalid_role'),
+  invalidName._(r'invalid_name'),
+  invalidInvite._(r'invalid_invite'),
   internalError._(r'internal error'),
   timeout._(r'timeout'),
   ;
@@ -218,6 +222,14 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.notEnrolled;
         case r'csrf':
           return ErrorErrorEnum.csrf;
+        case r'forbidden':
+          return ErrorErrorEnum.forbidden;
+        case r'invalid_role':
+          return ErrorErrorEnum.invalidRole;
+        case r'invalid_name':
+          return ErrorErrorEnum.invalidName;
+        case r'invalid_invite':
+          return ErrorErrorEnum.invalidInvite;
         case r'internal error':
           return ErrorErrorEnum.internalError;
         case r'timeout':

@@ -27,7 +27,8 @@ type stubService struct {
 	token                  string       // passed to Authenticate
 	session                auth.Session // returned by Authenticate
 	gotSession             auth.Session // passed to Enrol, Confirm or Logout
-	authenticated          int          // Authenticate calls
+	stubInvites
+	authenticated int // Authenticate calls
 }
 
 func (s *stubService) Login(_ context.Context, email, password, clientIP string) (auth.LoginResult, error) {

@@ -98,3 +98,14 @@ func TestLoad_RejectsMalformedAuthSettingsWithoutEchoingThem(t *testing.T) {
 		})
 	}
 }
+
+func TestLoad_ReadsTheNotifiersSettings(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+	t.Setenv("SMTP_ADDR", "mailpit:1025")
+	t.Setenv("WEB_BASE_URL", "http://localhost:5173")
+
+	cfg, err := config.Load()
+	if err != nil || cfg.SMTPAddr != "mailpit:1025" || cfg.WebBaseURL != "http://localhost:5173" {
+		t.Errorf("Load() = SMTPAddr %q, WebBaseURL %q, %v", cfg.SMTPAddr, cfg.WebBaseURL, err)
+	}
+}

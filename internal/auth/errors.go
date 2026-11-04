@@ -32,6 +32,17 @@ var (
 	ErrNotEnrolled = errors.New("auth: MFA not set up")
 	// ErrSealedSecret is returned for a sealed TOTP secret that does not open.
 	ErrSealedSecret = errors.New("auth: sealed secret does not open")
+	// ErrForbidden is returned when anyone but an admin of the clinic invites or lists its invites.
+	ErrForbidden = errors.New("auth: forbidden")
+	// ErrInvalidRole is returned for an invite that is not for an admin or a practitioner.
+	ErrInvalidRole = errors.New("auth: invalid role")
+	// ErrInvalidName is returned for a practitioner invite without a given and a family name of at most 200
+	// characters, and for an admin invite with a name.
+	ErrInvalidName = errors.New("auth: invalid name")
+	// ErrInvalidInvite is returned for an invite token that is unknown, replaced, expired or already used.
+	ErrInvalidInvite = errors.New("auth: invalid invite")
+	// ErrNotStaff is returned when resetting MFA of a patient account (staff only).
+	ErrNotStaff = errors.New("auth: not a staff account")
 )
 
 // RateLimitedError is returned for a login over its limit; the password was not checked.

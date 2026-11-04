@@ -11,4 +11,7 @@ type Repository interface {
 	ByID(ctx context.Context, id string) (PractitionerRole, error)
 	// ByOrganization returns the roles of the clinic org, oldest first; none for an id that is not a UUID.
 	ByOrganization(ctx context.Context, org string) ([]PractitionerRole, error)
+	// Create stores the active role of practitionerID in the clinic org and returns it; row-level security
+	// refuses a clinic other than the one set.
+	Create(ctx context.Context, org, practitionerID string) (PractitionerRole, error)
 }

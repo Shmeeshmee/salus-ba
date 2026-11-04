@@ -113,3 +113,15 @@ func TestSetOrganization_NeedsATransaction(t *testing.T) {
 		t.Errorf("SetOrganization() outside a transaction: %v, want postgres.ErrNoTx", err)
 	}
 }
+
+// Clinics are created by the operator command, which connects as the owner; salus_app may not (migrations).
+func TestCreate_StoresAnActiveClinicAtVersionOne(t *testing.T) {
+	t.Parallel()
+	owner := pgtest.NewDatabase(t)
+
+	got, err := organization.NewPostgresRepository(owner).Create(t.Context(), "Synthetic clinic C")
+
+	if err != nil || got.ID == "" || got.Name != "Synthetic clinic C" || got.VersionID != 1 || !got.Active || got.LastUpdated.IsZero() {
+		t.Errorf("Create() = %+v, %v; want the new clinic at version 1", got, err)
+	}
+}

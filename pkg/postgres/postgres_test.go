@@ -298,3 +298,28 @@ func TestSetPassword_ErrorDoesNotEchoThePassword(t *testing.T) {
 		t.Errorf("error %q leaks the password", err)
 	}
 }
+
+// A library that takes the transaction itself (River's InsertTx) gets the one WithTx carries.
+func TestTx_ReturnsTheTransactionOfWithTxOnly(t *testing.T) {
+	pool := newItemsDB(t)
+	if _, ok := postgres.Tx(t.Context()); ok {
+		t.Error("Tx() outside a transaction: ok = true")
+	}
+	err := postgres.NewTransactor(pool).WithTx(t.Context(), func(ctx context.Context) error {
+		tx, ok := postgres.Tx(ctx)
+		if !ok {
+			t.Fatal("Tx() inside WithTx: ok = false")
+		}
+		if _, err := tx.Exec(ctx, "INSERT INTO item (name) VALUES ('through the tx')"); err != nil {
+			return err
+		}
+		return errors.New("roll back")
+	})
+	if err == nil {
+		t.Fatal("WithTx() error = nil")
+	}
+	var n int
+	if err := pool.QueryRow(t.Context(), "SELECT count(*) FROM item").Scan(&n); err != nil || n != 0 {
+		t.Errorf("%d items after the rollback (%v), want 0: Tx must be the WithTx transaction", n, err)
+	}
+}

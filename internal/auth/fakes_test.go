@@ -35,7 +35,8 @@ type fakeRepository struct {
 	lastStep   map[string]int64
 	sessions   map[string]*fakeSession // by token hash
 	inTx       func()                  // called on the first repository call inside a transaction, when set
-	outside    []string                // the calls made outside a transaction
+	fakeInvites
+	outside []string // the calls made outside a transaction
 }
 
 type fakeSession struct {
@@ -48,6 +49,7 @@ func newFakeRepository(accounts ...auth.Account) *fakeRepository {
 	r := &fakeRepository{
 		accounts: map[string]auth.Account{}, rehashed: map[string]string{}, secrets: map[string][]byte{},
 		lastStep: map[string]int64{}, sessions: map[string]*fakeSession{},
+		fakeInvites: fakeInvites{invites: map[string]*auth.Invite{}, links: map[string]string{}},
 	}
 	for _, a := range accounts {
 		r.accounts[a.ID] = a
@@ -306,13 +308,15 @@ func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
 type fixture struct {
-	svc        *auth.Service
-	repo       *fakeRepository
-	hasher     *fakeHasher
-	audit      *fakeAuditor
-	challenges *fakeChallenges
-	counters   *fakeCounters
-	box        *fakeBox
+	svc           *auth.Service
+	repo          *fakeRepository
+	hasher        *fakeHasher
+	audit         *fakeAuditor
+	challenges    *fakeChallenges
+	counters      *fakeCounters
+	box           *fakeBox
+	jobs          *fakeJobs
+	practitioners *fakeDirectory
 }
 
 func newFixture(accounts ...auth.Account) fixture {
@@ -321,10 +325,12 @@ func newFixture(accounts ...auth.Account) fixture {
 		challenges: &fakeChallenges{challenges: map[string]*fakeChallenge{}},
 		counters:   &fakeCounters{counts: map[string]int64{}, window: map[string]time.Duration{}},
 		box:        &fakeBox{},
+		jobs:       &fakeJobs{}, practitioners: &fakeDirectory{},
 	}
 	f.svc = auth.NewService(auth.Ports{
 		Repo: f.repo, Hasher: f.hasher, Audit: f.audit, Tx: &fakeTransactor{}, Clock: clock.Fixed{T: now},
 		Challenges: f.challenges, Counters: f.counters, Box: f.box, RateLimitKey: []byte("synthetic rate-limit key for tests"),
+		Jobs: f.jobs, Practitioners: f.practitioners, PractitionerRoles: roleCreator{f.practitioners},
 	})
 	return f
 }

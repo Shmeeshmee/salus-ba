@@ -26,8 +26,12 @@ func (r *postgresRepository) q(ctx context.Context) *authdb.Queries {
 }
 
 func (r *postgresRepository) Create(ctx context.Context, a Account) (string, error) {
+	org, err := optionalUUID(a.OrganizationID)
+	if err != nil {
+		return "", err
+	}
 	id, err := r.q(ctx).CreateAccount(ctx, authdb.CreateAccountParams{
-		Email: a.Email, PasswordHash: a.PasswordHash, Role: string(a.Role),
+		Email: a.Email, PasswordHash: a.PasswordHash, Role: string(a.Role), OrganizationID: org,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrEmailTaken
@@ -200,4 +204,147 @@ func oneRow(n int64, err error) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (r *postgresRepository) RevokeSessions(ctx context.Context, accountID string, at time.Time) error {
+	u, err := uuidOf(accountID)
+	if err != nil {
+		return err
+	}
+	return r.q(ctx).RevokeSessions(ctx, authdb.RevokeSessionsParams{AccountID: u, RevokedAt: timestamptz(at)})
+}
+
+func (r *postgresRepository) ResetMFA(ctx context.Context, id string) error {
+	u, err := uuidOf(id)
+	if err != nil {
+		return err
+	}
+	n, err := r.q(ctx).ResetMFA(ctx, u)
+	return oneRow(n, err)
+}
+
+func (r *postgresRepository) SetPractitioner(ctx context.Context, id, practitionerID string) error {
+	u, err := uuidOf(id)
+	if err != nil {
+		return err
+	}
+	p, err := uuidOf(practitionerID)
+	if err != nil {
+		return err
+	}
+	n, err := r.q(ctx).SetPractitioner(ctx, authdb.SetPractitionerParams{ID: u, PractitionerID: p})
+	return oneRow(n, err)
+}
+
+func (r *postgresRepository) SetOrganization(ctx context.Context, id string) error {
+	return postgres.SetLocal(ctx, "app.organization_id", id)
+}
+
+func (r *postgresRepository) PutInvite(ctx context.Context, inv Invite) (string, error) {
+	org, err := uuidOf(inv.OrganizationID)
+	if err != nil {
+		return "", errors.New("auth: the clinic id is not a UUID")
+	}
+	by, err := optionalUUID(inv.InvitedBy)
+	if err != nil {
+		return "", errors.New("auth: the inviter id is not a UUID")
+	}
+	id, err := r.q(ctx).PutInvite(ctx, authdb.PutInviteParams{
+		CreatedAt: timestamptz(inv.CreatedAt), ExpiresAt: timestamptz(inv.ExpiresAt), OrganizationID: org, InvitedBy: by,
+		Role: string(inv.Role), Email: inv.Email, GivenName: inv.GivenName, FamilyName: inv.FamilyName,
+	})
+	if err != nil {
+		return "", err
+	}
+	return id.String(), nil
+}
+
+func (r *postgresRepository) OpenInvites(ctx context.Context, org string, now time.Time) ([]Invite, error) {
+	u, err := uuidOf(org)
+	if err != nil {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).OpenInvites(ctx, authdb.OpenInvitesParams{OrganizationID: u, Now: timestamptz(now)})
+	if err != nil {
+		return nil, err
+	}
+	invites := make([]Invite, 0, len(rows))
+	for _, row := range rows {
+		invites = append(invites, toInvite(authdb.InviteByIDRow(row)))
+	}
+	return invites, nil
+}
+
+func (r *postgresRepository) InviteByID(ctx context.Context, id string) (Invite, error) {
+	u, err := uuidOf(id)
+	if err != nil {
+		return Invite{}, ErrInvalidInvite
+	}
+	row, err := r.q(ctx).InviteByID(ctx, u)
+	return oneInvite(row, err)
+}
+
+func (r *postgresRepository) InviteByTokenHash(ctx context.Context, tokenHash []byte) (Invite, error) {
+	row, err := r.q(ctx).InviteByTokenHash(ctx, tokenHash)
+	return oneInvite(authdb.InviteByIDRow(row), err)
+}
+
+func (r *postgresRepository) SetInviteToken(ctx context.Context, id string, tokenHash []byte) error {
+	u, err := uuidOf(id)
+	if err != nil {
+		return ErrInvalidInvite
+	}
+	n, err := r.q(ctx).SetInviteToken(ctx, authdb.SetInviteTokenParams{ID: u, TokenHash: tokenHash})
+	if err == nil && n == 0 {
+		return ErrInvalidInvite
+	}
+	return err
+}
+
+func (r *postgresRepository) InviteOrganization(ctx context.Context, tokenHash []byte) (string, error) {
+	org, err := r.q(ctx).InviteOrganization(ctx, tokenHash)
+	if err != nil {
+		return "", err
+	}
+	if !org.Valid {
+		return "", ErrInvalidInvite
+	}
+	return org.String(), nil
+}
+
+func (r *postgresRepository) AcceptInvite(ctx context.Context, id string, at time.Time) error {
+	u, err := uuidOf(id)
+	if err != nil {
+		return ErrInvalidInvite
+	}
+	n, err := r.q(ctx).AcceptInvite(ctx, authdb.AcceptInviteParams{ID: u, AcceptedAt: timestamptz(at)})
+	if err == nil && n == 0 {
+		return ErrInvalidInvite
+	}
+	return err
+}
+
+func oneInvite(row authdb.InviteByIDRow, err error) (Invite, error) {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Invite{}, ErrInvalidInvite
+	}
+	if err != nil {
+		return Invite{}, err
+	}
+	return toInvite(row), nil
+}
+
+// toInvite maps a row; every invite query selects the same columns.
+func toInvite(row authdb.InviteByIDRow) Invite {
+	inv := Invite{
+		ID: row.ID.String(), CreatedAt: row.CreatedAt.Time, ExpiresAt: row.ExpiresAt.Time, OrganizationID: row.OrganizationID.String(),
+		Role: Role(row.Role), Email: row.Email, GivenName: row.GivenName, FamilyName: row.FamilyName,
+	}
+	if row.AcceptedAt.Valid {
+		inv.AcceptedAt = row.AcceptedAt.Time
+	}
+	if row.InvitedBy.Valid {
+		inv.InvitedBy = row.InvitedBy.String()
+	}
+	return inv
 }

@@ -11,6 +11,33 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createOrganization = `-- name: CreateOrganization :one
+INSERT INTO organization (name) VALUES ($1)
+RETURNING id, updated_at, version_id, active, name
+`
+
+type CreateOrganizationRow struct {
+	ID        pgtype.UUID
+	UpdatedAt pgtype.Timestamptz
+	VersionID int32
+	Active    bool
+	Name      string
+}
+
+// The operator command only (salusctl, as the owner): salus_app has no INSERT on organization.
+func (q *Queries) CreateOrganization(ctx context.Context, name string) (CreateOrganizationRow, error) {
+	row := q.db.QueryRow(ctx, createOrganization, name)
+	var i CreateOrganizationRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.VersionID,
+		&i.Active,
+		&i.Name,
+	)
+	return i, err
+}
+
 const organizationByID = `-- name: OrganizationByID :one
 SELECT id, updated_at, version_id, active, name
 FROM organization

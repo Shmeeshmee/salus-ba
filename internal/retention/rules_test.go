@@ -81,3 +81,15 @@ func TestRules_RestrictPractitionersAndTheirRolesAfterTheyLeave(t *testing.T) {
 		t.Errorf("no rule for %s", table)
 	}
 }
+
+func TestRules_DeleteInvitesThirtyDaysAfterTheyEnd(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "invite" {
+			if r.Then != retention.ThenDelete || r.Keep != 30*24*time.Hour {
+				t.Errorf("invite kept %v then %q, want 30 days then %q", r.Keep, r.Then, retention.ThenDelete)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for invite")
+}

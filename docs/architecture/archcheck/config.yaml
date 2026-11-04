@@ -4,6 +4,7 @@
 contexts:
   directory: [organization, practitioner, practitionerrole]
   identity: [auth]
+  notification: [notification]
   privacy: [auditevent, retention]
 
 # Packages under internal/ that are not domains: configuration and composition roots.

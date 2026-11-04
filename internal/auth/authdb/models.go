@@ -88,6 +88,21 @@ type AuditEvent struct {
 	PurposeCode     string
 	EntityReference pgtype.Text
 	RequestID       pgtype.Text
+	AgentName       pgtype.Text
+}
+
+type Invite struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	ExpiresAt      pgtype.Timestamptz
+	AcceptedAt     pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	InvitedBy      pgtype.UUID
+	Role           string
+	Email          string
+	GivenName      string
+	FamilyName     string
+	TokenHash      []byte
 }
 
 type Organization struct {

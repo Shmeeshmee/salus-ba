@@ -17,6 +17,10 @@ type Config struct {
 	// AppDatabasePassword is set on the salus_app role by `migrate up` when not empty. Production leaves it
 	// unset when the role is provisioned outside migrate.
 	AppDatabasePassword string
+	// SMTPAddr is the SMTP server the notifier sends through (SMTP_ADDR, host:port; Mailpit locally).
+	SMTPAddr string
+	// WebBaseURL is the web app's origin, for links in e-mails (WEB_BASE_URL).
+	WebBaseURL string
 	// TOTPKey seals TOTP secrets (TOTP_KEY, base64, 32 bytes). Local and CI only: production takes it from
 	// the KMS, which is not decided yet (docs/accounts/SPEC.md "TOTP").
 	TOTPKey []byte
@@ -34,6 +38,8 @@ func Load() (Config, error) {
 		RedisURL:    os.Getenv("REDIS_URL"),
 
 		AppDatabasePassword: os.Getenv("APP_DATABASE_PASSWORD"),
+		SMTPAddr:            os.Getenv("SMTP_ADDR"),
+		WebBaseURL:          os.Getenv("WEB_BASE_URL"),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("config: DATABASE_URL is required")

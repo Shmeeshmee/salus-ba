@@ -222,3 +222,43 @@ func newEnrolment(email string, secret []byte) Enrolment {
 	u := url.URL{Scheme: "otpauth", Host: "totp", Path: "/" + totpIssuer + ":" + email, RawQuery: q.Encode()}
 	return Enrolment{Secret: b32, URI: u.String()}
 }
+
+// ResetMFA recovers a staff member who lost their device (salusctl reset-mfa): in one transaction it clears
+// the TOTP secret, the last used step and the enrolment, revokes the account's open sessions and audits the
+// change with the operator command as the agent. The next login asks for enrolment. A patient account gives
+// ErrNotStaff (audited); an unknown id ErrNotFound (not audited: no account was accessed).
+func (s *Service) ResetMFA(ctx context.Context, id string) error {
+	var refused error
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		a, err := s.repo.ByID(ctx, id)
+		if errors.Is(err, ErrNotFound) {
+			refused = ErrNotFound
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if a.Role == RolePatient {
+			refused = ErrNotStaff
+			return s.audit.Record(ctx, operatorUpdate(a, auditevent.OutcomeMinorFailure))
+		}
+		if err := s.repo.ResetMFA(ctx, a.ID); err != nil {
+			return err
+		}
+		if err := s.repo.RevokeSessions(ctx, a.ID, s.clock.Now()); err != nil {
+			return err
+		}
+		return s.audit.Record(ctx, operatorUpdate(a, auditevent.OutcomeSuccess))
+	})
+	if err != nil {
+		return fmt.Errorf("auth: reset MFA: %w", err)
+	}
+	return refused
+}
+
+// operatorUpdate is an update of account a by the operator command, which is no account.
+func operatorUpdate(a Account, outcome auditevent.Outcome) auditevent.AuditEvent {
+	e := event(restCoding, interaction(auditevent.CodeUpdate), auditevent.ActionUpdate, a, outcome)
+	e.AgentAccountID, e.AgentName = "", auditevent.AgentOperator
+	return e
+}

@@ -65,6 +65,44 @@ type Enrolment struct {
 	URI    string // otpauth://totp/…, for a QR code
 }
 
+// Invite asks someone to join a clinic as an admin or a practitioner (docs/accounts/SPEC.md "Invites"). The
+// token of its link is issued by the invite_email job and never stored, only its SHA-256.
+type Invite struct {
+	CreatedAt      time.Time
+	ExpiresAt      time.Time // 72 h after it was made or last replaced
+	AcceptedAt     time.Time // zero while open
+	ID             string
+	OrganizationID string
+	InvitedBy      string // the admin's account; empty when the operator command invited
+	Email          string // trimmed and lower-cased: the login the new account gets
+	GivenName      string // a practitioner's one HumanName; empty for an admin
+	FamilyName     string
+	Role           Role // RoleAdmin or RolePractitioner
+}
+
+// open reports whether the invite can still be accepted at now.
+func (inv Invite) open(now time.Time) bool {
+	return inv.AcceptedAt.IsZero() && now.Before(inv.ExpiresAt)
+}
+
+// Acceptance is an accepted invite: the new account, its TOTP secret (pending until a first code confirms
+// it), and the challenge for POST /auth/mfa/confirm, which also opens the first session.
+type Acceptance struct {
+	Enrolment Enrolment
+	Account   Account
+	Challenge string
+}
+
+// InviteEmailArgs is the invite_email job, on the notifier's "email" queue. Its arguments are opaque ids
+// only; the job loads the rest.
+type InviteEmailArgs struct {
+	InviteID       string `json:"invite_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (InviteEmailArgs) Kind() string { return "invite_email" }
+
 type sessionKey struct{}
 
 // WithSession returns ctx carrying the signed-in session, as the session middleware sets it for a request.

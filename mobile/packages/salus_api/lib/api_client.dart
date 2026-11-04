@@ -204,6 +204,10 @@ class ApiClient {
           return valueString == 'true' || valueString == '1';
         case 'DateTime':
           return value is DateTime ? value : DateTime.tryParse(value);
+        case 'AcceptInviteRequest':
+          return AcceptInviteRequest.fromJson(value);
+        case 'Acceptance':
+          return Acceptance.fromJson(value);
         case 'Account':
           return Account.fromJson(value);
         case 'ConfirmRequest':
@@ -214,6 +218,12 @@ class ApiClient {
           return Enrolment.fromJson(value);
         case 'Error':
           return Error.fromJson(value);
+        case 'Invite':
+          return Invite.fromJson(value);
+        case 'InviteList':
+          return InviteList.fromJson(value);
+        case 'InviteRequest':
+          return InviteRequest.fromJson(value);
         case 'LoginRequest':
           return LoginRequest.fromJson(value);
         case 'LoginResponse':

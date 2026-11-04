@@ -122,3 +122,43 @@ func TestByOrganization_ListsTheClinicsRolesOldestFirst(t *testing.T) {
 		}
 	}
 }
+
+func TestCreate_InsertsARoleIntoTheClinicSetOnly(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	var fresh string // a practitioner of clinic A without a role
+	if err := owner.QueryRow(t.Context(), "INSERT INTO practitioner (organization_id, given_name, family_name) VALUES ($1, 'Cy', 'Example') RETURNING id",
+		clinicA).Scan(&fresh); err != nil {
+		t.Fatal(err)
+	}
+	repo := practitionerrole.NewPostgresRepository(app)
+	create := func(org, practitioner string) (practitionerrole.PractitionerRole, error) {
+		var p practitionerrole.PractitionerRole
+		err := postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+			if err := repo.SetOrganization(ctx, clinicA); err != nil {
+				return err
+			}
+			var err error
+			p, err = repo.Create(ctx, org, practitioner)
+			return err
+		})
+		return p, err
+	}
+
+	got, err := create(clinicA, fresh)
+	if err != nil || got.ID == "" || got.OrganizationID != clinicA || got.PractitionerID != fresh || got.VersionID != 1 || !got.Active ||
+		got.LastUpdated.IsZero() {
+		t.Fatalf("Create() in clinic A = %+v, %v; want the new role at version 1", got, err)
+	}
+	for name, tc := range map[string][2]string{
+		"a second role":                {clinicA, fresh},
+		"another clinic":               {clinicB, fresh},
+		"a clinic not UUID":            {"not-a-uuid", fresh},
+		"a practitioner id not a UUID": {clinicA, "not-a-uuid"},
+	} {
+		if _, err := create(tc[0], tc[1]); err == nil {
+			t.Errorf("Create() of %s: error = nil", name)
+		}
+	}
+}

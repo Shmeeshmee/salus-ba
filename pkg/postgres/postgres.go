@@ -75,6 +75,13 @@ func Conn(ctx context.Context, db Querier) Querier {
 	return db
 }
 
+// Tx returns the transaction of the WithTx in ctx, for a library that takes the transaction itself (River's
+// InsertTx), and false outside one.
+func Tx(ctx context.Context) (pgx.Tx, bool) {
+	tx, ok := ctx.Value(txKey{}).(pgx.Tx)
+	return tx, ok
+}
+
 // ErrNoTx is returned by SetLocal outside a transaction, where a local setting would not hold.
 var ErrNoTx = errors.New("postgres: SetLocal needs the transaction of a WithTx")
 

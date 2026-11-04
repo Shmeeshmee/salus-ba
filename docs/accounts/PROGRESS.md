@@ -6,7 +6,7 @@
 | 2 Identity: accounts | done, 2026-11-04 | `accounts(2)` |
 | 3 Identity: sessions and MFA | done, 2026-11-04 | `accounts(3)` |
 | 4 Directory | done, 2026-11-04 | `accounts(4)` |
-| 5 Practitioner invites | todo | |
+| 5 Practitioner invites | done, 2026-11-04 | `accounts(5)` |
 | 6 FHIR reads | todo | |
 | 7 Web | todo | |
 | 8 Mobile | todo | |
@@ -44,6 +44,12 @@
 - Before production (ops): the owner role that runs `migrate` needs `CREATEROLE` to create `salus_app`;
   River index maintenance runs as the owner; DDL statement logging must not capture `ALTER ROLE … PASSWORD`
   (or `APP_DATABASE_PASSWORD` is left unset and the role provisioned outside migrate).
+- Before production (ops): `ALTER FUNCTION invite_organization … OWNER TO salus_invite_lookup` (migration
+  `00013`) needs a superuser, or an owner role that can `SET ROLE salus_invite_lookup` and a
+  `salus_invite_lookup` with `CREATE` on schema `public`; locally `salus` is a superuser. Like `CREATEROLE`
+  above, this is decided with the hosting choice.
+- Before production: the e-mail sender address (`no-reply@salus.invalid` now, a constant in
+  `internal/notification`) becomes configuration with a verified domain when SES is wired (needs its DPA).
 - Branch protection on `main` (carried over from `docs/bootstrap/PROGRESS.md`): needs GitHub Pro.
 
 ## Log
@@ -420,3 +426,127 @@ Deferred:
 Dev stack left: postgres and redis running, as found. Dev database at migration 12 (`organization`,
 `practitioner`, `practitioner_role`, all empty); `make migrate` set the `salus_app` password again (the same
 synthetic value). No other container was started.
+
+### 2026-11-04 — package 5, practitioner invites
+
+Built:
+- Migration `00013_invite.sql`: `invite` (SPEC §4: e-mail, names for a practitioner only, role, inviter,
+  `expires_at`, `accepted_at`, `token_hash`), a partial unique index on `(organization_id, email) WHERE
+  accepted_at IS NULL` (one open invite per e-mail and clinic, replaced by `INSERT … ON CONFLICT … DO
+  UPDATE`), a unique index on `token_hash`, RLS in package 1's form; grants to `salus_app`: `SELECT,
+  INSERT` and `UPDATE` of every column but `email` and `organization_id` (no `DELETE`, `TRUNCATE`). Role
+  `salus_invite_lookup` (`NOLOGIN`, no superuser, no `BYPASSRLS`, created in the `DO` block form of
+  `salus_app`) with `SELECT (organization_id, token_hash)` and one `FOR SELECT TO salus_invite_lookup USING
+  (true)` policy. `invite_organization(bytea) RETURNS uuid`: `SECURITY DEFINER`, `STABLE`, `SET search_path
+  = pg_catalog, public`, schema-qualified body, owned by `salus_invite_lookup`, `EXECUTE` revoked from
+  `PUBLIC` and granted to `salus_app`. `audit_event` gains `agent_name` (FHIR `AuditEvent.agent.name`) for
+  the operator command. `ownership.yaml`: `invite` (auth, `personal_data: true`); retention rule: deleted 30
+  days after `accepted_at` or `expires_at`.
+- `internal/auditevent`: `AgentName`, `AgentOperator = "salusctl"`.
+- Directory `Create` (deferred from package 4): `organization.Service.Create` (operator only, as the owner;
+  audited with `salusctl` as the agent), `practitioner.Service.Create` and `practitionerrole.Service.Create`
+  (in the caller's clinic, set with `SetLocal`; a caller without a clinic gets `ErrForbidden`; audited as
+  rest/create, C, also when refused).
+- `internal/auth`: `Service.Invite` (admin of the session's clinic only; the account is read in the
+  transaction, so the role comes from the database, not the session), `InviteAdmin` (operator),
+  `ListInvites`, `IssueInviteToken`, `AcceptInvite`, `ResetMFA` (`service_invite.go`, `service_mfa.go`);
+  ports `Jobs` (`repository_river.go`: `InsertTx` on queue `email`), `Practitioners`, `PractitionerRoles`
+  (the directory services, wired as they are); `InviteEmailArgs{invite_id, organization_id}`; handlers
+  `POST /invites`, `GET /invites`, `POST /invites/accept` (`handler_http_invite.go`); error codes
+  `forbidden`, `invalid_role`, `invalid_name`, `invalid_invite`.
+- `internal/notification` (context `notification`): `Message`, the `Sender` port, the SMTP sender
+  (`net/smtp` over a context dialer, no auth or TLS: Mailpit), `Service.SendInvite` (clinic name through
+  `organization.Service.Read`, token through `auth.Service.IssueInviteToken`, then the send, outside any
+  transaction).
+- `internal/worker`: `NewInserter` (insert-only client for the api and salusctl) and `NewNotifier` (works
+  only `email`, with the `invite_email` worker; an invite that is no longer open cancels the job;
+  reindexer off). `cmd/notifier` runs it (`SMTP_ADDR`, `WEB_BASE_URL`); `cmd/worker` keeps the default queue.
+- `cmd/salusctl`: `create-clinic -name … -admin-email …` (clinic and invite in one transaction, prints the
+  two ids) and `reset-mfa <account-id>`; `make salusctl args="…"` (the tools container, as the owner).
+- `pkg/postgres.Tx(ctx)`: the transaction of the `WithTx` in the context, for `InsertTx`.
+- `internal/config`: `SMTP_ADDR`, `WEB_BASE_URL`. Compose: the notifier gets both and waits for Mailpit;
+  the tools service gets `TEST_SMTP_ADDR`, `TEST_MAILPIT_URL` and waits for Mailpit; Postgres runs with
+  `max_connections=200` (reading below).
+- `api/openapi.yaml`: the three endpoints, `InviteRequest`, `Invite`, `InviteList`, `AcceptInviteRequest`,
+  `Acceptance`, the new error codes; `make gen-clients`.
+- `docs/privacy/dpia.md` (package 5 section), `processors.md` (e-mail is sent, to Mailpit only).
+
+Test first, failures seen before the code: migration tests (`relation "invite" does not exist`; `column
+"agent_name" … does not exist`; no `invite_organization` row in `pg_proc`); archcheck
+(`table-without-owner: table invite`); retention (`no rule for invite`); auditevent (`e.AgentName undefined`);
+the three directory `Create`s (`undefined: practitioner.ErrForbidden`, `… has no field or method Create`);
+`pkg/postgres` (`undefined: postgres.Tx`); auth services (`undefined: auth.Invite`); River jobs
+(`undefined: auth.NewRiverJobs`); invite handlers (404, no routes); notification (`no non-test Go files`);
+the SMTP error test (the server's reply, with the address, was in the error); config (`cfg.SMTPAddr
+undefined`); worker (`undefined: worker.NewNotifier`); salusctl (`undefined: run`); the api journey
+(`POST /invites` failed: no jobs port wired). The auth Postgres invite tests were written after the
+repository methods (with the service) and first run after them.
+
+Checks: `make lint` 0 issues, check-migrations ok; `make archcheck` ok; `make test` ok (twice); `make cover`
+ok (total 94.3%; auth 95.5%, notification 87.8%, worker 100%, api 88.9%, organization 94.0%, practitioner
+95.2%, practitionerrole 94.9%, postgres 93.2%); a second `make sqlc` and `make gen-clients` leave no
+further diff; `make web-typecheck` ok, `make mobile-analyze` no issues. Stack: `make up` (with
+`SALUS_API_PORT=18080`, `SALUS_MAILPIT_PORT=18025`, `SALUS_LANDING_PORT=18090` in a temporary
+`deployments/.env`), migrate applied `00013`, `make salusctl args="create-clinic -name 'Synthetic stack
+clinic' -admin-email stack-check@example.test"` printed the two ids, the notifier completed the job on its
+first attempt, the e-mail arrived in Mailpit with the clinic name and the link and nothing else, one token
+hash was stored, both creates were audited with `agent_name = salusctl`, and no e-mail address appeared in
+the api or notifier logs.
+
+Readings:
+- **A retried `invite_email` after a send that succeeded issues a new token** (owner request). The job
+  issues the token in its own transaction before sending; a retry (the job marked failed after the SMTP
+  server accepted the message, or a send that failed) stores a new hash, so the link in an earlier e-mail
+  stops working and only the newest is valid. Tested: `TestIssueInviteToken_StoresOnlyTheHashAndReplacesAnEarlierToken`
+  accepts with the first token and gets `ErrInvalidInvite`. Replacing an open invite (a new invite for the
+  same e-mail) also clears its token.
+- **Accepting enrols TOTP in the acceptance transaction and confirms it with the existing endpoint.**
+  `POST /invites/accept` stores the account (with the invite's clinic and role), the sealed pending secret,
+  the accepted mark and, for a practitioner, the `Practitioner`, `PractitionerRole` and
+  `account.practitioner_id`, in one transaction, and returns the secret, its URI and a 5-minute challenge;
+  `POST /auth/mfa/confirm` with the first code marks enrolment and opens the session. If the challenge
+  lapses, a password login gives `next: enrol` (staff without MFA), so nothing is stuck.
+- **Order inside the acceptance transaction:** the account is inserted first (`ON CONFLICT DO NOTHING`), so a
+  taken e-mail is audited and committed with nothing else written; then the invite is marked accepted
+  (`WHERE accepted_at IS NULL AND expires_at > now`), so a concurrent acceptance of the same invite fails
+  there and rolls its account back.
+- **What is audited.** Invite: rest/create, C, entity `Invite/<id>` (refused: outcome 4, no entity). List:
+  rest/search-type, E, one event per invite returned, one without an entity for none (as package 4's role
+  search). Acceptance: rest/create, C, agent and entity the new `Account/<id>`; an expired or used invite or a
+  taken e-mail: outcome 4, no agent, entity `Invite/<id>`; an unknown token is not audited (nothing was
+  accessed). The directory creates audit themselves with the new account as agent, so a practitioner's
+  acceptance writes three events. `IssueInviteToken` (a system step of the job) is not audited: SPEC §2
+  lists invite creation and acceptance. `Invite/<id>` is not a FHIR resource type; it is the entity text
+  until an `AuditEvent` read API maps entities. `salusctl` actions: agent `agent_name = salusctl`, no
+  account; `reset-mfa` of a patient is refused and audited, of an unknown id refused and not audited.
+- **Invite creation does not check whether the e-mail has an account**, so an admin cannot learn that
+  someone (perhaps a patient) has one; the invitee gets `email_taken` on acceptance.
+- **The SMTP sender keeps only the reply code** of a refusal: servers echo the recipient in their reply,
+  and River stores the job's errors and logs them.
+- **`max_connections` 100 → 200 on the compose Postgres.** The first `make cover` of this package failed
+  with 53300 (too many clients) in several packages; sampled every 0.5 s during a passing run, the peak was
+  87 of 100. Every test package runs in parallel and each app-role test opens two pools, the notifier tests
+  a River client too. With 200, `make cover` passed twice and `make test` twice.
+- `invite_email` jobs for an invite that is replaced, accepted or expired are cancelled (`river.JobCancel`),
+  not retried.
+- The notifier builds `auth.Service` with only `Repo`, `Tx` and `Clock`: `IssueInviteToken` needs nothing
+  else (documented on `auth.Ports`).
+- The clinic name for the e-mail is read through `organization.Service.Read` with the invite's clinic as the
+  caller's; reads of a clinic are not audited (package 4).
+- `make test` now starts Mailpit (the tools service depends on it). On this host 8025 is held by another
+  project, so local runs need `SALUS_MAILPIT_PORT` in `deployments/.env`.
+
+Deferred:
+- Foreign keys from `account.organization_id` and `account.practitioner_id` to the directory (package 4's
+  note) are still not added: the plan does not list them and the identity tests insert staff with synthetic
+  clinic ids.
+- The sender address becomes configuration with SES (under "Waiting on people").
+- Wiring the directory services' FHIR handlers in `app.go` is package 6's; their services are now built in
+  `app.go` for invite acceptance.
+
+Dev stack left: postgres and redis running. Postgres was recreated with `max_connections=200` (same data
+volume). Dev database at migration 13; it holds the stack check's synthetic rows: organization "Synthetic
+stack clinic", its admin invite to `stack-check@example.test` (token issued, not accepted), one completed
+`invite_email` job and two `audit_event` rows (append-only, so they stay). The api, worker, scheduler,
+notifier, agent, livekit, mailpit, landing and migrate containers were removed again (Mailpit's in-memory
+messages with them); the temporary `deployments/.env` was deleted.

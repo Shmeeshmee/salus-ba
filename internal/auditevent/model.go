@@ -31,6 +31,9 @@ const (
 	CodeHOPERAT     = "HOPERAT" // purposeOfEvent: healthcare operations
 )
 
+// AgentOperator names the agent of an access by the operator command (cmd/salusctl), which is no account.
+const AgentOperator = "salusctl"
+
 // Action is AuditEvent.action (FHIR value set audit-event-action).
 type Action string
 
@@ -62,7 +65,9 @@ type AuditEvent struct {
 	Purpose  Coding // purposeOfEvent
 	// AgentAccountID is the agent, Account/<id>; empty when there is none (a failed login with an unknown
 	// e-mail).
-	AgentAccountID  string
+	AgentAccountID string
+	// AgentName names an agent that is no account (AuditEvent.agent.name): AgentOperator; empty otherwise.
+	AgentName       string
 	EntityReference string // the entity, <ResourceType>/<id>; empty when there is none
 	OrganizationID  string // the clinic, when there is one
 	RequestID       string // set by Record from the context

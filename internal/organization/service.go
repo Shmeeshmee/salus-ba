@@ -24,8 +24,9 @@ type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
-// Service holds the clinic rules: only staff of a clinic see it, only its admin changes it. Reads are not
-// audited (a clinic's name is not personal data); every write is, also when it is refused.
+// Service holds the clinic rules: only staff of a clinic see it, only its admin changes it, only the operator
+// command creates one. Reads are not audited (a clinic's name is not personal data); every write is, also
+// when it is refused.
 type Service struct {
 	repo  Repository
 	audit Auditor
@@ -57,6 +58,30 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (Organization, 
 		return Organization{}, ErrNotFound
 	case err != nil:
 		return Organization{}, fmt.Errorf("organization: read: %w", err)
+	}
+	return o, nil
+}
+
+// Create adds a clinic. Only the operator command calls it (cmd/salusctl, connected as the owner: the
+// application role may not insert a clinic); its audit event names the operator command as the agent. The
+// name is trimmed; a blank one or one over 200 characters gives ErrInvalidName.
+func (s *Service) Create(ctx context.Context, name string) (Organization, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || utf8.RuneCountInString(name) > maxName {
+		return Organization{}, ErrInvalidName
+	}
+	var o Organization
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		var err error
+		if o, err = s.repo.Create(ctx, name); err != nil {
+			return err
+		}
+		e := event(auditevent.CodeCreate, auditevent.ActionCreate, Caller{OrganizationID: o.ID}, o.ID, auditevent.OutcomeSuccess)
+		e.AgentName = auditevent.AgentOperator
+		return s.audit.Record(ctx, e)
+	})
+	if err != nil {
+		return Organization{}, fmt.Errorf("organization: create: %w", err)
 	}
 	return o, nil
 }
@@ -138,11 +163,16 @@ func refusal(c Caller, id string) error {
 
 // record audits an update by c of the clinic id ("" when none was accessed).
 func (s *Service) record(ctx context.Context, c Caller, id string, outcome auditevent.Outcome) error {
+	return s.audit.Record(ctx, event(auditevent.CodeUpdate, auditevent.ActionUpdate, c, id, outcome))
+}
+
+// event is a write (interaction) by c of the clinic id ("" when none was accessed), for operations.
+func event(interaction string, action auditevent.Action, c Caller, id string, outcome auditevent.Outcome) auditevent.AuditEvent {
 	e := auditevent.AuditEvent{
 		Type:           auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
-		Subtype:        auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: auditevent.CodeUpdate},
+		Subtype:        auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: interaction},
 		Purpose:        auditevent.Coding{System: auditevent.SystemActReason, Code: auditevent.CodeHOPERAT},
-		Action:         auditevent.ActionUpdate,
+		Action:         action,
 		Outcome:        outcome,
 		AgentAccountID: c.AccountID,
 		OrganizationID: c.OrganizationID,
@@ -150,5 +180,5 @@ func (s *Service) record(ctx context.Context, c Caller, id string, outcome audit
 	if id != "" {
 		e.EntityReference = "Organization/" + id
 	}
-	return s.audit.Record(ctx, e)
+	return e
 }

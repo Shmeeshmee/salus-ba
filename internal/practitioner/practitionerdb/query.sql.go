@@ -11,6 +11,43 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createPractitioner = `-- name: CreatePractitioner :one
+INSERT INTO practitioner (organization_id, given_name, family_name)
+VALUES ($1, $2, $3)
+RETURNING id, updated_at, organization_id, version_id, active, given_name, family_name
+`
+
+type CreatePractitionerParams struct {
+	OrganizationID pgtype.UUID
+	GivenName      string
+	FamilyName     string
+}
+
+type CreatePractitionerRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Active         bool
+	GivenName      string
+	FamilyName     string
+}
+
+func (q *Queries) CreatePractitioner(ctx context.Context, arg CreatePractitionerParams) (CreatePractitionerRow, error) {
+	row := q.db.QueryRow(ctx, createPractitioner, arg.OrganizationID, arg.GivenName, arg.FamilyName)
+	var i CreatePractitionerRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.VersionID,
+		&i.Active,
+		&i.GivenName,
+		&i.FamilyName,
+	)
+	return i, err
+}
+
 const practitionerByID = `-- name: PractitionerByID :one
 SELECT id, updated_at, organization_id, version_id, active, given_name, family_name
 FROM practitioner

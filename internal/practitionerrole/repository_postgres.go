@@ -60,7 +60,19 @@ func (r *postgresRepository) ByOrganization(ctx context.Context, org string) ([]
 	return roles, nil
 }
 
-// toRole maps a row; both role queries select the same columns.
+func (r *postgresRepository) Create(ctx context.Context, org, practitionerID string) (PractitionerRole, error) {
+	var o, p pgtype.UUID
+	if o.Scan(org) != nil || p.Scan(practitionerID) != nil {
+		return PractitionerRole{}, errors.New("practitionerrole: an id is not a UUID")
+	}
+	row, err := r.q(ctx).CreatePractitionerRole(ctx, practitionerroledb.CreatePractitionerRoleParams{OrganizationID: o, PractitionerID: p})
+	if err != nil {
+		return PractitionerRole{}, err
+	}
+	return toRole(practitionerroledb.PractitionerRolesByOrganizationRow(row)), nil
+}
+
+// toRole maps a row; every role query selects the same columns.
 func toRole(row practitionerroledb.PractitionerRolesByOrganizationRow) PractitionerRole {
 	return PractitionerRole{
 		ID: row.ID.String(), OrganizationID: row.OrganizationID.String(), PractitionerID: row.PractitionerID.String(),

@@ -19,8 +19,8 @@ type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
-// Service holds the practitioner role rules: only staff of a clinic see its roles, and every read and
-// search is audited, also when it is refused.
+// Service holds the practitioner role rules: only staff of a clinic see its roles, and every read, search
+// and create is audited, also when it is refused.
 type Service struct {
 	repo  Repository
 	audit Auditor
@@ -107,12 +107,42 @@ func (s *Service) Search(ctx context.Context, c Caller, org string) ([]Practitio
 	return roles, nil
 }
 
-// record audits a read or a search (interaction) by c that disclosed the role id ("" for none: no id from
-// the request is stored). A search is an execute (FHIR AuditEvent.action), a read a read.
+// Create gives the practitioner practitionerID their role in the caller's clinic and returns it (on invite
+// acceptance, as the invited account). A caller without a clinic gets ErrForbidden. Audited, also when
+// refused.
+func (s *Service) Create(ctx context.Context, c Caller, practitionerID string) (PractitionerRole, error) {
+	if c.OrganizationID == "" {
+		if err := s.record(ctx, c, auditevent.CodeCreate, "", auditevent.OutcomeMinorFailure); err != nil {
+			return PractitionerRole{}, fmt.Errorf("practitionerrole: create: %w", err)
+		}
+		return PractitionerRole{}, ErrForbidden
+	}
+	var p PractitionerRole
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetOrganization(ctx, c.OrganizationID); err != nil {
+			return err
+		}
+		var err error
+		if p, err = s.repo.Create(ctx, c.OrganizationID, practitionerID); err != nil {
+			return err
+		}
+		return s.record(ctx, c, auditevent.CodeCreate, p.ID, auditevent.OutcomeSuccess)
+	})
+	if err != nil {
+		return PractitionerRole{}, fmt.Errorf("practitionerrole: create: %w", err)
+	}
+	return p, nil
+}
+
+// record audits a read, a search or a create (interaction) by c that disclosed the role id ("" for none: no id from
+// the request is stored). A search is an execute (FHIR AuditEvent.action), a read a read, a create a create.
 func (s *Service) record(ctx context.Context, c Caller, interaction, id string, outcome auditevent.Outcome) error {
 	action := auditevent.ActionRead
-	if interaction == auditevent.CodeSearchType {
+	switch interaction {
+	case auditevent.CodeSearchType:
 		action = auditevent.ActionExecute
+	case auditevent.CodeCreate:
+		action = auditevent.ActionCreate
 	}
 	e := auditevent.AuditEvent{
 		Type:           auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},

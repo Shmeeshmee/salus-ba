@@ -71,3 +71,35 @@ func TestByID_SeesOnlyTheClinicSet(t *testing.T) {
 		t.Errorf("SetOrganization() outside a transaction: %v, want postgres.ErrNoTx", err)
 	}
 }
+
+func TestCreate_InsertsIntoTheClinicSetOnly(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo := practitioner.NewPostgresRepository(app)
+	tr := postgres.NewTransactor(app)
+	create := func(set, org string) (practitioner.Practitioner, error) {
+		var p practitioner.Practitioner
+		err := tr.WithTx(t.Context(), func(ctx context.Context) error {
+			if err := repo.SetOrganization(ctx, set); err != nil {
+				return err
+			}
+			var err error
+			p, err = repo.Create(ctx, org, "Cy", "Example")
+			return err
+		})
+		return p, err
+	}
+
+	got, err := create(clinicA, clinicA)
+	if err != nil || got.ID == "" || got.OrganizationID != clinicA || got.GivenName != "Cy" || got.FamilyName != "Example" ||
+		got.VersionID != 1 || !got.Active || got.LastUpdated.IsZero() {
+		t.Fatalf("Create() in clinic A = %+v, %v; want the new practitioner at version 1", got, err)
+	}
+	if _, err := create(clinicA, clinicB); err == nil {
+		t.Error("Create() for clinic B with clinic A set: error = nil, want the row-level security refusal")
+	}
+	if _, err := create(clinicA, "not-a-uuid"); err == nil {
+		t.Error("Create() for a clinic id that is not a UUID: error = nil")
+	}
+}

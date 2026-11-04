@@ -79,15 +79,23 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
 *HealthApi* | [**getHealth**](doc//HealthApi.md#gethealth) | **GET** /healthz | Liveness
 *HealthApi* | [**getReadiness**](doc//HealthApi.md#getreadiness) | **GET** /readyz | Readiness
+*InvitesApi* | [**acceptInvite**](doc//InvitesApi.md#acceptinvite) | **POST** /invites/accept | Accept an invite
+*InvitesApi* | [**createInvite**](doc//InvitesApi.md#createinvite) | **POST** /invites | Invite a practitioner or an admin to the clinic
+*InvitesApi* | [**listInvites**](doc//InvitesApi.md#listinvites) | **GET** /invites | The clinic's open invites
 
 
 ## Documentation For Models
 
+ - [AcceptInviteRequest](doc//AcceptInviteRequest.md)
+ - [Acceptance](doc//Acceptance.md)
  - [Account](doc//Account.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)
  - [EnrolRequest](doc//EnrolRequest.md)
  - [Enrolment](doc//Enrolment.md)
  - [Error](doc//Error.md)
+ - [Invite](doc//Invite.md)
+ - [InviteList](doc//InviteList.md)
+ - [InviteRequest](doc//InviteRequest.md)
  - [LoginRequest](doc//LoginRequest.md)
  - [LoginResponse](doc//LoginResponse.md)
  - [RegisterRequest](doc//RegisterRequest.md)

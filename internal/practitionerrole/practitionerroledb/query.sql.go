@@ -11,6 +11,40 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createPractitionerRole = `-- name: CreatePractitionerRole :one
+INSERT INTO practitioner_role (organization_id, practitioner_id)
+VALUES ($1, $2)
+RETURNING id, updated_at, organization_id, practitioner_id, version_id, active
+`
+
+type CreatePractitionerRoleParams struct {
+	OrganizationID pgtype.UUID
+	PractitionerID pgtype.UUID
+}
+
+type CreatePractitionerRoleRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	PractitionerID pgtype.UUID
+	VersionID      int32
+	Active         bool
+}
+
+func (q *Queries) CreatePractitionerRole(ctx context.Context, arg CreatePractitionerRoleParams) (CreatePractitionerRoleRow, error) {
+	row := q.db.QueryRow(ctx, createPractitionerRole, arg.OrganizationID, arg.PractitionerID)
+	var i CreatePractitionerRoleRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.PractitionerID,
+		&i.VersionID,
+		&i.Active,
+	)
+	return i, err
+}
+
 const practitionerRoleByID = `-- name: PractitionerRoleByID :one
 SELECT id, updated_at, organization_id, practitioner_id, version_id, active
 FROM practitioner_role

@@ -14,4 +14,6 @@ type Repository interface {
 	// Rename sets the clinic's name at version, moving it to the next version, last updated at at; or
 	// returns ErrConflict when version is not the current one.
 	Rename(ctx context.Context, id, name string, version int32, at time.Time) (Organization, error)
+	// Create stores a new active clinic and returns it. Only the owner may (the operator command).
+	Create(ctx context.Context, name string) (Organization, error)
 }

@@ -30,12 +30,18 @@ part 'auth/http_bearer_auth.dart';
 
 part 'api/auth_api.dart';
 part 'api/health_api.dart';
+part 'api/invites_api.dart';
 
+part 'model/accept_invite_request.dart';
+part 'model/acceptance.dart';
 part 'model/account.dart';
 part 'model/confirm_request.dart';
 part 'model/enrol_request.dart';
 part 'model/enrolment.dart';
 part 'model/error.dart';
+part 'model/invite.dart';
+part 'model/invite_list.dart';
+part 'model/invite_request.dart';
 part 'model/login_request.dart';
 part 'model/login_response.dart';
 part 'model/register_request.dart';
