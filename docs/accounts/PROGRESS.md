@@ -901,3 +901,20 @@ context, including the first Postgres connection; with this feature's test packa
 one server, connecting can take longer. The tests now cancel `run()` once it logs "started" (up to 15 s for
 start-up), through a mutex-guarded log buffer, and still assert a clean start and stop. Checked three times
 with `-race`, then `make lint`, `make test -count=1` and `make cover` (94.8% total).
+
+### 2026-11-04 — PR review (#17)
+
+Copilot's review, item by item:
+
+- `useSubmit` left the form disabled when the action rejected. openapi-fetch rethrows a network failure, so
+  this is real. Fixed: `try`/`finally` resets `busy`, and a rejection shows the fixed "Something went wrong"
+  message. Test first (`useSubmit.test.tsx`).
+- `Field` let a caller's `id` override the generated one on the input but not on the label. Fixed: the
+  caller's `id`, when given, is used for both and for the hint. Test first (`ui.test.tsx`).
+- `range passwordAttempts` "does not compile": not changed. Ranging over an int is valid since Go 1.22, and
+  `go.mod` is at 1.27.
+- `TOTP_KEY` and `RATE_LIMIT_KEY` lengths not checked in `internal/config`: not changed. `internal/api/app.go`
+  already fails at start-up with an error that names the key, without its value: `NewAESSecretBox` (32 bytes)
+  and `minRateLimitKey` (32 bytes). Only the api uses them.
+
+`make web-lint`, `make web-typecheck`, `make web-test` and `make web-build` pass.

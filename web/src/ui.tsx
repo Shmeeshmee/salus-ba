@@ -16,12 +16,13 @@ export function AuthCard({ title, children }: { title: string; children: ReactNo
 
 type FieldProps = InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string }
 
-export function Field({ label, hint, ...input }: FieldProps) {
-  const id = useId()
+export function Field({ label, hint, id: callerId, ...input }: FieldProps) {
+  const generatedId = useId()
+  const id = callerId ?? generatedId
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
-      <input id={id} aria-describedby={hint ? `${id}-hint` : undefined} {...input} />
+      <input {...input} id={id} aria-describedby={hint ? `${id}-hint` : undefined} />
       {hint && (
         <p className="hint" id={`${id}-hint`}>
           {hint}
