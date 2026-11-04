@@ -93,3 +93,15 @@ func TestRules_DeleteInvitesThirtyDaysAfterTheyEnd(t *testing.T) {
 	}
 	t.Fatal("no rule for invite")
 }
+
+func TestRules_KeepPatientsWhileTheAccountExists(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "patient" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("patient then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for patient")
+}

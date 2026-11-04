@@ -18,6 +18,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/worker"
@@ -73,6 +74,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{})
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx)
 	roles := practitionerrole.NewService(practitionerrole.NewPostgresRepository(pool), audit, tx)
+	patients := patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clock.System{})
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Hasher: hasher, Audit: audit, Tx: tx, Clock: clock.System{},
 		Challenges: auth.NewRedisChallengeStore(rdb), Counters: auth.NewRedisCounters(rdb), Box: box,
@@ -93,6 +95,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 			organization.NewHandler(clinics, organizationCaller(accounts), log).Routes,
 			practitioner.NewHandler(practitioners, practitionerCaller, log).Routes,
 			practitionerrole.NewHandler(roles, practitioners, roleCaller, fhirBase, log).Routes,
+			patient.NewHandler(patients, patientCaller, log).Routes,
 		},
 		Timeout: RequestTimeout,
 	})
@@ -132,6 +135,11 @@ func practitionerCaller(ctx context.Context) (practitioner.Caller, bool) {
 func roleCaller(ctx context.Context) (practitionerrole.Caller, bool) {
 	s, ok := auth.SessionFrom(ctx)
 	return practitionerrole.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}, ok
+}
+
+func patientCaller(ctx context.Context) (patient.Caller, bool) {
+	s, ok := auth.SessionFrom(ctx)
+	return patient.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}, ok
 }
 
 // Close releases the dependencies.

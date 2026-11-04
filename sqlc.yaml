@@ -29,6 +29,14 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
+    queries: internal/patient/query.sql
+    gen:
+      go:
+        package: patientdb
+        out: internal/patient/patientdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/practitioner/query.sql
     gen:
       go:

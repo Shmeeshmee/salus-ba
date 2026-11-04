@@ -29,6 +29,8 @@ const (
 
 	SystemActReason = "http://terminology.hl7.org/CodeSystem/v3-ActReason"
 	CodeHOPERAT     = "HOPERAT" // purposeOfEvent: healthcare operations
+	CodePATRQT      = "PATRQT"  // purposeOfEvent: the patient's own request (docs/booking/SPEC.md "Audit codes")
+	CodeTREAT       = "TREAT"   // purposeOfEvent: treatment, for staff (docs/booking/SPEC.md "Audit codes")
 )
 
 // AgentOperator names the agent of an access by the operator command (cmd/salusctl), which is no account.

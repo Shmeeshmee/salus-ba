@@ -42,5 +42,10 @@ func Rules() []Rule {
 			Basis: "The clinic's employment relationship and the contract with the clinic (GDPR Art. 6(1)(b), (f)); after leaving, the medical-record retention that references the role",
 			Then:  ThenRestrict,
 		},
+		{
+			Table: "patient",
+			Basis: "Provision of health care (GDPR Art. 9(2)(h)) and the contract with the patient (Art. 6(1)(b)) while the account exists; erasure comes with the subject-rights feature (docs/booking/SPEC.md section 4)",
+			Then:  ThenKeep,
+		},
 	}
 }

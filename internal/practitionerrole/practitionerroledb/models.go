@@ -114,6 +114,18 @@ type Organization struct {
 	Name      string
 }
 
+type Patient struct {
+	ID         pgtype.UUID
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	AccountID  pgtype.UUID
+	VersionID  int32
+	BirthDate  pgtype.Date
+	GivenName  string
+	FamilyName string
+	Phone      pgtype.Text
+}
+
 type Practitioner struct {
 	ID             pgtype.UUID
 	CreatedAt      pgtype.Timestamptz

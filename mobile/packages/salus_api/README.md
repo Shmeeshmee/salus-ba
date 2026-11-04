@@ -82,6 +82,8 @@ Class | Method | HTTP request | Description
 *InvitesApi* | [**acceptInvite**](doc//InvitesApi.md#acceptinvite) | **POST** /invites/accept | Accept an invite
 *InvitesApi* | [**createInvite**](doc//InvitesApi.md#createinvite) | **POST** /invites | Invite a practitioner or an admin to the clinic
 *InvitesApi* | [**listInvites**](doc//InvitesApi.md#listinvites) | **GET** /invites | The clinic's open invites
+*PatientApi* | [**getMyPatient**](doc//PatientApi.md#getmypatient) | **GET** /me/patient | The signed-in patient's profile
+*PatientApi* | [**saveMyPatient**](doc//PatientApi.md#savemypatient) | **PUT** /me/patient | Save the signed-in patient's profile
 
 
 ## Documentation For Models
@@ -98,7 +100,9 @@ Class | Method | HTTP request | Description
  - [InviteRequest](doc//InviteRequest.md)
  - [LoginRequest](doc//LoginRequest.md)
  - [LoginResponse](doc//LoginResponse.md)
+ - [Patient](doc//Patient.md)
  - [RegisterRequest](doc//RegisterRequest.md)
+ - [SavePatientRequest](doc//SavePatientRequest.md)
  - [Status](doc//Status.md)
  - [Unavailable](doc//Unavailable.md)
  - [VerifyRequest](doc//VerifyRequest.md)

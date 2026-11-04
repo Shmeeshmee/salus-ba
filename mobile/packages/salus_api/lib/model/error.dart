@@ -133,6 +133,10 @@ enum ErrorErrorEnum {
   invalidRole._(r'invalid_role'),
   invalidName._(r'invalid_name'),
   invalidInvite._(r'invalid_invite'),
+  invalidBirthDate._(r'invalid_birth_date'),
+  invalidPhone._(r'invalid_phone'),
+  notFound._(r'not_found'),
+  versionConflict._(r'version_conflict'),
   internalError._(r'internal error'),
   timeout._(r'timeout'),
   ;
@@ -230,6 +234,14 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.invalidName;
         case r'invalid_invite':
           return ErrorErrorEnum.invalidInvite;
+        case r'invalid_birth_date':
+          return ErrorErrorEnum.invalidBirthDate;
+        case r'invalid_phone':
+          return ErrorErrorEnum.invalidPhone;
+        case r'not_found':
+          return ErrorErrorEnum.notFound;
+        case r'version_conflict':
+          return ErrorErrorEnum.versionConflict;
         case r'internal error':
           return ErrorErrorEnum.internalError;
         case r'timeout':

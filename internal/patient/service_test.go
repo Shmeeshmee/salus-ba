@@ -1,0 +1,383 @@
+package patient_test
+
+import (
+	"context"
+	"errors"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/patient"
+	"github.com/Shmeeshmee/salus/pkg/clock"
+)
+
+// Synthetic ids and data only.
+const (
+	accountA = "c1000000-0000-4000-8000-0000000000c1"
+	accountB = "c2000000-0000-4000-8000-0000000000c2"
+	patientA = "d1000000-0000-4000-8000-0000000000d1"
+	patientB = "d2000000-0000-4000-8000-0000000000d2"
+	clinicA  = "a0000000-0000-4000-8000-00000000000a"
+	staffA   = "a1000000-0000-4000-8000-0000000000a1"
+)
+
+var now = time.Date(2026, 11, 4, 9, 30, 0, 0, time.UTC)
+
+func date(y int, m time.Month, d int) time.Time { return time.Date(y, m, d, 0, 0, 0, 0, time.UTC) }
+
+var (
+	me    = patient.Caller{AccountID: accountA}
+	other = patient.Caller{AccountID: "c3000000-0000-4000-8000-0000000000c3"}
+	staff = patient.Caller{AccountID: staffA, OrganizationID: clinicA}
+)
+
+type txKey struct{}
+
+type fakeTransactor struct{}
+
+func (fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context) error) error {
+	return fn(context.WithValue(ctx, txKey{}, true))
+}
+
+// fakeRepository holds profiles by account and shows only the account set on the transaction, as row-level
+// security does.
+type fakeRepository struct {
+	err      error // returned by every read and write when set
+	profiles map[string]patient.Patient
+	account  string   // set by SetAccount
+	calls    []string // the calls, "outside:" prefixed when made outside a transaction
+}
+
+func newFakeRepository() *fakeRepository {
+	return &fakeRepository{profiles: map[string]patient.Patient{
+		accountA: {ID: patientA, AccountID: accountA, GivenName: "Ada", FamilyName: "Example", BirthDate: date(1990, 1, 1), VersionID: 2, LastUpdated: now.Add(-time.Hour)},
+		accountB: {ID: patientB, AccountID: accountB, GivenName: "Bo", FamilyName: "Example", BirthDate: date(1991, 2, 2), VersionID: 1, LastUpdated: now.Add(-time.Hour)},
+	}}
+}
+
+func (r *fakeRepository) seen(ctx context.Context, call string) {
+	if ctx.Value(txKey{}) == nil {
+		call = "outside:" + call
+	}
+	r.calls = append(r.calls, call)
+}
+
+func (r *fakeRepository) SetAccount(ctx context.Context, id string) error {
+	r.seen(ctx, "SetAccount")
+	r.account = id
+	return nil
+}
+
+func (r *fakeRepository) ByAccount(ctx context.Context, accountID string) (patient.Patient, error) {
+	r.seen(ctx, "ByAccount")
+	if r.err != nil {
+		return patient.Patient{}, r.err
+	}
+	p, ok := r.profiles[accountID]
+	if !ok || accountID != r.account {
+		return patient.Patient{}, patient.ErrNotFound
+	}
+	return p, nil
+}
+
+func (r *fakeRepository) ByID(ctx context.Context, id string) (patient.Patient, error) {
+	r.seen(ctx, "ByID")
+	if r.err != nil {
+		return patient.Patient{}, r.err
+	}
+	p, ok := r.profiles[r.account]
+	if !ok || p.ID != id {
+		return patient.Patient{}, patient.ErrNotFound
+	}
+	return p, nil
+}
+
+func (r *fakeRepository) Create(ctx context.Context, p patient.Patient, at time.Time) (patient.Patient, error) {
+	r.seen(ctx, "Create")
+	if r.err != nil {
+		return patient.Patient{}, r.err
+	}
+	if _, ok := r.profiles[p.AccountID]; ok || p.AccountID != r.account {
+		return patient.Patient{}, patient.ErrConflict
+	}
+	p.ID, p.VersionID, p.LastUpdated = "d9000000-0000-4000-8000-0000000000d9", 1, at
+	r.profiles[p.AccountID] = p
+	return p, nil
+}
+
+func (r *fakeRepository) Update(ctx context.Context, p patient.Patient, at time.Time) (patient.Patient, error) {
+	r.seen(ctx, "Update")
+	if r.err != nil {
+		return patient.Patient{}, r.err
+	}
+	cur, ok := r.profiles[p.AccountID]
+	if !ok || p.AccountID != r.account || cur.VersionID != p.VersionID {
+		return patient.Patient{}, patient.ErrConflict
+	}
+	p.ID, p.VersionID, p.LastUpdated = cur.ID, cur.VersionID+1, at
+	r.profiles[p.AccountID] = p
+	return p, nil
+}
+
+type fakeAuditor struct {
+	err    error
+	events []auditevent.AuditEvent
+}
+
+func (a *fakeAuditor) Record(_ context.Context, e auditevent.AuditEvent) error {
+	if a.err != nil {
+		return a.err
+	}
+	a.events = append(a.events, e)
+	return nil
+}
+
+func newService(repo *fakeRepository, audit *fakeAuditor) *patient.Service {
+	return patient.NewService(repo, audit, fakeTransactor{}, clock.Fixed{T: now})
+}
+
+// event is the audit event of interaction by c on Patient/id ("" for none).
+func event(c patient.Caller, interaction, id string, outcome auditevent.Outcome) auditevent.AuditEvent {
+	action := map[string]auditevent.Action{
+		auditevent.CodeRead: auditevent.ActionRead, auditevent.CodeCreate: auditevent.ActionCreate,
+		auditevent.CodeUpdate: auditevent.ActionUpdate,
+	}[interaction]
+	purpose := auditevent.CodePATRQT
+	if c.OrganizationID != "" {
+		purpose = auditevent.CodeTREAT
+	}
+	e := auditevent.AuditEvent{
+		Type:           auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
+		Subtype:        auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: interaction},
+		Purpose:        auditevent.Coding{System: auditevent.SystemActReason, Code: purpose},
+		Action:         action,
+		Outcome:        outcome,
+		AgentAccountID: c.AccountID,
+		OrganizationID: c.OrganizationID,
+	}
+	if id != "" {
+		e.EntityReference = "Patient/" + id
+	}
+	return e
+}
+
+func checkEvents(t *testing.T, audit *fakeAuditor, want ...auditevent.AuditEvent) {
+	t.Helper()
+	if !slices.Equal(audit.events, want) {
+		t.Errorf("audit events %+v,\nwant %+v", audit.events, want)
+	}
+}
+
+func TestMe_GivesThePatientTheirProfileThroughTheirScopeAndAuditsIt(t *testing.T) {
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	got, err := newService(repo, audit).Me(t.Context(), me)
+	if err != nil || got != repo.profiles[accountA] {
+		t.Fatalf("Me() = %+v, %v; want profile A", got, err)
+	}
+	if want := []string{"SetAccount", "ByAccount"}; !slices.Equal(repo.calls, want) || repo.account != accountA {
+		t.Errorf("calls %v with account %q, want %v inside the transaction with account A", repo.calls, repo.account, want)
+	}
+	checkEvents(t, audit, event(me, auditevent.CodeRead, patientA, auditevent.OutcomeSuccess))
+}
+
+func TestMe_IsNotFoundBeforeTheFirstSaveAndAudited(t *testing.T) {
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	_, err := newService(repo, audit).Me(t.Context(), other)
+	if !errors.Is(err, patient.ErrNotFound) {
+		t.Fatalf("Me() = %v, want ErrNotFound", err)
+	}
+	checkEvents(t, audit, event(other, auditevent.CodeRead, "", auditevent.OutcomeMinorFailure))
+}
+
+func TestMe_RefusesAndAuditsStaff(t *testing.T) {
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	_, err := newService(repo, audit).Me(t.Context(), staff)
+	if !errors.Is(err, patient.ErrForbidden) || len(repo.calls) != 0 {
+		t.Fatalf("Me() as staff = %v after calls %v, want ErrForbidden without touching the repository", err, repo.calls)
+	}
+	checkEvents(t, audit, event(staff, auditevent.CodeRead, "", auditevent.OutcomeMinorFailure))
+}
+
+func TestSaveMe_CreatesTheProfileOnTheFirstSaveTrimmedAndAudited(t *testing.T) {
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	in := patient.Patient{GivenName: "  Cy ", FamilyName: " Example", BirthDate: date(1985, 6, 15), Phone: "+38760000001"}
+	got, err := newService(repo, audit).SaveMe(t.Context(), other, in)
+	want := patient.Patient{ID: "d9000000-0000-4000-8000-0000000000d9", AccountID: other.AccountID, GivenName: "Cy",
+		FamilyName: "Example", BirthDate: date(1985, 6, 15), Phone: "+38760000001", VersionID: 1, LastUpdated: now}
+	if err != nil || got != want {
+		t.Fatalf("SaveMe() = %+v, %v;\nwant %+v", got, err, want)
+	}
+	if want := []string{"SetAccount", "Create"}; !slices.Equal(repo.calls, want) || repo.account != other.AccountID {
+		t.Errorf("calls %v with account %q, want %v inside the transaction with the caller's account", repo.calls, repo.account, want)
+	}
+	checkEvents(t, audit, event(other, auditevent.CodeCreate, want.ID, auditevent.OutcomeSuccess))
+}
+
+func TestSaveMe_UpdatesTheCurrentVersionAndAuditsIt(t *testing.T) {
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	in := patient.Patient{GivenName: "Ada", FamilyName: "Renamed", BirthDate: date(1990, 1, 1), VersionID: 2}
+	got, err := newService(repo, audit).SaveMe(t.Context(), me, in)
+	if err != nil || got.ID != patientA || got.FamilyName != "Renamed" || got.VersionID != 3 || !got.LastUpdated.Equal(now) {
+		t.Fatalf("SaveMe() = %+v, %v; want profile A renamed at version 3", got, err)
+	}
+	if want := []string{"SetAccount", "Update"}; !slices.Equal(repo.calls, want) {
+		t.Errorf("calls %v, want %v", repo.calls, want)
+	}
+	checkEvents(t, audit, event(me, auditevent.CodeUpdate, patientA, auditevent.OutcomeSuccess))
+}
+
+func TestSaveMe_GivesAConflictForAStaleVersionOrASecondCreate(t *testing.T) {
+	tests := []struct {
+		name        string
+		interaction string
+		version     int32
+	}{
+		{name: "stale version", version: 1, interaction: auditevent.CodeUpdate},
+		{name: "a version from the future", version: 3, interaction: auditevent.CodeUpdate},
+		{name: "a create when the profile exists", version: 0, interaction: auditevent.CodeCreate},
+	}
+	for _, tt := range tests {
+		repo, audit := newFakeRepository(), &fakeAuditor{}
+		in := patient.Patient{GivenName: "Ada", FamilyName: "Example", BirthDate: date(1990, 1, 1), VersionID: tt.version}
+		_, err := newService(repo, audit).SaveMe(t.Context(), me, in)
+		if !errors.Is(err, patient.ErrConflict) {
+			t.Errorf("%s: SaveMe() = %v, want ErrConflict", tt.name, err)
+		}
+		if repo.profiles[accountA].VersionID != 2 {
+			t.Errorf("%s: profile changed to %+v", tt.name, repo.profiles[accountA])
+		}
+		checkEvents(t, audit, event(me, tt.interaction, "", auditevent.OutcomeMinorFailure))
+	}
+}
+
+func TestSaveMe_RefusesAndAuditsStaff(t *testing.T) {
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	in := patient.Patient{GivenName: "Ada", FamilyName: "Example", BirthDate: date(1990, 1, 1)}
+	_, err := newService(repo, audit).SaveMe(t.Context(), staff, in)
+	if !errors.Is(err, patient.ErrForbidden) || len(repo.calls) != 0 {
+		t.Fatalf("SaveMe() as staff = %v after calls %v, want ErrForbidden without touching the repository", err, repo.calls)
+	}
+	checkEvents(t, audit, event(staff, auditevent.CodeCreate, "", auditevent.OutcomeMinorFailure))
+}
+
+func TestSaveMe_ValidatesTheProfileBeforeAnyAccess(t *testing.T) {
+	valid := patient.Patient{GivenName: "Ada", FamilyName: "Example", BirthDate: date(1990, 1, 1)}
+	with := func(f func(p *patient.Patient)) patient.Patient {
+		p := valid
+		f(&p)
+		return p
+	}
+	hundred := strings.Repeat("é", 100)
+	tests := []struct {
+		want error // nil: valid
+		name string
+		in   patient.Patient
+	}{
+		{name: "valid, no phone", in: valid},
+		{name: "names of 1 and 100 characters", in: with(func(p *patient.Patient) { p.GivenName, p.FamilyName = "A", hundred })},
+		{name: "a name of 100 characters inside spaces", in: with(func(p *patient.Patient) { p.GivenName = "  " + hundred + " " })},
+		{name: "blank given name", in: with(func(p *patient.Patient) { p.GivenName = "   " }), want: patient.ErrInvalidName},
+		{name: "empty family name", in: with(func(p *patient.Patient) { p.FamilyName = "" }), want: patient.ErrInvalidName},
+		{name: "a name of 101 characters", in: with(func(p *patient.Patient) { p.FamilyName = hundred + "x" }), want: patient.ErrInvalidName},
+		{name: "born 1900-01-01", in: with(func(p *patient.Patient) { p.BirthDate = date(1900, 1, 1) })},
+		{name: "born 1899-12-31", in: with(func(p *patient.Patient) { p.BirthDate = date(1899, 12, 31) }), want: patient.ErrInvalidBirthDate},
+		{name: "born yesterday", in: with(func(p *patient.Patient) { p.BirthDate = date(2026, 11, 3) })},
+		{name: "born today", in: with(func(p *patient.Patient) { p.BirthDate = date(2026, 11, 4) }), want: patient.ErrInvalidBirthDate},
+		{name: "born tomorrow", in: with(func(p *patient.Patient) { p.BirthDate = date(2026, 11, 5) }), want: patient.ErrInvalidBirthDate},
+		{name: "no birth date", in: with(func(p *patient.Patient) { p.BirthDate = time.Time{} }), want: patient.ErrInvalidBirthDate},
+		{name: "phone of 8 digits", in: with(func(p *patient.Patient) { p.Phone = "+38760000" })},
+		{name: "phone of 15 digits", in: with(func(p *patient.Patient) { p.Phone = "+387600000000001" })},
+		{name: "phone of 7 digits", in: with(func(p *patient.Patient) { p.Phone = "+3876000" }), want: patient.ErrInvalidPhone},
+		{name: "phone of 16 digits", in: with(func(p *patient.Patient) { p.Phone = "+3876000000000001" }), want: patient.ErrInvalidPhone},
+		{name: "phone without +", in: with(func(p *patient.Patient) { p.Phone = "38760000001" }), want: patient.ErrInvalidPhone},
+		{name: "phone with spaces", in: with(func(p *patient.Patient) { p.Phone = "+387 60 000 001" }), want: patient.ErrInvalidPhone},
+		{name: "phone with letters", in: with(func(p *patient.Patient) { p.Phone = "+38760000abc" }), want: patient.ErrInvalidPhone},
+		{name: "phone with non-ASCII digits", in: with(func(p *patient.Patient) { p.Phone = "+٣٨٧٦٠٠٠٠٠٠١" }), want: patient.ErrInvalidPhone},
+	}
+	for _, tt := range tests {
+		repo, audit := newFakeRepository(), &fakeAuditor{}
+		_, err := newService(repo, audit).SaveMe(t.Context(), other, tt.in)
+		if !errors.Is(err, tt.want) {
+			t.Errorf("%s: SaveMe() = %v, want %v", tt.name, err, tt.want)
+		}
+		if tt.want != nil && (len(repo.calls) != 0 || len(audit.events) != 0) {
+			t.Errorf("%s: calls %v, events %d; want the refusal before any access", tt.name, repo.calls, len(audit.events))
+		}
+	}
+}
+
+func TestSaveMe_ValidatesAgainstTheDateInUTC(t *testing.T) {
+	// 00:30 in Sarajevo on 5 November is still 4 November in UTC: a birth date of 4 November is today.
+	clk := clock.Fixed{T: time.Date(2026, 11, 4, 23, 30, 0, 0, time.UTC)}
+	svc := patient.NewService(newFakeRepository(), &fakeAuditor{}, fakeTransactor{}, clk)
+	in := patient.Patient{GivenName: "Ada", FamilyName: "Example", BirthDate: date(2026, 11, 4)}
+	if _, err := svc.SaveMe(t.Context(), other, in); !errors.Is(err, patient.ErrInvalidBirthDate) {
+		t.Errorf("SaveMe(born today in UTC) = %v, want ErrInvalidBirthDate", err)
+	}
+}
+
+func TestRead_GivesThePatientTheirOwnProfileAndAuditsIt(t *testing.T) {
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	got, err := newService(repo, audit).Read(t.Context(), me, patientA)
+	if err != nil || got != repo.profiles[accountA] {
+		t.Fatalf("Read() = %+v, %v; want profile A", got, err)
+	}
+	if want := []string{"SetAccount", "ByID"}; !slices.Equal(repo.calls, want) || repo.account != accountA {
+		t.Errorf("calls %v with account %q, want %v with account A", repo.calls, repo.account, want)
+	}
+	checkEvents(t, audit, event(me, auditevent.CodeRead, patientA, auditevent.OutcomeSuccess))
+}
+
+func TestRead_HidesAnotherPatientAndEveryProfileFromStaffAndAuditsIt(t *testing.T) {
+	tests := []struct {
+		name   string
+		caller patient.Caller
+		calls  []string
+	}{
+		{name: "another patient", caller: me, calls: []string{"SetAccount", "ByID"}},
+		{name: "staff", caller: staff},
+	}
+	for _, tt := range tests {
+		repo, audit := newFakeRepository(), &fakeAuditor{}
+		_, err := newService(repo, audit).Read(t.Context(), tt.caller, patientB)
+		if !errors.Is(err, patient.ErrNotFound) || !slices.Equal(repo.calls, tt.calls) {
+			t.Errorf("%s: Read() = %v after calls %v, want ErrNotFound after %v", tt.name, err, repo.calls, tt.calls)
+		}
+		checkEvents(t, audit, event(tt.caller, auditevent.CodeRead, "", auditevent.OutcomeMinorFailure))
+	}
+}
+
+func TestService_FailsOnARepositoryOrAuditError(t *testing.T) {
+	valid := patient.Patient{GivenName: "Ada", FamilyName: "Example", BirthDate: date(1990, 1, 1), VersionID: 2}
+	calls := map[string]func(s *patient.Service) error{
+		"Me":          func(s *patient.Service) error { _, err := s.Me(t.Context(), me); return err },
+		"Me as staff": func(s *patient.Service) error { _, err := s.Me(t.Context(), staff); return err },
+		"SaveMe":      func(s *patient.Service) error { _, err := s.SaveMe(t.Context(), me, valid); return err },
+		"SaveMe as staff": func(s *patient.Service) error {
+			_, err := s.SaveMe(t.Context(), staff, valid)
+			return err
+		},
+		"Read":          func(s *patient.Service) error { _, err := s.Read(t.Context(), me, patientA); return err },
+		"Read as staff": func(s *patient.Service) error { _, err := s.Read(t.Context(), staff, patientA); return err },
+	}
+	boom := errors.New("connection reset")
+	for name, call := range calls {
+		for _, broken := range []string{"repository", "audit"} {
+			repo, audit := newFakeRepository(), &fakeAuditor{}
+			if broken == "repository" {
+				repo.err = boom
+			} else {
+				audit.err = boom
+			}
+			err := call(newService(repo, audit))
+			if broken == "repository" && strings.HasSuffix(name, "staff") {
+				continue // staff never reach the repository
+			}
+			if !errors.Is(err, boom) {
+				t.Errorf("%s with a broken %s = %v, want the error", name, broken, err)
+			}
+		}
+	}
+}

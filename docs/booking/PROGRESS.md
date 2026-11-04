@@ -3,7 +3,7 @@
 | Package | Status | Commit |
 | --- | --- | --- |
 | 1 Retention job | done | `booking(1)` |
-| 2 Patient | to do | |
+| 2 Patient | done | `booking(2)` |
 | 3 Consent and access | to do | |
 | 4 Directory additions | to do | |
 | 5 Schedule and slot | to do | |
@@ -128,3 +128,60 @@ scheduler.
 `local-retention-password`); api, worker, scheduler, notifier and agent rebuilt and restarted; `node` and the
 rest untouched. One completed `retention_apply` row in `river_job` (River's cleaner removes it). No data
 deleted: no session or invite was due.
+
+### 2026-11-04 — package 2: patient
+
+**Built.**
+- `migrations/00015_patient.sql`: table `patient` (SPEC §2 "Patient table", §4): unique `account_id`
+  referencing `account`, `birth_date` not before 1900-01-01, non-blank names, `phone` E.164 or NULL; RLS
+  policy `patient_own` with the patient branch only (`id = app.patient_id` or `account_id = app.account_id`,
+  through `NULLIF`); `GRANT SELECT, INSERT` and a column-level `UPDATE` (names, birth date, phone,
+  `updated_at`, `version_id`) to `salus_app`; no `DELETE`. The consent branch comes with package 3.
+- `internal/patient` (context `patient` in `config.yaml`; `ownership.yaml` with `personal_data: true`;
+  `sqlc.yaml`): `Service.Me`, `Service.SaveMe` (create when no version is given, update of the given
+  version otherwise; names trimmed; validation of SPEC §2 "Profile"), `Service.Read` (the patient's own
+  profile; staff get not found until package 3); every call audited in its transaction, refusals included
+  (`PATRQT` for the patient, `TREAT` for staff). Repository on `app.account_id`.
+- `GET`/`PUT /me/patient` (patients only, staff 403, `Cache-Control: no-store`), wired in `internal/api`;
+  `api/openapi.yaml` (`Patient`, `SavePatientRequest`, error codes `invalid_birth_date`, `invalid_phone`,
+  `not_found`, `version_conflict`); `make gen-clients`.
+- `internal/auditevent`: the purpose codes `PATRQT` and `TREAT`. `internal/retention`: rule `patient`
+  `keep`. `docs/privacy/dpia.md`: the patient profile.
+
+**Red first.** migrations: `relation "patient" does not exist` (42P01). retention: `no rule for patient`.
+patient: `undefined: patient.Service`, then `undefined: patient.NewPostgresRepository`; the handler test was
+written before the handler, and first ran red on the field order of the response (fixed in the test: the
+struct is laid out for `fieldalignment`). api: `PUT /me/patient` = `404 page not found` before the wiring.
+
+**Checks.** `make lint` 0 issues, migrations unchanged; `make test` passes; `make archcheck` ok; `make cover`
+passes, every package at 80% or more (patient 98.3%, api 92.3%, retention 100%; total 95.2%); `make sqlc`
+and `make gen-clients` leave no diff. Also run, as the generated clients changed: `make web-typecheck` and
+`make mobile-analyze`, both clean.
+
+**Readings and decisions.**
+- **Versioning in the JSON API.** The plan asks for 409 on a stale save, so the version travels in the body
+  (`versionId`; absent creates) rather than in `If-Match` (which answers 412 on the FHIR side). A create when
+  a profile exists is the same 409 `version_conflict`: the client reads the profile and retries.
+  `PUT` answers 201 on a create and 200 on an update.
+- **Create without aborting the transaction.** The insert is `ON CONFLICT (account_id) DO NOTHING`, so a
+  second create returns no row instead of a unique violation, and the refusal's audit event is written in the
+  same, still usable, transaction.
+- **Scope.** Patient transactions set `app.account_id` (the profile is looked up by account; SPEC §2 "Patient
+  table" allows both settings). Nothing sets `app.patient_id` yet; the policy has it for the later clinic
+  and appointment work, and its test covers both settings, a clinic and a staff account (no rows).
+- **Who is a patient.** A caller without a clinic: `account` guarantees that a clinic is set exactly for
+  staff, and the session carries it. No role lookup.
+- **Validation.** Not audited when refused: nothing is read or written (the organization rename does the
+  same). "In the past" is read as before today's date in UTC (a birth date of today is refused); names are
+  counted in characters after trimming; the phone is strict (`+` and 8–15 ASCII digits, no spaces), the
+  mobile app normalises it. A birth date that is not `YYYY-MM-DD` is 400 `invalid_birth_date`. The database
+  repeats the cheap checks (blank names, 1900, E.164) as a backstop.
+- **Errors and logs.** Domain errors carry no value; handlers log only through `httpx.InternalError`. Tests
+  at the handler and through the whole app (access log included) send a synthetic profile and check that the
+  log holds none of its fields.
+
+**Deferred.** Staff access to a profile through consent and `access` (package 3); the FHIR `Patient` read
+(package 7).
+
+**Dev stack.** Untouched: migration 00015 is not applied to the dev database (no stack check in this
+package; the running images do not use it); `make migrate` applies it. Tests ran in throwaway databases.

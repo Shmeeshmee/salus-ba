@@ -273,3 +273,35 @@ deleted rows are expired credentials and invitations; the log keeps the daily co
 **Open before production.** The retention periods (legal decision, unchanged); provisioning
 `salus_retention` where `migrate` does not run as a superuser: creating a `BYPASSRLS` role needs a superuser
 or a role that has `BYPASSRLS` itself (Postgres 16+), as well as `CREATEROLE`.
+
+### Package 2: patient profile
+
+**Processing added.** Table `patient` (FHIR `Patient`): one profile per patient account, holding the given
+and family name, the birth date and an optional mobile phone (E.164), with `account_id`, `version_id` and
+timestamps. Nothing else: no national ID, address or gender. The patient creates it with every required
+field after registration and changes it later (`GET`/`PUT /me/patient`, patients only); there is no
+incomplete row. No clinic can read it yet: staff access, through the patient's consent, comes with
+package 3.
+
+**Purpose and lawful basis.** So the clinic knows who is coming and can tell apart patients with the same
+name, and the practitioner can reach the patient about a booked appointment (SPEC.md section 4). Seeking care
+is health data (Art. 9): provision of health care (Art. 9(2)(h)) with the contract with the patient
+(Art. 6(1)(b)); sharing with a clinic before care rests on consent (package 3). **Needs legal confirmation
+before production** (SPEC.md section 3).
+
+**Necessity and minimisation.** Four fields, each with its reason in SPEC.md section 4. The phone is
+optional and never used for SMS or marketing. The response is never cached (`Cache-Control: no-store`).
+
+**Retention.** `keep` while the account exists (`internal/retention`); erasure comes with the subject-rights
+feature. **Needs a legal decision before production.**
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A patient reads or changes another patient's profile | The service works only on the profile of the signed-in account; Postgres row-level security shows `salus_app` only the row of the account (`app.account_id`) or patient (`app.patient_id`) set on the transaction, and nothing when neither is set (tested); inserting or updating another account's row is refused or touches nothing (tested) |
+| Staff read a profile without a basis | `/me/patient` refuses staff (403); `Service.Read` gives staff "not found" until the consent rule of package 3 |
+| A profile is read or changed unnoticed | Every read, create and update writes an `AuditEvent` in the same transaction (purpose `PATRQT` for the patient, `TREAT` for staff), also when refused; a refused access records no entity |
+| Profile fields leak into logs or errors | Handlers log only through the fixed internal-error path, with the route and the error, which never holds a field; domain errors carry no value; a test sends a synthetic profile through every path and checks the log holds none of its fields |
+| Lost updates | An update names the version it changes; a stale version, or a second create, is 409 |
+| The application deletes a profile | `salus_app` has `SELECT`, `INSERT` and column-level `UPDATE` only; no `DELETE` or `TRUNCATE`, and the account of a profile cannot change (tested) |

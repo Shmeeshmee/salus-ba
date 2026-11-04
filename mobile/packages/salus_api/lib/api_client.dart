@@ -228,8 +228,12 @@ class ApiClient {
           return LoginRequest.fromJson(value);
         case 'LoginResponse':
           return LoginResponse.fromJson(value);
+        case 'Patient':
+          return Patient.fromJson(value);
         case 'RegisterRequest':
           return RegisterRequest.fromJson(value);
+        case 'SavePatientRequest':
+          return SavePatientRequest.fromJson(value);
         case 'Status':
           return Status.fromJson(value);
         case 'Unavailable':
