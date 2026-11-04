@@ -11,7 +11,7 @@
 | 7 FHIR | done | `booking(7)` |
 | 8 Web | done | `booking(8)` |
 | 9 Mobile | done | `booking(9)` |
-| 10 End-to-end | to do | |
+| 10 End-to-end | done | `booking(10)` |
 
 ## Decisions
 
@@ -969,3 +969,87 @@ now).
 
 **Dev stack.** Untouched: no migration, no image rebuilt; the smoke made anonymous FHIR reads only. The owner's
 `node` dev server kept running; the owner's demo clinic and earlier packages' synthetic data untouched.
+
+
+### 2026-11-04 — package 10: end-to-end
+
+**Built.**
+- `test/e2e/booking_test.go` (build tag `e2e`), the owner's two journeys, each on fresh synthetic data (random
+  e-mail addresses and clinic name suffix, a new clinic per journey), so reruns never collide:
+  - `TestBooking_PatientBooksAndPractitionerCancels`: a clinic made with `salusctl create-clinic`; its admin
+    accepts the invite and lists the clinic through the FHIR `Organization` update (the `organization-listed`
+    extension, `If-Match` of the version read) and invites a practitioner, who sets 30-minute slots on every day
+    (`PUT /practitioner-roles/{id}/availability`, `If-Match: W/"0"`) and waits for the `slots_generate` job's free
+    slots; the role is found as anyone finds it (`Organization?listed=true`, then the public
+    `PractitionerRole?organization=…&_include=PractitionerRole:practitioner`). A patient registers, logs in, has
+    no profile (404), completes it, finds the clinic, `Schedule?actor=…`'s free slots (`Slot?schedule=…&status=free&start=ge…&start=lt…`),
+    is refused with 409 `consent_required`, consents (`POST /consents`) and books (201 `booked`); "Your
+    appointment is booked" arrives in Mailpit with the clinic's name and the app link. The practitioner's
+    `Appointment?practitioner=Practitioner/<id>&date=ge…&date=lt…` holds the appointment with the patient's name,
+    and `Patient/<id>` answers the profile; the practitioner cancels (`POST /appointments/{id}/cancel`); the
+    patient's `Appointment/<id>` read is `cancelled` with reason `prov`, and "Your appointment is cancelled"
+    arrives.
+  - `TestBooking_RevokedConsentEndsAccessAndCancelsTheFutureAppointment`: the same up to the practitioner
+    reading the profile; the patient revokes (`GET /me/consents`, `POST /consents/{id}/revoke`); the
+    practitioner's `Patient` read is 404 at once; the `consent_revoked` job's cancellation is waited for as a
+    condition (the patient's read polled every 250 ms, up to 30 s), the reason is `pat`, and the cancellation
+    e-mail arrives.
+- `test/e2e/stack_test.go`: `send` with request headers, `mustWith` (for `If-Match`), `refusal` (status and
+  `{"error"}` code), `practitionerId` on the account, and `mailText` (waits for the one e-mail to an address,
+  optionally with a subject, deletes it so Mailpit is left as found, returns its text); `inviteToken` uses it.
+  `test/e2e/accounts_test.go`: `enrolFromInvite` (accept and enrol, keep the enrolment's session), which
+  `acceptInvite` now starts with before its login and verify.
+
+**Red first.** The journeys passed on their first run against the stack rebuilt from this branch (the
+behaviour was built in packages 1–9), so their red came from a mutation: with the `consent_revoked` worker made to
+cancel nothing (`internal/worker/revocation.go`), the image rebuilt by `make e2e`, the second journey failed with
+"the consent_revoked job cancels the future appointment: not within 30s" and the first passed; the mutation was
+reverted and the image rebuilt by the next `make e2e`.
+
+**Checks.** `make lint` 0 issues, migrations unchanged (lint caught a `time.Now` in the test; it uses
+`clock.System` as `stack_test.go` does); `make test` passes; `make archcheck` ok; `make cover` passes, every package
+at 80% or more (total 94.7%, no production change); `make fhir-validate` passes; `make gen-clients` leaves no
+diff; `make web-lint` 0 warnings and errors, `make web-typecheck` ok, `make web-test` 113 passed, `make web-build`
+ok; `make mobile-analyze` no issues, `make mobile-test` 77 passed. `make e2e` twice in a row after the change: both `ok` (4.4 s, 4.6 s), the login counter for the IP at 12 after the two runs (6 per run, as counted).
+
+**Readings and decisions.**
+- **The login rate limit and reruns.** The first two back-to-back `make e2e` runs after the journeys were written
+  failed with 429 on `POST /auth/login`: the accounts SPEC allows 30 login attempts per client IP per 15-minute
+  window (Redis fixed window), every e2e request comes from the one `tools` container's IP, and the journeys first
+  logged in their admin, practitioner and patient (10 logins per suite run with the accounts journeys; with the
+  runs made while writing the tests the window passed 30). The limit is a settled accounts decision and was not
+  touched; the journeys now keep the staff sessions that the invite's enrolment opens (`enrolFromInvite`) and log
+  in only the patient, so a suite run spends 6 of the 30 (the accounts journeys still test the login after
+  enrolment and the verify step). Five full runs fit in one window; a sixth inside 15 minutes would get 429. Not a
+  timing flake: a counter the suite shares with nothing else, now with headroom. The counter was waited out as a
+  condition (its key gone from Redis), not by a sleep in a test.
+- **Slots for the journeys.** 30-minute slots from 00:00 to 23:30 on all seven days, so a slot is always free
+  whatever the hour of the run; the journey books the first free slot between one and 72 hours ahead, so it is
+  never about to start. The slots' existence after the availability save is waited for as a condition (the
+  `slots_generate` job runs in the worker).
+- **Fresh data, not cleaned up.** Each journey makes its own clinic, staff and patient with random addresses, so
+  reruns never meet earlier data; nothing is deleted from the database (append-only audit, `keep` rules). Mailpit
+  is left as found: each e-mail a journey waits for is deleted once read.
+- **What is asserted about the e-mails.** The subject (from SPEC §2 "Jobs"), the clinic's name and the link; the
+  exact text is the notifier's golden files' job (package 6).
+
+**Definition of done.**
+- [x] Every package committed on `feat/booking` (1–9 before, this one now).
+- [x] `PROGRESS.md` complete: every package with its red run, checks, readings and dev stack; the slot-generation
+  benchmark in package 5.
+- [x] All check sets pass locally: Go, FHIR, Clients, Web, Mobile, and `make e2e` twice in a row.
+- [ ] CI on the PR into `main`: runs when the PR is opened; not visible from this session.
+
+**Deferred.** Nothing in this package. The open questions stay under "Waiting on people".
+
+**Dev stack.** `make e2e` (`make up --build`) rebuilt `salus:dev` from this branch and recreated api, worker,
+scheduler and notifier with it (also after the mutation run, so the running images are this commit's); postgres,
+redis, mailpit, livekit, landing, agent and the owner's `node` dev server on 5173 left running. No migration. Left
+on the dev database from the runs, all synthetic and fresh per run: clinics named "E2E synthetic clinic <hex>"
+(listed) with `e2e-admin-…@example.test` and `e2e-practitioner-…@example.test` staff, their schedules and
+generated slots; `e2e-patient-…@example.test` patients ("Ena Syntheticova", born 1990-05-17, phone
++38760000001) with consents and cancelled appointments; the audit events; the accounts journeys' clinics and
+accounts as before. From the mutation run, one appointment stays `booked` after its consent was revoked (the
+mutated job cancelled nothing), in its "E2E synthetic clinic <hex>" for 2026-11-04 23:00 UTC; it was booked less
+than 24 h ahead, so it has no reminder job, and the clinic sees it at name level only. Mailpit holds none of the journeys' e-mails. The
+owner's demo clinic and earlier packages' synthetic data untouched.

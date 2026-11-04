@@ -75,15 +75,7 @@ func TestClinic_AdminAndPractitionerSignInAndReadTheDirectory(t *testing.T) {
 // with the next code. It returns the client signed in with that last session.
 func acceptInvite(t *testing.T, addr string) *api {
 	t.Helper()
-	c := newAPI(t)
-	var acc struct{ Challenge, Secret, URI string }
-	c.must(http.StatusCreated, http.MethodPost, "/invites/accept", map[string]string{"token": inviteToken(t, addr), "password": password}, &acc)
-	totp := newAuthenticator(t, acc.Secret)
-	c.bearer = confirm(t, c, acc.Challenge, totp)
-	if c.me().Email != addr {
-		t.Fatal("GET /auth/me after enrolment: not the invited account")
-	}
-
+	c, totp := enrolFromInvite(t, addr)
 	c.bearer = ""
 	l := c.login(addr)
 	if l.Next != "verify" || l.Challenge == "" || l.Token != "" {
@@ -96,6 +88,22 @@ func acceptInvite(t *testing.T, addr string) *api {
 	}
 	c.bearer = verified.Token
 	return c
+}
+
+// enrolFromInvite accepts the invite e-mailed to addr and enrols TOTP with the first code. It returns the client
+// signed in with the session the enrolment opens, and the authenticator. It does not log in, so a journey that
+// needs staff spends none of the login attempts the API allows per IP (docs/accounts/SPEC.md "Login rate limit").
+func enrolFromInvite(t *testing.T, addr string) (*api, *authenticator) {
+	t.Helper()
+	c := newAPI(t)
+	var acc struct{ Challenge, Secret, URI string }
+	c.must(http.StatusCreated, http.MethodPost, "/invites/accept", map[string]string{"token": inviteToken(t, addr), "password": password}, &acc)
+	totp := newAuthenticator(t, acc.Secret)
+	c.bearer = confirm(t, c, acc.Challenge, totp)
+	if c.me().Email != addr {
+		t.Fatal("GET /auth/me after enrolment: not the invited account")
+	}
+	return c, totp
 }
 
 // confirm confirms an enrolment from a challenge with the first code and returns the session it opens.
