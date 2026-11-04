@@ -1,0 +1,23 @@
+/* Design tokens (SPEC §2 "Web"): light page, white surfaces, ink, brand green, mint accents, flat
+   backgrounds, a Helvetica-like system stack. */
+:root {
+  --font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+  --color-page: #F6F7F5;
+  --color-surface: #FFFFFF;
+  --color-ink: #0E1512;
+  --color-text-muted: #4A5651;
+  --color-border: #E2E7E4;
+  --color-border-strong: #D5DBD8;
+  --color-brand: #0A6E4F;
+  --color-brand-hover: #064A35;
+  --color-mint: #34D399;
+  --color-mint-faint: rgba(159, 240, 207, .35);
+  --color-error: #B42318;
+  --color-error-faint: #FDF1F0;
+
+  --radius: 14px;
+  --radius-control: 10px;
+  --space-gutter: 16px;
+  --width-page: 760px;
+}

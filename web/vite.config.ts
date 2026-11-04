@@ -12,6 +12,9 @@ export default defineConfig({
     proxy: {
       '/healthz': apiUrl,
       '/readyz': apiUrl,
+      '/auth': apiUrl,
+      '/invites': apiUrl,
+      '/fhir': apiUrl,
     },
   },
   test: {

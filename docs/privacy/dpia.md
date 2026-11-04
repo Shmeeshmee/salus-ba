@@ -193,3 +193,27 @@ sense. Patients do not read the directory yet.
 | A non-admin changes the clinic | Whether the caller is the clinic's admin is read from `account` on each request, not taken from the session; a practitioner gets 403 and the refusal is audited |
 | Lost updates on the clinic settings | `If-Match` is required; a missing or stale version gets 412 |
 | Names in logs or errors | OperationOutcomes carry fixed text; a 500 logs the error only; handler tests assert no name is logged |
+
+### Package 7: web app
+
+**Processing added.** The web app (`web/`) for clinic staff: sign in with the TOTP step or first-time
+enrolment, accepting an invite, renaming the clinic, the clinic's practitioners, its open invites and the
+invite form. It shows what the API already returns to that user (practitioners' names, invitees' e-mails and
+names, the user's own TOTP secret while enrolling) and stores nothing new on the server.
+
+**Purpose and lawful basis.** As packages 3 to 6.
+
+**Necessity and minimisation.** Each screen shows only what its task needs. Patients who sign in are told
+to use the mobile app and see no clinic data.
+
+**Retention.** Nothing is kept in the browser beyond the session cookie: no `localStorage`,
+`sessionStorage` or IndexedDB.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The session token is stolen by script or a cross-site request | It is only in the `salus_session` cookie (`HttpOnly; Secure; SameSite=Strict`), never readable by the page; every write sends `X-Salus-CSRF: 1` (tested for every write) |
+| The invite token stays in the browser history | It is read from the fragment once and removed from the address bar and the history entry (tested and checked in the browser) |
+| The TOTP secret lingers on screen | It is held in component state only while enrolment is pending and leaves the DOM when the first code is confirmed or the set-up times out (tested and checked in the browser); the QR code is drawn locally (`qrcode-generator`), so the secret is never sent to a third party |
+| Error text reveals internals | The screens map API error codes to fixed sentences and never show a response body |

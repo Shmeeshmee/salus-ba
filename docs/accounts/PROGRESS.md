@@ -8,7 +8,7 @@
 | 4 Directory | done, 2026-11-04 | `accounts(4)` |
 | 5 Practitioner invites | done, 2026-11-04 | `accounts(5)` |
 | 6 FHIR reads | done, 2026-11-04 | `accounts(6)` |
-| 7 Web | todo | |
+| 7 Web | done, 2026-11-04 | `accounts(7)` |
 | 8 Mobile | todo | |
 | 9 End-to-end | todo | |
 
@@ -648,3 +648,94 @@ Deferred:
 Dev stack left: postgres, redis and mailpit running, as found; no other container started, and the dev
 database untouched (still at migration 13 with package 5's synthetic rows). The `salus-tools:dev` and
 `fhir-validator` images were rebuilt by make. `deployments/.env` was not touched.
+
+### 2026-11-04 — package 7, web
+
+Built:
+- `web/src`, four screens chosen from `location.pathname` in `App.tsx` and `route.ts` (`usePath` over
+  `popstate`, `navigate`), no router library:
+  - `/sign-in` (`SignIn.tsx`): e-mail and password, then the code (`next: verify`), or for staff without
+    MFA the enrolment (`next: enrol`: `POST /auth/mfa/enrol` with the challenge, the QR code and the secret
+    as text, the first code to `/auth/mfa/confirm`). The session arrives as the cookie.
+  - `/invite` (`AcceptInvite.tsx`): the token from the fragment, a new password typed twice,
+    `POST /invites/accept`, then the same enrolment (`Enrolment.tsx`) confirmed with the acceptance's
+    challenge.
+  - `/clinic` (`ClinicSettings.tsx`, admins only): the clinic name from `GET /fhir/R4/Organization/{id}`,
+    saved with `PUT` and `If-Match: W/"<versionId>"`; 412 offers a reload.
+  - `/` (`Practitioners.tsx`): the practitioners from `PractitionerRole?organization=<id>&_include=
+    PractitionerRole:practitioner`; for an admin also the open invites (`GET /invites`) and the invite form
+    (practitioner with given and family name, or admin with the e-mail only).
+  - A header with the two links (clinic settings for admins only) and sign out; `/auth/me` decides the
+    account, its role and clinic, and a 401 sends the visitor to `/sign-in`.
+- `api/client.ts`: an openapi-fetch middleware sets `X-Salus-CSRF: 1` on every request that is not a read.
+  `api/fhir.ts`: a small `fetch` wrapper for `/fhir/R4` (`get`, `put` with `If-Match`, the FHIR media type
+  and the CSRF header) with hand-written types for the elements used, and `FhirError` (status and the first
+  `OperationOutcome` issue code). `api/result.ts`: `attempt` turns a generated-client call into data or an
+  error code (none when the API is unreachable).
+- `QRCode.tsx`: the `otpauth://` URI drawn as an SVG path with `qrcode-generator` 2.0.4 (pinned exact, no
+  dependencies, MIT), quiet zone of four modules. `icons.tsx`: the logo and three line icons. `ui.tsx`
+  (card, field, alert, notice, submit button, link), `useSubmit.ts`, `messages.ts` (fixed sentences).
+- `tokens.css` (SPEC §2 "Web": page `#F6F7F5`, white surfaces, ink `#0E1512`, brand `#0A6E4F`, mint
+  `#34D399`, the Helvetica stack; plus an error red) and `app.css`; one breakpoint at 520 px.
+- `vite.config.ts`: the dev proxy gains `/auth`, `/invites`, `/fhir`.
+- `HealthStatus` and its test removed: `App` was its only user and the screens no longer show the API
+  status (CLAUDE.md: delete code that is not used).
+- `docs/privacy/dpia.md`: package 7 section.
+
+Test first, failures seen before the code: `api/client.test.ts` (`expected null to be '1'`: no CSRF header
+on the logout write); `api/fhir.test.ts`, `SignIn`, `AcceptInvite`, `ClinicSettings`, `Practitioners`
+(`Failed to resolve import`); `App.test.tsx` (10 of 10 failing against the old health page). Vitest: 56
+tests in 7 files, covering each screen's loading, error codes and success, the order login → enrol →
+confirm and login → verify, the CSRF header on every write (`expectCsrfOnWrites` in each screen's write
+tests), and that the secret is gone from the DOM after enrolment.
+
+Checks: `make web-lint` 0 warnings, 0 errors; `make web-typecheck` ok; `make web-test` 56 passed;
+`make web-build` ok (264.77 kB JS, 83.56 kB gzip; 4.76 kB CSS); `make gen-clients` no diff (no
+`openapi.yaml` change); `make lint` 0 issues, check-migrations ok; `make archcheck` ok; `make test` ok;
+`make cover` ok (total 94.8%, unchanged: no Go change).
+
+Browser walk: `make up` (ports from `deployments/.env`), the Vite dev server (`--profile web up -d node`),
+`make salusctl args="create-clinic -name 'Synthetic walk clinic' -admin-email walk-admin@example.test"`, then
+a Playwright script (scratch only, not in the repo; `mcr.microsoft.com/playwright:v1.56.1-noble`, Chromium,
+host network) that reads the invite links from Mailpit's API and computes codes from the shown secret.
+At 1280 × 800: accept the admin invite, enrolment; first sign-in with `next: enrol` and enrolment; invite a
+practitioner; rename the clinic; sign out; sign in with a code. At 390 × 844: the practitioner accepts their
+invite and enrols and sees the list; the admin signs in with a code and opens both screens; sign out. Every
+screen screenshotted and reviewed. Checked on each: no horizontal overflow, the invite token gone from the
+address bar, the secret gone from the DOM after confirming. Console: only the expected 401s of `/auth/me`
+while signed out. No e-mail, invite link or password in the api, notifier or dev server logs.
+
+Readings:
+- **Screens by role.** The clinic settings link and screen are for admins (a practitioner's `PUT` is 403);
+  a practitioner on `/clinic` sees the practitioners. A patient who signs in is told the web app is for
+  clinic staff and sees no clinic data (SPEC §5: no patient web, patients use the mobile app). Unknown paths
+  say the page does not exist.
+- **The password is typed twice on acceptance.** Password reset is out of scope (SPEC §5), so a typo would
+  lock the new account out; the sign-in form asks once. Length is checked as 12 to 128 characters (code
+  points, as the API counts) before sending.
+- **The invite token is removed from the address bar in an effect**, not in the state initialiser: React
+  StrictMode calls initialisers twice, and the second call would find no fragment.
+- **A lapsed challenge.** During sign-in it returns to the password step with a notice; after acceptance it
+  says the account exists and links to sign in, where `next: enrol` resumes (package 5's reading).
+- **Sign-out that fails keeps the user signed in** with a message, since the cookie may still be valid; a 401
+  counts as signed out.
+- **An invite for an e-mail already listed replaces that row**, as the API replaces the open invite.
+- **The secret is shown unformatted** (base32 in a monospace block) so it can be copied as it is; the
+  `otpauth://` URI is never put in the DOM, only drawn.
+- **Fixed messages.** Every API error code maps to a sentence in the screen; anything else, and an
+  unreachable API, gives "Something went wrong. Try again." No response text is shown.
+- No browser storage is used; the session is only the `HttpOnly` cookie.
+
+Deferred:
+- Serving the built web app (a production image and its host) is not in this feature; the dev server proxies
+  the API. `WEB_BASE_URL` points at it locally.
+- No browser test in CI: the walk is a manual check (plan), and `make e2e` (package 9) drives the API.
+
+Dev stack left: postgres, redis and mailpit running, as found; the api, worker, scheduler, notifier, agent,
+livekit, landing, migrate and node containers were started for the walk and removed again; `salus:dev` was
+rebuilt by `make up`. Dev database still at migration 13, now also holding the walk's synthetic rows: the
+clinic "Synthetic walk clinic, renamed" with its admin `walk-admin@example.test` and practitioner
+`walk-practitioner@example.test` (accounts enrolled, `Practitioner` and `PractitionerRole`), both invites
+accepted, their sessions (one admin session still open, it expires after 12 h), two completed `invite_email`
+jobs and the audit rows (append-only). Mailpit holds the two invite e-mails (in memory). The Playwright image
+was pulled. `deployments/.env` was not touched.
