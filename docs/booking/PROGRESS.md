@@ -320,6 +320,45 @@ observed. practitioner: `repo.SetDirectory undefined`, `PublicNames undefined`. 
 `undefined: organization.Changes`. api: `PUT /practitioner-roles/{id}/specialty` = `404 page not found`
 before the wiring. cmd: `main.go does not import _ "time/tzdata"` (four binaries).
 
+**Red run, observed afterwards (owner's request, 2026-11-04).** A `git worktree` on `d554191` (package 4's
+parent) with only package 4's 20 test files and golden files from `ba5597d` copied in, no production code;
+`go test -count=1` on the nine packages they touch, in the `tools` container. History not rewritten. Every
+package fails, each for the reason its tests state (output trimmed; the compiler stops at ten errors per
+package):
+
+```
+# internal/practitionerrole_test — build failed
+model_test.go:13:33: undefined: practitionerrole.Specialty
+model_test.go:30:29: undefined: practitionerrole.Specialties
+model_test.go:33:22: undefined: practitionerrole.SystemSNOMED
+service_specialty_test.go:16:114: unknown field Admin in struct literal of type practitionerrole.Caller
+handler_http_test.go:36:24: undefined: practitionerrole.NewHTTPHandler
+handler_http_test.go:53:10: updated.SpecialtyCode undefined (type practitionerrole.PractitionerRole has no field or method SpecialtyCode)
+handler_http_test.go:98:21: undefined: practitionerrole.ErrInvalidSpecialty
+handler_http_test.go:101:21: undefined: practitionerrole.ErrConflict
+# internal/organization_test — build failed
+handler_fhir_test.go:44:23: undefined: organization.Changes
+handler_fhir_test.go:192:22: undefined: organization.ErrInvalidTimeZone
+repository_postgres_test.go:52:77: unknown field TimeZone in struct literal of type organization.Organization
+repository_postgres_test.go:81:19: repo.Update undefined (type organization.Repository has no field or method Update)
+# internal/practitioner_test — build failed
+repository_postgres_test.go:124:20: repo.SetDirectory undefined
+repository_postgres_test.go:129:20: repo.PublicByIDs undefined
+service_public_test.go:40:38: newService(repo, audit).PublicNames undefined
+--- FAIL: TestMain_EmbedsTheTimeZoneData   (cmd/api, cmd/notifier, cmd/scheduler, cmd/worker)
+    tzdata_test.go:22: main.go does not import _ "time/tzdata"
+--- FAIL: TestNew_TheClinicsAdminSetsARolesSpecialtyAuditedAndNobodyElseCan   (internal/api)
+    PUT /practitioner-roles/{id}/specialty as the admin at version 1 = 404 404 page not found, want 200
+    ERROR: column "specialty_code" does not exist (SQLSTATE 42703)
+--- FAIL: TestDirectoryListing_*   (migrations, four tests)
+    ERROR: column "listed" of relation "organization" does not exist (SQLSTATE 42703)
+    ERROR: column "specialty_code" of relation "practitioner_role" does not exist (SQLSTATE 42703)
+```
+
+The practitionerrole model, service and repository tests whose red run was not seen fail on the missing
+specialty list, the missing `Admin` caller field, the missing `SpecialtyCode` and the missing errors: the
+behaviour package 4 then added.
+
 **Checks.** `make lint` 0 issues, migrations unchanged; `make test` passes; `make archcheck` ok; `make cover`
 passes, every package at 80% or more (organization 95.5%, practitioner 95.2%, practitionerrole 96.4%, api
 90.7%; total 95.3%); `make sqlc` and `make gen-clients` leave no diff (hashes compared); `make fhir-validate`
