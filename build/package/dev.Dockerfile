@@ -2,7 +2,7 @@
 # golangci-lint), run from the repo root with `go tool -modfile=tools/go.mod <name>` and compiled into the
 # cached build directory on first use. The app's go.mod stays free of tool dependencies.
 # Used by the `tools` service in deployments/docker-compose.yml. Nothing runs on the host but Docker and make.
-FROM golang:1.27.2-trixie
+FROM golang:1.27.3-trixie
 
 # Caches live in named volumes mounted at /cache; world-writable so the container can run as the host user
 # (files it writes into the repo stay owned by that user).
