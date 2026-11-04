@@ -217,3 +217,27 @@ to use the mobile app and see no clinic data.
 | The invite token stays in the browser history | It is read from the fragment once and removed from the address bar and the history entry (tested and checked in the browser) |
 | The TOTP secret lingers on screen | It is held in component state only while enrolment is pending and leaves the DOM when the first code is confirmed or the set-up times out (tested and checked in the browser); the QR code is drawn locally (`qrcode-generator`), so the secret is never sent to a third party |
 | Error text reveals internals | The screens map API error codes to fixed sentences and never show a response body |
+
+### Package 8: mobile app
+
+**Processing added.** The Flutter app (`mobile/`) for patients: registration, sign-in with the TOTP step for
+a patient who has MFA, a signed-in screen with the account's e-mail, and sign-out. It calls only the
+endpoints of packages 2 and 3 and stores nothing new on the server.
+
+**Purpose and lawful basis.** As packages 2 and 3.
+
+**Necessity and minimisation.** The app keeps one item on the device: the session token. The e-mail and
+password are held in memory only while the form is open; the account is read from `/auth/me` and not
+stored.
+
+**Retention.** The token stays on the device until sign-out (or until the API refuses it, when the app
+deletes it); the session itself expires after 30 days (package 3).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The token is read from the device by another app or a backup | It is kept with `flutter_secure_storage` (Keychain on iOS, Keystore-backed on Android), never in shared preferences or a file; storage sits behind a small port so tests use a fake |
+| A staff account's session lingers on a patient device | Staff are not signed in: a `next: enrol` login stops before enrolment, and a staff session opened with a code is ended at once (`POST /auth/logout`) and never stored (tested) |
+| The token outlives sign-out | Sign-out revokes the session on the API and then deletes the stored token; when the API cannot be reached the app stays signed in and says so, so the session is never left valid without the user knowing (tested) |
+| Credentials, codes or tokens reach a log | The app logs nothing (`avoid_print`; a test asserts nothing is printed during sign-in); error text is a fixed sentence per API error code, never a response body |

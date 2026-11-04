@@ -9,7 +9,7 @@
 | 5 Practitioner invites | done, 2026-11-04 | `accounts(5)` |
 | 6 FHIR reads | done, 2026-11-04 | `accounts(6)` |
 | 7 Web | done, 2026-11-04 | `accounts(7)` |
-| 8 Mobile | todo | |
+| 8 Mobile | done, 2026-11-04 | `accounts(8)` |
 | 9 End-to-end | todo | |
 
 ## Decisions
@@ -739,3 +739,81 @@ clinic "Synthetic walk clinic, renamed" with its admin `walk-admin@example.test`
 accepted, their sessions (one admin session still open, it expires after 12 h), two completed `invite_email`
 jobs and the audit rows (append-only). Mailpit holds the two invite e-mails (in memory). The Playwright image
 was pulled. `deployments/.env` was not touched.
+
+### 2026-11-04 — package 8, mobile
+
+Built:
+- `mobile/lib`, patients only, all calls through the generated Dart client (`packages/salus_api`, untouched):
+  - `session.dart`: `Session` over `AuthApi` and the client's `HttpBearerAuth`: `restore` (stored token →
+    `GET /auth/me`; a 401 deletes the token), `register`, `login` (`done` opens the session, `verify` asks
+    for the code, `enrol` is a staff account), `verify`, `signOut`. Requests carry
+    `Authorization: Bearer` and never `X-Salus-CSRF`, so the API answers with the token in the body
+    (package 3). `AuthFailure` keeps only the status, the fixed error code and `Retry-After`; an
+    unreachable API is status 0.
+  - `token_store.dart`: the `TokenStore` port (faked in tests) and `SecureTokenStore` over
+    `flutter_secure_storage` 11.2.0 (pinned exact; Keychain on iOS, Keystore-backed on Android), key
+    `session_token`. Never shared preferences.
+  - Screens: `sign_in_screen.dart` (e-mail and password, then the 6-digit code; "Use another account" goes
+    back), `register_screen.dart` (e-mail, password of 12 to 128 characters counted in code points, then
+    straight into the account), `home_screen.dart` ("Signed in as <e-mail>" from `/auth/me`, sign out),
+    `app.dart` (restores the session, switches the screen; no router), `messages.dart` (fixed sentences and
+    the validators), `ui.dart` (theme with the web app's colours, page column, message, submit button).
+  - `main.dart` wires the client, the bearer auth and the secure store.
+- `health_screen.dart` and its test removed: the signed-in screen replaces it and nothing else used it
+  (CLAUDE.md: delete code that is not used).
+- `docs/privacy/dpia.md`: package 8 section.
+
+Test first, failures seen before the code: every new test file failed to load (`Method not found:
+'SecureTokenStore'`, missing `package:salus/app.dart`, `session.dart`, `token_store.dart`). After the code,
+the tests that read the account failed on the fixture (`Required key "Account[mfaEnrolled]" is missing from
+JSON`), fixed in the fixture; the log test first failed because it restored `debugPrint` in tear-down,
+after the binding checks it. Widget tests, 31 in 5 files, drive the generated client through `MockClient`
+with the token store faked: validation before any request (e-mail, password length, code format), sign-in
+without MFA, wrong password, 429 with and without `Retry-After`, an unreachable API, the MFA step (order
+login → verify → me, request bodies, wrong code, an ended challenge back to the password, going back),
+staff refused (`next: enrol` without enrolling; a staff session from a code ended with `POST /auth/logout`
+and not stored), registration (success into the account, 409, the API's 400 codes, a sign-in after
+registering that fails lands on sign-in with a notice), restoring a stored token (bearer header, 401 deletes
+it, unreachable or 500 keeps it with "Try again"), sign-out (204 and 401 clear the token and the next
+request has no `Authorization`; unreachable keeps it), no `X-Salus-CSRF` on any request, nothing printed
+during a full sign-in, and `SecureTokenStore` against the plugin's mock storage.
+
+Checks: `make mobile-analyze` no issues; `make mobile-test` 31 passed; `make gen-clients` no diff (no
+`openapi.yaml` change); `make lint` 0 issues, check-migrations ok; `make archcheck` ok; `make test` ok;
+`make cover` ok (total 94.8%, unchanged: no Go change). Running on a device or emulator is manual by design
+(README.md, "Mobile on a device or emulator") and was not done; the API calls are covered by the widget
+tests against the documented shapes, and package 9's e2e test drives the same endpoints on the real stack.
+
+Readings:
+- **Login uses `loginWithHttpInfo`.** The plain `login()` of the generated client drops the response
+  headers, and a 429 needs `Retry-After` for "Try again in N minutes" (the web app's sentence). The body is
+  decoded with the generated `LoginResponse.fromJson`.
+- **Staff are not signed in on mobile** (SPEC §5: no practitioner or admin use of the mobile app). A login
+  answering `next: enrol` stops there with "This app is for patients. Clinic staff use the Salus web app.",
+  so staff never enrol from the app. A staff account with MFA is only recognisable after the code: the app
+  reads `/auth/me`, ends that session at once with `POST /auth/logout` (best effort) and stores nothing. The
+  token is written to secure storage only after `/auth/me` says `patient`.
+- **Registration signs in straight away** with the same credentials (a new patient has no MFA, so login
+  answers `done`). If that sign-in fails (for example the IP limit), the account exists, so the app goes to
+  sign-in with "Your account is ready. Sign in to continue." rather than an error that would invite a second
+  registration (409).
+- **Sign-out that does not reach the API keeps the user signed in** with "Could not sign out. Check your
+  connection and try again.", as the web app does: deleting only the local copy would leave a valid session
+  the user believes is ended. A 401 counts as signed out.
+- **Start-up with a stored token:** a 401 deletes the token and shows sign-in; an unreachable API or a 5xx
+  keeps the token and offers "Try again", so a patient offline is not signed out.
+- **Errors are fixed sentences** per API error code; a response body is never shown. An unreachable API is
+  recognised by the generated client's `ApiException` carrying an inner exception.
+- `flutter_secure_storage` 11.2.0 (published 2026-09-16, BSD-3-Clause) brings its platform packages and
+  `path_provider` transitively (`pubspec.lock`). Its Android side needs no manifest change for this use.
+- Dart code formatted with `dart format -l 120` (the app had no formatter setting; the generated client keeps
+  its own).
+
+Deferred:
+- Self-service MFA enrolment for patients (`POST /auth/mfa/enrol` with a session) has no screen: the plan
+  asks only for the TOTP step of a patient who enrolled elsewhere. The generated client already has the call.
+- No device or emulator run (manual by design).
+
+Dev stack left: postgres, redis and mailpit running, as found; only `flutter` and `tools` run containers were
+started (and removed). No API was started, so nothing was written to the dev database. The `pub` volume now
+also caches `flutter_secure_storage` and its dependencies. `deployments/.env` was not touched.

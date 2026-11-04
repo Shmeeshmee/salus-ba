@@ -35,6 +35,10 @@ dependencies:
   salus_api:
     path: packages/salus_api
 
+  # The session token, in the Keychain (iOS) or the Keystore (Android); never in shared preferences.
+  # Pinned exact.
+  flutter_secure_storage: 11.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
