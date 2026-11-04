@@ -4,6 +4,10 @@
 // Postgres when run through `make test`) and creates a template database once, migrated with the given goose
 // migrations. NewDatabase then clones the template for each test, so tests can run in parallel. Without
 // TEST_DATABASE_URL the tests fail; they never skip.
+//
+// NewAppDatabase also connects as the application role (AppRole, created by the migrations) with the
+// password in TEST_APP_DATABASE_PASSWORD, so a test sees exactly what the api and worker see: grants and
+// row-level security apply.
 package pgtest
 
 import (
@@ -19,7 +23,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+
+	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
+
+// AppRole is the role the application binaries log in as: no superuser, no BYPASSRLS, owner of nothing.
+const AppRole = "salus_app"
 
 // server is set once by Main, before any test runs, and only read afterwards: TestMain has no other way to
 // hand it to the tests.
@@ -62,6 +71,10 @@ func run(m *testing.M, migrations fs.FS) int {
 			fmt.Fprintln(os.Stderr, "pgtest: migrate template:", err)
 			return 1
 		}
+	}
+	if err := setAppPassword(ctx, admin); err != nil {
+		fmt.Fprintln(os.Stderr, "pgtest: set the", AppRole, "password:", err)
+		return 1
 	}
 
 	server.admin, server.url, server.template = admin, serverURL, template
@@ -108,7 +121,42 @@ func NewDatabaseURL(t testing.TB) string {
 // NewDatabase is NewDatabaseURL with a pool on the new database, closed when the test ends.
 func NewDatabase(t testing.TB) *pgxpool.Pool {
 	t.Helper()
-	pool, err := pgxpool.New(context.Background(), NewDatabaseURL(t))
+	return connect(t, NewDatabaseURL(t))
+}
+
+// NewAppDatabase creates a database cloned from the template and returns two pools on it, closed when the
+// test ends: owner (the server's user, who owns the schema) and app, logged in as AppRole with the password
+// Main set from TEST_APP_DATABASE_PASSWORD.
+func NewAppDatabase(t testing.TB) (owner, app *pgxpool.Pool) {
+	t.Helper()
+	password := os.Getenv("TEST_APP_DATABASE_PASSWORD")
+	if password == "" {
+		t.Fatal("pgtest: TEST_APP_DATABASE_PASSWORD is not set; run the tests with `make test`, which sets it for the compose Postgres")
+	}
+	dbURL := NewDatabaseURL(t)
+	u, _ := url.Parse(dbURL) // built by withDatabase from a URL that parsed
+	u.User = url.UserPassword(AppRole, password)
+	return connect(t, dbURL), connect(t, u.String())
+}
+
+// setAppPassword sets AppRole's password from TEST_APP_DATABASE_PASSWORD when the migrations created the
+// role and the variable is set. The role is cluster-wide and every test package sets the same value (in the
+// compose stack, the one cmd/migrate sets too); SetPassword retries the race between packages.
+func setAppPassword(ctx context.Context, admin *pgxpool.Pool) error {
+	password := os.Getenv("TEST_APP_DATABASE_PASSWORD")
+	var exists bool
+	if err := admin.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)", AppRole).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists || password == "" {
+		return nil
+	}
+	return postgres.SetPassword(ctx, admin, AppRole, password)
+}
+
+func connect(t testing.TB, dbURL string) *pgxpool.Pool {
+	t.Helper()
+	pool, err := postgres.Open(context.Background(), dbURL)
 	if err != nil {
 		t.Fatalf("pgtest: connect: %v", err)
 	}

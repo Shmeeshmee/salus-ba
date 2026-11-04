@@ -36,8 +36,9 @@ type config struct {
 
 type ownership struct {
 	Tables map[string]struct {
-		Owner   string `yaml:"owner"`
-		Dropped bool   `yaml:"dropped"`
+		PersonalData *bool  `yaml:"personal_data"` // required for a domain's table; nil when missing
+		Owner        string `yaml:"owner"`
+		Dropped      bool   `yaml:"dropped"`
 	} `yaml:"tables"`
 }
 
@@ -92,11 +93,16 @@ func check(fsys fs.FS) ([]violation, error) {
 	if err != nil {
 		return nil, err
 	}
-	tvs, err := checkTables(fsys, own, domains, cfg.LibraryOwners)
+	tvs, created, err := checkTables(fsys, own, domains, cfg.LibraryOwners)
 	if err != nil {
 		return nil, err
 	}
 	vs = append(vs, tvs...)
+	rvs, err := checkRetention(fsys, own, created, cfg.LibraryOwners)
+	if err != nil {
+		return nil, err
+	}
+	vs = append(vs, rvs...)
 
 	vs = slices.DeleteFunc(vs, func(v violation) bool {
 		return slices.Contains(allow.Violations, allowed{Rule: v.Rule, File: v.File})

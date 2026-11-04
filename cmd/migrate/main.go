@@ -1,4 +1,6 @@
 // Command migrate applies the embedded goose migrations: migrate up | status | create [-dir migrations] <name>.
+// It connects as the schema owner. After up, it sets the password of the application role from
+// APP_DATABASE_PASSWORD when that is set.
 package main
 
 import (
@@ -25,6 +27,9 @@ import (
 
 const usage = "usage: migrate up | status | create [-dir migrations] <name>"
 
+// appRole is the role the application binaries log in as, created by the migrations.
+const appRole = "salus_app"
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	err := run(ctx, os.Args[1:], os.Stdout)
@@ -41,9 +46,9 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 	switch args[0] {
 	case "up", "status":
-		return withProvider(ctx, func(p *goose.Provider) error {
+		return withProvider(ctx, func(p *goose.Provider, db postgres.Querier, cfg config.Config) error {
 			if args[0] == "up" {
-				return up(ctx, p, stdout)
+				return up(ctx, p, db, cfg.AppDatabasePassword, stdout)
 			}
 			return status(ctx, p, stdout)
 		})
@@ -54,7 +59,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 }
 
-func withProvider(ctx context.Context, fn func(*goose.Provider) error) error {
+func withProvider(ctx context.Context, fn func(*goose.Provider, postgres.Querier, config.Config) error) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -70,16 +75,23 @@ func withProvider(ctx context.Context, fn func(*goose.Provider) error) error {
 	if err != nil {
 		return err
 	}
-	return fn(p)
+	return fn(p, pool, cfg)
 }
 
-func up(ctx context.Context, p *goose.Provider, stdout io.Writer) error {
+func up(ctx context.Context, p *goose.Provider, db postgres.Querier, appPassword string, stdout io.Writer) error {
 	results, err := p.Up(ctx)
 	for _, r := range results {
 		if _, werr := fmt.Fprintf(stdout, "applied  %s  %s\n", filepath.Base(r.Source.Path), r.Duration); werr != nil {
 			return werr
 		}
 	}
+	if err != nil || appPassword == "" {
+		return err
+	}
+	if err := postgres.SetPassword(ctx, db, appRole, appPassword); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(stdout, "set the password of", appRole)
 	return err
 }
 

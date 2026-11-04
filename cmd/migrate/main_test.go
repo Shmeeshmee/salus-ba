@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
@@ -15,6 +17,7 @@ func TestMain(m *testing.M) { pgtest.Main(m, nil) }
 
 func TestRun_UpAppliesMigrationsAndStatusListsThemApplied(t *testing.T) {
 	t.Setenv("DATABASE_URL", pgtest.NewDatabaseURL(t))
+	t.Setenv("APP_DATABASE_PASSWORD", "") // provisioned outside migrate: the role is left alone
 	var out bytes.Buffer
 
 	if err := run(t.Context(), []string{"up"}, &out); err != nil {
@@ -77,4 +80,53 @@ func TestRun_RejectsUnknownCommand(t *testing.T) {
 	if err := run(t.Context(), []string{"down"}, &bytes.Buffer{}); err == nil {
 		t.Fatal("run(down) error = nil, want an error: migrations are forward-only")
 	}
+}
+
+// appRoleSecret reads the stored password verifier of salus_app (pg_authid needs the superuser the compose
+// Postgres gives the tests). SCRAM verifiers are salted, so setting even the same password changes it.
+func appRoleSecret(t *testing.T, dbURL string) string {
+	t.Helper()
+	pool, err := postgres.Open(t.Context(), dbURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	var secret string
+	if err := pool.QueryRow(t.Context(), "SELECT coalesce(rolpassword, '') FROM pg_authid WHERE rolname = $1", pgtest.AppRole).Scan(&secret); err != nil {
+		t.Fatal(err)
+	}
+	return secret
+}
+
+func TestRun_UpSetsTheAppRolePasswordAndTheRoleCanLogIn(t *testing.T) {
+	dbURL := pgtest.NewDatabaseURL(t)
+	// The role is cluster-wide: set the value every other test package uses, or their logins would break.
+	password := os.Getenv("TEST_APP_DATABASE_PASSWORD")
+	if password == "" {
+		t.Fatal("TEST_APP_DATABASE_PASSWORD is not set; run the tests with `make test`")
+	}
+	t.Setenv("DATABASE_URL", dbURL)
+	t.Setenv("APP_DATABASE_PASSWORD", password)
+	if err := run(t.Context(), []string{"up"}, &bytes.Buffer{}); err != nil { // creates the role on a new server
+		t.Fatalf("up: %v", err)
+	}
+	before := appRoleSecret(t, dbURL)
+	var out bytes.Buffer
+
+	if err := run(t.Context(), []string{"up"}, &out); err != nil {
+		t.Fatalf("up: %v", err)
+	}
+	if appRoleSecret(t, dbURL) == before {
+		t.Error("up did not set the salus_app password")
+	}
+	if strings.Contains(out.String(), password) {
+		t.Errorf("up output holds the password:\n%s", out.String())
+	}
+	u, _ := url.Parse(dbURL)
+	u.User = url.UserPassword(pgtest.AppRole, password)
+	pool, err := postgres.Open(t.Context(), u.String())
+	if err != nil {
+		t.Fatalf("log in as %s: %v", pgtest.AppRole, err)
+	}
+	pool.Close()
 }

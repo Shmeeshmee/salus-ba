@@ -3,7 +3,10 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math/rand/v2"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -70,4 +73,53 @@ func Conn(ctx context.Context, db Querier) Querier {
 		return tx
 	}
 	return db
+}
+
+// ErrNoTx is returned by SetLocal outside a transaction, where a local setting would not hold.
+var ErrNoTx = errors.New("postgres: SetLocal needs the transaction of a WithTx")
+
+// SetLocal sets the custom setting name (such as app.organization_id) for the rest of the transaction in
+// ctx only: set_config(name, value, true). Errors name the setting, never the value.
+func SetLocal(ctx context.Context, name, value string) error {
+	tx, ok := ctx.Value(txKey{}).(pgx.Tx)
+	if !ok {
+		return ErrNoTx
+	}
+	if _, err := tx.Exec(ctx, "SELECT set_config($1, $2, true)", name, value); err != nil {
+		return fmt.Errorf("postgres: set %s: %w", name, err)
+	}
+	return nil
+}
+
+// passwordAttempts bounds the retries of SetPassword; each waits up to passwordBackoff times its number,
+// with jitter so racing callers spread out.
+const (
+	passwordAttempts = 10
+	passwordBackoff  = 10 * time.Millisecond
+)
+
+// SetPassword sets role's password. The statement is built by the server's format(), so the password is
+// quoted as a literal, never spliced. Roles are cluster-wide: an ALTER ROLE that races another one on the
+// same role fails with "tuple concurrently updated", so it is retried. Errors never carry the password.
+func SetPassword(ctx context.Context, db Querier, role, password string) error {
+	var stmt string
+	err := db.QueryRow(ctx, "SELECT format('ALTER ROLE %I PASSWORD %L', $1::text, $2::text)", role, password).Scan(&stmt)
+	if err != nil {
+		return fmt.Errorf("postgres: set password of %s: %w", role, err)
+	}
+	for attempt := range passwordAttempts {
+		if _, err = db.Exec(ctx, stmt); !concurrentlyUpdated(err) {
+			break
+		}
+		time.Sleep(rand.N(time.Duration(attempt+1) * passwordBackoff))
+	}
+	if err != nil {
+		return fmt.Errorf("postgres: set password of %s: %w", role, err)
+	}
+	return nil
+}
+
+func concurrentlyUpdated(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "XX000" && pgErr.Message == "tuple concurrently updated"
 }

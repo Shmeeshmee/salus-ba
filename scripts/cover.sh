@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # make cover, inside the tools container: test with coverage and fail when any package is below the floor
-# (CLAUDE.md: 80%). Each package counts only the coverage its own tests give it. The one exclusion is
-# cmd/*/main.go, listed file by file: composition only, exercised by the e2e suite.
+# (CLAUDE.md: 80%). Each package counts only the coverage its own tests give it. Two exclusions:
+# cmd/*/main.go, listed file by file (composition only, exercised by the e2e suite), and the generated sqlc
+# packages internal/<domain>/<domain>db (never edited by hand, exercised by the domain's repository tests).
 set -euo pipefail
 floor=80
 module=$(go list -m)
@@ -9,10 +10,14 @@ module=$(go list -m)
 go test -coverprofile=coverage.raw ./...
 
 excluded=$(for f in cmd/*/main.go; do echo "${module}/${f}"; done)
-awk -v excluded="$excluded" '
-  BEGIN { n = split(excluded, list, "\n"); for (i = 1; i <= n; i++) skip[list[i]] = 1 }
+generated=$(for d in internal/*/; do n=$(basename "$d"); [ -d "${d}${n}db" ] && echo "${module}/${d}${n}db"; done || true)
+awk -v excluded="$excluded" -v generated="$generated" '
+  BEGIN {
+    n = split(excluded, list, "\n"); for (i = 1; i <= n; i++) skip[list[i]] = 1
+    n = split(generated, list, "\n"); for (i = 1; i <= n; i++) if (list[i] != "") skipdir[list[i]] = 1
+  }
   NR == 1 { print; next }
-  { file = $0; sub(/:[^:]*$/, "", file); if (!(file in skip)) print }
+  { file = $0; sub(/:[^:]*$/, "", file); dir = file; sub(/\/[^\/]*$/, "", dir); if (!(file in skip) && !(dir in skipdir)) print }
 ' coverage.raw > coverage.out
 rm coverage.raw
 

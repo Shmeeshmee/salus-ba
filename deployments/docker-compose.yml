@@ -11,7 +11,9 @@ x-app: &app
     dockerfile: build/package/Dockerfile
   image: salus:dev
   environment: &app-env
-    DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable # local only
+    # The app binaries log in as salus_app: no superuser, no BYPASSRLS, owner of nothing, so grants and
+    # row-level security apply. Only migrate (and salusctl) connect as the owner, salus. Local only.
+    DATABASE_URL: postgres://salus_app:local-app-password@postgres:5432/salus?sslmode=disable
     REDIS_URL: redis://redis:6379/0
   restart: unless-stopped
   depends_on: &app-deps
@@ -51,6 +53,9 @@ services:
   migrate:
     <<: *app
     command: ["/usr/local/bin/migrate", "up"]
+    environment:
+      DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable # the owner; local only
+      APP_DATABASE_PASSWORD: local-app-password # set on salus_app after the migrations; synthetic, local only
     restart: "no"
     depends_on:
       postgres: {condition: service_healthy}
@@ -121,8 +126,11 @@ services:
     working_dir: /src
     environment:
       TEST_DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable
+      # salus_app is cluster-wide: the same synthetic password migrate sets, so tests and the stack agree.
+      TEST_APP_DATABASE_PASSWORD: local-app-password
       TEST_REDIS_URL: redis://redis:6379/0
-      DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable
+      DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable # make migrate: the owner
+      APP_DATABASE_PASSWORD: local-app-password
     volumes:
       - ..:/src
       - gomod:/cache/gomod

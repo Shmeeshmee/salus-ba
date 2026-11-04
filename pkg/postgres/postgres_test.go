@@ -2,7 +2,10 @@ package postgres_test
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -153,5 +156,145 @@ func TestConn_UsesThePoolOutsideATransaction(t *testing.T) {
 	}
 	if n := countItems(t, pool); n != 1 {
 		t.Fatalf("items = %d, want 1", n)
+	}
+}
+
+// setting reads a custom setting in the transaction in ctx, or on the pool outside one; "" when unset.
+func setting(ctx context.Context, t *testing.T, db postgres.Querier, name string) string {
+	t.Helper()
+	var v string
+	if err := postgres.Conn(ctx, db).QueryRow(ctx, "SELECT coalesce(current_setting($1, true), '')", name).Scan(&v); err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+func TestSetLocal_IsVisibleOnlyInsideItsTransaction(t *testing.T) {
+	t.Parallel()
+	// One connection, so the read after the transaction lands on the connection that ran it.
+	pool, err := postgres.Open(t.Context(), pgtest.NewDatabaseURL(t)+"&pool_max_conns=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	tr := postgres.NewTransactor(pool)
+
+	err = tr.WithTx(t.Context(), func(ctx context.Context) error {
+		if err := postgres.SetLocal(ctx, "app.organization_id", "4b1f7c1e-0000-4000-8000-000000000001"); err != nil {
+			return err
+		}
+		if got := setting(ctx, t, pool, "app.organization_id"); got != "4b1f7c1e-0000-4000-8000-000000000001" {
+			t.Errorf("inside the transaction: setting = %q", got)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("WithTx() error = %v", err)
+	}
+	if got := setting(t.Context(), t, pool, "app.organization_id"); got != "" {
+		t.Errorf("after the transaction: setting = %q, want it unset", got)
+	}
+}
+
+func TestSetLocal_FailsOutsideATransaction(t *testing.T) {
+	t.Parallel()
+
+	if err := postgres.SetLocal(t.Context(), "app.organization_id", "x"); !errors.Is(err, postgres.ErrNoTx) {
+		t.Fatalf("SetLocal() error = %v, want ErrNoTx", err)
+	}
+}
+
+func TestSetLocal_ReturnsTheDatabaseError(t *testing.T) {
+	t.Parallel()
+	pool := pgtest.NewDatabase(t)
+
+	err := postgres.NewTransactor(pool).WithTx(t.Context(), func(ctx context.Context) error {
+		return postgres.SetLocal(ctx, "no dot is not a custom setting", "x")
+	})
+	if err == nil {
+		t.Fatal("SetLocal() error = nil, want the database's error for an invalid name")
+	}
+}
+
+// newRole creates a LOGIN role without a password, dropped when the test ends. Roles are cluster-wide, so
+// the name is unique.
+func newRole(t *testing.T, pool *pgxpool.Pool) string {
+	t.Helper()
+	role := "pgtest_role_" + strings.ToLower(rand.Text())
+	if _, err := pool.Exec(t.Context(), "CREATE ROLE "+role+" LOGIN"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := pool.Exec(context.Background(), "DROP ROLE "+role); err != nil {
+			t.Errorf("drop role: %v", err)
+		}
+	})
+	return role
+}
+
+// loginAs connects to dbURL as role with password and pings.
+func loginAs(t *testing.T, dbURL, role, password string) error {
+	t.Helper()
+	u, err := url.Parse(dbURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.User = url.UserPassword(role, password)
+	pool, err := postgres.Open(t.Context(), u.String())
+	if err == nil {
+		pool.Close()
+	}
+	return err
+}
+
+func TestSetPassword_LetsTheRoleLogIn(t *testing.T) {
+	t.Parallel()
+	dbURL := pgtest.NewDatabaseURL(t)
+	pool, err := postgres.Open(t.Context(), dbURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close) // after newRole's cleanup drops the role
+	role := newRole(t, pool)
+	const password = "synthetic-pa$$'word" // a quote and a dollar sign: the value is quoted, never spliced
+
+	if err := postgres.SetPassword(t.Context(), pool, role, password); err != nil {
+		t.Fatalf("SetPassword() error = %v", err)
+	}
+	if err := loginAs(t, dbURL, role, password); err != nil {
+		t.Fatalf("login with the new password: %v", err)
+	}
+	if err := loginAs(t, dbURL, role, "wrong"); err == nil {
+		t.Fatal("login with a wrong password succeeded")
+	}
+}
+
+// Roles are cluster-wide, and parallel test packages set the same role's password at once.
+func TestSetPassword_ConcurrentCallsAllSucceed(t *testing.T) {
+	t.Parallel()
+	pool := pgtest.NewDatabase(t)
+	role := newRole(t, pool)
+	errs := make(chan error, 8)
+
+	for range cap(errs) {
+		go func() { errs <- postgres.SetPassword(t.Context(), pool, role, "synthetic") }()
+	}
+	for range cap(errs) {
+		if err := <-errs; err != nil {
+			t.Errorf("SetPassword() error = %v", err)
+		}
+	}
+}
+
+func TestSetPassword_ErrorDoesNotEchoThePassword(t *testing.T) {
+	t.Parallel()
+	pool := pgtest.NewDatabase(t)
+
+	err := postgres.SetPassword(t.Context(), pool, "no_such_role_anywhere", "secret-looking-value")
+	if err == nil {
+		t.Fatal("SetPassword() error = nil for an unknown role")
+	}
+	if strings.Contains(err.Error(), "secret-looking-value") {
+		t.Errorf("error %q leaks the password", err)
 	}
 }
