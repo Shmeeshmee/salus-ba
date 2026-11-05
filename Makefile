@@ -74,8 +74,11 @@ arch-gate: archcheck tools-image
 ## e2e: start the stack and run the end-to-end tests against it in the playwright service, on the compose network:
 ## the Go journeys (the API, Mailpit's API, salusctl built here on the owner's DATABASE_URL, LiveKit), the web
 ## journey in Chromium that the consultation journey starts (test/e2e/web), then the check that LiveKit's log
-## holds none of the run's synthetic names, e-mails and ids
+## holds none of the run's synthetic names, e-mails and ids. Each run first clears the login rate-limit counters
+## (ratelimit:*) in the compose Redis: a run signs in about 9 times from one IP, so back-to-back runs would reach
+## the production limit of 30 per 15 minutes. The limit itself is unchanged.
 e2e: up web-install e2e-install
+	$(COMPOSE) exec -T redis sh -c "redis-cli --scan --pattern 'ratelimit:*' | xargs -r redis-cli del >/dev/null"
 	$(E2E) sh -c 'rm -f /e2e/livekit-check.tsv && go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e -count=1 ./test/e2e/...'
 	$(COMPOSE) logs --no-color --no-log-prefix livekit | $(E2E) bash scripts/e2e-livekit-log.sh /e2e/livekit-check.tsv
 
