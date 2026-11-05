@@ -3,7 +3,7 @@
 | Package | Status | Commit |
 | --- | --- | --- |
 | 1 videosession | done, 2026-11-05 | `consultation(1)` |
-| 2 encounter | not started | |
+| 2 encounter | done, 2026-11-05 | `consultation(2)` |
 | 3 Webhooks | not started | |
 | 4 API | not started | |
 | 5 Revocation and cancellation during a call | not started | |
@@ -29,6 +29,26 @@
   `join_window_not_open` (SPEC §2 "No new token is issued once the window has closed"); before it opens,
   `join_window_not_open`. The consent is checked before the status, so the appointment a revocation cancelled
   answers `consent_required` (package 8's second journey).
+- 2026-11-05, package 2 (runner): `Encounter.Start` is a system call with no caller, so it reads the
+  appointment through a new `appointment.Service.Lookup` (in the caller's transaction and scope, unaudited
+  like `patient.Lookup`); the encounter audits its own create. `Start` does not check the appointment's
+  status (no SPEC rule); package 3 ignores joins after `ended_at`.
+- 2026-11-05, package 2 (runner): `encounter.Finish` records the outcome only when it finishes an encounter
+  in progress, and `videosession.end` calls it only when the practitioner joined; so a session ended
+  `practitioner_absent` leaves the appointment `booked`, and a repeat records nothing. The session's end is
+  audited as an `operation` (`E`) on `Appointment/<id>` by the agent (`HOPERAT`); the job's check of an
+  occupied room, once a minute, reads only its own row and writes nothing, and is not audited.
+  `RecordConsultationOutcome` audits only when it changes the status.
+- 2026-11-05, package 2 (runner): `Encounter` search scoping. A practitioner always gets only their own
+  role's encounters, without having to name themselves (the `Appointment` search requires the name); naming
+  another practitioner is `ErrForbidden`, audited. A patient's own `patient` replaces whatever they name, as in
+  the `Appointment` search.
+- 2026-11-05, package 2 (runner): the hard cap is `closes_at` + 90 minutes (the scheduled end + 2 hours), so
+  the job reads only `video_session`. A session already ended when the job runs only has its room deleted
+  again (a retry after a failed delete heals); one the clinic's scope no longer shows (after a revocation, an
+  appointment that had not started, which the revocation cancels) is left to package 5. The job's agent name
+  is its kind, `consultation_window_close`, like `consent_revoked`. `worker.New` takes the video provider;
+  `cmd/worker` builds it from `LIVEKIT_*`.
 
 ## Waiting on people
 
@@ -137,3 +157,72 @@ STUN/TURN with SPEC §8.
 **Dev stack left.** Migration 00021 applied (empty `video_session`); LiveKit recreated on
 `deployments/livekit.yaml`; the stack rebuilt and up as it was.
 
+### 2026-11-05 — package 2: encounter
+
+**Built.** Migration `00022_encounter.sql`: the table (SPEC §2 "Tables", "Encounter"; one per appointment,
+the role's foreign key with its clinic, `finished` exactly when `period_end` is set and not before the start),
+row-level security (patient own: select only; clinic: with an active consent or for an appointment that
+started before the latest revocation; no webhook scope), grants (`salus_app` select, insert and the finish
+columns only). Ownership `encounter` → `encounter` (personal data), retention rule `keep`; context
+`consultation: [encounter, videosession]`; `sqlc.yaml` entry. `internal/encounter`: model, errors,
+`Repository`, `repository_postgres.go`, `service.go` (`Start`, `Finish`, audited with the agent),
+`service_read.go` (`Read`, `Search` by appointment, patient and practitioner). `internal/appointment`:
+`Lookup` and `RecordConsultationOutcome` (SPEC §2 "Outcome"). `internal/videosession`: `Open` says whether it
+created the session, `ByID`, `End`; the `Jobs` port (`repository_river.go`, `consultation_window_close` on the
+default queue, enqueued in the first join's transaction at `closes_at`) and the `Encounters` port;
+`service_end.go`: `CloseWindow` (SPEC §2 "The window closes", "The hard cap") and `end` (SPEC §2 "Ending",
+used by the job now and by packages 4 and 5). `internal/worker`: the `consultation_window_close` worker
+(snoozes with `river.JobSnooze`, which River 0.51 does not count as an attempt), registered in the worker and,
+without services, in the scheduler. DPIA notes.
+
+**Tests seen failing first.**
+- migrations: the `TestEncounter_*` tests: `relation "encounter" does not exist (SQLSTATE 42P01)`.
+- archcheck: `retention-rule-missing: table encounter holds personal data and has no rule`.
+- appointment: `f.svc.Lookup undefined`, `f.svc.RecordConsultationOutcome undefined` (build failed).
+- encounter: `no non-test Go files in /src/internal/encounter` (build failed); then
+  `TestRead_FailsWithTheBackend`: `appointments: Read() = encounter: not found, want its error` (the first
+  cut turned a backend error into a not-found; fixed); then `undefined: encounter.NewPostgresRepository`.
+- videosession: `*fakeRepository does not implement videosession.Repository (wrong type for method Open)`
+  (build failed: `Open`'s flag, `ByID`, `End`, the `Jobs` and `Encounters` ports, `CloseWindow`,
+  `NewRiverJobs`).
+- worker: `too many arguments in call to worker.New` (build failed). The snooze test was written after the
+  worker; it was seen failing by removing the `JobSnooze` return: `the job ended job_completed, want snoozed
+  a minute`.
+- internal/api: the one-job assertion on two concurrent first joins was added after the enqueue; seen failing
+  without it: `0 window-close jobs …; want one at the window's close`.
+
+**What the tests cover.** `Start` twice gives one encounter with the first time and one create event; real
+database: two `Start`s at once create one row, created once. `Finish` with and without the patient records
+`fulfilled` and `noshow`; twice changes, records and audits nothing the second time; a never-started
+encounter is not created; a finished encounter never changes (a later `Start` gives it back as it is); a
+failure rolls back. `RecordConsultationOutcome`: `booked` → `fulfilled`/`noshow` audited by the agent; a
+`fulfilled`, `noshow` or `cancelled` appointment kept, unaudited. `Read`: the patient, the practitioner of the
+role, the admin, the name level after a revocation; another patient, no profile, another clinic, an unknown
+id and a practitioner without access are 404, audited without the entity. `Search`: the patient (also naming
+another), by appointment and practitioner, the practitioner (also by patient), the second practitioner, the
+admin (by practitioner, by appointment), another clinic; naming another practitioner is forbidden, audited;
+each returned encounter audited, none gives one event. RLS per scope, writes by scope, the app role's
+grants and the constraints (migrations). The window-close job: the first join enqueues it once (also for two
+concurrent first joins, real database), in the join's transaction, at the close; an empty room ends the
+session `window_closed`, finishes the encounter with whether the patient joined and deletes the room after
+the commit; an occupied room snoozes a minute; the practitioner never joined: `practitioner_absent`, no
+encounter, the appointment `booked`, `patient_joined_at` kept (also through the real worker); the hard cap at
+−61 s, −20 s, −1 s (snoozes of 60 s, 20 s, 1 s: never past it), at the cap and +1 s (`time_limit`, the
+occupied room deleted, the encounter finished); a delete failure leaves the end committed and fails the job
+for River's retry, which deletes the room again and changes nothing else; an ended session only has its room
+deleted; out of scope, nothing; failures before the commit change nothing and carry no room or identity.
+Real worker on the compose LiveKit: window closed → session `window_closed`, encounter `finished`,
+appointment `fulfilled`, three audit events by the job, a retry completes and changes nothing; snoozed with
+an occupied room; the log holds the session id and never a name, e-mail, room or identity.
+
+**Checks.** `make lint`: 0 issues, migrations unchanged. `make archcheck`: passes. `make test`: passes.
+`make cover`: every package at 80% or more (`internal/encounter` 96.1%, `internal/videosession` 95.4%,
+`internal/appointment` 92.9%, `internal/worker` 96.2%, total 94.8%). `make sqlc`: no diff after the
+regeneration (every `*db/models.go` gains the `Encounter` row type, as in package 1).
+
+**Deferred.** The practitioner's end (`POST …/consultation/end`, package 4) and the cancellation's end
+(package 5) call `end` with their own agent. `Encounter.Start` from the practitioner's `participant_joined`
+(package 3). FHIR read and search over HTTP, the `CapabilityStatement` and the golden files (package 4).
+
+**Dev stack left.** Migration 00022 applied (`encounter` empty). The stack rebuilt with `make up` and running
+as before; api `/readyz` 200, worker and scheduler started with the new job kind.

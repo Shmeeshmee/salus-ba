@@ -22,6 +22,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/slot"
+	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
@@ -42,10 +43,13 @@ func (noopWorker) Work(context.Context, *river.Job[NoopArgs]) error { return nil
 
 // New returns the River client cmd/worker runs: it works the default queue on pool, the salus_app login.
 // retentionPool, the salus_retention login (RETENTION_DATABASE_URL), goes to the retention_apply job's
-// purgers and nowhere else.
-func New(pool, retentionPool *pgxpool.Pool, log *slog.Logger) (*river.Client[pgx.Tx], error) {
+// purgers and nowhere else; provider, the video server, to the consultation's jobs.
+func New(pool, retentionPool *pgxpool.Pool, provider videosession.Provider, log *slog.Logger) (*river.Client[pgx.Tx], error) {
 	if retentionPool == nil {
 		return nil, errors.New("worker: the retention_apply job needs the retention role's pool")
+	}
+	if provider == nil {
+		return nil, errors.New("worker: the consultation's jobs need the video provider")
 	}
 	rules, err := newRetention(pool, retentionPool)
 	if err != nil {
@@ -56,17 +60,29 @@ func New(pool, retentionPool *pgxpool.Pool, log *slog.Logger) (*river.Client[pgx
 		return nil, err
 	}
 	workers := river.NewWorkers()
-	addDefaultWorkers(workers, rules, newSlots(pool, clock.System{}), newRevocations(pool, inserter, clock.System{}), log)
+	addDefaultWorkers(workers, defaultServices{
+		rules: rules, slots: newSlots(pool, clock.System{}), appointments: newRevocations(pool, inserter, clock.System{}),
+		sessions: newSessions(pool, provider, clock.System{}),
+	}, log)
 	return river.NewClient(riverpgxv5.New(pool), workConfig(log, river.QueueDefault, workers))
 }
 
-// addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with nil
-// dependencies: it never works them, but as the leader its rescuer must know every kind.
-func addDefaultWorkers(workers *river.Workers, rules *retention.Service, slots *slot.Service, appointments *appointment.Service, log *slog.Logger) {
+// defaultServices are what the default queue's jobs work with.
+type defaultServices struct {
+	rules        *retention.Service
+	slots        *slot.Service
+	appointments *appointment.Service
+	sessions     *videosession.Service
+}
+
+// addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with no services:
+// it never works them, but as the leader its rescuer must know every kind.
+func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logger) {
 	river.AddWorker(workers, &noopWorker{})
-	river.AddWorker(workers, &retentionWorker{rules: rules, log: log})
-	river.AddWorker(workers, &slotsWorker{slots: slots, log: log})
-	river.AddWorker(workers, &revocationWorker{appointments: appointments, log: log})
+	river.AddWorker(workers, &retentionWorker{rules: s.rules, log: log})
+	river.AddWorker(workers, &slotsWorker{slots: s.slots, log: log})
+	river.AddWorker(workers, &revocationWorker{appointments: s.appointments, log: log})
+	river.AddWorker(workers, &windowCloseWorker{sessions: s.sessions, log: log})
 }
 
 // workConfig is the configuration of a client that works queue with workers and never leads.

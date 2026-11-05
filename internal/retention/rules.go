@@ -74,5 +74,10 @@ func Rules() []Rule {
 			Keep:  30 * day, // after ended_at, or after the join window's close for a session that never ended
 			Then:  ThenDelete,
 		},
+		{
+			Table: "encounter",
+			Basis: "The clinic's care record that the consultation took place and when (GDPR Art. 9(2)(h)); kept with the clinical record, needs a legal decision before production (docs/consultation/SPEC.md sections 4 and 5)",
+			Then:  ThenKeep,
+		},
 	}
 }

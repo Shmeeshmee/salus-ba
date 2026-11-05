@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createSession = `-- name: CreateSession :exec
+const createSession = `-- name: CreateSession :execrows
 INSERT INTO video_session (appointment_id, organization_id, room, patient_identity, practitioner_identity, closes_at,
                            created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
@@ -29,9 +29,9 @@ type CreateSessionParams struct {
 }
 
 // The first token request; a concurrent first request for the appointment waits for this one's commit and
-// then does nothing, so both read the same session.
-func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
-	_, err := q.db.Exec(ctx, createSession,
+// then does nothing (no row), so both read the same session and only the first enqueues the window's close.
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, createSession,
 		arg.AppointmentID,
 		arg.OrganizationID,
 		arg.Room,
@@ -40,7 +40,10 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 		arg.ClosesAt,
 		arg.CreatedAt,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteSessionsEndedBefore = `-- name: DeleteSessionsEndedBefore :execrows
@@ -58,6 +61,42 @@ func (q *Queries) DeleteSessionsEndedBefore(ctx context.Context, before pgtype.T
 	return result.RowsAffected(), nil
 }
 
+const endSession = `-- name: EndSession :one
+UPDATE video_session
+SET ended_at = $1, end_reason = $2, updated_at = $1
+WHERE id = $3 AND ended_at IS NULL
+RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
+          organization_id, room, patient_identity, practitioner_identity, end_reason
+`
+
+type EndSessionParams struct {
+	At     pgtype.Timestamptz
+	Reason pgtype.Text
+	ID     pgtype.UUID
+}
+
+// Only a session not ended yet ends: a repeat, or a later path, leaves no row.
+func (q *Queries) EndSession(ctx context.Context, arg EndSessionParams) (VideoSession, error) {
+	row := q.db.QueryRow(ctx, endSession, arg.At, arg.Reason, arg.ID)
+	var i VideoSession
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClosesAt,
+		&i.PatientJoinedAt,
+		&i.PractitionerJoinedAt,
+		&i.EndedAt,
+		&i.AppointmentID,
+		&i.OrganizationID,
+		&i.Room,
+		&i.PatientIdentity,
+		&i.PractitionerIdentity,
+		&i.EndReason,
+	)
+	return i, err
+}
+
 const sessionByAppointment = `-- name: SessionByAppointment :one
 SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
        organization_id, room, patient_identity, practitioner_identity, end_reason
@@ -67,6 +106,34 @@ WHERE appointment_id = $1
 
 func (q *Queries) SessionByAppointment(ctx context.Context, appointmentID pgtype.UUID) (VideoSession, error) {
 	row := q.db.QueryRow(ctx, sessionByAppointment, appointmentID)
+	var i VideoSession
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClosesAt,
+		&i.PatientJoinedAt,
+		&i.PractitionerJoinedAt,
+		&i.EndedAt,
+		&i.AppointmentID,
+		&i.OrganizationID,
+		&i.Room,
+		&i.PatientIdentity,
+		&i.PractitionerIdentity,
+		&i.EndReason,
+	)
+	return i, err
+}
+
+const sessionByID = `-- name: SessionByID :one
+SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
+       organization_id, room, patient_identity, practitioner_identity, end_reason
+FROM video_session
+WHERE id = $1
+`
+
+func (q *Queries) SessionByID(ctx context.Context, id pgtype.UUID) (VideoSession, error) {
+	row := q.db.QueryRow(ctx, sessionByID, id)
 	var i VideoSession
 	err := row.Scan(
 		&i.ID,

@@ -91,3 +91,11 @@ sql:
         package: videosessiondb
         out: internal/videosession/videosessiondb
         sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/encounter/query.sql
+    gen:
+      go:
+        package: encounterdb
+        out: internal/encounter/encounterdb
+        sql_package: pgx/v5

@@ -52,10 +52,18 @@ type Practitioners interface {
 	PublicNames(ctx context.Context, ids []string) ([]practitioner.Practitioner, error)
 }
 
+// Encounters finishes the consultation's Encounter, and through it records the appointment's outcome, in the
+// caller's transaction and clinic scope (encounter.Service).
+type Encounters interface {
+	Finish(ctx context.Context, agent, appointmentID string, at time.Time, patientJoined bool) error
+}
+
 // Ports are the Service's dependencies. PublicURL is the LiveKit URL the clients connect to.
 type Ports struct {
 	Repo          Repository
 	Provider      Provider
+	Jobs          Jobs
+	Encounters    Encounters
 	Audit         Auditor
 	Tx            Transactor
 	Clock         clock.Clock
@@ -76,7 +84,7 @@ func NewService(p Ports) *Service {
 // Join gives the caller a token for the appointment's room: to its patient, or to the practitioner of its
 // role, while it is booked, the patient's consent with the clinic is active, the time is inside the window
 // (10 minutes before the start to 30 minutes after the end) and the session has not ended. The first request
-// stores the session; the room is created on every request, outside the transaction (it is idempotent, so a
+// stores the session and, in its transaction, enqueues the window's close; the room is created on every request, outside the transaction (it is idempotent, so a
 // restarted LiveKit heals on the next request). The practitioner gets the patient's name at the access level
 // (a Patient read, audited), the patient the practitioner's public name. ErrNotFound to anyone else,
 // ErrConsentRequired, ErrJoinWindowNotOpen and ErrConsultationEnded; every outcome is audited.
@@ -178,7 +186,7 @@ func decide(att appointment.Attendance, now time.Time) (Role, error) {
 }
 
 // open returns the appointment a's session, stored now with random names unless it has one, in the
-// caller's scope.
+// caller's scope; a session it stores gets its window-close job, enqueued in the same transaction.
 func (s *Service) open(ctx context.Context, c appointment.Caller, a appointment.Appointment, now time.Time) (Session, error) {
 	var err error
 	if c.OrganizationID == "" {
@@ -189,10 +197,14 @@ func (s *Service) open(ctx context.Context, c appointment.Caller, a appointment.
 	if err != nil {
 		return Session{}, err
 	}
-	return s.Repo.Open(ctx, Session{
+	session, created, err := s.Repo.Open(ctx, Session{
 		AppointmentID: a.ID, OrganizationID: a.OrganizationID, ClosesAt: a.End.Add(closesAfter), CreatedAt: now,
 		Room: randomName("r_"), PatientIdentity: randomName("p_"), PractitionerIdentity: randomName("p_"),
 	})
+	if err != nil || !created {
+		return session, err
+	}
+	return session, s.Jobs.EnqueueWindowClose(ctx, session.ID, session.OrganizationID, session.ClosesAt)
 }
 
 // randomName is prefix and 128 random bits in lower-case base32, derived from nothing of ours.

@@ -18,6 +18,7 @@ func TestJoin_TheServicesTokenJoinsTheComposeLiveKit(t *testing.T) {
 	svc := videosession.NewService(videosession.Ports{
 		Repo: f.repo, Provider: p, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: f.svc.Clock,
 		Appointments: f.appts, Patients: f.patients, Practitioners: f.practitioners, PublicURL: publicURL,
+		Jobs: f.jobs, Encounters: f.encounters,
 	})
 
 	j, err := svc.Join(t.Context(), me, apptA)

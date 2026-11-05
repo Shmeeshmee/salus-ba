@@ -121,6 +121,20 @@ type Consent struct {
 	Status         string
 }
 
+type Encounter struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	PeriodStart        pgtype.Timestamptz
+	PeriodEnd          pgtype.Timestamptz
+	AppointmentID      pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	VersionID          int32
+	Status             string
+}
+
 type Invite struct {
 	ID             pgtype.UUID
 	CreatedAt      pgtype.Timestamptz

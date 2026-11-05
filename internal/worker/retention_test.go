@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
+	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
@@ -94,12 +95,18 @@ func runRetention(t *testing.T, db logins) (river.EventKind, string) {
 // failed or cancelled) and the worker's log.
 func runWorkerJob(t *testing.T, db logins, args river.JobArgs) (river.EventKind, string) {
 	t.Helper()
+	return runWorkerJobWith(t, db, liveKit(t), args)
+}
+
+// runWorkerJobWith is runWorkerJob with the worker on the video provider p; a snooze ends the run too.
+func runWorkerJobWith(t *testing.T, db logins, p videosession.Provider, args river.JobArgs) (river.EventKind, string) {
+	t.Helper()
 	logs := &syncBuffer{}
-	client, err := worker.New(db.app, db.retention, slog.New(slog.NewJSONHandler(logs, nil)))
+	client, err := worker.New(db.app, db.retention, p, slog.New(slog.NewJSONHandler(logs, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	events, cancel := client.Subscribe(river.EventKindJobCompleted, river.EventKindJobFailed, river.EventKindJobCancelled)
+	events, cancel := client.Subscribe(river.EventKindJobCompleted, river.EventKindJobFailed, river.EventKindJobCancelled, river.EventKindJobSnoozed)
 	defer cancel()
 	if err := client.Start(t.Context()); err != nil {
 		t.Fatal(err)
@@ -210,7 +217,7 @@ func assertNoPersonalData(t *testing.T, logs string) {
 func TestNew_RefusesToStartWithoutTheRetentionPool(t *testing.T) {
 	_, app := pgtest.NewAppDatabase(t)
 
-	if _, err := worker.New(app, nil, slog.New(slog.DiscardHandler)); err == nil {
+	if _, err := worker.New(app, nil, liveKit(t), slog.New(slog.DiscardHandler)); err == nil {
 		t.Fatal("New() error = nil without the retention pool")
 	}
 }

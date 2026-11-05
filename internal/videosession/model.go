@@ -71,3 +71,13 @@ type Join struct {
 	PeerName  string
 	Role      Role
 }
+
+// WindowCloseArgs is the consultation_window_close job on the default queue, scheduled at the join window's
+// close (SPEC.md §2 "The window closes"). Opaque ids only.
+type WindowCloseArgs struct {
+	SessionID      string `json:"session_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (WindowCloseArgs) Kind() string { return "consultation_window_close" }

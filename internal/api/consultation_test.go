@@ -13,11 +13,13 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/consent"
+	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/videosession"
+	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
@@ -61,7 +63,8 @@ func seedConsultation(t testing.TB, owner *pgxpool.Pool, at time.Time) consultat
 
 // realService builds the service as internal/api would, on the salus_app pool app, at the time at, with
 // the provider p.
-func realService(app *pgxpool.Pool, at time.Time, p videosession.Provider) *videosession.Service {
+func realService(tb testing.TB, app *pgxpool.Pool, at time.Time, p videosession.Provider) *videosession.Service {
+	tb.Helper()
 	clk := clock.Fixed{T: at}
 	tx := postgres.NewTransactor(app)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(app), tx, clk)
@@ -76,9 +79,17 @@ func realService(app *pgxpool.Pool, at time.Time, p videosession.Provider) *vide
 	appointments := appointment.NewService(appointment.Ports{
 		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clk, Consents: consents, Patients: patients, Roles: roles,
 	})
+	encounters := encounter.NewService(encounter.Ports{
+		Repo: encounter.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: clk, Appointments: appointments,
+	})
+	jobs, err := worker.NewInserter(app)
+	if err != nil {
+		tb.Fatal(err)
+	}
 	return videosession.NewService(videosession.Ports{
 		Repo: videosession.NewPostgresRepository(app), Provider: p, Audit: audit, Tx: tx, Clock: clk,
 		Appointments: appointments, Patients: patients, Practitioners: practitioners, PublicURL: "ws://localhost:7880",
+		Jobs: videosession.NewRiverJobs(jobs), Encounters: encounters,
 	})
 }
 
@@ -129,7 +140,7 @@ func TestJoin_TwoFirstRequestsAtOnceShareOneSessionAndRoom(t *testing.T) {
 	at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
 	s := seedConsultation(t, owner, at)
 	p := &recordingProvider{}
-	svc := realService(app, at.Add(-5*time.Minute), p)
+	svc := realService(t, app, at.Add(-5*time.Minute), p)
 	pat, pra := callers(s)
 
 	var wg sync.WaitGroup
@@ -151,6 +162,12 @@ func TestJoin_TwoFirstRequestsAtOnceShareOneSessionAndRoom(t *testing.T) {
 	}
 	if len(p.rooms) != 2 || p.rooms[0] != p.rooms[1] {
 		t.Errorf("created rooms %v, want the one room twice", p.rooms)
+	}
+	var jobs int
+	var scheduled time.Time
+	if err := owner.QueryRow(t.Context(), `SELECT count(*), min(scheduled_at) FROM river_job WHERE kind = 'consultation_window_close'`).
+		Scan(&jobs, &scheduled); err != nil || jobs != 1 || !scheduled.Equal(at.Add(time.Hour)) {
+		t.Errorf("%d window-close jobs at %v, %v; want one at the window's close", jobs, scheduled, err)
 	}
 	var events []string
 	rows, err := owner.Query(t.Context(), `SELECT subtype_code || ' ' || entity_reference || ' ' || purpose_code FROM audit_event ORDER BY 1`)
@@ -192,7 +209,7 @@ func BenchmarkJoin(b *testing.B) {
 			at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
 			s := seedConsultation(b, owner, at)
 			p := bc.provider(b)
-			svc := realService(app, at.Add(-5*time.Minute), p)
+			svc := realService(b, app, at.Add(-5*time.Minute), p)
 			pat, _ := callers(s)
 			if _, err := svc.Join(context.Background(), pat, s.appointment); err != nil {
 				b.Fatal(err)

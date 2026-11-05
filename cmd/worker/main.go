@@ -15,6 +15,7 @@ import (
 	_ "time/tzdata" // the clinics' time zones, independent of the runtime image
 
 	"github.com/Shmeeshmee/salus/internal/config"
+	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
@@ -38,9 +39,10 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if err != nil {
 		return err
 	}
-	// Required from the start, like the api (docs/consultation/SPEC.md §2 "Configuration"); the
-	// consultation's jobs take them.
-	if _, err := config.LoadLiveKit(); err != nil {
+	// Required, like the api (docs/consultation/SPEC.md §2 "Configuration"): the consultation's jobs end
+	// rooms.
+	lk, err := config.LoadLiveKit()
+	if err != nil {
 		return err
 	}
 	ret := config.LoadRetention()
@@ -57,7 +59,7 @@ func run(ctx context.Context, logOut io.Writer) error {
 		return err
 	}
 	defer retentionPool.Close()
-	client, err := worker.New(pool, retentionPool, log)
+	client, err := worker.New(pool, retentionPool, videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret), log)
 	if err != nil {
 		return err
 	}

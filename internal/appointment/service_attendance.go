@@ -2,9 +2,11 @@ package appointment
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Shmeeshmee/salus/internal/access"
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 )
 
 // Attendance is an appointment with what the caller is to it, for the consultation (docs/consultation/SPEC.md
@@ -53,4 +55,35 @@ func (s *Service) Attendance(ctx context.Context, c Caller, id string) (Attendan
 		return Attendance{}, ErrNotFound
 	}
 	return out, nil
+}
+
+// Lookup returns the appointment id in the caller's transaction and scope, unaudited, for the consultation's
+// lifecycle (the encounter, which audits its own write). ErrNotFound when the scope does not show it.
+func (s *Service) Lookup(ctx context.Context, id string) (Appointment, error) {
+	a, err := s.Repo.ByID(ctx, id)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return Appointment{}, fmt.Errorf("appointment: lookup: %w", err)
+	}
+	return a, err
+}
+
+// RecordConsultationOutcome records the end of the appointment's consultation (docs/consultation/SPEC.md §2
+// "Outcome"), a system method of the agent in the caller's transaction and scope: a booked appointment
+// becomes fulfilled when the patient joined, else noshow, audited as an update by the agent. Any other status
+// is left as it is (a practitioner who marked it by hand wins, a cancellation stays), and nothing is audited.
+func (s *Service) RecordConsultationOutcome(ctx context.Context, agent, id string, patientJoined bool) error {
+	status := StatusNoShow
+	if patientJoined {
+		status = StatusFulfilled
+	}
+	return s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		a, err := s.Repo.SetStatus(ctx, id, status, s.Clock.Now())
+		switch {
+		case errors.Is(err, ErrClosed):
+			return nil
+		case err != nil:
+			return fmt.Errorf("appointment: record consultation outcome: %w", err)
+		}
+		return s.recordJob(ctx, agent, a.OrganizationID, auditevent.CodeUpdate, "Appointment", a.ID, auditevent.OutcomeSuccess)
+	})
 }

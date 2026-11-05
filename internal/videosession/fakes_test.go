@@ -3,6 +3,7 @@ package videosession_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -56,11 +57,12 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 	if ctx.Value(txKey{}) != nil {
 		return fn(ctx)
 	}
-	events, sessions := len(t.f.audit.events), clone(t.f.repo.sessions)
+	events, sessions, jobs, finished := len(t.f.audit.events), clone(t.f.repo.sessions), len(t.f.jobs.enqueued), len(t.f.encounters.finished)
 	t.f.repo.patient, t.f.repo.clinic = "", ""
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
 		t.f.audit.events, t.f.repo.sessions = t.f.audit.events[:events], sessions
+		t.f.jobs.enqueued, t.f.encounters.finished = t.f.jobs.enqueued[:jobs], t.f.encounters.finished[:finished]
 	}
 	return err
 }
@@ -96,6 +98,7 @@ func (a *fakeAppointments) Attendance(ctx context.Context, c appointment.Caller,
 // fakeRepository holds the sessions by appointment, as Open stores them.
 type fakeRepository struct {
 	err      error
+	endErr   error
 	sessions map[string]videosession.Session
 	patient  string // set by SetPatient
 	clinic   string // set by SetClinic
@@ -113,34 +116,73 @@ func (r *fakeRepository) SetClinic(_ context.Context, id string) error {
 	return nil
 }
 
-func (r *fakeRepository) Open(ctx context.Context, s videosession.Session) (videosession.Session, error) {
+func (r *fakeRepository) Open(ctx context.Context, s videosession.Session) (videosession.Session, bool, error) {
 	if ctx.Value(txKey{}) == nil {
-		return videosession.Session{}, errors.New("Open outside a transaction")
+		return videosession.Session{}, false, errors.New("Open outside a transaction")
 	}
 	if r.err != nil {
-		return videosession.Session{}, r.err
+		return videosession.Session{}, false, r.err
 	}
 	r.opened = append(r.opened, s)
 	if got, ok := r.sessions[s.AppointmentID]; ok {
-		return got, nil
+		return got, false, nil
 	}
 	r.next++
 	s.ID = "5e000000-0000-4000-8000-00000000000" + string(rune('0'+r.next))
 	r.sessions[s.AppointmentID] = s
-	return s, nil
+	return s, true, nil
+}
+
+// ByID gives the session in the clinic's scope.
+func (r *fakeRepository) ByID(ctx context.Context, id string) (videosession.Session, error) {
+	if ctx.Value(txKey{}) == nil {
+		return videosession.Session{}, errors.New("ByID outside a transaction")
+	}
+	if r.err != nil {
+		return videosession.Session{}, r.err
+	}
+	for _, s := range r.sessions {
+		if s.ID == id && r.clinic != "" && s.OrganizationID == r.clinic {
+			return s, nil
+		}
+	}
+	return videosession.Session{}, videosession.ErrNotFound
+}
+
+func (r *fakeRepository) End(ctx context.Context, id string, reason videosession.EndReason, at time.Time) (videosession.Session, bool, error) {
+	if ctx.Value(txKey{}) == nil {
+		return videosession.Session{}, false, errors.New("End outside a transaction")
+	}
+	if r.endErr != nil {
+		return videosession.Session{}, false, r.endErr
+	}
+	for k, s := range r.sessions {
+		if s.ID == id && s.OrganizationID == r.clinic && s.EndedAt.IsZero() {
+			s.EndedAt, s.EndReason = at, reason
+			r.sessions[k] = s
+			return s, true, nil
+		}
+	}
+	return videosession.Session{}, false, nil
 }
 
 func (r *fakeRepository) DeleteEndedBefore(context.Context, time.Time) (int64, error) {
 	return 0, errors.New("not used by the service")
 }
 
-// fakeProvider records the rooms created and the grants signed; its token is "token:<identity>".
+// fakeProvider records the rooms created and deleted and the grants signed; its token is
+// "token:<identity>"; the participants of every room are in.
 type fakeProvider struct {
-	err      error
-	tokenErr error
-	rooms    []videosession.Room
-	grants   []videosession.Grant
-	inTx     bool // a call was made inside a transaction
+	err       error
+	tokenErr  error
+	deleteErr error
+	listErr   error
+	rooms     []videosession.Room
+	grants    []videosession.Grant
+	deleted   []string
+	listed    []string
+	in        []string
+	inTx      bool // a call was made inside a transaction
 }
 
 func (p *fakeProvider) CreateRoom(ctx context.Context, r videosession.Room) error {
@@ -158,12 +200,51 @@ func (p *fakeProvider) RemoveParticipant(context.Context, string, string) error 
 	return errors.New("not used by Join")
 }
 
-func (p *fakeProvider) DeleteRoom(context.Context, string) error {
-	return errors.New("not used by Join")
+func (p *fakeProvider) DeleteRoom(ctx context.Context, room string) error {
+	p.inTx = p.inTx || ctx.Value(txKey{}) != nil
+	p.deleted = append(p.deleted, room)
+	return p.deleteErr
 }
 
-func (p *fakeProvider) Participants(context.Context, string) ([]string, error) {
-	return nil, errors.New("not used by Join")
+func (p *fakeProvider) Participants(ctx context.Context, room string) ([]string, error) {
+	p.inTx = p.inTx || ctx.Value(txKey{}) != nil
+	p.listed = append(p.listed, room)
+	return p.in, p.listErr
+}
+
+// fakeJobs records the window-close jobs enqueued in a transaction.
+type fakeJobs struct {
+	err      error
+	enqueued []string
+}
+
+func (j *fakeJobs) EnqueueWindowClose(ctx context.Context, sessionID, org string, at time.Time) error {
+	if ctx.Value(txKey{}) == nil {
+		return errors.New("EnqueueWindowClose outside a transaction")
+	}
+	if j.err != nil {
+		return j.err
+	}
+	j.enqueued = append(j.enqueued, sessionID+" "+org+" "+at.Format(time.RFC3339))
+	return nil
+}
+
+// fakeEncounters records the encounters finished in a transaction, in the clinic's scope.
+type fakeEncounters struct {
+	err      error
+	repo     *fakeRepository
+	finished []string
+}
+
+func (e *fakeEncounters) Finish(ctx context.Context, agent, appointmentID string, at time.Time, patientJoined bool) error {
+	if ctx.Value(txKey{}) == nil {
+		return errors.New("Finish outside a transaction")
+	}
+	if e.err != nil {
+		return e.err
+	}
+	e.finished = append(e.finished, fmt.Sprintf("%s %s %s in %s, patient joined %t", agent, appointmentID, at.Format(time.RFC3339), e.repo.clinic, patientJoined))
+	return nil
 }
 
 // fakePatients gives patient A's profile in a transaction.
@@ -224,6 +305,8 @@ func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
 type fixture struct {
+	jobs          *fakeJobs
+	encounters    *fakeEncounters
 	appts         *fakeAppointments
 	repo          *fakeRepository
 	provider      *fakeProvider
@@ -253,10 +336,13 @@ func newFixture(at time.Time) *fixture {
 		}},
 		repo:     &fakeRepository{sessions: map[string]videosession.Session{}},
 		provider: &fakeProvider{}, patients: &fakePatients{}, practitioners: &fakePractitioners{}, audit: &fakeAuditor{},
+		jobs: &fakeJobs{},
 	}
+	f.encounters = &fakeEncounters{repo: f.repo}
 	f.svc = videosession.NewService(videosession.Ports{
 		Repo: f.repo, Provider: f.provider, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: at},
 		Appointments: f.appts, Patients: f.patients, Practitioners: f.practitioners, PublicURL: publicURL,
+		Jobs: f.jobs, Encounters: f.encounters,
 	})
 	return f
 }

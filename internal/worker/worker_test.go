@@ -33,7 +33,7 @@ func TestNoop_RunsAsTheAppRole(t *testing.T) {
 
 func runNoop(t *testing.T, pool, retention *pgxpool.Pool) {
 	t.Helper()
-	client, err := worker.New(pool, retention, slog.New(slog.DiscardHandler))
+	client, err := worker.New(pool, retention, liveKit(t), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

@@ -1,12 +1,14 @@
 package appointment_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 )
 
 // Attendance gives the consultation (videosession) the appointment with the caller's access facts, in the
@@ -72,5 +74,88 @@ func TestAttendance_FailsWithTheBackend(t *testing.T) {
 	f.consents.err = errBackend
 	if _, err := f.svc.Attendance(t.Context(), me, apptA); !errors.Is(err, errBackend) {
 		t.Errorf("Attendance() = %v, want the consent's error", err)
+	}
+}
+
+// inClinic runs fn in a transaction scoped to the clinic, as the consultation's paths are (the webhook, the
+// consultation's jobs).
+func inClinic(t *testing.T, f *fixture, org string, fn func(ctx context.Context) error) error {
+	t.Helper()
+	return fakeTransactor{f: f}.WithTx(t.Context(), func(ctx context.Context) error {
+		if err := f.repo.SetClinic(ctx, org); err != nil {
+			return err
+		}
+		return fn(ctx)
+	})
+}
+
+// Lookup gives the consultation's lifecycle the appointment in the caller's transaction and scope,
+// unaudited: the encounter audits its own write.
+func TestLookup_GivesTheAppointmentInTheCallersScopeUnaudited(t *testing.T) {
+	f := cancelFixture(start)
+	var got appointment.Appointment
+	err := inClinic(t, f, clinicA, func(ctx context.Context) error {
+		var err error
+		got, err = f.svc.Lookup(ctx, apptA)
+		return err
+	})
+	if err != nil || got != f.repo.appts[0] {
+		t.Errorf("Lookup() = %+v, %v; want appointment A", got, err)
+	}
+	err = inClinic(t, f, clinicB, func(ctx context.Context) error {
+		_, err := f.svc.Lookup(ctx, apptA)
+		return err
+	})
+	if !errors.Is(err, appointment.ErrNotFound) {
+		t.Errorf("Lookup() in clinic B = %v, want ErrNotFound", err)
+	}
+	if len(f.audit.events) != 0 {
+		t.Errorf("audited %v, want nothing", f.audit.events)
+	}
+}
+
+// The consultation's outcome: a booked appointment becomes fulfilled when the patient joined and noshow when
+// they did not, audited as an update by the agent in the appointment's clinic.
+func TestRecordConsultationOutcome_MarksABookedAppointmentByWhetherThePatientJoined(t *testing.T) {
+	for _, tt := range []struct {
+		want   appointment.Status
+		joined bool
+	}{{appointment.StatusFulfilled, true}, {appointment.StatusNoShow, false}} {
+		f := cancelFixture(now.Add(-time.Hour))
+		err := inClinic(t, f, clinicA, func(ctx context.Context) error {
+			return f.svc.RecordConsultationOutcome(ctx, "consultation_window_close", apptA, tt.joined)
+		})
+		if got := f.repo.appts[0]; err != nil || got.Status != tt.want || !got.LastUpdated.Equal(now) || got.VersionID != 2 {
+			t.Errorf("joined %t: RecordConsultationOutcome() = %v, appointment %+v; want %s now at version 2", tt.joined, err, got, tt.want)
+		}
+		checkEvents(t, "RecordConsultationOutcome", f.audit, jobEvent("consultation_window_close", clinicA, auditevent.CodeUpdate, "Appointment", apptA))
+	}
+}
+
+// A practitioner who marked it by hand wins, and a cancellation stays a cancellation: nothing changes and
+// nothing is audited.
+func TestRecordConsultationOutcome_LeavesAnyOtherStatus(t *testing.T) {
+	for _, status := range []appointment.Status{appointment.StatusFulfilled, appointment.StatusNoShow, appointment.StatusCancelled} {
+		f := cancelFixture(now.Add(-time.Hour))
+		f.repo.appts[0].Status = status
+		before := f.repo.appts[0]
+		err := inClinic(t, f, clinicA, func(ctx context.Context) error {
+			return f.svc.RecordConsultationOutcome(ctx, "consultation_window_close", apptA, false)
+		})
+		if err != nil || f.repo.appts[0] != before {
+			t.Errorf("%s: RecordConsultationOutcome() = %v, appointment %+v; want it unchanged", status, err, f.repo.appts[0])
+		}
+		checkEvents(t, string(status), f.audit)
+	}
+}
+
+func TestRecordConsultationOutcome_FailsWithTheBackend(t *testing.T) {
+	f := cancelFixture(now.Add(-time.Hour))
+	f.repo.err = errBackend
+	err := inClinic(t, f, clinicA, func(ctx context.Context) error {
+		return f.svc.RecordConsultationOutcome(ctx, "consultation_window_close", apptA, true)
+	})
+	if !errors.Is(err, errBackend) {
+		t.Errorf("RecordConsultationOutcome() = %v, want the repository's error", err)
 	}
 }

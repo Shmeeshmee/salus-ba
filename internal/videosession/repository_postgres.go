@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Shmeeshmee/salus/internal/videosession/videosessiondb"
@@ -33,23 +34,55 @@ func (r *postgresRepository) SetClinic(ctx context.Context, id string) error {
 	return postgres.SetLocal(ctx, "app.organization_id", id)
 }
 
-func (r *postgresRepository) Open(ctx context.Context, s Session) (Session, error) {
+func (r *postgresRepository) Open(ctx context.Context, s Session) (Session, bool, error) {
 	var appt, org pgtype.UUID
 	if appt.Scan(s.AppointmentID) != nil || org.Scan(s.OrganizationID) != nil {
-		return Session{}, errors.New("videosession: an id is not a UUID")
+		return Session{}, false, errors.New("videosession: an id is not a UUID")
 	}
-	err := r.q(ctx).CreateSession(ctx, videosessiondb.CreateSessionParams{
+	n, err := r.q(ctx).CreateSession(ctx, videosessiondb.CreateSessionParams{
 		AppointmentID: appt, OrganizationID: org, Room: s.Room, PatientIdentity: s.PatientIdentity,
 		PractitionerIdentity: s.PractitionerIdentity, ClosesAt: ts(s.ClosesAt), CreatedAt: ts(s.CreatedAt),
 	})
 	if err != nil {
-		return Session{}, err
+		return Session{}, false, err
 	}
 	row, err := r.q(ctx).SessionByAppointment(ctx, appt)
 	if err != nil {
+		return Session{}, false, err
+	}
+	return toSession(row), n == 1, nil
+}
+
+func (r *postgresRepository) ByID(ctx context.Context, id string) (Session, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Session{}, ErrNotFound
+	}
+	row, err := r.q(ctx).SessionByID(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Session{}, ErrNotFound
+	case err != nil:
 		return Session{}, err
 	}
 	return toSession(row), nil
+}
+
+func (r *postgresRepository) End(ctx context.Context, id string, reason EndReason, at time.Time) (Session, bool, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Session{}, false, nil
+	}
+	row, err := r.q(ctx).EndSession(ctx, videosessiondb.EndSessionParams{
+		ID: u, At: ts(at), Reason: pgtype.Text{String: string(reason), Valid: true},
+	})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Session{}, false, nil
+	case err != nil:
+		return Session{}, false, err
+	}
+	return toSession(row), true, nil
 }
 
 func (r *postgresRepository) DeleteEndedBefore(ctx context.Context, before time.Time) (int64, error) {

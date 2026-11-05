@@ -2,6 +2,8 @@ package videosession_test
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -67,10 +69,104 @@ func open(t *testing.T, app *pgxpool.Pool, s seeded, sess videosession.Session) 
 			return err
 		}
 		var err error
-		out, err = repo.Open(ctx, sess)
+		out, _, err = repo.Open(ctx, sess)
 		return err
 	})
 	return out, err
+}
+
+// inClinic runs fn on the repository in a transaction of its own in the clinic's scope.
+func inClinic(t *testing.T, app *pgxpool.Pool, clinic string, fn func(ctx context.Context, r videosession.Repository) error) error {
+	t.Helper()
+	repo := videosession.NewPostgresRepository(app)
+	return postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+		if err := repo.SetClinic(ctx, clinic); err != nil {
+			return err
+		}
+		return fn(ctx, repo)
+	})
+}
+
+// Open says whether it created the session: the first request enqueues the window's close, a later one does
+// not.
+func TestOpen_SaysWhetherItCreatedTheSession(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
+	s := seedDB(t, owner, at)
+	var created []bool
+	for _, room := range []string{"r_first", "r_second"} {
+		err := inClinic(t, app, s.clinic, func(ctx context.Context, r videosession.Repository) error {
+			_, c, err := r.Open(ctx, session(s, room, at))
+			created = append(created, c)
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !slices.Equal(created, []bool{true, false}) {
+		t.Errorf("created %v, want the first only", created)
+	}
+}
+
+// End ends a session once with its reason, in the clinic's scope; a second End changes nothing. ByID reads it
+// in the scope.
+func TestEnd_EndsASessionOnceAndByIDReadsIt(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
+	s := seedDB(t, owner, at)
+	opened, err := open(t, app, s, session(s, "r_end", at))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ended := at.Add(40 * time.Minute)
+	end := func(reason videosession.EndReason, when time.Time) (videosession.Session, bool, error) {
+		var out videosession.Session
+		var changed bool
+		err := inClinic(t, app, s.clinic, func(ctx context.Context, r videosession.Repository) error {
+			var err error
+			out, changed, err = r.End(ctx, opened.ID, reason, when)
+			return err
+		})
+		return out, changed, err
+	}
+	got, changed, err := end(videosession.EndWindowClosed, ended)
+	if err != nil || !changed || got.ID != opened.ID || !got.EndedAt.Equal(ended) || got.EndReason != videosession.EndWindowClosed || got.Room != "r_end" {
+		t.Fatalf("End() = %+v, %t, %v; want the session ended, window_closed", got, changed, err)
+	}
+	if again, changed, err := end(videosession.EndTimeLimit, ended.Add(time.Hour)); err != nil || changed || again != (videosession.Session{}) {
+		t.Errorf("End() again = %+v, %t, %v; want no change", again, changed, err)
+	}
+	for _, tt := range []struct {
+		want             error
+		name, clinic, id string
+	}{
+		{name: "the clinic", clinic: s.clinic, id: opened.ID},
+		{name: "another clinic", clinic: "b0000000-0000-4000-8000-00000000000b", id: opened.ID, want: videosession.ErrNotFound},
+		{name: "not a UUID", clinic: s.clinic, id: "x", want: videosession.ErrNotFound},
+	} {
+		var read videosession.Session
+		err := inClinic(t, app, tt.clinic, func(ctx context.Context, r videosession.Repository) error {
+			var err error
+			read, err = r.ByID(ctx, tt.id)
+			return err
+		})
+		if !errors.Is(err, tt.want) || (tt.want == nil && read != got) {
+			t.Errorf("%s: ByID() = %+v, %v; want %v", tt.name, read, err, tt.want)
+		}
+	}
+	err = inClinic(t, app, s.clinic, func(ctx context.Context, r videosession.Repository) error {
+		_, changed, err := r.End(ctx, "x", videosession.EndTimeLimit, ended)
+		if changed {
+			t.Error("End() with an id that is not a UUID changed a session")
+		}
+		return err
+	})
+	if err != nil {
+		t.Errorf("End() with an id that is not a UUID = %v, want no change", err)
+	}
 }
 
 func TestOpen_StoresTheFirstSessionAndReturnsItAfterwards(t *testing.T) {
@@ -139,7 +235,7 @@ func TestOpen_InTheClinicsScopeGivesTheEndedSession(t *testing.T) {
 			return err
 		}
 		var err error
-		got, err = repo.Open(ctx, session(s, "r_other", at))
+		got, _, err = repo.Open(ctx, session(s, "r_other", at))
 		return err
 	})
 	if err != nil || got.Room != "r_ended" || !got.EndedAt.Equal(ended) || got.EndReason != videosession.EndPractitioner ||

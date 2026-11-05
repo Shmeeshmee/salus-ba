@@ -594,3 +594,38 @@ legal decision before production.**
 | LiveKit (or its logs) learns who is in a call | Random room and identities, no name, metadata or attributes in the token or the room (tested); JSON logs at info |
 | Someone else joins the call | The token grants one room, for 5 minutes, to the patient's or the practitioner's fixed identity; `max_participants` 2; a repeated identity replaces the earlier connection (tested); `room.auto_create` off, so a token cannot create a room (tested) |
 | A join without consent or outside the window | Checked in the service before any session or token; refusals audited (tested) |
+
+### Package 2: encounter
+
+**Processing added.** The FHIR `Encounter` of a consultation (`encounter` table): the appointment, the clinic,
+the patient and the practitioner role (references copied once from the appointment when it starts, never
+changed), the status (`in-progress`, `finished`) and the period. It holds no clinical content, only that a
+consultation took place and when. It is started when the practitioner first joins (the webhook, package 3)
+and finished when the consultation ends; a finished encounter never changes. Finishing it records the
+appointment's outcome: a `booked` appointment becomes `fulfilled` when the patient joined, else `noshow`; a
+status set by hand or a cancellation is kept. The `consultation_window_close` job (session and clinic ids
+only) ends a session at the window's close when the room is empty, when the practitioner never joined
+(`practitioner_absent`: no encounter, the appointment stays `booked`, `patient_joined_at` is kept), or at the
+hard cap 2 hours after the scheduled end whoever is in the room (`time_limit`), and then deletes the room.
+
+**Purpose and lawful basis.** The care record that the consultation happened (Art. 9(2)(h)), as for the
+appointment. **Needs legal confirmation before production.**
+
+**Access.** Row-level security on `encounter` as on `video_session`, without a webhook scope: the patient
+reads their own and never writes; a clinic reads and writes those of its appointments with an active consent
+or, after a revocation, of those that started before it. `salus_app` cannot delete an encounter or change
+whose it is or when it started (tested). Reads follow `access.Appointment` (name level or more); a
+practitioner searches only their own role's. Every read, every returned resource and every lifecycle write
+(the start, the finish, the session's end, the appointment's outcome) writes an `AuditEvent`; the job's
+writes have the agent `consultation_window_close`, purpose `HOPERAT`. The job's check of an occupied room
+(once a minute) reads only the session's own row and writes nothing, so it is not audited.
+
+**Retention.** `encounter`: `keep`, with the clinical record. **Needs a legal decision before production.**
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A call left open indefinitely | The hard cap ends and deletes the room 2 hours after the scheduled end, whoever is in it (tested at the cap ± 1 s) |
+| The job's log reveals who was in a call | It logs the session id and the snooze only; tested to hold no name, e-mail, room or identity |
+| A no-show recorded against a patient because the practitioner never came | No encounter and no outcome when the practitioner never joined; the appointment stays `booked` for the clinic (tested) |
