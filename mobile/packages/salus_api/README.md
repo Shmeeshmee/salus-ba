@@ -83,6 +83,10 @@ Class | Method | HTTP request | Description
 *ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic
 *ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
 *ConsentsApi* | [**revokeConsent**](doc//ConsentsApi.md#revokeconsent) | **POST** /consents/{id}/revoke | Revoke a consent
+*ConsultationApi* | [**endConsultation**](doc//ConsultationApi.md#endconsultation) | **POST** /appointments/{id}/consultation/end | End an appointment's video consultation
+*ConsultationApi* | [**getConsultation**](doc//ConsultationApi.md#getconsultation) | **GET** /appointments/{id}/consultation | Where an appointment's video consultation stands
+*ConsultationApi* | [**joinConsultation**](doc//ConsultationApi.md#joinconsultation) | **POST** /appointments/{id}/consultation/join | A token to join an appointment's video consultation
+*ConsultationApi* | [**receiveLiveKitWebhook**](doc//ConsultationApi.md#receivelivekitwebhook) | **POST** /webhooks/livekit | LiveKit's webhook
 *DirectoryApi* | [**listSpecialties**](doc//DirectoryApi.md#listspecialties) | **GET** /specialties | List the specialties a role can have
 *DirectoryApi* | [**setPractitionerRoleSpecialty**](doc//DirectoryApi.md#setpractitionerrolespecialty) | **PUT** /practitioner-roles/{id}/specialty | Set a practitioner role's specialty
 *HealthApi* | [**getHealth**](doc//HealthApi.md#gethealth) | **GET** /healthz | Liveness
@@ -108,6 +112,8 @@ Class | Method | HTTP request | Description
  - [ConfirmRequest](doc//ConfirmRequest.md)
  - [Consent](doc//Consent.md)
  - [ConsentList](doc//ConsentList.md)
+ - [ConsultationJoin](doc//ConsultationJoin.md)
+ - [ConsultationStatus](doc//ConsultationStatus.md)
  - [EnrolRequest](doc//EnrolRequest.md)
  - [Enrolment](doc//Enrolment.md)
  - [Error](doc//Error.md)
@@ -115,6 +121,7 @@ Class | Method | HTTP request | Description
  - [Invite](doc//Invite.md)
  - [InviteList](doc//InviteList.md)
  - [InviteRequest](doc//InviteRequest.md)
+ - [LiveKitWebhookEvent](doc//LiveKitWebhookEvent.md)
  - [LoginRequest](doc//LoginRequest.md)
  - [LoginResponse](doc//LoginResponse.md)
  - [Patient](doc//Patient.md)
@@ -144,6 +151,12 @@ Authentication schemes defined for the API:
 ### bearerAuth
 
 - **Type**: HTTP Bearer authentication
+
+### livekitWebhook
+
+- **Type**: API key
+- **API key parameter name**: Authorization
+- **Location**: HTTP header
 
 
 ## Author

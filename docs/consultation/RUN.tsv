@@ -1,0 +1,13 @@
+# prefix: consultation
+# title: Video consultations
+# base: main
+1		videosession
+2		encounter
+3		Webhooks
+4		API
+5		Revocation and cancellation during a call
+5.1		Owner changes after package 5
+6		Web
+7		Mobile
+7.1		Owner changes after package 6
+8		End-to-end

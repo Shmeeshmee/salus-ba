@@ -27,6 +27,7 @@ const (
 	CodeUpdate               = "update"
 	CodeSearchType           = "search-type"
 	CodeDelete               = "delete"
+	CodeOperation            = "operation" // an operation that is no CRUD interaction (docs/consultation: the join)
 
 	SystemActReason = "http://terminology.hl7.org/CodeSystem/v3-ActReason"
 	CodeHOPERAT     = "HOPERAT" // purposeOfEvent: healthcare operations

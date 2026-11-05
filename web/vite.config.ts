@@ -15,8 +15,8 @@ export default defineConfig({
       '/auth': apiUrl,
       '/invites': apiUrl,
       '/practitioner-roles': apiUrl,
-      // Only the JSON actions: /appointments/<id> itself is a screen of the app.
-      '^/appointments/[^/]+/(cancel|status)$': apiUrl,
+      // Only the JSON actions: /appointments/<id> and /appointments/<id>/call are screens of the app.
+      '^/appointments/[^/]+/(cancel|status|consultation(/join|/end)?)$': apiUrl,
       '/specialties': apiUrl,
       '/fhir': apiUrl,
     },

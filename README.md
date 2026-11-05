@@ -56,3 +56,18 @@ it the link goes to a placeholder (`https://salus.invalid/privacy`) until the no
 Use your `SALUS_API_PORT` if you moved it. Android debug builds allow plain HTTP to the local API; on iOS,
 add an App Transport Security exception for local networking in your local `Info.plist` and do not commit it.
 This is a manual step and not part of any check.
+
+Video consultations: the app connects to the LiveKit URL the join endpoint returns, which is
+`LIVEKIT_PUBLIC_URL`, `ws://localhost:7880` in compose. The iOS simulator shares the host's network, so that URL
+works as it is. The Android emulator's `localhost` is the emulator itself: forward the LiveKit ports to the host
+before joining, and the same URL reaches the compose LiveKit (media then runs over ICE-TCP on 7881, as `adb`
+forwards TCP only):
+
+    adb reverse tcp:7880 tcp:7880   # LiveKit signalling, ws://localhost:7880
+    adb reverse tcp:7881 tcp:7881   # LiveKit media over TCP
+
+The same two commands work for an Android phone on USB. With them in place you can also run the app against
+`API_BASE_URL=http://localhost:8080` after `adb reverse tcp:8080 tcp:8080`. An iPhone or a phone on Wi-Fi
+needs LiveKit reachable on the network (its `node_ip`, docs/consultation/SPEC.md §8), which the local stack does
+not set up. The emulator's camera and microphone are the host's or simulated ones; the app asks for both on the
+device check.

@@ -13,6 +13,7 @@ tables:
   appointment: {owner: appointment, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
   consent: {owner: consent, personal_data: true}
+  encounter: {owner: encounter, personal_data: true}
   invite: {owner: auth, personal_data: true}
   organization: {owner: organization, personal_data: false}
   patient: {owner: patient, personal_data: true}
@@ -21,6 +22,7 @@ tables:
   schedule: {owner: schedule, personal_data: true}
   session: {owner: auth, personal_data: true}
   slot: {owner: slot, personal_data: true}
+  video_session: {owner: videosession, personal_data: true}
   river_job: {owner: river}
   river_leader: {owner: river}
   river_queue: {owner: river}

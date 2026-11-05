@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:salus_api/api.dart';
 
 import 'booking.dart';
+import 'call.dart';
 import 'home_screen.dart';
 import 'messages.dart';
 import 'privacy_notice.dart';
@@ -19,6 +20,7 @@ class SalusApp extends StatefulWidget {
     required this.session,
     required this.booking,
     required this.now,
+    required this.media,
     required this.privacyNoticeUrl,
     required this.openUrl,
   });
@@ -28,6 +30,9 @@ class SalusApp extends StatefulWidget {
 
   /// The clock, injected so tests fix it.
   final DateTime Function() now;
+
+  /// The camera, the microphone and LiveKit, for the video consultation.
+  final Media media;
 
   /// The privacy notice (PRIVACY_NOTICE_URL), and how a link is opened outside the app; injected so tests see it.
   final Uri privacyNoticeUrl;
@@ -115,6 +120,7 @@ class _SalusAppState extends State<SalusApp> {
         session: session,
         booking: widget.booking,
         now: widget.now,
+        media: widget.media,
         account: _account!,
         onSignedOut: () => _show(_Screen.signIn),
       ),

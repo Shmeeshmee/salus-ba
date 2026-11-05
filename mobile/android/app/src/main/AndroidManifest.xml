@@ -1,4 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Video consultations (docs/consultation/PROGRESS.md, package 7): the camera and the microphone, asked for at
+         run time after the app's explanation (M35); the audio route for the call; and the network state LiveKit
+         watches to reconnect. No camera is required: a patient can join with audio only. Bluetooth headsets on
+         Android 12 and later would need BLUETOOTH_CONNECT, a run-time prompt with no approved text; it is not
+         declared. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
     <application
         android:label="salus"
         android:name="${applicationName}"

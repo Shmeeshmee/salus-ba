@@ -1,0 +1,9 @@
+{
+  "name": "salus-e2e-web",
+  "private": true,
+  "type": "module",
+  "description": "The web journey of make e2e (docs/consultation, package 8), started by test/e2e/consultation_test.go",
+  "devDependencies": {
+    "@playwright/test": "1.55.0"
+  }
+}

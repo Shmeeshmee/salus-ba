@@ -26,6 +26,10 @@ Future<Harness> atAppointments(WidgetTester tester, {Map<String, Object?>? found
 
 Finder cancelButtons() => find.widgetWithText(OutlinedButton, 'Cancel appointment');
 
+Finder joinButtons() => find.widgetWithText(FilledButton, 'Join consultation');
+
+const joinHint = 'You can join from 10 minutes before the start.';
+
 void main() {
   testWidgets("lists the patient's appointments in the clinic's zone, upcoming first", (tester) async {
     final h = await atAppointments(tester);
@@ -112,5 +116,39 @@ void main() {
 
     expect(find.text('You have no appointments yet.'), findsOneWidget);
     expect(h.api.calls, isNot(contains('GET /fhir/R4/Appointment')));
+  });
+
+  testWidgets('Join shows from 10 minutes before the start until 30 minutes after the end, when booked', (
+    tester,
+  ) async {
+    await atAppointments(
+      tester,
+      found: bundle([
+        appointment('closed', '2026-11-04T08:00:00Z', '2026-11-04T08:30:00Z'), // closed at 09:00:00
+        appointment('closing', '2026-11-04T08:00:00Z', '2026-11-04T08:30:01Z'), // closes in 1 s
+        appointment('opens', '2026-11-04T09:10:00Z', '2026-11-04T09:40:00Z'), // opened now
+        appointment('soon', '2026-11-04T09:10:01Z', '2026-11-04T09:40:01Z'), // opens in 1 s
+        appointment('gone', '2026-11-04T09:05:00Z', '2026-11-04T09:35:00Z', status: 'cancelled'),
+        appointment('done', '2026-11-04T08:40:00Z', '2026-11-04T08:50:00Z', status: 'fulfilled'),
+      ]),
+    );
+
+    expect(joinButtons(), findsNWidgets(2));
+    expect(find.text(joinHint), findsOneWidget, reason: 'only the booked appointment whose window opens later');
+  });
+
+  testWidgets('Join appears when the window opens while the list is open', (tester) async {
+    final h = await atAppointments(
+      tester,
+      found: bundle([appointment('soon', '2026-11-04T09:10:10Z', '2026-11-04T09:40:10Z')]),
+    );
+    expect(joinButtons(), findsNothing);
+    expect(find.text(joinHint), findsOneWidget);
+
+    h.now = h.now.add(const Duration(seconds: 15));
+    await tester.pump(const Duration(seconds: 15));
+
+    expect(joinButtons(), findsOneWidget);
+    expect(find.text(joinHint), findsNothing);
   });
 }

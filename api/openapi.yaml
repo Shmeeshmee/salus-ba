@@ -996,6 +996,175 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /appointments/{id}/consultation:
+    get:
+      operationId: getConsultation
+      summary: Where an appointment's video consultation stands
+      description: >-
+        The state of the consultation (`not_started` before anyone asked for a token, `open` while its room
+        exists, `ended`), when the patient and the practitioner first joined, when and why it ended, and why the
+        patient was removed. For the appointment's patient, its practitioner and the clinic's admin, as they may
+        see the appointment (after a revocation, a past one too); and for its practitioner once they joined the
+        room, also after a revocation hid the appointment from the clinic. The clients read `reason` when the
+        other side leaves or the room closes. Not cached. Audited as a read of the appointment, also when
+        refused.
+      tags: [consultation]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AppointmentID"
+      responses:
+        "200":
+          description: The consultation's state.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ConsultationStatus"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such appointment the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /appointments/{id}/consultation/join:
+    post:
+      operationId: joinConsultation
+      summary: A token to join an appointment's video consultation
+      description: >-
+        A LiveKit join token for the appointment's room, to its patient or to its practitioner only, while the
+        appointment is booked, the patient's consent with the clinic is active, and the join window is open
+        (10 minutes before the start to 30 minutes after the end). The token grants that one room, camera and
+        microphone, for 5 minutes. The first request creates the room. `peerName` is the other person's name:
+        the practitioner's public name for the patient, the patient's name for the practitioner (a read of the
+        patient, audited). Not cached. Audited, also when refused.
+      tags: [consultation]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/AppointmentID"
+      responses:
+        "200":
+          description: The token and what the client needs with it.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ConsultationJoin"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          $ref: "#/components/responses/CSRF"
+        "404":
+          description: >-
+            `not_found`: no such appointment, or the caller is not its patient or its practitioner (the clinic's
+            admin included).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: >-
+            `consent_required`: the patient's consent with the clinic is not active; `join_window_not_open`: more
+            than 10 minutes before the start; `consultation_ended`: the consultation ended, the window closed, or
+            the appointment is no longer booked; `practitioner_did_not_join`: the consultation ended because the
+            practitioner never joined.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /appointments/{id}/consultation/end:
+    post:
+      operationId: endConsultation
+      summary: End an appointment's video consultation
+      description: >-
+        The appointment's practitioner ends the consultation once they joined (also after the patient revoked
+        the consent): the room is closed for both, the Encounter finishes and the appointment becomes
+        `fulfilled`, or `noshow` if the patient never joined (unless it was marked by hand). Repeated, it
+        answers 200 again. Not cached. Audited, also when refused.
+      tags: [consultation]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/AppointmentID"
+      responses:
+        "200":
+          description: The ended consultation.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ConsultationStatus"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          $ref: "#/components/responses/CSRF"
+        "404":
+          description: "`not_found`: no such appointment, or the caller is not its practitioner."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`consultation_not_started`: the practitioner has not joined the consultation."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /webhooks/livekit:
+    post:
+      operationId: receiveLiveKitWebhook
+      summary: LiveKit's webhook
+      description: >-
+        Called only by our LiveKit server, never by the clients. No session and no CSRF header: the
+        `Authorization` header is LiveKit's JWT, signed with the API key pair and carrying the body's SHA-256,
+        verified before the body is read. The body is read up to 64 KiB. Handled idempotently and in any
+        order: a participant's join is recorded (the practitioner's first one starts the Encounter; a patient
+        whose access has gone is removed from the room), and once the join window has closed the last one
+        leaving ends the consultation. Every other event, and one for a room we do not know, has no effect.
+      tags: [consultation]
+      security:
+        - livekitWebhook: []
+      requestBody:
+        required: true
+        content:
+          application/webhook+json:
+            schema: {$ref: "#/components/schemas/LiveKitWebhookEvent"}
+      responses:
+        "200":
+          description: Handled, also when it had no effect.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WebhookReceived"}
+        "400":
+          description: "`invalid_request`: a body over 64 KiB."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: a missing, expired or wrong signature, or one for another body."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   parameters:
     CSRF:
@@ -1009,6 +1178,13 @@ components:
       schema:
         type: string
         const: "1"
+    AppointmentID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     LoginStep:
       description: >-
@@ -1048,6 +1224,11 @@ components:
       type: http
       scheme: bearer
       description: The mobile app's session token.
+    livekitWebhook:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: LiveKit's webhook signature, a JWT of the API key pair with the body's SHA-256 (no Bearer prefix).
   schemas:
     LoginRequest:
       type: object
@@ -1508,8 +1689,85 @@ components:
             - appointment_closed
             - appointment_not_started
             - invalid_status
+            - join_window_not_open
+            - consultation_ended
+            - practitioner_did_not_join
+            - consultation_not_started
             - internal error
             - timeout
+    ConsultationJoin:
+      type: object
+      required: [url, token, expiresAt, peerName, role]
+      description: >-
+        What a client needs to join the room. The token is a secret: it is never logged or stored. Health
+        data: it shows whom the patient consults.
+      properties:
+        url:
+          type: string
+          description: The LiveKit server the client connects to (ws:// locally, wss:// deployed).
+        token:
+          type: string
+          description: The LiveKit join token, valid 5 minutes for joining.
+        expiresAt:
+          type: string
+          format: date-time
+        peerName:
+          type: string
+          description: >-
+            The other person's display name; empty when the caller may not see it (the practitioner after a
+            revocation, or a practitioner not in the public directory).
+        role:
+          type: string
+          enum: [patient, practitioner]
+          description: The caller's role in the consultation.
+    ConsultationStatus:
+      type: object
+      required: [state]
+      description: >-
+        Where an appointment's video consultation stands. Health data: it shows that the patient attended. The
+        times are absent until they happen.
+      properties:
+        state:
+          type: string
+          enum: [not_started, open, ended]
+        patientJoinedAt:
+          type: string
+          format: date-time
+          description: When the patient first joined the room.
+        practitionerJoinedAt:
+          type: string
+          format: date-time
+          description: When the practitioner first joined the room.
+        endedAt:
+          type: string
+          format: date-time
+        endReason:
+          type: string
+          enum: [practitioner, window_closed, practitioner_absent, time_limit, cancelled]
+          description: >-
+            Why it ended: the practitioner ended it; the window closed with the room empty; the practitioner never
+            joined; the 2-hour limit after the scheduled end; the appointment was cancelled.
+        reason:
+          type: string
+          enum: [consent_withdrawn, cancelled, left, ended, practitioner_did_not_join, time_limit]
+          description: >-
+            Why the patient was removed or the consultation ended, as the clients show it: the patient was removed
+            because their consent was withdrawn (also when that cancelled the appointment), or because the
+            appointment was cancelled; while open, the patient who joined left on their own; the practitioner ended
+            it or the window closed with the room empty; the window closed without the practitioner; the 2-hour
+            limit. Absent while nobody has joined or left.
+    LiveKitWebhookEvent:
+      type: object
+      description: >-
+        LiveKit's WebhookEvent in its JSON form (protojson); only `event`, `room.name`, the participant's
+        `identity` and `joinedAt`/`joinedAtMs`, and `createdAt` are read.
+      properties:
+        event: {type: string, examples: [participant_joined]}
+      additionalProperties: true
+    WebhookReceived:
+      type: object
+      description: An empty object.
+      additionalProperties: false
     Status:
       type: object
       required: [status]

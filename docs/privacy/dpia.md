@@ -554,3 +554,277 @@ clinics chose to publish.
 | A revocation whose effect surprises the patient | The consent screen and the confirmation dialog both say that the clinic keeps the patient's name and the details of appointments that have already taken place, as its care records, and that future appointments are cancelled; tested |
 | Personal data in logs or on screen from an error | The app prints nothing (a widget test captures `debugPrint` through a whole booking); API errors map to fixed sentences, never the response body |
 | Patient data left on the device | Nothing but the session token is stored, in secure storage |
+
+## Video consultations (`docs/consultation`)
+
+### Package 1: videosession
+
+**Processing added.** The first token request for an appointment's consultation stores its `video_session`:
+the appointment and clinic ids, a random room name and two random participant identities (`r_…`, `p_…`, 128
+bits from `crypto/rand`, derived from no id of ours), the join window's close (the appointment's end + 30
+minutes), and later who joined when and how it ended. `videosession.Service.Join` issues a 5-minute LiveKit
+token for that one room to the appointment's patient or its practitioner only; its HTTP endpoint arrives in
+package 4. The room is created on our own LiveKit (`deployments/livekit.yaml`) with no metadata and at most
+two participants; the token carries the identity and the grant only, no name, metadata or attributes (tested
+against the compose LiveKit). The other person's name comes from our API: the practitioner's public name for
+the patient, the patient's name at the access level for the practitioner (audited as a `Patient` read).
+
+**Purpose and lawful basis.** Running the consultation, part of the care: Art. 9(2)(h), with the active
+consent for the sharing before care (SPEC.md section 4), checked for both participants. **Needs legal
+confirmation before production.**
+
+**Necessity and minimisation.** The fields of SPEC.md section 5; `closes_at` is there so the retention role,
+which may read only `video_session`, can delete a session that never ended. LiveKit holds only the random
+names and the live media, in memory; nothing is recorded (ADR 0006). Errors of the provider keep LiveKit's
+error code only, never a room, identity or token (tested).
+
+**Access.** Row-level security on `video_session`: the patient's own; a clinic's with an active consent or,
+after a revocation, for an appointment that started before it; the webhook's `app.video_room` (package 3)
+sees and updates the one session of its room and creates none. `salus_app` cannot delete or change what a
+session is for (tested). Every join, issued or refused, writes an `AuditEvent` (`operation`, action `E`).
+
+**Retention.** `video_session`: `delete` 30 days after `ended_at`, or after the window's close for a session
+that never ended, by the retention job (`salus_retention`: `SELECT, DELETE` on this table only). **Needs a
+legal decision before production.**
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| LiveKit (or its logs) learns who is in a call | Random room and identities, no name, metadata or attributes in the token or the room (tested); JSON logs at info |
+| Someone else joins the call | The token grants one room, for 5 minutes, to the patient's or the practitioner's fixed identity; `max_participants` 2; a repeated identity replaces the earlier connection (tested); `room.auto_create` off, so a token cannot create a room (tested) |
+| A join without consent or outside the window | Checked in the service before any session or token; refusals audited (tested) |
+
+### Package 2: encounter
+
+**Processing added.** The FHIR `Encounter` of a consultation (`encounter` table): the appointment, the clinic,
+the patient and the practitioner role (references copied once from the appointment when it starts, never
+changed), the status (`in-progress`, `finished`) and the period. It holds no clinical content, only that a
+consultation took place and when. It is started when the practitioner first joins (the webhook, package 3)
+and finished when the consultation ends; a finished encounter never changes. Finishing it records the
+appointment's outcome: a `booked` appointment becomes `fulfilled` when the patient joined, else `noshow`; a
+status set by hand or a cancellation is kept. The `consultation_window_close` job (session and clinic ids
+only) ends a session at the window's close when the room is empty, when the practitioner never joined
+(`practitioner_absent`: no encounter, the appointment stays `booked`, `patient_joined_at` is kept), or at the
+hard cap 2 hours after the scheduled end whoever is in the room (`time_limit`), and then deletes the room.
+
+**Purpose and lawful basis.** The care record that the consultation happened (Art. 9(2)(h)), as for the
+appointment. **Needs legal confirmation before production.**
+
+**Access.** Row-level security on `encounter` as on `video_session`, without a webhook scope: the patient
+reads their own and never writes; a clinic reads and writes those of its appointments with an active consent
+or, after a revocation, of those that started before it. `salus_app` cannot delete an encounter or change
+whose it is or when it started (tested). Reads follow `access.Appointment` (name level or more); a
+practitioner searches only their own role's. Every read, every returned resource and every lifecycle write
+(the start, the finish, the session's end, the appointment's outcome) writes an `AuditEvent`; the job's
+writes have the agent `consultation_window_close`, purpose `HOPERAT`. The job's check of an occupied room
+(once a minute) reads only the session's own row and writes nothing, so it is not audited.
+
+**Retention.** `encounter`: `keep`, with the clinical record. **Needs a legal decision before production.**
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A call left open indefinitely | The hard cap ends and deletes the room 2 hours after the scheduled end, whoever is in it (tested at the cap ± 1 s) |
+| The job's log reveals who was in a call | It logs the session id and the snooze only; tested to hold no name, e-mail, room or identity |
+| A no-show recorded against a patient because the practitioner never came | No encounter and no outcome when the practitioner never joined; the appointment stays `booked` for the clinic (tested) |
+
+### Package 3: webhooks
+
+**Processing added.** LiveKit's webhooks reach the api at `POST /webhooks/livekit`, on the compose network
+locally (`deployments/livekit.yaml`). An event carries only what LiveKit knows: the random room, the random
+identity, its kind and LiveKit's times. The api records each participant's first join
+(`video_session.patient_joined_at`, `practitioner_joined_at`), starts the `Encounter` when the practitioner
+first joins, and, after the join window has closed, ends the consultation when the last one leaves. Nothing
+new is stored: these are the columns of packages 1 and 2.
+
+**Access.** The webhook carries no user. Its signature (a JWT of the API key pair carrying the body's SHA-256,
+unexpired) is verified before the body is read; anything else is 401 and handles nothing (tested). Its
+transaction sees only the one session of its room (`app.video_room`) and then the session's clinic, as a
+clinic's scope does. Its writes are audited with the agent `livekit_webhook`, purpose `HOPERAT`: each join it
+records, the `Encounter`'s create, the session's end, the `Encounter`'s finish and the appointment's outcome.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A forged or replayed webhook changes a consultation | Signature, body hash and expiry checked (tested for a wrong key, wrong secret, changed body, missing header and expired token); every effect is a change guarded in SQL, so a repeat or a late event changes nothing (every order of the five events, each delivered twice, tested on the real database) |
+| A patient joins with a token issued just before a revocation or a cancellation committed | Every patient join checks the consent and the appointment's status again and removes the patient from the room when either is gone (tested, also on the real database after a revocation) |
+| The webhook's log reveals who was in a call | It logs the request id and the event kind only; an event for a room we do not know is logged as `unknown room` with nothing from the body (tested) |
+
+### Package 4: API
+
+**Processing added.** No new table or column. Three JSON endpoints and the FHIR `Encounter` read and search
+expose what packages 1 to 3 store. `POST /appointments/{id}/consultation/join` hands the appointment's patient or
+its practitioner a LiveKit token and the other person's display name (the practitioner's public directory name
+for the patient; the patient's name at the appointment's access level for the practitioner, audited as a
+`Patient` read). `GET /appointments/{id}/consultation` shows the patient, the practitioner and the clinic's admin
+whether and when each side joined and when and why the consultation ended (the owner's addition: the clinic
+sees whether the patient came when the practitioner did not). `POST /appointments/{id}/consultation/end` lets the
+practitioner end it. `Encounter` is read and searched as its appointment is seen (FHIR R4, class `VR`).
+
+**Purpose and lawful basis.** As packages 1 to 3: running the consultation and its care record (Art. 9(2)(h),
+with the active consent for joining). The status and the Encounter carry no clinical content, only that a
+consultation took place, who took part (as references) and when.
+
+**Access.** In the services: the join to the appointment's patient and its practitioner only (the admin
+included is 404); the status to whoever `access.Appointment` gives the name level or more; the end to the
+appointment's practitioner only, also after a revocation, so they can close the call they are in. Every call is
+audited in its own transaction, refusals included: the join and the end as an `operation` on the `Appointment`,
+the status as a `read` of it, each `Encounter` read and returned resource as a `read` or `search-type`. The writes
+an end causes are audited with the agent `consultation_end`, purpose `HOPERAT`.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A token, a room or a name leaks through the logs | The handlers log nothing on success and only the error on a 500; the access log carries the route pattern, not the path; tested to hold no token or name (handler and `api.New` tests), and the api's log after 3,000 joins in the stack held none |
+| Anyone other than the participants learns that the patient attended | The status is 404 for anyone `access.Appointment` gives nothing, audited without the entity; the join and the end are 404 for anyone but the participants (tested per caller) |
+| A response is cached by a shared cache | Every consultation response is `Cache-Control: no-store` (tested) |
+
+### Package 5: Revocation and cancellation during a call
+
+**Processing added.** No new table or column. Every cancellation (the patient's, staff's, or the revocation
+job's) also enqueues `consultation_access_end` in its transaction, with the appointment's and the clinic's ids
+only; its worker removes the patient from the appointment's video room and ends the session (`cancelled`),
+which deletes the room. After a revocation, the `consent_revoked` job, once it has cancelled the appointments
+that had not started, reads the patient's sessions with that clinic whose room may still be open (in the
+patient's own scope) and removes the patient from each; the practitioner stays in the room of a consultation
+that started before the revocation and ends it as usual. The session of an appointment the revocation cancelled
+is ended there in its room's scope (`app.video_room`), because the clinic's scope no longer shows it.
+
+**Purpose and lawful basis.** Giving effect to a revoked consent and to a cancellation at once (GDPR Art. 7(3)
+for the consent): no further token is issued from the commit, and the patient is taken out of a call already
+running as soon as the worker picks up the job.
+
+**Access.** The jobs read only the sessions and appointments they act on, in the narrowest scope that shows
+them; their writes (the session's end, the `Encounter`'s finish) are audited with the job's kind as agent,
+purpose `HOPERAT`. Changed in package 5.1: the removal is audited too (below).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A patient stays in a call after revoking or after a cancellation | The token is refused from the commit (tested through `api.New` with the job still queued); the patient is removed by the job (tested on the real LiveKit: the patient disconnected, the practitioner still in the room after a revocation, both gone after a cancellation); in the stack the patient was disconnected 5 to 27 ms after the revoke's response (`make bench-removal`) |
+| A failed removal leaves the patient in the room | The job fails and River retries it; a failure in one room does not stop the removal from the others; a join on a token issued before the commit is removed by the webhook (package 3) |
+| The jobs or their logs carry personal data | The job arguments are opaque ids (tested); the `consultation_access_end` log line carries the appointment's id only, the revocation's the count (tested to hold no name, e-mail, room or identity; the stack's logs after the measurement held none) |
+| An `Encounter` started before the start of an appointment the revocation cancels stays `in-progress` | Closed in package 5.1: the room's scope finishes it (below) |
+
+### Package 5.1: the owner's changes after package 5
+
+**Processing added.** No new table or column. A new row-level security policy on `encounter`
+(`migrations/00023_encounter_room_scope.sql`): a transaction with a room set (`app.video_room`, no patient or
+account set) sees and updates the one encounter of the appointment whose session has that room, as the webhook
+scope on `video_session` does; it never creates one. The end of a session, which already runs in its room's
+scope, therefore finishes the `Encounter` of an appointment a revocation cancelled after the practitioner
+joined, with `period.end` set, although the clinic's scope no longer shows it. The appointment stays cancelled.
+
+**Access.** The room is a random name known only to the api, the worker and LiveKit; the scope shows nothing
+more than the session of that room already does (tested as `salus_app`: one encounter per room, nothing for an
+unknown room or with a patient or an account set, and the clinic's scope without the room still hides the
+encounter after the revocation). Every removal of a patient from a room (the webhook's re-check,
+`consultation_access_end`, `consent_revoked`) now writes an `AuditEvent` (operation, action `E`,
+`Appointment/<id>`, the removing agent, `HOPERAT`) before LiveKit is asked to remove them. It is written when
+LiveKit lists the patient in the room, so a repeat, which finds them gone, writes none.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A removal goes unrecorded | Audited before the removal; a failed audit removes nobody and the job or webhook is retried (tested per path, on the real database and the real LiveKit) |
+| The room's scope shows more than its consultation | It needs the session of that room; tested as `salus_app` against every other scope |
+
+### Package 6: web app
+
+**Processing added.** No new table, column or endpoint. The practitioner's web app joins the consultation with
+`livekit-client` (pinned, `web/src/call.ts` the only module that uses it): it asks our API for a token on every
+join and rejoin and connects to our own LiveKit; LiveKit gets the token only, never a name. The patient's name
+shown in the call comes from the join response (`peerName`, already audited as a `Patient` read in package 1).
+The appointment detail shows the consultation's state and when each side joined
+(`GET /appointments/{id}/consultation`, audited as a read of the appointment since package 4), to the
+practitioner and the admin. Camera and microphone stay in the browser until the practitioner joins; the device
+check's preview and level meter are local and are stopped when the check is left.
+
+**Access.** The join button is offered to the appointment's practitioner only, inside the window; the server
+decides every token. When the patient leaves the room the app asks the join endpoint once more to tell a patient
+who left from one removed after withdrawing consent (`consent_required`); that request is audited like any join.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The browser keeps the camera or microphone on after the check or the call | Previews are stopped when another device is picked and when the check is left (tested with a fake); the room is left on leave, end and when the screen closes |
+| Patient data in what the web app sends to LiveKit | Nothing but our token; no name, metadata or attributes are set by the client (`call.ts`); the walk's api, worker and LiveKit logs held no name, e-mail or token |
+| Text that misstates what happens to the appointment | Every string is the owner's approved text (`docs/consultation/COPY.md`), checked word for word |
+
+### Package 7: mobile app
+
+**Processing added.** No new table, column or endpoint. The patient's app joins the consultation with
+`livekit_client` (pinned, `mobile/lib/call.dart` the only file that uses it, with `permission_handler` for the
+camera and microphone permissions): it asks our API for a token on every join and rejoin and connects to our own
+LiveKit; LiveKit gets the token only, never a name. The practitioner's name shown in the call comes from the join
+response (`peerName`, the practitioner's public name). When LiveKit removes the patient or deletes the room, the
+app asks the join endpoint or the consultation's status (both audited since packages 1 and 4) to say why. The
+token is held in memory for the connection only: never stored, printed or logged. LiveKit's own client log is
+turned off.
+
+**Device permissions.** The camera and the microphone are asked for on the device check, not at install or
+launch. iOS shows the approved `NSCameraUsageDescription` and `NSMicrophoneUsageDescription`; Android shows the
+approved explanation (M35) before the system prompt. A refusal is respected: the patient can still join with
+what remains, and the app offers the device settings. "The consultation is not recorded" is true while
+ADR 0006 holds and must change if recording is ever added.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The phone keeps the camera or microphone on after the check or the call | The previews are stopped on Join and when the check is left; the room is left on Leave, on back and when the screen closes (tested with a fake) |
+| Patient data in what the app sends to LiveKit | Nothing but our token; the app sets no name, metadata or attributes (`call.dart`) |
+| Patient data in the device log | The app prints nothing through a consultation (tested); LiveKit's client log is off |
+| Text that misstates what happens | Every string and both iOS permission texts are the owner's approved text (`docs/consultation/COPY.md`), checked word for word by `mobile/test/copy_test.dart` |
+
+### Package 7.1: the owner's changes after package 6
+
+**Processing added.** One column, `video_session.removal_reason` (`consent_withdrawn` | `cancelled`,
+`migrations/00024_video_session_reason.sql`): why the patient was removed from the room, written once, in the
+removal's own audited transaction and only when LiveKit lists the patient in the room. It reveals that the
+patient withdrew consent or that the appointment was cancelled, which the clinic already knows from `consent`
+and `appointment`; it is deleted with the session (retention unchanged, 30 days after the end).
+`GET /appointments/{id}/consultation` gains `reason`, derived from it and from the end. Neither client asks the
+join endpoint any more to learn why someone left, so the extra token request and its audit event of package 6
+are gone.
+
+**Access.** The practitioner who was in the room keeps reading the status of that consultation when a revocation
+before the start hid the appointment from the clinic: a new read-only policy (`video_session_attended`) shows a
+clinic's scope narrowed to one appointment (`app.appointment_id`, the setting of the notice scope) that
+appointment's session once its practitioner joined, and the service then checks that the caller is the
+practitioner of the appointment's role. The read returns only the status (state, times, reasons), never the
+patient's name, and is audited as a read of the appointment. Another practitioner, the clinic's admin and
+another clinic get 404, audited (tested as `salus_app` on the real database).
+
+**Client logs.** `livekit-client` (web) logs nothing (`setLogLevel(silent)`); `livekit_client` (mobile) has its
+logger off, which until now threw before any call could start. Chrome itself still prints a failed signalling
+connection's URL, the token in its query, to the user's own console (tested in the walk); it is the browser's
+network log, not ours or LiveKit's, and the token is valid 5 minutes for that one room.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The room rule shows a consultation to someone else | It needs the clinic, the one appointment, the practitioner's join and the caller being the role's practitioner; tested in SQL (RLS), with fakes and on the real database |
+| The removal's reason outlives its purpose | It lives on `video_session` and is deleted with it |
+| A token in the console | livekit-client and livekit_client logs are off (tested); the browser's own network error lines remain (above) |
+
+### Package 8: the end-to-end journeys
+
+**Processing added.** None in the product. `make e2e` runs two consultation journeys on synthetic data made
+fresh through the API (the web app in Chromium with fake devices for the practitioner, a Go SDK participant
+publishing a generated tone for the patient), and then checks LiveKit's whole log: it must hold none of the run's
+synthetic names, e-mails, appointment, patient, practitioner or clinic ids, and must hold the run's opaque room
+names, so the check is known to read the right log (`scripts/e2e-livekit-log.sh`; it prints labels, never
+values). This is SPEC §2 "LiveKit logs", now checked on every run and in CI.
+
+**Seen in LiveKit's log, not ours to decide here.** At `info` LiveKit logs each client connection's
+`remoteAddress` and `localAddress` (IP and port) and its SDK and browser; in production a client's IP is personal
+data. Recorded for the owner with the production LiveKit setup (SPEC §8).

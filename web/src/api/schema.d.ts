@@ -438,6 +438,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/appointments/{id}/consultation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where an appointment's video consultation stands
+         * @description The state of the consultation (`not_started` before anyone asked for a token, `open` while its room exists, `ended`), when the patient and the practitioner first joined, when and why it ended, and why the patient was removed. For the appointment's patient, its practitioner and the clinic's admin, as they may see the appointment (after a revocation, a past one too); and for its practitioner once they joined the room, also after a revocation hid the appointment from the clinic. The clients read `reason` when the other side leaves or the room closes. Not cached. Audited as a read of the appointment, also when refused.
+         */
+        get: operations["getConsultation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/appointments/{id}/consultation/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A token to join an appointment's video consultation
+         * @description A LiveKit join token for the appointment's room, to its patient or to its practitioner only, while the appointment is booked, the patient's consent with the clinic is active, and the join window is open (10 minutes before the start to 30 minutes after the end). The token grants that one room, camera and microphone, for 5 minutes. The first request creates the room. `peerName` is the other person's name: the practitioner's public name for the patient, the patient's name for the practitioner (a read of the patient, audited). Not cached. Audited, also when refused.
+         */
+        post: operations["joinConsultation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/appointments/{id}/consultation/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End an appointment's video consultation
+         * @description The appointment's practitioner ends the consultation once they joined (also after the patient revoked the consent): the room is closed for both, the Encounter finishes and the appointment becomes `fulfilled`, or `noshow` if the patient never joined (unless it was marked by hand). Repeated, it answers 200 again. Not cached. Audited, also when refused.
+         */
+        post: operations["endConsultation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/livekit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * LiveKit's webhook
+         * @description Called only by our LiveKit server, never by the clients. No session and no CSRF header: the `Authorization` header is LiveKit's JWT, signed with the API key pair and carrying the body's SHA-256, verified before the body is read. The body is read up to 64 KiB. Handled idempotently and in any order: a participant's join is recorded (the practitioner's first one starts the Encounter; a patient whose access has gone is removed from the room), and once the join window has closed the last one leaving ends the consultation. Every other event, and one for a room we do not know, has no effect.
+         */
+        post: operations["receiveLiveKitWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -710,8 +790,60 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "internal error" | "timeout";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "internal error" | "timeout";
         };
+        /** @description What a client needs to join the room. The token is a secret: it is never logged or stored. Health data: it shows whom the patient consults. */
+        ConsultationJoin: {
+            /** @description The LiveKit server the client connects to (ws:// locally, wss:// deployed). */
+            url: string;
+            /** @description The LiveKit join token, valid 5 minutes for joining. */
+            token: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** @description The other person's display name; empty when the caller may not see it (the practitioner after a revocation, or a practitioner not in the public directory). */
+            peerName: string;
+            /**
+             * @description The caller's role in the consultation.
+             * @enum {string}
+             */
+            role: "patient" | "practitioner";
+        };
+        /** @description Where an appointment's video consultation stands. Health data: it shows that the patient attended. The times are absent until they happen. */
+        ConsultationStatus: {
+            /** @enum {string} */
+            state: "not_started" | "open" | "ended";
+            /**
+             * Format: date-time
+             * @description When the patient first joined the room.
+             */
+            patientJoinedAt?: string;
+            /**
+             * Format: date-time
+             * @description When the practitioner first joined the room.
+             */
+            practitionerJoinedAt?: string;
+            /** Format: date-time */
+            endedAt?: string;
+            /**
+             * @description Why it ended: the practitioner ended it; the window closed with the room empty; the practitioner never joined; the 2-hour limit after the scheduled end; the appointment was cancelled.
+             * @enum {string}
+             */
+            endReason?: "practitioner" | "window_closed" | "practitioner_absent" | "time_limit" | "cancelled";
+            /**
+             * @description Why the patient was removed or the consultation ended, as the clients show it: the patient was removed because their consent was withdrawn (also when that cancelled the appointment), or because the appointment was cancelled; while open, the patient who joined left on their own; the practitioner ended it or the window closed with the room empty; the window closed without the practitioner; the 2-hour limit. Absent while nobody has joined or left.
+             * @enum {string}
+             */
+            reason?: "consent_withdrawn" | "cancelled" | "left" | "ended" | "practitioner_did_not_join" | "time_limit";
+        };
+        /** @description LiveKit's WebhookEvent in its JSON form (protojson); only `event`, `room.name`, the participant's `identity` and `joinedAt`/`joinedAtMs`, and `createdAt` are read. */
+        LiveKitWebhookEvent: {
+            /** @example participant_joined */
+            event?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** @description An empty object. */
+        WebhookReceived: Record<string, never>;
         Status: {
             /** @constant */
             status: "ok";
@@ -769,6 +901,7 @@ export interface components {
     parameters: {
         /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
         CSRF: "1";
+        AppointmentID: string;
     };
     requestBodies: never;
     headers: never;
@@ -2019,6 +2152,201 @@ export interface operations {
             };
             /** @description `appointment_not_started`: the start has not passed; `appointment_closed`: the appointment is no longer booked. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getConsultation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["AppointmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The consultation's state. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsultationStatus"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such appointment the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    joinConsultation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: components["parameters"]["AppointmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The token and what the client needs with it. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsultationJoin"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["CSRF"];
+            /** @description `not_found`: no such appointment, or the caller is not its patient or its practitioner (the clinic's admin included). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `consent_required`: the patient's consent with the clinic is not active; `join_window_not_open`: more than 10 minutes before the start; `consultation_ended`: the consultation ended, the window closed, or the appointment is no longer booked; `practitioner_did_not_join`: the consultation ended because the practitioner never joined. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    endConsultation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: components["parameters"]["AppointmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ended consultation. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsultationStatus"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: components["responses"]["CSRF"];
+            /** @description `not_found`: no such appointment, or the caller is not its practitioner. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `consultation_not_started`: the practitioner has not joined the consultation. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    receiveLiveKitWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/webhook+json": components["schemas"]["LiveKitWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Handled, also when it had no effect. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookReceived"];
+                };
+            };
+            /** @description `invalid_request`: a body over 64 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: a missing, expired or wrong signature, or one for another body. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

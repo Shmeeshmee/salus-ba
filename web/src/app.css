@@ -208,6 +208,82 @@ button.danger, .actions button.danger { padding: 10px 16px; border: 1px solid va
 .confirm { padding: 16px; border-radius: var(--radius-control); background: var(--color-page); }
 .confirm p { margin-bottom: 12px; }
 
+/* Join button on a calendar card and the appointment detail */
+.appt-join { display: grid; gap: 4px; }
+.appt-join button.primary { padding: 7px 10px; font-size: 14px; }
+.actions.join { margin-bottom: 20px; }
+p.hint.join { margin-bottom: 20px; }
+.consultation { margin: 0 0 20px; }
+.consultation h2 { font-size: 15px; margin-bottom: 6px; }
+.consultation ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 15px; color: var(--color-text-muted); }
+.consultation li:first-child { color: var(--color-ink); }
+
+/* Device check */
+.check-media { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 24px; align-items: start; }
+.preview { aspect-ratio: 4 / 3; border-radius: var(--radius-control); background: var(--color-page); border: 1px solid var(--color-border); overflow: hidden; }
+.preview video { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); }
+.check-devices { display: grid; gap: 14px; }
+.check-devices select { width: 100%; }
+.check-devices .alert { font-size: 14px; }
+.level { width: 100%; height: 8px; }
+.check-option { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.check-option input { accent-color: var(--color-brand); width: 18px; height: 18px; margin: 0; }
+
+/* Call */
+.call { display: grid; gap: 12px; }
+.stage {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 220px);
+  min-height: 240px;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.stage > video:first-child { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--color-ink); }
+.stage video.hidden { display: none; }
+.stage-text { position: relative; max-width: 440px; padding: 0 24px; text-align: center; }
+.stage-text h2 { margin-bottom: 8px; }
+.stage-text p { margin: 0; color: var(--color-text-muted); }
+.stage .badge { position: absolute; left: 12px; top: 12px; margin: 0; padding: 4px 10px; border-radius: 999px; background: var(--color-surface); border: 1px solid var(--color-border-strong); font-size: 13px; }
+.stage .own {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 22%;
+  min-width: 96px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-control);
+  border: 2px solid var(--color-surface);
+  background: var(--color-page);
+  transform: scaleX(-1);
+}
+.stage .reconnecting { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); margin: 0; padding: 6px 14px; border-radius: 999px; background: var(--color-ink); color: #FFFFFF; font-size: 14px; white-space: nowrap; }
+.call-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; }
+.call-controls .round {
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+.call-controls .round:hover { background: var(--color-mint-faint); }
+.call-controls .round.off { background: var(--color-page); color: var(--color-text-muted); }
+.call-controls .round:disabled { opacity: .5; cursor: default; }
+.call-controls .leave { display: inline-flex; align-items: center; gap: 6px; padding: 11px 16px; border-radius: var(--radius-control); border: 1px solid var(--color-border-strong); background: var(--color-surface); }
+.call-controls .end-confirm { flex: 1 0 100%; }
+.end-confirm > * { max-width: 560px; margin-left: auto; margin-right: auto; }
+.call .notice { justify-self: center; }
+.strong { font-weight: 600; }
+.call-message { max-width: var(--width-page); width: 100%; justify-self: center; }
+
 /* Working hours */
 .hours { border: 0; margin: 0; padding: 0; display: grid; gap: 12px; }
 .hours legend { padding: 0; margin-bottom: 8px; }
@@ -222,6 +298,8 @@ button.danger, .actions button.danger { padding: 10px 16px; border: 1px solid va
 
 @media (max-width: 720px) {
   .week { grid-template-columns: 1fr; gap: 14px; }
+  .check-media { grid-template-columns: 1fr; }
+  .stage { aspect-ratio: 3 / 4; max-height: calc(100vh - 260px); }
   .day.empty { display: none; }
   .toolbar > p { margin: 0; flex-basis: 100%; }
 }

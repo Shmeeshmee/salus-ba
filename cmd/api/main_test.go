@@ -55,6 +55,7 @@ func TestRun_ServesUntilCancelledThenShutsDown(t *testing.T) {
 	t.Setenv("TOTP_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtdG90cC1rZXktMzI=")       // synthetic, as in compose
 	t.Setenv("RATE_LIMIT_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtcmF0ZWxpbWl0LWs=") // synthetic, as in compose
 	t.Setenv("FHIR_BASE_URL", "http://localhost:8080/fhir/R4")
+	setLiveKit(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	logs := &syncBuffer{}
 	done := make(chan error, 1)
@@ -123,5 +124,28 @@ func TestRun_FailsWithoutConfig(t *testing.T) {
 
 	if err := run(t.Context(), io.Discard); err == nil {
 		t.Fatal("run() error = nil, want a config error")
+	}
+}
+
+// setLiveKit sets the LiveKit settings the binary requires, synthetic as in compose.
+func setLiveKit(t *testing.T) {
+	t.Helper()
+	t.Setenv("LIVEKIT_URL", "http://livekit:7880")
+	t.Setenv("LIVEKIT_PUBLIC_URL", "ws://localhost:7880")
+	t.Setenv("LIVEKIT_API_KEY", "devkey")
+	t.Setenv("LIVEKIT_API_SECRET", "local-only-synthetic-livekit-secret-0123456789")
+}
+
+// Without the LiveKit settings the binary does not start (docs/consultation/SPEC.md §2 "Configuration").
+func TestRun_FailsWithoutTheLiveKitSettings(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://unused@localhost/unused")
+	t.Setenv("RETENTION_DATABASE_URL", "postgres://unused@localhost/unused")
+	setLiveKit(t)
+	t.Setenv("LIVEKIT_API_SECRET", "")
+
+	err := run(t.Context(), &bytes.Buffer{})
+
+	if err == nil || !strings.Contains(err.Error(), "LIVEKIT_API_SECRET") {
+		t.Fatalf("run() error = %v, want one naming LIVEKIT_API_SECRET", err)
 	}
 }

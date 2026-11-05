@@ -5,6 +5,7 @@ lib/api.dart
 lib/api/appointments_api.dart
 lib/api/auth_api.dart
 lib/api/consents_api.dart
+lib/api/consultation_api.dart
 lib/api/directory_api.dart
 lib/api/health_api.dart
 lib/api/invites_api.dart
@@ -28,6 +29,8 @@ lib/model/book_appointment_request.dart
 lib/model/confirm_request.dart
 lib/model/consent.dart
 lib/model/consent_list.dart
+lib/model/consultation_join.dart
+lib/model/consultation_status.dart
 lib/model/enrol_request.dart
 lib/model/enrolment.dart
 lib/model/error.dart
@@ -35,6 +38,7 @@ lib/model/grant_consent_request.dart
 lib/model/invite.dart
 lib/model/invite_list.dart
 lib/model/invite_request.dart
+lib/model/live_kit_webhook_event.dart
 lib/model/login_request.dart
 lib/model/login_response.dart
 lib/model/patient.dart

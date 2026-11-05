@@ -12,7 +12,7 @@ import (
 func TestNew_APatientGrantsListsAndRevokesConsentsAuditedAndStaffCannot(t *testing.T) {
 	cfg := testConfig(t)
 	var log syncBuffer
-	app, err := api.New(t.Context(), cfg, slog.New(slog.NewTextHandler(&log, nil)))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), slog.New(slog.NewTextHandler(&log, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

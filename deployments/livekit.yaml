@@ -1,0 +1,28 @@
+# LiveKit for the local stack and the tests (docs/consultation/SPEC.md §2 "LiveKit in compose"). Synthetic
+# dev key pair, local only: production's comes from the secret store and never sits in a committed file.
+#
+# Rooms are created only by the api (CreateRoom, videosession); a token alone cannot create one. JSON logs at
+# info: we never send a name or metadata, so LiveKit has none to log. Webhooks go to the api on the compose
+# network, signed with the dev key (POST /webhooks/livekit, docs/consultation package 3).
+#
+# ICE (docs/consultation/PROGRESS.md, package 1): no node_ip and no external IP lookup, so LiveKit offers its
+# container address, which clients on the compose network (the Go tests, e2e) reach directly; and the
+# loopback candidate, which a browser on the host reaches through the published 127.0.0.1:7882/udp and
+# 7881/tcp. Production sets node_ip, TLS and TURN (SPEC.md §8).
+port: 7880
+bind_addresses: ["0.0.0.0"]
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: false
+  enable_loopback_candidate: true
+keys:
+  devkey: local-only-synthetic-livekit-secret-0123456789
+webhook:
+  api_key: devkey
+  urls: ["http://api:8080/webhooks/livekit"]
+room:
+  auto_create: false
+logging:
+  json: true
+  level: info

@@ -21,12 +21,17 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       changed: ${{ steps.filter.outputs.changed }}
+      e2e: ${{ steps.e2e.outputs.changed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - id: filter
         run: bash scripts/ci-changed.sh '^(cmd|internal|pkg|migrations|api|tools|test|deployments|scripts|docs/architecture/archcheck)/|^build/package/(Dockerfile|dev\.Dockerfile|fhir-validator\.Dockerfile)$|^(go\.mod|go\.sum|Makefile|\.golangci\.yml|\.dockerignore|\.github/workflows/go\.yml)$' >> "$GITHUB_OUTPUT"
+      # The e2e journeys also run the web app (the consultation's practitioner side, test/e2e/web) in the
+      # Playwright image, so a change to either runs them too.
+      - id: e2e
+        run: bash scripts/ci-changed.sh '^(cmd|internal|pkg|migrations|api|tools|test|deployments|scripts|web|docs/architecture/archcheck)/|^build/package/(Dockerfile|dev\.Dockerfile|node\.Dockerfile|playwright\.Dockerfile|fhir-validator\.Dockerfile)$|^(go\.mod|go\.sum|Makefile|\.golangci\.yml|\.dockerignore|\.github/workflows/go\.yml)$' >> "$GITHUB_OUTPUT"
 
   lint:
     needs: changes
@@ -66,9 +71,11 @@ jobs:
       - name: Generated code is up to date
         run: git status --porcelain && test -z "$(git status --porcelain)"
 
+  # make e2e builds the Playwright runner (build/package/playwright.Dockerfile), installs web/ and test/e2e/web,
+  # and checks LiveKit's log after the journeys; the runner needs no host browser or Node.
   e2e:
     needs: changes
-    if: needs.changes.outputs.changed == 'true'
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

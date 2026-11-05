@@ -10,8 +10,9 @@ TOOL    := go tool -modfile=tools/go.mod
 NODE    := $(COMPOSE) run --rm -T node
 FLUTTER := $(COMPOSE) run --rm -T flutter
 LANDING := $(COMPOSE) run --rm -T -w /src/landing node
+E2E     := $(COMPOSE) run --rm -T playwright
 
-.PHONY: test cover bench-hash bench-auth bench-slots lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal lint archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
@@ -39,6 +40,24 @@ bench-auth: tools-image
 bench-slots: tools-image
 	$(GO) go test -run '^$$' -bench 'BenchmarkGenerate' -benchtime=5x -count=3 ./internal/worker
 
+## bench-join: the consultation's token request through the service on the real database, with the compose
+## LiveKit and with a fake provider (docs/consultation/PROGRESS.md, package 1)
+bench-join: tools-image
+	$(GO) go test -run '^$$' -bench 'BenchmarkJoin' -benchtime=2s -count=3 ./internal/api
+
+## bench-join-http: the join endpoint's latency through the running stack, 1,000 requests 10 at a time on the
+## compose Postgres and LiveKit, as p50/p95/p99 (docs/consultation/PROGRESS.md, package 4). Not part of make e2e.
+bench-join-http: up tools-image
+	$(COMPOSE) run --rm -e E2E_BASE_URL=http://api:8080 -e E2E_MAILPIT_URL=http://mailpit:8025 -e E2E_SALUSCTL=/tmp/salusctl \
+		tools sh -c 'go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e,loadtest -count=1 -v -run TestJoinLatency ./test/e2e/'
+
+## bench-removal: the time from a revocation's commit to the patient's removal from the call, through the running
+## stack (api, worker, LiveKit), 3 runs each for a started and a not-started consultation
+## (docs/consultation/PROGRESS.md, package 5). Not part of make e2e.
+bench-removal: up tools-image
+	$(COMPOSE) run --rm -e E2E_BASE_URL=http://api:8080 -e E2E_MAILPIT_URL=http://mailpit:8025 -e E2E_SALUSCTL=/tmp/salusctl \
+		tools sh -c 'go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e,loadtest -count=1 -v -run TestRemovalLatency ./test/e2e/'
+
 ## lint: gofmt, go vet, golangci-lint (both modules) and the migration immutability check
 lint: tools-image
 	$(GO) bash scripts/lint.sh
@@ -52,11 +71,22 @@ arch-gate: archcheck tools-image
 	$(GO) go vet ./...
 	$(MAKE) test
 
-## e2e: start the stack and run the end-to-end tests against it, on the compose network: the API, Mailpit's API
-## and salusctl (built here, run on the owner's DATABASE_URL of the tools service)
-e2e: up tools-image
-	$(COMPOSE) run --rm -e E2E_BASE_URL=http://api:8080 -e E2E_MAILPIT_URL=http://mailpit:8025 -e E2E_SALUSCTL=/tmp/salusctl \
-		tools sh -c 'go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e -count=1 ./test/e2e/...'
+## e2e: start the stack and run the end-to-end tests against it in the playwright service, on the compose network:
+## the Go journeys (the API, Mailpit's API, salusctl built here on the owner's DATABASE_URL, LiveKit), the web
+## journey in Chromium that the consultation journey starts (test/e2e/web), then the check that LiveKit's log
+## holds none of the run's synthetic names, e-mails and ids
+e2e: up web-install e2e-install
+	$(E2E) sh -c 'rm -f /e2e/livekit-check.tsv && go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e -count=1 ./test/e2e/...'
+	$(COMPOSE) logs --no-color --no-log-prefix livekit | $(E2E) bash scripts/e2e-livekit-log.sh /e2e/livekit-check.tsv
+
+## e2e-install: the e2e image, and npm ci in test/e2e/web, only when package.json or the lockfile changed
+e2e-install: e2e-image test/e2e/web/node_modules/.package-lock.json
+test/e2e/web/node_modules/.package-lock.json: test/e2e/web/package.json test/e2e/web/package-lock.json
+	$(COMPOSE) run --rm -T -w /src/test/e2e/web playwright npm ci
+
+## e2e-image: build the end-to-end runner image, Playwright with the Go toolchain (cached)
+e2e-image:
+	$(COMPOSE) build -q playwright
 
 ## fhir-validate: validate the golden FHIR responses with the HL7 validator
 fhir-validate:
@@ -162,4 +192,4 @@ psql:
 
 ## down: stop everything (volumes and caches are kept)
 down:
-	$(COMPOSE) --profile tools --profile web --profile landing --profile mobile down
+	$(COMPOSE) --profile tools --profile web --profile landing --profile mobile --profile e2e down

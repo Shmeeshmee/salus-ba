@@ -119,6 +119,17 @@ type CancelledEmailArgs struct {
 // Kind names the job in river_job.
 func (CancelledEmailArgs) Kind() string { return "appointment_cancelled_email" }
 
+// AccessEndArgs is the consultation_access_end job on the default queue, enqueued with every cancellation: the
+// consultation (docs/consultation/SPEC.md §2 "Removal") removes the patient from the appointment's video room
+// and ends its session. Opaque ids only.
+type AccessEndArgs struct {
+	AppointmentID  string `json:"appointment_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (AccessEndArgs) Kind() string { return "consultation_access_end" }
+
 // ReminderEmailArgs is the appointment_reminder_email job, scheduled 24 hours before the start. Opaque ids
 // only.
 type ReminderEmailArgs struct {

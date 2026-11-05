@@ -22,11 +22,12 @@ final salusTheme = ThemeData(
   ),
 );
 
-/// One screen: a title over a narrow column that scrolls when the keyboard is up.
+/// One screen: a title over a narrow column that scrolls when the keyboard is up. A screen whose one sentence says
+/// it all has no title.
 class Page extends StatelessWidget {
   const Page({super.key, required this.title, required this.children});
 
-  final String title;
+  final String? title;
   final List<Widget> children;
 
   @override
@@ -42,8 +43,10 @@ class Page extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (Navigator.of(context).canPop()) const Align(alignment: Alignment.centerLeft, child: BackButton()),
-                  Text(title, style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 24),
+                  if (title != null) ...[
+                    Text(title!, style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: 24),
+                  ],
                   for (final child in children) ...[child, const SizedBox(height: 16)],
                 ],
               ),

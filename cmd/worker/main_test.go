@@ -18,6 +18,7 @@ func TestRun_StartsRiverAndStopsCleanly(t *testing.T) {
 	dbURL := pgtest.NewDatabaseURL(t)
 	t.Setenv("DATABASE_URL", pgtest.AppURL(t, dbURL))
 	t.Setenv("RETENTION_DATABASE_URL", pgtest.RetentionURL(t, dbURL))
+	setLiveKit(t)
 	logs, err := runUntilStarted(t)
 	if err != nil {
 		t.Fatalf("run() error = %v, want nil after the context ends", err)
@@ -33,6 +34,7 @@ func TestRun_StartsRiverAndStopsCleanly(t *testing.T) {
 func TestRun_FailsWithoutTheRetentionDatabaseURL(t *testing.T) {
 	t.Setenv("DATABASE_URL", pgtest.AppURL(t, pgtest.NewDatabaseURL(t)))
 	t.Setenv("RETENTION_DATABASE_URL", "")
+	setLiveKit(t)
 
 	err := run(t.Context(), &bytes.Buffer{})
 
@@ -91,4 +93,27 @@ func runUntilStarted(t *testing.T) (string, error) {
 	cancel()
 	err := <-done
 	return logs.String(), err
+}
+
+// setLiveKit sets the LiveKit settings the binary requires, synthetic as in compose.
+func setLiveKit(t *testing.T) {
+	t.Helper()
+	t.Setenv("LIVEKIT_URL", "http://livekit:7880")
+	t.Setenv("LIVEKIT_PUBLIC_URL", "ws://localhost:7880")
+	t.Setenv("LIVEKIT_API_KEY", "devkey")
+	t.Setenv("LIVEKIT_API_SECRET", "local-only-synthetic-livekit-secret-0123456789")
+}
+
+// Without the LiveKit settings the binary does not start (docs/consultation/SPEC.md §2 "Configuration").
+func TestRun_FailsWithoutTheLiveKitSettings(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://unused@localhost/unused")
+	t.Setenv("RETENTION_DATABASE_URL", "postgres://unused@localhost/unused")
+	setLiveKit(t)
+	t.Setenv("LIVEKIT_API_SECRET", "")
+
+	err := run(t.Context(), &bytes.Buffer{})
+
+	if err == nil || !strings.Contains(err.Error(), "LIVEKIT_API_SECRET") {
+		t.Fatalf("run() error = %v, want one naming LIVEKIT_API_SECRET", err)
+	}
 }

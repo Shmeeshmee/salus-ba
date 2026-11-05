@@ -94,3 +94,33 @@ func LoadRetention() Retention {
 		Password:    os.Getenv("RETENTION_DATABASE_PASSWORD"),
 	}
 }
+
+// LiveKit holds the video server's settings (docs/consultation/SPEC.md §2 "Configuration"). Load never
+// reads them; only cmd/api and cmd/worker call LoadLiveKit. The key pair is synthetic in compose and comes
+// from the secret store in production, never from a committed file.
+type LiveKit struct {
+	URL       string // the server API, as the api and the worker reach it (LIVEKIT_URL)
+	PublicURL string // what the clients connect to (LIVEKIT_PUBLIC_URL)
+	APIKey    string // LIVEKIT_API_KEY
+	APISecret string // LIVEKIT_API_SECRET
+}
+
+// LoadLiveKit reads the LiveKit settings from the environment; each is required. Errors name the variable,
+// never a value.
+func LoadLiveKit() (LiveKit, error) {
+	lk := LiveKit{
+		URL:       os.Getenv("LIVEKIT_URL"),
+		PublicURL: os.Getenv("LIVEKIT_PUBLIC_URL"),
+		APIKey:    os.Getenv("LIVEKIT_API_KEY"),
+		APISecret: os.Getenv("LIVEKIT_API_SECRET"),
+	}
+	for _, v := range []struct{ name, value string }{
+		{"LIVEKIT_URL", lk.URL}, {"LIVEKIT_PUBLIC_URL", lk.PublicURL},
+		{"LIVEKIT_API_KEY", lk.APIKey}, {"LIVEKIT_API_SECRET", lk.APISecret},
+	} {
+		if v.value == "" {
+			return LiveKit{}, errors.New("config: " + v.name + " is required")
+		}
+	}
+	return lk, nil
+}

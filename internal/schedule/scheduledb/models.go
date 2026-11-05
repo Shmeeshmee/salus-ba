@@ -121,6 +121,20 @@ type Consent struct {
 	Status         string
 }
 
+type Encounter struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	PeriodStart        pgtype.Timestamptz
+	PeriodEnd          pgtype.Timestamptz
+	AppointmentID      pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	VersionID          int32
+	Status             string
+}
+
 type Invite struct {
 	ID             pgtype.UUID
 	CreatedAt      pgtype.Timestamptz
@@ -254,4 +268,21 @@ type Slot struct {
 	VersionID      int32
 	Status         string
 	Period         pgtype.Range[pgtype.Timestamptz]
+}
+
+type VideoSession struct {
+	ID                   pgtype.UUID
+	CreatedAt            pgtype.Timestamptz
+	UpdatedAt            pgtype.Timestamptz
+	ClosesAt             pgtype.Timestamptz
+	PatientJoinedAt      pgtype.Timestamptz
+	PractitionerJoinedAt pgtype.Timestamptz
+	EndedAt              pgtype.Timestamptz
+	AppointmentID        pgtype.UUID
+	OrganizationID       pgtype.UUID
+	Room                 string
+	PatientIdentity      string
+	PractitionerIdentity string
+	EndReason            pgtype.Text
+	RemovalReason        pgtype.Text
 }

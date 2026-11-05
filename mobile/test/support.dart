@@ -10,6 +10,8 @@ import 'package:salus/session.dart';
 import 'package:salus/token_store.dart';
 import 'package:salus_api/api.dart';
 
+import 'fake_call.dart';
+
 // Synthetic test data only.
 const email = 'patient@example.test';
 const password = 'correct horse battery';
@@ -104,7 +106,12 @@ class Harness {
   var openSucceeds = true;
   final FakeTokenStore store;
   final bearer = HttpBearerAuth();
-  final DateTime now;
+
+  /// The camera, the microphone and LiveKit.
+  final media = FakeMedia();
+
+  /// The clock the app reads; a test moves it.
+  DateTime now;
   late final ApiClient client;
   late final Session session;
   late final Booking booking;
@@ -116,6 +123,7 @@ class Harness {
         session: session,
         booking: booking,
         now: () => now,
+        media: media,
         privacyNoticeUrl: privacyNoticeUrl,
         openUrl: (url) async {
           opened.add(url);

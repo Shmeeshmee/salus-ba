@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'booking.dart';
+import 'call.dart';
 import 'fhir.dart';
 import 'loading.dart';
 import 'slots_screen.dart';
@@ -8,10 +9,11 @@ import 'ui.dart' as ui;
 
 /// The clinics that chose to be listed.
 class ClinicsScreen extends StatefulWidget {
-  const ClinicsScreen({super.key, required this.booking, required this.now});
+  const ClinicsScreen({super.key, required this.booking, required this.now, required this.media});
 
   final Booking booking;
   final DateTime Function() now;
+  final Media media;
 
   @override
   State<ClinicsScreen> createState() => _ClinicsScreenState();
@@ -32,7 +34,8 @@ class _ClinicsScreenState extends LoadingState<ClinicsScreen, List<Organization>
             clinic.name,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => PractitionersScreen(booking: widget.booking, now: widget.now, clinic: clinic),
+                builder: (_) =>
+                    PractitionersScreen(booking: widget.booking, now: widget.now, media: widget.media, clinic: clinic),
               ),
             ),
           ),
@@ -43,10 +46,17 @@ class _ClinicsScreenState extends LoadingState<ClinicsScreen, List<Organization>
 
 /// A listed clinic's practitioners, each with the specialty the API gives.
 class PractitionersScreen extends StatefulWidget {
-  const PractitionersScreen({super.key, required this.booking, required this.now, required this.clinic});
+  const PractitionersScreen({
+    super.key,
+    required this.booking,
+    required this.now,
+    required this.media,
+    required this.clinic,
+  });
 
   final Booking booking;
   final DateTime Function() now;
+  final Media media;
   final Organization clinic;
 
   @override
@@ -69,8 +79,13 @@ class _PractitionersScreenState extends LoadingState<PractitionersScreen, List<P
             subtitle: role.specialty,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) =>
-                    SlotsScreen(booking: widget.booking, now: widget.now, clinic: widget.clinic, role: role),
+                builder: (_) => SlotsScreen(
+                  booking: widget.booking,
+                  now: widget.now,
+                  media: widget.media,
+                  clinic: widget.clinic,
+                  role: role,
+                ),
               ),
             ),
           ),

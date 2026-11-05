@@ -149,6 +149,10 @@ enum ErrorErrorEnum {
   appointmentClosed._(r'appointment_closed'),
   appointmentNotStarted._(r'appointment_not_started'),
   invalidStatus._(r'invalid_status'),
+  joinWindowNotOpen._(r'join_window_not_open'),
+  consultationEnded._(r'consultation_ended'),
+  practitionerDidNotJoin._(r'practitioner_did_not_join'),
+  consultationNotStarted._(r'consultation_not_started'),
   internalError._(r'internal error'),
   timeout._(r'timeout'),
   ;
@@ -278,6 +282,14 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.appointmentNotStarted;
         case r'invalid_status':
           return ErrorErrorEnum.invalidStatus;
+        case r'join_window_not_open':
+          return ErrorErrorEnum.joinWindowNotOpen;
+        case r'consultation_ended':
+          return ErrorErrorEnum.consultationEnded;
+        case r'practitioner_did_not_join':
+          return ErrorErrorEnum.practitionerDidNotJoin;
+        case r'consultation_not_started':
+          return ErrorErrorEnum.consultationNotStarted;
         case r'internal error':
           return ErrorErrorEnum.internalError;
         case r'timeout':

@@ -191,3 +191,88 @@ func TestLoadRetention_IsCalledOnlyByTheWorkerAndMigrate(t *testing.T) {
 		t.Errorf("the retention variables are named in %v, want only %v", readers, want)
 	}
 }
+
+func TestLoadLiveKit_ReadsTheFourSettings(t *testing.T) {
+	t.Setenv("LIVEKIT_URL", "http://livekit:7880")
+	t.Setenv("LIVEKIT_PUBLIC_URL", "ws://localhost:7880")
+	t.Setenv("LIVEKIT_API_KEY", "synthetic-key")
+	t.Setenv("LIVEKIT_API_SECRET", "synthetic-secret")
+
+	got, err := config.LoadLiveKit()
+
+	want := config.LiveKit{URL: "http://livekit:7880", PublicURL: "ws://localhost:7880", APIKey: "synthetic-key", APISecret: "synthetic-secret"}
+	if err != nil || got != want {
+		t.Errorf("LoadLiveKit() = %+v, %v; want %+v", got, err, want)
+	}
+}
+
+// Each setting is required; the error names the variable and never echoes a value.
+func TestLoadLiveKit_RequiresEachSettingWithoutEchoingValues(t *testing.T) {
+	all := map[string]string{
+		"LIVEKIT_URL": "http://livekit:7880", "LIVEKIT_PUBLIC_URL": "ws://localhost:7880",
+		"LIVEKIT_API_KEY": "key-marker", "LIVEKIT_API_SECRET": "secret-marker",
+	}
+	for missing := range all {
+		t.Run(missing, func(t *testing.T) {
+			for name, v := range all {
+				if name == missing {
+					v = ""
+				}
+				t.Setenv(name, v)
+			}
+			_, err := config.LoadLiveKit()
+			if err == nil || !strings.Contains(err.Error(), missing) || strings.Contains(err.Error(), "marker") {
+				t.Errorf("LoadLiveKit() without %s: %v; want an error naming it and no value", missing, err)
+			}
+		})
+	}
+}
+
+// The api and the worker load the LiveKit settings; the notifier and the scheduler do not (SPEC.md
+// "Configuration" in docs/consultation), and Load never reads them.
+func TestLoadLiveKit_IsCalledOnlyByTheAPIAndTheWorker(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+	t.Setenv("LIVEKIT_API_SECRET", "livekit-secret-marker")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprintf("%#v", cfg); strings.Contains(got, "livekit-secret-marker") {
+		t.Errorf("Load() holds the LiveKit secret: %s", got)
+	}
+
+	root := filepath.Join("..", "..")
+	var callers, readers []string
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && (d.Name() == "node_modules" || d.Name() == ".git" || d.Name() == "tools") {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(root, path)
+		if strings.Contains(string(src), "config.LoadLiveKit(") {
+			callers = append(callers, filepath.ToSlash(rel))
+		}
+		if strings.Contains(string(src), `Getenv("LIVEKIT_`) {
+			readers = append(readers, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"cmd/api/main.go", "cmd/worker/main.go"}; !slices.Equal(callers, want) {
+		t.Errorf("LoadLiveKit is called by %v, want %v", callers, want)
+	}
+	if want := []string{"internal/config/config.go"}; !slices.Equal(readers, want) {
+		t.Errorf("the LiveKit variables are named in %v, want only %v", readers, want)
+	}
+}
