@@ -143,6 +143,9 @@ type fakeRepository struct {
 	room      string // set by SetRoom
 	opened    []videosession.Session
 	next      int
+	// endedElsewhere ends the session window_closed when End is called, as a concurrent end that committed
+	// first: End then changes nothing.
+	endedElsewhere bool
 }
 
 func (r *fakeRepository) SetRoom(_ context.Context, room string) error {
@@ -235,6 +238,22 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (videosession.Sess
 	return videosession.Session{}, videosession.ErrNotFound
 }
 
+// ByAppointment gives the appointment's session in the patient's scope (every session is patient A's) or
+// the clinic's.
+func (r *fakeRepository) ByAppointment(ctx context.Context, id string) (videosession.Session, error) {
+	if ctx.Value(txKey{}) == nil {
+		return videosession.Session{}, errors.New("ByAppointment outside a transaction")
+	}
+	if r.err != nil {
+		return videosession.Session{}, r.err
+	}
+	s, ok := r.sessions[id]
+	if !ok || (r.patient != patientA && (r.clinic == "" || s.OrganizationID != r.clinic)) {
+		return videosession.Session{}, videosession.ErrNotFound
+	}
+	return s, nil
+}
+
 func (r *fakeRepository) End(ctx context.Context, id string, reason videosession.EndReason, at time.Time) (videosession.Session, bool, error) {
 	if ctx.Value(txKey{}) == nil {
 		return videosession.Session{}, false, errors.New("End outside a transaction")
@@ -243,6 +262,11 @@ func (r *fakeRepository) End(ctx context.Context, id string, reason videosession
 		return videosession.Session{}, false, r.endErr
 	}
 	for k, s := range r.sessions {
+		if s.ID == id && s.OrganizationID == r.clinic && s.EndedAt.IsZero() && r.endedElsewhere {
+			s.EndedAt, s.EndReason = at.Add(-time.Second), videosession.EndWindowClosed
+			r.sessions[k] = s
+			return videosession.Session{}, false, nil
+		}
 		if s.ID == id && s.OrganizationID == r.clinic && s.EndedAt.IsZero() {
 			s.EndedAt, s.EndReason = at, reason
 			r.sessions[k] = s

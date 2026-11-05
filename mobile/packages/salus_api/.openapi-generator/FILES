@@ -29,6 +29,8 @@ lib/model/book_appointment_request.dart
 lib/model/confirm_request.dart
 lib/model/consent.dart
 lib/model/consent_list.dart
+lib/model/consultation_join.dart
+lib/model/consultation_status.dart
 lib/model/enrol_request.dart
 lib/model/enrolment.dart
 lib/model/error.dart

@@ -20,6 +20,8 @@ type Repository interface {
 	SetRoom(ctx context.Context, room string) error
 	// ByID returns the session, or ErrNotFound (also outside the scope, or for an id that is not a UUID).
 	ByID(ctx context.Context, id string) (Session, error)
+	// ByAppointment returns the appointment's session, or ErrNotFound (also outside the scope).
+	ByAppointment(ctx context.Context, appointmentID string) (Session, error)
 	// ByRoom returns the session of the room, or ErrNotFound (also outside the scope).
 	ByRoom(ctx context.Context, room string) (Session, error)
 	// Joined records that the role joined the session id at at, updated now, unless that role's join is

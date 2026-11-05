@@ -224,6 +224,10 @@ class ApiClient {
           return Consent.fromJson(value);
         case 'ConsentList':
           return ConsentList.fromJson(value);
+        case 'ConsultationJoin':
+          return ConsultationJoin.fromJson(value);
+        case 'ConsultationStatus':
+          return ConsultationStatus.fromJson(value);
         case 'EnrolRequest':
           return EnrolRequest.fromJson(value);
         case 'Enrolment':

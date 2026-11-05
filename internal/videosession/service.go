@@ -154,6 +154,11 @@ func (s *Service) join(ctx context.Context, c appointment.Caller, id string, now
 	}
 	entity := "Appointment/" + att.Appointment.ID
 	role, refused := decide(att, now)
+	if errors.Is(refused, ErrConsultationEnded) {
+		if refused, err = s.ended(ctx, c, att.Appointment.ID); err != nil {
+			return ticket{}, nil, err
+		}
+	}
 	if refused != nil {
 		return ticket{}, refused, s.record(ctx, c, auditevent.CodeOperation, entity, auditevent.OutcomeMinorFailure)
 	}
@@ -162,7 +167,7 @@ func (s *Service) join(ctx context.Context, c appointment.Caller, id string, now
 		return ticket{}, nil, err
 	}
 	if !session.EndedAt.IsZero() {
-		return ticket{}, ErrConsultationEnded, s.record(ctx, c, auditevent.CodeOperation, entity, auditevent.OutcomeMinorFailure)
+		return ticket{}, session.refusal(), s.record(ctx, c, auditevent.CodeOperation, entity, auditevent.OutcomeMinorFailure)
 	}
 	t = ticket{session: session, role: role, practitionerID: att.PractitionerID, hardCap: att.Appointment.End.Add(hardCapAfter)}
 	if role == RolePractitioner {
@@ -198,13 +203,7 @@ func decide(att appointment.Attendance, now time.Time) (Role, error) {
 // open returns the appointment a's session, stored now with random names unless it has one, in the
 // caller's scope; a session it stores gets its window-close job, enqueued in the same transaction.
 func (s *Service) open(ctx context.Context, c appointment.Caller, a appointment.Appointment, now time.Time) (Session, error) {
-	var err error
-	if c.OrganizationID == "" {
-		err = s.Repo.SetPatient(ctx, c.PatientID)
-	} else {
-		err = s.Repo.SetClinic(ctx, c.OrganizationID)
-	}
-	if err != nil {
+	if err := s.scope(ctx, c); err != nil {
 		return Session{}, err
 	}
 	session, created, err := s.Repo.Open(ctx, Session{
@@ -215,6 +214,31 @@ func (s *Service) open(ctx context.Context, c appointment.Caller, a appointment.
 		return session, err
 	}
 	return session, s.Jobs.EnqueueWindowClose(ctx, session.ID, session.OrganizationID, session.ClosesAt)
+}
+
+// scope scopes the transaction in ctx to the caller: the patient's own sessions, or the staff caller's clinic.
+func (s *Service) scope(ctx context.Context, c appointment.Caller) error {
+	if c.OrganizationID == "" {
+		return s.Repo.SetPatient(ctx, c.PatientID)
+	}
+	return s.Repo.SetClinic(ctx, c.OrganizationID)
+}
+
+// ended is why the ended consultation of the appointment id refuses the caller's join, read in their scope:
+// ErrPractitionerDidNotJoin when its session ended without the practitioner, else ErrConsultationEnded (also
+// with no session). It opens none.
+func (s *Service) ended(ctx context.Context, c appointment.Caller, id string) (error, error) {
+	if err := s.scope(ctx, c); err != nil {
+		return nil, err
+	}
+	session, err := s.Repo.ByAppointment(ctx, id)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return ErrConsultationEnded, nil
+	case err != nil:
+		return nil, err
+	}
+	return session.refusal(), nil
 }
 
 // randomName is prefix and 128 random bits in lower-case base32, derived from nothing of ours.

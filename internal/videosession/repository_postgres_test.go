@@ -442,3 +442,50 @@ func TestJoined_RecordsEachRolesFirstJoinUntilTheEnd(t *testing.T) {
 		t.Errorf("Joined() of an id that is not a UUID = %t, %v; want nothing", changed, err)
 	}
 }
+
+// ByAppointment reads the appointment's session in the patient's scope and the clinic's; another clinic, no
+// session and an id that is not a UUID are ErrNotFound.
+func TestByAppointment_ReadsTheSessionInTheScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
+	s := seedDB(t, owner, at)
+	other := seedDB(t, owner, at)
+	opened, err := open(t, app, s, session(s, "r_byappt", at))
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := videosession.NewPostgresRepository(app)
+	read := func(scope func(ctx context.Context) error, id string) (videosession.Session, error) {
+		var out videosession.Session
+		err := postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+			if err := scope(ctx); err != nil {
+				return err
+			}
+			var err error
+			out, err = repo.ByAppointment(ctx, id)
+			return err
+		})
+		return out, err
+	}
+	patient := func(ctx context.Context) error { return repo.SetPatient(ctx, s.patient) }
+	clinic := func(ctx context.Context) error { return repo.SetClinic(ctx, s.clinic) }
+	for name, scope := range map[string]func(ctx context.Context) error{"patient": patient, "clinic": clinic} {
+		if got, err := read(scope, s.appointment); err != nil || got != opened {
+			t.Errorf("ByAppointment() in the %s's scope = %+v, %v; want %+v", name, got, err, opened)
+		}
+	}
+	for name, tc := range map[string]struct {
+		scope func(ctx context.Context) error
+		id    string
+	}{
+		"another clinic":   {scope: func(ctx context.Context) error { return repo.SetClinic(ctx, other.clinic) }, id: s.appointment},
+		"another patient":  {scope: func(ctx context.Context) error { return repo.SetPatient(ctx, other.patient) }, id: s.appointment},
+		"no session":       {scope: clinic, id: other.appointment},
+		"an id not a UUID": {scope: clinic, id: "not-a-uuid"},
+	} {
+		if _, err := read(tc.scope, tc.id); !errors.Is(err, videosession.ErrNotFound) {
+			t.Errorf("ByAppointment() with %s = %v, want ErrNotFound", name, err)
+		}
+	}
+}

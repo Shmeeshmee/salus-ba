@@ -72,6 +72,47 @@ type Join struct {
 	Role      Role
 }
 
+// State is where an appointment's consultation stands (SPEC.md §2 "Consultation status").
+type State string
+
+// The states.
+const (
+	StateNotStarted State = "not_started" // nobody has asked for a token yet
+	StateOpen       State = "open"        // the session exists and has not ended
+	StateEnded      State = "ended"
+)
+
+// Status is an appointment's consultation as its participants and its clinic see it: the state, when each
+// side first joined (zero for never), and when and why it ended. No room or identity.
+type Status struct {
+	PatientJoinedAt      time.Time
+	PractitionerJoinedAt time.Time
+	EndedAt              time.Time
+	State                State
+	EndReason            EndReason
+}
+
+// status is the session's Status.
+func (s Session) status() Status {
+	state := StateOpen
+	if !s.EndedAt.IsZero() {
+		state = StateEnded
+	}
+	return Status{
+		State: state, PatientJoinedAt: s.PatientJoinedAt, PractitionerJoinedAt: s.PractitionerJoinedAt,
+		EndedAt: s.EndedAt, EndReason: s.EndReason,
+	}
+}
+
+// refusal is why the ended session refuses a join: the practitioner did not join when it ended with them
+// absent, else the consultation ended.
+func (s Session) refusal() error {
+	if s.EndReason == EndPractitionerAbsent {
+		return ErrPractitionerDidNotJoin
+	}
+	return ErrConsultationEnded
+}
+
 // EventKind is what a LiveKit webhook event reports, as the consultation tells them apart.
 type EventKind string
 

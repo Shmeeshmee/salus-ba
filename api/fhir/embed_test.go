@@ -76,6 +76,7 @@ func TestCapabilityStatement_ListsExactlyTheInteractionsServed(t *testing.T) {
 	want := map[string]string{
 		"Appointment":      "read search-type param:patient:reference param:practitioner:reference param:date:date param:status:token ",
 		"Consent":          "read ",
+		"Encounter":        "read search-type param:appointment:reference param:patient:reference param:practitioner:reference ",
 		"Organization":     "read update search-type param:listed:token versioning:versioned-update",
 		"Patient":          "read ",
 		"Practitioner":     "read ",

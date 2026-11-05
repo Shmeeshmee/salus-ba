@@ -136,3 +136,18 @@ func toSession(row videosessiondb.VideoSession) Session {
 		EndReason: EndReason(row.EndReason.String),
 	}
 }
+
+func (r *postgresRepository) ByAppointment(ctx context.Context, appointmentID string) (Session, error) {
+	var u pgtype.UUID
+	if u.Scan(appointmentID) != nil {
+		return Session{}, ErrNotFound
+	}
+	row, err := r.q(ctx).SessionByAppointment(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Session{}, ErrNotFound
+	case err != nil:
+		return Session{}, err
+	}
+	return toSession(row), nil
+}

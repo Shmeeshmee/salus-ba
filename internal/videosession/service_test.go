@@ -280,3 +280,57 @@ func TestJoin_FailsWithTheBackendWithoutLeakingNames(t *testing.T) {
 		}
 	}
 }
+
+// A join on a session that ended without the practitioner, once the window has closed, answers
+// ErrPractitionerDidNotJoin to either side (the patient's "the practitioner did not join"), audited; any other
+// end, or no session at all, ErrConsultationEnded. No session is opened.
+func TestJoin_SaysThePractitionerDidNotJoinOnceTheSessionEndedWithoutThem(t *testing.T) {
+	for _, tt := range []struct {
+		want   error
+		reason videosession.EndReason
+	}{
+		{reason: videosession.EndPractitionerAbsent, want: videosession.ErrPractitionerDidNotJoin},
+		{reason: videosession.EndWindowClosed, want: videosession.ErrConsultationEnded},
+		{reason: videosession.EndTimeLimit, want: videosession.ErrConsultationEnded},
+		{reason: "", want: videosession.ErrConsultationEnded}, // no session: nobody asked for a token in the window
+	} {
+		for _, c := range []appointment.Caller{me, pract} {
+			f := newFixture(end.Add(31 * time.Minute))
+			if tt.reason != "" {
+				f.repo.sessions[apptA] = videosession.Session{
+					ID: "5e000000-0000-4000-8000-000000000001", AppointmentID: apptA, OrganizationID: clinicA, ClosesAt: end.Add(30 * time.Minute),
+					Room: "r_room", PatientIdentity: "p_patient", PractitionerIdentity: "p_practitioner",
+					PatientJoinedAt: start, EndedAt: end.Add(30 * time.Minute), EndReason: tt.reason,
+				}
+			}
+			if _, err := f.svc.Join(t.Context(), c, apptA); !errors.Is(err, tt.want) {
+				t.Errorf("%q: Join() by %s = %v, want %v", tt.reason, c.AccountID, err, tt.want)
+			}
+			if len(f.repo.opened)+len(f.provider.rooms)+len(f.provider.grants) != 0 {
+				t.Errorf("%q: opened %v, rooms %v, grants %v; want none", tt.reason, f.repo.opened, f.provider.rooms, f.provider.grants)
+			}
+			checkEvents(t, "the refused join", f.audit, joinEvent(c, "Appointment/"+apptA, auditevent.OutcomeMinorFailure))
+		}
+	}
+}
+
+// The appointment the clinic cancelled after the practitioner stayed away still tells the patient so.
+func TestJoin_SaysThePractitionerDidNotJoinAlsoAfterACancellation(t *testing.T) {
+	f := opened(end.Add(31*time.Minute), time.Time{}, start)
+	s := f.session()
+	s.EndedAt, s.EndReason = closes, videosession.EndPractitionerAbsent
+	f.repo.sessions[apptA] = s
+	f.change(func(a *appointment.Attendance) { a.Appointment.Status = appointment.StatusCancelled })
+	if _, err := f.svc.Join(t.Context(), me, apptA); !errors.Is(err, videosession.ErrPractitionerDidNotJoin) {
+		t.Errorf("Join() = %v, want ErrPractitionerDidNotJoin", err)
+	}
+}
+
+func TestJoin_FailsWhenTheEndedSessionCannotBeRead(t *testing.T) {
+	f := newFixture(end.Add(31 * time.Minute))
+	f.repo.err = errBackend
+	if _, err := f.svc.Join(t.Context(), me, apptA); !errors.Is(err, errBackend) {
+		t.Errorf("Join() = %v, want the backend's error", err)
+	}
+	checkEvents(t, "the failed join", f.audit)
+}

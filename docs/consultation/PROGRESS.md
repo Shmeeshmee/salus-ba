@@ -5,7 +5,7 @@
 | 1 videosession | done, 2026-11-05 | `consultation(1)` |
 | 2 encounter | done, 2026-11-05 | `consultation(2)` |
 | 3 Webhooks | done, 2026-11-05 | `consultation(3)` |
-| 4 API | not started | |
+| 4 API | done, 2026-11-05 | `consultation(4)` |
 | 5 Revocation and cancellation during a call | not started | |
 | 6 Web | held: copy review | |
 | 7 Mobile | held: copy review | |
@@ -72,6 +72,28 @@
   over 64 KiB is 400 `invalid_request`, as the other handlers' oversized bodies; a signed body that is not an
   event is a 500 (LiveKit retries). The domain's event kinds are the three the consultation acts on and
   `other`, so the log line carries only fixed values.
+
+- 2026-11-05, package 4 (runner): the practitioner's end before they joined (no session, or a session without
+  their join) is 409 `consultation_not_started`, a new code: SPEC §2 allows the end "at any time after they
+  joined" and names no code for before. The end answers 200 with the consultation's status (the same schema as
+  `GET /appointments/{id}/consultation`), also when repeated or when another path ended it first.
+- 2026-11-05, package 4 (runner): the end is audited twice, like the other paths: the practitioner's request as
+  an `operation` (`E`) on `Appointment/<id>` with their account (`TREAT`), and the writes it causes (the
+  session's end, the `Encounter`'s finish, the outcome) with the agent `consultation_end` (`HOPERAT`), as the
+  window-close job and the webhook audit theirs.
+- 2026-11-05, package 4 (runner): `practitioner_did_not_join` answers a join by either side on a session ended
+  `practitioner_absent` (SPEC: "a join request on an ended session"), also when the clinic cancelled the
+  appointment afterwards. The consent is still checked first, so a revoked consent answers `consent_required`.
+  Without a session (nobody asked for a token in the window) it stays `consultation_ended`.
+- 2026-11-05, package 4 (runner): the status's `state` is `not_started` while there is no session (nobody asked
+  for a token), `open` from the first token request until the end (whether or not anyone connected), `ended`
+  after. The times and `endReason` are left out until they are set (optional in `openapi.yaml`, not `null`). It
+  reads the session in the caller's own scope, so after a revocation the clinic sees the consultations of the
+  appointments that had started before it, and `not_started` for the others (which the revocation cancels).
+- 2026-11-05, package 4 (runner): the latency test sits in `test/e2e/consultation_latency_test.go` behind the
+  build tags `e2e && loadtest`, so `make e2e` does not run it and it reuses the suite's helpers; `make lint` now
+  vets and lints `test/` with both tags. It books through the API and then moves the appointment's start 5
+  minutes ahead as the owner, since the generated slots start at least an hour ahead.
 
 ## Waiting on people
 
@@ -332,4 +354,105 @@ and revocation (5).
 `deployments/livekit.yaml` with the webhook. The stack check's synthetic rows (clinic, practitioner, role,
 accounts, patient, consent, appointment, session, encounter, window-close job) were deleted; its seven
 `audit_event` rows stay, as the table is append-only. The room was deleted.
+
+### 2026-11-05 — package 4: API
+
+**Built.** `videosession`: `Status` and `End` (`service_status.go`; SPEC §2 "Consultation status", "Ending"),
+the join's `practitioner_did_not_join` (`ErrPractitionerDidNotJoin`) and the end's `consultation_not_started`
+(`ErrNotStarted`), the `Status` model and its `State`s, `Repository.ByAppointment` (the existing
+`SessionByAppointment` query); `end` split so its transaction (`ending`) also serves the practitioner's end, which
+returns the session as it ended (read again when another path ended it first). `handler_http.go`: `POST
+/appointments/{id}/consultation/join`, `POST /appointments/{id}/consultation/end` and `GET
+/appointments/{id}/consultation`, `no-store`, errors `{"error": "<code>"}`. `encounter/handler_fhir.go`:
+`GET /fhir/R4/Encounter/{id}` (ETag) and `GET /fhir/R4/Encounter?appointment=&patient=&practitioner=` (each once,
+a reference or a bare id; anything else 400 `not-supported`), 404 and 403 as `OperationOutcome`s; golden files for
+an in-progress and a finished `Encounter`, a search `Bundle`, and the 404, 403, 401 and 400 outcomes.
+`api/fhir/CapabilityStatement.json`: `Encounter` with `read`, `search-type` and the three parameters (R4's own
+`Encounter-appointment`, `clinical-patient`, `Encounter-practitioner`); the router's golden copy updated with it.
+`internal/api`: `newConsultation` builds the `Encounter` service and the sessions; both handlers mounted on the
+`appointment` caller. `api/openapi.yaml`: the three paths, `ConsultationJoin`, `ConsultationStatus`, an
+`AppointmentID` parameter and the four new error codes; `make gen-clients`. `make bench-join-http` and
+`test/e2e/consultation_latency_test.go`. DPIA notes.
+
+**Tests seen failing first.**
+- videosession service: `undefined: videosession.Status`, `videosession.StateNotStarted`, `f.svc.Status undefined`
+  (build failed; the same build named `End`, `ErrPractitionerDidNotJoin` and `ErrNotStarted`).
+- videosession repository: `*postgresRepository does not implement Repository (missing method ByAppointment)`
+  (build failed); the `ByAppointment` test then seen failing against a stub that always answered not found:
+  `ByAppointment() in the patient's scope = {…}, videosession: not found; want {… Room:r_byappt …}`.
+- videosession handler: `too many arguments in call to videosession.NewHandler` (build failed).
+- encounter handler: `undefined: encounter.NewHandler` (build failed).
+- api/fhir: `Encounter = "", want "read search-type param:appointment:reference param:patient:reference
+  param:practitioner:reference "`; then the router's `testdata/metadata.json differs from the response`, rewritten
+  with `-update` on purpose (identical to the CapabilityStatement again).
+- internal/api: `not enough arguments in call to videosession.NewHandler` (app.go, build failed); with the caller
+  wired and the Encounter routes not yet mounted, `GET /fhir/R4/Encounter?appointment=… = 404 … "This resource or
+  interaction is not supported."`. Two test bugs found on the way: the synthetic join time lay after the real
+  end, so finishing the `Encounter` broke its `encounter_period` check (500 on the end; the join time now lies
+  inside the window, before the end), and the count of reads of the appointment left out the patient's FHIR read.
+
+**What the tests cover.** Service (fakes): the status for the patient, the practitioner and the admin, each in
+their own scope and audited as a read of the appointment, for no session, open (nobody or both joined) and ended
+`practitioner_absent`, at the name level after a revocation; another patient, another practitioner, another
+clinic and anonymous are 404, audited without the entity; failures audit nothing. The end by the practitioner,
+with and without the patient: ended `practitioner`, the encounter finished in the clinic's scope with whether the
+patient joined, the room deleted after the commit, the request and the agent's end audited; repeated: the same
+answer, nothing finished again, the room deleted again; after a concurrent end: answered as it ended; after a
+revocation it still ends; the patient, the admin, another practitioner, another clinic, another patient and
+anonymous get 404, audited, nothing ends; before the practitioner joined `ErrNotStarted`, audited; a failure in
+the appointment, the session, the end, the encounter or the audit changes nothing; a failed delete leaves the end
+committed. The join after the window: `practitioner_did_not_join` for both sides on a `practitioner_absent`
+session (also after a cancellation), `consultation_ended` for `window_closed`, `time_limit` and no session, no
+session opened, audited. Repository (real database, `salus_app`): `ByAppointment` in the patient's and the
+clinic's scope; another clinic, another patient, no session and a non-UUID are not found. Handlers (`httptest`):
+the join's exact JSON and `no-store`; the status and the end's JSON with the times and reason only when set; each
+of the six error codes on all three routes, 401 signed out without calling the service, 500 when the caller
+fails; the log holds no token or name and the error only on a 500. FHIR handler: the two `Encounter`s and the
+search against their golden files, the filter passed, an empty search; twelve unsupported queries (unknown,
+repeated, wrong type, several values, unparsable) 400 without calling the service; 404, 403, 401 and the fixed
+500. Through `api.New` on the real database and the compose LiveKit: `not_started` for the three, 404 for another
+patient's status and join, 404 for the admin's join, `consultation_not_started` before the practitioner joined,
+both joins with the URL, a token, the other's name, the role and `no-store`; signed `participant_joined` webhooks;
+`open` with the join times; the `Encounter` found and read `in-progress` by the patient, the practitioner and the
+admin (six audit events), 404 and an empty search for another patient, 400 for `status`; the end 404 for the
+patient and the admin, 200 `ended`/`practitioner` for the practitioner and the same again; the `Encounter`
+`finished`, the appointment `fulfilled`, a later join `consultation_ended`; the audit counts; the log holds no
+token or name. Refusals through `api.New`: `join_window_not_open` two hours ahead, `practitioner_did_not_join`
+for both on a session ended without the practitioner (the admin's status shows it with the patient's join), and
+`consent_required` after the revocation.
+
+**HTTP latency (`make bench-join-http`; the running stack: the api container on the compose Postgres and
+LiveKit, i7-14700HX, 28 threads).** 1,000 join requests, 10 at a time, alternating the patient and the
+practitioner, after one join each opened the session and the room (steady state: session check, access facts,
+audit, the other's name, LiveKit's `CreateRoom` and the token). Three runs; nothing else used the shared LiveKit
+meanwhile (no `make test`, whose rooms would send webhooks to the dev api).
+
+| Run | Throughput | All p50 / p95 / p99 | Patient p50 / p95 / p99 | Practitioner p50 / p95 / p99 |
+| --- | --- | --- | --- | --- |
+| 1 | 1,490/s | 5.98 / 12.38 / 18.14 ms | 6.80 / 13.10 / 18.38 ms | 5.27 / 11.25 / 16.87 ms |
+| 2 | 1,140/s | 8.01 / 13.89 / 18.86 ms | 8.75 / 14.17 / 18.73 ms | 7.18 / 13.45 / 19.50 ms |
+| 3 | 1,369/s | 6.24 / 13.46 / 27.96 ms | 7.15 / 13.46 / 28.02 ms | 5.59 / 13.41 / 25.21 ms |
+
+Next to package 1's service benchmark (about 4.1 to 4.4 ms per join, one at a time, of which about 1 ms is
+LiveKit's), the HTTP path at 10 concurrent requests adds the session check, the access log and the queueing for
+the database pool. The patient's join is about 1.5 ms slower at the median: its public-name read of the
+practitioner is a second transaction after the join's. No change is made for speed here.
+
+**Checks.** `make lint`: 0 issues (both modules), migrations unchanged. `make archcheck`: passes. `make test`:
+passes. `make cover`: every package at 80% or more (`internal/videosession` 96.2%, `internal/encounter` 97.2%,
+`internal/api` 91.1%, `internal/api/router` 100%, `api/fhir` 100%, total 94.9%). `make fhir-validate`: every file 0
+errors (the new `Encounter`s, the search `Bundle`, the outcomes and the CapabilityStatement; only the dom-6
+narrative warning every golden file has). `make gen-clients`: run, and a second run leaves no diff.
+`make bench-join-http`: three runs above; the api's log after them holds the route pattern, status, duration and
+request id for each join and no token, room, identity or name.
+
+**Deferred.** Removal on cancellation and revocation (package 5). The web app's appointment detail showing who
+joined, and the clients' use of the three endpoints (packages 6 and 7).
+
+**Dev stack left.** No migration. The api rebuilt by `make up` (through `make bench-join-http`) and running with
+this package's routes. The three latency runs left their synthetic e2e data in the dev database, as `make e2e`
+runs do: three clinics with an admin and a practitioner, three patients with a consent and one appointment each,
+their sessions and the rooms in the compose LiveKit (nobody connected, so each window-close job ends its session
+`practitioner_absent` and deletes its room when the window closes, about 65 minutes after the run), their slots,
+jobs and audit events.
 

@@ -78,7 +78,6 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, log *slog.Lo
 	}
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
-	hasher := auth.NewArgon2Hasher(auth.DefaultArgon2Params(), auth.MaxConcurrentHashes)
 	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{})
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx)
 	roles := practitionerrole.NewService(practitionerrole.Ports{
@@ -100,13 +99,13 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, log *slog.Lo
 		Jobs: appointment.NewRiverJobs(jobs), // a booking or cancellation enqueues its e-mails in its transaction
 	})
 	accounts := auth.NewService(auth.Ports{
-		Repo: auth.NewPostgresRepository(pool), Hasher: hasher, Audit: audit, Tx: tx, Clock: clock.System{},
+		Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
 		Challenges: auth.NewRedisChallengeStore(rdb), Counters: auth.NewRedisCounters(rdb), Box: box,
 		Jobs: auth.NewRiverJobs(jobs), Practitioners: practitioners, PractitionerRoles: roles,
-		RateLimitKey: cfg.RateLimitKey,
+		RateLimitKey: cfg.RateLimitKey, Hasher: auth.NewArgon2Hasher(auth.DefaultArgon2Params(), auth.MaxConcurrentHashes),
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies)
-	sessions := newSessions(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners)
+	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners)
 
 	h := router.New(router.Config{
 		Logger: log,
@@ -130,22 +129,23 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, log *slog.Lo
 			slot.NewHandler(slots, fhirBase, log).Routes,
 			appointment.NewHTTPHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-			videosession.NewHandler(sessions, log).Routes,
+			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
+			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 		},
 		Timeout: RequestTimeout,
 	})
 	return &App{Handler: h, pool: pool, redis: rdb}, nil
 }
 
-// newSessions builds the consultation's video sessions on LiveKit (lk), with the Encounter they start and
-// finish; the first join enqueues the window's close in its transaction.
-func newSessions(pool *pgxpool.Pool, lk config.LiveKit, jobs *river.Client[pgx.Tx], audit *auditevent.Service, tx *postgres.Transactor,
+// newConsultation builds the consultation's Encounter and its video sessions on LiveKit (lk), which start
+// and finish it; the first join enqueues the window's close in its transaction.
+func newConsultation(pool *pgxpool.Pool, lk config.LiveKit, jobs *river.Client[pgx.Tx], audit *auditevent.Service, tx *postgres.Transactor,
 	appointments *appointment.Service, consents *consent.Service, patients *patient.Service, practitioners *practitioner.Service,
-) *videosession.Service {
+) (*encounter.Service, *videosession.Service) {
 	encounters := encounter.NewService(encounter.Ports{
 		Repo: encounter.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Appointments: appointments,
 	})
-	return videosession.NewService(videosession.Ports{
+	return encounters, videosession.NewService(videosession.Ports{
 		Repo: videosession.NewPostgresRepository(pool), Provider: videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret),
 		Jobs: videosession.NewRiverJobs(jobs), Encounters: encounters, Audit: audit, Tx: tx, Clock: clock.System{},
 		Appointments: appointments, Consents: consents, Patients: patients, Practitioners: practitioners, PublicURL: lk.PublicURL,

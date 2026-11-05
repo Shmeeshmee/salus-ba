@@ -652,3 +652,33 @@ records, the `Encounter`'s create, the session's end, the `Encounter`'s finish a
 | A forged or replayed webhook changes a consultation | Signature, body hash and expiry checked (tested for a wrong key, wrong secret, changed body, missing header and expired token); every effect is a change guarded in SQL, so a repeat or a late event changes nothing (every order of the five events, each delivered twice, tested on the real database) |
 | A patient joins with a token issued just before a revocation or a cancellation committed | Every patient join checks the consent and the appointment's status again and removes the patient from the room when either is gone (tested, also on the real database after a revocation) |
 | The webhook's log reveals who was in a call | It logs the request id and the event kind only; an event for a room we do not know is logged as `unknown room` with nothing from the body (tested) |
+
+### Package 4: API
+
+**Processing added.** No new table or column. Three JSON endpoints and the FHIR `Encounter` read and search
+expose what packages 1 to 3 store. `POST /appointments/{id}/consultation/join` hands the appointment's patient or
+its practitioner a LiveKit token and the other person's display name (the practitioner's public directory name
+for the patient; the patient's name at the appointment's access level for the practitioner, audited as a
+`Patient` read). `GET /appointments/{id}/consultation` shows the patient, the practitioner and the clinic's admin
+whether and when each side joined and when and why the consultation ended (the owner's addition: the clinic
+sees whether the patient came when the practitioner did not). `POST /appointments/{id}/consultation/end` lets the
+practitioner end it. `Encounter` is read and searched as its appointment is seen (FHIR R4, class `VR`).
+
+**Purpose and lawful basis.** As packages 1 to 3: running the consultation and its care record (Art. 9(2)(h),
+with the active consent for joining). The status and the Encounter carry no clinical content, only that a
+consultation took place, who took part (as references) and when.
+
+**Access.** In the services: the join to the appointment's patient and its practitioner only (the admin
+included is 404); the status to whoever `access.Appointment` gives the name level or more; the end to the
+appointment's practitioner only, also after a revocation, so they can close the call they are in. Every call is
+audited in its own transaction, refusals included: the join and the end as an `operation` on the `Appointment`,
+the status as a `read` of it, each `Encounter` read and returned resource as a `read` or `search-type`. The writes
+an end causes are audited with the agent `consultation_end`, purpose `HOPERAT`.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A token, a room or a name leaks through the logs | The handlers log nothing on success and only the error on a 500; the access log carries the route pattern, not the path; tested to hold no token or name (handler and `api.New` tests), and the api's log after 3,000 joins in the stack held none |
+| Anyone other than the participants learns that the patient attended | The status is 404 for anyone `access.Appointment` gives nothing, audited without the entity; the join and the end are 404 for anyone but the participants (tested per caller) |
+| A response is cached by a shared cache | Every consultation response is `Cache-Control: no-store` (tested) |

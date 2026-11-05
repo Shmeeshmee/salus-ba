@@ -78,20 +78,8 @@ func (s *Service) closing(ctx context.Context, session Session, now time.Time) (
 func (s *Service) end(ctx context.Context, agent string, session Session, reason EndReason, at time.Time) error {
 	if session.EndedAt.IsZero() {
 		err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-			if err := s.Repo.SetClinic(ctx, session.OrganizationID); err != nil {
-				return err
-			}
-			ended, changed, err := s.Repo.End(ctx, session.ID, reason, at)
-			if err != nil || !changed {
-				return err
-			}
-			if err := s.recordSystem(ctx, agent, ended); err != nil {
-				return err
-			}
-			if ended.PractitionerJoinedAt.IsZero() { // no Encounter: the appointment stays as it is
-				return nil
-			}
-			return s.Encounters.Finish(ctx, agent, ended.AppointmentID, at, !ended.PatientJoinedAt.IsZero())
+			_, err := s.ending(ctx, agent, session, reason, at)
+			return err
 		})
 		if err != nil {
 			return fmt.Errorf("videosession: end: %w", err)
@@ -101,6 +89,28 @@ func (s *Service) end(ctx context.Context, agent string, session Session, reason
 		return fmt.Errorf("videosession: end: %w", err)
 	}
 	return nil
+}
+
+// ending is end's transaction, in the transaction in ctx: it returns the session as it ended, also when
+// another path ended it first (then it changes, finishes and audits nothing).
+func (s *Service) ending(ctx context.Context, agent string, session Session, reason EndReason, at time.Time) (Session, error) {
+	if err := s.Repo.SetClinic(ctx, session.OrganizationID); err != nil {
+		return Session{}, err
+	}
+	ended, changed, err := s.Repo.End(ctx, session.ID, reason, at)
+	switch {
+	case err != nil:
+		return Session{}, err
+	case !changed:
+		return s.Repo.ByID(ctx, session.ID)
+	}
+	if err := s.recordSystem(ctx, agent, ended); err != nil {
+		return Session{}, err
+	}
+	if ended.PractitionerJoinedAt.IsZero() { // no Encounter: the appointment stays as it is
+		return ended, nil
+	}
+	return ended, s.Encounters.Finish(ctx, agent, ended.AppointmentID, at, !ended.PatientJoinedAt.IsZero())
 }
 
 // recordSystem audits the agent's end of the session as an operation on its appointment, for operations.

@@ -48,6 +48,8 @@ part 'model/book_appointment_request.dart';
 part 'model/confirm_request.dart';
 part 'model/consent.dart';
 part 'model/consent_list.dart';
+part 'model/consultation_join.dart';
+part 'model/consultation_status.dart';
 part 'model/enrol_request.dart';
 part 'model/enrolment.dart';
 part 'model/error.dart';

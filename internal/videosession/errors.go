@@ -14,6 +14,11 @@ var (
 	// ErrConsultationEnded is returned once the session ended, the window closed, or the appointment is no
 	// longer booked.
 	ErrConsultationEnded = errors.New("videosession: consultation ended")
+	// ErrPractitionerDidNotJoin is returned for a join on a session that ended because the practitioner never
+	// joined before the window closed.
+	ErrPractitionerDidNotJoin = errors.New("videosession: practitioner did not join")
+	// ErrNotStarted is returned when the practitioner asks to end a consultation they have not joined.
+	ErrNotStarted = errors.New("videosession: consultation not started")
 	// ErrInvalidSignature is returned for a webhook that LiveKit did not sign for its body with our key pair,
 	// or whose signature has expired.
 	ErrInvalidSignature = errors.New("videosession: invalid webhook signature")
