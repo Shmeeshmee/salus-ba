@@ -162,6 +162,19 @@ func TestHandlerRead_SendsTheRoleWithItsReferencesSpecialtyMetaAndETag(t *testin
 	assertGolden(t, "practitioner_role.json", rec.Body.Bytes())
 }
 
+// Paediatrics is coded outside c80-practice-codes (docs/booking/SPEC.md §2); the golden file goes through the
+// HL7 validator like every other.
+func TestHandlerRead_SendsPaediatricsAsPediatricSpecialty(t *testing.T) {
+	r := role(roleA1, clinicA, practitionerA1)
+	r.SpecialtyCode = "394537008"
+	rec := newServer(&stubRoles{role: r}).get(t, "/fhir/R4/PractitionerRole/"+roleA1)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d %s, want 200", rec.Code, rec.Body)
+	}
+	assertGolden(t, "practitioner_role_paediatrics.json", rec.Body.Bytes())
+}
+
 func TestHandlerRead_AnswersNotFoundForARoleTheCallerMayNotSee(t *testing.T) {
 	rec := newServer(&stubRoles{err: practitionerrole.ErrNotFound}).get(t, "/fhir/R4/PractitionerRole/"+roleB)
 

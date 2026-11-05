@@ -105,6 +105,8 @@ type AuditEvent struct {
 	EntityReference pgtype.Text
 	RequestID       pgtype.Text
 	AgentName       pgtype.Text
+	EntityName      pgtype.Text
+	EntityCount     pgtype.Int8
 }
 
 type Consent struct {

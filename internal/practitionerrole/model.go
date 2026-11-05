@@ -27,7 +27,7 @@ type Caller struct {
 	Admin          bool   // the caller is an admin of that clinic
 }
 
-// Specialty is a SNOMED CT concept from the FHIR R4 ValueSet c80-practice-codes, with its display there, and
+// Specialty is a SNOMED CT concept, with its display, and
 // Text, the owner's name for it (CodeableConcept.text), which the apps show.
 type Specialty struct {
 	Code    string
@@ -36,8 +36,9 @@ type Specialty struct {
 }
 
 // Specialties returns the specialties an admin may give a role: the owner's twelve, each code and display
-// copied from c80-practice-codes in hl7.fhir.r4.core 4.0.1 (docs/booking/PROGRESS.md, package 4). The value
-// set has no paediatrics concept; it is "Medical specialty--OTHER--NOT LISTED" with its own text.
+// copied from c80-practice-codes in hl7.fhir.r4.core 4.0.1 (docs/booking/PROGRESS.md, package 4). That value
+// set has no paediatrics concept, so paediatrics is SNOMED CT 394537008 "Pediatric specialty", which the
+// preferred binding on PractitionerRole.specialty allows (docs/booking/SPEC.md §2).
 func Specialties() []Specialty {
 	return []Specialty{
 		{Code: "394814009", Display: "General practice", Text: "General practice"},
@@ -45,7 +46,7 @@ func Specialties() []Specialty {
 		{Code: "394579002", Display: "Cardiology", Text: "Cardiology"},
 		{Code: "394582007", Display: "Dermatology", Text: "Dermatology"},
 		{Code: "394586005", Display: "Gynecology", Text: "Gynaecology"},
-		{Code: "394733009", Display: "Medical specialty--OTHER--NOT LISTED", Text: "Paediatrics"},
+		{Code: "394537008", Display: "Pediatric specialty", Text: "Paediatrics"},
 		{Code: "394587001", Display: "Psychiatry", Text: "Psychiatry"},
 		{Code: "394591006", Display: "Neurology", Text: "Neurology"},
 		{Code: "418960008", Display: "Otolaryngology", Text: "ENT"},

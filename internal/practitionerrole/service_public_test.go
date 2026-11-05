@@ -6,8 +6,47 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 )
+
+// fakeClinics reads a clinic as its own member would (organization.Service.Read): listed as given, every
+// clinic it knows of.
+type fakeClinics struct {
+	err    error
+	listed map[string]bool
+}
+
+func (c *fakeClinics) Read(_ context.Context, caller organization.Caller, id string) (organization.Organization, error) {
+	if c.err != nil {
+		return organization.Organization{}, c.err
+	}
+	listed, ok := c.listed[id]
+	if !ok || caller.OrganizationID != id {
+		return organization.Organization{}, organization.ErrNotFound
+	}
+	return organization.Organization{ID: id, Listed: listed}, nil
+}
+
+// fakePeople gives the practitioners among ids that are not inactive (practitioner.Service.PublicNames).
+type fakePeople struct {
+	err      error
+	inactive map[string]bool
+}
+
+func (p *fakePeople) PublicNames(_ context.Context, ids []string) ([]practitioner.Practitioner, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+	var out []practitioner.Practitioner
+	for _, id := range ids {
+		if !p.inactive[id] {
+			out = append(out, practitioner.Practitioner{ID: id, Active: true})
+		}
+	}
+	return out, nil
+}
 
 func (r *fakeRepository) SetDirectory(ctx context.Context) error {
 	r.seen(ctx, "SetDirectory")
@@ -66,5 +105,49 @@ func TestPublicByOrganization_FailsOnARepositoryError(t *testing.T) {
 	repo.err = broken
 	if _, err := newService(repo, &fakeAuditor{}).PublicByOrganization(t.Context(), clinicA); !errors.Is(err, broken) {
 		t.Errorf("PublicByOrganization() = %v, want the repository error", err)
+	}
+}
+
+// The service checks that the clinic is listed before it reads a role; row-level security is the second guard.
+func TestPublicByOrganization_ShowsNothingOfAClinicThatIsNotListedEvenWithoutTheDatabasePolicy(t *testing.T) {
+	t.Parallel()
+	for name, clinics := range map[string]*fakeClinics{
+		"unlisted": {listed: map[string]bool{clinicA: false}},
+		"unknown":  {listed: map[string]bool{}},
+	} {
+		repo := newFakeRepository()
+		repo.leak = true
+		got, err := newDirectoryService(repo, &fakeAuditor{}, clinics, &fakePeople{}).PublicByOrganization(t.Context(), clinicA)
+		if err != nil || len(got) != 0 {
+			t.Errorf("%s: PublicByOrganization() = %+v, %v; want none", name, got, err)
+		}
+		if slices.Contains(repo.calls, "PublicByOrganization") {
+			t.Errorf("%s: calls %v, want no role read", name, repo.calls)
+		}
+	}
+}
+
+func TestPublicByOrganization_KeepsOnlyRolesWhosePractitionerIsActive(t *testing.T) {
+	t.Parallel()
+	repo := newFakeRepository()
+	people := &fakePeople{inactive: map[string]bool{repo.roles[2].PractitionerID: true}}
+	got, err := newDirectoryService(repo, &fakeAuditor{}, &fakeClinics{listed: map[string]bool{clinicA: true}}, people).
+		PublicByOrganization(t.Context(), clinicA)
+	if err != nil || !slices.Equal(got, repo.roles[:1]) {
+		t.Errorf("PublicByOrganization() = %+v, %v; want role A1 only", got, err)
+	}
+}
+
+func TestPublicByOrganization_FailsWhenTheClinicOrPractitionersCannotBeRead(t *testing.T) {
+	t.Parallel()
+	broken := errors.New("synthetic failure")
+	listed := map[string]bool{clinicA: true}
+	for name, svc := range map[string]*practitionerrole.Service{
+		"clinic":        newDirectoryService(newFakeRepository(), &fakeAuditor{}, &fakeClinics{err: broken, listed: listed}, &fakePeople{}),
+		"practitioners": newDirectoryService(newFakeRepository(), &fakeAuditor{}, &fakeClinics{listed: listed}, &fakePeople{err: broken}),
+	} {
+		if _, err := svc.PublicByOrganization(t.Context(), clinicA); !errors.Is(err, broken) {
+			t.Errorf("%s: PublicByOrganization() = %v, want the error", name, err)
+		}
 	}
 }

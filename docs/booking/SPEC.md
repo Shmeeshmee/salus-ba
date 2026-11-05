@@ -1,7 +1,8 @@
 # Patients, consent and booking
 
-Status: approved, 2026-11-04, with the owner's changes (section 2, "Changed on approval"). Branch `feat/booking` from `main`, one commit per
-package (`booking(<n>): <summary>`), one PR at the end.
+Status: approved, 2026-11-04, with the owner's changes (section 2, "Changed on approval" and "Changed on
+review of PR #18"). Branch `feat/booking` from `main`, one commit per package (`booking(<n>): <summary>`), one
+PR at the end.
 
 ## 1. Goal
 
@@ -63,13 +64,20 @@ Decisions taken in this plan (reopen only with the owner):
   oldest `recorded` through `auditevent.Service` and fails, with the count only, if any row is overdue. The
   mechanism that removes old audit ranges (partitioning `audit_event` by year, dropped by `salusctl` as the
   owner) is recorded under "Up next". The job refuses to start when a `delete` or `remove-range` rule has no
-  applier (a test over `Rules()`). It logs the table and row count per rule, nothing else.
+  applier (a test over `Rules()`). It logs the table and row count per rule, nothing else, and writes one
+  `AuditEvent` per run per table it deletes from (changed on review): agent the job (`retention_apply`),
+  action `D`, `rest` + `restful-interaction` `delete`, purpose `HOPERAT`, `entity.name` the table and
+  `entity.detail` "rows" the count deleted (zero included); never one event per row. The purge runs as
+  `salus_retention` and the event is written as `salus_app`, so they are not one transaction; a run that fails
+  between them is retried and audits again.
 - **Periodic jobs.** `cmd/scheduler` runs a River client that only enqueues River periodic jobs (leader
   elected, so several replicas enqueue once): `retention_apply` daily at 03:00 UTC and `slots_generate` every
   hour. `cmd/worker` works them on the default queue. Both are idempotent.
 - **Row-level security scopes.** Every transaction is in one scope, set with `postgres.SetLocal`:
   - **clinic** (`app.organization_id`, as in accounts): staff, and the notifier jobs (the job carries the
-    clinic id, like `invite_email`);
+    clinic id, like `invite_email`). An e-mail job also sets `app.appointment_id` and reads the one
+    appointment it names, and that appointment's patient, whatever the consent, so a cancellation after a
+    revocation is still mailed (approved on review); read-only, nothing else;
   - **patient** (`app.patient_id`): a patient's own transactions. A patient's booking or cancellation also
     sets the appointment's clinic, after the service has resolved and checked the slot or appointment; the
     `patient` table's consent branch (below) applies only when `app.patient_id` is unset, so a patient's
@@ -112,7 +120,10 @@ Decisions taken in this plan (reopen only with the owner):
   the latest `revoked_at` of the patient's consents with that clinic. Without an active consent, the clinic
   scope sees only the patient's past appointments with that clinic (RLS: `start < max(revoked_at)`), and
   through them the patient's name, the times and the status; never the profile, never a future or cancelled-by-
-  revocation appointment. Granting consent again restores access to everything.
+  revocation appointment. Granting consent again restores access to everything. The appointment's
+  practitioner still marks such a past appointment `fulfilled` or `noshow` (the care record, Art. 9(2)(h));
+  cancelling it stays refused (changed on review; `access.RecordsOutcome`, and an RLS `UPDATE` policy whose
+  `WITH CHECK` allows only those two statuses).
 - **Access rule.** Pure functions in `access`, with `Level` one of `None`, `Name`, `Full`.
   `Viewer`: role, clinic, practitioner role id, own patient id. `Facts`: the patient id, whether an active
   consent exists for the viewer's clinic, the latest revocation time, and the patient's appointments in that
@@ -125,6 +136,8 @@ Decisions taken in this plan (reopen only with the owner):
     the appointment's practitioner and the clinic's admin → `Full` for the appointment, the name per
     `Profile`; without an active consent, the same viewers → `Name` (name, times, status) for a past
     appointment and `None` for anything else; other practitioners and other clinics → `None`.
+  - `access.RecordsOutcome(viewer, facts, appt) bool`: the appointment's practitioner, with an active consent
+    or, without one, for a past appointment; nobody else. The service checks that the start has passed.
   Table tests cover every combination of role × consent (active, revoked, never) × appointment (none, past,
   future, other practitioner) × clinic match. `access` imports nothing from `internal/`.
 - **Who may do what with an appointment.** Patient: book, cancel their own until 24 h before (later: 409
@@ -159,16 +172,19 @@ Decisions taken in this plan (reopen only with the owner):
   occurrence. Slot `status`: `free` | `busy` (FHIR `SlotStatus`).
 - **Time zones.** `organization.time_zone` is validated with `time.LoadLocation`. The binaries import
   `time/tzdata`, so zone data never depends on the runtime image.
-- **Specialty.** `practitioner_role.specialty_code`, nullable, one of twelve from the R4
-  `c80-practice-codes` value set (SNOMED CT), held in `practitionerrole` with its display (owner's list on
-  approval): general practice, internal medicine, cardiology, dermatology, gynaecology, paediatrics,
+- **Specialty.** `practitioner_role.specialty_code`, nullable, one of twelve: c80 practice codes, plus
+  394537008 for paediatrics (preferred binding allows it; changed on review). That is the R4
+  `c80-practice-codes` value set (SNOMED CT), which has no paediatrics concept, plus SNOMED CT 394537008
+  "Pediatric specialty"; held in `practitionerrole` with its display (owner's list on approval): general practice, internal medicine, cardiology, dermatology, gynaecology, paediatrics,
   psychiatry, neurology, ENT, ophthalmology, orthopaedics, endocrinology. Package 4 takes each code and
   display from the value set in the R4 core package, not from memory, and records them in `PROGRESS.md`. JSON
   `PUT /practitioner-roles/{id}/specialty` `{code}` (admin of the clinic, `If-Match`). FHIR
   `PractitionerRole.specialty` with `system` `http://snomed.info/sct`.
 - **Public browse.** FHIR, unauthenticated: `Organization?listed=true`, the existing
   `PractitionerRole?organization=…&_include=PractitionerRole:practitioner` opened to anonymous callers for a
-  listed clinic (active roles only; `Practitioner` with name only; `PractitionerRole` with specialty), and
+  listed clinic (active roles of active practitioners only; `Practitioner` with name only; `PractitionerRole`
+  with specialty; the service checks that the clinic is listed and the practitioner active, with RLS as the
+  second guard, changed on review), and
   `Schedule?actor=PractitionerRole/…` so the app can find the schedule to search slots in (search by `actor`
   is not in the owner's FHIR list; it is the standard R4 parameter and the smallest way to get there). Public
   reads are **not audited**: they hold only what a clinic chose to publish, and auditing anonymous traffic would
@@ -202,7 +218,10 @@ Decisions taken in this plan (reopen only with the owner):
 - **JSON API** (`api/openapi.yaml`, generated clients): `GET`/`PUT /me/patient`; `POST /consents`,
   `POST /consents/{id}/revoke`, `GET /me/consents`; `POST /appointments` `{slotId}`,
   `POST /appointments/{id}/cancel`, `POST /appointments/{id}/status` `{status}`;
-  `GET`/`PUT /practitioner-roles/{id}/availability`; `PUT /practitioner-roles/{id}/specialty`. Errors keep
+  `GET`/`PUT /practitioner-roles/{id}/availability`; `PUT /practitioner-roles/{id}/specialty`;
+  `GET /specialties` (the twelve, for the web app's picker) and `practitionerId` on `GET /auth/me` (the
+  signed-in practitioner's own id, so the calendar can find their role), both added in package 8 and
+  approved on review. Errors keep
   `{"error": "<code>"}`. Reads of FHIR data go through FHIR, writes through these actions.
 - **Web and mobile read FHIR.** Both keep a small hand-written FHIR layer for the elements they use, as the
   web app does today; the JSON actions go through the generated clients.
@@ -218,6 +237,21 @@ Changed on approval (2026-11-04, owner):
   can use them.
 - Slot status changes in the appointment's transaction, proven by a concurrent book-and-cancel test.
 - The specialty list is the owner's twelve.
+
+Changed on review of PR #18 (2026-11-05, owner):
+
+- Paediatrics is SNOMED CT 394537008 "Pediatric specialty", outside `c80-practice-codes` (preferred binding).
+- The notifier's e-mail jobs read the one appointment they name, and its patient, after a revocation.
+- After a revocation the practitioner marks past appointments `fulfilled` or `noshow`; cancelling them stays
+  refused.
+- `GET /specialties` and `practitionerId` on `/auth/me` are part of the JSON API.
+- The retention job writes one `AuditEvent` per run per table, with the row count; none per row.
+- The public practitioner listing is checked in the service (clinic listed, practitioner active), with RLS as
+  the second guard.
+- The canonical base of our FHIR definitions stays `https://salus.invalid/fhir`: **needs the real domain before
+  production**.
+- Retention periods, the lawful-basis sign-off and `PATIENT_APP_URL` stay open as before-production items;
+  they do not block the merge.
 
 ## 3. Lawful basis
 

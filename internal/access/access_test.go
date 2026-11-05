@@ -137,6 +137,32 @@ func TestAppointment_OverEveryRoleConsentAppointmentAndClinic(t *testing.T) {
 	})
 }
 
+// RecordsOutcome: the appointment's practitioner, with an active consent, or after a revocation for a past
+// appointment (the care record, Art. 9(2)(h)); never the admin, the patient or anyone of another clinic. That
+// the start has passed is the service's check.
+func TestRecordsOutcome_OverEveryRoleConsentAppointmentAndClinic(t *testing.T) {
+	want := map[string]bool{
+		"practitioner/active/past/match":   true,
+		"practitioner/active/future/match": true,
+		"practitioner/revoked/past/match":  true,
+	}
+	seen := map[string]bool{}
+	each(func(key string, v access.Viewer, f access.Facts) {
+		if len(f.Visits) == 0 {
+			return
+		}
+		seen[key] = true
+		if got := access.RecordsOutcome(v, f, f.Visits[0]); got != want[key] {
+			t.Errorf("RecordsOutcome(%s) = %v, want %v", key, got, want[key])
+		}
+	})
+	for key := range want {
+		if !seen[key] {
+			t.Errorf("expectation %q is no combination", key)
+		}
+	}
+}
+
 func TestAccess_RefusesIncompleteViewersAndFacts(t *testing.T) {
 	past := access.Visit{Start: revokedAt.Add(-time.Hour)}
 	tests := []struct {

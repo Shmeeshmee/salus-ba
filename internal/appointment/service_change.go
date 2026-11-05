@@ -178,9 +178,9 @@ func (s *Service) cancelled(ctx context.Context, a Appointment) error {
 }
 
 // SetStatus marks the booked appointment id fulfilled or noshow, by its practitioner, once its start has
-// passed, and returns it. ErrInvalidStatus for any other status (before any access), ErrForbidden to anyone
-// but a practitioner and for an appointment seen at the name only, ErrNotFound for one the caller may not
-// see, ErrNotStarted before the start, ErrClosed for one no longer booked; each refusal but the first is
+// passed, and returns it; after a revocation too, for an appointment that started before it (the care
+// record, access.RecordsOutcome). ErrInvalidStatus for any other status (before any access), ErrForbidden to
+// anyone but its practitioner, ErrNotFound for one the caller may not see, ErrNotStarted before the start, ErrClosed for one no longer booked; each refusal but the first is
 // audited.
 func (s *Service) SetStatus(ctx context.Context, c Caller, id string, status Status) (Appointment, error) {
 	if status != StatusFulfilled && status != StatusNoShow {
@@ -219,7 +219,7 @@ func (s *Service) setStatus(ctx context.Context, c Caller, id string, status Sta
 		return Appointment{}, nil, err
 	case v.level == access.None:
 		return Appointment{}, ErrNotFound, nil
-	case v.level != access.Full:
+	case !access.RecordsOutcome(v.viewer, v.facts, visit(v.a)):
 		return Appointment{}, ErrForbidden, nil
 	case v.a.Status != StatusBooked:
 		return Appointment{}, ErrClosed, nil

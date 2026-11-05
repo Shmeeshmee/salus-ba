@@ -154,7 +154,7 @@ func TestAppointment_TheRevocationEndsTheClinicsViewOfTheFutureWhenItCommits(t *
 	}
 }
 
-func TestAppointment_AClinicChangesOnlyTheAppointmentsOfAnActiveConsentAndBooksNone(t *testing.T) {
+func TestAppointment_AClinicChangesAppointmentsOfAnActiveConsentMarksPastOnesAfterARevocationAndBooksNone(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
 	p, dir, a := seedAppointments(t, owner)
@@ -170,13 +170,35 @@ func TestAppointment_AClinicChangesOnlyTheAppointmentsOfAnActiveConsentAndBooksN
 	if n, err := update(map[string]string{"app.organization_id": clinicA}, a.aPast); err != nil || n != 1 {
 		t.Errorf("clinic A marks its consenting patient's appointment: %d rows, %v; want 1", n, err)
 	}
-	if n, err := update(map[string]string{"app.organization_id": clinicB}, a.bPast); err != nil || n != 0 {
-		t.Errorf("clinic B marks a past appointment after the revocation: %d rows, %v; want 0", n, err)
+	// After the revocation clinic B still records how a past visit went (the care record), but cancels nothing.
+	if n, err := update(map[string]string{"app.organization_id": clinicB}, a.bPast); err != nil || n != 1 {
+		t.Errorf("clinic B marks a past appointment after the revocation: %d rows, %v; want 1", n, err)
+	}
+	err := asApp(t, app, map[string]string{"app.organization_id": clinicB}, func(ctx context.Context, db postgres.Querier) error {
+		_, err := db.Exec(ctx, `UPDATE appointment SET status = 'booked', version_id = version_id + 1 WHERE id = $1`, a.bPast)
+		return err
+	})
+	if sqlState(err) != "42501" {
+		t.Errorf("clinic B sets a past appointment back to booked after the revocation: %v, want an RLS violation (42501)", err)
+	}
+	if _, err := owner.Exec(t.Context(), "UPDATE appointment SET status = 'booked' WHERE id = $1", a.bPast); err != nil {
+		t.Fatal(err)
+	}
+	err = asApp(t, app, map[string]string{"app.organization_id": clinicB}, func(ctx context.Context, db postgres.Querier) error {
+		_, err := db.Exec(ctx, `UPDATE appointment SET status = 'cancelled', cancelled_at = now(), cancellation_reason = 'prov',
+			version_id = version_id + 1 WHERE id = $1`, a.bPast)
+		return err
+	})
+	if sqlState(err) != "42501" {
+		t.Errorf("clinic B cancels a past appointment after the revocation: %v, want an RLS violation (42501)", err)
+	}
+	if n, err := update(map[string]string{"app.organization_id": clinicB}, a.bFuture); err != nil || n != 0 {
+		t.Errorf("clinic B marks an appointment after the revocation that was not past: %d rows, %v; want 0", n, err)
 	}
 	if n, err := update(map[string]string{"app.organization_id": clinicB, "app.appointment_id": a.bFuture}, a.bFuture); err != nil || n != 0 {
 		t.Errorf("the notifier's scope changes an appointment: %d rows, %v; want 0", n, err)
 	}
-	err := asApp(t, app, map[string]string{"app.organization_id": clinicA}, func(ctx context.Context, db postgres.Querier) error {
+	err = asApp(t, app, map[string]string{"app.organization_id": clinicA}, func(ctx context.Context, db postgres.Querier) error {
 		_, err := db.Exec(ctx, `INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period)
 			VALUES ($1, $2, $3, gen_random_uuid(), tstzrange('2030-02-01T10:00:00Z', '2030-02-01T10:30:00Z'))`, p[0].patient, dir[clinicA].role, clinicA)
 		return err

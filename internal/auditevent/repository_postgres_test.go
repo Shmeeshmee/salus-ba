@@ -3,6 +3,7 @@ package auditevent_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -138,6 +139,40 @@ func TestRecord_StoresAnAgentThatIsNoAccountByName(t *testing.T) {
 	}
 	if got := readOnly(t, owner); got.agent != "<null>" || got.agentName != "salusctl" {
 		t.Errorf("stored agent %q named %q, want no account and the operator command, salusctl", got.agent, got.agentName)
+	}
+}
+
+// An event about a table rather than a resource (the retention job's deletions) stores the table and its row
+// count, zero included; any other event stores neither.
+func TestRecord_StoresTheTableAndRowCountOfAnEventAboutATable(t *testing.T) {
+	t.Parallel()
+	svc, _, owner := newAppService(t)
+	e := login()
+	e.AgentAccountID, e.AgentName, e.EntityReference, e.EntityName = "", "retention_apply", "", "session"
+	if err := svc.Record(t.Context(), e); err != nil {
+		t.Fatalf("Record() error = %v", err)
+	}
+	if err := svc.Record(t.Context(), login()); err != nil {
+		t.Fatalf("Record() error = %v", err)
+	}
+	rows, err := owner.Query(t.Context(), `SELECT coalesce(entity_name, '<null>'), coalesce(entity_count::text, '<null>')
+		FROM audit_event ORDER BY entity_name NULLS LAST`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for rows.Next() {
+		var name, n string
+		if err := rows.Scan(&name, &n); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, name+" "+n)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"session 0", "<null> <null>"}; !slices.Equal(got, want) {
+		t.Errorf("stored %v, want %v", got, want)
 	}
 }
 

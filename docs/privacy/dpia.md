@@ -268,7 +268,9 @@ the end timestamps. It logs the table and the counts per rule, nothing else; job
 **Risks and measures.** A role that bypasses row-level security could read every clinic's invites: it holds
 only `SELECT`/`DELETE` on two tables, its credentials reach one process, and the SQL lives with the owning
 domain (`auth`). Deletions are not audited row by row: the role cannot write `audit_event` by design, and the
-deleted rows are expired credentials and invitations; the log keeps the daily counts.
+deleted rows are expired credentials and invitations. Each run writes one `AuditEvent` per table it deletes
+from, as `salus_app`, with the job as agent, the table name and the row count (owner's decision on review,
+2026-11-05); the log keeps the same counts.
 
 **Open before production.** The retention periods (legal decision, unchanged); provisioning
 `salus_retention` where `migrate` does not run as a superuser: creating a `BYPASSRLS` role needs a superuser
@@ -436,7 +438,9 @@ clinical.
 
 **Access.** Row-level security on `appointment`: the patient's own scope; a clinic's scope with an active
 consent, or, after a revocation, for an appointment that started before the latest one; changes by a clinic
-only with an active consent; no booking in a clinic's scope. The `patient` table gains the clinic's
+with an active consent, and after a revocation only marking such a past appointment `fulfilled` or `noshow`
+(the care record, Art. 9(2)(h); cancelling it is refused by `WITH CHECK`, tested); no booking in a clinic's
+scope. The `patient` table gains the clinic's
 past-appointment branch (the name is the service's to give). The notifier's e-mail jobs read in the clinic's
 scope narrowed to the one appointment the job names (`app.appointment_id`), and that appointment's patient
 row: a cancellation after a revocation must still reach the patient, though the clinic itself no longer sees

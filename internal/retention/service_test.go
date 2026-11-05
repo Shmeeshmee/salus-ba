@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -28,11 +29,21 @@ func (p *fakePurger) Purge(_ context.Context, before time.Time) (int64, error) {
 	return p.rows, p.err
 }
 
-// fakeAudit counts overdue audit events: overdue for any cut-off.
+// fakeAudit counts overdue audit events, overdue for any cut-off, and keeps the events recorded.
 type fakeAudit struct {
-	err     error
-	before  []time.Time
-	overdue int64
+	err       error
+	recordErr error
+	before    []time.Time
+	events    []auditevent.AuditEvent
+	overdue   int64
+}
+
+func (a *fakeAudit) Record(_ context.Context, e auditevent.AuditEvent) error {
+	if a.recordErr != nil {
+		return a.recordErr
+	}
+	a.events = append(a.events, e)
+	return nil
 }
 
 func (a *fakeAudit) CountRecordedBefore(_ context.Context, before time.Time) (int64, error) {
@@ -86,6 +97,33 @@ func TestApply_CallsEachApplierOnceWithItsRulesCutOffAndCountsTheRows(t *testing
 	}
 }
 
+// One AuditEvent per run per table rows are deleted from: the job as agent, the table and its row count,
+// zero included; nothing per row (docs/booking/SPEC.md §2 "Applying the rules").
+func TestApply_AuditsEachDeleteRuleOnceWithItsTableAndRowCount(t *testing.T) {
+	a := newAppliers()
+	a.slots.rows = 0
+
+	if _, err := a.service(t).Apply(t.Context()); err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	event := func(table string, rows int64) auditevent.AuditEvent {
+		return auditevent.AuditEvent{
+			Type:        auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
+			Subtype:     auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: auditevent.CodeDelete},
+			Purpose:     auditevent.Coding{System: auditevent.SystemActReason, Code: auditevent.CodeHOPERAT},
+			AgentName:   "retention_apply",
+			EntityName:  table,
+			EntityCount: rows,
+			Action:      auditevent.ActionDelete,
+			Outcome:     auditevent.OutcomeSuccess,
+		}
+	}
+	want := []auditevent.AuditEvent{event("session", 4), event("invite", 1), event("slot", 0)}
+	if !slices.Equal(a.audit.events, want) {
+		t.Errorf("recorded %+v,\nwant %+v", a.audit.events, want)
+	}
+}
+
 func TestApply_FailsWithTheCountOnlyWhenAnAuditEventIsOverdueAndStillPurges(t *testing.T) {
 	a := newAppliers()
 	a.audit.overdue = 7
@@ -111,6 +149,7 @@ func TestApply_StopsAtAnApplierThatFails(t *testing.T) {
 	for name, breakIt := range map[string]func(appliers){
 		"purger": func(a appliers) { a.sessions.err = errors.New("synthetic failure") },
 		"audit":  func(a appliers) { a.audit.err = errors.New("synthetic failure") },
+		"record": func(a appliers) { a.audit.recordErr = errors.New("synthetic failure") },
 	} {
 		t.Run(name, func(t *testing.T) {
 			a := newAppliers()
@@ -129,7 +168,7 @@ func TestNewService_RefusesRulesWithoutAnApplierAndAppliersWithoutARule(t *testi
 	purger := &fakePurger{}
 	tests := []struct {
 		purgers map[string]retention.Purger
-		audit   retention.AuditAges
+		audit   retention.Audit
 		name    string
 		table   string
 	}{

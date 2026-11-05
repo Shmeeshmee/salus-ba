@@ -104,6 +104,8 @@ func TestRecord_RejectsAnInvalidEvent(t *testing.T) {
 		{name: "no type system", change: func(e *auditevent.AuditEvent) { e.Type.System = "" }},
 		{name: "no subtype", change: func(e *auditevent.AuditEvent) { e.Subtype = auditevent.Coding{} }},
 		{name: "no purpose", change: func(e *auditevent.AuditEvent) { e.Purpose = auditevent.Coding{} }},
+		{name: "a row count without a table", change: func(e *auditevent.AuditEvent) { e.EntityCount = 3 }},
+		{name: "a negative row count", change: func(e *auditevent.AuditEvent) { e.EntityName, e.EntityCount = "session", -1 }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -127,13 +127,26 @@ func TestSetStatus_ThePractitionerMarksTheirAppointmentOnceItHasStarted(t *testi
 	}
 }
 
+// After a revocation the practitioner still records how a past visit went: it is the care record
+// (docs/booking/SPEC.md "Past and future after revocation").
+func TestSetStatus_ThePractitionerMarksAPastAppointmentAfterARevocation(t *testing.T) {
+	f := cancelFixture(now.Add(-time.Hour))
+	f.consents.state[patientA+clinicA] = access.Consent{RevokedAt: now.Add(-time.Minute)}
+	got, err := f.svc.SetStatus(t.Context(), pract, apptA, appointment.StatusNoShow)
+	if err != nil || got.Status != appointment.StatusNoShow || got.VersionID != 2 {
+		t.Fatalf("SetStatus() after the revocation = %+v, %v; want a no-show at version 2", got, err)
+	}
+	checkEvents(t, "SetStatus", f.audit, event(pract, auditevent.CodeUpdate, "Appointment", apptA, auditevent.OutcomeSuccess))
+}
+
 func TestSetStatus_RefusesAndAuditsEveryCaseOfRefusal(t *testing.T) {
 	tests := []struct {
-		at     time.Time
-		want   error
-		name   string
-		caller appointment.Caller
-		closed bool
+		at      time.Time
+		want    error
+		consent *access.Consent // patient A's with clinic A, when changed
+		name    string
+		caller  appointment.Caller
+		closed  bool
 	}{
 		{name: "a second before the start", caller: pract, at: now.Add(time.Second), want: appointment.ErrNotStarted},
 		{name: "a second time", caller: pract, at: now.Add(-time.Hour), closed: true, want: appointment.ErrClosed},
@@ -141,9 +154,14 @@ func TestSetStatus_RefusesAndAuditsEveryCaseOfRefusal(t *testing.T) {
 		{name: "the patient", caller: me, at: now.Add(-time.Hour), want: appointment.ErrForbidden},
 		{name: "another practitioner", caller: pract2, at: now.Add(-time.Hour), want: appointment.ErrNotFound},
 		{name: "another clinic's admin", caller: adminB, at: now.Add(-time.Hour), want: appointment.ErrForbidden},
+		{name: "one that started after the revocation", caller: pract, at: now.Add(-time.Second), want: appointment.ErrNotFound,
+			consent: &access.Consent{RevokedAt: now.Add(-time.Minute)}},
 	}
 	for _, tt := range tests {
 		f := cancelFixture(tt.at)
+		if tt.consent != nil {
+			f.consents.state[patientA+clinicA] = *tt.consent
+		}
 		if tt.closed {
 			f.repo.appts[0].Status = appointment.StatusFulfilled
 		}

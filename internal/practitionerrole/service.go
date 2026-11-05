@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
@@ -20,19 +22,42 @@ type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
+// Clinics reads a clinic in its own scope, unaudited inside the caller's access (organization.Service).
+type Clinics interface {
+	Read(ctx context.Context, c organization.Caller, id string) (organization.Organization, error)
+}
+
+// People gives the active practitioners of listed clinics among ids (practitioner.Service).
+type People interface {
+	PublicNames(ctx context.Context, ids []string) ([]practitioner.Practitioner, error)
+}
+
+// Ports are what the Service is built on.
+type Ports struct {
+	Repo    Repository
+	Audit   Auditor
+	Tx      Transactor
+	Clock   clock.Clock
+	Clinics Clinics
+	People  People
+}
+
 // Service holds the practitioner role rules: only staff of a clinic see its roles, only its admin sets a
 // role's specialty, and every read, search and write by staff is audited, also when it is refused. Anyone
-// may read the active roles of a listed clinic (PublicByOrganization); that is not audited.
+// may read the active roles of a listed clinic whose practitioner is active (PublicByOrganization); that is
+// not audited.
 type Service struct {
-	repo  Repository
-	audit Auditor
-	tx    Transactor
-	clock clock.Clock
+	repo    Repository
+	audit   Auditor
+	tx      Transactor
+	clock   clock.Clock
+	clinics Clinics
+	people  People
 }
 
 // NewService returns a Service on its ports.
-func NewService(repo Repository, audit Auditor, tx Transactor, clk clock.Clock) *Service {
-	return &Service{repo: repo, audit: audit, tx: tx, clock: clk}
+func NewService(p Ports) *Service {
+	return &Service{repo: p.Repo, audit: p.Audit, tx: p.Tx, clock: p.Clock, clinics: p.Clinics, people: p.People}
 }
 
 // Read returns the role id to staff of its clinic, or ErrNotFound to anyone else.
@@ -210,12 +235,17 @@ func updateRefusal(c Caller) error {
 	return nil
 }
 
-// PublicByOrganization returns the active roles of the clinic org, oldest first, when the clinic is listed,
-// and none otherwise: the public directory, for anyone, signed in or not. It holds only what the clinic chose
-// to publish, so it is not audited (docs/booking/SPEC.md "Public browse").
+// PublicByOrganization returns the active roles of the clinic org whose practitioner is active, oldest
+// first, when the clinic is listed, and none otherwise: the public directory, for anyone, signed in or not.
+// The service checks the listing and the practitioner itself; row-level security is the second guard. It
+// holds only what the clinic chose to publish, so it is not audited (docs/booking/SPEC.md "Public browse").
 func (s *Service) PublicByOrganization(ctx context.Context, org string) ([]PractitionerRole, error) {
+	listed, err := s.listed(ctx, org)
+	if err != nil || !listed {
+		return nil, err
+	}
 	var roles []PractitionerRole
-	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+	err = s.tx.WithTx(ctx, func(ctx context.Context) error {
 		if err := s.repo.SetDirectory(ctx); err != nil {
 			return err
 		}
@@ -223,8 +253,20 @@ func (s *Service) PublicByOrganization(ctx context.Context, org string) ([]Pract
 		if err != nil {
 			return err
 		}
+		ids := make([]string, 0, len(all))
 		for _, p := range all {
-			if p.OrganizationID == org && p.Active { // not on row-level security alone
+			ids = append(ids, p.PractitionerID)
+		}
+		people, err := s.people.PublicNames(ctx, ids)
+		if err != nil {
+			return err
+		}
+		active := make(map[string]bool, len(people))
+		for _, p := range people {
+			active[p.ID] = p.Active
+		}
+		for _, p := range all {
+			if p.OrganizationID == org && p.Active && active[p.PractitionerID] {
 				roles = append(roles, p)
 			}
 		}
@@ -234,6 +276,19 @@ func (s *Service) PublicByOrganization(ctx context.Context, org string) ([]Pract
 		return nil, fmt.Errorf("practitionerrole: public search: %w", err)
 	}
 	return roles, nil
+}
+
+// listed reports whether the clinic org is listed, read in its own scope and transaction before the
+// directory's (a clinic that does not exist is not).
+func (s *Service) listed(ctx context.Context, org string) (bool, error) {
+	clinic, err := s.clinics.Read(ctx, organization.Caller{OrganizationID: org}, org)
+	switch {
+	case errors.Is(err, organization.ErrNotFound):
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("practitionerrole: public search: %w", err)
+	}
+	return clinic.Listed, nil
 }
 
 // Lookup returns the role id of the clinic org, or ErrNotFound: for a service that shows whose an

@@ -77,7 +77,9 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 	hasher := auth.NewArgon2Hasher(auth.DefaultArgon2Params(), auth.MaxConcurrentHashes)
 	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{})
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx)
-	roles := practitionerrole.NewService(practitionerrole.NewPostgresRepository(pool), audit, tx, clock.System{})
+	roles := practitionerrole.NewService(practitionerrole.Ports{
+		Repo: practitionerrole.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Clinics: clinics, People: practitioners,
+	})
 	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clock.System{}, consent.NewRiverJobs(jobs))
 	appointmentRepo := appointment.NewPostgresRepository(pool)
 	// The patient's appointment facts come from the appointment repository alone, so the patient service can

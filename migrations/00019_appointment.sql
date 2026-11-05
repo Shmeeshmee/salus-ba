@@ -7,8 +7,8 @@
 --   - the patient (app.patient_id) sees and writes their own appointments;
 --   - a clinic (app.organization_id, neither patient setting set) sees its appointments with a patient who
 --     has an active consent with it, and, after a revocation, only those that started before the latest
---     one (SPEC.md "Past and future after revocation"); it changes them only with an active consent and
---     never books;
+--     one (SPEC.md "Past and future after revocation"); it changes them with an active consent, after a
+--     revocation only marks a past one fulfilled or noshow (the care record), and never books;
 --   - the notifier's e-mail jobs (app.organization_id with app.appointment_id) read the one appointment of
 --     their clinic they were given, and its patient's row for the account to write to, whatever the consent:
 --     a cancellation after a revocation is mailed too.
@@ -67,6 +67,14 @@ CREATE POLICY appointment_clinic_update ON appointment FOR UPDATE
                        WHERE c.patient_id = appointment.patient_id
                          AND c.organization_id = appointment.organization_id
                          AND c.status = 'active'));
+CREATE POLICY appointment_clinic_record_past ON appointment FOR UPDATE
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+           AND lower(period) < (SELECT max(c.revoked_at) FROM consent c
+                                WHERE c.patient_id = appointment.patient_id
+                                  AND c.organization_id = appointment.organization_id))
+    WITH CHECK (status IN ('fulfilled', 'noshow'));
 CREATE POLICY appointment_notice ON appointment FOR SELECT
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL

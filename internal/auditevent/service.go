@@ -55,6 +55,9 @@ func (s *Service) CountRecordedBefore(ctx context.Context, before time.Time) (in
 }
 
 func valid(e AuditEvent) bool {
+	if e.EntityCount < 0 || (e.EntityCount != 0 && e.EntityName == "") {
+		return false
+	}
 	for _, c := range []Coding{e.Type, e.Subtype, e.Purpose} {
 		if c.System == "" || c.Code == "" {
 			return false

@@ -43,6 +43,8 @@ func (r *postgresRepository) Insert(ctx context.Context, e AuditEvent) error {
 		PurposeSystem:   e.Purpose.System,
 		PurposeCode:     e.Purpose.Code,
 		EntityReference: optionalText(e.EntityReference),
+		EntityName:      optionalText(e.EntityName),
+		EntityCount:     pgtype.Int8{Int64: e.EntityCount, Valid: e.EntityName != ""},
 		RequestID:       optionalText(e.RequestID),
 	})
 }

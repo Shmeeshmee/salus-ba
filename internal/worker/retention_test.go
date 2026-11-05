@@ -150,6 +150,25 @@ func TestRetentionApply_DeletesEndedSessionsAndInvitesAndLogsOnlyTablesAndCounts
 		}
 	}
 	assertNoPersonalData(t, logs)
+	var audited []string
+	rows, err := db.owner.Query(t.Context(), `SELECT entity_name || ' ' || entity_count FROM audit_event
+		WHERE agent_name = 'retention_apply' AND action = 'D' ORDER BY entity_name`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var row string
+		if err := rows.Scan(&row); err != nil {
+			t.Fatal(err)
+		}
+		audited = append(audited, row)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"invite 1", "session 1", "slot 0"}; !slices.Equal(audited, want) {
+		t.Errorf("audited %v, want one event per table with its row count", audited)
+	}
 }
 
 func TestRetentionApply_FailsWithTheCountWhenAnAuditEventIsOverdue(t *testing.T) {

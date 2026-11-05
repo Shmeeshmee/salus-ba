@@ -18,6 +18,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
+	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot"
@@ -59,7 +60,10 @@ func newBooking(t *testing.T, app *pgxpool.Pool) booking {
 		t.Fatal(err)
 	}
 	clinics := organization.NewService(organization.NewPostgresRepository(app), audit, tx, clk)
-	roles := practitionerrole.NewService(practitionerrole.NewPostgresRepository(app), audit, tx, clk)
+	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(app), audit, tx)
+	roles := practitionerrole.NewService(practitionerrole.Ports{
+		Repo: practitionerrole.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: clk, Clinics: clinics, People: practitioners,
+	})
 	schedules := schedule.NewService(schedule.Ports{Repo: schedule.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: clk})
 	b := booking{repo: &countingRepository{Repository: appointment.NewPostgresRepository(app)}}
 	b.consents = consent.NewService(consent.NewPostgresRepository(app), audit, tx, clk, consent.NewRiverJobs(jobs))

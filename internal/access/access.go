@@ -4,7 +4,8 @@
 //
 // Care records rest on Art. 9(2)(h) and sharing before care on consent (SPEC.md section 3): with an active
 // consent the clinic sees the profile through an appointment; after a revocation it keeps the name, times and
-// status of the appointments that started before the latest revocation, and nothing else.
+// status of the appointments that started before the latest revocation, and nothing else, and their
+// practitioner still records how they went (RecordsOutcome).
 package access
 
 import (
@@ -121,6 +122,16 @@ func Appointment(v Viewer, f Facts, a Visit) Level {
 		return Name
 	}
 	return None
+}
+
+// RecordsOutcome reports whether viewer may record how appointment a went (fulfilled or noshow): its
+// practitioner, with an active consent, or after a revocation for a past appointment, which is the care
+// record (Art. 9(2)(h)). That a has started is the service's check; cancelling a past one stays refused.
+func RecordsOutcome(v Viewer, f Facts, a Visit) bool {
+	if v.Role != RolePractitioner || !staffOf(v, f) || !ofPractitioner(v, a) {
+		return false
+	}
+	return f.Consent.Active || past(f, a)
 }
 
 // self reports whether v is the patient the facts are about.

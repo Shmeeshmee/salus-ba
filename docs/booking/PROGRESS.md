@@ -29,6 +29,17 @@
   - Specialties: general practice, internal medicine, cardiology, dermatology, gynaecology, paediatrics,
     psychiatry, neurology, ENT, ophthalmology, orthopaedics, endocrinology (c80 practice codes).
   - Everything else in `SPEC.md` approved as written.
+- 2026-11-05, owner (review of PR #18, recorded in `SPEC.md` §2 "Changed on review of PR #18"):
+  - Paediatrics: SNOMED CT 394537008 "Pediatric specialty", outside `c80-practice-codes`; the preferred
+    binding on `PractitionerRole.specialty` allows it. An informational validator note would be acceptable.
+  - The notifier's e-mail jobs read the one appointment they name after a revocation: approved.
+  - After a revocation the practitioner marks past appointments `fulfilled` or `noshow`; cancelling them stays
+    refused. RLS, `access` and the table tests changed to match.
+  - `GET /specialties` and `practitionerId` on `/auth/me`: approved, in `SPEC.md` §2.
+  - Retention audit: one `AuditEvent` per run per table (system agent, row count), not per row.
+  - Public practitioner listing: the service checks the clinic is listed and the practitioner active; RLS second.
+  - FHIR canonical base stays `https://salus.invalid/fhir`, marked "needs the real domain before production".
+  - Retention periods, the lawful-basis sign-off and `PATIENT_APP_URL` stay open; they do not block the merge.
 
 ## Waiting on people
 
@@ -41,25 +52,14 @@
   `RETENTION_DATABASE_URL` for the worker only, and `RETENTION_DATABASE_PASSWORD` for `migrate` (or neither,
   when provisioned elsewhere).
 - Before 2036-11: removal of audit ranges (`SPEC.md` §6).
-- Owner (package 6): the notifier's e-mail jobs read in the clinic's scope narrowed to the one appointment the
-  job names (`app.appointment_id`), so a cancellation after a revocation still reaches the patient; confirm
-  this reading of SPEC §2 "Row-level security scopes" (readings, package 6).
-- Owner (package 6): after a revocation, staff see a past appointment at the name, times and status only and
-  cannot change it (403), so a practitioner cannot mark a past visit fulfilled or no-show once the patient has
-  revoked; confirm, or say whether the care record needs that change (readings, package 6).
 - Before production (package 7): the canonical base of our FHIR definitions, `https://salus.invalid/fhir` (the
   `organization-listed` and `organization-timezone` extensions and the `listed` SearchParameter), a placeholder
-  like `PATIENT_APP_URL`. It must be the product's real domain before any client depends on it: a changed
-  extension URL breaks every client.
-- Owner (package 7): `practitionerrole.Service.PublicByOrganization` cannot check that the clinic is listed (a
-  role row does not carry it), so for roles the listing rests on row-level security alone; run on a login that
-  bypasses it, an unlisted clinic's roles show. Production runs as `salus_app`, so nothing leaks; a service-level
-  check would need the organization service in the role domain. Say whether to add it.
-- Specialty codes (package 4): the R4 `c80-practice-codes` value set has no paediatrics concept; paediatrics
-  is `394733009` "Medical specialty--OTHER--NOT LISTED" with the text "Paediatrics" until someone confirms a
-  code (a concept from outside this value set would need the SPEC changed). ENT
-  (`418960008` "Otolaryngology") and orthopaedics (`394801008` "Surgery-Trauma and orthopedics") were chosen
-  among the value set's options; confirm.
+  like `PATIENT_APP_URL`. **Needs the real domain before production** (owner, 2026-11-05): a changed extension
+  URL breaks every client.
+
+Answered on review (2026-11-05, see "Decisions"): the notifier's one-appointment read, marking past visits
+after a revocation, the public listing check, the paediatrics code, ENT and orthopaedics (confirmed),
+`GET /specialties` and `practitionerId`.
 
 ## Log
 
@@ -1053,3 +1053,46 @@ accounts as before. From the mutation run, one appointment stays `booked` after 
 mutated job cancelled nothing), in its "E2E synthetic clinic <hex>" for 2026-11-04 23:00 UTC; it was booked less
 than 24 h ahead, so it has no reminder job, and the clinic sees it at name level only. Mailpit holds none of the journeys' e-mails. The
 owner's demo clinic and earlier packages' synthetic data untouched.
+
+### 2026-11-05 — review of PR #18
+
+The owner's decisions on the open questions (see "Decisions"), built test first on `feat/booking` in one
+commit. Each new test was run red before the code: the build failures for the missing symbols, and the
+behaviour tests against the old code or with the new check stubbed out.
+
+- **Paediatrics.** `practitionerrole.Specialties()` gives 394537008 "Pediatric specialty" (text "Paediatrics")
+  instead of 394733009; 394733009 is no longer accepted. Red: the specialty table test and `SpecialtyByCode`
+  (394537008 not found, 394733009 still found). New golden file `practitioner_role_paediatrics.json` from a
+  handler test; `make fhir-validate` passes it with 0 errors, the same `dom-6` narrative warning as every
+  other golden file and no binding note at all (`-tx n/a`, so SNOMED codes are not looked up).
+- **Past visits after a revocation.** `access.RecordsOutcome(viewer, facts, appt)`: the appointment's
+  practitioner, with an active consent or for a past appointment after a revocation; table-tested over every
+  role × consent × appointment × clinic. `appointment.Service.SetStatus` asks it instead of requiring `Full`.
+  Migration 00019 (not on `main`, so changed in place) gains `appointment_clinic_record_past`, an `UPDATE`
+  policy for past appointments after a revocation whose `WITH CHECK` allows only `fulfilled` and `noshow`.
+  Red: the service test (403) and the migration test (0 rows; no RLS error on setting `booked` or `cancelled`).
+  Cancelling a past appointment after a revocation stays 403 in the service and 42501 in the database. The web
+  app needs no change: it shows both buttons on a booked appointment, and a refused cancel already shows "You
+  cannot change this appointment".
+- **Retention audit.** Migration 00020 adds `audit_event.entity_name` and `entity_count` (both or neither, the
+  count never negative; a migration test, red without the constraint). `auditevent.AuditEvent` gains
+  `EntityName` and `EntityCount`, refused when a count has no table or is negative. `retention.Service.Apply`
+  records one event per delete rule's table after its purge: agent `retention_apply`, action `D`, `rest` +
+  `delete`, purpose `HOPERAT`, the table and the row count, zero included. The port `AuditAges` became `Audit`
+  (count and record, `auditevent.Service`). The worker test checks the three events of a real run.
+- **Public practitioner listing.** `practitionerrole.NewService` takes `Ports` with `Clinics`
+  (`organization.Service.Read`, as booking already does) and `People` (`practitioner.Service.PublicNames`).
+  `PublicByOrganization` reads the clinic first and returns nothing, without reading a role, when it is
+  unlisted or unknown, then keeps only roles whose practitioner is active. Red with the two checks stubbed out.
+  `internal/api` and the router's real-database directory tests pass with the new wiring.
+- **`make cover` in CI.** It never left: `.github/workflows/go.yml`'s `test` job runs `make cover`, then
+  `make bench-hash` (added by accounts package 2, `dd9bd94`, which only appended the benchmark step). PR #18's
+  run printed every package and "total: 94.7% (floor 80% per package)". My earlier report that CI had no
+  coverage job was wrong; nothing to restore.
+
+**Checks.** `make lint` (0 issues; check-migrations: ok), `make archcheck`, `make test`, `make cover` (total
+94.7%, every package at 80% or more), `make fhir-validate` (0 errors), `make e2e`: all pass.
+
+**Dev stack.** The dev database was reset afterwards at the owner's request (`docker compose down` with
+volumes, then `make up`), so none of the synthetic leftovers listed under package 10 remain.
+

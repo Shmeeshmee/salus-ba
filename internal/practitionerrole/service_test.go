@@ -112,7 +112,13 @@ func (a *fakeAuditor) Record(_ context.Context, e auditevent.AuditEvent) error {
 }
 
 func newService(repo *fakeRepository, audit *fakeAuditor) *practitionerrole.Service {
-	return practitionerrole.NewService(repo, audit, fakeTransactor{}, clock.Fixed{T: now})
+	return newDirectoryService(repo, audit, &fakeClinics{listed: map[string]bool{clinicA: true, clinicB: true}}, &fakePeople{})
+}
+
+func newDirectoryService(repo *fakeRepository, audit *fakeAuditor, clinics *fakeClinics, people *fakePeople) *practitionerrole.Service {
+	return practitionerrole.NewService(practitionerrole.Ports{
+		Repo: repo, Audit: audit, Tx: fakeTransactor{}, Clock: clock.Fixed{T: now}, Clinics: clinics, People: people,
+	})
 }
 
 var (

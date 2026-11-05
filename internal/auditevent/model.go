@@ -26,6 +26,7 @@ const (
 	CodeCreate               = "create"
 	CodeUpdate               = "update"
 	CodeSearchType           = "search-type"
+	CodeDelete               = "delete"
 
 	SystemActReason = "http://terminology.hl7.org/CodeSystem/v3-ActReason"
 	CodeHOPERAT     = "HOPERAT" // purposeOfEvent: healthcare operations
@@ -71,8 +72,14 @@ type AuditEvent struct {
 	// AgentName names an agent that is no account (AuditEvent.agent.name): AgentOperator; empty otherwise.
 	AgentName       string
 	EntityReference string // the entity, <ResourceType>/<id>; empty when there is none
-	OrganizationID  string // the clinic, when there is one
-	RequestID       string // set by Record from the context
-	Action          Action
-	Outcome         Outcome
+	// EntityName names an entity that is a table, not a resource (AuditEvent.entity.name): the retention job's
+	// deletions; empty otherwise.
+	EntityName     string
+	OrganizationID string // the clinic, when there is one
+	RequestID      string // set by Record from the context
+	Action         Action
+	// EntityCount is how many rows of EntityName the event covers (AuditEvent.entity.detail "rows"); stored
+	// with EntityName only.
+	EntityCount int64
+	Outcome     Outcome
 }
