@@ -72,11 +72,14 @@ func TestBooking_RevokedConsentEndsAccessAndCancelsTheFutureAppointment(t *testi
 // bookableClinic is a listed clinic made with salusctl, with one practitioner whose availability is set and
 // whose slots are generated.
 type bookableClinic struct {
-	practitioner   *api
-	id             string
-	name           string
-	practitionerID string
-	scheduleID     string
+	practitioner     *api
+	totp             *authenticator // the practitioner's, for the web app's sign-in
+	id               string
+	name             string
+	practitionerID   string
+	practitionerAddr string
+	practitionerName string
+	scheduleID       string
 }
 
 // newBookableClinic creates a clinic with salusctl; its admin lists it through the FHIR update and invites a
@@ -86,7 +89,7 @@ func newBookableClinic(t *testing.T) *bookableClinic {
 	t.Helper()
 	waitReady(t)
 	adminAddr, practitionerAddr := email(t, "admin"), email(t, "practitioner")
-	c := &bookableClinic{name: "E2E synthetic clinic " + suffix(t)}
+	c := &bookableClinic{name: "E2E synthetic clinic " + suffix(t), practitionerAddr: practitionerAddr, practitionerName: "Bo Syntheticson"}
 	c.id = field(t, salusctl(t, "create-clinic", "-name", c.name, "-admin-email", adminAddr), "organization")
 	admin, _ := enrolFromInvite(t, adminAddr)
 
@@ -102,7 +105,7 @@ func newBookableClinic(t *testing.T) *bookableClinic {
 	admin.must(http.StatusCreated, http.MethodPost, "/invites", map[string]string{
 		"email": practitionerAddr, "role": "practitioner", "givenName": "Bo", "familyName": "Syntheticson",
 	}, nil)
-	c.practitioner, _ = enrolFromInvite(t, practitionerAddr)
+	c.practitioner, c.totp = enrolFromInvite(t, practitionerAddr)
 	c.practitionerID = c.practitioner.me().PractitionerID
 	if c.practitionerID == "" {
 		t.Fatal("GET /auth/me of the practitioner holds no practitionerId")

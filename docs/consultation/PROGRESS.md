@@ -11,7 +11,7 @@
 | 6 Web | done, 2026-11-05 | `consultation(6)` |
 | 7 Mobile | done, 2026-11-05 | `consultation(7)` |
 | 7.1 Owner changes after package 6 | done, 2026-11-05 | `consultation(7.1)` |
-| 8 End-to-end | not started | |
+| 8 End-to-end | done, 2026-11-05 | `consultation(8)` |
 
 ## Decisions
 
@@ -244,6 +244,37 @@
   On native platforms livekit_client sends the token in a header, not the URL. Chrome's own network error lines
   still print a failed signalling URL with its token (see "Waiting on people").
 
+- 2026-11-05, package 8 (runner): one runner. The Go journeys run in the `playwright` service, built from the
+  pinned `mcr.microsoft.com/playwright:v1.55.0-noble` with dev.Dockerfile's Go toolchain copied in
+  (`build/package/playwright.Dockerfile`), so the consultation journey starts the web journey as a subprocess
+  (`test/e2e/web`, `@playwright/test` 1.55.0 exact) and hands it the synthetic data in variables, with no
+  rendezvous between containers. The whole `make e2e` suite runs there; the load tests (`bench-*`) stay on `tools`.
+- 2026-11-05, package 8 (runner): one LiveKit config serves both; no separate e2e config. The browser runs the
+  Vite dev server of `web/` on its container's own localhost (a secure context for the camera and the `Secure`
+  session cookie, as on a developer's host). The join answer's URL (`ws://localhost:7880`, for a host browser) is
+  forwarded inside the container to `livekit:7880` by the spec's global setup, as Docker's published port does on a
+  host; only signalling passes through it. Media goes straight to LiveKit's container address: the browser's
+  selected candidate pair was `172.18.0.3:7882/udp host` (LiveKit's address on the compose network), and the
+  loopback candidate leads nowhere in that container, so the media packets the journeys count prove the ICE
+  settings of package 1 for in-network clients.
+- 2026-11-05, package 8 (runner): the patient's tone is G.711 µ-law (PCMU, 8 kHz), generated in the test: Opus
+  needs an encoder library (cgo libopus) the repo does not have, and LiveKit 1.13 accepts and forwards PCMU (seen:
+  the practitioner's subscriber receives it, and the browser counts its inbound audio packets). Published as the
+  microphone source, the only audio source the token allows.
+- 2026-11-05, package 8 (runner): the order between the two processes is a condition, not a sleep. The Go test
+  waits for the `Encounter` to be `in-progress`, then creates a file the spec waits for (`expect.poll`) before it
+  ends the consultation, so the in-progress state is always observed. The Go side fails at once if the browser
+  exits before that.
+- 2026-11-05, package 8 (runner): the second journey runs on a consultation that has started (start a minute
+  ago), so the revocation removes the patient (`PARTICIPANT_REMOVED`) and the practitioner stays, as SPEC §2
+  "Removal" says; the practitioner then ends it through the API (`ROOM_DELETED`), the `Encounter` finishes and the
+  appointment is fulfilled. The practitioner's side of this journey is a Go participant: the browser journey is
+  the first one.
+- 2026-11-05, package 8 (runner): the LiveKit log check reads LiveKit's whole container log (`docker compose
+  logs`, which only the host can read), piped into `scripts/e2e-livekit-log.sh` in the playwright container, with
+  the values the journeys wrote to the `e2e` volume. A value is matched as a whole word, ignoring case: the first
+  run found the given name "Ena" inside ordinary words of the log (a false positive) when matched as a substring.
+
 ## Waiting on people
 
 - Before production: `SPEC.md` §8 (LiveKit domain, TLS, TURN, keys, node IP; retention and lawful basis;
@@ -257,6 +288,9 @@
   (COPY.md has no label; the prompt now follows once M35 is on screen); (2) whether to support Bluetooth headsets
   on Android 12 and later, which needs `BLUETOOTH_CONNECT` and approved text for its prompt; (3) text for a
   patient replaced by their own second device (now: back to the device check, no message).
+- Package 8, for the owner: LiveKit logs each client connection's `remoteAddress` (IP and port) and SDK at `info`;
+  in production a client's IP is personal data. Decide with the production LiveKit setup (SPEC §8) whether to keep
+  it, lower the level or filter it.
 
 ## Log
 
@@ -1103,3 +1137,57 @@ appointment is booked with an active consent and no session. The second run's: o
 the practitioner, `removal_reason` `consent_withdrawn`) and one cancelled by the revocation before its start
 (session ended `cancelled`, `removal_reason` `consent_withdrawn`). The Vite dev container was stopped and
 removed; the Playwright image stays in the host's Docker cache.
+
+### 2026-11-05 — package 8: End-to-end
+
+**What was built.**
+- `build/package/playwright.Dockerfile` and the `playwright` compose service (profile `e2e`, image
+  `salus-playwright:1.55.0`, host user, `init`), with the `e2e` volume for the log check; `make down` stops it.
+- `make e2e` now: `make up`, `web-install`, `e2e-install` (the image and `npm ci` in `test/e2e/web` when its
+  lockfile changed), the whole Go suite in the playwright service, then LiveKit's log check.
+- `test/e2e/consultation_test.go` (tag `e2e`): `TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIsFulfilled`
+  and `TestConsultation_ARevocationDuringTheCallRemovesThePatient`; the Go participant (`connect`, the PCMU tone,
+  the first-RTP-packet signal, LiveKit's disconnect reason); `startAt` and `ownerConn` moved here from the removal
+  load test, which now uses `connect`. `booking_test.go`'s clinic keeps the practitioner's e-mail, name and
+  authenticator for the web sign-in.
+- `test/e2e/web`: `playwright.config.ts` (Chromium with `--use-fake-device-for-media-stream` and
+  `--use-fake-ui-for-media-stream`, the Vite dev server as `webServer`, output in `/tmp`), `livekit-forward.ts`,
+  `consultation.spec.ts`: sign in with the password and a TOTP code, the appointment's "Join consultation", the
+  device check, "Join", W16 for the patient without camera and no W17, the patient's audio packets counted from
+  the page's peer connections, then on the Go test's signal W19, W20, W21 and the end with W27 and W28.
+- `scripts/e2e-livekit-log.sh`. CI: the Go workflow's e2e job has its own path filter, which adds `web/` and the
+  node and playwright Dockerfiles. DPIA: a package 8 note.
+
+**Tests seen failing first.**
+- The revocation journey, the first run against the stack: `the practitioner was disconnected with "other
+  reasons", want "room closed"`; the SDK maps `ROOM_DELETED` to "other reasons", so the journeys compare LiveKit's
+  own reason (`Room.DisconnectReason()`).
+- `make e2e`, first run: the journeys passed and the log check failed, `LiveKit's log holds the run's synthetic
+  patient given name` (twice): "Ena" as a substring of other words. Whole-word matching fixed it; the log holds
+  none of the 22 values.
+- The browser journey with the forward pointed at a closed port (a probe, reverted): the spec failed at
+  `getByText("Ena Syntheticova's camera is off")` (not found) and the Go test at `the Encounter in progress once
+  the practitioner joined: not within 30s` after 30 s, which is why the Go side now fails as soon as the browser
+  exits.
+- Before this package, `make e2e` had no runner for the spec (no playwright service, no `test/e2e/web`).
+
+**Login rate limit.** The suite now logs in 9 times per run from one container address (accounts 4, booking 2,
+consultation 2 patients and the practitioner's web sign-in), against 30 per IP per 15 minutes (accounts SPEC), so
+`make e2e` runs three times in a row in one window; my probe runs before the final ones used up the window once
+(429 on every login), and the final runs waited for it to expire rather than deleting the key.
+
+**Checks.** `make e2e` twice in a row: both pass (the Go suite in 11.7 s and 11.4 s, the consultation journeys about 4.7 s and 1.9 s of it; the browser journey itself about 1.6 s), with the existing accounts and booking journeys, and the log check after each: "none of the run's 22 synthetic values and each of its 2 rooms" in 2,764 and 2,823 lines. `make lint`: 0 issues in both modules, migrations unchanged.
+`make archcheck`: pass. `make test`: pass. `make cover`: every package at 80% or more, total 94.8%. `make
+fhir-validate`: pass (58 files). `make gen-clients`: no diff. `make web-lint`, `web-typecheck`, `web-test` (209
+tests), `web-build`: pass. `make mobile-analyze`: no issues; `make mobile-test`: 135 tests pass.
+
+**Deferred.** Nothing of this package. `@playwright/test` 1.55.0 has an npm audit advisory about its browser
+download (`playwright install`), which the runner never calls: the browsers come with the pinned image of the same
+version. Moving to 1.55.1 or later means moving the image too.
+
+**Dev stack left.** No migration. Each `make e2e` run adds its synthetic data through the API, as before: 5
+clinics with their admin and practitioner, 5 patients, 4 appointments (2 fulfilled consultations with finished
+`Encounter`s, 2 cancelled), their slots, jobs and audit events. New: the `salus_e2e` volume (the last run's log
+check) and the `salus-playwright:1.55.0` image; `test/e2e/web/node_modules` (git-ignored). The stack is up as it
+was.
+

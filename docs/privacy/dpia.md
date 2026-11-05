@@ -815,3 +815,16 @@ network log, not ours or LiveKit's, and the token is valid 5 minutes for that on
 | The room rule shows a consultation to someone else | It needs the clinic, the one appointment, the practitioner's join and the caller being the role's practitioner; tested in SQL (RLS), with fakes and on the real database |
 | The removal's reason outlives its purpose | It lives on `video_session` and is deleted with it |
 | A token in the console | livekit-client and livekit_client logs are off (tested); the browser's own network error lines remain (above) |
+
+### Package 8: the end-to-end journeys
+
+**Processing added.** None in the product. `make e2e` runs two consultation journeys on synthetic data made
+fresh through the API (the web app in Chromium with fake devices for the practitioner, a Go SDK participant
+publishing a generated tone for the patient), and then checks LiveKit's whole log: it must hold none of the run's
+synthetic names, e-mails, appointment, patient, practitioner or clinic ids, and must hold the run's opaque room
+names, so the check is known to read the right log (`scripts/e2e-livekit-log.sh`; it prints labels, never
+values). This is SPEC §2 "LiveKit logs", now checked on every run and in CI.
+
+**Seen in LiveKit's log, not ours to decide here.** At `info` LiveKit logs each client connection's
+`remoteAddress` and `localAddress` (IP and port) and its SDK and browser; in production a client's IP is personal
+data. Recorded for the owner with the production LiveKit setup (SPEC §8).

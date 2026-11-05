@@ -199,6 +199,40 @@ services:
       mailpit: {condition: service_healthy}
       livekit: {condition: service_healthy}
 
+  # The end-to-end runner: `make e2e` (build/package/playwright.Dockerfile). The Go journeys reach the API,
+  # Mailpit, Postgres (salusctl and the appointment's start, as the owner) and LiveKit on the compose network; the
+  # consultation journey starts the web journey in Chromium (test/e2e/web), which runs the Vite dev server on its
+  # own localhost (a secure context, as on a developer's host) and reaches LiveKit's media ports directly
+  # (docs/consultation/PROGRESS.md, package 8). /e2e holds the run's LiveKit log check.
+  playwright:
+    profiles: [e2e]
+    build:
+      context: ..
+      dockerfile: build/package/playwright.Dockerfile
+    image: salus-playwright:1.55.0
+    <<: *host-user
+    init: true
+    working_dir: /src
+    environment:
+      E2E_BASE_URL: http://api:8080
+      E2E_MAILPIT_URL: http://mailpit:8025
+      E2E_SALUSCTL: /tmp/salusctl
+      E2E_LIVEKIT_CHECK: /e2e/livekit-check.tsv
+      TEST_LIVEKIT_URL: http://livekit:7880
+      DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable # salusctl and startAt: the owner
+      API_URL: http://api:8080 # the Vite dev server proxies API calls here
+    volumes:
+      - ..:/src
+      - gomod:/cache/gomod
+      - gobuild:/cache/gobuild
+      - npm:/cache/npm
+      - e2e:/e2e
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      mailpit: {condition: service_healthy}
+      livekit: {condition: service_healthy}
+
   # HL7 FHIR validator: `make fhir-validate`. Reads the repo only.
   fhir-validator:
     profiles: [tools]
@@ -274,3 +308,4 @@ volumes:
   npm:
   pub:
   fhir:
+  e2e:

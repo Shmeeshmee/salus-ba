@@ -3,14 +3,11 @@
 package e2e_test
 
 import (
-	"context"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	lksdk "github.com/livekit/server-sdk-go/v2"
 
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -52,10 +49,9 @@ func removal(t *testing.T, startIn time.Duration, practitionerStays bool) (fromR
 	appt := p.bookFirstTime(clinic)
 	startAt(t, appt.ID, startIn)
 
-	join := "/appointments/" + appt.ID + "/consultation/join"
-	patientGone, _ := connectAs(t, p.api, join)
-	practitionerGone, practitionerRoom := connectAs(t, clinic.practitioner, join)
-	eventually(t, "both in the room", func() bool { return len(practitionerRoom.GetRemoteParticipants()) == 1 })
+	patient := connect(t, p.api, appt.ID, false)
+	practitioner := connect(t, clinic.practitioner, appt.ID, false)
+	eventually(t, "both in the room", func() bool { return len(practitioner.room.GetRemoteParticipants()) == 1 })
 
 	var consents struct{ Consents []struct{ ID string } }
 	p.must(http.StatusOK, http.MethodGet, "/me/consents", nil, &consents)
@@ -64,52 +60,23 @@ func removal(t *testing.T, startIn time.Duration, practitionerStays bool) (fromR
 
 	var gone time.Time
 	select {
-	case gone = <-patientGone:
+	case gone = <-patient.gone:
 	case <-time.After(30 * time.Second):
 		t.Fatal("the patient was not removed within 30s")
 	}
-	if code := p.do(http.MethodPost, join, nil, nil); code != http.StatusConflict {
+	if code := p.do(http.MethodPost, "/appointments/"+appt.ID+"/consultation/join", nil, nil); code != http.StatusConflict {
 		t.Errorf("the patient's next join = %d, want 409", code)
 	}
 	if practitionerStays {
 		select {
-		case <-practitionerGone:
+		case <-practitioner.gone:
 			t.Error("the practitioner left the consultation that started before the revocation")
 		default:
 		}
 	} else {
-		eventually(t, "the cancelled consultation's room deleted", func() bool { return len(practitionerGone) == 1 })
+		eventually(t, "the cancelled consultation's room deleted", func() bool { return len(practitioner.gone) == 1 })
 	}
 	return gone.Sub(responded), gone.Sub(revokedAt(t, p.patientID))
-}
-
-// connectAs asks the API for a's token at join and connects to LiveKit on the compose network with it, as a
-// participant that publishes and subscribes to nothing. The channel gets the time of its disconnection.
-func connectAs(t *testing.T, a *api, join string) (<-chan time.Time, *lksdk.Room) {
-	t.Helper()
-	var token struct{ Token string }
-	a.must(http.StatusOK, http.MethodPost, join, nil, &token)
-	gone := make(chan time.Time, 1)
-	cb := lksdk.NewRoomCallback()
-	cb.OnDisconnectedWithReason = func(lksdk.DisconnectionReason) { gone <- clock.System{}.Now() }
-	url := strings.Replace(env(t, "TEST_LIVEKIT_URL"), "http", "ws", 1)
-	room, err := lksdk.ConnectToRoomWithToken(url, token.Token, cb, lksdk.WithAutoSubscribe(false))
-	if err != nil {
-		t.Fatalf("connect: %v", err)
-	}
-	t.Cleanup(room.Disconnect)
-	return gone, room
-}
-
-// startAt moves the synthetic appointment id to start in from now, for 30 minutes, as the owner (DATABASE_URL
-// of the tools service): the slots start at least an hour ahead.
-func startAt(t *testing.T, id string, in time.Duration) {
-	t.Helper()
-	conn := ownerConn(t)
-	if _, err := conn.Exec(t.Context(), `UPDATE appointment SET period = tstzrange(date_trunc('second', now()) + make_interval(secs => $2),
-		date_trunc('second', now()) + make_interval(secs => $2) + interval '30 minutes') WHERE id = $1`, id, in.Seconds()); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // revokedAt is when the patient's consent was revoked, set in the revocation's transaction before its commit.
@@ -124,14 +91,4 @@ func revokedAt(t *testing.T, patientID string) time.Time {
 		t.Fatalf("revoked_at %v, %v; want one", at, err)
 	}
 	return at[0]
-}
-
-func ownerConn(t *testing.T) *pgx.Conn {
-	t.Helper()
-	conn, err := pgx.Connect(t.Context(), env(t, "DATABASE_URL"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = conn.Close(context.Background()) })
-	return conn
 }
