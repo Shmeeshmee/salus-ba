@@ -275,6 +275,14 @@
   the values the journeys wrote to the `e2e` volume. A value is matched as a whole word, ignoring case: the first
   run found the given name "Ena" inside ordinary words of the log (a false positive) when matched as a substring.
 
+- 2026-11-06, owner (review of PR #20, recorded in `SPEC.md` §7 and §8): the practitioner's status access
+  through the clinic scope narrowed to one appointment accepted (`internal/api/consultation_status_test.go`
+  shows another practitioner of the clinic, the admin and another clinic get 404, audited); the token in
+  Chrome's own network log accepted; LiveKit at `warn` with short retention in production, `info` in dev; the
+  iOS permission question does not block the merge, and the mobile app runs on a real Android device and an iOS
+  build before any pilot; the removal-count race, M35's continue button, Android Bluetooth and the second-device
+  text go to "Up next".
+
 ## Waiting on people
 
 - Before production: `SPEC.md` §8 (LiveKit domain, TLS, TURN, keys, node IP; retention and lawful basis;

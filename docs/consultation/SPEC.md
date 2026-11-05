@@ -306,6 +306,15 @@ joining from the web, break-glass, `Provenance`, FHIR writes to `Encounter`, net
 - **Clinical notes in the consultation.** `Observation` and `Provenance` (clinical feature).
 - **Web bundle size.** `livekit-client` makes the web bundle 835 kB minified (233 kB gzip); split it out of the
   first page load if a measurement shows the cost (owner, after package 6).
+- **Removal audit race.** A removal is audited when LiveKit lists the patient in the room, then the patient is
+  removed (package 5.1): a patient who connects between the two is removed without an event of their own, and
+  a retry after a failed removal can audit twice. A column on `video_session` recording each removal would close
+  it (owner, on review of PR #20).
+- **M35's continue button.** The Android explanation before the system prompt gets its own continue button,
+  with approved text.
+- **Bluetooth headsets on Android 12 and later.** `BLUETOOTH_CONNECT` and approved text for its prompt.
+- **A patient's second device.** Text for the device that is replaced when the patient joins from another one,
+  like the web's W40.
 
 ## 8. Before production
 
@@ -316,6 +325,15 @@ joining from the web, break-glass, `Provenance`, FHIR writes to `Encounter`, net
 - Retention of `video_session` and `encounter`, and the lawful basis (§4): legal decision.
 - The new web and mobile text, and the iOS and Android permission wording, localised (bs/hr/sr) with the rest
   of the patient app.
+- LiveKit's log level `warn` in production, with short log retention; `info` stays in dev. At `info` LiveKit
+  logs each client's IP address and port, SDK and browser, and a client IP is personal data (owner, on review
+  of PR #20).
+- The mobile app runs on a real Android device and an iOS build before any pilot. It has not run on a device
+  yet. On iOS, `permission_handler` may report the camera and microphone as denied without its build flags
+  (the project uses Swift Package Manager and has no Podfile); that is checked on the iOS build (owner, on
+  review of PR #20).
+- Chrome's own network log can show the signalling URL with the 5-minute token on a failed connection; no log
+  level reaches it. Accepted by the owner on review of PR #20.
 
 ## 9. Done when
 
