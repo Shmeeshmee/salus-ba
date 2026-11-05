@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { AcceptInvite } from './AcceptInvite'
+import { AppointmentDetail } from './AppointmentDetail'
+import { Availability } from './Availability'
+import { Calendar } from './Calendar'
 import { ClinicSettings } from './ClinicSettings'
 import { Practitioners } from './Practitioners'
 import { SignIn } from './SignIn'
 import type { Account, ApiClient } from './api/client'
 import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
-import { ClinicIcon, Logo, PeopleIcon, SignOutIcon } from './icons'
+import { CalendarIcon, ClinicIcon, ClockIcon, Logo, PeopleIcon, SignOutIcon } from './icons'
 import { somethingWrong } from './messages'
 import { navigate, usePath } from './route'
 import { Alert, Link } from './ui'
@@ -64,6 +67,14 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
         {account.role !== 'patient' && (
           <nav aria-label="Main">
             <Link to="/">
+              <CalendarIcon />
+              Calendar
+            </Link>
+            <Link to="/availability">
+              <ClockIcon />
+              Working hours
+            </Link>
+            <Link to="/practitioners">
               <PeopleIcon />
               Practitioners
             </Link>
@@ -80,7 +91,7 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
           Sign out
         </button>
       </header>
-      <main className="page">
+      <main className={path === '/' ? 'page wide' : 'page'}>
         <Alert message={signOutError} />
         <Screen api={api} fhir={fhir} path={path} account={account} />
       </main>
@@ -88,13 +99,19 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
   )
 }
 
+const appointmentPath = /^\/appointments\/([^/]+)$/
+
 function Screen({ api, fhir, path, account }: Clients & { path: string; account: Account }) {
   if (account.role === 'patient') {
     return <p className="panel">The web app is for clinic staff. Patients use the Salus mobile app.</p>
   }
+  const appointment = appointmentPath.exec(path)
+  if (appointment) return <AppointmentDetail api={api} fhir={fhir} account={account} id={decodeURIComponent(appointment[1])} />
+  if (path === '/') return <Calendar fhir={fhir} account={account} />
+  if (path === '/availability') return <Availability api={api} fhir={fhir} account={account} />
+  if (path === '/practitioners') return <Practitioners api={api} fhir={fhir} account={account} />
   if (path === '/clinic' && account.role === 'admin') {
     return <ClinicSettings fhir={fhir} organizationId={account.organizationId ?? ''} />
   }
-  if (path === '/' || path === '/clinic') return <Practitioners api={api} fhir={fhir} account={account} />
   return <p className="panel">This page does not exist.</p>
 }

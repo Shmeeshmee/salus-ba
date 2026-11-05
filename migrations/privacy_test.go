@@ -196,6 +196,29 @@ func TestUp_AuditEventRejectsChangesEvenFromTheOwner(t *testing.T) {
 	}
 }
 
+// The retention job's events name a table and its row count: both or neither, and never a negative count.
+func TestUp_AuditEventTakesATableWithItsRowCountOnly(t *testing.T) {
+	t.Parallel()
+	owner := pgtest.NewDatabase(t)
+	insert := func(name, count string) error {
+		_, err := owner.Exec(t.Context(), `INSERT INTO audit_event
+			(recorded, outcome, action, type_system, type_code, subtype_system, subtype_code, purpose_system, purpose_code,
+			 entity_name, entity_count)
+			VALUES (now(), 0, 'D', 's', 'c', 's', 'c', 's', 'c', `+name+`, `+count+`)`)
+		return err
+	}
+	for _, ok := range [][2]string{{"'session'", "0"}, {"'slot'", "12"}, {"NULL", "NULL"}} {
+		if err := insert(ok[0], ok[1]); err != nil {
+			t.Errorf("table %s with count %s: %v, want stored", ok[0], ok[1], err)
+		}
+	}
+	for _, bad := range [][2]string{{"'session'", "NULL"}, {"NULL", "3"}, {"'session'", "-1"}} {
+		if err := insert(bad[0], bad[1]); sqlState(err) != "23514" {
+			t.Errorf("table %s with count %s: %v, want a check violation (23514)", bad[0], bad[1], err)
+		}
+	}
+}
+
 func TestUp_AuditEventIsIndexedForEntityAndAgentLookups(t *testing.T) {
 	t.Parallel()
 	db := pgtest.NewDatabase(t)

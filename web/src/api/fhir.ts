@@ -8,6 +8,24 @@ export interface Meta {
 
 export interface Reference {
   reference: string
+  display?: string
+}
+
+export interface Coding {
+  system: string
+  code: string
+  display?: string
+}
+
+export interface CodeableConcept {
+  coding?: Coding[]
+  text?: string
+}
+
+export interface Extension {
+  url: string
+  valueBoolean?: boolean
+  valueCode?: string
 }
 
 export interface Organization {
@@ -16,6 +34,7 @@ export interface Organization {
   meta: Meta
   name: string
   active: boolean
+  extension?: Extension[]
 }
 
 export interface HumanName {
@@ -38,13 +57,68 @@ export interface PractitionerRole {
   practitioner: Reference
   organization: Reference
   active: boolean
+  specialty?: CodeableConcept[]
 }
 
-export interface Bundle {
+export interface Patient {
+  resourceType: 'Patient'
+  id: string
+  meta: Meta
+  name?: HumanName[]
+  birthDate?: string
+  telecom?: { system: string; value: string; use?: string }[]
+}
+
+export type AppointmentStatus = 'booked' | 'cancelled' | 'fulfilled' | 'noshow'
+
+export interface Appointment {
+  resourceType: 'Appointment'
+  id: string
+  meta: Meta
+  status: AppointmentStatus
+  start: string
+  end: string
+  participant: { status: string; actor: Reference }[]
+}
+
+export interface Bundle<R = PractitionerRole | Practitioner> {
   resourceType: 'Bundle'
   type: 'searchset'
   total?: number
-  entry?: { fullUrl: string; resource: PractitionerRole | Practitioner; search?: { mode: 'match' | 'include' } }[]
+  entry?: { fullUrl: string; resource: R; search?: { mode: 'match' | 'include' } }[]
+}
+
+export function nameOf(name?: HumanName): string {
+  return [...(name?.given ?? []), name?.family ?? ''].join(' ').trim()
+}
+
+// participant is the appointment's participant of a resource type: its id and, where the caller may see it,
+// its display (the patient's name).
+export function participant(appt: Appointment, type: 'Patient' | 'Practitioner' | 'PractitionerRole') {
+  const actor = appt.participant.find((p) => p.actor.reference.startsWith(`${type}/`))?.actor
+  if (!actor) return undefined
+  return { id: actor.reference.slice(type.length + 1), display: actor.display }
+}
+
+// The clinic's settings in Organization extensions (api/fhir/StructureDefinition-organization-*.json).
+export const listedURL = 'https://salus.invalid/fhir/StructureDefinition/organization-listed'
+export const timeZoneURL = 'https://salus.invalid/fhir/StructureDefinition/organization-timezone'
+export const defaultTimeZone = 'Europe/Sarajevo'
+
+export type ClinicSettings = { name: string; listed: boolean; timeZone: string }
+
+export function settingsOf(org: Organization): ClinicSettings {
+  const ext = (url: string) => org.extension?.find((e) => e.url === url)
+  return { name: org.name, listed: ext(listedURL)?.valueBoolean ?? false, timeZone: ext(timeZoneURL)?.valueCode ?? defaultTimeZone }
+}
+
+export function withSettings(org: Organization, s: ClinicSettings): Organization {
+  const others = (org.extension ?? []).filter((e) => e.url !== listedURL && e.url !== timeZoneURL)
+  return {
+    ...org,
+    name: s.name,
+    extension: [...others, { url: listedURL, valueBoolean: s.listed }, { url: timeZoneURL, valueCode: s.timeZone }],
+  }
 }
 
 // FhirError is a FHIR call that did not succeed: the HTTP status and the first OperationOutcome issue code.

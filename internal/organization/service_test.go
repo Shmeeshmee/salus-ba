@@ -31,17 +31,18 @@ func (fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context) e
 // fakeRepository holds clinics by id and shows only the clinic set on the transaction, as row-level
 // security does.
 type fakeRepository struct {
-	err       error // returned by ByID when set
-	renameErr error // returned by Rename when set
+	err       error // returned by ByID and Listed when set
+	updateErr error // returned by Update when set
 	orgs      map[string]organization.Organization
 	clinic    string   // set by SetOrganization
 	calls     []string // the calls, "outside:" prefixed when made outside a transaction
+	directory bool     // the public directory scope is set
 }
 
 func newFakeRepository() *fakeRepository {
 	return &fakeRepository{orgs: map[string]organization.Organization{
-		clinicA: {ID: clinicA, Name: "Synthetic clinic A", VersionID: 2, Active: true, LastUpdated: now.Add(-time.Hour)},
-		clinicB: {ID: clinicB, Name: "Synthetic clinic B", VersionID: 1, Active: true, LastUpdated: now.Add(-time.Hour)},
+		clinicA: {ID: clinicA, Name: "Synthetic clinic A", TimeZone: "Europe/Sarajevo", VersionID: 2, Active: true, LastUpdated: now.Add(-time.Hour)},
+		clinicB: {ID: clinicB, Name: "Synthetic clinic B", TimeZone: "Europe/Sarajevo", VersionID: 1, Active: true, Listed: true, LastUpdated: now.Add(-time.Hour)},
 	}}
 }
 
@@ -70,17 +71,17 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (organization.Orga
 	return o, nil
 }
 
-func (r *fakeRepository) Rename(ctx context.Context, id, name string, version int32, at time.Time) (organization.Organization, error) {
-	r.seen(ctx, "Rename")
-	if r.renameErr != nil {
-		return organization.Organization{}, r.renameErr
+func (r *fakeRepository) Update(ctx context.Context, in organization.Organization, at time.Time) (organization.Organization, error) {
+	r.seen(ctx, "Update")
+	if r.updateErr != nil {
+		return organization.Organization{}, r.updateErr
 	}
-	o := r.orgs[id]
-	if id != r.clinic || o.VersionID != version {
+	o := r.orgs[in.ID]
+	if in.ID != r.clinic || o.VersionID != in.VersionID {
 		return organization.Organization{}, organization.ErrConflict
 	}
-	o.Name, o.VersionID, o.LastUpdated = name, version+1, at
-	r.orgs[id] = o
+	o.Name, o.Listed, o.TimeZone, o.VersionID, o.LastUpdated = in.Name, in.Listed, in.TimeZone, in.VersionID+1, at
+	r.orgs[in.ID] = o
 	return o, nil
 }
 
@@ -142,12 +143,12 @@ func TestRead_FailsOnARepositoryError(t *testing.T) {
 
 func TestUpdate_RenamesTheClinicAndAuditsIt(t *testing.T) {
 	repo, audit := newFakeRepository(), &fakeAuditor{}
-	got, err := newService(repo, audit).Update(t.Context(), admin, clinicA, "  Synthetic clinic renamed ", 2)
-	want := organization.Organization{ID: clinicA, Name: "Synthetic clinic renamed", VersionID: 3, Active: true, LastUpdated: now}
+	got, err := newService(repo, audit).Update(t.Context(), admin, clinicA, organization.Changes{Name: "  Synthetic clinic renamed "}, 2)
+	want := organization.Organization{ID: clinicA, Name: "Synthetic clinic renamed", TimeZone: "Europe/Sarajevo", VersionID: 3, Active: true, LastUpdated: now}
 	if err != nil || got != want {
 		t.Fatalf("Update() = %+v, %v;\nwant %+v", got, err, want)
 	}
-	if !slices.Equal(repo.calls, []string{"SetOrganization", "ByID", "Rename"}) {
+	if !slices.Equal(repo.calls, []string{"SetOrganization", "ByID", "Update"}) {
 		t.Errorf("calls %v, want the clinic set, then the read and the rename in one transaction", repo.calls)
 	}
 	wantEvent := updateEvent(admin, auditevent.OutcomeSuccess)
@@ -164,7 +165,7 @@ func TestUpdate_RejectsABlankOrOverlongName(t *testing.T) {
 	}
 	for _, name := range []string{"", "   ", string(long)} {
 		repo, audit := newFakeRepository(), &fakeAuditor{}
-		_, err := newService(repo, audit).Update(t.Context(), admin, clinicA, name, 2)
+		_, err := newService(repo, audit).Update(t.Context(), admin, clinicA, organization.Changes{Name: name}, 2)
 		if !errors.Is(err, organization.ErrInvalidName) || len(repo.calls) != 0 || len(audit.events) != 0 {
 			t.Errorf("Update(%d characters) = %v, calls %v, events %d; want ErrInvalidName before any access",
 				len([]rune(name)), err, repo.calls, len(audit.events))
@@ -183,7 +184,7 @@ func TestUpdate_RefusesAndAuditsAnyoneButTheClinicsAdmin(t *testing.T) {
 	}
 	for _, tt := range tests {
 		repo, audit := newFakeRepository(), &fakeAuditor{}
-		_, err := newService(repo, audit).Update(t.Context(), tt.caller, clinicA, "Renamed", 2)
+		_, err := newService(repo, audit).Update(t.Context(), tt.caller, clinicA, organization.Changes{Name: "Renamed"}, 2)
 		if !errors.Is(err, tt.want) || len(repo.calls) != 0 {
 			t.Errorf("Update() as %+v = %v after calls %v, want %v without touching the repository", tt.caller, err, repo.calls, tt.want)
 		}
@@ -199,16 +200,16 @@ func TestUpdate_GivesAConflictForAStaleVersion(t *testing.T) {
 		"stale when read": newFakeRepository(),
 		"changed between read and update": func() *fakeRepository {
 			r := newFakeRepository()
-			r.renameErr = organization.ErrConflict
+			r.updateErr = organization.ErrConflict
 			return r
 		}(),
 	} {
 		audit := &fakeAuditor{}
 		version := int32(1)
-		if repo.renameErr != nil {
+		if repo.updateErr != nil {
 			version = 2
 		}
-		_, err := newService(repo, audit).Update(t.Context(), admin, clinicA, "Renamed", version)
+		_, err := newService(repo, audit).Update(t.Context(), admin, clinicA, organization.Changes{Name: "Renamed"}, version)
 		if !errors.Is(err, organization.ErrConflict) || repo.orgs[clinicA].Name != "Synthetic clinic A" {
 			t.Errorf("%s: Update() = %v, name %q; want ErrConflict and no change", name, err, repo.orgs[clinicA].Name)
 		}
@@ -223,7 +224,7 @@ func TestUpdate_GivesAConflictForAStaleVersion(t *testing.T) {
 func TestUpdate_AuditsAClinicTheDatabaseDoesNotShow(t *testing.T) {
 	repo, audit := newFakeRepository(), &fakeAuditor{}
 	delete(repo.orgs, clinicA)
-	_, err := newService(repo, audit).Update(t.Context(), admin, clinicA, "Renamed", 2)
+	_, err := newService(repo, audit).Update(t.Context(), admin, clinicA, organization.Changes{Name: "Renamed"}, 2)
 	if !errors.Is(err, organization.ErrNotFound) {
 		t.Errorf("Update() = %v, want ErrNotFound", err)
 	}
@@ -235,19 +236,19 @@ func TestUpdate_AuditsAClinicTheDatabaseDoesNotShow(t *testing.T) {
 func TestUpdate_FailsOnARepositoryOrAuditError(t *testing.T) {
 	repo := newFakeRepository()
 	repo.err = errors.New("connection reset")
-	if _, err := newService(repo, &fakeAuditor{}).Update(t.Context(), admin, clinicA, "Renamed", 2); err == nil ||
+	if _, err := newService(repo, &fakeAuditor{}).Update(t.Context(), admin, clinicA, organization.Changes{Name: "Renamed"}, 2); err == nil ||
 		errors.Is(err, organization.ErrNotFound) {
 		t.Errorf("Update() with a failing read = %v, want the repository error", err)
 	}
 	repo = newFakeRepository()
-	repo.renameErr = errors.New("connection reset")
-	if _, err := newService(repo, &fakeAuditor{}).Update(t.Context(), admin, clinicA, "Renamed", 2); err == nil ||
+	repo.updateErr = errors.New("connection reset")
+	if _, err := newService(repo, &fakeAuditor{}).Update(t.Context(), admin, clinicA, organization.Changes{Name: "Renamed"}, 2); err == nil ||
 		errors.Is(err, organization.ErrConflict) {
 		t.Errorf("Update() with a failing rename = %v, want the repository error", err)
 	}
 	for _, c := range []organization.Caller{admin, practitioner} {
 		audit := &fakeAuditor{err: errors.New("audit down")}
-		if _, err := newService(newFakeRepository(), audit).Update(t.Context(), c, clinicA, "Renamed", 2); err == nil {
+		if _, err := newService(newFakeRepository(), audit).Update(t.Context(), c, clinicA, organization.Changes{Name: "Renamed"}, 2); err == nil {
 			t.Errorf("Update() as %+v with a failing audit = nil, want an error", c)
 		}
 	}

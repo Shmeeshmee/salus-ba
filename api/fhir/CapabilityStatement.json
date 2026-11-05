@@ -12,30 +12,119 @@
   "rest": [
     {
       "mode": "server",
-      "documentation": "The clinic directory. Every request needs a signed-in session (bearer token or the web app's cookie); only staff of a clinic see its resources, anyone else gets 404. Also GET /fhir/R4/metadata.",
+      "documentation": "The clinic directory, patients, consents and appointments. A signed-in session is a bearer token or the web app's cookie. The public directory (Organization?listed=true, a listed clinic's PractitionerRole search, Schedule and Slot) needs no session and is not audited. Every other interaction needs a session, shows a caller only what the access rules allow (anything else is 404) and is audited. Search values that are dates are instants with an offset, prefixed ge or lt. Any search parameter not listed here gives 400. Also GET /fhir/R4/metadata.",
       "resource": [
         {
           "type": "Organization",
-          "interaction": [{ "code": "read" }, { "code": "update" }],
+          "interaction": [{ "code": "read" }, { "code": "update" }, { "code": "search-type" }],
           "versioning": "versioned-update",
           "readHistory": false,
           "updateCreate": false,
-          "documentation": "Update renames the clinic (only the name changes) and needs If-Match with the version read; a stale or missing version gives 412. Only the clinic's admin may update."
+          "documentation": "Read: staff of the clinic. Update: the clinic's admin, with If-Match and the version read (a stale or missing version gives 412); it sets the name and, when given, the organization-listed and organization-timezone extensions (a left-out extension keeps its value). Search: anyone, listed=true only.",
+          "searchParam": [
+            {
+              "name": "listed",
+              "definition": "https://salus.invalid/fhir/SearchParameter/organization-listed",
+              "type": "token",
+              "documentation": "Required, true only: the clinics listed in the public directory."
+            }
+          ]
         },
         {
           "type": "Practitioner",
-          "interaction": [{ "code": "read" }]
+          "interaction": [{ "code": "read" }],
+          "documentation": "Staff of the practitioner's clinic."
         },
         {
           "type": "PractitionerRole",
           "interaction": [{ "code": "read" }, { "code": "search-type" }],
           "searchInclude": ["PractitionerRole:practitioner"],
+          "documentation": "Read: staff of the clinic. Search: staff of the clinic get its roles; anyone else, signed in or not, the active roles of a listed clinic with their specialty, and their practitioners with the name only (none for a clinic that is not listed).",
           "searchParam": [
             {
               "name": "organization",
               "definition": "http://hl7.org/fhir/SearchParameter/PractitionerRole-organization",
               "type": "reference",
-              "documentation": "Required, one clinic id. No other search parameter is supported; any other gives 400."
+              "documentation": "Required, one clinic id."
+            }
+          ]
+        },
+        {
+          "type": "Patient",
+          "interaction": [{ "code": "read" }],
+          "documentation": "The patient themselves, and a practitioner with the patient's active consent for the clinic and an appointment with them. Anyone else, the clinic's admin included, gets 404."
+        },
+        {
+          "type": "Consent",
+          "interaction": [{ "code": "read" }],
+          "documentation": "The patient, and staff of the consent's clinic."
+        },
+        {
+          "type": "Schedule",
+          "interaction": [{ "code": "read" }, { "code": "search-type" }],
+          "documentation": "Anyone: the schedules of active practitioner roles of listed clinics.",
+          "searchParam": [
+            {
+              "name": "actor",
+              "definition": "http://hl7.org/fhir/SearchParameter/Schedule-actor",
+              "type": "reference",
+              "documentation": "Required, one PractitionerRole."
+            }
+          ]
+        },
+        {
+          "type": "Slot",
+          "interaction": [{ "code": "search-type" }],
+          "documentation": "Anyone: the free slots of a schedule of the public directory that start after now, by start.",
+          "searchParam": [
+            {
+              "name": "schedule",
+              "definition": "http://hl7.org/fhir/SearchParameter/Slot-schedule",
+              "type": "reference",
+              "documentation": "Required, one schedule."
+            },
+            {
+              "name": "start",
+              "definition": "http://hl7.org/fhir/SearchParameter/Slot-start",
+              "type": "date",
+              "documentation": "Required lt, optional ge."
+            },
+            {
+              "name": "status",
+              "definition": "http://hl7.org/fhir/SearchParameter/Slot-status",
+              "type": "token",
+              "documentation": "Required, free only."
+            }
+          ]
+        },
+        {
+          "type": "Appointment",
+          "interaction": [{ "code": "read" }, { "code": "search-type" }],
+          "documentation": "As the access rules allow: the patient their own; the practitioner theirs and the clinic's admin the clinic's while the patient's consent is active; after a revocation, past appointments only, with the patient's name, the times and the status. The patient participant carries the name only where the caller may see it. A practitioner must search by themselves.",
+          "searchParam": [
+            {
+              "name": "patient",
+              "definition": "http://hl7.org/fhir/SearchParameter/clinical-patient",
+              "type": "reference",
+              "documentation": "One patient; a patient always gets their own."
+            },
+            {
+              "name": "practitioner",
+              "definition": "http://hl7.org/fhir/SearchParameter/Appointment-practitioner",
+              "type": "reference",
+              "documentation": "One practitioner."
+            },
+            {
+              "name": "date",
+              "definition": "http://hl7.org/fhir/SearchParameter/clinical-date",
+              "type": "date",
+              "documentation": "Appointment start: at most one ge and one lt."
+            },
+            {
+              "name": "status",
+              "definition": "http://hl7.org/fhir/SearchParameter/Appointment-status",
+              "type": "token",
+              "documentation": "One of booked, cancelled, fulfilled, noshow."
             }
           ]
         }

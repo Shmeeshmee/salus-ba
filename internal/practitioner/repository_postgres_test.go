@@ -103,3 +103,49 @@ func TestCreate_InsertsIntoTheClinicSetOnly(t *testing.T) {
 		t.Error("Create() for a clinic id that is not a UUID: error = nil")
 	}
 }
+
+func TestPublicByIDs_GivesOnlyTheNamesOfActivePractitionersOfListedClinicsInTheDirectoryScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	ctx := t.Context()
+	const inactiveA = "a3000000-0000-4000-8000-0000000000ff"
+	_, err := owner.Exec(ctx, `UPDATE organization SET listed = true WHERE id = '`+clinicA+`';
+		INSERT INTO practitioner (id, organization_id, given_name, family_name, active)
+		VALUES ('`+inactiveA+`', '`+clinicA+`', 'Cy', 'Example', false)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := practitioner.NewPostgresRepository(app)
+	public := func(directory bool, ids ...string) ([]practitioner.Practitioner, error) {
+		var out []practitioner.Practitioner
+		err := postgres.NewTransactor(app).WithTx(ctx, func(ctx context.Context) error {
+			if directory {
+				if err := repo.SetDirectory(ctx); err != nil {
+					return err
+				}
+			}
+			var err error
+			out, err = repo.PublicByIDs(ctx, ids)
+			return err
+		})
+		return out, err
+	}
+
+	got, err := public(true, practitionerA, practitionerB, inactiveA, "not-a-uuid")
+	// No clinic: nothing beyond the name, the meta and whether the record is active.
+	want := practitioner.Practitioner{ID: practitionerA, GivenName: "Ada", FamilyName: "Example", VersionID: 1, Active: true,
+		LastUpdated: time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)}
+	if err != nil || len(got) != 1 {
+		t.Fatalf("PublicByIDs(A, B of an unlisted clinic, inactive, not a UUID) = %+v, %v; want only A", got, err)
+	}
+	if got[0].LastUpdated = got[0].LastUpdated.UTC(); got[0] != want {
+		t.Errorf("PublicByIDs() = %+v,\nwant %+v", got[0], want)
+	}
+	if got, err := public(false, practitionerA); err != nil || len(got) != 0 {
+		t.Errorf("PublicByIDs() without the directory scope = %+v, %v; want none", got, err)
+	}
+	if err := repo.SetDirectory(ctx); !errors.Is(err, postgres.ErrNoTx) {
+		t.Errorf("SetDirectory() outside a transaction: %v, want postgres.ErrNoTx", err)
+	}
+}

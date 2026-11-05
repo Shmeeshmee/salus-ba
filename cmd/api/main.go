@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata" // the clinics' time zones, independent of the runtime image
 
 	"github.com/Shmeeshmee/salus/internal/api"
 	"github.com/Shmeeshmee/salus/internal/config"

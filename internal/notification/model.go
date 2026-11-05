@@ -1,5 +1,6 @@
-// Package notification sends what the platform tells people (docs/accounts/SPEC.md "Notifier"): for now the
-// invite e-mail. E-mails are plain text, carry no clinical content, and their body is never logged.
+// Package notification sends what the platform tells people (docs/accounts/SPEC.md "Notifier"): the invite
+// e-mail, and an appointment's confirmation, cancellation and reminder (docs/booking/SPEC.md "E-mail").
+// E-mails are plain text, carry no clinical content, and their body is never logged.
 package notification
 
 // Message is one plain-text e-mail.

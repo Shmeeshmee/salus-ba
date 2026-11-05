@@ -51,7 +51,7 @@ func (f *fakeSender) Send(_ context.Context, m notification.Message) error {
 
 func TestSendInvite_MailsTheLinkAndTheClinicNameAndNothingElse(t *testing.T) {
 	invites, clinics, sender := &fakeInvites{}, &fakeClinics{}, &fakeSender{}
-	svc := notification.NewService(invites, clinics, sender, "https://app.example.test")
+	svc := notification.NewService(notification.Ports{Invites: invites, Clinics: clinics, Sender: sender, WebBaseURL: "https://app.example.test"})
 
 	if err := svc.SendInvite(t.Context(), inviteID, clinicID); err != nil {
 		t.Fatalf("SendInvite() error = %v", err)
@@ -77,15 +77,15 @@ func TestSendInvite_StopsAtTheFirstFailureWithoutLeakingTheMessage(t *testing.T)
 	for name, svc := range map[string]func() (*notification.Service, *fakeSender){
 		"clinic": func() (*notification.Service, *fakeSender) {
 			s := &fakeSender{}
-			return notification.NewService(&fakeInvites{}, &fakeClinics{err: down}, s, "https://app.example.test"), s
+			return notification.NewService(notification.Ports{Invites: &fakeInvites{}, Clinics: &fakeClinics{err: down}, Sender: s, WebBaseURL: "https://app.example.test"}), s
 		},
 		"token": func() (*notification.Service, *fakeSender) {
 			s := &fakeSender{}
-			return notification.NewService(&fakeInvites{err: down}, &fakeClinics{}, s, "https://app.example.test"), s
+			return notification.NewService(notification.Ports{Invites: &fakeInvites{err: down}, Clinics: &fakeClinics{}, Sender: s, WebBaseURL: "https://app.example.test"}), s
 		},
 		"send": func() (*notification.Service, *fakeSender) {
 			s := &fakeSender{err: down}
-			return notification.NewService(&fakeInvites{}, &fakeClinics{}, s, "https://app.example.test"), s
+			return notification.NewService(notification.Ports{Invites: &fakeInvites{}, Clinics: &fakeClinics{}, Sender: s, WebBaseURL: "https://app.example.test"}), s
 		},
 	} {
 		s, sender := svc()

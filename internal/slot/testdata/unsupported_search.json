@@ -1,0 +1,1 @@
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"Search by one schedule, status=free and start=lt<instant>, optionally start=ge<instant>."}]}

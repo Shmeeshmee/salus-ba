@@ -210,14 +210,28 @@ class ApiClient {
           return Acceptance.fromJson(value);
         case 'Account':
           return Account.fromJson(value);
+        case 'Appointment':
+          return Appointment.fromJson(value);
+        case 'Availability':
+          return Availability.fromJson(value);
+        case 'AvailabilityRule':
+          return AvailabilityRule.fromJson(value);
+        case 'BookAppointmentRequest':
+          return BookAppointmentRequest.fromJson(value);
         case 'ConfirmRequest':
           return ConfirmRequest.fromJson(value);
+        case 'Consent':
+          return Consent.fromJson(value);
+        case 'ConsentList':
+          return ConsentList.fromJson(value);
         case 'EnrolRequest':
           return EnrolRequest.fromJson(value);
         case 'Enrolment':
           return Enrolment.fromJson(value);
         case 'Error':
           return Error.fromJson(value);
+        case 'GrantConsentRequest':
+          return GrantConsentRequest.fromJson(value);
         case 'Invite':
           return Invite.fromJson(value);
         case 'InviteList':
@@ -228,8 +242,24 @@ class ApiClient {
           return LoginRequest.fromJson(value);
         case 'LoginResponse':
           return LoginResponse.fromJson(value);
+        case 'Patient':
+          return Patient.fromJson(value);
         case 'RegisterRequest':
           return RegisterRequest.fromJson(value);
+        case 'RoleSpecialty':
+          return RoleSpecialty.fromJson(value);
+        case 'SaveAvailabilityRequest':
+          return SaveAvailabilityRequest.fromJson(value);
+        case 'SavePatientRequest':
+          return SavePatientRequest.fromJson(value);
+        case 'SetAppointmentStatusRequest':
+          return SetAppointmentStatusRequest.fromJson(value);
+        case 'SetSpecialtyRequest':
+          return SetSpecialtyRequest.fromJson(value);
+        case 'Specialty':
+          return Specialty.fromJson(value);
+        case 'SpecialtyList':
+          return SpecialtyList.fromJson(value);
         case 'Status':
           return Status.fromJson(value);
         case 'Unavailable':

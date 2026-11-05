@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fakeFetch, fhirJSON, outcome } from '../test/fakeFetch'
-import { FhirError, newFhirClient, type Organization } from './fhir'
+import { FhirError, listedURL, newFhirClient, participant, settingsOf, timeZoneURL, withSettings, type Appointment, type Organization } from './fhir'
 
 const org: Organization = {
   resourceType: 'Organization',
@@ -53,5 +53,56 @@ describe('newFhirClient', () => {
 
     expect((err as FhirError).status).toBe(502)
     expect((err as FhirError).code).toBeUndefined()
+  })
+})
+
+describe('clinic settings in the Organization', () => {
+  const withExtensions: Organization = {
+    ...org,
+    extension: [
+      { url: listedURL, valueBoolean: true },
+      { url: timeZoneURL, valueCode: 'Europe/Berlin' },
+      { url: 'https://example.test/other', valueCode: 'kept' },
+    ],
+  }
+
+  it('reads listed and the time zone from their extensions', () => {
+    expect(settingsOf(withExtensions)).toEqual({ name: 'Synthetic clinic', listed: true, timeZone: 'Europe/Berlin' })
+  })
+
+  it('reads an Organization without them as not listed, in the default zone', () => {
+    expect(settingsOf(org)).toEqual({ name: 'Synthetic clinic', listed: false, timeZone: 'Europe/Sarajevo' })
+  })
+
+  it('writes the settings into the resource and keeps other extensions', () => {
+    const out = withSettings(withExtensions, { name: 'Renamed', listed: false, timeZone: 'Europe/Sarajevo' })
+
+    expect(out.name).toBe('Renamed')
+    expect(out.extension).toEqual([
+      { url: 'https://example.test/other', valueCode: 'kept' },
+      { url: listedURL, valueBoolean: false },
+      { url: timeZoneURL, valueCode: 'Europe/Sarajevo' },
+    ])
+  })
+})
+
+describe('appointment participants', () => {
+  const appt: Appointment = {
+    resourceType: 'Appointment',
+    id: 'e1000000-0000-4000-8000-0000000000a1',
+    meta: { versionId: '1', lastUpdated: '2026-11-04T09:30:00Z' },
+    status: 'booked',
+    start: '2026-11-09T08:00:00Z',
+    end: '2026-11-09T08:30:00Z',
+    participant: [
+      { status: 'accepted', actor: { reference: 'Patient/aa000000-0000-4000-8000-0000000000aa', display: 'Ada Example' } },
+      { status: 'accepted', actor: { reference: 'Practitioner/a3000000-0000-4000-8000-0000000000a1' } },
+    ],
+  }
+
+  it('finds a participant by resource type, with its id and display', () => {
+    expect(participant(appt, 'Patient')).toEqual({ id: 'aa000000-0000-4000-8000-0000000000aa', display: 'Ada Example' })
+    expect(participant(appt, 'Practitioner')).toEqual({ id: 'a3000000-0000-4000-8000-0000000000a1', display: undefined })
+    expect(participant(appt, 'PractitionerRole')).toBeUndefined()
   })
 })

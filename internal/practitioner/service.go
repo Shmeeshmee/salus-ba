@@ -20,7 +20,8 @@ type Auditor interface {
 }
 
 // Service holds the practitioner rules: only staff of a practitioner's clinic see them, and every read and
-// create is audited, also when it is refused.
+// create by staff is audited, also when it is refused. Anyone may read the names of the active
+// practitioners of a listed clinic (PublicNames); that is not audited.
 type Service struct {
 	repo  Repository
 	audit Auditor
@@ -91,6 +92,32 @@ func (s *Service) Create(ctx context.Context, c Caller, givenName, familyName st
 		return Practitioner{}, fmt.Errorf("practitioner: create: %w", err)
 	}
 	return p, nil
+}
+
+// PublicNames returns the active practitioners among ids whose clinic is listed, with their name only (no
+// clinic): the public directory, for anyone, signed in or not. It holds only what the clinic chose to
+// publish, so it is not audited (docs/booking/SPEC.md "Public browse").
+func (s *Service) PublicNames(ctx context.Context, ids []string) ([]Practitioner, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var out []Practitioner
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetDirectory(ctx); err != nil {
+			return err
+		}
+		all, err := s.repo.PublicByIDs(ctx, ids)
+		for _, p := range all {
+			if p.Active { // not on row-level security alone
+				out = append(out, p)
+			}
+		}
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("practitioner: public names: %w", err)
+	}
+	return out, nil
 }
 
 // record audits a read or a create (interaction) by c of the practitioner id ("" when none was disclosed: no

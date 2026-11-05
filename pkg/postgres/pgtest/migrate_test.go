@@ -48,22 +48,26 @@ func TestWithDatabase_PanicsOnAnUnparsableURL(t *testing.T) {
 	withDatabase("postgres://[::1", "db")
 }
 
-func TestSetAppPassword_SkipsWithoutThePassword(t *testing.T) {
-	t.Setenv("TEST_APP_DATABASE_PASSWORD", "")
-
-	if err := setAppPassword(t.Context(), server.admin); err != nil {
-		t.Fatalf("setAppPassword() error = %v, want nil when there is no password to set", err)
+func TestSetRolePassword_SkipsWithoutThePassword(t *testing.T) {
+	if err := setRolePassword(t.Context(), server.admin, AppRole, ""); err != nil {
+		t.Fatalf("setRolePassword() error = %v, want nil when there is no password to set", err)
 	}
 }
 
-func TestSetAppPassword_ReturnsTheQueryError(t *testing.T) {
+func TestSetRolePassword_SkipsARoleTheMigrationsDidNotCreate(t *testing.T) {
+	if err := setRolePassword(t.Context(), server.admin, "salus_no_such_role", "synthetic"); err != nil {
+		t.Fatalf("setRolePassword() error = %v, want nil for a role that does not exist", err)
+	}
+}
+
+func TestSetRolePassword_ReturnsTheQueryError(t *testing.T) {
 	pool, err := pgxpool.New(t.Context(), server.url)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pool.Close()
 
-	if err := setAppPassword(t.Context(), pool); err == nil {
-		t.Fatal("setAppPassword() error = nil on a closed pool")
+	if err := setRolePassword(t.Context(), pool, AppRole, "synthetic"); err == nil {
+		t.Fatal("setRolePassword() error = nil on a closed pool")
 	}
 }

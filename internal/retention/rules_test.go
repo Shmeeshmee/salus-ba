@@ -93,3 +93,57 @@ func TestRules_DeleteInvitesThirtyDaysAfterTheyEnd(t *testing.T) {
 	}
 	t.Fatal("no rule for invite")
 }
+
+func TestRules_KeepPatientsWhileTheAccountExists(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "patient" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("patient then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for patient")
+}
+
+func TestRules_KeepConsentsWithTheClinicalRecord(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "consent" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("consent then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for consent")
+}
+
+func TestRules_KeepAppointmentsWithTheClinicalRecord(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "appointment" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("appointment then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for appointment")
+}
+
+func TestRules_RestrictSchedulesAndDeleteFreeSlotsThirtyDaysAfterTheyEnd(t *testing.T) {
+	want := map[string]retention.Rule{
+		"schedule": {Table: "schedule", Then: retention.ThenRestrict},
+		"slot":     {Table: "slot", Then: retention.ThenDelete, Keep: 30 * 24 * time.Hour},
+	}
+	for _, r := range retention.Rules() {
+		if w, ok := want[r.Table]; ok {
+			if r.Then != w.Then || r.Keep != w.Keep {
+				t.Errorf("%s then %q after %v, want %q after %v", r.Table, r.Then, r.Keep, w.Then, w.Keep)
+			}
+			delete(want, r.Table)
+		}
+	}
+	for table := range want {
+		t.Errorf("no rule for %s", table)
+	}
+}

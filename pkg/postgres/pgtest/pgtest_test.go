@@ -8,12 +8,13 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
 // A small migration set proves the template is migrated before it is cloned; the second file creates the
-// application role the way migrations/ does (roles are cluster-wide, so a parallel package may create it
-// first) and lets it read probe.
+// application role and the retention role the way migrations/ does (roles are cluster-wide, so a parallel
+// package may create them first, with these same attributes) and lets them read probe.
 func TestMain(m *testing.M) {
 	pgtest.Main(m, fstest.MapFS{
 		"00001_probe.sql": {Data: []byte("-- +goose Up\nCREATE TABLE probe (id int);\n")},
@@ -21,7 +22,11 @@ func TestMain(m *testing.M) {
 -- +goose StatementBegin
 DO $$ BEGIN CREATE ROLE salus_app LOGIN; EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; END $$;
 -- +goose StatementEnd
-GRANT SELECT ON probe TO salus_app;
+-- +goose StatementBegin
+DO $$ BEGIN CREATE ROLE salus_retention LOGIN NOSUPERUSER BYPASSRLS NOCREATEROLE NOCREATEDB;
+EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; END $$;
+-- +goose StatementEnd
+GRANT SELECT ON probe TO salus_app, salus_retention;
 `)},
 	})
 }
@@ -99,6 +104,62 @@ func TestNewAppDatabase_ConnectsToOneDatabaseAsOwnerAndAsTheAppRole(t *testing.T
 	}
 	if _, err := app.Exec(t.Context(), "SELECT id FROM probe"); err != nil {
 		t.Errorf("app role cannot use its grant: %v", err)
+	}
+}
+
+func TestNewRetentionDatabase_ConnectsToOneDatabaseAsOwnerAndAsTheRetentionRole(t *testing.T) {
+	t.Parallel()
+	owner, retention := pgtest.NewRetentionDatabase(t)
+
+	var ownerDB, retentionDB, retentionUser string
+	if err := owner.QueryRow(t.Context(), "SELECT current_database()").Scan(&ownerDB); err != nil {
+		t.Fatal(err)
+	}
+	if err := retention.QueryRow(t.Context(), "SELECT current_database(), current_user").Scan(&retentionDB, &retentionUser); err != nil {
+		t.Fatal(err)
+	}
+	if retentionUser != pgtest.RetentionRole {
+		t.Errorf("retention pool user = %q, want %q", retentionUser, pgtest.RetentionRole)
+	}
+	if ownerDB != retentionDB {
+		t.Errorf("owner pool on %q, retention pool on %q, want one database", ownerDB, retentionDB)
+	}
+}
+
+func TestAppURLAndRetentionURL_LogInToTheSameDatabaseAsEachRole(t *testing.T) {
+	t.Parallel()
+	dbURL := pgtest.NewDatabaseURL(t)
+
+	for role, roleURL := range map[string]string{pgtest.AppRole: pgtest.AppURL(t, dbURL), pgtest.RetentionRole: pgtest.RetentionURL(t, dbURL)} {
+		pool, err := postgres.Open(t.Context(), roleURL)
+		if err != nil {
+			t.Fatalf("log in as %s: %v", role, err)
+		}
+		var user string
+		err = pool.QueryRow(t.Context(), "SELECT current_user FROM probe UNION ALL SELECT current_user LIMIT 1").Scan(&user)
+		pool.Close()
+		if err != nil || user != role {
+			t.Errorf("logged in as %q (%v), want %s on the database with probe", user, err, role)
+		}
+	}
+}
+
+// TestNewRetentionDatabase_FailsClearlyWithoutPassword re-runs this test binary for the test above without
+// TEST_RETENTION_DATABASE_PASSWORD: it must fail and say how to run the tests.
+func TestNewRetentionDatabase_FailsClearlyWithoutPassword(t *testing.T) {
+	t.Parallel()
+	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestNewRetentionDatabase_ConnectsToOneDatabaseAsOwnerAndAsTheRetentionRole$")
+	cmd.Env = slices.DeleteFunc(os.Environ(), func(kv string) bool {
+		return strings.HasPrefix(kv, "TEST_RETENTION_DATABASE_PASSWORD=")
+	})
+
+	out, err := cmd.CombinedOutput()
+
+	if err == nil {
+		t.Fatalf("test passed without TEST_RETENTION_DATABASE_PASSWORD; output:\n%s", out)
+	}
+	if !strings.Contains(string(out), "TEST_RETENTION_DATABASE_PASSWORD is not set") || !strings.Contains(string(out), "make test") {
+		t.Errorf("output does not explain the missing TEST_RETENTION_DATABASE_PASSWORD:\n%s", out)
 	}
 }
 

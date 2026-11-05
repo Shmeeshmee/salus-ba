@@ -18,6 +18,7 @@ func TestRun_StartsTheEmailQueueAndStopsCleanly(t *testing.T) {
 	t.Setenv("DATABASE_URL", pgtest.NewDatabaseURL(t))
 	t.Setenv("SMTP_ADDR", "mailpit:1025")
 	t.Setenv("WEB_BASE_URL", "https://app.example.test")
+	t.Setenv("PATIENT_APP_URL", "https://patient.example.test")
 	logs, err := runUntilStarted(t)
 	if err != nil {
 		t.Fatalf("run() error = %v, want nil after the context ends", err)
@@ -30,13 +31,15 @@ func TestRun_StartsTheEmailQueueAndStopsCleanly(t *testing.T) {
 }
 
 func TestRun_FailsWithoutConfig(t *testing.T) {
-	for name, env := range map[string][3]string{
-		"no DATABASE_URL": {"", "mailpit:1025", "https://app.example.test"},
-		"no SMTP_ADDR":    {pgtest.NewDatabaseURL(t), "", "https://app.example.test"},
+	for name, env := range map[string][4]string{
+		"no DATABASE_URL":    {"", "mailpit:1025", "https://app.example.test", "https://patient.example.test"},
+		"no SMTP_ADDR":       {pgtest.NewDatabaseURL(t), "", "https://app.example.test", "https://patient.example.test"},
+		"no PATIENT_APP_URL": {pgtest.NewDatabaseURL(t), "mailpit:1025", "https://app.example.test", ""},
 	} {
 		t.Setenv("DATABASE_URL", env[0])
 		t.Setenv("SMTP_ADDR", env[1])
 		t.Setenv("WEB_BASE_URL", env[2])
+		t.Setenv("PATIENT_APP_URL", env[3])
 		if err := run(t.Context(), &bytes.Buffer{}); err == nil {
 			t.Errorf("run() with %s: error = nil", name)
 		}

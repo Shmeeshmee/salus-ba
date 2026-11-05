@@ -3,6 +3,7 @@ package auditevent
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -42,8 +43,14 @@ func (r *postgresRepository) Insert(ctx context.Context, e AuditEvent) error {
 		PurposeSystem:   e.Purpose.System,
 		PurposeCode:     e.Purpose.Code,
 		EntityReference: optionalText(e.EntityReference),
+		EntityName:      optionalText(e.EntityName),
+		EntityCount:     pgtype.Int8{Int64: e.EntityCount, Valid: e.EntityName != ""},
 		RequestID:       optionalText(e.RequestID),
 	})
+}
+
+func (r *postgresRepository) CountRecordedBefore(ctx context.Context, before time.Time) (int64, error) {
+	return auditeventdb.New(postgres.Conn(ctx, r.db)).CountRecordedBefore(ctx, pgtype.Timestamptz{Time: before, Valid: true})
 }
 
 // optionalUUID maps "" to NULL. The error never echoes the value.

@@ -45,3 +45,37 @@ export function SignOutIcon() {
     </svg>
   )
 }
+
+export function CalendarIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <rect x="3" y="4.5" width="14" height="12.5" rx="2.5" />
+      <path d="M3 8.5h14M7 3v3M13 3v3" />
+    </svg>
+  )
+}
+
+export function ClockIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <circle cx="10" cy="10" r="7" />
+      <path d="M10 6v4l2.5 2" />
+    </svg>
+  )
+}
+
+export function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <path d={direction === 'left' ? 'M12 5l-5 5 5 5' : 'M8 5l5 5-5 5'} />
+    </svg>
+  )
+}
+
+export function CrossIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <path d="M6 6l8 8M14 6l-8 8" />
+    </svg>
+  )
+}

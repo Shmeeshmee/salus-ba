@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ClinicSettings } from './ClinicSettings'
-import { newFhirClient, type Organization } from './api/fhir'
+import { listedURL, newFhirClient, timeZoneURL, type Organization } from './api/fhir'
 import { expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, type Route } from './test/fakeFetch'
 
 afterEach(cleanup)
@@ -14,6 +14,10 @@ const org: Organization = {
   name: 'Synthetic clinic',
   active: true,
   meta: { versionId: '3', lastUpdated: '2026-11-04T09:30:00Z' },
+  extension: [
+    { url: listedURL, valueBoolean: false },
+    { url: timeZoneURL, valueCode: 'Europe/Sarajevo' },
+  ],
 }
 
 function renderSettings(routes: Record<string, Route>) {
@@ -99,5 +103,41 @@ describe('ClinicSettings', () => {
     renderSettings({ [`GET ${path}`]: () => outcome(404, 'not-found') })
 
     expect((await screen.findByRole('alert')).textContent).toBe('The clinic could not be loaded. Reload the page to try again.')
+  })
+
+  it('shows whether the clinic is listed and its time zone', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(org) })
+
+    expect(((await screen.findByLabelText('List the clinic in the patient app')) as HTMLInputElement).checked).toBe(false)
+    expect((screen.getByLabelText('Time zone') as HTMLSelectElement).value).toBe('Europe/Sarajevo')
+  })
+
+  it('saves listed and the time zone as the Organization extensions with If-Match', async () => {
+    const { requests } = renderSettings({
+      [`GET ${path}`]: () => fhirJSON(org),
+      [`PUT ${path}`]: async (r) => fhirJSON({ ...((await r.json()) as Organization), meta: { ...org.meta, versionId: '4' } }),
+    })
+
+    fireEvent.click(await screen.findByLabelText('List the clinic in the patient app'))
+    fireEvent.change(screen.getByLabelText('Time zone'), { target: { value: 'Europe/Berlin' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect((await screen.findByRole('status')).textContent).toBe('Saved.')
+    const put = requests.find((r) => r.method === 'PUT')!
+    expect(put.headers.get('If-Match')).toBe('W/"3"')
+    expect(((await put.json()) as Organization).extension).toEqual([
+      { url: listedURL, valueBoolean: true },
+      { url: timeZoneURL, valueCode: 'Europe/Berlin' },
+    ])
+    expectCsrfOnWrites(requests)
+    expect((screen.getByLabelText('List the clinic in the patient app') as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('maps an unknown time zone to a message', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(org), [`PUT ${path}`]: () => outcome(400, 'value') })
+
+    await rename('Renamed clinic')
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Choose a time zone from the list.')
   })
 })

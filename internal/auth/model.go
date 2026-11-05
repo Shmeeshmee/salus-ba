@@ -24,8 +24,16 @@ type Account struct {
 	ID             string
 	Email          string // trimmed and lower-cased: the login
 	OrganizationID string // the clinic of a staff account; empty for a patient
+	PractitionerID string // the directory's practitioner of a practitioner account; empty otherwise
 	PasswordHash   string // argon2id PHC string; never leaves the domain
 	Role           Role
+}
+
+// Member is what a staff session is in its clinic: whether its account is the admin, and the practitioner it
+// is (empty for none).
+type Member struct {
+	PractitionerID string
+	Admin          bool
 }
 
 // MFAEnrolled reports whether the account has set up TOTP.

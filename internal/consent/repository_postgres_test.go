@@ -1,0 +1,277 @@
+package consent_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/Shmeeshmee/salus/internal/access"
+	"github.com/Shmeeshmee/salus/internal/consent"
+	"github.com/Shmeeshmee/salus/migrations"
+	"github.com/Shmeeshmee/salus/pkg/postgres"
+	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
+)
+
+func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
+
+// Synthetic ids only.
+const (
+	accountA  = "c1000000-0000-4000-8000-0000000000c1"
+	accountB  = "c2000000-0000-4000-8000-0000000000c2"
+	patientA  = "d1000000-0000-4000-8000-0000000000d1"
+	patientB  = "d2000000-0000-4000-8000-0000000000d2"
+	clinicA   = "a0000000-0000-4000-8000-00000000000a"
+	clinicB   = "b0000000-0000-4000-8000-00000000000b"
+	consentAA = "f1000000-0000-4000-8000-0000000000f1" // patient A with clinic A, active
+	consentAB = "f2000000-0000-4000-8000-0000000000f2" // patient A with clinic B, revoked
+)
+
+var granted = time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
+
+// seed creates, as the owner, clinics A and B and patients A and B, with patient A's consent with clinic A
+// active (consentAA) and with clinic B revoked (consentAB), granted at granted and revoked a day later.
+func seed(t *testing.T, owner *pgxpool.Pool) {
+	t.Helper()
+	ctx := t.Context()
+	stmts := []struct {
+		sql  string
+		args []any
+	}{
+		{"INSERT INTO organization (id, name) VALUES ($1, 'Synthetic clinic A'), ($2, 'Synthetic clinic B')", []any{clinicA, clinicB}},
+		{"INSERT INTO account (id, email, password_hash, role) VALUES ($1, 'pat.a@example.test', 'h', 'patient'), ($2, 'pat.b@example.test', 'h', 'patient')", []any{accountA, accountB}},
+		{"INSERT INTO patient (id, account_id, given_name, family_name, birth_date) VALUES ($1, $2, 'Ada', 'Example', '1990-01-01'), ($3, $4, 'Bo', 'Example', '1991-02-02')", []any{patientA, accountA, patientB, accountB}},
+		{`INSERT INTO consent (id, patient_id, organization_id, status, date_time, revoked_at, updated_at, version_id) VALUES
+			($1, $3, $4, 'active', $6, NULL, $6, 1), ($2, $3, $5, 'inactive', $6, $7, $7, 2)`,
+			[]any{consentAA, consentAB, patientA, clinicA, clinicB, granted, granted.Add(24 * time.Hour)}},
+	}
+	for _, s := range stmts {
+		if _, err := owner.Exec(ctx, s.sql, s.args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// in runs fn in a transaction on app scoped by set.
+func in(t *testing.T, app *pgxpool.Pool, set func(ctx context.Context) error, fn func(ctx context.Context) error) error {
+	t.Helper()
+	return postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+		if err := set(ctx); err != nil {
+			return err
+		}
+		return fn(ctx)
+	})
+}
+
+var (
+	activeAA  = consent.Consent{ID: consentAA, PatientID: patientA, OrganizationID: clinicA, Status: consent.StatusActive, DateTime: granted, LastUpdated: granted, VersionID: 1}
+	revokedAB = consent.Consent{ID: consentAB, PatientID: patientA, OrganizationID: clinicB, Status: consent.StatusInactive, DateTime: granted,
+		RevokedAt: granted.Add(24 * time.Hour), LastUpdated: granted.Add(24 * time.Hour), VersionID: 2}
+)
+
+func same(a, b consent.Consent) bool {
+	return a.ID == b.ID && a.PatientID == b.PatientID && a.OrganizationID == b.OrganizationID && a.Status == b.Status &&
+		a.DateTime.Equal(b.DateTime) && a.RevokedAt.Equal(b.RevokedAt) && a.LastUpdated.Equal(b.LastUpdated) && a.VersionID == b.VersionID
+}
+
+func TestByIDAndByPatient_SeeOnlyTheScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo := consent.NewPostgresRepository(app)
+
+	var byID consent.Consent
+	var mine []consent.Consent
+	err := in(t, app, func(ctx context.Context) error { return repo.SetPatient(ctx, patientA) }, func(ctx context.Context) error {
+		var err error
+		if byID, err = repo.ByID(ctx, consentAB); err != nil {
+			return err
+		}
+		mine, err = repo.ByPatient(ctx, patientA)
+		return err
+	})
+	if err != nil || !same(byID, revokedAB) || len(mine) != 2 || !same(mine[0], activeAA) && !same(mine[0], revokedAB) {
+		t.Fatalf("in patient A: ByID = %+v, ByPatient = %+v, %v", byID, mine, err)
+	}
+	err = in(t, app, func(ctx context.Context) error { return repo.SetClinic(ctx, clinicA) }, func(ctx context.Context) error {
+		var err error
+		byID, err = repo.ByID(ctx, consentAA)
+		return err
+	})
+	if err != nil || !same(byID, activeAA) {
+		t.Errorf("in clinic A: ByID = %+v, %v; want consent A-A", byID, err)
+	}
+	for name, set := range map[string]func(ctx context.Context) error{
+		"patient B": func(ctx context.Context) error { return repo.SetPatient(ctx, patientB) },
+		"clinic B":  func(ctx context.Context) error { return repo.SetClinic(ctx, clinicB) },
+	} {
+		err := in(t, app, set, func(ctx context.Context) error { _, err := repo.ByID(ctx, consentAA); return err })
+		if !errors.Is(err, consent.ErrNotFound) {
+			t.Errorf("consent A-A in %s: %v, want ErrNotFound", name, err)
+		}
+		err = in(t, app, set, func(ctx context.Context) error { _, err := repo.ByID(ctx, "not-a-uuid"); return err })
+		if !errors.Is(err, consent.ErrNotFound) {
+			t.Errorf("an id that is not a UUID in %s: %v, want ErrNotFound", name, err)
+		}
+	}
+	var none []consent.Consent
+	err = in(t, app, func(ctx context.Context) error { return repo.SetPatient(ctx, patientB) }, func(ctx context.Context) error {
+		var err error
+		none, err = repo.ByPatient(ctx, patientA)
+		return err
+	})
+	if err != nil || len(none) != 0 {
+		t.Errorf("patient A's consents in patient B's scope: %+v, %v; want none", none, err)
+	}
+}
+
+func TestByPatient_ListsTheLatestGrantedFirst(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo := consent.NewPostgresRepository(app)
+	later := granted.Add(48 * time.Hour)
+
+	var got []consent.Consent
+	err := in(t, app, func(ctx context.Context) error { return repo.SetPatient(ctx, patientA) }, func(ctx context.Context) error {
+		if _, err := repo.Grant(ctx, patientA, clinicB, later); err != nil {
+			return err
+		}
+		var err error
+		got, err = repo.ByPatient(ctx, patientA)
+		return err
+	})
+	if err != nil || len(got) != 3 || !got[0].DateTime.Equal(later) || got[0].OrganizationID != clinicB {
+		t.Errorf("ByPatient() = %+v, %v; want the consent granted later first", got, err)
+	}
+}
+
+func TestGrant_StoresOneActiveConsentPerClinic(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo := consent.NewPostgresRepository(app)
+	at := time.Date(2026, 11, 4, 9, 30, 0, 0, time.UTC)
+	asB := func(ctx context.Context) error { return repo.SetPatient(ctx, patientB) }
+
+	var got consent.Consent
+	err := in(t, app, asB, func(ctx context.Context) error {
+		var err error
+		got, err = repo.Grant(ctx, patientB, clinicA, at)
+		return err
+	})
+	want := consent.Consent{ID: got.ID, PatientID: patientB, OrganizationID: clinicA, Status: consent.StatusActive, DateTime: at, LastUpdated: at, VersionID: 1}
+	if err != nil || got.ID == "" || !same(got, want) {
+		t.Fatalf("Grant() = %+v, %v;\nwant %+v", got, err, want)
+	}
+	// A second grant gives ErrActive and leaves the transaction usable.
+	err = in(t, app, asB, func(ctx context.Context) error {
+		if _, err := repo.Grant(ctx, patientB, clinicA, at); !errors.Is(err, consent.ErrActive) {
+			t.Errorf("second Grant() = %v, want ErrActive", err)
+		}
+		_, err := repo.ByID(ctx, got.ID)
+		return err
+	})
+	if err != nil {
+		t.Errorf("a read after the refusal: %v", err)
+	}
+	for name, clinic := range map[string]string{"an unknown clinic": "f0000000-0000-4000-8000-00000000000f", "a clinic id that is not a UUID": "x"} {
+		err := in(t, app, asB, func(ctx context.Context) error { _, err := repo.Grant(ctx, patientB, clinic, at); return err })
+		if !errors.Is(err, consent.ErrClinicNotFound) {
+			t.Errorf("Grant() to %s = %v, want ErrClinicNotFound", name, err)
+		}
+	}
+	// Another patient's consent is refused by row-level security.
+	err = in(t, app, asB, func(ctx context.Context) error { _, err := repo.Grant(ctx, patientA, clinicB, at); return err })
+	if err == nil || errors.Is(err, consent.ErrActive) {
+		t.Errorf("Grant() for patient A in patient B's scope = %v, want the row-level security refusal", err)
+	}
+	err = in(t, app, asB, func(ctx context.Context) error { _, err := repo.Grant(ctx, "x", clinicB, at); return err })
+	if err == nil {
+		t.Error("Grant() with a patient id that is not a UUID succeeded")
+	}
+}
+
+func TestRevoke_EndsOnlyAnActiveConsentOfTheScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo := consent.NewPostgresRepository(app)
+	at := time.Date(2026, 11, 4, 9, 30, 0, 0, time.UTC)
+	asA := func(ctx context.Context) error { return repo.SetPatient(ctx, patientA) }
+
+	for name, tt := range map[string]struct {
+		set func(ctx context.Context) error
+		id  string
+	}{
+		"patient B's scope":   {id: consentAA, set: func(ctx context.Context) error { return repo.SetPatient(ctx, patientB) }},
+		"clinic A's scope":    {id: consentAA, set: func(ctx context.Context) error { return repo.SetClinic(ctx, clinicA) }},
+		"an inactive consent": {id: consentAB, set: asA},
+		"an id not a UUID":    {id: "x", set: asA},
+	} {
+		err := in(t, app, tt.set, func(ctx context.Context) error { _, err := repo.Revoke(ctx, tt.id, at); return err })
+		if !errors.Is(err, consent.ErrInactive) {
+			t.Errorf("Revoke() in %s = %v, want ErrInactive", name, err)
+		}
+	}
+	var got consent.Consent
+	err := in(t, app, asA, func(ctx context.Context) error {
+		var err error
+		got, err = repo.Revoke(ctx, consentAA, at)
+		return err
+	})
+	want := activeAA
+	want.Status, want.RevokedAt, want.LastUpdated, want.VersionID = consent.StatusInactive, at, at, 2
+	if err != nil || !same(got, want) {
+		t.Errorf("Revoke() = %+v, %v;\nwant %+v", got, err, want)
+	}
+}
+
+func TestState_GivesTheActiveConsentAndTheLatestRevocationOfTheScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo := consent.NewPostgresRepository(app)
+	revoked := granted.Add(24 * time.Hour)
+
+	tests := []struct {
+		set     func(ctx context.Context) error
+		name    string
+		patient string
+		clinic  string
+		want    access.Consent
+	}{
+		{name: "active, in clinic A", set: func(ctx context.Context) error { return repo.SetClinic(ctx, clinicA) }, patient: patientA, clinic: clinicA, want: access.Consent{Active: true}},
+		{name: "revoked, in clinic B", set: func(ctx context.Context) error { return repo.SetClinic(ctx, clinicB) }, patient: patientA, clinic: clinicB, want: access.Consent{RevokedAt: revoked}},
+		{name: "revoked, in patient A", set: func(ctx context.Context) error { return repo.SetPatient(ctx, patientA) }, patient: patientA, clinic: clinicB, want: access.Consent{RevokedAt: revoked}},
+		{name: "never, in clinic A", set: func(ctx context.Context) error { return repo.SetClinic(ctx, clinicA) }, patient: patientB, clinic: clinicA},
+		{name: "clinic A's consent in clinic B", set: func(ctx context.Context) error { return repo.SetClinic(ctx, clinicB) }, patient: patientA, clinic: clinicA},
+		{name: "ids that are not UUIDs", set: func(ctx context.Context) error { return repo.SetClinic(ctx, clinicA) }, patient: "x", clinic: "y"},
+		{name: "no scope", set: func(context.Context) error { return nil }, patient: patientA, clinic: clinicA},
+	}
+	for _, tt := range tests {
+		var got access.Consent
+		err := in(t, app, tt.set, func(ctx context.Context) error {
+			var err error
+			got, err = repo.State(ctx, tt.patient, tt.clinic)
+			return err
+		})
+		if err != nil || got.Active != tt.want.Active || !got.RevokedAt.Equal(tt.want.RevokedAt) {
+			t.Errorf("%s: State() = %+v, %v; want %+v", tt.name, got, err, tt.want)
+		}
+	}
+}
+
+func TestSetPatientAndSetClinic_NeedATransaction(t *testing.T) {
+	t.Parallel()
+	_, app := pgtest.NewAppDatabase(t)
+	repo := consent.NewPostgresRepository(app)
+	if err := repo.SetPatient(t.Context(), patientA); !errors.Is(err, postgres.ErrNoTx) {
+		t.Errorf("SetPatient() outside a transaction = %v, want ErrNoTx", err)
+	}
+	if err := repo.SetClinic(t.Context(), clinicA); !errors.Is(err, postgres.ErrNoTx) {
+		t.Errorf("SetClinic() outside a transaction = %v, want ErrNoTx", err)
+	}
+}

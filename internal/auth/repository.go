@@ -62,6 +62,13 @@ type Repository interface {
 	// AcceptInvite marks the invite accepted at at, or returns ErrInvalidInvite when it was accepted or
 	// expired by then.
 	AcceptInvite(ctx context.Context, id string, at time.Time) error
+
+	// DeleteSessionsEndedBefore deletes the sessions revoked or expired before before, and counts them. Only
+	// the retention role may (built on its pool in internal/worker).
+	DeleteSessionsEndedBefore(ctx context.Context, before time.Time) (int64, error)
+	// DeleteInvitesEndedBefore deletes the invites of every clinic accepted or expired before before, and
+	// counts them. Only the retention role may: it bypasses row-level security.
+	DeleteInvitesEndedBefore(ctx context.Context, before time.Time) (int64, error)
 }
 
 // Jobs enqueues background jobs in the transaction in the context (River's InsertTx), so a job exists

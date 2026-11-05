@@ -42,5 +42,31 @@ func Rules() []Rule {
 			Basis: "The clinic's employment relationship and the contract with the clinic (GDPR Art. 6(1)(b), (f)); after leaving, the medical-record retention that references the role",
 			Then:  ThenRestrict,
 		},
+		{
+			Table: "patient",
+			Basis: "Provision of health care (GDPR Art. 9(2)(h)) and the contract with the patient (Art. 6(1)(b)) while the account exists; erasure comes with the subject-rights feature (docs/booking/SPEC.md section 4)",
+			Then:  ThenKeep,
+		},
+		{
+			Table: "consent",
+			Basis: "Proof of the patient's decision (GDPR Art. 7(1)), kept with the clinical record (Art. 9(2)(h)); needs a legal decision before production (docs/booking/SPEC.md section 4)",
+			Then:  ThenKeep,
+		},
+		{
+			Table: "appointment",
+			Basis: "The clinic's care record (GDPR Art. 9(2)(h)) and the contract with the patient (Art. 6(1)(b)); kept with the clinical record, needs a legal decision before production (docs/booking/SPEC.md sections 3 and 4)",
+			Then:  ThenKeep,
+		},
+		{
+			Table: "schedule",
+			Basis: "The clinic's employment relationship and its legitimate interest in being booked (GDPR Art. 6(1)(b), (f)) while the role is active; after the practitioner leaves, restricted like practitioner_role (docs/booking/SPEC.md section 4)",
+			Then:  ThenRestrict,
+		},
+		{
+			Table: "slot",
+			Basis: "Offering bookable times (GDPR Art. 6(1)(b), (f)); a free slot is deleted 30 days after its end, a busy one is kept with its appointment (docs/booking/SPEC.md section 4)",
+			Keep:  30 * day, // after the end of a free slot
+			Then:  ThenDelete,
+		},
 	}
 }

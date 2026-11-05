@@ -21,6 +21,8 @@ Ids are opaque UUIDs, so an audit row says nothing about a person without the ac
 
 **Retention.** Ten years, then removed by whole time ranges as the schema owner
 (`internal/retention/rules.go`). The period is a default that needs a legal decision before production.
+No role can remove an audit row yet; the daily retention job counts rows past the period and fails, with the
+count only, if there are any (see "Booking, package 1" below).
 archcheck fails when a table marked `personal_data: true` in `ownership.yaml` has no retention rule.
 
 **Risks and measures.**
@@ -84,7 +86,7 @@ e-mail is readable in Redis; it is never logged. The `otpauth://` URI carries th
 the account holder only, and is not cached (`Cache-Control: no-store`).
 
 **Retention.** Sessions are deleted 30 days after they were revoked or expired (`internal/retention`,
-`delete`; applied by the retention job, the next privacy feature). Redis keys expire on their own. The TOTP
+`delete`; applied daily by the retention job, booking package 1). Redis keys expire on their own. The TOTP
 columns follow the account.
 
 **Risks and measures.**
@@ -153,7 +155,8 @@ name, role or inviter. The job carries only the invite and clinic ids. Inviting 
 whether the e-mail already has an account (it might be a patient's); only the invitee learns it, on
 acceptance.
 
-**Retention.** `invite`: deleted 30 days after `accepted_at` or `expires_at` (`internal/retention`, `delete`).
+**Retention.** `invite`: deleted 30 days after `accepted_at` or `expires_at` (`internal/retention`, `delete`;
+applied daily by the retention job, booking package 1).
 
 **Risks and measures.**
 
@@ -241,3 +244,313 @@ deletes it); the session itself expires after 30 days (package 3).
 | A staff account's session lingers on a patient device | Staff are not signed in: a `next: enrol` login stops before enrolment, and a staff session opened with a code is ended at once (`POST /auth/logout`) and never stored (tested) |
 | The token outlives sign-out | Sign-out revokes the session on the API and then deletes the stored token; when the API cannot be reached the app stays signed in and says so, so the session is never left valid without the user knowing (tested) |
 | Credentials, codes or tokens reach a log | The app logs nothing (`avoid_print`; a test asserts nothing is printed during sign-in); error text is a fixed sentence per API error code, never a response body |
+
+## Patients, consent and booking (`docs/booking`)
+
+### Package 1: retention job
+
+**What.** The retention rules are applied, not only recorded. `retention_apply` (River, default queue,
+`cmd/worker`) runs daily at 03:00 UTC, enqueued by `cmd/scheduler`. It deletes sessions and invites 30 days
+after they ended, does nothing for `keep` and `restrict` rules (closure, erasure and deactivation are later
+features), and counts audit events past their ten years: nothing can remove them yet, so any overdue row
+fails the job, with the count only. It refuses to start when a rule that removes rows has no applier.
+
+**Who can delete.** A dedicated role, `salus_retention`: `BYPASSRLS` (invites are row-level secured by
+clinic), not a superuser, owner of nothing, `SELECT` and `DELETE` on exactly the tables whose rule is
+`delete` (`session`, `invite`), and no privilege on `audit_event`. Its own login, `RETENTION_DATABASE_URL`, is
+given only to the worker service and loaded only by `cmd/worker`, for this job's purgers alone; the api,
+notifier and scheduler never read it, and every other job runs as `salus_app` (tests in `internal/config`,
+`internal/worker` and `migrations/`).
+
+**What is processed and logged.** The job reads no personal field: each purger is one `DELETE … WHERE` on
+the end timestamps. It logs the table and the counts per rule, nothing else; job arguments are empty.
+
+**Risks and measures.** A role that bypasses row-level security could read every clinic's invites: it holds
+only `SELECT`/`DELETE` on two tables, its credentials reach one process, and the SQL lives with the owning
+domain (`auth`). Deletions are not audited row by row: the role cannot write `audit_event` by design, and the
+deleted rows are expired credentials and invitations. Each run writes one `AuditEvent` per table it deletes
+from, as `salus_app`, with the job as agent, the table name and the row count (owner's decision on review,
+2026-11-05); the log keeps the same counts.
+
+**Open before production.** The retention periods (legal decision, unchanged); provisioning
+`salus_retention` where `migrate` does not run as a superuser: creating a `BYPASSRLS` role needs a superuser
+or a role that has `BYPASSRLS` itself (Postgres 16+), as well as `CREATEROLE`.
+
+### Package 2: patient profile
+
+**Processing added.** Table `patient` (FHIR `Patient`): one profile per patient account, holding the given
+and family name, the birth date and an optional mobile phone (E.164), with `account_id`, `version_id` and
+timestamps. Nothing else: no national ID, address or gender. The patient creates it with every required
+field after registration and changes it later (`GET`/`PUT /me/patient`, patients only); there is no
+incomplete row. No clinic can read it yet: staff access, through the patient's consent, comes with
+package 3.
+
+**Purpose and lawful basis.** So the clinic knows who is coming and can tell apart patients with the same
+name, and the practitioner can reach the patient about a booked appointment (SPEC.md section 4). Seeking care
+is health data (Art. 9): provision of health care (Art. 9(2)(h)) with the contract with the patient
+(Art. 6(1)(b)); sharing with a clinic before care rests on consent (package 3). **Needs legal confirmation
+before production** (SPEC.md section 3).
+
+**Necessity and minimisation.** Four fields, each with its reason in SPEC.md section 4. The phone is
+optional and never used for SMS or marketing. The response is never cached (`Cache-Control: no-store`).
+
+**Retention.** `keep` while the account exists (`internal/retention`); erasure comes with the subject-rights
+feature. **Needs a legal decision before production.**
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A patient reads or changes another patient's profile | The service works only on the profile of the signed-in account; Postgres row-level security shows `salus_app` only the row of the account (`app.account_id`) or patient (`app.patient_id`) set on the transaction, and nothing when neither is set (tested); inserting or updating another account's row is refused or touches nothing (tested) |
+| Staff read a profile without a basis | `/me/patient` refuses staff (403); `Service.Read` gives staff "not found" until the consent rule of package 3 |
+| A profile is read or changed unnoticed | Every read, create and update writes an `AuditEvent` in the same transaction (purpose `PATRQT` for the patient, `TREAT` for staff), also when refused; a refused access records no entity |
+| Profile fields leak into logs or errors | Handlers log only through the fixed internal-error path, with the route and the error, which never holds a field; domain errors carry no value; a test sends a synthetic profile through every path and checks the log holds none of its fields |
+| Lost updates | An update names the version it changes; a stale version, or a second create, is 409 |
+| The application deletes a profile | `salus_app` has `SELECT`, `INSERT` and column-level `UPDATE` only; no `DELETE` or `TRUNCATE`, and the account of a profile cannot change (tested) |
+
+### Package 3: consent and access
+
+**Processing added.** Table `consent` (FHIR `Consent`): one row per patient and clinic each time the patient
+consents to share their profile and appointments with that clinic for care, with `patient_id`,
+`organization_id`, `status` (`active` | `inactive`), `date_time` (granted), `revoked_at`, `version_id` and
+timestamps. The patient grants (`POST /consents`), revokes (`POST /consents/{id}/revoke`) and lists
+(`GET /me/consents`) their own; staff cannot. At most one is active per clinic; granting again after a
+revocation adds a row, so the history is kept. The pure `access` package decides what a viewer may see of a
+profile or an appointment (SPEC.md "Access rule"); the patient service now lets staff read a profile only at
+`Full` access, which needs an appointment with the practitioner, so no staff read succeeds before
+appointments exist (package 6).
+
+**Purpose and lawful basis.** The consent is the basis for sharing the profile before care and for new
+bookings (Art. 9(2)(a)); the row is the proof of the decision, when it was given and withdrawn (Art. 7(1)).
+Care records rest on Art. 9(2)(h): after a revocation the clinic keeps the name, times and status of past
+appointments only (package 6). **Needs legal confirmation before production** (SPEC.md section 3).
+
+**Necessity and minimisation.** Only who, with which clinic, when granted and when revoked (SPEC.md section
+4); no free text. Responses are never cached (`Cache-Control: no-store`): a consent shows whom the patient
+consults.
+
+**Retention.** `keep`, with the clinical record, as proof (`internal/retention`). **Needs a legal decision
+before production.**
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A clinic sees a patient without consent | Row-level security shows a clinic's transaction (`app.organization_id`) a `patient` row only while an active consent for that clinic exists, and `consent` rows only of that clinic, read-only (tested); the service also checks `access` before it reads the profile |
+| Access outlives the revocation | Revocation sets `inactive` and `revoked_at` in one transaction; row-level security and `access` read the consent's state, so the clinic loses the row when that transaction commits (tested at the database and the repository) |
+| A patient's transaction sees another patient | The clinic branches of `patient` and `consent` apply only while neither `app.patient_id` nor `app.account_id` is set, so a patient's transaction that also sets a clinic sees only that patient (tested) |
+| A patient changes another patient's consent, or a clinic changes any | The patient branch covers only `patient_id = app.patient_id`; the clinic branch is `SELECT` only; `salus_app` may update only `status`, `revoked_at`, `updated_at` and `version_id`, and has no `DELETE` or `TRUNCATE` (tested) |
+| A consent is granted, revoked or read unnoticed | Every grant, revocation, list and read writes an `AuditEvent` in its transaction (`PATRQT` for the patient, `TREAT` for staff), refusals included; a grant to an unknown clinic, which aborts its transaction, is audited in a transaction of its own; the profile read that finds the calling patient is audited by the patient service |
+| Consent details leak into logs or errors | Handlers log only through the fixed internal-error path; domain errors carry no value; a test runs the whole flow and checks the log holds no profile field or e-mail |
+
+### Package 4: directory additions
+
+**Processing added.** A clinic is listed in a public directory or not (`organization.listed`, off by
+default) and has a time zone (`organization.time_zone`, IANA, default `Europe/Sarajevo`); a practitioner role
+has a specialty (`practitioner_role.specialty_code`, one of twelve SNOMED CT codes from the R4
+`c80-practice-codes` value set), set by the clinic's admin (`PUT /practitioner-roles/{id}/specialty`). The
+services can now read, for anyone, the listed clinics, the active roles of a listed clinic with their
+specialty, and the names of those roles' practitioners. No endpoint serves the public reads yet (FHIR in
+package 7).
+
+**Purpose and lawful basis.** So patients can find a clinic and the right practitioner: the clinic's
+employment relationship with the practitioner and its legitimate interest in being found (Art. 6(1)(b), (f));
+the clinic decides when it is listed (SPEC.md section 3).
+
+**Necessity and minimisation.** The public reads return a clinic's name, time zone and listing, a role's
+clinic, practitioner and specialty, and a practitioner's name: nothing else (no clinic, contact details or
+qualifications for the practitioner; tested on the public queries' results). An unlisted clinic and inactive
+practitioners and roles are not shown.
+
+**Retention.** No new table: the specialty follows `practitioner_role` (`restrict`).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| An unlisted clinic or its practitioners are published | The directory scope (`app.directory = 'public'`) has `SELECT`-only policies that show only listed clinics and the active practitioners and roles of listed clinics; unset or any other value shows nothing (tested at the database and in each repository); the services check again what the rows carry (`listed` on a clinic, `active` on a practitioner or role) |
+| The public directory changes data | Its policies are `SELECT` only; an update in the directory scope changes no row (tested) |
+| A non-admin changes a specialty or the listing | Whether the caller is the clinic's admin is read from `account` on each request; a practitioner gets 403, anyone outside the clinic 404, and the refusal is audited; `salus_app` may update only `listed` and `time_zone` (with the name) on `organization` and `specialty_code`, `updated_at` and `version_id` on `practitioner_role` (tested) |
+| Public reads go unrecorded | Deliberate: they hold only what a clinic chose to publish, and auditing anonymous traffic would turn each request into a write (SPEC.md "Public browse"). Staff reads and every change stay audited |
+
+### Package 5: schedules and slots
+
+**Processing added.** A practitioner role has a schedule (`schedule`): a slot length and weekly availability
+rules (day, start, end in the clinic's time zone), edited by the practitioner for their own role or by the
+clinic's admin (`GET`/`PUT /practitioner-roles/{id}/availability`). The scheduler's `slots_generate` job
+materialises the schedule as bookable slots (`slot`: schedule, clinic, period, `free` or `busy`) 28 days ahead,
+hourly and after each edit. The services can read, for anyone, the schedules and free future slots of listed
+clinics; no endpoint serves those public reads yet (FHIR in package 7). Appointments that hold a slot arrive
+in package 6.
+
+**Purpose and lawful basis.** To offer bookable times: the clinic's employment relationship with the
+practitioner and its legitimate interest in being booked (Art. 6(1)(b), (f); SPEC.md section 3). A schedule
+reveals a practitioner's working hours; a slot's status reveals whether a time is taken, not by whom.
+
+**Necessity and minimisation.** A schedule holds the role, the clinic, a length and the rules; a slot its
+schedule, clinic, period and status (SPEC.md section 4). No patient data: who holds a busy slot is the
+appointment's (package 6). The public directory sees the schedules of active roles of listed clinics and only
+their free slots; a busy slot is not shown outside the clinic. The `slots_generate` job's arguments are the
+schedule and clinic ids, or nothing for the hourly run; its log holds counts only (tested).
+
+**Retention.** `schedule`: `restrict`, like `practitioner_role` (no applier until practitioners can leave).
+`slot`: `delete` free slots 30 days after their end, by the `retention_apply` job as `salus_retention`, which
+is granted `SELECT, DELETE` on `slot` in the same migration; a busy slot is kept with its appointment.
+**Needs a legal decision before production**, like every period here.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A practitioner sees or changes another practitioner's working hours | The service allows the role's own practitioner (the account's `practitioner_id`, read per request) and the clinic's admin only; another member gets 403, anyone outside the clinic 404; reads and edits are audited, refusals included (tested) |
+| Another clinic's schedules or slots are read or changed | Both tables are row-level secured by clinic, fail closed when no scope is set, and the services check the clinic again (tested) |
+| Booked times leak through the public directory | The directory policy on `slot` shows `free` slots only, of schedules its own policy shows (active roles of listed clinics); directory reads change nothing (tested) |
+| Generation removes a booking | Generation deletes only future free slots; a `RESTRICTIVE` policy lets `salus_app` delete free slots only, and an overlapping new slot is skipped (`ON CONFLICT DO NOTHING` on the exclusion constraint), so a busy slot and its appointment stay (tested) |
+| The retention role reaches more than slots | It gains `SELECT, DELETE` on `slot` only, which the grant test ties to the `delete` rules; it still cannot read `schedule` or touch `audit_event` (tested) |
+
+### Package 6: appointments
+
+**Processing added.** A patient books a free slot of a listed clinic (`appointment`: patient, practitioner
+role, clinic, slot, period, status, and on cancellation when, why as a code (`pat`, `prov`) and by which
+account). The patient cancels their own up to 24 hours before the start; the appointment's practitioner and
+the clinic's admin cancel at any time; the practitioner marks it fulfilled or no-show once it has started
+(`POST /appointments`, `/appointments/{id}/cancel`, `/appointments/{id}/status`). The notifier e-mails the
+patient a confirmation, a cancellation, and a reminder 24 hours before. Revoking a consent now enqueues
+`consent_revoked`, whose worker cancels the patient's future appointments with that clinic, frees their slots
+and e-mails each cancellation. Reads (`Read`, `Search`) are built in the service; their FHIR endpoints arrive
+in package 7.
+
+**Purpose and lawful basis.** The booking is the care relationship: Art. 9(2)(h) for the care record, with
+Art. 6(1)(b); booking itself requires the patient's active consent with the clinic (Art. 9(2)(a), SPEC.md
+section 3). E-mails about the appointment: the contract with the patient (Art. 6(1)(b)). **Needs legal
+confirmation before production.**
+
+**Necessity and minimisation.** The table holds the fields of SPEC.md section 4 and nothing else: no reason
+for the visit, no free text; the cancellation reason is who cancelled. The JSON answers carry neither the
+patient nor who cancelled. Staff see an appointment through `access`: with an active consent its practitioner
+and the clinic's admin see all of it; after a revocation they see a past appointment's times, status and the
+patient's name only, and nothing future. The patient's name is given with an appointment only at a level
+`access.Profile` allows, and that read is audited as a `Patient` read. Job arguments are the appointment and
+clinic ids (e-mails) or the patient and clinic ids (`consent_revoked`); logs hold counts and opaque ids only
+(tested). E-mails hold the clinic's name, the date and time in its zone with the zone's name, and the link
+`<PATIENT_APP_URL>/appointments` (golden texts, tested); never the practitioner, the specialty or anything
+clinical.
+
+**Access.** Row-level security on `appointment`: the patient's own scope; a clinic's scope with an active
+consent, or, after a revocation, for an appointment that started before the latest one; changes by a clinic
+with an active consent, and after a revocation only marking such a past appointment `fulfilled` or `noshow`
+(the care record, Art. 9(2)(h); cancelling it is refused by `WITH CHECK`, tested); no booking in a clinic's
+scope. The `patient` table gains the clinic's
+past-appointment branch (the name is the service's to give). The notifier's e-mail jobs read in the clinic's
+scope narrowed to the one appointment the job names (`app.appointment_id`), and that appointment's patient
+row: a cancellation after a revocation must still reach the patient, though the clinic itself no longer sees
+it. Staff transactions never set that setting. All of it fails closed when no scope is set (tested).
+
+**Retention.** `appointment`: `keep` with the clinical record. **Needs a legal decision before production.**
+No `DELETE` grant to any role; the slot of a cancelled appointment may be deleted later as a free slot, so
+`slot_id` has no foreign key.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The clinic keeps seeing a patient after a revocation | Access ends when the revocation commits: row-level security and `access` read the consent's state, not the appointments' (tested before the job runs: no profile, no future appointment; the past one at the name only) |
+| Future appointments survive a revocation | `consent_revoked` is enqueued in the revocation's transaction (a rollback leaves no job, tested); its worker cancels them in one transaction with their slots and e-mails, and a retry changes nothing (tested) |
+| A double booking | The slot is held (free to busy) in the booking's transaction, and the database's exclusion constraint refuses overlapping appointments of one role; concurrent bookings give one booking (tested); book and cancel run concurrently for many rounds and the slots never disagree with their appointments (tested) |
+| A patient's appointments are seen by another patient or clinic | Row-level security per scope, checked again by the service, `access` per viewer; refusals are audited (tested) |
+| An e-mail says more than it should | Fixed texts with the clinic, time and link only (golden files); the recipient is read through `auth` with the job as agent, audited; SMTP errors keep the reply code only |
+| A reminder or confirmation of an appointment that changed | The job reads the appointment when it runs and sends nothing unless it is still in the status the e-mail is about (tested) |
+
+### Package 7: FHIR reads
+
+**Processing added.** The booking resources are served over the FHIR API: `Patient` and `Consent` read,
+`Appointment` read and search (`patient`, `practitioner`, `date`, `status`), and the public directory without a
+session: `Organization?listed=true`, a listed clinic's `PractitionerRole` search with its practitioners' names
+and specialty, `Schedule` read and search by `actor`, and the free future `Slot`s of a schedule. The clinic's
+admin lists the clinic and sets its time zone through the `Organization` update (two extensions). No new
+field or table.
+
+**Purpose and lawful basis.** As packages 2, 3, 4 and 6: the care relationship and the patient's consent for
+patient data; the clinic's legitimate interest in being found for the public directory.
+
+**Necessity and minimisation.** Each resource carries the elements of SPEC.md section 2 only. `Patient` goes to
+the patient and to a practitioner whom `access` gives all of the profile; the clinic's admin gets 404. An
+`Appointment` carries the patient's name only at a level `access.Profile` allows; after a revocation a past
+appointment shows the name, times and status, without its slot, creation time or cancellation details. The
+public reads show what a listed clinic publishes: its name and zone, its active roles with specialty, their
+practitioners' names, schedules and free slots.
+
+**Retention.** Nothing new is stored but `AuditEvent` rows (kept 10 years).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Patient data reaches someone outside the care relationship | The services decide through `access`, row-level security is the second guard; the access matrix (patient, their practitioner, another practitioner, the admin, another clinic, nobody, and the clinic after a revocation) is tested through HTTP on the application login |
+| A read goes unrecorded | Every `Patient`, `Consent` and `Appointment` read audits, refusals included; a search audits each appointment returned and each name given, or one event when it returns none (tested against the database) |
+| The public directory shows more than the clinic chose | Public reads run in the directory scope (listed clinics, active roles, free slots) and are not audited (tested: no event); a clinic that is not listed has no roles in the search |
+| Patient data is cached by a client or proxy | `Cache-Control: no-store` on `Patient`, `Consent` and `Appointment` answers |
+| Names in logs or errors | OperationOutcomes carry fixed text; a 500 logs the error only; handler and app tests assert the log holds no profile field |
+
+### Package 8: web app
+
+**What it is.** The staff web app gains a practitioner's week calendar (their own; the clinic's admin picks a
+practitioner), the appointment detail with the outcome and cancel actions, the working-hours editor, the
+specialty editor and, in clinic settings, the listing and the time zone. It reads through the FHIR reads and
+searches of package 7 and writes through the JSON actions. Two small additions to the API: `GET /specialties`
+(the fixed public list of specialties, no personal data, not audited) and `practitionerId` on `GET /auth/me` for
+a practitioner account (an opaque id, so the calendar can search by practitioner). No new field or table.
+
+**Purpose and lawful basis.** As packages 6 and 7: care records and the patient's consent.
+
+**Necessity and minimisation.** The calendar shows times, status and the patient's name only where the
+appointment carries it. The detail shows the profile only when the `Patient` read answers (a practitioner with
+full access); otherwise the name the appointment gives, or none. The birth date and phone sit behind a
+"Patient details" disclosure, not on the screen by default. The admin's detail never asks for the `Patient`
+(the API answers it 404 to an admin, SPEC "FHIR reads and searches"), so no refused read is audited for nothing.
+
+**Retention.** Nothing is stored in the browser: no local or session storage, the session is the `HttpOnly`
+cookie; the API's `Cache-Control: no-store` keeps patient answers out of the browser cache.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A profile shown to someone the access rules exclude | The screen shows only what the API returns; the API decides through `access` (package 7). Vitest covers the profile hidden on a 404 and the admin's detail without a `Patient` read; the browser walk confirmed no `Patient` request from the admin |
+| Patient data on a shared screen | Secondary fields behind a disclosure; the calendar shows the name and times only |
+| Personal data in logs | No logging in the web app; the walk's api, notifier, worker and dev-server logs held no name, address or phone |
+
+### Package 9: mobile app
+
+**What it is.** The patient app gains the profile (completed after registration and before the first booking,
+editable after), the listed clinics, a clinic's practitioners with specialty, free times by day in the clinic's
+time zone, the consent screen on the first booking with a clinic, booking, the patient's appointments with
+cancellation until 24 hours before the start, and the patient's consents with revocation. It reads through the
+public FHIR searches and the patient's own `Appointment` search (package 7) and writes through the JSON actions
+of packages 2, 3 and 6. No change to the API, no new field or table.
+
+**Purpose and lawful basis.** As packages 2, 3 and 6: the profile and new bookings rest on the patient's consent
+per clinic, given on the consent screen; past appointments are the clinic's care records (`SPEC.md` §3).
+
+**Consent as given.** The screen names the clinic and says, before the patient agrees: what is shared (the profile:
+name, birth date, the phone if given; the appointments with that clinic), who sees it (the practitioner booked
+sees the profile, the clinic's administrators the name and times), what for (care at that clinic), and how to
+revoke (under "My consents"; the profile is no longer visible and future appointments there are cancelled, past
+ones stay as care records). Nothing is pre-ticked: the consent is granted only on "Agree and book", and "Not now"
+books nothing. Revoking asks for a confirmation that repeats these consequences.
+
+**Necessity and minimisation.** The device keeps only the session token, in the platform's secure storage
+(package 8 of accounts). The profile, appointments and consents are held in memory while a screen shows them
+and are not written to the device. The directory reads (clinics, practitioners, slots) are public data the
+clinics chose to publish.
+
+**Retention.** Nothing new on the device beyond the token; on the server as packages 2, 3 and 6.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Consent that is not informed or not explicit | A separate screen with the four points before "Agree and book"; widget tests check the screen comes before any grant and that declining grants and books nothing |
+| A revocation whose effect surprises the patient | A confirmation dialog states that future appointments with the clinic are cancelled and past ones stay; tested |
+| Personal data in logs or on screen from an error | The app prints nothing (a widget test captures `debugPrint` through a whole booking); API errors map to fixed sentences, never the response body |
+| Patient data left on the device | Nothing but the session token is stored, in secure storage |

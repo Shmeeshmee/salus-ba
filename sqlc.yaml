@@ -29,6 +29,14 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
+    queries: internal/patient/query.sql
+    gen:
+      go:
+        package: patientdb
+        out: internal/patient/patientdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/practitioner/query.sql
     gen:
       go:
@@ -42,4 +50,36 @@ sql:
       go:
         package: practitionerroledb
         out: internal/practitionerrole/practitionerroledb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/consent/query.sql
+    gen:
+      go:
+        package: consentdb
+        out: internal/consent/consentdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/schedule/query.sql
+    gen:
+      go:
+        package: scheduledb
+        out: internal/schedule/scheduledb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/slot/query.sql
+    gen:
+      go:
+        package: slotdb
+        out: internal/slot/slotdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/appointment/query.sql
+    gen:
+      go:
+        package: appointmentdb
+        out: internal/appointment/appointmentdb
         sql_package: pgx/v5

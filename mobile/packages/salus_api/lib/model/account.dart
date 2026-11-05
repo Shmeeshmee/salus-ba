@@ -17,6 +17,7 @@ class Account {
     required this.email,
     required this.role,
     this.organizationId,
+    this.practitionerId,
     required this.mfaEnrolled,
   });
 
@@ -35,6 +36,15 @@ class Account {
   ///
   String? organizationId;
 
+  /// The directory's Practitioner of a practitioner account, for searches by practitioner; absent otherwise.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? practitionerId;
+
   bool mfaEnrolled;
 
   @override
@@ -45,6 +55,7 @@ class Account {
           other.email == email &&
           other.role == role &&
           other.organizationId == organizationId &&
+          other.practitionerId == practitionerId &&
           other.mfaEnrolled == mfaEnrolled;
 
   @override
@@ -54,11 +65,12 @@ class Account {
       (email.hashCode) +
       (role.hashCode) +
       (organizationId == null ? 0 : organizationId!.hashCode) +
+      (practitionerId == null ? 0 : practitionerId!.hashCode) +
       (mfaEnrolled.hashCode);
 
   @override
   String toString() =>
-      'Account[id=$id, email=$email, role=$role, organizationId=$organizationId, mfaEnrolled=$mfaEnrolled]';
+      'Account[id=$id, email=$email, role=$role, organizationId=$organizationId, practitionerId=$practitionerId, mfaEnrolled=$mfaEnrolled]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -69,6 +81,11 @@ class Account {
       json[r'organizationId'] = this.organizationId;
     } else {
       json[r'organizationId'] = null;
+    }
+    if (this.practitionerId != null) {
+      json[r'practitionerId'] = this.practitionerId;
+    } else {
+      json[r'practitionerId'] = null;
     }
     json[r'mfaEnrolled'] = this.mfaEnrolled;
     return json;
@@ -109,6 +126,7 @@ class Account {
         email: mapValueOfType<String>(json, r'email')!,
         role: AccountRoleEnum.fromJson(json[r'role'])!,
         organizationId: mapValueOfType<String>(json, r'organizationId'),
+        practitionerId: mapValueOfType<String>(json, r'practitionerId'),
         mfaEnrolled: mapValueOfType<bool>(json, r'mfaEnrolled')!,
       );
     }

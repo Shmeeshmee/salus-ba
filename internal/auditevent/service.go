@@ -3,6 +3,7 @@ package auditevent
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/middleware"
@@ -42,7 +43,21 @@ func (s *Service) Record(ctx context.Context, e AuditEvent) error {
 	})
 }
 
+// CountRecordedBefore counts the events recorded before before: the retention job's check that no event is
+// past its period while nothing can remove one yet (docs/booking/SPEC.md §2 "Applying the rules"). A count,
+// never the events.
+func (s *Service) CountRecordedBefore(ctx context.Context, before time.Time) (int64, error) {
+	n, err := s.repo.CountRecordedBefore(ctx, before)
+	if err != nil {
+		return 0, fmt.Errorf("auditevent: count: %w", err)
+	}
+	return n, nil
+}
+
 func valid(e AuditEvent) bool {
+	if e.EntityCount < 0 || (e.EntityCount != 0 && e.EntityName == "") {
+		return false
+	}
 	for _, c := range []Coding{e.Type, e.Subtype, e.Purpose} {
 		if c.System == "" || c.Code == "" {
 			return false

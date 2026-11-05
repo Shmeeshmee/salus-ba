@@ -2,6 +2,8 @@ package fhir_test
 
 import (
 	"encoding/json"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/Shmeeshmee/salus/api/fhir"
@@ -28,8 +30,9 @@ func TestCapabilityStatement_IsAnR4CapabilityStatement(t *testing.T) {
 	}
 }
 
-// TestCapabilityStatement_ListsExactlyTheDirectoryInteractions: docs/accounts/SPEC.md "FHIR interactions".
-func TestCapabilityStatement_ListsExactlyTheDirectoryInteractions(t *testing.T) {
+// TestCapabilityStatement_ListsExactlyTheInteractionsServed: docs/accounts/SPEC.md "FHIR interactions" and
+// docs/booking/SPEC.md "FHIR reads and searches".
+func TestCapabilityStatement_ListsExactlyTheInteractionsServed(t *testing.T) {
 	var cs struct {
 		Rest []struct {
 			Mode     string `json:"mode"`
@@ -71,9 +74,14 @@ func TestCapabilityStatement_ListsExactlyTheDirectoryInteractions(t *testing.T) 
 		got[r.Type] = s
 	}
 	want := map[string]string{
-		"Organization":     "read update versioning:versioned-update",
+		"Appointment":      "read search-type param:patient:reference param:practitioner:reference param:date:date param:status:token ",
+		"Consent":          "read ",
+		"Organization":     "read update search-type param:listed:token versioning:versioned-update",
+		"Patient":          "read ",
 		"Practitioner":     "read ",
 		"PractitionerRole": "read search-type param:organization:reference include:PractitionerRole:practitioner ",
+		"Schedule":         "read search-type param:actor:reference ",
+		"Slot":             "search-type param:schedule:reference param:start:date param:status:token ",
 	}
 	if len(got) != len(want) {
 		t.Errorf("resources = %v, want %v", got, want)
@@ -81,6 +89,48 @@ func TestCapabilityStatement_ListsExactlyTheDirectoryInteractions(t *testing.T) 
 	for typ, w := range want {
 		if got[typ] != w {
 			t.Errorf("%s = %q, want %q", typ, got[typ], w)
+		}
+	}
+}
+
+// The listed search parameter is defined by our SearchParameter, and it and the extensions on Organization are
+// the documents in this folder.
+func TestCapabilityStatement_DefinesListedByItsSearchParameter(t *testing.T) {
+	var sp struct {
+		ResourceType string   `json:"resourceType"`
+		URL          string   `json:"url"`
+		Code         string   `json:"code"`
+		Type         string   `json:"type"`
+		Expression   string   `json:"expression"`
+		Base         []string `json:"base"`
+	}
+	raw, err := os.ReadFile("SearchParameter-organization-listed.json")
+	if err != nil || json.Unmarshal(raw, &sp) != nil {
+		t.Fatalf("SearchParameter-organization-listed.json: %v", err)
+	}
+	const listed = "https://salus.invalid/fhir/StructureDefinition/organization-listed"
+	if sp.ResourceType != "SearchParameter" || sp.Code != "listed" || sp.Type != "token" || len(sp.Base) != 1 || sp.Base[0] != "Organization" ||
+		!strings.Contains(sp.Expression, listed) {
+		t.Errorf("SearchParameter = %+v, want the token listed on Organization over the listed extension", sp)
+	}
+	if !strings.Contains(fhir.CapabilityStatement(), `"definition": "`+sp.URL+`"`) {
+		t.Errorf("the CapabilityStatement does not define listed by %s", sp.URL)
+	}
+	for _, name := range []string{"listed", "timezone"} {
+		var sd struct {
+			URL     string `json:"url"`
+			Type    string `json:"type"`
+			Context []struct {
+				Expression string `json:"expression"`
+			} `json:"context"`
+		}
+		raw, err := os.ReadFile("StructureDefinition-organization-" + name + ".json")
+		if err != nil || json.Unmarshal(raw, &sd) != nil {
+			t.Fatalf("StructureDefinition-organization-%s.json: %v", name, err)
+		}
+		if sd.URL != "https://salus.invalid/fhir/StructureDefinition/organization-"+name || sd.Type != "Extension" ||
+			len(sd.Context) != 1 || sd.Context[0].Expression != "Organization" {
+			t.Errorf("organization-%s = %+v, want an extension of Organization at its URL", name, sd)
 		}
 	}
 }

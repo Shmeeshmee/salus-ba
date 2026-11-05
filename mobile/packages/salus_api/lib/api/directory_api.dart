@@ -1,0 +1,173 @@
+//
+// AUTO-GENERATED FILE, DO NOT MODIFY!
+//
+// @dart=2.18
+
+// ignore_for_file: unused_element, unused_import
+// ignore_for_file: always_put_required_named_parameters_first
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: lines_longer_than_80_chars
+
+part of salus_api;
+
+class DirectoryApi {
+  DirectoryApi([ApiClient? apiClient])
+      : apiClient = apiClient ?? defaultApiClient;
+
+  final ApiClient apiClient;
+
+  /// List the specialties a role can have
+  ///
+  /// The specialties an admin may give a practitioner role, in display order: the directory's SNOMED CT codes from FHIR R4 ValueSet c80-practice-codes, with the name the apps show. Fixed and public; needs no session. Not audited: it holds no personal data.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  Future<Response> listSpecialtiesWithHttpInfo({
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/specialties';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// List the specialties a role can have
+  ///
+  /// The specialties an admin may give a practitioner role, in display order: the directory's SNOMED CT codes from FHIR R4 ValueSet c80-practice-codes, with the name the apps show. Fixed and public; needs no session. Not audited: it holds no personal data.
+  Future<SpecialtyList?> listSpecialties({
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await listSpecialtiesWithHttpInfo(
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'SpecialtyList',
+      ) as SpecialtyList;
+    }
+    return null;
+  }
+
+  /// Set a practitioner role's specialty
+  ///
+  /// The clinic's admin sets the specialty of a role of the clinic: one of the twelve SNOMED CT codes the directory offers (FHIR R4 ValueSet c80-practice-codes). Patients see it when the clinic is listed. Send If-Match with the version the role was read at (`PractitionerRole.meta.versionId`); the answer carries the new version as its ETag. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] ifMatch (required):
+  ///   The role's version as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [SetSpecialtyRequest] setSpecialtyRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> setPractitionerRoleSpecialtyWithHttpInfo(
+    String id,
+    String ifMatch,
+    SetSpecialtyRequest setSpecialtyRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/practitioner-roles/{id}/specialty'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody = setSpecialtyRequest;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+    headerParams[r'If-Match'] = parameterToString(ifMatch);
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'PUT',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Set a practitioner role's specialty
+  ///
+  /// The clinic's admin sets the specialty of a role of the clinic: one of the twelve SNOMED CT codes the directory offers (FHIR R4 ValueSet c80-practice-codes). Patients see it when the clinic is listed. Send If-Match with the version the role was read at (`PractitionerRole.meta.versionId`); the answer carries the new version as its ETag. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] ifMatch (required):
+  ///   The role's version as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [SetSpecialtyRequest] setSpecialtyRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<RoleSpecialty?> setPractitionerRoleSpecialty(
+    String id,
+    String ifMatch,
+    SetSpecialtyRequest setSpecialtyRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await setPractitionerRoleSpecialtyWithHttpInfo(
+      id,
+      ifMatch,
+      setSpecialtyRequest,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'RoleSpecialty',
+      ) as RoleSpecialty;
+    }
+    return null;
+  }
+}

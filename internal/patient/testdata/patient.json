@@ -1,0 +1,1 @@
+{"resourceType":"Patient","id":"d1000000-0000-4000-8000-0000000000d1","birthDate":"1990-01-01","meta":{"lastUpdated":"2026-11-04T09:30:00Z","versionId":"2"},"name":[{"use":"official","family":"Example","given":["Ada"]}],"telecom":[{"system":"phone","value":"+38760000001","use":"mobile"}]}

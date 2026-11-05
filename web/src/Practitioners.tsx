@@ -1,33 +1,30 @@
 import { useEffect, useState } from 'react'
 import type { Account, ApiClient } from './api/client'
-import type { Bundle, FhirClient, HumanName, Practitioner } from './api/fhir'
+import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
+import { useLoad } from './load'
 import { somethingWrong } from './messages'
+import { loadStaff, type Member } from './staff'
 import { Alert, Field, Notice, Submit } from './ui'
 import { useSubmit } from './useSubmit'
 
 type Invite = components['schemas']['Invite']
-type Member = { id: string; name: string; active: boolean }
+type Specialty = components['schemas']['Specialty']
 type Load<T> = { name: 'loading' } | { name: 'failed' } | { name: 'loaded'; value: T }
 
 // Practitioners lists the clinic's practitioners (PractitionerRole search with the Practitioners included)
-// and, for an admin, the open invites and the invite form.
+// with their specialty and, for an admin, the specialty editor, the open invites and the invite form.
 export function Practitioners({ api, fhir, account }: { api: ApiClient; fhir: FhirClient; account: Account }) {
   const organizationId = account.organizationId ?? ''
-  const [members, setMembers] = useState<Load<Member[]>>({ name: 'loading' })
-
-  useEffect(() => {
-    let current = true
-    const query = new URLSearchParams({ organization: organizationId, _include: 'PractitionerRole:practitioner' })
-    fhir.get<Bundle>(`PractitionerRole?${query}`).then(
-      (bundle) => current && setMembers({ name: 'loaded', value: membersOf(bundle) }),
-      () => current && setMembers({ name: 'failed' }),
-    )
-    return () => {
-      current = false
-    }
-  }, [fhir, organizationId])
+  const admin = account.role === 'admin'
+  const { state: members } = useLoad(() => loadStaff(fhir, organizationId), [fhir, organizationId])
+  const { state: specialties } = useLoad(async () => {
+    if (!admin) return []
+    const res = await attempt(api.GET('/specialties'))
+    if (!res.ok) throw new Error('specialties')
+    return res.data.specialties
+  }, [api, admin])
 
   return (
     <>
@@ -35,42 +32,90 @@ export function Practitioners({ api, fhir, account }: { api: ApiClient; fhir: Fh
         <h1>Practitioners</h1>
         {members.name === 'loading' && <p className="muted">Loading</p>}
         {members.name === 'failed' && <Alert message="The practitioners could not be loaded. Reload the page to try again." />}
-        {members.name === 'loaded' && <MemberList members={members.value} />}
+        {members.name === 'loaded' && (
+          <MemberList api={api} members={members.value} specialties={specialties.name === 'loaded' ? specialties.value : []} />
+        )}
       </section>
-      {account.role === 'admin' && <Invites api={api} />}
+      {admin && <Invites api={api} />}
     </>
   )
 }
 
-function MemberList({ members }: { members: Member[] }) {
+function MemberList({ api, members, specialties }: { api: ApiClient; members: Member[]; specialties: Specialty[] }) {
   if (members.length === 0) return <p className="muted">No practitioners yet.</p>
   return (
     <ul className="rows" aria-label="Practitioners">
       {members.map((m) => (
-        <li key={m.id}>
-          <span>{m.name}</span>
-          {!m.active && <span className="tag">Inactive</span>}
+        <li key={m.roleId}>
+          <span className="stack">
+            <span>{m.name}</span>
+            {!m.active && <span className="tag">Inactive</span>}
+          </span>
+          {specialties.length > 0 ? (
+            <SpecialtyEditor api={api} member={m} specialties={specialties} />
+          ) : (
+            m.specialty && <span className="muted small">{m.specialty.text}</span>
+          )}
         </li>
       ))}
     </ul>
   )
 }
 
-function membersOf(bundle: Bundle): Member[] {
-  const people = new Map<string, Practitioner>()
-  for (const e of bundle.entry ?? []) if (e.resource.resourceType === 'Practitioner') people.set(`Practitioner/${e.resource.id}`, e.resource)
-  const members: Member[] = []
-  for (const e of bundle.entry ?? []) {
-    if (e.resource.resourceType !== 'PractitionerRole') continue
-    const person = people.get(e.resource.practitioner.reference)
-    if (!person) continue
-    members.push({ id: e.resource.id, name: nameOf(person.name?.[0]), active: e.resource.active && person.active })
+// SpecialtyEditor saves a role's specialty as soon as the admin picks one, with If-Match on the role's
+// version; a refused save puts the previous choice back.
+function SpecialtyEditor({ api, member, specialties }: { api: ApiClient; member: Member; specialties: Specialty[] }) {
+  const [code, setCode] = useState(member.specialty?.code ?? '')
+  const [version, setVersion] = useState(member.version)
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<{ ok: boolean; message: string }>()
+
+  async function choose(next: string) {
+    const previous = code
+    setCode(next)
+    setBusy(true)
+    setResult(undefined)
+    const res = await attempt(
+      api.PUT('/practitioner-roles/{id}/specialty', {
+        params: { path: { id: member.roleId }, header: { 'If-Match': `W/"${version}"` } },
+        body: { code: next },
+      }),
+    )
+    setBusy(false)
+    if (res.ok) {
+      setVersion(String(res.data.versionId))
+      setResult({ ok: true, message: 'Specialty saved.' })
+      return
+    }
+    setCode(previous)
+    setResult({ ok: false, message: specialtyMessage(res.code) })
   }
-  return members
+
+  return (
+    <span className="specialty">
+      <select aria-label={`Specialty of ${member.name}`} value={code} disabled={busy} onChange={(e) => choose(e.target.value)}>
+        {code === '' && (
+          <option value="" disabled>
+            Choose a specialty
+          </option>
+        )}
+        {specialties.map((s) => (
+          <option key={s.code} value={s.code}>
+            {s.text}
+          </option>
+        ))}
+      </select>
+      {result?.ok && <Notice message={result.message} />}
+      {result && !result.ok && <Alert message={result.message} />}
+    </span>
+  )
 }
 
-function nameOf(name?: HumanName): string {
-  return [...(name?.given ?? []), name?.family ?? ''].join(' ').trim()
+function specialtyMessage(code?: string): string {
+  if (code === 'version_conflict') return 'Someone else changed this practitioner. Reload the page to see the change.'
+  if (code === 'invalid_specialty') return 'Choose a specialty from the list.'
+  if (code === 'forbidden') return 'Only a clinic admin can set a specialty.'
+  return somethingWrong
 }
 
 function Invites({ api }: { api: ApiClient }) {

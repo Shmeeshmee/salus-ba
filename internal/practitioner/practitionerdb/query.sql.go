@@ -78,3 +78,48 @@ func (q *Queries) PractitionerByID(ctx context.Context, id pgtype.UUID) (Practit
 	)
 	return i, err
 }
+
+const publicPractitionersByIDs = `-- name: PublicPractitionersByIDs :many
+SELECT id, updated_at, version_id, active, given_name, family_name
+FROM practitioner
+WHERE id = ANY($1::uuid[]) AND active
+ORDER BY id
+`
+
+type PublicPractitionersByIDsRow struct {
+	ID         pgtype.UUID
+	UpdatedAt  pgtype.Timestamptz
+	VersionID  int32
+	Active     bool
+	GivenName  string
+	FamilyName string
+}
+
+// The public directory: the name of each active practitioner, which row-level security shows only for a
+// listed clinic. Not the clinic or anything else.
+func (q *Queries) PublicPractitionersByIDs(ctx context.Context, ids []pgtype.UUID) ([]PublicPractitionersByIDsRow, error) {
+	rows, err := q.db.Query(ctx, publicPractitionersByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PublicPractitionersByIDsRow
+	for rows.Next() {
+		var i PublicPractitionersByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UpdatedAt,
+			&i.VersionID,
+			&i.Active,
+			&i.GivenName,
+			&i.FamilyName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -7,8 +7,8 @@ import 'token_store.dart';
 
 /// A failed call: the API's error code, or none when the API could not be reached ([status] 0). Nothing from
 /// the response but the fixed code is kept, so nothing else can reach the screen.
-class AuthFailure implements Exception {
-  const AuthFailure({this.status = 0, this.code, this.retryAfter});
+class ApiFailure implements Exception {
+  const ApiFailure({this.status = 0, this.code, this.retryAfter});
 
   final int status;
   final String? code;
@@ -16,15 +16,15 @@ class AuthFailure implements Exception {
 
   bool get unreachable => status == 0;
 
-  factory AuthFailure.fromApi(ApiException e) {
-    if (e.innerException != null) return const AuthFailure();
-    return AuthFailure(status: e.code, code: _errorCode(e.message));
+  factory ApiFailure.fromApi(ApiException e) {
+    if (e.innerException != null) return const ApiFailure();
+    return ApiFailure(status: e.code, code: _errorCode(e.message));
   }
 
   /// A refused login, which also says when to try again (`Retry-After`, in seconds).
-  factory AuthFailure.fromLogin(int status, String body, String? retryAfter) {
+  factory ApiFailure.fromLogin(int status, String body, String? retryAfter) {
     final seconds = int.tryParse(retryAfter ?? '');
-    return AuthFailure(
+    return ApiFailure(
       status: status,
       code: _errorCode(body),
       retryAfter: seconds == null || seconds <= 0 ? null : Duration(seconds: seconds),
@@ -38,6 +38,15 @@ class AuthFailure implements Exception {
     } on FormatException {
       return null;
     }
+  }
+}
+
+/// Runs a call of the generated client, turning its exception into an [ApiFailure].
+Future<T> apiCall<T>(Future<T> Function() call) async {
+  try {
+    return await call();
+  } on ApiException catch (e) {
+    throw ApiFailure.fromApi(e);
   }
 }
 
@@ -76,7 +85,7 @@ class Session {
     _bearer.accessToken = token;
     try {
       return await _me();
-    } on AuthFailure catch (f) {
+    } on ApiFailure catch (f) {
       if (f.status != HttpStatus.unauthorized) rethrow;
       await _forget();
       return null;
@@ -84,33 +93,33 @@ class Session {
   }
 
   Future<void> register(String email, String password) =>
-      _call(() => _api.register(RegisterRequest(email: email, password: password)));
+      apiCall(() => _api.register(RegisterRequest(email: email, password: password)));
 
   Future<SignIn> login(String email, String password) async {
     // The plain call drops the headers; a 429 needs Retry-After.
-    final response = await _call(() => _api.loginWithHttpInfo(LoginRequest(email: email, password: password)));
+    final response = await apiCall(() => _api.loginWithHttpInfo(LoginRequest(email: email, password: password)));
     if (response.statusCode >= HttpStatus.badRequest) {
-      throw AuthFailure.fromLogin(response.statusCode, response.body, response.headers['retry-after']);
+      throw ApiFailure.fromLogin(response.statusCode, response.body, response.headers['retry-after']);
     }
     final step = LoginResponse.fromJson(jsonDecode(response.body));
     return switch (step?.next) {
       LoginResponseNextEnum.done => _open(step!.token),
       LoginResponseNextEnum.verify => CodeNeeded(step!.challenge ?? ''),
       LoginResponseNextEnum.enrol => StaffAccount(),
-      _ => throw const AuthFailure(status: HttpStatus.badGateway),
+      _ => throw const ApiFailure(status: HttpStatus.badGateway),
     };
   }
 
   Future<SignIn> verify(String challenge, String code) async {
-    final step = await _call(() => _api.verifyMfa(VerifyRequest(challenge: challenge, code: code)));
+    final step = await apiCall(() => _api.verifyMfa(VerifyRequest(challenge: challenge, code: code)));
     return _open(step?.token);
   }
 
   /// Ends the session. A session the API already ended counts as signed out; any other failure keeps it.
   Future<void> signOut() async {
     try {
-      await _call(_api.logout);
-    } on AuthFailure catch (f) {
+      await apiCall(_api.logout);
+    } on ApiFailure catch (f) {
       if (f.status != HttpStatus.unauthorized) rethrow;
     }
     await _forget();
@@ -118,12 +127,12 @@ class Session {
 
   /// Keeps [token] when it belongs to a patient; a staff session is ended at once and not stored.
   Future<SignIn> _open(String? token) async {
-    if (token == null || token.isEmpty) throw const AuthFailure(status: HttpStatus.badGateway);
+    if (token == null || token.isEmpty) throw const ApiFailure(status: HttpStatus.badGateway);
     _bearer.accessToken = token;
     final Account account;
     try {
       account = await _me();
-    } on AuthFailure {
+    } on ApiFailure {
       _bearer.accessToken = '';
       rethrow;
     }
@@ -132,8 +141,8 @@ class Session {
       return SignedIn(account);
     }
     try {
-      await _call(_api.logout);
-    } on AuthFailure {
+      await apiCall(_api.logout);
+    } on ApiFailure {
       // Best effort: the token is dropped either way and expires on its own.
     }
     _bearer.accessToken = '';
@@ -141,21 +150,13 @@ class Session {
   }
 
   Future<Account> _me() async {
-    final account = await _call(_api.getMe);
-    if (account == null) throw const AuthFailure(status: HttpStatus.badGateway);
+    final account = await apiCall(_api.getMe);
+    if (account == null) throw const ApiFailure(status: HttpStatus.badGateway);
     return account;
   }
 
   Future<void> _forget() async {
     _bearer.accessToken = '';
     await _store.delete();
-  }
-
-  static Future<T> _call<T>(Future<T> Function() call) async {
-    try {
-      return await call();
-    } on ApiException catch (e) {
-      throw AuthFailure.fromApi(e);
-    }
   }
 }

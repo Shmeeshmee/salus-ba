@@ -228,6 +228,216 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/patient": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in patient's profile
+         * @description The profile of the signed-in patient account, or 404 before it is first saved (a profile exists only complete). Patients only. Not cached. Audited, also when refused.
+         */
+        get: operations["getMyPatient"];
+        /**
+         * Save the signed-in patient's profile
+         * @description Creates the profile when `versionId` is absent, with every required field; updates it when `versionId` is the current version. Names are trimmed. Patients only. Not cached. Audited, also when refused.
+         */
+        put: operations["saveMyPatient"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/consents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Consent to share the profile and appointments with a clinic
+         * @description The signed-in patient consents to share their profile and appointments with the clinic for care (FHIR Consent, docs/booking/SPEC.md "Consent shape"). At most one consent per clinic is active; granting again after a revocation creates a new consent, so the history is kept. Needs a profile. Patients only. Not cached. Audited, also when refused.
+         */
+        post: operations["grantConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/consents/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a consent
+         * @description The signed-in patient revokes their active consent. The clinic's access to the profile and to every future appointment ends at once; past appointments stay, as the clinic's records, with the name, times and status only. Patients only. Not cached. Audited, also when refused.
+         */
+        post: operations["revokeConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/consents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in patient's consents
+         * @description Every consent of the signed-in patient, active and revoked, the latest granted first; none before the profile exists. Patients only. Not cached. Audited.
+         */
+        get: operations["listMyConsents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practitioner-roles/{id}/specialty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set a practitioner role's specialty
+         * @description The clinic's admin sets the specialty of a role of the clinic: one of the twelve SNOMED CT codes the directory offers (FHIR R4 ValueSet c80-practice-codes). Patients see it when the clinic is listed. Send If-Match with the version the role was read at (`PractitionerRole.meta.versionId`); the answer carries the new version as its ETag. Audited, also when refused.
+         */
+        put: operations["setPractitionerRoleSpecialty"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/specialties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the specialties a role can have
+         * @description The specialties an admin may give a practitioner role, in display order: the directory's SNOMED CT codes from FHIR R4 ValueSet c80-practice-codes, with the name the apps show. Fixed and public; needs no session. Not audited: it holds no personal data.
+         */
+        get: operations["listSpecialties"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practitioner-roles/{id}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read a practitioner role's weekly availability
+         * @description The role's schedule: its slot length and weekly rules, times of day in the clinic's time zone. Before the first edit it is empty at version 0 (no `id`, no `slotMinutes`). The practitioner reads their own role's, the clinic's admin any role's. The answer carries the version as its ETag. Audited, also when refused.
+         */
+        get: operations["getAvailability"];
+        /**
+         * Set a practitioner role's weekly availability
+         * @description Sets the slot length and the weekly rules of the role; the first edit creates its schedule. Send If-Match with the version read (`W/"0"` before the first edit); the answer carries the new version as its ETag. The role's free slots for the next 28 days follow within seconds; booked slots are never changed. The practitioner edits their own role's, the clinic's admin any role's. Audited, also when refused.
+         */
+        put: operations["saveAvailability"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/appointments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Book a free slot
+         * @description The signed-in patient books a free slot of a listed clinic (FHIR Appointment, docs/booking/SPEC.md "Booking rules"): booked at once, the slot held in the same transaction. Needs a profile and an active consent with the clinic. A confirmation is e-mailed, and a reminder 24 hours before the start when that is ahead. Patients only. Not cached. Audited, also when refused.
+         */
+        post: operations["bookAppointment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/appointments/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel an appointment
+         * @description Cancels a booked appointment: the patient their own up to 24 hours before the start (reason `pat`), the appointment's practitioner and the clinic's admin at any time (reason `prov`). The slot is freed while its start is ahead, and the patient is e-mailed. Not cached. Audited, also when refused.
+         */
+        post: operations["cancelAppointment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/appointments/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark an appointment fulfilled or no-show
+         * @description The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once. Not cached. Audited, also when refused.
+         */
+        post: operations["setAppointmentStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -323,12 +533,184 @@ export interface components {
              * @description The clinic of a staff account; absent for a patient.
              */
             organizationId?: string;
+            /**
+             * Format: uuid
+             * @description The directory's Practitioner of a practitioner account, for searches by practitioner; absent otherwise.
+             */
+            practitionerId?: string;
             mfaEnrolled: boolean;
+        };
+        /** @description The patient's profile (docs/booking/SPEC.md "Profile"). Health data. */
+        Patient: {
+            /** Format: uuid */
+            id: string;
+            givenName: string;
+            familyName: string;
+            /** Format: date */
+            birthDate: string;
+            /** @description E.164; absent when none was given. */
+            phone?: string;
+            /** Format: int32 */
+            versionId: number;
+            /** Format: date-time */
+            lastUpdated: string;
+        };
+        SavePatientRequest: {
+            /** @description 1 to 100 characters after trimming. */
+            givenName: string;
+            /** @description 1 to 100 characters after trimming. */
+            familyName: string;
+            /**
+             * Format: date
+             * @description Before today (UTC), not before 1900-01-01.
+             */
+            birthDate: string;
+            /** @description Optional, E.164 (+ and 8 to 15 digits, no spaces); absent for none. */
+            phone?: string;
+            /**
+             * Format: int32
+             * @description The version being updated; absent to create the profile.
+             */
+            versionId?: number;
+        };
+        GrantConsentRequest: {
+            /**
+             * Format: uuid
+             * @description The clinic the profile and appointments are shared with.
+             */
+            organizationId: string;
+        };
+        /** @description A patient's consent to share their profile and appointments with a clinic for care (FHIR Consent). Health data: it shows whom the patient consults. */
+        Consent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** @enum {string} */
+            status: "active" | "inactive";
+            /**
+             * Format: date-time
+             * @description When it was granted.
+             */
+            dateTime: string;
+            /**
+             * Format: date-time
+             * @description When it was revoked; absent while active.
+             */
+            revokedAt?: string;
+        };
+        ConsentList: {
+            consents: components["schemas"]["Consent"][];
+        };
+        /** @description One weekly window, in the clinic's time zone. */
+        AvailabilityRule: {
+            /** @description ISO weekday, 1 Monday to 7 Sunday. */
+            day: number;
+            /** @example 09:00 */
+            start: string;
+            /**
+             * @description After start.
+             * @example 12:00
+             */
+            end: string;
+        };
+        Availability: {
+            /**
+             * Format: uuid
+             * @description The schedule's id (FHIR Schedule); absent before the first edit.
+             */
+            id?: string;
+            /** Format: uuid */
+            practitionerRoleId: string;
+            /**
+             * Format: int32
+             * @description Absent before the first edit.
+             */
+            slotMinutes?: number;
+            /** @description Sorted by day and start. */
+            availability: components["schemas"]["AvailabilityRule"][];
+            /**
+             * Format: int32
+             * @description 0 before the first edit.
+             */
+            versionId: number;
+        };
+        SaveAvailabilityRequest: {
+            /** Format: int32 */
+            slotMinutes: number;
+            availability: components["schemas"]["AvailabilityRule"][];
+        };
+        SetSpecialtyRequest: {
+            /**
+             * @description A SNOMED CT code, one of the directory's twelve specialties.
+             * @example 394579002
+             */
+            code: string;
+        };
+        /** @description A practitioner role's specialty, a coding from FHIR R4 ValueSet c80-practice-codes. */
+        Specialty: {
+            /** @constant */
+            system: "http://snomed.info/sct";
+            code: string;
+            /** @description The concept's display in the value set. */
+            display: string;
+            /** @description The name the apps show. */
+            text: string;
+        };
+        SpecialtyList: {
+            specialties: components["schemas"]["Specialty"][];
+        };
+        RoleSpecialty: {
+            /** Format: uuid */
+            id: string;
+            specialty?: components["schemas"]["Specialty"];
+            /** Format: int32 */
+            versionId: number;
+        };
+        BookAppointmentRequest: {
+            /**
+             * Format: uuid
+             * @description A free slot, as Slot?schedule=…&status=free gives it.
+             */
+            slotId: string;
+        };
+        SetAppointmentStatusRequest: {
+            /** @enum {string} */
+            status: "fulfilled" | "noshow";
+        };
+        /** @description An appointment after a booking or a change (FHIR Appointment; reads go through FHIR). Health data: it shows whom the patient consults. Neither the patient nor who cancelled is in it. */
+        Appointment: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** Format: uuid */
+            practitionerRoleId: string;
+            /** Format: uuid */
+            slotId: string;
+            /** Format: date-time */
+            start: string;
+            /** Format: date-time */
+            end: string;
+            /** @enum {string} */
+            status: "booked" | "cancelled" | "fulfilled" | "noshow";
+            /**
+             * @description http://terminology.hl7.org/CodeSystem/appointment-cancellation-reason: `pat` the patient (also by revoking consent), `prov` staff. Absent unless cancelled.
+             * @enum {string}
+             */
+            cancellationReason?: "pat" | "prov";
+            /**
+             * Format: date-time
+             * @description Absent unless cancelled.
+             */
+            cancelledAt?: string;
+            /** Format: int32 */
+            versionId: number;
         };
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "internal error" | "timeout";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "internal error" | "timeout";
         };
         Status: {
             /** @constant */
@@ -901,6 +1283,741 @@ export interface operations {
                 };
             };
             /** @description `email_taken`: the e-mail has an account. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getMyPatient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profile. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Patient"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a staff account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no profile yet. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    saveMyPatient: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavePatientRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated profile. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Patient"];
+                };
+            };
+            /** @description The created profile. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Patient"];
+                };
+            };
+            /** @description `invalid_request`, `invalid_name`, `invalid_birth_date` or `invalid_phone`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a staff account; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: a create when the profile exists, or a `versionId` that is not the current one. Read the profile again and retry. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    grantConsent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantConsentRequest"];
+            };
+        };
+        responses: {
+            /** @description The active consent. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Consent"];
+                };
+            };
+            /** @description `invalid_request`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a staff account; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `consent_active`: a consent with the clinic is active already; `profile_required`: the patient has no profile yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    revokeConsent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The revoked consent. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Consent"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a staff account; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such consent of the patient. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `consent_inactive`: the consent is revoked already. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listMyConsents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The consents. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentList"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a staff account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setPractitionerRoleSpecialty: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The role's version as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSpecialtyRequest"];
+            };
+        };
+        responses: {
+            /** @description The role with its specialty, at its new version. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleSpecialty"];
+                };
+            };
+            /** @description `invalid_request`: no or an unreadable If-Match, or a body that is not the request; `invalid_specialty`: a code that is not one of the directory's specialties. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a member of the clinic who is not its admin; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such role in the caller's clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the role changed since it was read; read it again. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listSpecialties: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The specialties. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialtyList"];
+                };
+            };
+        };
+    };
+    getAvailability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The role's availability. */
+            200: {
+                headers: {
+                    /** @description The version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Availability"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a member of the clinic who is neither the role's practitioner nor the admin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such role in the caller's clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    saveAvailability: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The availability's version as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveAvailabilityRequest"];
+            };
+        };
+        responses: {
+            /** @description The availability at its new version. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Availability"];
+                };
+            };
+            /** @description `invalid_request`: no or an unreadable If-Match, or a body that is not the request; `invalid_slot_minutes`: a slot length outside 5 to 240 or not a multiple of 5; `invalid_availability`: a day outside 1 to 7, a time that is not HH:MM, an end not after its start, or rules that overlap on a day. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a member of the clinic who is neither the role's practitioner nor the admin; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such role in the caller's clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the availability changed since it was read; read it again. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    bookAppointment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookAppointmentRequest"];
+            };
+        };
+        responses: {
+            /** @description The booked appointment. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Appointment"];
+                };
+            };
+            /** @description `invalid_request`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a staff account; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `profile_required`: the patient has no profile yet; `consent_required`: no active consent with the slot's clinic (consent, then book again); `slot_unavailable`: the slot is not free, has started, or its clinic is not listed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    cancelAppointment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The cancelled appointment. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Appointment"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: the clinic sees the appointment at the name, times and status only (a past one after a revocation); or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such appointment the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `cancellation_window_closed`: a patient, less than 24 hours before the start; `appointment_closed`: the appointment is no longer booked. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setAppointmentStatus: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetAppointmentStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description The appointment in its new status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Appointment"];
+                };
+            };
+            /** @description `invalid_request`; `invalid_status`: a status other than fulfilled and noshow. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a patient or an admin; the clinic sees the appointment at the name, times and status only; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such appointment of the practitioner. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `appointment_not_started`: the start has not passed; `appointment_closed`: the appointment is no longer booked. */
             409: {
                 headers: {
                     [name: string]: unknown;

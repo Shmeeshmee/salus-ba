@@ -3,6 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:salus_api/api.dart';
 
 import 'app.dart';
+import 'booking.dart';
 import 'session.dart';
 import 'token_store.dart';
 
@@ -12,10 +13,7 @@ const apiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://
 
 void main() {
   final bearer = HttpBearerAuth();
-  final session = Session(
-    api: AuthApi(ApiClient(basePath: apiBaseUrl, authentication: bearer)),
-    bearer: bearer,
-    store: const SecureTokenStore(FlutterSecureStorage()),
-  );
-  runApp(SalusApp(session: session));
+  final client = ApiClient(basePath: apiBaseUrl, authentication: bearer);
+  final session = Session(api: AuthApi(client), bearer: bearer, store: const SecureTokenStore(FlutterSecureStorage()));
+  runApp(SalusApp(session: session, booking: Booking(client), now: DateTime.now));
 }

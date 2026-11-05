@@ -115,7 +115,7 @@ void main() {
 
       expect(find.text('Signed in as $email'), findsOneWidget);
       expect(h.store.token, token);
-      expect(h.api.calls, ['POST /auth/login', 'POST /auth/mfa/verify', 'GET /auth/me']);
+      expect(h.api.calls, ['POST /auth/login', 'POST /auth/mfa/verify', 'GET /auth/me', 'GET /me/patient']);
       expect(jsonDecode(h.api.last('POST /auth/mfa/verify').body), {'challenge': challenge, 'code': '123456'});
       expectNoCsrfHeader(h.api);
     });

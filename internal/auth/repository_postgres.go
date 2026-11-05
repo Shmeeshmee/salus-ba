@@ -82,6 +82,9 @@ func toAccount(row authdb.AccountByEmailRow, err error) (Account, error) {
 	if row.OrganizationID.Valid {
 		a.OrganizationID = row.OrganizationID.String()
 	}
+	if row.PractitionerID.Valid {
+		a.PractitionerID = row.PractitionerID.String()
+	}
 	if row.MfaEnrolledAt.Valid {
 		a.MFAEnrolledAt = row.MfaEnrolledAt.Time
 	}
@@ -347,4 +350,12 @@ func toInvite(row authdb.InviteByIDRow) Invite {
 		inv.InvitedBy = row.InvitedBy.String()
 	}
 	return inv
+}
+
+func (r *postgresRepository) DeleteSessionsEndedBefore(ctx context.Context, before time.Time) (int64, error) {
+	return r.q(ctx).DeleteSessionsEndedBefore(ctx, pgtype.Timestamptz{Time: before, Valid: true})
+}
+
+func (r *postgresRepository) DeleteInvitesEndedBefore(ctx context.Context, before time.Time) (int64, error) {
+	return r.q(ctx).DeleteInvitesEndedBefore(ctx, pgtype.Timestamptz{Time: before, Valid: true})
 }

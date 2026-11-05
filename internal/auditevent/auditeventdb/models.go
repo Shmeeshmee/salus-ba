@@ -72,6 +72,22 @@ type Account struct {
 	TotpSecret     []byte
 }
 
+type Appointment struct {
+	ID                   pgtype.UUID
+	CreatedAt            pgtype.Timestamptz
+	UpdatedAt            pgtype.Timestamptz
+	CancelledAt          pgtype.Timestamptz
+	PatientID            pgtype.UUID
+	PractitionerRoleID   pgtype.UUID
+	OrganizationID       pgtype.UUID
+	SlotID               pgtype.UUID
+	CancelledByAccountID pgtype.UUID
+	VersionID            int32
+	Status               string
+	CancellationReason   pgtype.Text
+	Period               pgtype.Range[pgtype.Timestamptz]
+}
+
 type AuditEvent struct {
 	ID              pgtype.UUID
 	Recorded        pgtype.Timestamptz
@@ -89,6 +105,20 @@ type AuditEvent struct {
 	EntityReference pgtype.Text
 	RequestID       pgtype.Text
 	AgentName       pgtype.Text
+	EntityName      pgtype.Text
+	EntityCount     pgtype.Int8
+}
+
+type Consent struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	DateTime       pgtype.Timestamptz
+	RevokedAt      pgtype.Timestamptz
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
 }
 
 type Invite struct {
@@ -112,6 +142,20 @@ type Organization struct {
 	VersionID int32
 	Active    bool
 	Name      string
+	Listed    bool
+	TimeZone  string
+}
+
+type Patient struct {
+	ID         pgtype.UUID
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	AccountID  pgtype.UUID
+	VersionID  int32
+	BirthDate  pgtype.Date
+	GivenName  string
+	FamilyName string
+	Phone      pgtype.Text
 }
 
 type Practitioner struct {
@@ -133,6 +177,7 @@ type PractitionerRole struct {
 	PractitionerID pgtype.UUID
 	VersionID      int32
 	Active         bool
+	SpecialtyCode  pgtype.Text
 }
 
 type RiverJob struct {
@@ -178,6 +223,17 @@ type RiverQueue struct {
 	UpdatedAt pgtype.Timestamptz
 }
 
+type Schedule struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	VersionID          int32
+	SlotMinutes        int32
+	Availability       []byte
+}
+
 type Session struct {
 	ID             pgtype.UUID
 	CreatedAt      pgtype.Timestamptz
@@ -187,4 +243,15 @@ type Session struct {
 	OrganizationID pgtype.UUID
 	MfaVerified    bool
 	TokenHash      []byte
+}
+
+type Slot struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	ScheduleID     pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
+	Period         pgtype.Range[pgtype.Timestamptz]
 }

@@ -401,6 +401,601 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /me/patient:
+    get:
+      operationId: getMyPatient
+      summary: The signed-in patient's profile
+      description: >-
+        The profile of the signed-in patient account, or 404 before it is first saved (a profile exists only
+        complete). Patients only. Not cached. Audited, also when refused.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The profile.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Patient"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no profile yet."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      operationId: saveMyPatient
+      summary: Save the signed-in patient's profile
+      description: >-
+        Creates the profile when `versionId` is absent, with every required field; updates it when
+        `versionId` is the current version. Names are trimmed. Patients only. Not cached. Audited, also when
+        refused.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SavePatientRequest"}
+      responses:
+        "200":
+          description: The updated profile.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Patient"}
+        "201":
+          description: The created profile.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Patient"}
+        "400":
+          description: "`invalid_request`, `invalid_name`, `invalid_birth_date` or `invalid_phone`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: >-
+            `version_conflict`: a create when the profile exists, or a `versionId` that is not the current
+            one. Read the profile again and retry.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /consents:
+    post:
+      operationId: grantConsent
+      summary: Consent to share the profile and appointments with a clinic
+      description: >-
+        The signed-in patient consents to share their profile and appointments with the clinic for care
+        (FHIR Consent, docs/booking/SPEC.md "Consent shape"). At most one consent per clinic is active;
+        granting again after a revocation creates a new consent, so the history is kept. Needs a profile.
+        Patients only. Not cached. Audited, also when refused.
+      tags: [consents]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/GrantConsentRequest"}
+      responses:
+        "201":
+          description: The active consent.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Consent"}
+        "400":
+          description: "`invalid_request`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: >-
+            `consent_active`: a consent with the clinic is active already; `profile_required`: the patient has
+            no profile yet.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /consents/{id}/revoke:
+    post:
+      operationId: revokeConsent
+      summary: Revoke a consent
+      description: >-
+        The signed-in patient revokes their active consent. The clinic's access to the profile and to every
+        future appointment ends at once; past appointments stay, as the clinic's records, with the name, times
+        and status only. Patients only. Not cached. Audited, also when refused.
+      tags: [consents]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The revoked consent.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Consent"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such consent of the patient."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`consent_inactive`: the consent is revoked already."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/consents:
+    get:
+      operationId: listMyConsents
+      summary: The signed-in patient's consents
+      description: >-
+        Every consent of the signed-in patient, active and revoked, the latest granted first; none before the
+        profile exists. Patients only. Not cached. Audited.
+      tags: [consents]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The consents.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ConsentList"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /practitioner-roles/{id}/specialty:
+    put:
+      operationId: setPractitionerRoleSpecialty
+      summary: Set a practitioner role's specialty
+      description: >-
+        The clinic's admin sets the specialty of a role of the clinic: one of the twelve SNOMED CT codes the
+        directory offers (FHIR R4 ValueSet c80-practice-codes). Patients see it when the clinic is listed.
+        Send If-Match with the version the role was read at (`PractitionerRole.meta.versionId`); the answer
+        carries the new version as its ETag. Audited, also when refused.
+      tags: [directory]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: If-Match
+          in: header
+          required: true
+          description: The role's version as a weak ETag, `W/"<versionId>"`.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SetSpecialtyRequest"}
+      responses:
+        "200":
+          description: The role with its specialty, at its new version.
+          headers:
+            ETag: {schema: {type: string}, description: 'The new version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RoleSpecialty"}
+        "400":
+          description: >-
+            `invalid_request`: no or an unreadable If-Match, or a body that is not the request;
+            `invalid_specialty`: a code that is not one of the directory's specialties.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a member of the clinic who is not its admin; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such role in the caller's clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_conflict`: the role changed since it was read; read it again."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /specialties:
+    get:
+      operationId: listSpecialties
+      summary: List the specialties a role can have
+      description: >-
+        The specialties an admin may give a practitioner role, in display order: the directory's SNOMED CT codes
+        from FHIR R4 ValueSet c80-practice-codes, with the name the apps show. Fixed and public; needs no
+        session. Not audited: it holds no personal data.
+      tags: [directory]
+      responses:
+        "200":
+          description: The specialties.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SpecialtyList"}
+  /practitioner-roles/{id}/availability:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getAvailability
+      summary: Read a practitioner role's weekly availability
+      description: >-
+        The role's schedule: its slot length and weekly rules, times of day in the clinic's time zone. Before
+        the first edit it is empty at version 0 (no `id`, no `slotMinutes`). The practitioner reads their own
+        role's, the clinic's admin any role's. The answer carries the version as its ETag. Audited, also when
+        refused.
+      tags: [scheduling]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The role's availability.
+          headers:
+            ETag: {schema: {type: string}, description: 'The version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Availability"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a member of the clinic who is neither the role's practitioner nor the admin."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such role in the caller's clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      operationId: saveAvailability
+      summary: Set a practitioner role's weekly availability
+      description: >-
+        Sets the slot length and the weekly rules of the role; the first edit creates its schedule. Send
+        If-Match with the version read (`W/"0"` before the first edit); the answer carries the new version as
+        its ETag. The role's free slots for the next 28 days follow within seconds; booked slots are never
+        changed. The practitioner edits their own role's, the clinic's admin any role's. Audited, also when
+        refused.
+      tags: [scheduling]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - name: If-Match
+          in: header
+          required: true
+          description: The availability's version as a weak ETag, `W/"<versionId>"`.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SaveAvailabilityRequest"}
+      responses:
+        "200":
+          description: The availability at its new version.
+          headers:
+            ETag: {schema: {type: string}, description: 'The new version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Availability"}
+        "400":
+          description: >-
+            `invalid_request`: no or an unreadable If-Match, or a body that is not the request;
+            `invalid_slot_minutes`: a slot length outside 5 to 240 or not a multiple of 5;
+            `invalid_availability`: a day outside 1 to 7, a time that is not HH:MM, an end not after its start,
+            or rules that overlap on a day.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a member of the clinic who is neither the role's practitioner nor the admin; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such role in the caller's clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_conflict`: the availability changed since it was read; read it again."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /appointments:
+    post:
+      operationId: bookAppointment
+      summary: Book a free slot
+      description: >-
+        The signed-in patient books a free slot of a listed clinic (FHIR Appointment, docs/booking/SPEC.md
+        "Booking rules"): booked at once, the slot held in the same transaction. Needs a profile and an active
+        consent with the clinic. A confirmation is e-mailed, and a reminder 24 hours before the start when that
+        is ahead. Patients only. Not cached. Audited, also when refused.
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/BookAppointmentRequest"}
+      responses:
+        "201":
+          description: The booked appointment.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Appointment"}
+        "400":
+          description: "`invalid_request`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: >-
+            `profile_required`: the patient has no profile yet; `consent_required`: no active consent with the
+            slot's clinic (consent, then book again); `slot_unavailable`: the slot is not free, has started, or
+            its clinic is not listed.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /appointments/{id}/cancel:
+    post:
+      operationId: cancelAppointment
+      summary: Cancel an appointment
+      description: >-
+        Cancels a booked appointment: the patient their own up to 24 hours before the start (reason `pat`), the
+        appointment's practitioner and the clinic's admin at any time (reason `prov`). The slot is freed while
+        its start is ahead, and the patient is e-mailed. Not cached. Audited, also when refused.
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The cancelled appointment.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Appointment"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: >-
+            `forbidden`: the clinic sees the appointment at the name, times and status only (a past one after a
+            revocation); or `csrf`.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such appointment the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: >-
+            `cancellation_window_closed`: a patient, less than 24 hours before the start; `appointment_closed`:
+            the appointment is no longer booked.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /appointments/{id}/status:
+    post:
+      operationId: setAppointmentStatus
+      summary: Mark an appointment fulfilled or no-show
+      description: >-
+        The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once. Not
+        cached. Audited, also when refused.
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SetAppointmentStatusRequest"}
+      responses:
+        "200":
+          description: The appointment in its new status.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Appointment"}
+        "400":
+          description: "`invalid_request`; `invalid_status`: a status other than fulfilled and noshow."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: >-
+            `forbidden`: a patient or an admin; the clinic sees the appointment at the name, times and status
+            only; or `csrf`.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such appointment of the practitioner."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: >-
+            `appointment_not_started`: the start has not passed; `appointment_closed`: the appointment is no
+            longer booked.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   parameters:
     CSRF:
@@ -618,8 +1213,261 @@ components:
           type: string
           format: uuid
           description: The clinic of a staff account; absent for a patient.
+        practitionerId:
+          type: string
+          format: uuid
+          description: >-
+            The directory's Practitioner of a practitioner account, for searches by practitioner; absent
+            otherwise.
         mfaEnrolled:
           type: boolean
+    Patient:
+      type: object
+      required: [id, givenName, familyName, birthDate, versionId, lastUpdated]
+      description: The patient's profile (docs/booking/SPEC.md "Profile"). Health data.
+      properties:
+        id:
+          type: string
+          format: uuid
+        givenName:
+          type: string
+        familyName:
+          type: string
+        birthDate:
+          type: string
+          format: date
+        phone:
+          type: string
+          description: E.164; absent when none was given.
+        versionId:
+          type: integer
+          format: int32
+        lastUpdated:
+          type: string
+          format: date-time
+    SavePatientRequest:
+      type: object
+      required: [givenName, familyName, birthDate]
+      additionalProperties: false
+      properties:
+        givenName:
+          type: string
+          description: 1 to 100 characters after trimming.
+        familyName:
+          type: string
+          description: 1 to 100 characters after trimming.
+        birthDate:
+          type: string
+          format: date
+          description: Before today (UTC), not before 1900-01-01.
+        phone:
+          type: string
+          pattern: "^\\+[0-9]{8,15}$"
+          description: Optional, E.164 (+ and 8 to 15 digits, no spaces); absent for none.
+        versionId:
+          type: integer
+          format: int32
+          minimum: 1
+          description: The version being updated; absent to create the profile.
+    GrantConsentRequest:
+      type: object
+      required: [organizationId]
+      additionalProperties: false
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+          description: The clinic the profile and appointments are shared with.
+    Consent:
+      type: object
+      required: [id, organizationId, status, dateTime]
+      description: >-
+        A patient's consent to share their profile and appointments with a clinic for care (FHIR Consent).
+        Health data: it shows whom the patient consults.
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, inactive]
+        dateTime:
+          type: string
+          format: date-time
+          description: When it was granted.
+        revokedAt:
+          type: string
+          format: date-time
+          description: When it was revoked; absent while active.
+    ConsentList:
+      type: object
+      required: [consents]
+      properties:
+        consents:
+          type: array
+          items: {$ref: "#/components/schemas/Consent"}
+    AvailabilityRule:
+      type: object
+      required: [day, start, end]
+      additionalProperties: false
+      description: One weekly window, in the clinic's time zone.
+      properties:
+        day:
+          type: integer
+          minimum: 1
+          maximum: 7
+          description: ISO weekday, 1 Monday to 7 Sunday.
+        start:
+          type: string
+          pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          examples: ["09:00"]
+        end:
+          type: string
+          pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          description: After start.
+          examples: ["12:00"]
+    Availability:
+      type: object
+      required: [practitionerRoleId, availability, versionId]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The schedule's id (FHIR Schedule); absent before the first edit.
+        practitionerRoleId:
+          type: string
+          format: uuid
+        slotMinutes:
+          type: integer
+          format: int32
+          description: Absent before the first edit.
+        availability:
+          type: array
+          items: {$ref: "#/components/schemas/AvailabilityRule"}
+          description: Sorted by day and start.
+        versionId:
+          type: integer
+          format: int32
+          description: 0 before the first edit.
+    SaveAvailabilityRequest:
+      type: object
+      required: [slotMinutes, availability]
+      additionalProperties: false
+      properties:
+        slotMinutes:
+          type: integer
+          format: int32
+          minimum: 5
+          maximum: 240
+          multipleOf: 5
+        availability:
+          type: array
+          items: {$ref: "#/components/schemas/AvailabilityRule"}
+    SetSpecialtyRequest:
+      type: object
+      required: [code]
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          description: A SNOMED CT code, one of the directory's twelve specialties.
+          examples: ["394579002"]
+    Specialty:
+      type: object
+      required: [system, code, display, text]
+      description: A practitioner role's specialty, a coding from FHIR R4 ValueSet c80-practice-codes.
+      properties:
+        system:
+          type: string
+          const: http://snomed.info/sct
+        code:
+          type: string
+        display:
+          type: string
+          description: The concept's display in the value set.
+        text:
+          type: string
+          description: The name the apps show.
+    SpecialtyList:
+      type: object
+      required: [specialties]
+      properties:
+        specialties:
+          type: array
+          items: {$ref: "#/components/schemas/Specialty"}
+    RoleSpecialty:
+      type: object
+      required: [id, versionId]
+      properties:
+        id:
+          type: string
+          format: uuid
+        specialty:
+          $ref: "#/components/schemas/Specialty"
+        versionId:
+          type: integer
+          format: int32
+    BookAppointmentRequest:
+      type: object
+      required: [slotId]
+      additionalProperties: false
+      properties:
+        slotId:
+          type: string
+          format: uuid
+          description: A free slot, as Slot?schedule=…&status=free gives it.
+    SetAppointmentStatusRequest:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [fulfilled, noshow]
+    Appointment:
+      type: object
+      required: [id, organizationId, practitionerRoleId, slotId, start, end, status, versionId]
+      description: >-
+        An appointment after a booking or a change (FHIR Appointment; reads go through FHIR). Health data: it
+        shows whom the patient consults. Neither the patient nor who cancelled is in it.
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        practitionerRoleId:
+          type: string
+          format: uuid
+        slotId:
+          type: string
+          format: uuid
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [booked, cancelled, fulfilled, noshow]
+        cancellationReason:
+          type: string
+          enum: [pat, prov]
+          description: >-
+            http://terminology.hl7.org/CodeSystem/appointment-cancellation-reason: `pat` the patient (also by
+            revoking consent), `prov` staff. Absent unless cancelled.
+        cancelledAt:
+          type: string
+          format: date-time
+          description: Absent unless cancelled.
+        versionId:
+          type: integer
+          format: int32
     Error:
       type: object
       required: [error]
@@ -644,6 +1492,22 @@ components:
             - invalid_role
             - invalid_name
             - invalid_invite
+            - invalid_birth_date
+            - invalid_phone
+            - not_found
+            - version_conflict
+            - consent_active
+            - consent_inactive
+            - profile_required
+            - invalid_specialty
+            - invalid_slot_minutes
+            - invalid_availability
+            - consent_required
+            - slot_unavailable
+            - cancellation_window_closed
+            - appointment_closed
+            - appointment_not_started
+            - invalid_status
             - internal error
             - timeout
     Status:

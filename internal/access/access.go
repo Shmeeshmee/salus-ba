@@ -1,0 +1,155 @@
+// Package access holds the pure rules of who may see a patient's data (docs/booking/SPEC.md "Access rule"):
+// no I/O, no imports from internal/. A service gathers the Facts (the consent's state, the patient's
+// appointments in the clinic) in its transaction and asks Profile or Appointment for the level.
+//
+// Care records rest on Art. 9(2)(h) and sharing before care on consent (SPEC.md section 3): with an active
+// consent the clinic sees the profile through an appointment; after a revocation it keeps the name, times and
+// status of the appointments that started before the latest revocation, and nothing else, and their
+// practitioner still records how they went (RecordsOutcome).
+package access
+
+import (
+	"strconv"
+	"time"
+)
+
+// Level is how much of a patient's data a viewer may see.
+type Level int
+
+// The levels.
+const (
+	// None: nothing; the resource's existence is not disclosed.
+	None Level = iota
+	// Name: the patient's name and, for an appointment, its times and status.
+	Name
+	// Full: the whole resource.
+	Full
+)
+
+func (l Level) String() string {
+	switch l {
+	case None:
+		return "None"
+	case Name:
+		return "Name"
+	case Full:
+		return "Full"
+	}
+	return "Level(" + strconv.Itoa(int(l)) + ")"
+}
+
+// Role is what the viewer is.
+type Role int
+
+// The roles; the zero Role is no one and sees nothing.
+const (
+	RolePatient Role = iota + 1
+	RolePractitioner
+	RoleAdmin
+)
+
+// Viewer is who asks.
+type Viewer struct {
+	Clinic           string // the clinic of staff
+	PractitionerRole string // a practitioner's role in that clinic
+	Patient          string // a patient's own patient id
+	Role             Role
+}
+
+// Consent is the state of the patient's consents with one clinic.
+type Consent struct {
+	RevokedAt time.Time // the latest revocation; zero when none was ever revoked
+	Active    bool
+}
+
+// Visit is one of the patient's appointments in the clinic, of any status.
+type Visit struct {
+	Start            time.Time
+	PractitionerRole string
+}
+
+// Facts are what is known about one patient in one clinic.
+type Facts struct {
+	Consent Consent
+	Patient string
+	Clinic  string  // the clinic the consent and the visits are about
+	Visits  []Visit // the patient's appointments in Clinic
+}
+
+// Profile is what viewer may see of the patient's profile: the patient themselves everything; with an active
+// consent, a practitioner with an appointment with the patient everything and the clinic's admin the name;
+// without one, the practitioner of a past appointment and the admin of a clinic with a past appointment the
+// name; everyone else nothing.
+func Profile(v Viewer, f Facts) Level {
+	if self(v, f) {
+		return Full
+	}
+	if !staffOf(v, f) {
+		return None
+	}
+	for _, a := range f.Visits {
+		if v.Role == RolePractitioner && !ofPractitioner(v, a) {
+			continue
+		}
+		switch {
+		case f.Consent.Active && v.Role == RolePractitioner:
+			return Full
+		case past(f, a):
+			return Name
+		}
+	}
+	if f.Consent.Active && v.Role == RoleAdmin {
+		return Name
+	}
+	return None
+}
+
+// Appointment is what viewer may see of the patient's appointment a: the patient everything; with an active
+// consent, the appointment's practitioner and the clinic's admin everything (the patient's name per Profile);
+// without one, the same viewers the name, times and status of a past appointment and nothing of any other;
+// everyone else nothing.
+func Appointment(v Viewer, f Facts, a Visit) Level {
+	if self(v, f) {
+		return Full
+	}
+	if !staffOf(v, f) || (v.Role == RolePractitioner && !ofPractitioner(v, a)) {
+		return None
+	}
+	switch {
+	case f.Consent.Active:
+		return Full
+	case past(f, a):
+		return Name
+	}
+	return None
+}
+
+// RecordsOutcome reports whether viewer may record how appointment a went (fulfilled or noshow): its
+// practitioner, with an active consent, or after a revocation for a past appointment, which is the care
+// record (Art. 9(2)(h)). That a has started is the service's check; cancelling a past one stays refused.
+func RecordsOutcome(v Viewer, f Facts, a Visit) bool {
+	if v.Role != RolePractitioner || !staffOf(v, f) || !ofPractitioner(v, a) {
+		return false
+	}
+	return f.Consent.Active || past(f, a)
+}
+
+// self reports whether v is the patient the facts are about.
+func self(v Viewer, f Facts) bool {
+	return v.Role == RolePatient && v.Patient != "" && v.Patient == f.Patient
+}
+
+// staffOf reports whether v is staff of the facts' clinic.
+func staffOf(v Viewer, f Facts) bool {
+	return (v.Role == RolePractitioner || v.Role == RoleAdmin) && v.Clinic != "" && v.Clinic == f.Clinic
+}
+
+// ofPractitioner reports whether a is with the practitioner v.
+func ofPractitioner(v Viewer, a Visit) bool {
+	return v.PractitionerRole != "" && a.PractitionerRole == v.PractitionerRole
+}
+
+// past reports whether a started before the latest revocation, without an active consent.
+func past(f Facts, a Visit) bool {
+	return !f.Consent.Active && !f.Consent.RevokedAt.IsZero() && a.Start.Before(f.Consent.RevokedAt)
+}

@@ -15,7 +15,9 @@ import (
 func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
 
 func TestRun_StartsRiverAndStopsCleanly(t *testing.T) {
-	t.Setenv("DATABASE_URL", pgtest.NewDatabaseURL(t))
+	dbURL := pgtest.NewDatabaseURL(t)
+	t.Setenv("DATABASE_URL", pgtest.AppURL(t, dbURL))
+	t.Setenv("RETENTION_DATABASE_URL", pgtest.RetentionURL(t, dbURL))
 	logs, err := runUntilStarted(t)
 	if err != nil {
 		t.Fatalf("run() error = %v, want nil after the context ends", err)
@@ -24,6 +26,18 @@ func TestRun_StartsRiverAndStopsCleanly(t *testing.T) {
 		if !strings.Contains(logs, msg) {
 			t.Errorf("logs lack %s:\n%s", msg, logs)
 		}
+	}
+}
+
+// The retention_apply job needs its own login; without it the worker does not start.
+func TestRun_FailsWithoutTheRetentionDatabaseURL(t *testing.T) {
+	t.Setenv("DATABASE_URL", pgtest.AppURL(t, pgtest.NewDatabaseURL(t)))
+	t.Setenv("RETENTION_DATABASE_URL", "")
+
+	err := run(t.Context(), &bytes.Buffer{})
+
+	if err == nil || !strings.Contains(err.Error(), "RETENTION_DATABASE_URL") {
+		t.Fatalf("run() error = %v, want one naming RETENTION_DATABASE_URL", err)
 	}
 }
 

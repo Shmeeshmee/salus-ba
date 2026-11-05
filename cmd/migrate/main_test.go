@@ -17,7 +17,8 @@ func TestMain(m *testing.M) { pgtest.Main(m, nil) }
 
 func TestRun_UpAppliesMigrationsAndStatusListsThemApplied(t *testing.T) {
 	t.Setenv("DATABASE_URL", pgtest.NewDatabaseURL(t))
-	t.Setenv("APP_DATABASE_PASSWORD", "") // provisioned outside migrate: the role is left alone
+	t.Setenv("APP_DATABASE_PASSWORD", "") // provisioned outside migrate: the roles are left alone
+	t.Setenv("RETENTION_DATABASE_PASSWORD", "")
 	var out bytes.Buffer
 
 	if err := run(t.Context(), []string{"up"}, &out); err != nil {
@@ -82,9 +83,9 @@ func TestRun_RejectsUnknownCommand(t *testing.T) {
 	}
 }
 
-// appRoleSecret reads the stored password verifier of salus_app (pg_authid needs the superuser the compose
-// Postgres gives the tests). SCRAM verifiers are salted, so setting even the same password changes it.
-func appRoleSecret(t *testing.T, dbURL string) string {
+// roleSecret reads the stored password verifier of role (pg_authid needs the superuser the compose Postgres
+// gives the tests). SCRAM verifiers are salted, so setting even the same password changes it.
+func roleSecret(t *testing.T, dbURL, role string) string {
 	t.Helper()
 	pool, err := postgres.Open(t.Context(), dbURL)
 	if err != nil {
@@ -92,7 +93,7 @@ func appRoleSecret(t *testing.T, dbURL string) string {
 	}
 	defer pool.Close()
 	var secret string
-	if err := pool.QueryRow(t.Context(), "SELECT coalesce(rolpassword, '') FROM pg_authid WHERE rolname = $1", pgtest.AppRole).Scan(&secret); err != nil {
+	if err := pool.QueryRow(t.Context(), "SELECT coalesce(rolpassword, '') FROM pg_authid WHERE rolname = $1", role).Scan(&secret); err != nil {
 		t.Fatal(err)
 	}
 	return secret
@@ -110,13 +111,13 @@ func TestRun_UpSetsTheAppRolePasswordAndTheRoleCanLogIn(t *testing.T) {
 	if err := run(t.Context(), []string{"up"}, &bytes.Buffer{}); err != nil { // creates the role on a new server
 		t.Fatalf("up: %v", err)
 	}
-	before := appRoleSecret(t, dbURL)
+	before := roleSecret(t, dbURL, pgtest.AppRole)
 	var out bytes.Buffer
 
 	if err := run(t.Context(), []string{"up"}, &out); err != nil {
 		t.Fatalf("up: %v", err)
 	}
-	if appRoleSecret(t, dbURL) == before {
+	if roleSecret(t, dbURL, pgtest.AppRole) == before {
 		t.Error("up did not set the salus_app password")
 	}
 	if strings.Contains(out.String(), password) {
@@ -127,6 +128,38 @@ func TestRun_UpSetsTheAppRolePasswordAndTheRoleCanLogIn(t *testing.T) {
 	pool, err := postgres.Open(t.Context(), u.String())
 	if err != nil {
 		t.Fatalf("log in as %s: %v", pgtest.AppRole, err)
+	}
+	pool.Close()
+}
+
+func TestRun_UpSetsTheRetentionRolePasswordAndTheRoleCanLogIn(t *testing.T) {
+	dbURL := pgtest.NewDatabaseURL(t)
+	// Cluster-wide, like salus_app: the value every other test package logs in with.
+	password := os.Getenv("TEST_RETENTION_DATABASE_PASSWORD")
+	if password == "" {
+		t.Fatal("TEST_RETENTION_DATABASE_PASSWORD is not set; run the tests with `make test`")
+	}
+	t.Setenv("DATABASE_URL", dbURL)
+	t.Setenv("APP_DATABASE_PASSWORD", "")
+	t.Setenv("RETENTION_DATABASE_PASSWORD", password)
+	if err := run(t.Context(), []string{"up"}, &bytes.Buffer{}); err != nil { // creates the role on a new server
+		t.Fatalf("up: %v", err)
+	}
+	before := roleSecret(t, dbURL, pgtest.RetentionRole)
+	var out bytes.Buffer
+
+	if err := run(t.Context(), []string{"up"}, &out); err != nil {
+		t.Fatalf("up: %v", err)
+	}
+	if roleSecret(t, dbURL, pgtest.RetentionRole) == before {
+		t.Error("up did not set the salus_retention password")
+	}
+	if strings.Contains(out.String(), password) || strings.Contains(out.String(), "set the password of "+pgtest.AppRole) {
+		t.Errorf("up output holds the password, or set the app role's without APP_DATABASE_PASSWORD:\n%s", out.String())
+	}
+	pool, err := postgres.Open(t.Context(), pgtest.RetentionURL(t, dbURL))
+	if err != nil {
+		t.Fatalf("log in as %s: %v", pgtest.RetentionRole, err)
 	}
 	pool.Close()
 }

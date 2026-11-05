@@ -30,7 +30,7 @@ func (q *Queries) AcceptInvite(ctx context.Context, arg AcceptInviteParams) (int
 }
 
 const accountByEmail = `-- name: AccountByEmail :one
-SELECT id, mfa_enrolled_at, organization_id, role, email, password_hash
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash
 FROM account
 WHERE email = $1
 `
@@ -39,6 +39,7 @@ type AccountByEmailRow struct {
 	ID             pgtype.UUID
 	MfaEnrolledAt  pgtype.Timestamptz
 	OrganizationID pgtype.UUID
+	PractitionerID pgtype.UUID
 	Role           string
 	Email          string
 	PasswordHash   string
@@ -51,6 +52,7 @@ func (q *Queries) AccountByEmail(ctx context.Context, email string) (AccountByEm
 		&i.ID,
 		&i.MfaEnrolledAt,
 		&i.OrganizationID,
+		&i.PractitionerID,
 		&i.Role,
 		&i.Email,
 		&i.PasswordHash,
@@ -59,7 +61,7 @@ func (q *Queries) AccountByEmail(ctx context.Context, email string) (AccountByEm
 }
 
 const accountByID = `-- name: AccountByID :one
-SELECT id, mfa_enrolled_at, organization_id, role, email, password_hash
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash
 FROM account
 WHERE id = $1
 `
@@ -68,6 +70,7 @@ type AccountByIDRow struct {
 	ID             pgtype.UUID
 	MfaEnrolledAt  pgtype.Timestamptz
 	OrganizationID pgtype.UUID
+	PractitionerID pgtype.UUID
 	Role           string
 	Email          string
 	PasswordHash   string
@@ -80,6 +83,7 @@ func (q *Queries) AccountByID(ctx context.Context, id pgtype.UUID) (AccountByIDR
 		&i.ID,
 		&i.MfaEnrolledAt,
 		&i.OrganizationID,
+		&i.PractitionerID,
 		&i.Role,
 		&i.Email,
 		&i.PasswordHash,
@@ -162,6 +166,34 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (p
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const deleteInvitesEndedBefore = `-- name: DeleteInvitesEndedBefore :execrows
+DELETE FROM invite WHERE least(accepted_at, expires_at) < $1
+`
+
+// Retention (salus_retention, past row-level security): an invite ends at accepted_at or expires_at,
+// whichever comes first.
+func (q *Queries) DeleteInvitesEndedBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteInvitesEndedBefore, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteSessionsEndedBefore = `-- name: DeleteSessionsEndedBefore :execrows
+DELETE FROM session WHERE least(revoked_at, expires_at) < $1
+`
+
+// Retention (salus_retention): a session ends at revoked_at or expires_at, whichever comes first (least()
+// skips a null revoked_at).
+func (q *Queries) DeleteSessionsEndedBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSessionsEndedBefore, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const inviteByID = `-- name: InviteByID :one

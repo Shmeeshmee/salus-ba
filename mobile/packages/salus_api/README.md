@@ -51,15 +51,15 @@ import 'package:salus_api/api.dart';
 // String yourTokenGeneratorFunction() { ... }
 //defaultApiClient.getAuthentication<HttpBearerAuth>('bearerAuth').setAccessToken(yourTokenGeneratorFunction);
 
-final api_instance = AuthApi();
-final confirmRequest = ConfirmRequest(); // ConfirmRequest | 
+final api_instance = AppointmentsApi();
+final bookAppointmentRequest = BookAppointmentRequest(); // BookAppointmentRequest | 
 final xSalusCSRF = xSalusCSRF_example; // String | Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
 
 try {
-    final result = api_instance.confirmMfa(confirmRequest, xSalusCSRF);
+    final result = api_instance.bookAppointment(bookAppointmentRequest, xSalusCSRF);
     print(result);
 } catch (e) {
-    print('Exception when calling AuthApi->confirmMfa: $e\n');
+    print('Exception when calling AppointmentsApi->bookAppointment: $e\n');
 }
 
 ```
@@ -70,6 +70,9 @@ All URIs are relative to *http://localhost*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
+*AppointmentsApi* | [**bookAppointment**](doc//AppointmentsApi.md#bookappointment) | **POST** /appointments | Book a free slot
+*AppointmentsApi* | [**cancelAppointment**](doc//AppointmentsApi.md#cancelappointment) | **POST** /appointments/{id}/cancel | Cancel an appointment
+*AppointmentsApi* | [**setAppointmentStatus**](doc//AppointmentsApi.md#setappointmentstatus) | **POST** /appointments/{id}/status | Mark an appointment fulfilled or no-show
 *AuthApi* | [**confirmMfa**](doc//AuthApi.md#confirmmfa) | **POST** /auth/mfa/confirm | Confirm TOTP enrolment with the first code
 *AuthApi* | [**enrolMfa**](doc//AuthApi.md#enrolmfa) | **POST** /auth/mfa/enrol | Start TOTP enrolment
 *AuthApi* | [**getMe**](doc//AuthApi.md#getme) | **GET** /auth/me | The signed-in account
@@ -77,11 +80,20 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**logout**](doc//AuthApi.md#logout) | **POST** /auth/logout | Sign out
 *AuthApi* | [**register**](doc//AuthApi.md#register) | **POST** /auth/register | Register a patient account
 *AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
+*ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic
+*ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
+*ConsentsApi* | [**revokeConsent**](doc//ConsentsApi.md#revokeconsent) | **POST** /consents/{id}/revoke | Revoke a consent
+*DirectoryApi* | [**listSpecialties**](doc//DirectoryApi.md#listspecialties) | **GET** /specialties | List the specialties a role can have
+*DirectoryApi* | [**setPractitionerRoleSpecialty**](doc//DirectoryApi.md#setpractitionerrolespecialty) | **PUT** /practitioner-roles/{id}/specialty | Set a practitioner role's specialty
 *HealthApi* | [**getHealth**](doc//HealthApi.md#gethealth) | **GET** /healthz | Liveness
 *HealthApi* | [**getReadiness**](doc//HealthApi.md#getreadiness) | **GET** /readyz | Readiness
 *InvitesApi* | [**acceptInvite**](doc//InvitesApi.md#acceptinvite) | **POST** /invites/accept | Accept an invite
 *InvitesApi* | [**createInvite**](doc//InvitesApi.md#createinvite) | **POST** /invites | Invite a practitioner or an admin to the clinic
 *InvitesApi* | [**listInvites**](doc//InvitesApi.md#listinvites) | **GET** /invites | The clinic's open invites
+*PatientApi* | [**getMyPatient**](doc//PatientApi.md#getmypatient) | **GET** /me/patient | The signed-in patient's profile
+*PatientApi* | [**saveMyPatient**](doc//PatientApi.md#savemypatient) | **PUT** /me/patient | Save the signed-in patient's profile
+*SchedulingApi* | [**getAvailability**](doc//SchedulingApi.md#getavailability) | **GET** /practitioner-roles/{id}/availability | Read a practitioner role's weekly availability
+*SchedulingApi* | [**saveAvailability**](doc//SchedulingApi.md#saveavailability) | **PUT** /practitioner-roles/{id}/availability | Set a practitioner role's weekly availability
 
 
 ## Documentation For Models
@@ -89,16 +101,31 @@ Class | Method | HTTP request | Description
  - [AcceptInviteRequest](doc//AcceptInviteRequest.md)
  - [Acceptance](doc//Acceptance.md)
  - [Account](doc//Account.md)
+ - [Appointment](doc//Appointment.md)
+ - [Availability](doc//Availability.md)
+ - [AvailabilityRule](doc//AvailabilityRule.md)
+ - [BookAppointmentRequest](doc//BookAppointmentRequest.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)
+ - [Consent](doc//Consent.md)
+ - [ConsentList](doc//ConsentList.md)
  - [EnrolRequest](doc//EnrolRequest.md)
  - [Enrolment](doc//Enrolment.md)
  - [Error](doc//Error.md)
+ - [GrantConsentRequest](doc//GrantConsentRequest.md)
  - [Invite](doc//Invite.md)
  - [InviteList](doc//InviteList.md)
  - [InviteRequest](doc//InviteRequest.md)
  - [LoginRequest](doc//LoginRequest.md)
  - [LoginResponse](doc//LoginResponse.md)
+ - [Patient](doc//Patient.md)
  - [RegisterRequest](doc//RegisterRequest.md)
+ - [RoleSpecialty](doc//RoleSpecialty.md)
+ - [SaveAvailabilityRequest](doc//SaveAvailabilityRequest.md)
+ - [SavePatientRequest](doc//SavePatientRequest.md)
+ - [SetAppointmentStatusRequest](doc//SetAppointmentStatusRequest.md)
+ - [SetSpecialtyRequest](doc//SetSpecialtyRequest.md)
+ - [Specialty](doc//Specialty.md)
+ - [SpecialtyList](doc//SpecialtyList.md)
  - [Status](doc//Status.md)
  - [Unavailable](doc//Unavailable.md)
  - [VerifyRequest](doc//VerifyRequest.md)

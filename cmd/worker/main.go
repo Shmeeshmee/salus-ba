@@ -1,8 +1,10 @@
-// Command worker runs the River background jobs.
+// Command worker runs the River background jobs of the default queue. It logs in as salus_app
+// (DATABASE_URL), and as salus_retention (RETENTION_DATABASE_URL) for the retention_apply job alone.
 package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,6 +12,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata" // the clinics' time zones, independent of the runtime image
 
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/worker"
@@ -35,12 +38,21 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if err != nil {
 		return err
 	}
+	ret := config.LoadRetention()
+	if ret.DatabaseURL == "" {
+		return errors.New("config: RETENTION_DATABASE_URL is required")
+	}
 	pool, err := postgres.Open(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
-	client, err := worker.New(pool, log)
+	retentionPool, err := postgres.Open(ctx, ret.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer retentionPool.Close()
+	client, err := worker.New(pool, retentionPool, log)
 	if err != nil {
 		return err
 	}

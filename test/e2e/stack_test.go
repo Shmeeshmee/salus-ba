@@ -90,6 +90,41 @@ func newAPI(t *testing.T) *api {
 // the status.
 func (a *api) do(method, path string, body, out any) int {
 	a.t.Helper()
+	status, raw := a.send(nil, method, path, body)
+	if out != nil && len(raw) > 0 && status < 300 {
+		if err := json.Unmarshal(raw, out); err != nil {
+			a.t.Fatalf("%s %s = %d: decoding %s: %v", method, path, status, raw, err)
+		}
+	}
+	return status
+}
+
+// refusal sends body and returns the status with the error code of a JSON error answer ({"error": "<code>"}).
+func (a *api) refusal(method, path string, body any) (int, string) {
+	a.t.Helper()
+	status, raw := a.send(nil, method, path, body)
+	var e struct{ Error string }
+	_ = json.Unmarshal(raw, &e)
+	return status, e.Error
+}
+
+// mustWith is must with extra request headers, such as If-Match.
+func (a *api) mustWith(header http.Header, want int, method, path string, body, out any) {
+	a.t.Helper()
+	status, raw := a.send(header, method, path, body)
+	if status != want {
+		a.t.Fatalf("%s %s = %d, want %d", method, path, status, want)
+	}
+	if out != nil && len(raw) > 0 {
+		if err := json.Unmarshal(raw, out); err != nil {
+			a.t.Fatalf("%s %s = %d: decoding %s: %v", method, path, status, raw, err)
+		}
+	}
+}
+
+// send sends body (JSON, or none when nil) with the extra headers and returns the status and the raw answer.
+func (a *api) send(header http.Header, method, path string, body any) (int, []byte) {
+	a.t.Helper()
 	var r io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -111,6 +146,9 @@ func (a *api) do(method, path string, body, out any) int {
 	if a.bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+a.bearer)
 	}
+	for k, v := range header {
+		req.Header[k] = v
+	}
 	resp, err := a.http.Do(req)
 	if err != nil {
 		a.t.Fatalf("%s %s: %v", method, path, err)
@@ -120,12 +158,7 @@ func (a *api) do(method, path string, body, out any) int {
 	if err != nil {
 		a.t.Fatal(err)
 	}
-	if out != nil && len(raw) > 0 && resp.StatusCode < 300 {
-		if err := json.Unmarshal(raw, out); err != nil {
-			a.t.Fatalf("%s %s = %d: decoding %s: %v", method, path, resp.StatusCode, raw, err)
-		}
-	}
-	return resp.StatusCode
+	return resp.StatusCode, raw
 }
 
 // must is do that fails the test unless the status is want.
@@ -156,6 +189,7 @@ type account struct {
 	Email          string `json:"email"`
 	Role           string `json:"role"`
 	OrganizationID string `json:"organizationId"`
+	PractitionerID string `json:"practitionerId"`
 	MFAEnrolled    bool   `json:"mfaEnrolled"`
 }
 
@@ -220,33 +254,43 @@ func field(t *testing.T, out, name string) string {
 
 var inviteLink = regexp.MustCompile(`/invite#([A-Za-z0-9_-]+)`)
 
-// inviteToken waits up to 30 s for the invite e-mail to addr in Mailpit, deletes it so Mailpit is left as it
-// was, and returns the token from its link.
+// inviteToken waits for the invite e-mail to addr in Mailpit and returns the token from its link.
 func inviteToken(t *testing.T, addr string) string {
+	t.Helper()
+	m := inviteLink.FindStringSubmatch(mailText(t, addr, ""))
+	if m == nil {
+		t.Fatal("the invite e-mail holds no invite link")
+	}
+	return m[1]
+}
+
+// mailText waits up to 30 s for the one e-mail to addr in Mailpit (with the subject, when not empty), deletes it
+// so Mailpit is left as it was, and returns its plain text.
+func mailText(t *testing.T, addr, subject string) string {
 	t.Helper()
 	mailpit := env(t, "E2E_MAILPIT_URL")
 	client := &http.Client{Timeout: 5 * time.Second}
+	query := `to:"` + addr + `"`
+	if subject != "" {
+		query += ` subject:"` + subject + `"`
+	}
 	timeout := time.After(30 * time.Second)
 	for {
 		var found struct{ Messages []struct{ ID string } }
-		mailpitDo(t, client, http.MethodGet, mailpit+"/api/v1/search?query="+url.QueryEscape(`to:"`+addr+`"`), nil, &found)
+		mailpitDo(t, client, http.MethodGet, mailpit+"/api/v1/search?query="+url.QueryEscape(query), nil, &found)
 		if len(found.Messages) == 1 {
 			id := found.Messages[0].ID
 			var msg struct{ Text string }
 			mailpitDo(t, client, http.MethodGet, mailpit+"/api/v1/message/"+id, nil, &msg)
 			mailpitDo(t, client, http.MethodDelete, mailpit+"/api/v1/messages", map[string][]string{"IDs": {id}}, nil)
-			m := inviteLink.FindStringSubmatch(msg.Text)
-			if m == nil {
-				t.Fatal("the invite e-mail holds no invite link")
-			}
-			return m[1]
+			return msg.Text
 		}
 		if len(found.Messages) > 1 {
-			t.Fatalf("%d invite e-mails to the address in Mailpit, want 1", len(found.Messages))
+			t.Fatalf("%d e-mails %q to the address in Mailpit, want 1", len(found.Messages), subject)
 		}
 		select {
 		case <-timeout:
-			t.Fatal("no invite e-mail to the address in Mailpit within 30s")
+			t.Fatalf("no e-mail %q to the address in Mailpit within 30s", subject)
 		case <-time.After(250 * time.Millisecond):
 		}
 	}

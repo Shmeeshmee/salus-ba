@@ -6,7 +6,8 @@ and an entry here **before** it is wired in (CLAUDE.md "GDPR and health data"). 
 Status as of 2026-11-04 (accounts feature, package 5): **no processor is wired in.** Everything that runs
 today runs in our own compose stack: Postgres, Redis, Mailpit (local e-mail catcher, synthetic data only)
 and LiveKit in dev mode. Since package 5 the notifier sends invite e-mails, through SMTP to Mailpit only;
-there is no SMTP relay or SES configuration for any other environment.
+there is no SMTP relay or SES configuration for any other environment. Since the booking feature's package 6
+it also sends appointment e-mails (confirmation, cancellation, reminder) the same way: no new processor.
 
 ## Wired in
 
@@ -19,7 +20,7 @@ before the code that uses it is merged.
 
 | Processor | Purpose | Personal data it will touch | Region | Status |
 | --- | --- | --- | --- | --- |
-| AWS SES (ADR 0007) | Sending e-mail from `cmd/notifier` | Recipient e-mail address; clinic name; a link into the app (invite links carry a one-time token in the URL fragment). No clinical content. Patient e-mails go only to the patient | EU region, to be chosen | Not wired in. Needs the DPA; until then only SMTP to Mailpit exists, locally |
+| AWS SES (ADR 0007) | Sending e-mail from `cmd/notifier` | Recipient e-mail address; clinic name; a link into the app (invite links carry a one-time token in the URL fragment). Appointment e-mails add the date and time of the appointment in the clinic's zone; that a patient has an appointment with a clinic is health data (Art. 9, `docs/booking/SPEC.md` section 3). No practitioner, specialty, reason or other clinical content. Patient e-mails go only to the patient | EU region, to be chosen | Not wired in. Needs the DPA; until then only SMTP to Mailpit exists, locally |
 | Hosting provider (not chosen) | Compute, managed Postgres, object store, backups, KMS | Everything the platform stores: accounts, sessions, audit events, the directory, and from later features health data (special category, Art. 9) | EU/EEA | Not chosen. Needs the DPA, encryption at rest, and the KMS decision for `TOTP_KEY` (`docs/accounts/SPEC.md`) |
 | LiveKit host (ADR 0006) | Running the self-hosted LiveKit server and TURN | Live consultation audio and video (health data), participant identities as opaque ids | EU/EEA | Not deployed. If we self-host on the hosting provider, it is covered by that DPA; a hosted LiveKit Cloud or separate TURN service would be its own processor |
 

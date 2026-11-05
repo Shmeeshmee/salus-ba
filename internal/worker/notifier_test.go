@@ -53,7 +53,7 @@ func seedInvite(t *testing.T, owner *pgxpool.Pool, accepted bool) (string, strin
 // job's final state.
 func runJob(t *testing.T, app *pgxpool.Pool, inviteID string) rivertype.JobState {
 	t.Helper()
-	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), smtpAddr(t), "https://app.example.test")
+	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), smtpAddr(t), "https://app.example.test", "https://patient.example.test")
 	if err != nil {
 		t.Fatalf("NewNotifier() error = %v", err)
 	}
@@ -111,11 +111,15 @@ func TestNotifier_CancelsTheJobOfAnInviteThatIsNoLongerOpen(t *testing.T) {
 	}
 }
 
-func TestNewNotifier_NeedsTheSMTPServerAndTheWebAddress(t *testing.T) {
+func TestNewNotifier_NeedsTheSMTPServerAndTheWebAndPatientAppAddresses(t *testing.T) {
 	_, app := pgtest.NewAppDatabase(t)
-	for _, cfg := range [][2]string{{"", "https://app.example.test"}, {"mailpit:1025", ""}} {
-		if _, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), cfg[0], cfg[1]); err == nil {
-			t.Errorf("NewNotifier(%q, %q): error = nil", cfg[0], cfg[1])
+	for _, cfg := range [][3]string{
+		{"", "https://app.example.test", "https://patient.example.test"},
+		{"mailpit:1025", "", "https://patient.example.test"},
+		{"mailpit:1025", "https://app.example.test", ""},
+	} {
+		if _, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), cfg[0], cfg[1], cfg[2]); err == nil {
+			t.Errorf("NewNotifier(%q, %q, %q): error = nil", cfg[0], cfg[1], cfg[2])
 		}
 	}
 }
@@ -142,7 +146,7 @@ func mailpitText(t *testing.T, address string) string {
 	var found struct{ Messages []struct{ ID string } }
 	get(api+"/api/v1/search?query="+url.QueryEscape(`to:"`+address+`"`), &found)
 	if len(found.Messages) != 1 {
-		t.Fatalf("%d messages to the invite's address, want 1", len(found.Messages))
+		t.Fatalf("%d messages to the address, want 1", len(found.Messages))
 	}
 	var msg struct{ Text string }
 	get(api+"/api/v1/message/"+found.Messages[0].ID, &msg)

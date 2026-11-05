@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 
-// The app has four screens and no router library: the screen follows location.pathname.
+// The app has a handful of screens and no router library: the screen follows location.pathname.
 
 function subscribe(onChange: () => void) {
   globalThis.addEventListener('popstate', onChange)

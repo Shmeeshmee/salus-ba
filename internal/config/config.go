@@ -21,6 +21,9 @@ type Config struct {
 	SMTPAddr string
 	// WebBaseURL is the web app's origin, for links in e-mails (WEB_BASE_URL).
 	WebBaseURL string
+	// PatientAppURL is the patient app's link base, for appointment e-mails (PATIENT_APP_URL): they link to
+	// <PatientAppURL>/appointments. Production's waits for the app's link domain.
+	PatientAppURL string
 	// FHIRBaseURL is the FHIR API's absolute public base, https://…/fhir/R4, for the links and fullUrls of
 	// a search's Bundle (FHIR_BASE_URL; the api requires it).
 	FHIRBaseURL string
@@ -43,6 +46,7 @@ func Load() (Config, error) {
 		AppDatabasePassword: os.Getenv("APP_DATABASE_PASSWORD"),
 		SMTPAddr:            os.Getenv("SMTP_ADDR"),
 		WebBaseURL:          os.Getenv("WEB_BASE_URL"),
+		PatientAppURL:       os.Getenv("PATIENT_APP_URL"),
 		FHIRBaseURL:         os.Getenv("FHIR_BASE_URL"),
 	}
 	if cfg.DatabaseURL == "" {
@@ -69,4 +73,24 @@ func Load() (Config, error) {
 		cfg.TrustedProxies = append(cfg.TrustedProxies, p)
 	}
 	return cfg, nil
+}
+
+// Retention holds the retention job's credentials: the salus_retention role, which bypasses row-level
+// security and may delete the rows whose period is over (docs/booking/SPEC.md §2 "Retention privileges").
+// Load never reads them; only cmd/worker (the pool of the retention_apply job) and cmd/migrate (which sets
+// the role's password) call LoadRetention.
+type Retention struct {
+	// DatabaseURL is the role's login (RETENTION_DATABASE_URL); cmd/worker requires it.
+	DatabaseURL string
+	// Password is set on the role by `migrate up` when not empty (RETENTION_DATABASE_PASSWORD), like
+	// AppDatabasePassword.
+	Password string
+}
+
+// LoadRetention reads the retention job's credentials from the environment.
+func LoadRetention() Retention {
+	return Retention{
+		DatabaseURL: os.Getenv("RETENTION_DATABASE_URL"),
+		Password:    os.Getenv("RETENTION_DATABASE_PASSWORD"),
+	}
 }

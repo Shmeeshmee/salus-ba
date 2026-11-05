@@ -1,17 +1,28 @@
-// Package worker builds the River client the worker binary runs and registers its jobs.
+// Package worker builds the River clients the worker, notifier and scheduler binaries run, and registers
+// their jobs.
 //
 // A job is enqueued with InsertTx in the same transaction as the write that causes it. Job arguments carry
 // opaque ids only, never personal data; the job loads what it needs.
+//
+// River elects one leader per database among the clients that work queues; the leader runs the periodic jobs
+// and River's maintenance (scheduled jobs, retries, rescue, cleanup). The periodic jobs are configured only in
+// the scheduler, so the worker and the notifier never lead (workConfig) and the scheduler always does.
 package worker
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+
+	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/retention"
+	"github.com/Shmeeshmee/salus/internal/slot"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
 // maxWorkers bounds the jobs one worker process runs at once.
@@ -29,18 +40,42 @@ type noopWorker struct {
 
 func (noopWorker) Work(context.Context, *river.Job[NoopArgs]) error { return nil }
 
-// New returns a River client on pool that works every registered job.
-func New(pool *pgxpool.Pool, log *slog.Logger) (*river.Client[pgx.Tx], error) {
-	return river.NewClient(riverpgxv5.New(pool), config(log))
+// New returns the River client cmd/worker runs: it works the default queue on pool, the salus_app login.
+// retentionPool, the salus_retention login (RETENTION_DATABASE_URL), goes to the retention_apply job's
+// purgers and nowhere else.
+func New(pool, retentionPool *pgxpool.Pool, log *slog.Logger) (*river.Client[pgx.Tx], error) {
+	if retentionPool == nil {
+		return nil, errors.New("worker: the retention_apply job needs the retention role's pool")
+	}
+	rules, err := newRetention(pool, retentionPool)
+	if err != nil {
+		return nil, err
+	}
+	inserter, err := NewInserter(pool) // the revocation enqueues its cancellation e-mails in its transaction
+	if err != nil {
+		return nil, err
+	}
+	workers := river.NewWorkers()
+	addDefaultWorkers(workers, rules, newSlots(pool, clock.System{}), newRevocations(pool, inserter, clock.System{}), log)
+	return river.NewClient(riverpgxv5.New(pool), workConfig(log, river.QueueDefault, workers))
 }
 
-func config(log *slog.Logger) *river.Config {
-	workers := river.NewWorkers()
+// addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with nil
+// dependencies: it never works them, but as the leader its rescuer must know every kind.
+func addDefaultWorkers(workers *river.Workers, rules *retention.Service, slots *slot.Service, appointments *appointment.Service, log *slog.Logger) {
 	river.AddWorker(workers, &noopWorker{})
+	river.AddWorker(workers, &retentionWorker{rules: rules, log: log})
+	river.AddWorker(workers, &slotsWorker{slots: slots, log: log})
+	river.AddWorker(workers, &revocationWorker{appointments: appointments, log: log})
+}
+
+// workConfig is the configuration of a client that works queue with workers and never leads.
+func workConfig(log *slog.Logger, queue string, workers *river.Workers) *river.Config {
 	return &river.Config{
-		Logger: log,
-		Queues: map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: maxWorkers}},
-		// No reindexing: REINDEX needs the table's owner, and the worker logs in as salus_app, which owns
+		Logger:                 log,
+		Queues:                 map[string]river.QueueConfig{queue: {MaxWorkers: maxWorkers}},
+		LeaderElectionDisabled: true,
+		// No reindexing: REINDEX needs the table's owner, and the clients log in as salus_app, which owns
 		// nothing. Index maintenance on River's tables is an owner-side ops task.
 		ReindexerIndexNames: []string{},
 		Workers:             workers,

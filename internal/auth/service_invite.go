@@ -147,6 +147,26 @@ func (s *Service) IsClinicAdmin(ctx context.Context, sess Session) (bool, error)
 	return ok, nil
 }
 
+// ClinicMember returns what the account signed in with sess is in the session's clinic: its admin, its
+// practitioner, or nothing (a patient, another clinic's account, an account that is gone). Not audited, like
+// IsClinicAdmin.
+func (s *Service) ClinicMember(ctx context.Context, sess Session) (Member, error) {
+	a, err := s.repo.ByID(ctx, sess.AccountID)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return Member{}, nil
+	case err != nil:
+		return Member{}, fmt.Errorf("auth: clinic member: %w", err)
+	case a.OrganizationID == "" || a.OrganizationID != sess.OrganizationID:
+		return Member{}, nil
+	case a.Role == RoleAdmin:
+		return Member{Admin: true}, nil
+	case a.Role == RolePractitioner:
+		return Member{PractitionerID: a.PractitionerID}, nil
+	}
+	return Member{}, nil
+}
+
 // clinicAdmin reads the account signed in with sess and reports whether it is an admin of the session's
 // clinic. The returned account is the agent to audit: the session's when the account is gone.
 func (s *Service) clinicAdmin(ctx context.Context, sess Session) (Account, bool, error) {

@@ -14,6 +14,10 @@ export default defineConfig({
       '/readyz': apiUrl,
       '/auth': apiUrl,
       '/invites': apiUrl,
+      '/practitioner-roles': apiUrl,
+      // Only the JSON actions: /appointments/<id> itself is a screen of the app.
+      '^/appointments/[^/]+/(cancel|status)$': apiUrl,
+      '/specialties': apiUrl,
       '/fhir': apiUrl,
     },
   },
