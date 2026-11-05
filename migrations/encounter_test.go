@@ -49,7 +49,8 @@ func insertEncounter(t *testing.T, owner *pgxpool.Pool, appt string) func(ctx co
 
 // Row-level security as video_session's (docs/consultation/SPEC.md §2 "Tables"): the patient their own; a
 // clinic those of its appointments with an active consent, and after a revocation those of the appointments
-// that started before it. No webhook scope: the webhook sets the clinic after reading its session.
+// that started before it. A room alone (app.video_room) shows nothing without a session in it
+// (TestEncounter_TheRoomScopeSeesAndFinishesOnlyItsRoomsEncounter).
 func TestEncounter_EachScopeSeesOnlyItsEncounters(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
@@ -83,6 +84,7 @@ func TestEncounter_OnlyAClinicScopeWritesTheEncountersItSees(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
 	p, _, a := seedAppointments(t, owner)
+	seedVideoSessions(t, owner, a)
 	tests := []struct {
 		scope map[string]string
 		name  string
@@ -95,7 +97,8 @@ func TestEncounter_OnlyAClinicScopeWritesTheEncountersItSees(t *testing.T) {
 		{name: "clinic A, without a consent", scope: map[string]string{"app.organization_id": clinicA}, appt: a.other, want: "42501"},
 		{name: "clinic B, a past appointment after the revocation", scope: map[string]string{"app.organization_id": clinicB}, appt: a.bPast},
 		{name: "clinic B, a later appointment after the revocation", scope: map[string]string{"app.organization_id": clinicB}, appt: a.bFuture, want: "42501"},
-		{name: "a video room alone", scope: map[string]string{"app.video_room": "r_" + a.aPast}, appt: a.aPast, want: "42501"},
+		{name: "a video room, its session's appointment", scope: map[string]string{"app.video_room": "r_" + a.aPast}, appt: a.aPast, want: "42501"},
+		{name: "a video room, an appointment the clinic no longer sees", scope: map[string]string{"app.video_room": "r_" + a.bFuture}, appt: a.bFuture, want: "42501"},
 	}
 	for _, tt := range tests {
 		if err := asApp(t, app, tt.scope, insertEncounter(t, owner, tt.appt)); sqlState(err) != tt.want {
@@ -117,6 +120,53 @@ func TestEncounter_OnlyAClinicScopeWritesTheEncountersItSees(t *testing.T) {
 	var finished int
 	if err := owner.QueryRow(t.Context(), "SELECT count(*) FROM encounter WHERE status = 'finished'").Scan(&finished); err != nil || finished != 1 {
 		t.Errorf("%d finished, %v; want clinic A's one", finished, err)
+	}
+}
+
+// The room's scope (app.video_room, as the webhook's on video_session; SPEC.md §2 "Tables", changed after
+// package 5) shows the one encounter of the appointment whose session has that room, whatever the consent,
+// and finishes it: a revocation that cancels an appointment after the practitioner joined must not leave its
+// encounter in progress. It shows nothing more, with a patient or an account set, and without a room the
+// clinic's scope still hides that encounter after the revocation.
+func TestEncounter_TheRoomScopeSeesAndFinishesOnlyItsRoomsEncounter(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	p, _, a := seedAppointments(t, owner)
+	seedVideoSessions(t, owner, a)
+	e := seedEncounters(t, owner, a)
+	room := func(appt string) string { return "r_" + appt }
+
+	for _, tt := range []struct {
+		scope map[string]string
+		name  string
+		want  []string
+	}{
+		{name: "the room of a cancelled appointment", scope: map[string]string{"app.video_room": room(a.bFuture)}, want: sorted(e[a.bFuture])},
+		{name: "another room", scope: map[string]string{"app.video_room": room(a.other)}, want: sorted(e[a.other])},
+		{name: "an unknown room", scope: map[string]string{"app.video_room": "r_unknown"}},
+		{name: "the room with clinic B set", scope: map[string]string{"app.organization_id": clinicB, "app.video_room": room(a.bFuture)},
+			want: sorted(e[a.bPast], e[a.bFuture])},
+		{name: "clinic B without the room", scope: map[string]string{"app.organization_id": clinicB}, want: sorted(e[a.bPast])},
+		{name: "the room in patient B's scope", scope: map[string]string{"app.patient_id": p[1].patient, "app.video_room": room(a.bFuture)},
+			want: sorted(e[a.other])},
+		{name: "the room with an account set", scope: map[string]string{"app.account_id": p[0].account, "app.video_room": room(a.bFuture)}},
+	} {
+		if got := idsIn(t, app, tt.scope, "SELECT id::text FROM encounter"); !slices.Equal(got, tt.want) {
+			t.Errorf("%s: sees %v, want %v", tt.name, got, tt.want)
+		}
+	}
+
+	finish := func(ctx context.Context, db postgres.Querier) error {
+		_, err := db.Exec(ctx, `UPDATE encounter SET status = 'finished', period_end = period_start + interval '20 minutes',
+			updated_at = now(), version_id = version_id + 1`)
+		return err
+	}
+	if err := asApp(t, app, map[string]string{"app.organization_id": clinicB, "app.video_room": room(a.bFuture)}, finish); err != nil {
+		t.Fatalf("the room's scope with its clinic finishes the encounter: %v", err)
+	}
+	finished := idsIn(t, owner, nil, "SELECT id::text FROM encounter WHERE status = 'finished' AND period_end IS NOT NULL")
+	if want := sorted(e[a.bPast], e[a.bFuture]); !slices.Equal(finished, want) {
+		t.Errorf("finished %v, want the room's and clinic B's own %v", finished, want)
 	}
 }
 

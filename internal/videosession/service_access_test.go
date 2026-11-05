@@ -237,3 +237,78 @@ func TestEndPatientAccess_FailsForARetry(t *testing.T) {
 		t.Errorf("EndPatientAccess() = %v, removed %v; want the error after trying both rooms", err, f.provider.removed)
 	}
 }
+
+// removalEvent is the audit event of the agent's removal of patient A from appointment A's room (SPEC.md §2
+// "Changed after package 5"): an operation on the appointment, action E, for operations.
+func removalEvent(agent string) auditevent.AuditEvent { return agentEnd(agent) }
+
+// Every removal of the patient from a room is audited, by the removing agent, before LiveKit is asked to
+// remove them, whichever path removes them: the webhook's re-check, EndAccess, EndPatientAccess. A repeat
+// finds the patient gone from the room and audits nothing, though it asks LiveKit again.
+func TestRemoval_EachPathAuditsTheRemovalOnceAndARepeatNothing(t *testing.T) {
+	for _, tc := range []struct {
+		run   func(t *testing.T, f *fixture) error
+		setup func(f *fixture)
+		name  string
+		want  []auditevent.AuditEvent // the first run's events
+	}{
+		{name: "the webhook's re-check", setup: func(f *fixture) { f.consents.revoked = true },
+			run:  func(t *testing.T, f *fixture) error { _, err := deliver(t, f, joined("p_patient")); return err },
+			want: []auditevent.AuditEvent{removalEvent(webhookAgent)}},
+		{name: "EndAccess, booked", setup: func(*fixture) {},
+			run:  func(t *testing.T, f *fixture) error { return f.svc.EndAccess(t.Context(), apptA, clinicA) },
+			want: []auditevent.AuditEvent{removalEvent(accessEndAgent)}},
+		{name: "EndAccess, cancelled", setup: func(f *fixture) { f.cancel() },
+			run:  func(t *testing.T, f *fixture) error { return f.svc.EndAccess(t.Context(), apptA, clinicA) },
+			want: []auditevent.AuditEvent{removalEvent(accessEndAgent), agentEnd(accessEndAgent)}},
+		{name: "EndPatientAccess, started", setup: func(f *fixture) { f.consents.revoked = true },
+			run:  func(t *testing.T, f *fixture) error { return f.svc.EndPatientAccess(t.Context(), patientA, clinicA) },
+			want: []auditevent.AuditEvent{removalEvent(revocationAgent)}},
+		{name: "EndPatientAccess, cancelled", setup: func(f *fixture) {
+			f.consents.revoked = true
+			f.cancel()
+			f.repo.hidden, f.appts.hidden = true, true
+		},
+			run:  func(t *testing.T, f *fixture) error { return f.svc.EndPatientAccess(t.Context(), patientA, clinicA) },
+			want: []auditevent.AuditEvent{removalEvent(revocationAgent), agentEnd(revocationAgent)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := opened(during, start, start)
+			f.provider.in = []string{"p_practitioner", "p_patient"}
+			tc.setup(f)
+			if err := tc.run(t, f); err != nil {
+				t.Fatal(err)
+			}
+			checkEvents(t, tc.name, f.audit, tc.want...)
+			if !slices.Equal(f.provider.in, []string{"p_practitioner"}) || f.provider.inTx {
+				t.Errorf("in the room %v (asked in a transaction: %t); want the patient removed, LiveKit asked outside it", f.provider.in, f.provider.inTx)
+			}
+			f.audit.events, f.provider.removed = nil, nil
+			if err := tc.run(t, f); err != nil {
+				t.Fatalf("again: %v", err)
+			}
+			if len(f.audit.events) != 0 || !slices.Equal(f.provider.removed, []string{"r_room p_patient"}) {
+				t.Errorf("again: events %v, removed %v; want nothing audited and LiveKit asked again", f.audit.events, f.provider.removed)
+			}
+		})
+	}
+}
+
+// The removal is audited before LiveKit removes the patient: a failed audit removes nobody, and a failed
+// list of the room fails the job before anything is audited or removed; River retries either.
+func TestRemoval_IsAuditedBeforeThePatientIsRemoved(t *testing.T) {
+	for name, fail := range map[string]func(f *fixture){
+		"the audit": func(f *fixture) { f.audit.err = errBackend },
+		"the list":  func(f *fixture) { f.provider.listErr = errBackend },
+	} {
+		f := revoked()
+		f.provider.in = []string{"p_patient"}
+		fail(f)
+		if err := f.svc.EndPatientAccess(t.Context(), patientA, clinicA); !errors.Is(err, errBackend) {
+			t.Errorf("with %s failing: EndPatientAccess() = %v, want the error", name, err)
+		}
+		if len(f.provider.removed) != 0 || len(f.audit.events) != 0 {
+			t.Errorf("with %s failing: removed %v, events %v; want nothing", name, f.provider.removed, f.audit.events)
+		}
+	}
+}

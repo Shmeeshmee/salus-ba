@@ -39,8 +39,9 @@ func (s *Service) HandleWebhook(ctx context.Context, body []byte, authorization 
 
 // joined records a participant's join, unless the session ended. The practitioner's first join starts the
 // Encounter at LiveKit's join time. The patient's access is checked again on every join (consent active,
-// appointment booked) and, when it is gone, they are removed from the room after the commit: a second guard
-// behind the token's check, for a token issued just before a revocation or a cancellation committed.
+// appointment booked) and, when it is gone, they are removed from the room after the commit, audited
+// (removeFromRoom): a second guard behind the token's check, for a token issued just before a revocation or a
+// cancellation committed.
 func (s *Service) joined(ctx context.Context, e Event) error {
 	now := s.Clock.Now()
 	var session Session
@@ -82,7 +83,7 @@ func (s *Service) joined(ctx context.Context, e Event) error {
 	if err != nil || !remove {
 		return err
 	}
-	return s.Provider.RemoveParticipant(ctx, session.Room, session.PatientIdentity)
+	return s.removeFromRoom(ctx, agentWebhook, session)
 }
 
 // left ends the session when a participant left or the room finished after the window closed, as the

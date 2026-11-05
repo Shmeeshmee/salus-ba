@@ -700,7 +700,7 @@ running as soon as the worker picks up the job.
 
 **Access.** The jobs read only the sessions and appointments they act on, in the narrowest scope that shows
 them; their writes (the session's end, the `Encounter`'s finish) are audited with the job's kind as agent,
-purpose `HOPERAT`. The removal itself writes nothing and is not audited on its own, as in package 3.
+purpose `HOPERAT`. Changed in package 5.1: the removal is audited too (below).
 
 **Risks and measures.**
 
@@ -709,4 +709,28 @@ purpose `HOPERAT`. The removal itself writes nothing and is not audited on its o
 | A patient stays in a call after revoking or after a cancellation | The token is refused from the commit (tested through `api.New` with the job still queued); the patient is removed by the job (tested on the real LiveKit: the patient disconnected, the practitioner still in the room after a revocation, both gone after a cancellation); in the stack the patient was disconnected 5 to 27 ms after the revoke's response (`make bench-removal`) |
 | A failed removal leaves the patient in the room | The job fails and River retries it; a failure in one room does not stop the removal from the others; a join on a token issued before the commit is removed by the webhook (package 3) |
 | The jobs or their logs carry personal data | The job arguments are opaque ids (tested); the `consultation_access_end` log line carries the appointment's id only, the revocation's the count (tested to hold no name, e-mail, room or identity; the stack's logs after the measurement held none) |
-| Open: an `Encounter` started before the start of an appointment the revocation cancels stays `in-progress` | Neither the clinic's scope (hidden after the revocation) nor the patient's (read only) may finish it; it holds no clinical content. Owner decision pending (`docs/consultation/PROGRESS.md`, "Waiting on people") |
+| An `Encounter` started before the start of an appointment the revocation cancels stays `in-progress` | Closed in package 5.1: the room's scope finishes it (below) |
+
+### Package 5.1: the owner's changes after package 5
+
+**Processing added.** No new table or column. A new row-level security policy on `encounter`
+(`migrations/00023_encounter_room_scope.sql`): a transaction with a room set (`app.video_room`, no patient or
+account set) sees and updates the one encounter of the appointment whose session has that room, as the webhook
+scope on `video_session` does; it never creates one. The end of a session, which already runs in its room's
+scope, therefore finishes the `Encounter` of an appointment a revocation cancelled after the practitioner
+joined, with `period.end` set, although the clinic's scope no longer shows it. The appointment stays cancelled.
+
+**Access.** The room is a random name known only to the api, the worker and LiveKit; the scope shows nothing
+more than the session of that room already does (tested as `salus_app`: one encounter per room, nothing for an
+unknown room or with a patient or an account set, and the clinic's scope without the room still hides the
+encounter after the revocation). Every removal of a patient from a room (the webhook's re-check,
+`consultation_access_end`, `consent_revoked`) now writes an `AuditEvent` (operation, action `E`,
+`Appointment/<id>`, the removing agent, `HOPERAT`) before LiveKit is asked to remove them. It is written when
+LiveKit lists the patient in the room, so a repeat, which finds them gone, writes none.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A removal goes unrecorded | Audited before the removal; a failed audit removes nobody and the job or webhook is retried (tested per path, on the real database and the real LiveKit) |
+| The room's scope shows more than its consultation | It needs the session of that room; tested as `salus_app` against every other scope |

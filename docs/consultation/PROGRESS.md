@@ -7,7 +7,7 @@
 | 3 Webhooks | done, 2026-11-05 | `consultation(3)` |
 | 4 API | done, 2026-11-05 | `consultation(4)` |
 | 5 Revocation and cancellation during a call | done, 2026-11-05 | `consultation(5)` |
-| 5.1 Owner changes after package 5 | not started | |
+| 5.1 Owner changes after package 5 | done, 2026-11-05 | `consultation(5.1)` |
 | 6 Web | not started | |
 | 7 Mobile | not started | |
 | 8 End-to-end | not started | |
@@ -132,6 +132,15 @@
   - The text: approved with the owner's changes, recorded in `COPY.md`, the source for packages 6 and 7.
     ADR 0006 notes that "The consultation is not recorded" must change if recording is added. Packages 6 and 7
     are no longer held.
+
+- 2026-11-05, package 5.1 (agent's reading, within the owner's decision): a removal is audited when LiveKit
+  lists the patient in the room, before LiveKit is asked to remove them, in its own short transaction after the
+  path's decision. No column records a removal, and the owner's change adds no column, so the room itself tells a
+  first removal from a repeat: the repeat finds the patient gone and audits nothing, and LiveKit is still asked
+  again (package 5's healing retry). Audited first, so a failed audit removes nobody and River or LiveKit retries;
+  a removal that then fails is audited again on the retry. A patient who connects in the milliseconds between the
+  list and the removal is removed without an event of their own; the session's audit trail still has the path's
+  other events. The webhook's re-check uses the same rule.
 
 ## Waiting on people
 
@@ -612,3 +621,79 @@ append-only). The three started consultations stay `booked` with their sessions 
 `window_closed` about an hour after its run, finishing the `Encounter` and marking the appointment
 `fulfilled`. The three not-started ones are `cancelled` with their sessions ended `cancelled` and their rooms
 deleted, and their `Encounter`s stay `in-progress` (the open point above).
+
+### 2026-11-05 — package 5.1: Owner changes after package 5
+
+**What was built.**
+- `migrations/00023_encounter_room_scope.sql`: the `encounter_room` (SELECT) and `encounter_room_update` (UPDATE)
+  policies. With `app.video_room` set and no patient or account set, a transaction sees and updates the encounter
+  of the appointment whose session has that room (through `video_session`'s own policies). There is no INSERT
+  policy, no grant change and no new table. The end of a session already runs in its room's scope (`ending`), so
+  the `Encounter` of an appointment a revocation cancelled after the practitioner joined now finishes, with
+  `period.end` set. The appointment stays `cancelled` (`RecordConsultationOutcome` changes only a booked one).
+  No Go change was needed for that.
+- `videosession`: `removeFromRoom` is the one removal of a patient, used by the webhook's re-check, `EndAccess`
+  and `EndPatientAccess`. It lists the room, audits the removal (operation, action `E`, `Appointment/<id>`, the
+  removing agent, `HOPERAT`) when the patient is in it, then asks LiveKit to remove them. The fake provider now
+  takes a removed identity out of the room.
+- `TestScheduler_KnowsEveryKindTheWorkerAndTheNotifierWork` lists `consultation_window_close` (it already listed
+  `consultation_access_end`).
+- DPIA notes (package 5.1; package 5's open risk closed).
+
+**Tests seen failing first.**
+- migrations (`salus_app`): `TestEncounter_TheRoomScopeSeesAndFinishesOnlyItsRoomsEncounter` failed with `the room
+  of a cancelled appointment: sees [], want [3cc2…]`, `another room: sees [], want [c514…]`, `the room with clinic B
+  set: sees [6666…], want [3cc2… 6666…]` and `finished [6666…], want the room's and clinic B's own [3cc2… 6666…]`.
+  It passed after the migration.
+- worker (the case of package 5, real database and compose LiveKit):
+  `TestConsentRevoked_FinishesTheEncounterOfAConsultationTheRevocationCancelled` failed with `session cancelled,
+  encounter in-progress (period.end set false), appointment cancelled; want cancelled, finished with an end,
+  cancelled` and `0 audit events of the encounter's finish by the job, want 1`. It passed after the migration,
+  with no Go change.
+- scheduler: the test already passed with the kinds registered, so I took both registrations out of
+  `addDefaultWorkers`. It then failed with `Insert(consultation_access_end) error = job kind is not registered…` and
+  `Insert(consultation_window_close) error = job kind is not registered…`. Restored.
+- videosession service (fakes): `TestRemoval_EachPathAuditsTheRemovalOnceAndARepeatNothing` failed on all five
+  cases, for example `the webhook's re-check audited []` and `EndAccess, cancelled audited [the end only]`.
+  `TestRemoval_IsAuditedBeforeThePatientIsRemoved` failed with `with the audit failing: EndPatientAccess() =
+  <nil>, want the error` and `removed [r_room p_patient], events []; want nothing`, and the same for a failed list.
+- Written after the code, so I saw them fail by disabling the audit in `removeFromRoom`, then restored it. On the
+  real LiveKit, `TestEndPatientAccess_OnLiveKitDisconnectsOnlyThePatient` failed with `EndPatientAccess audited
+  []`. On the real database, `TestConsentRevoked_AuditsTheRemovalOfThePatientOnce` failed with `0 audit events of
+  the removal, want 1`.
+
+**What the tests cover.**
+- RLS (`salus_app`): a room shows exactly its session's encounter, also one the clinic's scope hides after the
+  revocation. An unknown room shows nothing, a room with a patient set shows only that patient's, and a room with
+  an account set shows nothing. Clinic B without the room still sees only its past appointment's. The room's scope
+  with its clinic finishes only those two. A room's scope cannot insert an encounter, with or without a session
+  in it.
+- Removal audit (fakes), for the webhook's re-check, `EndAccess` on a booked and on a cancelled appointment, and
+  `EndPatientAccess` on a started and on a cancelled one: one removal event by the path's agent (before the end's
+  event where there is one). The patient is out of the room and the practitioner still in it, and LiveKit is
+  asked outside any transaction. A repeat audits nothing and asks LiveKit to remove them again. A failed audit or
+  list removes nobody and fails for a retry. The package 5 tests stay as they were: a patient who is not in the
+  room is not audited as removed.
+- Worker (real database): the package 5 case ends with the session `cancelled`, the Encounter `finished` with
+  `period_end` set, and the appointment `cancelled`, with one Encounter update audited by `consent_revoked`. A
+  patient in the room of a started consultation is removed with one audit event (`operation`, `E`, `HOPERAT`,
+  the clinic, `Appointment/<id>`), and a retry adds none. The logs hold no name, e-mail, room or identity.
+- Real LiveKit: the revocation's removal of a connected patient writes the one removal event.
+
+**Removal latency in the stack (`make bench-removal`, as package 5, three runs per case).** The removal now
+lists the room first. Started before the revocation: 13, 11, 11 ms from the response (15, 13, 13 ms from
+`revoked_at`). Not started: 18, 17, 15 ms (20, 19, 18 ms). These are in package 5's range (5–11 / 19–27 ms), so
+no change is made for speed. One earlier run of the bench in this package, made while the stack was rebuilding, was
+not recorded. In the dev database the not-started consultations of these runs left no `Encounter` in progress
+(5 `finished` with `period_end`; the sixth never recorded the practitioner's join, so it has no Encounter). The
+worker's and the api's logs from the period held no e-mail, room or identity.
+
+**Checks.** `make lint`: 0 issues in both modules, migrations from `main` unchanged. `make archcheck`: passes.
+`make test`: passes. `make cover`: every package at 80% or more (`internal/videosession` 95.7%, `internal/worker`
+94.6%, `internal/encounter` 97.2%, total 94.9%). No query, `openapi.yaml` or FHIR change, so `make sqlc`,
+`make gen-clients` and `make fhir-validate` are not affected. Stack: `make up` rebuilt the api, worker and the
+others and applied migration 23 (goose version 23), then `make bench-removal` ran.
+
+**Dev database.** After the commit it is wiped as the owner asked (`docker compose … down -v`, then `make up`).
+That removes the synthetic data of packages 4, 5 and this package's runs, including package 5's three
+in-progress Encounters.

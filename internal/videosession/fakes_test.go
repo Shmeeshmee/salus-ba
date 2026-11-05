@@ -340,9 +340,13 @@ func (p *fakeProvider) Token(g videosession.Grant) (string, error) {
 	return "token:" + g.Identity, p.tokenErr
 }
 
+// RemoveParticipant records the removal and, unless it fails, takes the identity out of the room.
 func (p *fakeProvider) RemoveParticipant(ctx context.Context, room, identity string) error {
 	p.inTx = p.inTx || ctx.Value(txKey{}) != nil
 	p.removed = append(p.removed, room+" "+identity)
+	if p.removeErr == nil {
+		p.in = slices.DeleteFunc(p.in, func(id string) bool { return id == identity })
+	}
 	return p.removeErr
 }
 

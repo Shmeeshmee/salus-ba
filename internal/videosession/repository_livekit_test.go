@@ -448,7 +448,7 @@ func TestEndAccess_OnLiveKitDisconnectsThePatientAndDeletesTheRoom(t *testing.T)
 }
 
 // Real LiveKit: after the revocation's EndPatientAccess the patient is gone and the practitioner is still in
-// the room.
+// the room; the removal of the patient, who was there, is audited.
 func TestEndPatientAccess_OnLiveKitDisconnectsOnlyThePatient(t *testing.T) {
 	t.Parallel()
 	f, svc, patientGone, practitionerGone := onLiveKit(t)
@@ -473,4 +473,5 @@ func TestEndPatientAccess_OnLiveKitDisconnectsOnlyThePatient(t *testing.T) {
 		t.Errorf("the practitioner left (%q), want them still in the room", reason)
 	default:
 	}
+	checkEvents(t, "EndPatientAccess", f.audit, removalEvent(revocationAgent))
 }

@@ -290,3 +290,105 @@ func TestConsentRevoked_RemovesThePatientFromTheConsultations(t *testing.T) {
 		t.Errorf("%d audit events of the cancelled consultation's end by the job, want 1", n)
 	}
 }
+
+// The case of package 5 (SPEC.md §2 "Changed after package 5"): the practitioner joined in the minutes before
+// the start, then the patient revoked before the start. The revocation cancels the appointment, which the
+// clinic's scope then no longer shows; the job ends the session cancelled in its room's scope and finishes the
+// Encounter there too, with period.end set, instead of leaving it in progress. The appointment stays cancelled.
+func TestConsentRevoked_FinishesTheEncounterOfAConsultationTheRevocationCancelled(t *testing.T) {
+	t.Parallel()
+	db := newLogins(t)
+	b := seedBooking(t, db.owner)
+	c := consultationRows{room: "r_" + strings.ToLower(rand.Text()), patientIdentity: "p_" + strings.ToLower(rand.Text()),
+		practitionerIdentity: "p_" + strings.ToLower(rand.Text())}
+	if _, err := db.owner.Exec(t.Context(), `UPDATE appointment SET period = tstzrange(now() + interval '5 minutes', now() + interval '35 minutes')
+		WHERE id = $1`, b.future); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.owner.QueryRow(t.Context(), `INSERT INTO video_session (appointment_id, organization_id, room, patient_identity,
+			practitioner_identity, closes_at, practitioner_joined_at)
+		SELECT id, organization_id, $2, $3, $4, upper(period) + interval '30 minutes', now() - interval '5 minutes'
+		FROM appointment WHERE id = $1 RETURNING id::text`,
+		b.future, c.room, c.patientIdentity, c.practitionerIdentity).Scan(&c.session); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.owner.Exec(t.Context(), `INSERT INTO encounter (appointment_id, organization_id, patient_id, practitioner_role_id, status, period_start)
+		SELECT id, organization_id, patient_id, practitioner_role_id, 'in-progress', now() - interval '5 minutes' FROM appointment WHERE id = $1`,
+		b.future); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.owner.Exec(t.Context(), "UPDATE consent SET status = 'inactive', revoked_at = now() - interval '1 minute'"); err != nil {
+		t.Fatal(err)
+	}
+
+	ended, logs := runWorkerJob(t, db, consent.RevokedArgs{PatientID: b.patient, OrganizationID: clinicID})
+	if ended != river.EventKindJobCompleted {
+		t.Fatalf("the job ended %s, want completed:\n%s", ended, logs)
+	}
+	checkNoNames(t, logs, b, c)
+	var reason, encounter, appt string
+	var periodEnd bool
+	if err := db.owner.QueryRow(t.Context(), `SELECT
+		(SELECT coalesce(end_reason, 'open') FROM video_session WHERE id = $1),
+		(SELECT status FROM encounter WHERE appointment_id = $2), (SELECT period_end IS NOT NULL FROM encounter WHERE appointment_id = $2),
+		(SELECT status FROM appointment WHERE id = $2)`, c.session, b.future).Scan(&reason, &encounter, &periodEnd, &appt); err != nil {
+		t.Fatal(err)
+	}
+	if reason != "cancelled" || encounter != "finished" || !periodEnd || appt != "cancelled" {
+		t.Errorf("session %s, encounter %s (period.end set %t), appointment %s; want cancelled, finished with an end, cancelled",
+			reason, encounter, periodEnd, appt)
+	}
+	if n := countWhere(t, db, `SELECT count(*) FROM audit_event WHERE agent_name = 'consent_revoked' AND subtype_code = 'update'
+		AND entity_reference LIKE 'Encounter/%'`); n != 1 {
+		t.Errorf("%d audit events of the encounter's finish by the job, want 1", n)
+	}
+}
+
+// patientIn is the video provider reporting the identity in every room until it is removed; it passes the
+// calls on.
+type patientIn struct {
+	videosession.Provider
+	identity string
+	mu       sync.Mutex
+	removed  bool
+}
+
+func (p *patientIn) Participants(context.Context, string) ([]string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.removed {
+		return nil, nil
+	}
+	return []string{p.identity}, nil
+}
+
+func (p *patientIn) RemoveParticipant(ctx context.Context, room, identity string) error {
+	p.mu.Lock()
+	p.removed = p.removed || identity == p.identity
+	p.mu.Unlock()
+	return p.Provider.RemoveParticipant(ctx, room, identity)
+}
+
+// The revocation removes a patient who is in the room of a consultation that started before it: the removal
+// is one audit event of the job (operation, action E, the appointment, HOPERAT); a retry audits none.
+func TestConsentRevoked_AuditsTheRemovalOfThePatientOnce(t *testing.T) {
+	t.Parallel()
+	db := newLogins(t)
+	b := seedBooking(t, db.owner)
+	c := seedConsultation(t, db, b, true, true)
+	if _, err := db.owner.Exec(t.Context(), "UPDATE consent SET status = 'inactive', revoked_at = now() - interval '1 minute'"); err != nil {
+		t.Fatal(err)
+	}
+	p := &patientIn{Provider: liveKit(t), identity: c.patientIdentity}
+	for run := range 2 {
+		ended, logs := runWorkerJobWith(t, db, p, consent.RevokedArgs{PatientID: b.patient, OrganizationID: clinicID})
+		if ended != river.EventKindJobCompleted {
+			t.Fatalf("run %d: the job ended %s, want completed:\n%s", run, ended, logs)
+		}
+		checkNoNames(t, logs, b, c)
+	}
+	if n := countWhere(t, db, `SELECT count(*) FROM audit_event WHERE agent_name = 'consent_revoked' AND subtype_code = 'operation'
+		AND action = 'E' AND purpose_code = 'HOPERAT' AND organization_id = $1 AND entity_reference = $2`, clinicID, "Appointment/"+b.past); n != 1 {
+		t.Errorf("%d audit events of the removal, want 1", n)
+	}
+}

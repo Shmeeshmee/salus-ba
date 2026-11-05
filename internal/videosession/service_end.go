@@ -118,7 +118,8 @@ func (s *Service) ending(ctx context.Context, agent string, session Session, rea
 	return ended, s.Encounters.Finish(ctx, agent, ended.AppointmentID, at, !ended.PatientJoinedAt.IsZero())
 }
 
-// recordSystem audits the agent's end of the session as an operation on its appointment, for operations.
+// recordSystem audits the agent's operation on the session (its end, a join, the patient's removal) as an
+// operation on its appointment, for operations.
 func (s *Service) recordSystem(ctx context.Context, agent string, session Session) error {
 	return s.Audit.Record(ctx, auditevent.AuditEvent{
 		Type:            auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
