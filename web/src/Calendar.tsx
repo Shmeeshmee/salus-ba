@@ -1,10 +1,12 @@
 import { useState, type ReactNode } from 'react'
 import type { Account } from './api/client'
 import { participant, type Appointment, type Bundle, type FhirClient } from './api/fhir'
+import { joinWindow, useNow } from './consultation'
 import { ChevronIcon } from './icons'
 import { useLoad } from './load'
-import { statusLabels } from './messages'
+import { consultation as text, statusLabels } from './messages'
 import { PractitionerPicker } from './PractitionerPicker'
+import { navigate } from './route'
 import { loadStaff, loadTimeZone } from './staff'
 import { addDays, dayIn, dayLabel, sameDay, startOfDay, timeOf, weekOf, type Day } from './time'
 import { Alert, Link } from './ui'
@@ -54,7 +56,7 @@ export function Calendar({ fhir, account, now = () => new Date() }: Props) {
         <p className="muted small">Times in {zone}</p>
       </div>
       {practitionerId ? (
-        <Week fhir={fhir} practitionerId={practitionerId} start={start} zone={zone} now={now} />
+        <Week fhir={fhir} practitionerId={practitionerId} start={start} zone={zone} now={now} joins={account.role === 'practitioner'} />
       ) : (
         <p className="muted">No practitioners yet.</p>
       )}
@@ -71,9 +73,10 @@ function Panel({ children }: { children: ReactNode }) {
   )
 }
 
-type WeekProps = { fhir: FhirClient; practitionerId: string; start: Day; zone: string; now: () => Date }
+// joins: the signed-in practitioner sees the join button on their own appointments; an admin cannot join.
+type WeekProps = { fhir: FhirClient; practitionerId: string; start: Day; zone: string; now: () => Date; joins: boolean }
 
-function Week({ fhir, practitionerId, start, zone, now }: WeekProps) {
+function Week({ fhir, practitionerId, start, zone, now, joins }: WeekProps) {
   const from = startOfDay(start, zone)
   const to = startOfDay(addDays(start, 7), zone)
   const { state } = useLoad(async () => {
@@ -83,12 +86,13 @@ function Week({ fhir, practitionerId, start, zone, now }: WeekProps) {
     const bundle = await fhir.get<Bundle<Appointment>>(`Appointment?${query}`)
     return (bundle.entry ?? []).map((e) => e.resource).sort((a, b) => a.start.localeCompare(b.start))
   }, [fhir, practitionerId, from.getTime(), to.getTime()])
+  const at = useNow(now)
 
   if (state.name === 'loading') return <p className="muted">Loading</p>
   if (state.name === 'failed') return <Alert message={loadFailed} />
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i))
-  const today = dayIn(now(), zone)
+  const today = dayIn(at, zone)
   return (
     <>
       {state.value.length === 0 && <p className="muted">No appointments this week.</p>}
@@ -101,7 +105,7 @@ function Week({ fhir, practitionerId, start, zone, now }: WeekProps) {
             <section key={label} className={classes} aria-label={label}>
               <h2>{label}</h2>
               {appts.map((a) => (
-                <Card key={a.id} appt={a} zone={zone} now={now()} />
+                <Card key={a.id} appt={a} zone={zone} now={at} joins={joins} />
               ))}
             </section>
           )
@@ -111,12 +115,12 @@ function Week({ fhir, practitionerId, start, zone, now }: WeekProps) {
   )
 }
 
-function Card({ appt, zone, now }: { appt: Appointment; zone: string; now: Date }) {
+function Card({ appt, zone, now, joins }: { appt: Appointment; zone: string; now: Date; joins: boolean }) {
   const start = new Date(appt.start)
   const end = new Date(appt.end)
   const current = appt.status === 'booked' && start <= now && now < end
   const name = participant(appt, 'Patient')?.display
-  return (
+  const card = (
     <Link to={`/appointments/${appt.id}`} className={`appt ${appt.status}${current ? ' current' : ''}`}>
       <span className="appt-time">
         {timeOf(start, zone)}–{timeOf(end, zone)}
@@ -125,6 +129,15 @@ function Card({ appt, zone, now }: { appt: Appointment; zone: string; now: Date 
       {appt.status !== 'booked' && <span className="tag">{statusLabels[appt.status]}</span>}
       {current && <span className="now">Now</span>}
     </Link>
+  )
+  if (!joins || joinWindow(appt, now) !== 'open') return card
+  return (
+    <div className="appt-join">
+      {card}
+      <button type="button" className="primary" onClick={() => navigate(`/appointments/${appt.id}/call`)}>
+        {text.join}
+      </button>
+    </div>
   )
 }
 

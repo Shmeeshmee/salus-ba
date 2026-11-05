@@ -8,7 +8,7 @@
 | 4 API | done, 2026-11-05 | `consultation(4)` |
 | 5 Revocation and cancellation during a call | done, 2026-11-05 | `consultation(5)` |
 | 5.1 Owner changes after package 5 | done, 2026-11-05 | `consultation(5.1)` |
-| 6 Web | not started | |
+| 6 Web | done, 2026-11-05 | `consultation(6)` |
 | 7 Mobile | not started | |
 | 8 End-to-end | not started | |
 
@@ -141,6 +141,34 @@
   a removal that then fails is audited again on the retry. A patient who connects in the milliseconds between the
   list and the removal is removed without an event of their own; the session's audit trail still has the path's
   other events. The webhook's re-check uses the same rule.
+
+- 2026-11-05, package 6 (runner): the join button is the practitioner's only, on the calendar card and the
+  appointment detail (SPEC §2: admins cannot join, and patients join from the mobile app). The call screen is
+  `/appointments/<id>/call`, a path of the app; `/appointments/<id>/consultation` is the JSON status the dev
+  server proxies. The detail shows W2 before the window opens; the calendar shows nothing then. Both read the
+  clock again every 15 seconds, so the button appears and goes while the screen is open.
+- 2026-11-05, package 6 (runner): W18a needs to know why the patient left the room, and LiveKit tells the other
+  side nothing about it. When the patient leaves, the web app asks the join endpoint once more: `consent_required`
+  shows W18a, anything else W18. No API change; that request is audited like any join, and a 200 issues a token
+  the app does not use. W18b, W29 and W28 come from the status's `endReason` and `patientJoinedAt` once the room
+  is deleted.
+- 2026-11-05, package 6 (runner): a revocation before the appointment's start, with both already in the room,
+  cancels the appointment, ends the session `cancelled` and deletes the room. The clinic's scope then no longer
+  shows that consultation (SPEC §2 "Tables"), so the practitioner's status read is 404 and the screen shows W27
+  without a second line (seen in the walk). The owner may want W18a or W18b there; see the questions below.
+- 2026-11-05, package 6 (runner): COPY.md has no text for some cases, so none was written. A practitioner who
+  joins from a second tab replaces the first connection (LiveKit's rule for a repeated identity), and the first
+  tab shows W23 with "Join again" instead of rejoining on its own, so two tabs do not take turns. When `peerName`
+  is empty, the lines that need the name (W14, W16, W17, W18) are left out. A device the browser lists without
+  a label is not offered in the picker. Any device error other than a denial (no device, device in use) shows
+  W12.
+- 2026-11-05, package 6 (runner): W21 or W21b follows whether the patient joined: seen in this connection, or
+  `patientJoinedAt` from the status read right after connecting (a patient who came before a reload counts). W6
+  shows after 5 seconds below 0.02 RMS. A level that cannot be measured (the browser's audio context before any
+  click on the page) counts as neither sound nor silence. Join waits until both devices have opened or failed
+  (the walk found a join with both off when it was clicked first). A lost connection (any LiveKit disconnect
+  other than leaving, a closed room or a second tab) asks for a new token and rejoins once; if that fails it
+  shows W25 with "Try again". A room closed while the status is still `open` is rejoined the same way.
 
 ## Waiting on people
 
@@ -697,3 +725,118 @@ others and applied migration 23 (goose version 23), then `make bench-removal` ra
 **Dev database.** After the commit it is wiped as the owner asked (`docker compose … down -v`, then `make up`).
 That removes the synthetic data of packages 4, 5 and this package's runs, including package 5's three
 in-progress Encounters.
+
+### 2026-11-05 — package 6: Web
+
+**What was built.**
+- `web/package.json`: `livekit-client` 2.23.0, exact (the current release, published 2026-10-16), with its
+  dependencies in the lockfile.
+- `web/src/call.ts` is the one module that uses livekit-client and the browser's devices. It holds the `Media` and
+  `Room` contract the screens use, and `liveKit`: device lists, previews with a microphone level (Web Audio, RMS),
+  and the room. The room publishes camera and microphone only and sets no name, metadata or attributes. It maps
+  LiveKit's events to peer, reconnecting, reconnected and disconnected, with an `Ending`: left, ended, replaced or
+  lost. `src/test/fakeCall.ts` is its fake.
+- `web/src/DeviceCheck.tsx`: the camera preview, the microphone meter and the W6 silence line, pickers (W5), the
+  denied and missing states (W10–W12), "join with camera/microphone off" (W7), and Join and Joining… (W8, W9).
+- `web/src/CallScreen.tsx`: joining, waiting (W13, W14), the call (the remote video large, the own camera small;
+  W15–W17), the patient leaving or removed (W18, W18a), reconnecting (W24–W26), leave and join again (W23), "End
+  consultation" with its confirmation (W19–W22, W32b), the end (W27–W29, W18b), and the join errors (W30–W34,
+  W39).
+- `web/src/consultation.ts`: the join window (10 minutes before the start to 30 after the end, `booked` only),
+  the error code to text mapping, and `useNow`.
+- `Calendar.tsx`: W1 under the card of a joinable appointment. `AppointmentDetail.tsx`: W1 or W2, and the
+  "Consultation" section (W35–W38). `App.tsx`: the `/appointments/<id>/call` route. `messages.ts`: every string
+  from `COPY.md`, word for word, with its W number. `icons.tsx`: microphone, camera and leave. `app.css`: the
+  device check and the call, as in SPEC §2 "Web client". `vite.config.ts`: the dev server proxies the three
+  consultation endpoints.
+- `docs/privacy/dpia.md`: package 6.
+
+**Tests seen failing first** (Vitest, `docker compose … run node npx vitest run <file>`).
+- `consultation.test.ts`: `Failed to resolve import "./consultation"` (no test ran).
+- `Calendar.test.tsx`: 4 of the 5 new tests failed, because no "Join consultation" button was rendered (10 minutes
+  before, until 30 minutes after, opens the call path, appears when the window opens). The other two (hidden
+  just before and from 30 minutes after) passed, as they assert absence.
+- `AppointmentDetail.test.tsx`: 7 failed (`Unable to find role="button" name "Join consultation"`, the W2 hint
+  and the "Consultation" region); the absence cases passed.
+- `CallScreen.test.tsx`: `Failed to resolve import "./CallScreen"`. With the screen written, 3 failed on a test
+  bug: `Found multiple elements with the text of: Camera` (the preview and the picker shared the label). The
+  preview lost its label and the tests query the pickers by role.
+- `call.test.ts`: all 17 failed, `endingOf`, `problemOf` and `levelOf` not exported.
+- `App.test.tsx`: the call path showed "This page does not exist." (the heading was not found).
+- Found in the browser walk, each test first: `does not say it waits for the patient while it reconnects` failed
+  with `expected <h2></h2> to be null`, and `offers Join only once the camera and the microphone have opened or
+  failed` failed with `expected false to be true`.
+- Not seen failing: `does not take a level it cannot measure for silence` passed before its code, because
+  `undefined < 0.02` is false in JavaScript. The type (`number | undefined`) and the hook now handle it
+  explicitly.
+
+**What the tests cover.** The window's bounds to the second, and that it is closed for every status but
+`booked`. The button on the card and on the detail at those bounds, hidden for the admin and on an appointment
+that is not booked, and appearing when the clock passes the opening. The status section for `not_started`,
+`open` and `ended`, the times in the clinic's zone, the admin's view, and a failed read. The device check:
+preview, pickers, a picked camera opened and the previous one stopped, silence after 5 seconds, an unmeasurable
+level, a denied camera joining with audio only (camera turn-on disabled in the call), a denied microphone joining
+with the camera, missing devices, joining with the camera off, and Join waiting for the devices. Joining: the
+token request with the CSRF header, "Joining…", the URL and token passed to the room, and each refusal's text
+(`join_window_not_open`, `consultation_ended`, `practitioner_did_not_join`, `consent_required`, 404, 500) with no
+connection. A connection failure shows W34. In the call: waiting, then the patient; camera off and muted; mute and
+camera toggles; the patient leaving (W18) or removed after withdrawing consent (W18a); reconnecting and
+reconnected; a lost connection rejoined with a new token and the same settings; a failed rejoin with "Try again";
+events of a left room ignored; leave and join again; a second tab. The end: on a deleted room, the text for
+`practitioner` with and without the patient, `time_limit` and `cancelled`; the confirmation and its "Cancel"; the
+end with the CSRF header and W28; a patient who joined before this connection; `consultation_not_started`. The
+adapter: LiveKit's disconnect reasons, getUserMedia's errors, and the RMS level.
+
+**Browser walk (`make up`, the Vite dev server, two host Chrome 157 profiles, headless, with
+`--use-fake-device-for-media-stream` and `--use-fake-ui-for-media-stream`).** Each profile was driven over CDP by
+Playwright (Python 1.55.0, in a throwaway container on the host network). The practitioner's profile used the app
+with a synthetic session cookie. The patient's profile, on the same origin, took its token from the join endpoint
+with the patient's bearer and connected with livekit-client's UMD build and fake devices. The patients are
+mobile-only in the product.
+- Desktop (1280 px): the calendar card's button, the detail (button, "Not started"), the device check (preview
+  playing, pickers, meter), waiting, the patient's video arriving (`videoWidth` > 0) and the own preview. The
+  patient muted with the camera off showed W16 and W17, both gone when they came back. The practitioner's toggles
+  were seen by the patient. The patient leaving showed W18, and they rejoined.
+- LiveKit restarted under the call (`docker restart`): W24, then livekit-client's own resume failed ("requested
+  room does not exist"), and the app asked for a new token, rejoined (the join recreated the room) and showed W26.
+  The patient rejoined and the video played again.
+- The end: the confirmation with W21, then W27 and W28. The patient was disconnected with LiveKit's reason 5 (room
+  deleted). The detail then showed "Fulfilled", "Ended", "Patient joined at …" and "Practitioner joined at …".
+- Revocation after the start (second clinic): the patient revoked through the API, LiveKit removed them (reason 4),
+  W18a showed, and the practitioner ended the consultation.
+- Revocation before the start: the appointment was cancelled and the room deleted, and the practitioner saw W27
+  alone (Decisions above).
+- 390 px: calendar, detail, device check, call, confirmation, "You left…" and the end, with no horizontal scroll.
+- Fixed from the walk: the device check's panel class collided with the existing `.check` rule; Join before the
+  devices opened joined with both off; "Waiting for the patient" showed while reconnecting; the confirmation sat
+  beside the controls; the muted badge had no border.
+- The host-browser path to LiveKit works with the dev config (`deployments/livekit.yaml`, package 1's ICE
+  settings): signalling on `ws://localhost:7880` and media through the published 127.0.0.1 ports between two host
+  browser profiles. No change to the LiveKit config.
+- The api's, worker's and LiveKit's logs from the walk held no name, e-mail or token. The api and the worker held
+  no room or identity either; LiveKit logs its own opaque ones.
+
+**Checks.** `make web-lint`: 0 warnings, 0 errors. `make web-typecheck`: passes. `make web-test`: 16 files, 202
+tests pass. `make web-build`: passes, with Vite's chunk-size warning (835 kB minified, 233 kB gzip, most of it
+livekit-client; see Deferred). `make gen-clients`: no diff. Every consultation string in `messages.ts` checked
+against `COPY.md` by a script: 57 strings, none missing. `make lint`: 0 issues in both modules, migrations from
+`main` unchanged. `make archcheck`: passes. `make test`: passes. `make cover`: every package at 80% or more, total
+94.9%. No Go, `openapi.yaml` or FHIR change, so `make sqlc` and `make fhir-validate` are not affected.
+
+**Deferred.**
+- Splitting livekit-client into its own chunk (a lazy call screen) to shrink the first load. It is not measured
+  here as a problem, so it is not done.
+- livekit-client prints its own connection errors to the browser console, the signalling URL with the token
+  among them. That is the user's own browser, not a log of ours, but its log level could be lowered.
+- The patient's side is package 7. The Playwright e2e journey is package 8.
+
+**Dev stack left.** No migration. The dev database holds the walk's synthetic data, made through the API by a
+temporary e2e helper (deleted before the commit): 4 clinics, each with an admin and a practitioner; 4 patients,
+each with a consent (2 revoked) and one appointment with its slots, jobs and audit events (303 `audit_event` rows
+in all, append-only); and e-mails in Mailpit. The sessions: 3 ended `practitioner` (appointments `fulfilled`,
+`Encounter`s `finished`), 1 ended `cancelled` (appointment `cancelled`, `Encounter` `finished` with `period.end`).
+No room is left in LiveKit, which was restarted once during the walk and is healthy. The Vite dev container was
+stopped and removed. The Playwright image `mcr.microsoft.com/playwright/python:v1.55.0-noble` stays in the host's
+Docker image cache. Port 5173 is held by an unrelated container on this machine, so the walk used
+`SALUS_WEB_PORT=5175`; nothing of ours was changed for it.
+

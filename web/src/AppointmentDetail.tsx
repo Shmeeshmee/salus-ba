@@ -2,9 +2,11 @@ import { useState } from 'react'
 import type { Account, ApiClient } from './api/client'
 import { FhirError, nameOf, participant, type Appointment, type AppointmentStatus, type FhirClient, type Patient } from './api/fhir'
 import { attempt, type Outcome } from './api/result'
+import { joinWindow, useNow } from './consultation'
 import { ChevronIcon } from './icons'
 import { useLoad } from './load'
-import { somethingWrong, statusLabels } from './messages'
+import { consultation as text, somethingWrong, statusLabels } from './messages'
+import { navigate } from './route'
 import { loadTimeZone } from './staff'
 import { longDate, timeOf } from './time'
 import { Alert, Link } from './ui'
@@ -15,7 +17,8 @@ type Detail = { zone: string; appt: Appointment; profile?: Patient }
 // AppointmentDetail shows one appointment in the clinic's time zone. A practitioner sees the patient's profile
 // when the Patient read answers, and otherwise the name the appointment carries, or nothing; an admin never
 // has the profile (SPEC "FHIR reads and searches"), so it is not asked for. The practitioner records the
-// outcome once the appointment has started; the practitioner and the admin can cancel it.
+// outcome once the appointment has started; the practitioner and the admin can cancel it. The practitioner joins
+// the video consultation inside its window (an admin cannot join), and both see whether each side joined.
 export function AppointmentDetail({ api, fhir, account, id, now = () => new Date() }: Props) {
   const organizationId = account.organizationId ?? ''
   const practitioner = account.role === 'practitioner'
@@ -63,6 +66,8 @@ function loadMessage(err: unknown): string {
 type BodyProps = Detail & { api: ApiClient; practitioner: boolean; now: () => Date; onChanged: (s: AppointmentStatus) => void }
 
 function Body({ zone, appt, profile, api, practitioner, now, onChanged }: BodyProps) {
+  const at = useNow(now)
+  const join = joinWindow(appt, at)
   const start = new Date(appt.start)
   const end = new Date(appt.end)
   const name = profile ? nameOf(profile.name?.[0]) : participant(appt, 'Patient')?.display
@@ -74,8 +79,41 @@ function Body({ zone, appt, profile, api, practitioner, now, onChanged }: BodyPr
         <span className={`tag ${appt.status}`}>{statusLabels[appt.status]}</span>
       </p>
       {profile && <Profile patient={profile} />}
-      {appt.status === 'booked' && <Actions api={api} id={appt.id} practitioner={practitioner} started={now() >= start} onChanged={onChanged} />}
+      {practitioner && join === 'open' && (
+        <div className="actions join">
+          <button type="button" className="primary" onClick={() => navigate(`/appointments/${appt.id}/call`)}>
+            {text.join}
+          </button>
+        </div>
+      )}
+      {practitioner && join === 'before' && <p className="hint join">{text.joinFrom}</p>}
+      <Consultation api={api} id={appt.id} zone={zone} />
+      {appt.status === 'booked' && <Actions api={api} id={appt.id} practitioner={practitioner} started={at >= start} onChanged={onChanged} />}
     </>
+  )
+}
+
+// Consultation is whether the video consultation started, and whether each side joined (SPEC §2 "Consultation
+// status"). A side that has not joined is named only once the consultation has ended. Left out when the status
+// cannot be read.
+function Consultation({ api, id, zone }: { api: ApiClient; id: string; zone: string }) {
+  const { state } = useLoad(() => attempt(api.GET('/appointments/{id}/consultation', { params: { path: { id } } })), [api, id])
+  if (state.name !== 'loaded' || !state.value.ok) return null
+  const status = state.value.data
+  const ended = status.state === 'ended'
+  const joined = (at: string | undefined, joinedAt: (time: string) => string, didNot: string) => {
+    if (at) return <li>{joinedAt(timeOf(new Date(at), zone))}</li>
+    return ended ? <li>{didNot}</li> : null
+  }
+  return (
+    <section className="consultation" aria-label={text.title}>
+      <h2>{text.title}</h2>
+      <ul>
+        <li>{text.states[status.state]}</li>
+        {joined(status.patientJoinedAt, text.patientJoinedAt, text.patientDidNotJoin)}
+        {joined(status.practitionerJoinedAt, text.practitionerJoinedAt, text.practitionerDidNotJoin)}
+      </ul>
+    </section>
   )
 }
 

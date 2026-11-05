@@ -48,6 +48,13 @@ describe('App', () => {
     expect(location.pathname).toBe('/')
   })
 
+  it("opens an appointment's consultation on its call path", async () => {
+    const practitioner: Account = { ...admin, role: 'practitioner', practitionerId: 'a3000000-0000-4000-8000-0000000000a1' }
+    renderAt('/appointments/e1000000-0000-4000-8000-000000000001/call', staff(practitioner))
+
+    expect(await screen.findByRole('heading', { name: 'Check your camera and microphone' })).toBeTruthy()
+  })
+
   it('shows the accept invite screen on /invite', () => {
     renderAt('/invite#tok-synthetic', {})
 

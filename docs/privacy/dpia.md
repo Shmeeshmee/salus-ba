@@ -734,3 +734,26 @@ LiveKit lists the patient in the room, so a repeat, which finds them gone, write
 | --- | --- |
 | A removal goes unrecorded | Audited before the removal; a failed audit removes nobody and the job or webhook is retried (tested per path, on the real database and the real LiveKit) |
 | The room's scope shows more than its consultation | It needs the session of that room; tested as `salus_app` against every other scope |
+
+### Package 6: web app
+
+**Processing added.** No new table, column or endpoint. The practitioner's web app joins the consultation with
+`livekit-client` (pinned, `web/src/call.ts` the only module that uses it): it asks our API for a token on every
+join and rejoin and connects to our own LiveKit; LiveKit gets the token only, never a name. The patient's name
+shown in the call comes from the join response (`peerName`, already audited as a `Patient` read in package 1).
+The appointment detail shows the consultation's state and when each side joined
+(`GET /appointments/{id}/consultation`, audited as a read of the appointment since package 4), to the
+practitioner and the admin. Camera and microphone stay in the browser until the practitioner joins; the device
+check's preview and level meter are local and are stopped when the check is left.
+
+**Access.** The join button is offered to the appointment's practitioner only, inside the window; the server
+decides every token. When the patient leaves the room the app asks the join endpoint once more to tell a patient
+who left from one removed after withdrawing consent (`consent_required`); that request is audited like any join.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The browser keeps the camera or microphone on after the check or the call | Previews are stopped when another device is picked and when the check is left (tested with a fake); the room is left on leave, end and when the screen closes |
+| Patient data in what the web app sends to LiveKit | Nothing but our token; no name, metadata or attributes are set by the client (`call.ts`); the walk's api, worker and LiveKit logs held no name, e-mail or token |
+| Text that misstates what happens to the appointment | Every string is the owner's approved text (`docs/consultation/COPY.md`), checked word for word |

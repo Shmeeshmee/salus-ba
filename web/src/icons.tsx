@@ -79,3 +79,32 @@ export function CrossIcon() {
     </svg>
   )
 }
+
+// Call controls: a slash across the icon when it is off.
+export function MicrophoneIcon({ off = false }: { off?: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <rect x="7.5" y="2.5" width="5" height="9" rx="2.5" />
+      <path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5" />
+      {off && <path d="M3.5 3.5l13 13" />}
+    </svg>
+  )
+}
+
+export function CameraIcon({ off = false }: { off?: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <rect x="2.5" y="5.5" width="10.5" height="9" rx="2" />
+      <path d="M13 9l4.5-2.5v7L13 11" />
+      {off && <path d="M3.5 3.5l13 13" />}
+    </svg>
+  )
+}
+
+export function LeaveIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <path d="M11 3.5H5.5v13H11M14 7l3 3-3 3M17 10H9" />
+    </svg>
+  )
+}

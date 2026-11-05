@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Calendar } from './Calendar'
 import type { Account } from './api/client'
@@ -18,9 +18,9 @@ const week = [
   appointment('e1000000-0000-4000-8000-000000000003', '2026-11-12T09:00:00Z', '2026-11-12T09:30:00Z', { status: 'cancelled' }, 'Bo Sample'),
 ]
 
-function renderCalendar(account: Account, routes: Record<string, Route>) {
+function renderCalendar(account: Account, routes: Record<string, Route>, clock = now) {
   const fake = fakeFetch({ ...clinicRoute, ...routes })
-  render(<Calendar fhir={newFhirClient(fake.fetch)} account={account} now={now} />)
+  render(<Calendar fhir={newFhirClient(fake.fetch)} account={account} now={clock} />)
   return fake
 }
 
@@ -101,5 +101,64 @@ describe('Calendar', () => {
     renderCalendar(practitioner, { [search]: () => outcome(500, 'exception') })
 
     expect((await screen.findByRole('alert')).textContent).toBe('The calendar could not be loaded. Reload the page to try again.')
+  })
+
+  describe('the join button', () => {
+    const first = 'e1000000-0000-4000-8000-000000000001' // Monday 08:00 to 08:30 UTC
+    const joinButton = () => screen.queryByRole('button', { name: 'Join consultation' })
+
+    it.each([
+      ['10 minutes before the start', '2026-11-09T07:50:00Z', true],
+      ['just before that', '2026-11-09T07:49:59Z', false],
+      ['until 30 minutes after the end', '2026-11-09T08:59:59Z', true],
+      ['from 30 minutes after the end', '2026-11-09T09:00:00Z', false],
+    ])('is shown to the practitioner %s', async (_, at, shown) => {
+      renderCalendar(practitioner, { [search]: () => fhirJSON(searchset(week)) }, () => new Date(at))
+
+      await screen.findByText('Ada Example')
+      expect(joinButton() !== null).toBe(shown)
+    })
+
+    it('opens the consultation of its appointment', async () => {
+      renderCalendar(practitioner, { [search]: () => fhirJSON(searchset(week)) })
+
+      const monday = await screen.findByRole('region', { name: 'Mon 9 Nov' })
+      fireEvent.click(within(monday).getByRole('button', { name: 'Join consultation' }))
+
+      expect(location.pathname).toBe(`/appointments/${first}/call`)
+      history.replaceState(null, '', '/')
+    })
+
+    it('is hidden on an appointment that is no longer booked', async () => {
+      const fulfilled = { ...week[0], status: 'fulfilled' as const }
+      renderCalendar(practitioner, { [search]: () => fhirJSON(searchset([fulfilled])) })
+
+      await screen.findByText('Ada Example')
+      expect(joinButton()).toBeNull()
+    })
+
+    it('is not offered to an admin, who cannot join', async () => {
+      renderCalendar(admin, { ...staffRoute, [search]: () => fhirJSON(searchset(week)) })
+
+      await screen.findByText('Ada Example')
+      expect(joinButton()).toBeNull()
+    })
+
+    it('appears when the window opens while the calendar is shown', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+      try {
+        let at = new Date('2026-11-09T07:49:50Z')
+        renderCalendar(practitioner, { [search]: () => fhirJSON(searchset(week)) }, () => at)
+        await screen.findByText('Ada Example')
+        expect(joinButton()).toBeNull()
+
+        at = new Date('2026-11-09T07:50:05Z')
+        act(() => vi.advanceTimersByTime(15_000))
+
+        expect(joinButton()).not.toBeNull()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 })

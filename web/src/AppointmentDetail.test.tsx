@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppointmentDetail } from './AppointmentDetail'
 import { newApiClient, type Account } from './api/client'
@@ -27,13 +27,14 @@ const read = `GET /fhir/R4/Appointment/${id}`
 const patientRead = `GET /fhir/R4/Patient/${patientId}`
 const statusPost = `POST /appointments/${id}/status`
 const cancelPost = `POST /appointments/${id}/cancel`
+const statusGet = `GET /appointments/${id}/consultation`
 
 function answer(status: string) {
   return Response.json({ id, organizationId: org, practitionerRoleId: cy.roleId, slotId: id, start: booked.start, end: booked.end, status, versionId: 2 })
 }
 
 function renderDetail(account: Account, routes: Record<string, Route>, now = after) {
-  const fake = fakeFetch({ ...clinicRoute, ...routes })
+  const fake = fakeFetch({ ...clinicRoute, [statusGet]: () => apiError(404, 'not_found'), ...routes })
   render(<AppointmentDetail api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} id={id} now={now} />)
   return fake
 }
@@ -162,5 +163,102 @@ describe('AppointmentDetail', () => {
     renderDetail(practitioner, { [read]: () => outcome(404, 'not-found') })
 
     expect((await screen.findByRole('alert')).textContent).toBe('This appointment could not be found.')
+  })
+
+  describe('the join button', () => {
+    const routes = { [read]: () => fhirJSON(booked), [patientRead]: () => outcome(404, 'not-found') }
+    const joinButton = () => screen.queryByRole('button', { name: 'Join consultation' })
+
+    it('opens the consultation inside the window', async () => {
+      renderDetail(practitioner, routes)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Join consultation' }))
+
+      expect(location.pathname).toBe(`/appointments/${id}/call`)
+      history.replaceState(null, '', '/')
+    })
+
+    it('says when joining opens, before the window', async () => {
+      renderDetail(practitioner, routes, () => new Date('2026-11-09T07:49:59Z'))
+
+      expect(await screen.findByText('You can join from 10 minutes before the start.')).toBeTruthy()
+      expect(joinButton()).toBeNull()
+    })
+
+    it('is shown from 10 minutes before the start', async () => {
+      renderDetail(practitioner, routes, () => new Date('2026-11-09T07:50:00Z'))
+
+      expect(await screen.findByRole('button', { name: 'Join consultation' })).toBeTruthy()
+      expect(screen.queryByText('You can join from 10 minutes before the start.')).toBeNull()
+    })
+
+    it('is gone 30 minutes after the end', async () => {
+      renderDetail(practitioner, routes, () => new Date('2026-11-09T09:00:00Z'))
+
+      await screen.findByRole('button', { name: 'Mark fulfilled' })
+      expect(joinButton()).toBeNull()
+      expect(screen.queryByText('You can join from 10 minutes before the start.')).toBeNull()
+    })
+
+    it('is not offered to an admin, who cannot join', async () => {
+      renderDetail(admin, { [read]: () => fhirJSON(booked) })
+
+      await screen.findByRole('button', { name: 'Cancel appointment' })
+      expect(joinButton()).toBeNull()
+    })
+  })
+
+  describe('the consultation', () => {
+    const routes = (status: unknown) => ({
+      [read]: () => fhirJSON(booked),
+      [patientRead]: () => outcome(404, 'not-found'),
+      [statusGet]: () => Response.json(status),
+    })
+    const section = async () => within(await screen.findByRole('region', { name: 'Consultation' }))
+
+    it('shows that it has not started', async () => {
+      renderDetail(practitioner, routes({ state: 'not_started' }))
+
+      const s = await section()
+      expect(s.getByText('Not started')).toBeTruthy()
+      expect(s.queryByText(/joined|did not join/)).toBeNull()
+    })
+
+    it('shows who joined, in the clinic zone, while it is open', async () => {
+      renderDetail(practitioner, routes({ state: 'open', practitionerJoinedAt: '2026-11-09T07:58:00Z' }))
+
+      const s = await section()
+      expect(s.getByText('Open')).toBeTruthy()
+      expect(s.getByText('Practitioner joined at 08:58')).toBeTruthy()
+      expect(s.queryByText(/Patient/)).toBeNull()
+    })
+
+    it('shows to the admin who did not join once it has ended', async () => {
+      renderDetail(admin, {
+        [read]: () => fhirJSON(booked),
+        [statusGet]: () => Response.json({ state: 'ended', patientJoinedAt: '2026-11-09T08:01:00Z', endedAt: '2026-11-09T09:00:00Z', endReason: 'practitioner_absent' }),
+      })
+
+      const s = await section()
+      expect(s.getByText('Ended')).toBeTruthy()
+      expect(s.getByText('Patient joined at 09:01')).toBeTruthy()
+      expect(s.getByText('Practitioner did not join')).toBeTruthy()
+    })
+
+    it('shows that neither joined', async () => {
+      renderDetail(practitioner, routes({ state: 'ended', endedAt: '2026-11-09T09:00:00Z', endReason: 'practitioner_absent' }))
+
+      const s = await section()
+      expect(s.getByText('Patient did not join')).toBeTruthy()
+      expect(s.getByText('Practitioner did not join')).toBeTruthy()
+    })
+
+    it('is left out when the status cannot be read', async () => {
+      renderDetail(practitioner, { [read]: () => fhirJSON(booked), [patientRead]: () => outcome(404, 'not-found') })
+
+      await screen.findByRole('button', { name: 'Mark fulfilled' })
+      await vi.waitFor(() => expect(screen.queryByText('Loading')).toBeNull())
+      expect(screen.queryByRole('region', { name: 'Consultation' })).toBeNull()
+    })
   })
 })
