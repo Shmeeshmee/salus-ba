@@ -246,6 +246,7 @@ comes from the same SDK. Pinned exact in `go.mod`, versions recorded in `PROGRES
 | `video_session` | `room`, `patient_identity`, `practitioner_identity` | Random ids that tie LiveKit's events back to the appointment; LiveKit never learns who they are |
 | `video_session` | `patient_joined_at`, `practitioner_joined_at` | Whether each side came, for `fulfilled` versus `noshow` and the start of the `Encounter` |
 | `video_session` | `ended_at`, `end_reason` | That the consultation is over, so no new token is issued, and why |
+| `video_session` | `closes_at` (added in package 1, PROGRESS.md) | The join window's close (the appointment's end + 30 minutes), copied once: the retention of a session that never ended runs from it, as `salus_retention` may read only `video_session` |
 | `encounter` | `appointment_id`, `patient_id`, `practitioner_role_id`, `organization_id` | The Encounter's `appointment`, `subject`, `participant` and `serviceProvider` |
 | `encounter` | `status`, `period_start`, `period_end` | That the consultation took place and when: the care record |
 | LiveKit (memory, during the call) | Opaque identities, the room name, live media | To run the call. No name, e-mail, metadata or recording |

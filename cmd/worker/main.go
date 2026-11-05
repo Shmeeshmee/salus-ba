@@ -38,6 +38,11 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// Required from the start, like the api (docs/consultation/SPEC.md §2 "Configuration"); the
+	// consultation's jobs take them.
+	if _, err := config.LoadLiveKit(); err != nil {
+		return err
+	}
 	ret := config.LoadRetention()
 	if ret.DatabaseURL == "" {
 		return errors.New("config: RETENTION_DATABASE_URL is required")

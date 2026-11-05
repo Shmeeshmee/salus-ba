@@ -255,3 +255,19 @@ type Slot struct {
 	Status         string
 	Period         pgtype.Range[pgtype.Timestamptz]
 }
+
+type VideoSession struct {
+	ID                   pgtype.UUID
+	CreatedAt            pgtype.Timestamptz
+	UpdatedAt            pgtype.Timestamptz
+	ClosesAt             pgtype.Timestamptz
+	PatientJoinedAt      pgtype.Timestamptz
+	PractitionerJoinedAt pgtype.Timestamptz
+	EndedAt              pgtype.Timestamptz
+	AppointmentID        pgtype.UUID
+	OrganizationID       pgtype.UUID
+	Room                 string
+	PatientIdentity      string
+	PractitionerIdentity string
+	EndReason            pgtype.Text
+}

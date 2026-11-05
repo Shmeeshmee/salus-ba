@@ -68,5 +68,11 @@ func Rules() []Rule {
 			Keep:  30 * day, // after the end of a free slot
 			Then:  ThenDelete,
 		},
+		{
+			Table: "video_session",
+			Basis: "Running the consultation (GDPR Art. 9(2)(h), with the consent for sharing before care) until it ends; then 30 days for operations and disputes; needs a legal decision before production (docs/consultation/SPEC.md sections 4 and 5)",
+			Keep:  30 * day, // after ended_at, or after the join window's close for a session that never ended
+			Then:  ThenDelete,
+		},
 	}
 }

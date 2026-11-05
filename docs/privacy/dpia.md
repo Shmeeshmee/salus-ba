@@ -554,3 +554,43 @@ clinics chose to publish.
 | A revocation whose effect surprises the patient | The consent screen and the confirmation dialog both say that the clinic keeps the patient's name and the details of appointments that have already taken place, as its care records, and that future appointments are cancelled; tested |
 | Personal data in logs or on screen from an error | The app prints nothing (a widget test captures `debugPrint` through a whole booking); API errors map to fixed sentences, never the response body |
 | Patient data left on the device | Nothing but the session token is stored, in secure storage |
+
+## Video consultations (`docs/consultation`)
+
+### Package 1: videosession
+
+**Processing added.** The first token request for an appointment's consultation stores its `video_session`:
+the appointment and clinic ids, a random room name and two random participant identities (`r_…`, `p_…`, 128
+bits from `crypto/rand`, derived from no id of ours), the join window's close (the appointment's end + 30
+minutes), and later who joined when and how it ended. `videosession.Service.Join` issues a 5-minute LiveKit
+token for that one room to the appointment's patient or its practitioner only; its HTTP endpoint arrives in
+package 4. The room is created on our own LiveKit (`deployments/livekit.yaml`) with no metadata and at most
+two participants; the token carries the identity and the grant only, no name, metadata or attributes (tested
+against the compose LiveKit). The other person's name comes from our API: the practitioner's public name for
+the patient, the patient's name at the access level for the practitioner (audited as a `Patient` read).
+
+**Purpose and lawful basis.** Running the consultation, part of the care: Art. 9(2)(h), with the active
+consent for the sharing before care (SPEC.md section 4), checked for both participants. **Needs legal
+confirmation before production.**
+
+**Necessity and minimisation.** The fields of SPEC.md section 5; `closes_at` is there so the retention role,
+which may read only `video_session`, can delete a session that never ended. LiveKit holds only the random
+names and the live media, in memory; nothing is recorded (ADR 0006). Errors of the provider keep LiveKit's
+error code only, never a room, identity or token (tested).
+
+**Access.** Row-level security on `video_session`: the patient's own; a clinic's with an active consent or,
+after a revocation, for an appointment that started before it; the webhook's `app.video_room` (package 3)
+sees and updates the one session of its room and creates none. `salus_app` cannot delete or change what a
+session is for (tested). Every join, issued or refused, writes an `AuditEvent` (`operation`, action `E`).
+
+**Retention.** `video_session`: `delete` 30 days after `ended_at`, or after the window's close for a session
+that never ended, by the retention job (`salus_retention`: `SELECT, DELETE` on this table only). **Needs a
+legal decision before production.**
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| LiveKit (or its logs) learns who is in a call | Random room and identities, no name, metadata or attributes in the token or the room (tested); JSON logs at info |
+| Someone else joins the call | The token grants one room, for 5 minutes, to the patient's or the practitioner's fixed identity; `max_participants` 2; a repeated identity replaces the earlier connection (tested); `room.auto_create` off, so a token cannot create a room (tested) |
+| A join without consent or outside the window | Checked in the service before any session or token; refusals audited (tested) |
