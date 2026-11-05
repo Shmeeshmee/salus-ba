@@ -50,6 +50,9 @@ the stack with `make up`, and in `mobile/`:
     flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080   # Android emulator (10.0.2.2 is the host)
     flutter run --dart-define=API_BASE_URL=http://localhost:8080  # iOS simulator
 
+Add `--dart-define=PRIVACY_NOTICE_URL=https://…` for the privacy notice the consent screen links to; without
+it the link goes to a placeholder (`https://salus.invalid/privacy`) until the notice is published.
+
 Use your `SALUS_API_PORT` if you moved it. Android debug builds allow plain HTTP to the local API; on iOS,
 add an App Transport Security exception for local networking in your local `Info.plist` and do not commit it.
 This is a manual step and not part of any check.

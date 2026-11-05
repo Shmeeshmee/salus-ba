@@ -106,7 +106,12 @@ Decisions taken in this plan (reopen only with the owner):
   `v3-ActReason` `TREAT`, `actor` the clinic with role `v3-ParticipationType` `IRCP`. JSON: `POST /consents`
   `{organizationId}` (patient; 409 if one is active), `POST /consents/{id}/revoke`, `GET /me/consents` (the
   mobile list). Booking without an active consent answers 409 `consent_required`; mobile then shows the
-  consent screen, grants, and books.
+  consent screen, grants, and books. The screen says what is shared, who sees it, what for, who is
+  responsible ("[Clinic] is responsible for your data. Salus processes it on the clinic's behalf.", with a
+  "Read the privacy notice" link to `PRIVACY_NOTICE_URL`, a build-time setting with a placeholder for now),
+  and how to revoke: the clinic then no longer sees the profile, keeps the name and the details of
+  appointments that have already taken place as its care records, and future appointments are cancelled. The
+  revoke dialog says the same (owner, 2026-11-05).
 - **Revocation (changed on approval).** `consent.Service.Revoke` sets `inactive` and `revoked_at`, audits,
   and enqueues `consent_revoked` (arguments: the patient id and the clinic id) with `InsertTx`, all in one
   transaction. Access is gone when that transaction commits: RLS and `access` read the consent's state, not
@@ -312,7 +317,22 @@ audit ranges (see "Up next"), practitioner deactivation (and so the `restrict` a
   10-year rule as the owner. Needed before 2036-11; the retention job alerts if a row is overdue earlier.
 - **Subject rights.** `Patient/$everything` export, erasure under the retention rules.
 
-## 7. Done when
+## 7. Before production
+
+Open items that do not block a merge but must be settled before any real clinic or patient uses the product:
+
+- Legal decision on the retention of `appointment` and `consent`, and legal confirmation of the lawful-basis
+  split (§3, §4).
+- The consent and privacy text (the mobile consent screen, the revoke dialog and the privacy notice) needs
+  legal review.
+- Whether booking should require consent at all, given that care rests on Art. 9(2)(h) (§3).
+- The patient app must be localised (Bosnian, Croatian, Serbian: bs/hr/sr) before any real clinic uses it.
+- `PATIENT_APP_URL` (the link in appointment e-mails) and `PRIVACY_NOTICE_URL` (the published privacy notice):
+  both placeholders today.
+- The canonical base of our FHIR definitions, `https://salus.invalid/fhir`: needs the real domain.
+- Ops: provisioning `salus_retention` where `migrate` is not a superuser.
+
+## 8. Done when
 
 All ten packages are committed on `feat/booking`; `make lint`, `make test`, `make archcheck`, `make cover`
 (every package at 80% or more), `make fhir-validate` and `make e2e` pass locally and in CI; `make gen-clients`

@@ -4,8 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support.dart';
 
 const revokeWarning =
-    '$clinicName will no longer see your profile, and your future appointments with $clinicName will be '
-    'cancelled. Past appointments stay with the clinic as part of its care records.';
+    '$clinicName will no longer see your profile. It keeps your name and the details of appointments that have '
+    'already taken place, as part of its care records. Your future appointments with $clinicName will be '
+    'cancelled.';
 
 Future<Harness> atConsents(WidgetTester tester) async {
   final h = Harness(store: FakeTokenStore(token));

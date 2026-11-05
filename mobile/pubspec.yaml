@@ -43,6 +43,11 @@ dependencies:
   # DateTime (UTC or the device's zone only) cannot do. Pinned exact.
   timezone: 0.11.2
 
+  # Opens the privacy notice (PRIVACY_NOTICE_URL) in the device's browser from the consent screen
+  # (docs/booking/SPEC.md "Consent shape"). Flutter's own plugin; opening a URL needs platform code on iOS and
+  # Android otherwise. Pinned exact.
+  url_launcher: 6.3.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

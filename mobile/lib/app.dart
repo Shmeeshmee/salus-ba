@@ -4,6 +4,7 @@ import 'package:salus_api/api.dart';
 import 'booking.dart';
 import 'home_screen.dart';
 import 'messages.dart';
+import 'privacy_notice.dart';
 import 'register_screen.dart';
 import 'session.dart';
 import 'sign_in_screen.dart';
@@ -13,13 +14,24 @@ enum _Screen { loading, startFailed, signIn, register, home }
 
 /// The patient app: restores the stored session, then shows sign-in, registration or the signed-in screens.
 class SalusApp extends StatefulWidget {
-  const SalusApp({super.key, required this.session, required this.booking, required this.now});
+  const SalusApp({
+    super.key,
+    required this.session,
+    required this.booking,
+    required this.now,
+    required this.privacyNoticeUrl,
+    required this.openUrl,
+  });
 
   final Session session;
   final Booking booking;
 
   /// The clock, injected so tests fix it.
   final DateTime Function() now;
+
+  /// The privacy notice (PRIVACY_NOTICE_URL), and how a link is opened outside the app; injected so tests see it.
+  final Uri privacyNoticeUrl;
+  final Future<bool> Function(Uri url) openUrl;
 
   @override
   State<SalusApp> createState() => _SalusAppState();
@@ -68,7 +80,12 @@ class _SalusAppState extends State<SalusApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(title: 'Salus', theme: ui.salusTheme, home: _current());
+    return MaterialApp(
+      title: 'Salus',
+      theme: ui.salusTheme,
+      builder: (context, child) => PrivacyNotice(url: widget.privacyNoticeUrl, open: widget.openUrl, child: child!),
+      home: _current(),
+    );
   }
 
   Widget _current() {
