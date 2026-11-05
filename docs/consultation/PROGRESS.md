@@ -1265,3 +1265,11 @@ people".
 by hand to the migration's new check (`ALTER POLICY`, no data touched). The `make e2e` run and `make
 bench-removal` added their synthetic clinics, patients, appointments, sessions, jobs and audit events through the
 API, as before. The stack is up as it was.
+
+### 2026-11-06 — e2e and the login rate limit (after the merge of PR #20)
+
+The suite signs in about 9 times per run from one IP, against the login limit of 30 per IP per 15 minutes
+(package 8), so only three `make e2e` runs fit in a window. `make e2e` now clears the login counters
+(`ratelimit:*`) in the compose Redis before each run; the production limit is unchanged. Red first: with the
+counter raised past the limit after a run, `make e2e` failed with `POST /auth/login = 429` in every journey;
+with the reset, the same state passed.
