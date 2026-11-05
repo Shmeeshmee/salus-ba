@@ -4,6 +4,8 @@
          watches to reconnect. No camera is required: a patient can join with audio only. Bluetooth headsets on
          Android 12 and later would need BLUETOOTH_CONNECT, a run-time prompt with no approved text; it is not
          declared. -->
+    <!-- The network: the API and LiveKit. The debug and profile manifests have it for Flutter's tooling only. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
