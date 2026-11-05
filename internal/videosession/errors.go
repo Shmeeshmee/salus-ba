@@ -14,4 +14,10 @@ var (
 	// ErrConsultationEnded is returned once the session ended, the window closed, or the appointment is no
 	// longer booked.
 	ErrConsultationEnded = errors.New("videosession: consultation ended")
+	// ErrInvalidSignature is returned for a webhook that LiveKit did not sign for its body with our key pair,
+	// or whose signature has expired.
+	ErrInvalidSignature = errors.New("videosession: invalid webhook signature")
+	// ErrUnknownRoom is returned for a webhook event about a room or a participant we do not know: it has no
+	// effect.
+	ErrUnknownRoom = errors.New("videosession: unknown room")
 )

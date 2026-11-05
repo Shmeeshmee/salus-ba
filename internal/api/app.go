@@ -10,8 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/riverqueue/river"
 
 	"github.com/Shmeeshmee/salus/internal/api/router"
 	"github.com/Shmeeshmee/salus/internal/appointment"
@@ -19,12 +21,14 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/consent"
+	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot"
+	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
@@ -44,8 +48,8 @@ type App struct {
 // minRateLimitKey is the shortest RATE_LIMIT_KEY accepted: as long as the HMAC-SHA256 output.
 const minRateLimitKey = 32
 
-// New connects to the dependencies and builds the handler.
-func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error) {
+// New connects to the dependencies and builds the handler; lk is the video server (config.LoadLiveKit).
+func New(ctx context.Context, cfg config.Config, lk config.LiveKit, log *slog.Logger) (*App, error) {
 	box, err := auth.NewAESSecretBox(cfg.TOTPKey)
 	if err != nil {
 		return nil, err
@@ -102,6 +106,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		RateLimitKey: cfg.RateLimitKey,
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies)
+	sessions := newSessions(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners)
 
 	h := router.New(router.Config{
 		Logger: log,
@@ -125,10 +130,26 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 			slot.NewHandler(slots, fhirBase, log).Routes,
 			appointment.NewHTTPHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
+			videosession.NewHandler(sessions, log).Routes,
 		},
 		Timeout: RequestTimeout,
 	})
 	return &App{Handler: h, pool: pool, redis: rdb}, nil
+}
+
+// newSessions builds the consultation's video sessions on LiveKit (lk), with the Encounter they start and
+// finish; the first join enqueues the window's close in its transaction.
+func newSessions(pool *pgxpool.Pool, lk config.LiveKit, jobs *river.Client[pgx.Tx], audit *auditevent.Service, tx *postgres.Transactor,
+	appointments *appointment.Service, consents *consent.Service, patients *patient.Service, practitioners *practitioner.Service,
+) *videosession.Service {
+	encounters := encounter.NewService(encounter.Ports{
+		Repo: encounter.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Appointments: appointments,
+	})
+	return videosession.NewService(videosession.Ports{
+		Repo: videosession.NewPostgresRepository(pool), Provider: videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret),
+		Jobs: videosession.NewRiverJobs(jobs), Encounters: encounters, Audit: audit, Tx: tx, Clock: clock.System{},
+		Appointments: appointments, Consents: consents, Patients: patients, Practitioners: practitioners, PublicURL: lk.PublicURL,
+	})
 }
 
 // absoluteURL is FHIR_BASE_URL without a trailing slash, or an error when it is not an absolute http(s) URL.

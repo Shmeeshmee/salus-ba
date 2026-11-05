@@ -97,6 +97,78 @@ func (q *Queries) EndSession(ctx context.Context, arg EndSessionParams) (VideoSe
 	return i, err
 }
 
+const patientJoined = `-- name: PatientJoined :one
+UPDATE video_session
+SET patient_joined_at = $1, updated_at = $2
+WHERE id = $3 AND patient_joined_at IS NULL AND ended_at IS NULL
+RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
+          organization_id, room, patient_identity, practitioner_identity, end_reason
+`
+
+type PatientJoinedParams struct {
+	At        pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	ID        pgtype.UUID
+}
+
+// The patient's first join, never after the end: a repeat or a late event leaves no row.
+func (q *Queries) PatientJoined(ctx context.Context, arg PatientJoinedParams) (VideoSession, error) {
+	row := q.db.QueryRow(ctx, patientJoined, arg.At, arg.UpdatedAt, arg.ID)
+	var i VideoSession
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClosesAt,
+		&i.PatientJoinedAt,
+		&i.PractitionerJoinedAt,
+		&i.EndedAt,
+		&i.AppointmentID,
+		&i.OrganizationID,
+		&i.Room,
+		&i.PatientIdentity,
+		&i.PractitionerIdentity,
+		&i.EndReason,
+	)
+	return i, err
+}
+
+const practitionerJoined = `-- name: PractitionerJoined :one
+UPDATE video_session
+SET practitioner_joined_at = $1, updated_at = $2
+WHERE id = $3 AND practitioner_joined_at IS NULL AND ended_at IS NULL
+RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
+          organization_id, room, patient_identity, practitioner_identity, end_reason
+`
+
+type PractitionerJoinedParams struct {
+	At        pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	ID        pgtype.UUID
+}
+
+// The practitioner's first join, never after the end: a repeat or a late event leaves no row.
+func (q *Queries) PractitionerJoined(ctx context.Context, arg PractitionerJoinedParams) (VideoSession, error) {
+	row := q.db.QueryRow(ctx, practitionerJoined, arg.At, arg.UpdatedAt, arg.ID)
+	var i VideoSession
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClosesAt,
+		&i.PatientJoinedAt,
+		&i.PractitionerJoinedAt,
+		&i.EndedAt,
+		&i.AppointmentID,
+		&i.OrganizationID,
+		&i.Room,
+		&i.PatientIdentity,
+		&i.PractitionerIdentity,
+		&i.EndReason,
+	)
+	return i, err
+}
+
 const sessionByAppointment = `-- name: SessionByAppointment :one
 SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
        organization_id, room, patient_identity, practitioner_identity, end_reason
@@ -134,6 +206,34 @@ WHERE id = $1
 
 func (q *Queries) SessionByID(ctx context.Context, id pgtype.UUID) (VideoSession, error) {
 	row := q.db.QueryRow(ctx, sessionByID, id)
+	var i VideoSession
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClosesAt,
+		&i.PatientJoinedAt,
+		&i.PractitionerJoinedAt,
+		&i.EndedAt,
+		&i.AppointmentID,
+		&i.OrganizationID,
+		&i.Room,
+		&i.PatientIdentity,
+		&i.PractitionerIdentity,
+		&i.EndReason,
+	)
+	return i, err
+}
+
+const sessionByRoom = `-- name: SessionByRoom :one
+SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
+       organization_id, room, patient_identity, practitioner_identity, end_reason
+FROM video_session
+WHERE room = $1
+`
+
+func (q *Queries) SessionByRoom(ctx context.Context, room string) (VideoSession, error) {
+	row := q.db.QueryRow(ctx, sessionByRoom, room)
 	var i VideoSession
 	err := row.Scan(
 		&i.ID,

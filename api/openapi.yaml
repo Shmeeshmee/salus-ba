@@ -996,6 +996,43 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /webhooks/livekit:
+    post:
+      operationId: receiveLiveKitWebhook
+      summary: LiveKit's webhook
+      description: >-
+        Called only by our LiveKit server, never by the clients. No session and no CSRF header: the
+        `Authorization` header is LiveKit's JWT, signed with the API key pair and carrying the body's SHA-256,
+        verified before the body is read. The body is read up to 64 KiB. Handled idempotently and in any
+        order: a participant's join is recorded (the practitioner's first one starts the Encounter; a patient
+        whose access has gone is removed from the room), and once the join window has closed the last one
+        leaving ends the consultation. Every other event, and one for a room we do not know, has no effect.
+      tags: [consultation]
+      security:
+        - livekitWebhook: []
+      requestBody:
+        required: true
+        content:
+          application/webhook+json:
+            schema: {$ref: "#/components/schemas/LiveKitWebhookEvent"}
+      responses:
+        "200":
+          description: Handled, also when it had no effect.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WebhookReceived"}
+        "400":
+          description: "`invalid_request`: a body over 64 KiB."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: a missing, expired or wrong signature, or one for another body."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   parameters:
     CSRF:
@@ -1048,6 +1085,11 @@ components:
       type: http
       scheme: bearer
       description: The mobile app's session token.
+    livekitWebhook:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: LiveKit's webhook signature, a JWT of the API key pair with the body's SHA-256 (no Bearer prefix).
   schemas:
     LoginRequest:
       type: object
@@ -1510,6 +1552,18 @@ components:
             - invalid_status
             - internal error
             - timeout
+    LiveKitWebhookEvent:
+      type: object
+      description: >-
+        LiveKit's WebhookEvent in its JSON form (protojson); only `event`, `room.name`, the participant's
+        `identity` and `joinedAt`/`joinedAtMs`, and `createdAt` are read.
+      properties:
+        event: {type: string, examples: [participant_joined]}
+      additionalProperties: true
+    WebhookReceived:
+      type: object
+      description: An empty object.
+      additionalProperties: false
     Status:
       type: object
       required: [status]

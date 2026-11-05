@@ -72,6 +72,26 @@ type Join struct {
 	Role      Role
 }
 
+// EventKind is what a LiveKit webhook event reports, as the consultation tells them apart.
+type EventKind string
+
+// The kinds (SPEC.md §2 "Idempotent, order-free handling"); every other kind of LiveKit's is EventOther.
+const (
+	EventParticipantJoined EventKind = "participant_joined"
+	EventParticipantLeft   EventKind = "participant_left"
+	EventRoomFinished      EventKind = "room_finished"
+	EventOther             EventKind = "other"
+)
+
+// Event is a verified LiveKit webhook event: its kind, the room and the participant's identity (both random
+// and opaque, never logged), and when the participant joined for a join, else when the event happened.
+type Event struct {
+	At       time.Time
+	Kind     EventKind
+	Room     string
+	Identity string
+}
+
 // WindowCloseArgs is the consultation_window_close job on the default queue, scheduled at the join window's
 // close (SPEC.md §2 "The window closes"). Opaque ids only.
 type WindowCloseArgs struct {

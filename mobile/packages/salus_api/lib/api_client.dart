@@ -238,6 +238,8 @@ class ApiClient {
           return InviteList.fromJson(value);
         case 'InviteRequest':
           return InviteRequest.fromJson(value);
+        case 'LiveKitWebhookEvent':
+          return LiveKitWebhookEvent.fromJson(value);
         case 'LoginRequest':
           return LoginRequest.fromJson(value);
         case 'LoginResponse':

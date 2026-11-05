@@ -11,6 +11,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -36,10 +37,17 @@ type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
-// Appointments gives the appointment with the caller's access facts, in the caller's transaction, unaudited
-// (appointment.Service).
+// Appointments gives the appointment, with the caller's access facts for a join or in the caller's scope for
+// the webhook, in the caller's transaction, unaudited (appointment.Service).
 type Appointments interface {
 	Attendance(ctx context.Context, c appointment.Caller, id string) (appointment.Attendance, error)
+	Lookup(ctx context.Context, id string) (appointment.Appointment, error)
+}
+
+// Consents gives the state of a patient's consent with a clinic, in the caller's transaction and scope,
+// unaudited (consent.Service).
+type Consents interface {
+	State(ctx context.Context, patientID, organizationID string) (access.Consent, error)
 }
 
 // Patients reads a profile in the caller's transaction and scope, unaudited (patient.Service).
@@ -52,9 +60,10 @@ type Practitioners interface {
 	PublicNames(ctx context.Context, ids []string) ([]practitioner.Practitioner, error)
 }
 
-// Encounters finishes the consultation's Encounter, and through it records the appointment's outcome, in the
-// caller's transaction and clinic scope (encounter.Service).
+// Encounters starts and finishes the consultation's Encounter, and through it records the appointment's
+// outcome, in the caller's transaction and clinic scope (encounter.Service).
 type Encounters interface {
+	Start(ctx context.Context, agent, appointmentID string, at time.Time) (encounter.Encounter, error)
 	Finish(ctx context.Context, agent, appointmentID string, at time.Time, patientJoined bool) error
 }
 
@@ -68,6 +77,7 @@ type Ports struct {
 	Tx            Transactor
 	Clock         clock.Clock
 	Appointments  Appointments
+	Consents      Consents
 	Patients      Patients
 	Practitioners Practitioners
 	PublicURL     string

@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"slices"
 	"sync"
@@ -89,15 +90,17 @@ func realService(tb testing.TB, app *pgxpool.Pool, at time.Time, p videosession.
 	return videosession.NewService(videosession.Ports{
 		Repo: videosession.NewPostgresRepository(app), Provider: p, Audit: audit, Tx: tx, Clock: clk,
 		Appointments: appointments, Patients: patients, Practitioners: practitioners, PublicURL: "ws://localhost:7880",
-		Jobs: videosession.NewRiverJobs(jobs), Encounters: encounters,
+		Jobs: videosession.NewRiverJobs(jobs), Encounters: encounters, Consents: consents,
 	})
 }
 
-// recordingProvider is a provider that records the rooms created, safe for concurrent calls; it calls no
-// LiveKit.
+// recordingProvider is a provider that records the rooms created and the participants removed, safe for
+// concurrent calls; it calls no LiveKit. Its webhooks are the domain's events as JSON, "signed" when the
+// authorization says so; its rooms are empty.
 type recordingProvider struct {
-	rooms []string
-	mu    sync.Mutex
+	rooms   []string
+	removed []string
+	mu      sync.Mutex
 }
 
 func (p *recordingProvider) CreateRoom(_ context.Context, r videosession.Room) error {
@@ -111,11 +114,24 @@ func (p *recordingProvider) Token(g videosession.Grant) (string, error) {
 	return "token:" + g.Identity, nil
 }
 
-func (p *recordingProvider) RemoveParticipant(context.Context, string, string) error { return nil }
+func (p *recordingProvider) RemoveParticipant(_ context.Context, room, identity string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.removed = append(p.removed, room+" "+identity)
+	return nil
+}
 
 func (p *recordingProvider) DeleteRoom(context.Context, string) error { return nil }
 
 func (p *recordingProvider) Participants(context.Context, string) ([]string, error) { return nil, nil }
+
+func (p *recordingProvider) ParseWebhook(body []byte, authorization string) (videosession.Event, error) {
+	var e videosession.Event
+	if authorization != "signed" || json.Unmarshal(body, &e) != nil {
+		return videosession.Event{}, videosession.ErrInvalidSignature
+	}
+	return e, nil
+}
 
 // composeLiveKit is the provider on the compose LiveKit (TEST_LIVEKIT_*); without it the benchmark fails.
 func composeLiveKit(b *testing.B) videosession.Provider {

@@ -10,6 +10,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/videosession"
@@ -58,11 +59,13 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 		return fn(ctx)
 	}
 	events, sessions, jobs, finished := len(t.f.audit.events), clone(t.f.repo.sessions), len(t.f.jobs.enqueued), len(t.f.encounters.finished)
-	t.f.repo.patient, t.f.repo.clinic = "", ""
+	started := len(t.f.encounters.started)
+	t.f.repo.patient, t.f.repo.clinic, t.f.repo.room = "", "", ""
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
 		t.f.audit.events, t.f.repo.sessions = t.f.audit.events[:events], sessions
 		t.f.jobs.enqueued, t.f.encounters.finished = t.f.jobs.enqueued[:jobs], t.f.encounters.finished[:finished]
+		t.f.encounters.started = t.f.encounters.started[:started]
 	}
 	return err
 }
@@ -79,6 +82,7 @@ func clone(m map[string]videosession.Session) map[string]videosession.Session {
 type fakeAppointments struct {
 	err        error
 	attendance map[string]appointment.Attendance // by account id + appointment id
+	hidden     bool                              // Lookup does not see the appointment (the clinic's scope after a revocation)
 }
 
 func (a *fakeAppointments) Attendance(ctx context.Context, c appointment.Caller, id string) (appointment.Attendance, error) {
@@ -95,15 +99,97 @@ func (a *fakeAppointments) Attendance(ctx context.Context, c appointment.Caller,
 	return att, nil
 }
 
+// Lookup gives the appointment as its practitioner sees it, in a transaction; ErrNotFound when hidden.
+func (a *fakeAppointments) Lookup(ctx context.Context, id string) (appointment.Appointment, error) {
+	if ctx.Value(txKey{}) == nil {
+		return appointment.Appointment{}, errors.New("Lookup outside a transaction")
+	}
+	if a.err != nil {
+		return appointment.Appointment{}, a.err
+	}
+	att, ok := a.attendance[practAcc+id]
+	if !ok || a.hidden {
+		return appointment.Appointment{}, appointment.ErrNotFound
+	}
+	return att.Appointment, nil
+}
+
+// fakeConsents gives the state of patient A's consent with clinic A in a transaction: active unless revoked.
+type fakeConsents struct {
+	err     error
+	asked   []string
+	revoked bool
+}
+
+func (c *fakeConsents) State(ctx context.Context, patientID, org string) (access.Consent, error) {
+	if ctx.Value(txKey{}) == nil {
+		return access.Consent{}, errors.New("State outside a transaction")
+	}
+	c.asked = append(c.asked, patientID+" "+org)
+	if c.err != nil {
+		return access.Consent{}, c.err
+	}
+	return access.Consent{Active: !c.revoked && patientID == patientA && org == clinicA}, nil
+}
+
 // fakeRepository holds the sessions by appointment, as Open stores them.
 type fakeRepository struct {
-	err      error
-	endErr   error
-	sessions map[string]videosession.Session
-	patient  string // set by SetPatient
-	clinic   string // set by SetClinic
-	opened   []videosession.Session
-	next     int
+	err       error
+	endErr    error
+	joinedErr error
+	sessions  map[string]videosession.Session
+	patient   string // set by SetPatient
+	clinic    string // set by SetClinic
+	room      string // set by SetRoom
+	opened    []videosession.Session
+	next      int
+}
+
+func (r *fakeRepository) SetRoom(_ context.Context, room string) error {
+	r.room = room
+	return nil
+}
+
+// ByRoom gives the session of the room set by SetRoom.
+func (r *fakeRepository) ByRoom(ctx context.Context, room string) (videosession.Session, error) {
+	if ctx.Value(txKey{}) == nil {
+		return videosession.Session{}, errors.New("ByRoom outside a transaction")
+	}
+	if r.err != nil {
+		return videosession.Session{}, r.err
+	}
+	for _, s := range r.sessions {
+		if s.Room == room && r.room == room {
+			return s, nil
+		}
+	}
+	return videosession.Session{}, videosession.ErrNotFound
+}
+
+// Joined sets the role's join, as the SQL does: only when not set and the session has not ended.
+func (r *fakeRepository) Joined(ctx context.Context, id string, role videosession.Role, at, now time.Time) (videosession.Session, bool, error) {
+	if ctx.Value(txKey{}) == nil {
+		return videosession.Session{}, false, errors.New("Joined outside a transaction")
+	}
+	if r.joinedErr != nil {
+		return videosession.Session{}, false, r.joinedErr
+	}
+	for k, s := range r.sessions {
+		if s.ID != id || s.Room != r.room || !s.EndedAt.IsZero() {
+			continue
+		}
+		joined := &s.PatientJoinedAt
+		if role == videosession.RolePractitioner {
+			joined = &s.PractitionerJoinedAt
+		}
+		if !joined.IsZero() {
+			return videosession.Session{}, false, nil
+		}
+		*joined = at
+		r.sessions[k] = s
+		return s, true, nil
+	}
+	return videosession.Session{}, false, nil
 }
 
 func (r *fakeRepository) SetPatient(_ context.Context, id string) error {
@@ -177,11 +263,15 @@ type fakeProvider struct {
 	tokenErr  error
 	deleteErr error
 	listErr   error
+	removeErr error
+	parseErr  error
+	event     videosession.Event // what ParseWebhook reads
 	rooms     []videosession.Room
 	grants    []videosession.Grant
 	deleted   []string
 	listed    []string
 	in        []string
+	removed   []string
 	inTx      bool // a call was made inside a transaction
 }
 
@@ -196,14 +286,24 @@ func (p *fakeProvider) Token(g videosession.Grant) (string, error) {
 	return "token:" + g.Identity, p.tokenErr
 }
 
-func (p *fakeProvider) RemoveParticipant(context.Context, string, string) error {
-	return errors.New("not used by Join")
+func (p *fakeProvider) RemoveParticipant(ctx context.Context, room, identity string) error {
+	p.inTx = p.inTx || ctx.Value(txKey{}) != nil
+	p.removed = append(p.removed, room+" "+identity)
+	return p.removeErr
 }
 
 func (p *fakeProvider) DeleteRoom(ctx context.Context, room string) error {
 	p.inTx = p.inTx || ctx.Value(txKey{}) != nil
 	p.deleted = append(p.deleted, room)
 	return p.deleteErr
+}
+
+// ParseWebhook reads the event when the body is "body" and the authorization "signed".
+func (p *fakeProvider) ParseWebhook(body []byte, authorization string) (videosession.Event, error) {
+	if string(body) != "body" || authorization != "signed" {
+		return videosession.Event{}, videosession.ErrInvalidSignature
+	}
+	return p.event, p.parseErr
 }
 
 func (p *fakeProvider) Participants(ctx context.Context, room string) ([]string, error) {
@@ -229,11 +329,24 @@ func (j *fakeJobs) EnqueueWindowClose(ctx context.Context, sessionID, org string
 	return nil
 }
 
-// fakeEncounters records the encounters finished in a transaction, in the clinic's scope.
+// fakeEncounters records the encounters started and finished in a transaction, in the clinic's scope.
 type fakeEncounters struct {
 	err      error
+	startErr error
 	repo     *fakeRepository
 	finished []string
+	started  []string
+}
+
+func (e *fakeEncounters) Start(ctx context.Context, agent, appointmentID string, at time.Time) (encounter.Encounter, error) {
+	if ctx.Value(txKey{}) == nil {
+		return encounter.Encounter{}, errors.New("Start outside a transaction")
+	}
+	if e.startErr != nil {
+		return encounter.Encounter{}, e.startErr
+	}
+	e.started = append(e.started, fmt.Sprintf("%s %s %s in %s", agent, appointmentID, at.Format(time.RFC3339Nano), e.repo.clinic))
+	return encounter.Encounter{AppointmentID: appointmentID, PeriodStart: at, Status: encounter.StatusInProgress}, nil
 }
 
 func (e *fakeEncounters) Finish(ctx context.Context, agent, appointmentID string, at time.Time, patientJoined bool) error {
@@ -305,6 +418,7 @@ func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
 type fixture struct {
+	consents      *fakeConsents
 	jobs          *fakeJobs
 	encounters    *fakeEncounters
 	appts         *fakeAppointments
@@ -336,13 +450,13 @@ func newFixture(at time.Time) *fixture {
 		}},
 		repo:     &fakeRepository{sessions: map[string]videosession.Session{}},
 		provider: &fakeProvider{}, patients: &fakePatients{}, practitioners: &fakePractitioners{}, audit: &fakeAuditor{},
-		jobs: &fakeJobs{},
+		jobs: &fakeJobs{}, consents: &fakeConsents{},
 	}
 	f.encounters = &fakeEncounters{repo: f.repo}
 	f.svc = videosession.NewService(videosession.Ports{
 		Repo: f.repo, Provider: f.provider, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: at},
 		Appointments: f.appts, Patients: f.patients, Practitioners: f.practitioners, PublicURL: publicURL,
-		Jobs: f.jobs, Encounters: f.encounters,
+		Jobs: f.jobs, Encounters: f.encounters, Consents: f.consents,
 	})
 	return f
 }

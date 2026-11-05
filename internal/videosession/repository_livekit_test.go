@@ -2,7 +2,12 @@ package videosession_test
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"os"
 	"slices"
 	"strings"
@@ -11,9 +16,11 @@ import (
 
 	"github.com/livekit/protocol/auth"
 	"github.com/livekit/protocol/livekit"
+	"github.com/livekit/protocol/utils/protojson"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 
 	"github.com/Shmeeshmee/salus/internal/videosession"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
 // The compose LiveKit (deployments/livekit.yaml), reached from the tools container. Like the databases, the
@@ -246,5 +253,142 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 			t.Fatalf("timed out waiting for %s", what)
 		case <-tick.C:
 		}
+	}
+}
+
+// webhookBody is a LiveKit webhook event as LiveKit sends it (protojson).
+func webhookBody(t *testing.T, e *livekit.WebhookEvent) []byte {
+	t.Helper()
+	body, err := protojson.Marshal(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body
+}
+
+// sign is the Authorization header LiveKit sends with body: a JWT of the key pair, valid for validFor,
+// carrying the body's SHA-256.
+func sign(t *testing.T, key, secret string, body []byte, validFor time.Duration) string {
+	t.Helper()
+	sum := sha256.Sum256(body)
+	token, err := auth.NewAccessToken(key, secret).SetValidFor(validFor).SetSha256(base64.StdEncoding.EncodeToString(sum[:])).ToJWT()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return token
+}
+
+// expired is sign's header for body, but expired an hour ago (past LiveKit's leeway of a minute); the SDK
+// signs no expired token, so it is written here as LiveKit's HS256 JWT.
+func expired(t *testing.T, key, secret string, body []byte) string {
+	t.Helper()
+	sum := sha256.Sum256(body)
+	now := clock.System{}.Now()
+	enc := base64.RawURLEncoding
+	claims, err := json.Marshal(map[string]any{
+		"iss": key, "nbf": now.Add(-2 * time.Hour).Unix(), "exp": now.Add(-time.Hour).Unix(),
+		"sha256": base64.StdEncoding.EncodeToString(sum[:]),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unsigned := enc.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`)) + "." + enc.EncodeToString(claims)
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(unsigned))
+	return unsigned + "." + enc.EncodeToString(mac.Sum(nil))
+}
+
+// A webhook signed with our key pair and carrying its body's hash is accepted and read as the domain's
+// event: the kind, the room, the participant's identity and when they joined (else when the event happened).
+func TestParseWebhook_ReadsASignedEvent(t *testing.T) {
+	t.Parallel()
+	lk := newLiveKitServer(t)
+	p := lk.provider()
+	joined := time.Date(2030, 1, 7, 8, 55, 1, 250_000_000, time.UTC)
+	created := time.Date(2030, 1, 7, 8, 55, 3, 0, time.UTC)
+	for _, tc := range []struct {
+		event *livekit.WebhookEvent
+		want  videosession.Event
+	}{
+		{
+			event: &livekit.WebhookEvent{Event: "participant_joined", CreatedAt: created.Unix(), Room: &livekit.Room{Name: "r_a"},
+				Participant: &livekit.ParticipantInfo{Identity: "p_a", JoinedAt: joined.Unix(), JoinedAtMs: joined.UnixMilli()}},
+			want: videosession.Event{Kind: videosession.EventParticipantJoined, Room: "r_a", Identity: "p_a", At: joined},
+		},
+		{
+			event: &livekit.WebhookEvent{Event: "participant_joined", CreatedAt: created.Unix(), Room: &livekit.Room{Name: "r_a"},
+				Participant: &livekit.ParticipantInfo{Identity: "p_a", JoinedAt: joined.Unix()}},
+			want: videosession.Event{Kind: videosession.EventParticipantJoined, Room: "r_a", Identity: "p_a", At: joined.Truncate(time.Second)},
+		},
+		{
+			event: &livekit.WebhookEvent{Event: "participant_left", CreatedAt: created.Unix(), Room: &livekit.Room{Name: "r_a"},
+				Participant: &livekit.ParticipantInfo{Identity: "p_b", JoinedAtMs: joined.UnixMilli()}},
+			want: videosession.Event{Kind: videosession.EventParticipantLeft, Room: "r_a", Identity: "p_b", At: created},
+		},
+		{
+			event: &livekit.WebhookEvent{Event: "room_finished", CreatedAt: created.Unix(), Room: &livekit.Room{Name: "r_a"}},
+			want:  videosession.Event{Kind: videosession.EventRoomFinished, Room: "r_a", At: created},
+		},
+		{
+			event: &livekit.WebhookEvent{Event: "room_started", CreatedAt: created.Unix(), Room: &livekit.Room{Name: "r_a"}},
+			want:  videosession.Event{Kind: videosession.EventOther, Room: "r_a", At: created},
+		},
+		{
+			event: &livekit.WebhookEvent{Event: "track_published", CreatedAt: created.Unix(), Room: &livekit.Room{Name: "r_a"},
+				Participant: &livekit.ParticipantInfo{Identity: "p_a"}, Track: &livekit.TrackInfo{Sid: "TR_x"}},
+			want: videosession.Event{Kind: videosession.EventOther, Room: "r_a", Identity: "p_a", At: created},
+		},
+		{
+			event: &livekit.WebhookEvent{Event: "egress_started", CreatedAt: created.Unix()},
+			want:  videosession.Event{Kind: videosession.EventOther, At: created},
+		},
+	} {
+		body := webhookBody(t, tc.event)
+		got, err := p.ParseWebhook(body, sign(t, lk.key, lk.secret, body, 5*time.Minute))
+		if err != nil || got != tc.want {
+			t.Errorf("ParseWebhook(%s) = %+v, %v; want %+v", tc.event.Event, got, err, tc.want)
+		}
+	}
+}
+
+// A wrong key, a wrong secret, a changed body, no header, an expired token, a token without the body's hash
+// and a header that is not a token are refused with ErrInvalidSignature, before the body is read.
+func TestParseWebhook_RefusesWhatLiveKitDidNotSign(t *testing.T) {
+	t.Parallel()
+	lk := newLiveKitServer(t)
+	p := lk.provider()
+	body := webhookBody(t, &livekit.WebhookEvent{Event: "participant_joined", Room: &livekit.Room{Name: "r_a"},
+		Participant: &livekit.ParticipantInfo{Identity: "p_a"}})
+	changed := webhookBody(t, &livekit.WebhookEvent{Event: "participant_joined", Room: &livekit.Room{Name: "r_b"},
+		Participant: &livekit.ParticipantInfo{Identity: "p_a"}})
+	noHash, err := auth.NewAccessToken(lk.key, lk.secret).SetValidFor(time.Minute).ToJWT()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, header := range map[string]string{
+		"a wrong key":     sign(t, "another-key", lk.secret, body, time.Minute),
+		"a wrong secret":  sign(t, lk.key, "another-synthetic-secret-of-enough-length", body, time.Minute),
+		"a changed body":  sign(t, lk.key, lk.secret, changed, time.Minute),
+		"no header":       "",
+		"an expired one":  expired(t, lk.key, lk.secret, body),
+		"no body hash":    noHash,
+		"not a token":     "Bearer not-a-token",
+		"a garbled token": sign(t, lk.key, lk.secret, body, time.Minute) + "x",
+	} {
+		got, err := p.ParseWebhook(body, header)
+		if !errors.Is(err, videosession.ErrInvalidSignature) || got != (videosession.Event{}) {
+			t.Errorf("ParseWebhook() with %s = %+v, %v; want ErrInvalidSignature", name, got, err)
+		}
+	}
+}
+
+// A signed body that is not an event fails without its content in the error.
+func TestParseWebhook_FailsOnASignedBodyThatIsNotAnEvent(t *testing.T) {
+	t.Parallel()
+	lk := newLiveKitServer(t)
+	body := []byte(`{"event": "participant_joined", "room": "r_secretroomname"`)
+	_, err := lk.provider().ParseWebhook(body, sign(t, lk.key, lk.secret, body, time.Minute))
+	if err == nil || errors.Is(err, videosession.ErrInvalidSignature) || strings.Contains(err.Error(), "r_secretroomname") {
+		t.Errorf("ParseWebhook() = %v; want an error of its own without the body", err)
 	}
 }

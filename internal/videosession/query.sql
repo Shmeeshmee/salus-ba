@@ -31,3 +31,25 @@ SET ended_at = @at, end_reason = @reason, updated_at = @at
 WHERE id = @id AND ended_at IS NULL
 RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
           organization_id, room, patient_identity, practitioner_identity, end_reason;
+
+-- name: SessionByRoom :one
+SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
+       organization_id, room, patient_identity, practitioner_identity, end_reason
+FROM video_session
+WHERE room = @room;
+
+-- name: PatientJoined :one
+-- The patient's first join, never after the end: a repeat or a late event leaves no row.
+UPDATE video_session
+SET patient_joined_at = @at, updated_at = @updated_at
+WHERE id = @id AND patient_joined_at IS NULL AND ended_at IS NULL
+RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
+          organization_id, room, patient_identity, practitioner_identity, end_reason;
+
+-- name: PractitionerJoined :one
+-- The practitioner's first join, never after the end: a repeat or a late event leaves no row.
+UPDATE video_session
+SET practitioner_joined_at = @at, updated_at = @updated_at
+WHERE id = @id AND practitioner_joined_at IS NULL AND ended_at IS NULL
+RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
+          organization_id, room, patient_identity, practitioner_identity, end_reason;

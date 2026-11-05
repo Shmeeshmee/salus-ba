@@ -629,3 +629,26 @@ writes have the agent `consultation_window_close`, purpose `HOPERAT`. The job's 
 | A call left open indefinitely | The hard cap ends and deletes the room 2 hours after the scheduled end, whoever is in it (tested at the cap ± 1 s) |
 | The job's log reveals who was in a call | It logs the session id and the snooze only; tested to hold no name, e-mail, room or identity |
 | A no-show recorded against a patient because the practitioner never came | No encounter and no outcome when the practitioner never joined; the appointment stays `booked` for the clinic (tested) |
+
+### Package 3: webhooks
+
+**Processing added.** LiveKit's webhooks reach the api at `POST /webhooks/livekit`, on the compose network
+locally (`deployments/livekit.yaml`). An event carries only what LiveKit knows: the random room, the random
+identity, its kind and LiveKit's times. The api records each participant's first join
+(`video_session.patient_joined_at`, `practitioner_joined_at`), starts the `Encounter` when the practitioner
+first joins, and, after the join window has closed, ends the consultation when the last one leaves. Nothing
+new is stored: these are the columns of packages 1 and 2.
+
+**Access.** The webhook carries no user. Its signature (a JWT of the API key pair carrying the body's SHA-256,
+unexpired) is verified before the body is read; anything else is 401 and handles nothing (tested). Its
+transaction sees only the one session of its room (`app.video_room`) and then the session's clinic, as a
+clinic's scope does. Its writes are audited with the agent `livekit_webhook`, purpose `HOPERAT`: each join it
+records, the `Encounter`'s create, the session's end, the `Encounter`'s finish and the appointment's outcome.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A forged or replayed webhook changes a consultation | Signature, body hash and expiry checked (tested for a wrong key, wrong secret, changed body, missing header and expired token); every effect is a change guarded in SQL, so a repeat or a late event changes nothing (every order of the five events, each delivered twice, tested on the real database) |
+| A patient joins with a token issued just before a revocation or a cancellation committed | Every patient join checks the consent and the appointment's status again and removes the patient from the room when either is gone (tested, also on the real database after a revocation) |
+| The webhook's log reveals who was in a call | It logs the request id and the event kind only; an event for a room we do not know is logged as `unknown room` with nothing from the body (tested) |

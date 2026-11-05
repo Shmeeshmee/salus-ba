@@ -68,6 +68,42 @@ func (r *postgresRepository) ByID(ctx context.Context, id string) (Session, erro
 	return toSession(row), nil
 }
 
+func (r *postgresRepository) SetRoom(ctx context.Context, room string) error {
+	return postgres.SetLocal(ctx, "app.video_room", room)
+}
+
+func (r *postgresRepository) ByRoom(ctx context.Context, room string) (Session, error) {
+	row, err := r.q(ctx).SessionByRoom(ctx, room)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Session{}, ErrNotFound
+	case err != nil:
+		return Session{}, err
+	}
+	return toSession(row), nil
+}
+
+func (r *postgresRepository) Joined(ctx context.Context, id string, role Role, at, now time.Time) (Session, bool, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Session{}, false, nil
+	}
+	var row videosessiondb.VideoSession
+	var err error
+	if role == RolePractitioner {
+		row, err = r.q(ctx).PractitionerJoined(ctx, videosessiondb.PractitionerJoinedParams{ID: u, At: ts(at), UpdatedAt: ts(now)})
+	} else {
+		row, err = r.q(ctx).PatientJoined(ctx, videosessiondb.PatientJoinedParams{ID: u, At: ts(at), UpdatedAt: ts(now)})
+	}
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Session{}, false, nil
+	case err != nil:
+		return Session{}, false, err
+	}
+	return toSession(row), true, nil
+}
+
 func (r *postgresRepository) End(ctx context.Context, id string, reason EndReason, at time.Time) (Session, bool, error) {
 	var u pgtype.UUID
 	if u.Scan(id) != nil {

@@ -325,3 +325,120 @@ func pgtypeTime(t time.Time) *time.Time {
 	}
 	return &t
 }
+
+// inRoom runs fn on the repository in a transaction of its own in the webhook's scope of the room.
+func inRoom(t *testing.T, app *pgxpool.Pool, room string, fn func(ctx context.Context, r videosession.Repository) error) error {
+	t.Helper()
+	repo := videosession.NewPostgresRepository(app)
+	return postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+		if err := repo.SetRoom(ctx, room); err != nil {
+			return err
+		}
+		return fn(ctx, repo)
+	})
+}
+
+// The webhook's scope shows the one session of its room, of any clinic, and no other.
+func TestByRoom_ReadsTheRoomsSessionInTheWebhooksScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
+	s, other := seedDB(t, owner, at), seedDB(t, owner, at)
+	opened, err := open(t, app, s, session(s, "r_mine", at))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := open(t, app, other, session(other, "r_other", at)); err != nil {
+		t.Fatal(err)
+	}
+	var got videosession.Session
+	var otherErr, unknownErr error
+	err = inRoom(t, app, "r_mine", func(ctx context.Context, r videosession.Repository) error {
+		var err error
+		got, err = r.ByRoom(ctx, "r_mine")
+		_, otherErr = r.ByRoom(ctx, "r_other")
+		return err
+	})
+	if err != nil || got != opened {
+		t.Errorf("ByRoom() = %+v, %v; want %+v", got, err, opened)
+	}
+	err = inRoom(t, app, "r_unknown", func(ctx context.Context, r videosession.Repository) error {
+		_, unknownErr = r.ByRoom(ctx, "r_unknown")
+		return nil
+	})
+	if err != nil || !errors.Is(otherErr, videosession.ErrNotFound) || !errors.Is(unknownErr, videosession.ErrNotFound) {
+		t.Errorf("another room's session: %v; an unknown room: %v; want ErrNotFound for both", otherErr, unknownErr)
+	}
+}
+
+// Joined records each role's first join only, never after the end, in the webhook's scope.
+func TestJoined_RecordsEachRolesFirstJoinUntilTheEnd(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
+	s := seedDB(t, owner, at)
+	opened, err := open(t, app, s, session(s, "r_join", at))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, later, updated := at.Add(-2*time.Minute+250*time.Millisecond), at.Add(time.Minute), at.Add(time.Hour)
+	var changes []bool
+	var got videosession.Session
+	err = inRoom(t, app, "r_join", func(ctx context.Context, r videosession.Repository) error {
+		for _, j := range []struct {
+			at   time.Time
+			role videosession.Role
+		}{{first, videosession.RolePractitioner}, {later, videosession.RolePractitioner}, {later, videosession.RolePatient}, {first, videosession.RolePatient}} {
+			sess, changed, err := r.Joined(ctx, opened.ID, j.role, j.at, updated)
+			if err != nil {
+				return err
+			}
+			changes = append(changes, changed)
+			if changed {
+				got = sess
+			}
+		}
+		return nil
+	})
+	if err != nil || !slices.Equal(changes, []bool{true, false, true, false}) {
+		t.Fatalf("Joined() changed %v, %v; want each role's first join only", changes, err)
+	}
+	if !got.PractitionerJoinedAt.Equal(first) || !got.PatientJoinedAt.Equal(later) || got.ID != opened.ID {
+		t.Errorf("session %+v; want the practitioner at %v and the patient at %v", got, first, later)
+	}
+	var updatedAt time.Time
+	if err := owner.QueryRow(t.Context(), "SELECT updated_at FROM video_session").Scan(&updatedAt); err != nil || !updatedAt.Equal(updated) {
+		t.Errorf("updated_at %v, %v; want %v", updatedAt, err, updated)
+	}
+
+	ended, err := open(t, app, s, session(s, "r_join", at)) // the same session
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := inClinic(t, app, s.clinic, func(ctx context.Context, r videosession.Repository) error {
+		_, _, err := r.End(ctx, ended.ID, videosession.EndPractitioner, updated)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(t.Context(), "UPDATE video_session SET patient_joined_at = NULL"); err != nil {
+		t.Fatal(err)
+	}
+	var changed bool
+	err = inRoom(t, app, "r_join", func(ctx context.Context, r videosession.Repository) error {
+		var err error
+		_, changed, err = r.Joined(ctx, opened.ID, videosession.RolePatient, later, updated)
+		return err
+	})
+	if err != nil || changed {
+		t.Errorf("Joined() after the end changed %t, %v; want nothing", changed, err)
+	}
+	err = inRoom(t, app, "r_join", func(ctx context.Context, r videosession.Repository) error {
+		var err error
+		_, changed, err = r.Joined(ctx, "not-a-uuid", videosession.RolePatient, later, updated)
+		return err
+	})
+	if err != nil || changed {
+		t.Errorf("Joined() of an id that is not a UUID = %t, %v; want nothing", changed, err)
+	}
+}

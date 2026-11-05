@@ -27,7 +27,7 @@ func testConfig(t *testing.T) config.Config {
 }
 
 func TestNew_ServesReadinessAgainstTheDatabase(t *testing.T) {
-	app, err := api.New(t.Context(), testConfig(t), slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), testConfig(t), testLiveKit(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -61,14 +61,14 @@ func TestNew_FailsWhenADependencyIsUnreachable(t *testing.T) {
 		"a TOTP key that is not 32 bytes": shortTOTPKey, "a rate-limit key under 32 bytes": shortRateKey,
 		"no FHIR base URL": noFHIRBase, "a relative FHIR base URL": relativeFHIRBase,
 	} {
-		if _, err := api.New(t.Context(), cfg, slog.New(slog.DiscardHandler)); err == nil {
+		if _, err := api.New(t.Context(), cfg, testLiveKit(), slog.New(slog.DiscardHandler)); err == nil {
 			t.Errorf("New() with %s: error = nil", name)
 		}
 	}
 }
 
 func TestNew_ServesTheAccountRoutes(t *testing.T) {
-	app, err := api.New(t.Context(), testConfig(t), slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), testConfig(t), testLiveKit(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -90,7 +90,7 @@ func TestNew_ServesTheAccountRoutes(t *testing.T) {
 
 func TestNew_AuditsEveryRegistrationInTheDatabase(t *testing.T) {
 	cfg := testConfig(t)
-	app, err := api.New(t.Context(), cfg, slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

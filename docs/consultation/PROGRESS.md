@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | 1 videosession | done, 2026-11-05 | `consultation(1)` |
 | 2 encounter | done, 2026-11-05 | `consultation(2)` |
-| 3 Webhooks | not started | |
+| 3 Webhooks | done, 2026-11-05 | `consultation(3)` |
 | 4 API | not started | |
 | 5 Revocation and cancellation during a call | not started | |
 | 6 Web | held: copy review | |
@@ -49,6 +49,29 @@
   appointment that had not started, which the revocation cancels) is left to package 5. The job's agent name
   is its kind, `consultation_window_close`, like `consent_revoked`. `worker.New` takes the video provider;
   `cmd/worker` builds it from `LIVEKIT_*`.
+
+- 2026-11-05, package 3 (runner): the patient's access is checked again on every patient join, not only the
+  first (a reconnect after a revocation is removed too), in the clinic's scope: the appointment through
+  `appointment.Lookup` (the scope no longer showing it, or a status other than `booked`, removes the patient)
+  and the consent through a new `Consents` port on `consent.Service.State` (SPEC lists `consent` among
+  `videosession`'s dependencies). The removal is a provider call after the commit and is not audited on its
+  own; the join it follows is. Every join the webhook records is audited as an `operation` (`E`) on
+  `Appointment/<id>` by `livekit_webhook` (`HOPERAT`), like the session's end.
+- 2026-11-05, package 3 (runner): `participant_left` and `room_finished` after the window has closed apply the
+  window-close job's rules (`closing`): with the practitioner never joined the session ends
+  `practitioner_absent`, not `window_closed`, so package 4's `practitioner_did_not_join` holds whichever path
+  ends it; past the hard cap `time_limit`; with someone still in the room nothing. Before the window closes
+  they ask nothing of LiveKit and change nothing.
+- 2026-11-05, package 3 (runner): "every order reaches the same state" is tested inside the window. After the
+  window has closed the result rightly depends on the order: a leave that arrives before the practitioner's
+  join ends the session `practitioner_absent`, and SPEC §2 ignores joins after the end. A join keeps the first
+  join delivered (SPEC's "set if null"), not the earliest time.
+- 2026-11-05, package 3 (runner): the practitioner's join on an appointment the clinic's scope no longer shows
+  is recorded and starts no `Encounter` (`encounter.ErrNotFound` is no effect, so LiveKit does not retry
+  forever). An unknown identity in a known room (join or leave) is `unknown room`, like an unknown room. A body
+  over 64 KiB is 400 `invalid_request`, as the other handlers' oversized bodies; a signed body that is not an
+  event is a 500 (LiveKit retries). The domain's event kinds are the three the consultation acts on and
+  `other`, so the log line carries only fixed values.
 
 ## Waiting on people
 
@@ -226,3 +249,87 @@ regeneration (every `*db/models.go` gains the `Encounter` row type, as in packag
 
 **Dev stack left.** Migration 00022 applied (`encounter` empty). The stack rebuilt with `make up` and running
 as before; api `/readyz` 200, worker and scheduler started with the new job kind.
+
+### 2026-11-05 — package 3: Webhooks
+
+**Built.** `videosession`: the domain `Event` (kind, room, identity, time) and `EventKind`
+(`participant_joined`, `participant_left`, `room_finished`, `other`); `ErrInvalidSignature`, `ErrUnknownRoom`.
+`Provider.ParseWebhook` in `repository_livekit.go`: LiveKit's own receiver check (its `webhook.Receive` takes an
+`*http.Request`, so it is done with `auth.ParseAPIToken` and `Verify`): issued by our API key, signed with our
+secret, unexpired (LiveKit's minute of leeway), the `sha256` claim equal to the body's, compared in constant
+time, and only then the body read with LiveKit's protojson; the participant's join time in milliseconds when
+LiveKit gives them. `Repository`: `SetRoom` (`app.video_room`), `ByRoom`, `Joined` (two sqlc queries, "set if
+null and not ended"). `service_webhook.go`: `HandleWebhook` (SPEC §2 "Idempotent, order-free handling",
+"Webhook scope"; Decisions above). The `Encounters` port gains `Start`, the `Appointments` port `Lookup`, and a
+`Consents` port. `handler_http.go`: `POST /webhooks/livekit` (64 KiB, 401 `unauthenticated` logged with the
+request id only, 200 `{}` for every handled event and for an unknown room, 500 through `httpx.InternalError`;
+one log line with the request id and the kind). `internal/api`: `New` takes `config.LiveKit` (from
+`cmd/api`'s `LoadLiveKit`) and builds the encounter and videosession services; the route is mounted. The
+session middleware leaves the webhook alone: LiveKit's `Authorization` has no `Bearer` prefix and there is no
+cookie, so there is no CSRF check either (tested through `api.New`). `api/openapi.yaml`: the path, the
+`livekitWebhook` scheme, `LiveKitWebhookEvent`, `WebhookReceived`; `make gen-clients`.
+`deployments/livekit.yaml`: `webhook` to `http://api:8080/webhooks/livekit` with `devkey`. DPIA notes.
+
+**Tests seen failing first.**
+- videosession provider: `undefined: videosession.Event`, `videosession.EventParticipantJoined` (build failed).
+  Then `ParseWebhook() with an expired one = {…}, <nil>; want ErrInvalidSignature`: a test bug, the SDK signs a
+  negative validity as its default 6 hours; the expired token is now written by hand as LiveKit's HS256 JWT, and
+  the same token unexpired was seen accepted, so the expiry is what refuses it.
+- videosession service: `unknown field Consents in struct literal of type videosession.Ports`,
+  `f.svc.HandleWebhook undefined` (build failed).
+- videosession repository: `*postgresRepository does not implement Repository (missing method ByRoom)` (build
+  failed).
+- videosession handler: `undefined: videosession.NewHandler` (build failed).
+- internal/api: `too many arguments in call to api.New` (build failed).
+- internal/api, the real-services webhook tests, written after the service: seen failing by taking the code out
+  and restored. Without the removal: `removed [], want the patient`; without the window check on a leave:
+  `order 26 (…) reached … practitioner_absent …`; without the `IS NULL` guards of the join queries: `every
+  order reached … | 5, want … | 3` and, in the repository test, `Joined() changed [true true true true]`.
+
+**What the tests cover.** The provider: a signed event of each kind read as the domain's (join time in ms, in
+seconds, the event's time otherwise; other kinds `other`); a wrong key, a wrong secret, a changed body, no
+header, an expired token, a token without the body hash, a header that is not a token and a garbled one are
+`ErrInvalidSignature` with no event; a signed body that is not an event fails without its content. The service
+(fakes): the practitioner's join recorded at LiveKit's time, the `Encounter` started then in the clinic's
+scope, audited, a repeat changes nothing; the patient's join recorded and audited once, access checked on each;
+a patient removed after the commit when the consent is revoked, the appointment cancelled, marked by hand or out
+of scope, again on a repeat; a failed removal fails the webhook and the redelivery removes again; joins after the
+end ignored; no `Encounter` out of scope; a failure in the join, the encounter, the audit, the session read or
+the consent check rolls back and fails; leaving before the window closes asks and changes nothing; after it,
+`window_closed` with the room empty (encounter finished, room deleted after the commit), nothing when occupied,
+`practitioner_absent`, `time_limit` at the cap, for a leave and for `room_finished`; a late leave after the end
+changes and deletes nothing; a failed participants check fails; other kinds read nothing; unknown rooms and
+identities are `ErrUnknownRoom` with no effect; an unsigned webhook handles nothing. The repository (real
+database, `salus_app`): the webhook's scope shows the one session of its room, of any clinic; `Joined` records
+each role's first join only, sets `updated_at`, never after the end. The handler (`httptest`): 200 `{}` with the
+body and header passed as sent, `unknown room` 200, 401 for a bad and a missing signature, the fixed 500, the
+64 KiB limit; each log is exactly one line with the request id (and the kind), never the room, identity or
+token. Real services (`internal/api`): every one of the 120 orders of the practitioner's and the patient's
+joins and leaves and `room_finished`, each delivered twice, reaches the same state (both joins, `Encounter`
+in progress from the practitioner's join, appointment `booked`, three webhook events); after the window, the
+last one leaving ends the consultation (`window_closed`, `Encounter` finished, `fulfilled`, six webhook
+events), and a repeat changes nothing; a patient joining after a revocation is removed, their join recorded;
+an unknown room changes nothing. Through `api.New`: no signature and a session-style `Bearer` are 401, a
+signed event for an unknown room is 200, the log holds nothing from the body.
+
+**Checks.** `make lint`: 0 issues, migrations unchanged. `make archcheck`: passes. `make test`: passes.
+`make cover`: every package at 80% or more (`internal/videosession` 95.9%, `internal/encounter` 96.1%,
+`internal/api` 91.1%, total 94.8%). `make sqlc`: regenerated (the three queries). `make gen-clients`: run, and a
+second run leaves no diff. Stack: `make up` (api rebuilt), LiveKit recreated on the new config; a temporary Go
+program in the `tools` container (deleted afterwards) seeded a synthetic appointment starting in 5 minutes,
+took tokens from the service as `New` builds it, and joined the compose LiveKit as the practitioner and then the
+patient with the Go SDK. LiveKit sent `room_started`, two `participant_joined`, two `participant_left` and
+`room_finished` to the api, each `200 OK`; the api's log shows `livekit webhook` with the kind and the request id
+only for each; the `encounter` row appeared `in-progress` on the practitioner's join and `patient_joined_at` on
+the patient's; the audit trail of the synthetic clinic: the practitioner's and the patient's joins (`operation`),
+the role and `Patient` reads, then `livekit_webhook` `operation` (practitioner joined), `create Encounter`,
+`operation` (patient joined). LiveKit's own log names the random room and identities only.
+
+**Deferred.** The join, end and status endpoints and the FHIR `Encounter` (package 4); removal on cancellation
+and revocation (5).
+
+**Dev stack left.** No migration. The stack rebuilt with `make up`; LiveKit recreated on
+`deployments/livekit.yaml` with the webhook. The stack check's synthetic rows (clinic, practitioner, role,
+accounts, patient, consent, appointment, session, encounter, window-close job) were deleted; its seven
+`audit_event` rows stay, as the table is append-only. The room was deleted.
+

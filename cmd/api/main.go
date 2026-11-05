@@ -40,11 +40,12 @@ func run(ctx context.Context, logOut io.Writer) error {
 		return err
 	}
 	// Required from the start, so a deployment without them fails here rather than at the first
-	// consultation (docs/consultation/SPEC.md §2 "Configuration"); the consultation's routes take them.
-	if _, err := config.LoadLiveKit(); err != nil {
+	// consultation (docs/consultation/SPEC.md §2 "Configuration").
+	lk, err := config.LoadLiveKit()
+	if err != nil {
 		return err
 	}
-	app, err := api.New(ctx, cfg, log)
+	app, err := api.New(ctx, cfg, lk, log)
 	if err != nil {
 		return err
 	}

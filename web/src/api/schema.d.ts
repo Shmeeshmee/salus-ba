@@ -438,6 +438,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/webhooks/livekit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * LiveKit's webhook
+         * @description Called only by our LiveKit server, never by the clients. No session and no CSRF header: the `Authorization` header is LiveKit's JWT, signed with the API key pair and carrying the body's SHA-256, verified before the body is read. The body is read up to 64 KiB. Handled idempotently and in any order: a participant's join is recorded (the practitioner's first one starts the Encounter; a patient whose access has gone is removed from the room), and once the join window has closed the last one leaving ends the consultation. Every other event, and one for a room we do not know, has no effect.
+         */
+        post: operations["receiveLiveKitWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -712,6 +732,15 @@ export interface components {
             /** @enum {string} */
             error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "internal error" | "timeout";
         };
+        /** @description LiveKit's WebhookEvent in its JSON form (protojson); only `event`, `room.name`, the participant's `identity` and `joinedAt`/`joinedAtMs`, and `createdAt` are read. */
+        LiveKitWebhookEvent: {
+            /** @example participant_joined */
+            event?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** @description An empty object. */
+        WebhookReceived: Record<string, never>;
         Status: {
             /** @constant */
             status: "ok";
@@ -2019,6 +2048,49 @@ export interface operations {
             };
             /** @description `appointment_not_started`: the start has not passed; `appointment_closed`: the appointment is no longer booked. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    receiveLiveKitWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/webhook+json": components["schemas"]["LiveKitWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Handled, also when it had no effect. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookReceived"];
+                };
+            };
+            /** @description `invalid_request`: a body over 64 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: a missing, expired or wrong signature, or one for another body. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
