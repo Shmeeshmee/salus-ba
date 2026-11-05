@@ -144,6 +144,23 @@ gone from `Participants` after `EndAccess`. Measured: the time from the revoke's
 removal in the stack, recorded in `PROGRESS.md`.
 Checks: Go; Stack.
 
+### 5.1. Owner changes after package 5
+
+Migration (new file): `encounter`'s `app.video_room` policy, which shows and lets `salus_app` update the
+encounter of the appointment whose session has that room (SPEC §2 "Tables", "Changed after package 5").
+`videosession`: the end of a session cancelled by a revocation finishes its `Encounter` in the room's scope,
+with `period.end` set. Every removal of a patient from a room (the webhook's re-check, `EndAccess`,
+`EndPatientAccess`) writes an `AuditEvent` (operation, action `E`, `Appointment/<id>`, the removing agent,
+`HOPERAT`), in the transaction that decides it. `TestScheduler_KnowsEveryKindTheWorkerAndTheNotifierWork`
+lists `consultation_window_close` and `consultation_access_end`.
+Tests: as `salus_app`, `app.video_room` shows exactly the one encounter of that room and nothing else, and
+without it, after the revocation, the clinic scope still sees nothing; the case of package 5 (practitioner joins
+before the start, the patient revokes before the start) ends with the `Encounter` `finished` and `period.end`
+set; each removal path writes one audit event and a repeat writes none; the scheduler test fails without the
+two kinds. After the commit, the dev database is wiped (`make down` with volumes, then `make up`), which also
+removes the synthetic data of packages 4 and 5.
+Checks: Go; Stack.
+
 ### 6. Web
 
 **Held until the owner has answered the copy review** (SPEC §2 "Copy review"). Before this package starts,
@@ -151,7 +168,8 @@ every new web and mobile string (permission prompts, device check, waiting, reco
 practitioner did not join", the time limit, removed, whether the patient and practitioner joined,
 errors, the end-consultation confirmation, the iOS and Android permission descriptions) goes to the owner in
 one list, on its own; the answer is recorded in `PROGRESS.md` and the strings go into `web/src/messages.ts` and
-`mobile/lib/messages.dart` as approved.
+`mobile/lib/messages.dart` as approved. **Answered 2026-11-05: `COPY.md` holds the approved text, word for
+word; W18a and W18b replace W18 when the patient was removed, and W39 is the web's `practitioner_did_not_join`.**
 `web/package.json`: `livekit-client`, exact version. `web/src`: the "Join" button on the appointment detail and
 the calendar card (SPEC §2 "Join button"); on the appointment detail, whether the patient and the
 practitioner joined (SPEC §2 "Consultation status"); the device check (camera preview, microphone level, device pickers,

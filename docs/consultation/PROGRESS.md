@@ -7,8 +7,9 @@
 | 3 Webhooks | done, 2026-11-05 | `consultation(3)` |
 | 4 API | done, 2026-11-05 | `consultation(4)` |
 | 5 Revocation and cancellation during a call | done, 2026-11-05 | `consultation(5)` |
-| 6 Web | held: copy review | |
-| 7 Mobile | held: copy review | |
+| 5.1 Owner changes after package 5 | not started | |
+| 6 Web | not started | |
+| 7 Mobile | not started | |
 | 8 End-to-end | not started | |
 
 ## Decisions
@@ -118,18 +119,22 @@
   calls `EndPatientAccess` only after `CancelForRevokedConsent` succeeds (SPEC order), because it needs the
   statuses that call writes.
 
+- 2026-11-05, owner (after package 5, recorded in `SPEC.md` §2 "Changed after package 5"):
+  - The `Encounter` left `in-progress` by a revocation before the start: option (a), the room-based access rule
+    on `encounter` in a new migration, finishing it with `period.end` set; package 5.1, test first. Then the dev
+    database is wiped (`make down` with volumes, `make up`).
+  - Every patient removal is audited (question 6).
+  - Approved as described: `video_session.closes_at`; a join after the window closes is `consultation_ended`;
+    the window-close job's occupied-room check is not audited; a practitioner's `Encounter` search returns only
+    their own role's; a leave after the close without the practitioner ends `practitioner_absent`;
+    `consultation_not_started`; `practitioner_did_not_join` to the practitioner too; ending audited twice, with
+    agent `consultation_end`; a revocation-cancelled session ended by `consent_revoked` in the room's scope.
+  - The text: approved with the owner's changes, recorded in `COPY.md`, the source for packages 6 and 7.
+    ADR 0006 notes that "The consultation is not recorded" must change if recording is added. Packages 6 and 7
+    are no longer held.
+
 ## Waiting on people
 
-- The owner, before package 6: review of every new web and mobile string, sent on its own. Packages 6 and 7
-  are marked `hold` in `RUN.tsv` until the answer is recorded here.
-- The owner, from package 5: an `Encounter` stays `in-progress` when the practitioner joins in the 10 minutes
-  before the start and the patient then revokes before the start. The revocation cancels the appointment and
-  ends its session `cancelled`, but after the revocation neither the clinic's scope nor the patient's
-  (`encounter` is read-only for the patient) may finish the `Encounter`, so `Finish` changes nothing. The stack
-  measurement produced three such rows. It holds no clinical content. Finishing it needs a new row-level security
-  scope on `encounter`, for example the session's room, as the webhook has on `video_session`. That changes SPEC
-  §2 "Tables", so it is not done here. Options: add that scope in a later package, finish such an Encounter as
-  `cancelled` (an R4 status this feature does not model yet), or accept it.
 - Before production: `SPEC.md` §8 (LiveKit domain, TLS, TURN, keys, node IP; retention and lawful basis;
   localisation).
 

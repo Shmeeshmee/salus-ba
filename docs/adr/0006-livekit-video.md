@@ -21,3 +21,5 @@ During bootstrap both are stubs: LiveKit runs in dev mode in compose and `cmd/ag
 - Choosing a speech-to-text engine is a later decision; a hosted engine would be a processor and needs a DPA,
   an entry in `docs/privacy/processors.md` and explicit SPEC approval before patient audio reaches it.
 - No recordings are kept unless a SPEC says so.
+- The patient app tells patients "The consultation is not recorded" (camera and microphone permission text,
+  `docs/consultation/COPY.md`). If recording is ever added, that text must change in the same feature.

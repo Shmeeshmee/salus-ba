@@ -61,7 +61,9 @@ Decisions taken in this plan (reopen only with the owner):
     copied once from the appointment when it starts and never changed (they are references, not a copy of
     the appointment's data); RLS needs them.
   Both are row-level secured like `appointment`: patient scope, clinic scope with an active consent or for an
-  appointment that started before the latest revocation, and (`video_session` only) the webhook scope below.
+  appointment that started before the latest revocation, and the webhook scope below (`app.video_room`; on
+  `encounter` it shows the encounter of that room's appointment, changed after package 5, so a revocation that
+  cancels an appointment after the practitioner joined can still finish its `Encounter`, with `period.end` set).
   Grants to `salus_app`; `video_session` also `SELECT, DELETE` to `salus_retention`.
 - **Ids.** `room` and both identities are 128 bits from `crypto/rand`, base32, prefixed `r_` and `p_` so a log
   reader can tell them apart; never derived from any id of ours. An identity is fixed per role per session, so
@@ -216,6 +218,16 @@ Changed on approval (2026-11-05, owner):
   (`time_limit`), tested.
 - A separate LiveKit config for e2e is acceptable if one config cannot serve both.
 - Everything else, decisions 2 and 3 included, approved as written.
+
+Changed after package 5 (2026-11-05, owner):
+
+- `encounter` gains the room-based (`app.video_room`) access rule `video_session` has, in a new migration, so
+  an `Encounter` whose appointment a revocation cancelled after the practitioner joined finishes, with
+  `period.end` set, instead of staying `in-progress`.
+- Every removal of a patient from a room is audited (operation, action `E`, `Appointment/<id>`, the removing
+  agent, `HOPERAT`).
+- The open questions of packages 1–5 are approved as described (PROGRESS "Decisions").
+- The web and mobile text is approved with the owner's changes: `COPY.md` is the source.
 
 ## 3. The LiveKit Go SDK
 
