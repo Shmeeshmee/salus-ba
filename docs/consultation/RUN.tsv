@@ -1,0 +1,11 @@
+# prefix: consultation
+# title: Video consultations
+# base: main
+1		videosession
+2		encounter
+3		Webhooks
+4		API
+5		Revocation and cancellation during a call
+6		Web	hold
+7		Mobile	hold
+8		End-to-end
