@@ -45,7 +45,11 @@ func (s *Service) CloseWindow(ctx context.Context, sessionID, org string) (time.
 	if snooze > 0 {
 		return snooze, nil
 	}
-	return 0, s.end(ctx, agentWindowClose, session, reason, now)
+	ended, err := s.end(ctx, agentWindowClose, session, reason, now)
+	if err == nil && !ended { // the practitioner joined after the reason was chosen: look again
+		return snoozeEvery, nil
+	}
+	return 0, err
 }
 
 // closing decides how the window's close at now ends the session, or how long to wait while the room is
@@ -74,21 +78,26 @@ func (s *Service) closing(ctx context.Context, session Session, now time.Time) (
 // clinic's scope it sets the end (only if not ended), audits it and, when the practitioner joined, finishes
 // the Encounter, which records the appointment's outcome. After the commit it deletes the room; a failure is
 // returned for the calling path to retry, with the end committed. A session ended already only has its room
-// deleted.
-func (s *Service) end(ctx context.Context, agent string, session Session, reason EndReason, at time.Time) error {
+// deleted. It reports whether the session has ended: not when reason is practitioner_absent and the
+// practitioner's join committed after the reason was chosen (the SQL guards it); then the room stays.
+func (s *Service) end(ctx context.Context, agent string, session Session, reason EndReason, at time.Time) (bool, error) {
 	if session.EndedAt.IsZero() {
 		err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-			_, err := s.ending(ctx, agent, session, reason, at)
+			var err error
+			session, err = s.ending(ctx, agent, session, reason, at)
 			return err
 		})
 		if err != nil {
-			return fmt.Errorf("videosession: end: %w", err)
+			return false, fmt.Errorf("videosession: end: %w", err)
+		}
+		if session.EndedAt.IsZero() {
+			return false, nil
 		}
 	}
 	if err := s.Provider.DeleteRoom(ctx, session.Room); err != nil {
-		return fmt.Errorf("videosession: end: %w", err)
+		return true, fmt.Errorf("videosession: end: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
 // ending is end's transaction, in the transaction in ctx: it returns the session as it ended, also when

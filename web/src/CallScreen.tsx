@@ -50,6 +50,13 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
   const params = { params: { path: { id } } }
 
   useEffect(() => () => void room?.leave(), [room])
+  // Unmounting makes every connection still in flight late, so a room that connects afterwards is left.
+  useEffect(
+    () => () => {
+      generation.current++
+    },
+    [],
+  )
   useEffect(() => {
     if (!reconnected) return
     const timer = setTimeout(() => setReconnected(false), 4000)
@@ -86,16 +93,18 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
 
   function refused(again: boolean, code?: Parameters<typeof joinMessage>[0]) {
     if (again && !code) return setPhase({ name: 'lost' })
-    if (again && (code === 'consultation_ended' || code === 'practitioner_did_not_join')) return void finish()
+    if (again && (code === 'consultation_ended' || code === 'practitioner_did_not_join')) return void finish(false)
     setPhase({ name: 'check', error: joinMessage(code) })
   }
 
-  // finish shows the end once the room is gone; a room closed while the consultation is still open is rejoined.
-  async function finish() {
+  // finish shows the end once the room is gone. A room closed while the consultation is still open is rejoined
+  // (rejoin); after a refused rejoin it is not: the window has closed while the room is still occupied, so the
+  // screen shows the end without the status's line (SPEC §2 "Client states": rejoin only while the window is open).
+  async function finish(rejoin = true) {
     const gen = ++generation.current
     const status = await readStatus()
     if (gen !== generation.current) return
-    if (status && status.state !== 'ended') return void connect(true)
+    if (status && status.state !== 'ended') return rejoin ? void connect(true) : setPhase({ name: 'ended' })
     setPhase({ name: 'ended', status })
   }
 

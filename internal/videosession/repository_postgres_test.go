@@ -169,6 +169,43 @@ func TestEnd_EndsASessionOnceAndByIDReadsIt(t *testing.T) {
 	}
 }
 
+// End practitioner_absent applies only while the practitioner has not joined: a join that committed after the
+// reason was chosen makes it change nothing, and another reason still ends the session.
+func TestEnd_PractitionerAbsentOnlyWhileThePractitionerHasNotJoined(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
+	s := seedDB(t, owner, at)
+	opened, err := open(t, app, s, session(s, "r_absent", at))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := inRoom(t, app, "r_absent", func(ctx context.Context, r videosession.Repository) error {
+		_, _, err := r.Joined(ctx, opened.ID, videosession.RolePractitioner, at, at)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	end := func(reason videosession.EndReason) (videosession.Session, bool) {
+		var out videosession.Session
+		var changed bool
+		if err := inClinic(t, app, s.clinic, func(ctx context.Context, r videosession.Repository) error {
+			var err error
+			out, changed, err = r.End(ctx, opened.ID, reason, at.Add(time.Hour))
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return out, changed
+	}
+	if got, changed := end(videosession.EndPractitionerAbsent); changed || got != (videosession.Session{}) {
+		t.Errorf("End(practitioner_absent) after the practitioner joined = %+v, %t; want no change", got, changed)
+	}
+	if got, changed := end(videosession.EndWindowClosed); !changed || got.EndReason != videosession.EndWindowClosed {
+		t.Errorf("End(window_closed) = %+v, %t; want the session ended window_closed", got, changed)
+	}
+}
+
 func TestOpen_StoresTheFirstSessionAndReturnsItAfterwards(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)

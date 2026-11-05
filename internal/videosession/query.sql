@@ -25,10 +25,12 @@ FROM video_session
 WHERE id = @id;
 
 -- name: EndSession :one
--- Only a session not ended yet ends: a repeat, or a later path, leaves no row.
+-- Only a session not ended yet ends: a repeat, or a later path, leaves no row. practitioner_absent applies only
+-- while the practitioner has not joined: the reason is chosen before this transaction, and a join that committed
+-- in between leaves no row too.
 UPDATE video_session
 SET ended_at = @at, end_reason = @reason, updated_at = @at
-WHERE id = @id AND ended_at IS NULL
+WHERE id = @id AND ended_at IS NULL AND (@reason::text <> 'practitioner_absent' OR practitioner_joined_at IS NULL)
 RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
           organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason;
 

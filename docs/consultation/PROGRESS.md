@@ -1191,3 +1191,69 @@ clinics with their admin and practitioner, 5 patients, 4 appointments (2 fulfill
 check) and the `salus-playwright:1.55.0` image; `test/e2e/web/node_modules` (git-ignored). The stack is up as it
 was.
 
+
+### 2026-11-05 — review of PR #20
+
+The reviewers' eight findings, each fixed test first. No settled decision changed; SPEC.md is unchanged.
+
+**Tests seen failing first.**
+- Web, a refused rejoin (`CallScreen: a rejoin after the window closed`, both the lost connection and a room
+  closed while the status is still `open`): the rejoin refused with `consultation_ended` called `finish()`, which
+  read `open` and joined again without limit. The test file never finished: the request loop ran the Vitest worker
+  out of memory (`JavaScript heap out of memory`, the worker exited with SIGABRT) after 40 of the 46 tests.
+- Web, unmounting while "Joining…" (`CallScreen: unmounting`): `expected false to be true` for the late room's
+  `left`; the room that connected after the unmount stayed connected and publishing.
+- `TestHandleWebhook_AJoinAfterTheEndRecordsNothingAndDeletesTheRoomAgain`: `deleted []` for both identities; and
+  `TestHandleWebhook_AJoinAfterTheEndFailsWhenTheDeleteFails`: `HandleWebhook() = <nil>`. It replaces
+  `TestHandleWebhook_IgnoresJoinsAfterTheEnd`, which still asserts that nothing is recorded, started, removed or
+  audited.
+- `TestCloseWindow_APractitionerWhoJoinsMeanwhileIsNotEndedAbsent`: `CloseWindow() = 0s, <nil>; want a minute's
+  snooze`; `TestHandleWebhook_LeavingDoesNotEndAbsentAPractitionerWhoJoinsMeanwhile`: the session ended and the
+  room deleted. On the real database, `TestEnd_PractitionerAbsentOnlyWhileThePractitionerHasNotJoined`: `End
+  (practitioner_absent)` after the practitioner's join ended the session `practitioner_absent`.
+- `TestVideoSession_AScopeCreatesSessionsOnlyForAppointmentsItSees`: patient A's insert of their own appointment's
+  session with clinic B's id: `<nil>, want SQLSTATE 42501`.
+- `scripts/e2e-livekit-log.sh` on a synthetic check and log in the scratchpad: an empty absent value failed on a
+  blank log line ("holds the run's synthetic patient phone"); an empty present value passed. The e2e helper fixes
+  (6, 7) have no failing test of their own: 6 makes an assertion real, and 7 is a race in a test helper.
+
+**What was fixed.**
+1. `web/src/CallScreen.tsx`: `finish(rejoin = true)`; a rejoin refused with `consultation_ended` or
+   `practitioner_did_not_join` calls `finish(false)`, which shows the ended state without the status's line when
+   the status is still `open` (as mobile's `_finish(rejoin: false)`), and asks for no further token. A room
+   `ended` event while the status is `open` still tries one rejoin, whose refusal ends the loop.
+2. Same file: unmounting bumps `generation`, so a `media.connect` that finishes later is left at once.
+3. `service_webhook.go` `joined`: a join for an ended session records nothing and, after the commit, deletes
+   the room again (idempotent: LiveKit's not-found is success). Deleting the room disconnects whoever is in it with
+   `ROOM_DELETED`, the reason both clients and the e2e journeys take for an end, so no separate
+   `RemoveParticipant` (which would show the participant `PARTICIPANT_REMOVED` first). A failed delete fails the
+   webhook, for LiveKit to deliver it again.
+4. `query.sql` `EndSession`: `practitioner_absent` applies only while `practitioner_joined_at IS NULL`; a join
+   that committed after the reason was chosen leaves no row. `end` now reports whether the session ended and
+   deletes the room only then; `CloseWindow` snoozes a minute and decides again (window_closed, time_limit or
+   another snooze); the webhook's leave leaves it to the job. Other reasons are unaffected.
+5. `migrations/00021_video_session.sql` (not on `main`, changed in place as booking's review did with 00019):
+   `video_session_own_create` also requires `appointment.organization_id = video_session.organization_id`.
+6. `test/e2e/consultation_test.go` and `consultation_removal_test.go`: the practitioner's stay through the
+   revocation is asserted by their first disconnection being `ROOM_DELETED` after the end (the removal load test
+   now ends the started consultation through the API), not a non-blocking select.
+7. `connect`'s `OnDisconnected` sends without blocking: the first disconnection is kept, a repeated callback is
+   dropped.
+8. `scripts/e2e-livekit-log.sh`: an empty absent value is skipped; an empty present value fails.
+
+**Checks.** `make lint`: 0 issues in both modules, migrations check passes. `make archcheck`: pass. `make test`:
+pass. `make cover`: every package at 80% or more, total 94.8% (`videosession` 94.8%). `make web-lint` (0 warnings),
+`web-typecheck`, `web-test` (212 tests), `web-build`: pass. `make fhir-validate`: 58 files, 0 errors. `make
+gen-clients`: no diff. `make e2e`: pass (Go suite 11.9 s); the log check found none of the run's 22 synthetic
+values and both rooms in 3,393 lines. `make bench-removal` (the changed load test, not part of `make e2e`): pass,
+removal median 18 ms (started) and 27 ms (not started) from the revoke's response.
+
+**Deferred.** A join request whose `CreateRoom` lands after the end and whose client never connects leaves an
+empty room until LiveKit's empty timeout (at most the hard cap); no participant is in it, and a join to it is
+the webhook's case 3, which deletes it. Unchanged and still open: the iOS permission question and "Waiting on
+people".
+
+**Dev stack left.** 00021 is already applied to the dev database, so `video_session_own_create` was altered there
+by hand to the migration's new check (`ALTER POLICY`, no data touched). The `make e2e` run and `make
+bench-removal` added their synthetic clinics, patients, appointments, sessions, jobs and audit events through the
+API, as before. The stack is up as it was.

@@ -68,7 +68,7 @@ func TestVideoSession_EachScopeSeesOnlyItsSessions(t *testing.T) {
 }
 
 // The first token request creates the session in the caller's scope: the patient for their own appointment
-// only, the clinic for one with an active consent only. A second insert for the appointment does nothing.
+// only, with its clinic's id, the clinic for one with an active consent only. A second insert for the appointment does nothing.
 func TestVideoSession_AScopeCreatesSessionsOnlyForAppointmentsItSees(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
@@ -80,6 +80,16 @@ func TestVideoSession_AScopeCreatesSessionsOnlyForAppointmentsItSees(t *testing.
 				ON CONFLICT (appointment_id) DO NOTHING`, appt)
 			return err
 		}
+	}
+	inClinic := func(appt, clinic string) func(ctx context.Context, db postgres.Querier) error {
+		return func(ctx context.Context, db postgres.Querier) error {
+			_, err := db.Exec(ctx, `INSERT INTO video_session (appointment_id, organization_id, room, patient_identity, practitioner_identity, closes_at)
+				VALUES ($1::uuid, $2::uuid, 'r_x' || $1::text, 'p_xa' || $1::text, 'p_xb' || $1::text, now())`, appt, clinic)
+			return err
+		}
+	}
+	if err := asApp(t, app, map[string]string{"app.patient_id": p[0].patient}, inClinic(a.aPast, clinicB)); sqlState(err) != "42501" {
+		t.Errorf("patient A, their appointment with another clinic's id: %v, want SQLSTATE 42501", err)
 	}
 	tests := []struct {
 		scope map[string]string

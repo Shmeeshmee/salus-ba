@@ -64,7 +64,7 @@ func (q *Queries) DeleteSessionsEndedBefore(ctx context.Context, before pgtype.T
 const endSession = `-- name: EndSession :one
 UPDATE video_session
 SET ended_at = $1, end_reason = $2, updated_at = $1
-WHERE id = $3 AND ended_at IS NULL
+WHERE id = $3 AND ended_at IS NULL AND ($2::text <> 'practitioner_absent' OR practitioner_joined_at IS NULL)
 RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
           organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason
 `
@@ -75,7 +75,9 @@ type EndSessionParams struct {
 	ID     pgtype.UUID
 }
 
-// Only a session not ended yet ends: a repeat, or a later path, leaves no row.
+// Only a session not ended yet ends: a repeat, or a later path, leaves no row. practitioner_absent applies only
+// while the practitioner has not joined: the reason is chosen before this transaction, and a join that committed
+// in between leaves no row too.
 func (q *Queries) EndSession(ctx context.Context, arg EndSessionParams) (VideoSession, error) {
 	row := q.db.QueryRow(ctx, endSession, arg.At, arg.Reason, arg.ID)
 	var i VideoSession

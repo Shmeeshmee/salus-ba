@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/livekit/protocol/livekit"
 
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -68,13 +69,12 @@ func removal(t *testing.T, startIn time.Duration, practitionerStays bool) (fromR
 		t.Errorf("the patient's next join = %d, want 409", code)
 	}
 	if practitionerStays {
-		select {
-		case <-practitioner.gone:
-			t.Error("the practitioner left the consultation that started before the revocation")
-		default:
-		}
-	} else {
-		eventually(t, "the cancelled consultation's room deleted", func() bool { return len(practitioner.gone) == 1 })
+		// The practitioner stayed through the revocation: their first disconnection is the end's ROOM_DELETED,
+		// not a removal.
+		clinic.practitioner.must(http.StatusOK, http.MethodPost, "/appointments/"+appt.ID+"/consultation/end", nil, nil)
+	}
+	if reason := practitioner.waitGone(t); reason != livekit.DisconnectReason_ROOM_DELETED {
+		t.Errorf("the practitioner was disconnected with %v, want ROOM_DELETED (the end, or the cancelled consultation's room deleted)", reason)
 	}
 	return gone.Sub(responded), gone.Sub(revokedAt(t, p.patientID))
 }

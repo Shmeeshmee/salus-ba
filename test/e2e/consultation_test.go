@@ -90,15 +90,12 @@ func TestConsultation_ARevocationDuringTheCallRemovesThePatient(t *testing.T) {
 	eventually(t, "the practitioner sees the patient gone", func() bool {
 		return len(practitioner.room.GetRemoteParticipants()) == 0
 	})
-	select {
-	case <-practitioner.gone:
-		t.Fatalf("the practitioner was disconnected (%v) by the revocation of a consultation that had started", practitioner.room.DisconnectReason())
-	default:
-	}
 
+	// The practitioner stayed through the revocation: their first and only disconnection is the end's
+	// ROOM_DELETED, not a removal (PARTICIPANT_REMOVED) by the revocation.
 	clinic.practitioner.must(http.StatusOK, http.MethodPost, "/appointments/"+appt.ID+"/consultation/end", nil, nil)
 	if reason := practitioner.waitGone(t); reason != livekit.DisconnectReason_ROOM_DELETED {
-		t.Errorf("the practitioner was disconnected with %v, want ROOM_DELETED", reason)
+		t.Errorf("the practitioner was disconnected with %v, want ROOM_DELETED from the end (they stay through the revocation)", reason)
 	}
 	finished(t, p, appt.ID)
 }
@@ -147,7 +144,7 @@ type joinAnswer struct {
 // participant is a test participant connected to the compose LiveKit with the token the API gave its caller.
 type participant struct {
 	room  *lksdk.Room
-	gone  chan time.Time // the time of its disconnection
+	gone  chan time.Time // the time of its first disconnection
 	media chan struct{}  // closed on the first RTP packet of a remote track
 	join  joinAnswer
 }
@@ -161,7 +158,12 @@ func connect(t *testing.T, a *api, appointmentID string, tone bool) *participant
 	a.must(http.StatusOK, http.MethodPost, "/appointments/"+appointmentID+"/consultation/join", nil, &p.join)
 	var once sync.Once
 	cb := lksdk.NewRoomCallback()
-	cb.OnDisconnected = func() { p.gone <- clock.System{}.Now() }
+	cb.OnDisconnected = func() { // the first disconnection is kept; a repeated callback never blocks the SDK
+		select {
+		case p.gone <- clock.System{}.Now():
+		default:
+		}
+	}
 	cb.OnTrackSubscribed = func(track *webrtc.TrackRemote, _ *lksdk.RemoteTrackPublication, _ *lksdk.RemoteParticipant) {
 		go func() {
 			for {

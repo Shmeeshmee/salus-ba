@@ -161,6 +161,23 @@ func TestCloseWindow_AtTheHardCapEndsAnOccupiedRoom(t *testing.T) {
 	}
 }
 
+// The practitioner's join commits after the job chose practitioner_absent and before its end: the end does not
+// apply (guarded in SQL), the room is not deleted, nothing is audited, and the job looks again in a minute.
+func TestCloseWindow_APractitionerWhoJoinsMeanwhileIsNotEndedAbsent(t *testing.T) {
+	f := opened(closes, time.Time{}, start)
+	f.repo.practitionerJoinsAt = closes.Add(-time.Second)
+	snooze, err := closeWindow(t, f)
+	if err != nil || snooze != time.Minute {
+		t.Fatalf("CloseWindow() = %v, %v; want a minute's snooze", snooze, err)
+	}
+	if s := f.session(); !s.EndedAt.IsZero() || s.EndReason != "" {
+		t.Errorf("session %+v, want not ended", s)
+	}
+	if len(f.provider.deleted) != 0 || len(f.encounters.finished) != 0 || len(f.audit.events) != 0 {
+		t.Errorf("deleted %v, finished %v, events %v; want nothing", f.provider.deleted, f.encounters.finished, f.audit.events)
+	}
+}
+
 // A session ended already (by the practitioner, or by a run whose room delete failed) changes nothing; the
 // room is deleted again, which is idempotent, so a retry heals.
 func TestCloseWindow_OnAnEndedSessionDeletesTheRoomOnly(t *testing.T) {

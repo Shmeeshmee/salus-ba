@@ -109,7 +109,8 @@ func (s *Service) removePatient(ctx context.Context, agent string, session Sessi
 	if !cancelled {
 		return nil
 	}
-	return s.end(ctx, agent, session, EndCancelled, now)
+	_, err := s.end(ctx, agent, session, EndCancelled, now)
+	return err
 }
 
 // removeFromRoom removes the patient from the session's room for the agent, whose path decided their access

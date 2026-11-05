@@ -153,16 +153,19 @@ func (c *fakeConsents) State(ctx context.Context, patientID, org string) (access
 
 // fakeRepository holds the sessions by appointment, as Open stores them.
 type fakeRepository struct {
-	err       error
-	endErr    error
-	joinedErr error
-	sessions  map[string]videosession.Session
-	patient   string // set by SetPatient
-	clinic    string // set by SetClinic
-	room      string // set by SetRoom
-	narrowed  string // the appointment set by SetAppointment
-	opened    []videosession.Session
-	next      int
+	// practitionerJoinsAt records the practitioner's join when End is called, as a join that committed after
+	// the end's reason was chosen and before its UPDATE.
+	practitionerJoinsAt time.Time
+	err                 error
+	endErr              error
+	joinedErr           error
+	sessions            map[string]videosession.Session
+	patient             string // set by SetPatient
+	clinic              string // set by SetClinic
+	room                string // set by SetRoom
+	narrowed            string // the appointment set by SetAppointment
+	opened              []videosession.Session
+	next                int
 	// hidden: the clinic's scope does not show the sessions (after a revocation, of the appointments that had
 	// not started); the patient's and the room's do.
 	hidden bool
@@ -300,6 +303,8 @@ func (r *fakeRepository) ByAppointment(ctx context.Context, id string) (videoses
 	return s, nil
 }
 
+// End ends the session as the SQL does: only one not ended yet, and practitioner_absent only while the
+// practitioner has not joined.
 func (r *fakeRepository) End(ctx context.Context, id string, reason videosession.EndReason, at time.Time) (videosession.Session, bool, error) {
 	if ctx.Value(txKey{}) == nil {
 		return videosession.Session{}, false, errors.New("End outside a transaction")
@@ -314,7 +319,12 @@ func (r *fakeRepository) End(ctx context.Context, id string, reason videosession
 			r.sessions[k] = s
 			return videosession.Session{}, false, nil
 		}
-		if s.ID == id && inScope && s.EndedAt.IsZero() {
+		if s.ID == id && !r.practitionerJoinsAt.IsZero() && s.PractitionerJoinedAt.IsZero() {
+			s.PractitionerJoinedAt = r.practitionerJoinsAt
+			r.sessions[k] = s
+		}
+		absentButJoined := reason == videosession.EndPractitionerAbsent && !s.PractitionerJoinedAt.IsZero()
+		if s.ID == id && inScope && s.EndedAt.IsZero() && !absentButJoined {
 			s.EndedAt, s.EndReason = at, reason
 			r.sessions[k] = s
 			return s, true, nil

@@ -132,8 +132,10 @@ func TestHandleWebhook_FailsWhenTheRemovalFails(t *testing.T) {
 	}
 }
 
-// After the session ended a join changes nothing: no join recorded, no encounter, no removal, no event.
-func TestHandleWebhook_IgnoresJoinsAfterTheEnd(t *testing.T) {
+// A join after the end records, starts and audits nothing, and deletes the room again: a join request that
+// read the session open may have created the room after the end deleted it (CreateRoom is outside the join's
+// transaction), and deleting it disconnects whoever is in it.
+func TestHandleWebhook_AJoinAfterTheEndRecordsNothingAndDeletesTheRoomAgain(t *testing.T) {
 	for _, identity := range []string{"p_practitioner", "p_patient"} {
 		f := opened(now, time.Time{}, time.Time{})
 		s := f.session()
@@ -146,6 +148,21 @@ func TestHandleWebhook_IgnoresJoinsAfterTheEnd(t *testing.T) {
 		if got := f.session(); got != s || len(f.encounters.started) != 0 || len(f.provider.removed) != 0 || len(f.audit.events) != 0 {
 			t.Errorf("%s: session %+v, started %v, removed %v, events %v; want nothing", identity, got, f.encounters.started, f.provider.removed, f.audit.events)
 		}
+		if !slices.Equal(f.provider.deleted, []string{"r_room"}) || f.provider.inTx {
+			t.Errorf("%s: deleted %v (in a transaction: %t); want the room deleted again, after the commit", identity, f.provider.deleted, f.provider.inTx)
+		}
+	}
+}
+
+// A failed delete of the ended session's room fails the webhook, for LiveKit to deliver it again.
+func TestHandleWebhook_AJoinAfterTheEndFailsWhenTheDeleteFails(t *testing.T) {
+	f := opened(now, time.Time{}, time.Time{})
+	s := f.session()
+	s.EndedAt, s.EndReason = now, videosession.EndPractitioner
+	f.repo.sessions[apptA] = s
+	f.provider.deleteErr = errBackend
+	if _, err := deliver(t, f, joined("p_patient")); !errors.Is(err, errBackend) {
+		t.Errorf("HandleWebhook() = %v, want the provider's error", err)
 	}
 }
 
@@ -240,6 +257,19 @@ func TestHandleWebhook_LeavingAfterTheWindowClosedEndsTheSession(t *testing.T) {
 			}
 			checkEvents(t, tc.name, f.audit, webhookEvent())
 		}
+	}
+}
+
+// The practitioner's join commits after a leave chose practitioner_absent and before its end: the end does not
+// apply, the room stays and nothing is audited; the window-close job decides later.
+func TestHandleWebhook_LeavingDoesNotEndAbsentAPractitionerWhoJoinsMeanwhile(t *testing.T) {
+	f := opened(closes, time.Time{}, start)
+	f.repo.practitionerJoinsAt = closes.Add(-time.Second)
+	if _, err := deliver(t, f, left("p_patient")); err != nil {
+		t.Fatal(err)
+	}
+	if s := f.session(); !s.EndedAt.IsZero() || len(f.provider.deleted) != 0 || len(f.audit.events) != 0 {
+		t.Errorf("session %+v, deleted %v, events %v; want nothing", s, f.provider.deleted, f.audit.events)
 	}
 }
 

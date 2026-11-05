@@ -447,3 +447,38 @@ describe('CallScreen: the end', () => {
     await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toBe('You have not joined this consultation yet, so there is nothing to end.'))
   })
 })
+
+describe('CallScreen: a rejoin after the window closed', () => {
+  // The window has closed while the room is still occupied: the status stays open (the window-close job
+  // snoozes) and the API refuses a new token. A refused rejoin ends the screen; it does not ask again.
+  it.each([
+    ['the connection is lost', 'lost'],
+    ['the room is closed while the status is still open', 'ended'],
+  ] as const)('shows the end, without asking again, when %s and the rejoin is refused', async (_, ending) => {
+    let refuse = false
+    const { last, requests } = await inCall({ routes: { [joinPost]: () => (refuse ? apiError(409, 'consultation_ended') : Response.json(joined)) } })
+    refuse = true
+
+    act(() => last().emit({ type: 'disconnected', ending }))
+
+    expect(await screen.findByRole('heading', { name: 'The consultation has ended' })).toBeTruthy()
+    expect(paths(requests).filter((p) => p === joinPost)).toHaveLength(2)
+  })
+})
+
+describe('CallScreen: unmounting', () => {
+  it('leaves a room whose connection finishes after the screen was closed while joining', async () => {
+    const fake = fakeFetch({ [joinPost]: () => Response.json(joined), [statusGet]: () => Response.json(open) })
+    const { media, rooms } = fakeMedia()
+    let release: (() => void) | undefined
+    const held = { ...media, connect: (...args: Parameters<typeof media.connect>) => new Promise<Awaited<ReturnType<typeof media.connect>>>((r) => (release = () => r(media.connect(...args)))) }
+    const { unmount } = render(<CallScreen api={newApiClient(fake.fetch)} id={id} media={held} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    await vi.waitFor(() => expect(release).toBeDefined())
+
+    unmount()
+    release?.()
+
+    await vi.waitFor(() => expect(rooms[0]?.left).toBe(true))
+  })
+})

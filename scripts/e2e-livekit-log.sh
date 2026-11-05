@@ -3,7 +3,8 @@
 # synthetic names, e-mails and ids, and does hold the run's (opaque) room names, so it is the right log
 # (docs/consultation/SPEC.md §2 "LiveKit logs"). $1 is the check the journeys wrote, one line per value:
 # "absent|present<TAB>label<TAB>value". An absent value is matched as a whole word, ignoring case (a short given
-# name is also a part of ordinary words, as "Ena" of "enabled"). Only labels are printed, never a value.
+# name is also a part of ordinary words, as "Ena" of "enabled"). An empty absent value is skipped (it would match
+# every blank line); an empty present value fails (it would prove nothing). Only labels are printed, never a value.
 set -euo pipefail
 check=$1
 log=$(mktemp)
@@ -21,6 +22,13 @@ fi
 
 failed=0 absent=0 present=0
 while IFS=$'\t' read -r kind label value; do
+  if [ -z "$value" ]; then # an empty pattern matches every line, or proves nothing
+    if [ "$kind" = present ]; then
+      echo "e2e-livekit-log: the check's $label is empty" >&2
+      failed=1
+    fi
+    continue
+  fi
   case $kind in
     absent)
       absent=$((absent + 1))

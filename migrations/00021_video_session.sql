@@ -5,7 +5,8 @@
 -- call. closes_at is the join window's close (the appointment's end + 30 minutes), copied once: the
 -- retention period of a session that never ended runs from it, as salus_retention may read only this table.
 -- Row-level security, like appointment's:
---   - the patient (app.patient_id) sees and creates the sessions of their own appointments;
+--   - the patient (app.patient_id) sees and creates the sessions of their own appointments, a new one with its
+--     appointment's clinic;
 --   - a clinic (app.organization_id, neither patient setting set) sees, creates and ends the sessions of its
 --     appointments with a patient who has an active consent with it, and, after a revocation, of those that
 --     started before the latest one;
@@ -39,6 +40,7 @@ CREATE POLICY video_session_own ON video_session FOR SELECT
 CREATE POLICY video_session_own_create ON video_session FOR INSERT
     WITH CHECK (EXISTS (SELECT 1 FROM appointment a
                         WHERE a.id = video_session.appointment_id
+                          AND a.organization_id = video_session.organization_id
                           AND a.patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid));
 CREATE POLICY video_session_clinic ON video_session
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL

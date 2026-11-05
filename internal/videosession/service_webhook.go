@@ -37,15 +37,16 @@ func (s *Service) HandleWebhook(ctx context.Context, body []byte, authorization 
 	return e.Kind, err
 }
 
-// joined records a participant's join, unless the session ended. The practitioner's first join starts the
-// Encounter at LiveKit's join time. The patient's access is checked again on every join (consent active,
+// joined records a participant's join, unless the session ended: then it records nothing and deletes the room
+// again after the commit (idempotent), as a join request that read the session open may have created it after
+// the end deleted it. The practitioner's first join starts the Encounter at LiveKit's join time. The patient's access is checked again on every join (consent active,
 // appointment booked) and, when it is gone, they are removed from the room after the commit, audited
 // (removeFromRoom): a second guard behind the token's check, for a token issued just before a revocation or a
 // cancellation committed.
 func (s *Service) joined(ctx context.Context, e Event) error {
 	now := s.Clock.Now()
 	var session Session
-	var remove bool
+	var remove, ended bool
 	var reason Reason
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
@@ -57,6 +58,7 @@ func (s *Service) joined(ctx context.Context, e Event) error {
 		case !known:
 			return ErrUnknownRoom
 		case !session.EndedAt.IsZero():
+			ended = true
 			return nil
 		}
 		joined, changed, err := s.Repo.Joined(ctx, session.ID, role, e.At, now)
@@ -81,8 +83,13 @@ func (s *Service) joined(ctx context.Context, e Event) error {
 		}
 		return err
 	})
-	if err != nil || !remove {
+	switch {
+	case err != nil:
 		return err
+	case ended:
+		return s.Provider.DeleteRoom(ctx, session.Room)
+	case !remove:
+		return nil
 	}
 	return s.removeFromRoom(ctx, agentWebhook, session, reason)
 }
@@ -111,7 +118,8 @@ func (s *Service) left(ctx context.Context, e Event) error {
 	if err != nil || snooze > 0 {
 		return err
 	}
-	return s.end(ctx, agentWebhook, session, reason, now)
+	_, err = s.end(ctx, agentWebhook, session, reason, now)
+	return err
 }
 
 // inRoom scopes the transaction in ctx to the room's session (the webhook carries no user) and then to the
