@@ -39,8 +39,9 @@ class _ConsentsScreenState extends LoadingState<ConsentsScreen, _Consents> {
       builder: (context) => AlertDialog(
         title: const Text('Revoke your consent?'),
         content: Text(
-          '$clinic will no longer see your profile, and your future appointments with $clinic will be cancelled. '
-          'Past appointments stay with the clinic as part of its care records.',
+          '$clinic will no longer see your profile. It keeps your name and the details of appointments that have '
+          'already taken place, as part of its care records. Your future appointments with $clinic will be '
+          'cancelled.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Keep consent')),

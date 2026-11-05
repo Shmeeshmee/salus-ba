@@ -84,6 +84,9 @@ Map<String, Object?> loginNext(String next) => {'next': next, 'challenge': chall
 
 Map<String, Object?> error(String code) => {'error': code};
 
+/// The privacy notice's address in every widget test (PRIVACY_NOTICE_URL).
+final privacyNoticeUrl = Uri.parse('https://privacy.example.test/notice');
+
 /// The app wired to [api] and [store], as main.dart wires it to the network and the device.
 class Harness {
   /// A signed-in patient with a profile unless the test answers `GET /me/patient` otherwise.
@@ -95,6 +98,10 @@ class Harness {
   }
 
   final api = FakeApi();
+
+  /// The links the app asked the device to open, and whether opening one succeeds.
+  final opened = <Uri>[];
+  var openSucceeds = true;
   final FakeTokenStore store;
   final bearer = HttpBearerAuth();
   final DateTime now;
@@ -103,7 +110,19 @@ class Harness {
   late final Booking booking;
 
   Future<void> pump(WidgetTester tester) async {
-    await tester.pumpWidget(SalusApp(key: UniqueKey(), session: session, booking: booking, now: () => now));
+    await tester.pumpWidget(
+      SalusApp(
+        key: UniqueKey(),
+        session: session,
+        booking: booking,
+        now: () => now,
+        privacyNoticeUrl: privacyNoticeUrl,
+        openUrl: (url) async {
+          opened.add(url);
+          return openSucceeds;
+        },
+      ),
+    );
     await tester.pumpAndSettle();
   }
 }

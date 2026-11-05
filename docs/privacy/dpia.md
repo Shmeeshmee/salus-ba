@@ -550,7 +550,7 @@ clinics chose to publish.
 
 | Risk | Measure |
 | --- | --- |
-| Consent that is not informed or not explicit | A separate screen with the four points before "Agree and book"; widget tests check the screen comes before any grant and that declining grants and books nothing |
-| A revocation whose effect surprises the patient | A confirmation dialog states that future appointments with the clinic are cancelled and past ones stay; tested |
+| Consent that is not informed or not explicit | A separate screen before "Agree and book": what is shared, who sees it, what for, who is responsible (the clinic, with Salus processing on its behalf) with a link to the privacy notice (`PRIVACY_NOTICE_URL`, a placeholder until published), and how to revoke; widget tests check the text, the link, that the screen comes before any grant and that declining grants and books nothing. The text needs legal review before production |
+| A revocation whose effect surprises the patient | The consent screen and the confirmation dialog both say that the clinic keeps the patient's name and the details of appointments that have already taken place, as its care records, and that future appointments are cancelled; tested |
 | Personal data in logs or on screen from an error | The app prints nothing (a widget test captures `debugPrint` through a whole booking); API errors map to fixed sentences, never the response body |
 | Patient data left on the device | Nothing but the session token is stored, in secure storage |

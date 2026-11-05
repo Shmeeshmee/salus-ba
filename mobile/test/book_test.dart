@@ -19,6 +19,12 @@ Future<http.Response> slotsByDay(http.Request request) async {
   });
 }
 
+const consentResponsible = "$clinicName is responsible for your data. Salus processes it on the clinic's behalf.";
+const consentRevoke =
+    'You can revoke this consent at any time under My consents. The clinic then no longer sees your profile. '
+    'It keeps your name and the details of appointments that have already taken place, as part of its care '
+    'records. Your future appointments there are cancelled.';
+
 Future<Harness> atSlots(WidgetTester tester) async {
   final h = Harness(store: FakeTokenStore(token));
   h.api.answer('GET /auth/me', 200, account());
@@ -138,10 +144,11 @@ void main() {
     await tapButton(tester, 'Book');
 
     expect(find.text('Share your details with $clinicName'), findsOneWidget);
-    for (final heading in ['What is shared', 'Who sees it', 'What for', 'How to revoke']) {
+    for (final heading in ['What is shared', 'Who sees it', 'What for', 'Who is responsible', 'How to revoke']) {
       expect(find.text(heading), findsOneWidget, reason: heading);
     }
-    expect(find.textContaining('your future appointments there are cancelled'), findsOneWidget);
+    expect(find.text(consentResponsible), findsOneWidget);
+    expect(find.text(consentRevoke), findsOneWidget);
     expect(count(h.api, 'POST /consents'), 0);
 
     await tapButton(tester, 'Agree and book');
@@ -199,6 +206,29 @@ void main() {
     expect(find.text('Booking with this clinic needs your consent.'), findsOneWidget);
     expect(count(h.api, 'POST /consents'), 0);
     expect(count(h.api, 'POST /appointments'), 1);
+  });
+
+  testWidgets('the consent screen opens the privacy notice and stays open', (tester) async {
+    final h = await atBook(tester);
+    h.api.answer('POST /appointments', 409, error('consent_required'));
+    await tapButton(tester, 'Book');
+    await tapLink(tester, 'Read the privacy notice');
+
+    expect(h.opened, [privacyNoticeUrl]);
+    expect(find.text('Share your details with $clinicName'), findsOneWidget);
+    expect(find.text('The privacy notice could not be opened.'), findsNothing);
+    expect(count(h.api, 'POST /consents'), 0);
+  });
+
+  testWidgets('a privacy notice that cannot be opened says so', (tester) async {
+    final h = await atBook(tester);
+    h.openSucceeds = false;
+    h.api.answer('POST /appointments', 409, error('consent_required'));
+    await tapButton(tester, 'Book');
+    await tapLink(tester, 'Read the privacy notice');
+
+    expect(find.text('The privacy notice could not be opened.'), findsOneWidget);
+    expect(find.text('Share your details with $clinicName'), findsOneWidget);
   });
 
   testWidgets('without a profile it asks for it first, then books', (tester) async {

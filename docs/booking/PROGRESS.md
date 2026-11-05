@@ -45,7 +45,11 @@
 
 - Before production: a legal decision on the retention of `appointment` and `consent`, and legal
   confirmation of the lawful basis split (`SPEC.md` §3, §4).
-- Before production: `PATIENT_APP_URL`, the link in appointment e-mails, once the app has a link domain.
+- Before production: `PATIENT_APP_URL`, the link in appointment e-mails, once the app has a link domain, and
+  `PRIVACY_NOTICE_URL`, the privacy notice the consent screen links to (a placeholder).
+- Before production (owner, 2026-11-05, `SPEC.md` §7): legal review of the consent and privacy text; whether
+  booking should require consent at all, given care rests on Art. 9(2)(h); localising the patient app
+  (bs/hr/sr) before any real clinic uses it.
 - Before production (ops): the owner role that runs `migrate` needs `CREATEROLE` for `salus_retention`, as for
   `salus_app` (accounts), and, since `salus_retention` has `BYPASSRLS`, to be a superuser or to hold
   `BYPASSRLS` itself (Postgres 16+); otherwise the role is provisioned outside `migrate`. Production needs
@@ -1095,4 +1099,29 @@ behaviour tests against the old code or with the new check stubbed out.
 
 **Dev stack.** The dev database was reset afterwards at the owner's request (`docker compose down` with
 volumes, then `make up`), so none of the synthetic leftovers listed under package 10 remain.
+
+### 2026-11-05 — consent text (after the merge of PR #18)
+
+**Correction.** The 2026-11-05 review entry above, and the PR #18 merge, rest on the consent text having been
+reviewed. It had not: the owner saw the consent screen's text for the first time after the merge. The question
+asking to approve it came with the merge itself, as one choice, so it was never really a review. From now on the
+text goes to the owner on its own, before anything that depends on it.
+
+**Changes (owner, 2026-11-05), test first on `feat/consent-copy`:**
+- The consent screen's "How to revoke" and the revoke dialog now say that the clinic no longer sees the
+  profile but keeps the name and the details of appointments that have already taken place, as its care
+  records, and that future appointments are cancelled.
+- A "Who is responsible" section: "[Clinic] is responsible for your data. Salus processes it on the clinic's
+  behalf.", and a "Read the privacy notice" link to `PRIVACY_NOTICE_URL`. That setting is a build-time
+  `--dart-define`, like `API_BASE_URL`, and defaults to the placeholder `https://salus.invalid/privacy`.
+- The link opens in the device's browser through `url_launcher` 6.3.3, Flutter's own plugin, pinned exact. When
+  the device cannot open it, the screen says "The privacy notice could not be opened." and stays open.
+- The setting reaches the screen through an `InheritedWidget` (`PrivacyNotice`) above the app's routes, so it is
+  not threaded through six screens. Tests inject the opener and record the links opened.
+- Red first: the harness change did not compile against the app; with the plumbing in place, the four new or
+  changed tests failed on the missing text and link.
+- `SPEC.md` gains §7 "Before production", which collects the open items and adds the owner's three new ones.
+  `docs/privacy/dpia.md` and `README.md` are updated.
+
+**Checks.** `make mobile-analyze` (no issues), `make mobile-test` (79 tests pass). No Go, web or API change.
 
