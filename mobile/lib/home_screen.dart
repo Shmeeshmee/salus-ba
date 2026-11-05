@@ -3,6 +3,7 @@ import 'package:salus_api/api.dart';
 
 import 'appointments_screen.dart';
 import 'booking.dart';
+import 'call.dart';
 import 'clinics_screen.dart';
 import 'consents_screen.dart';
 import 'messages.dart';
@@ -18,6 +19,7 @@ class HomeScreen extends StatefulWidget {
     required this.session,
     required this.booking,
     required this.now,
+    required this.media,
     required this.account,
     required this.onSignedOut,
   });
@@ -25,6 +27,7 @@ class HomeScreen extends StatefulWidget {
   final Session session;
   final Booking booking;
   final DateTime Function() now;
+  final Media media;
   final Account account;
   final VoidCallback onSignedOut;
 
@@ -133,11 +136,11 @@ class _HomeScreenState extends State<HomeScreen> {
           OutlinedButton(onPressed: _editProfile, child: const Text('Complete your profile')),
         ],
         FilledButton(
-          onPressed: () => _open(() => ClinicsScreen(booking: booking, now: now)),
+          onPressed: () => _open(() => ClinicsScreen(booking: booking, now: now, media: widget.media)),
           child: const Text('Book an appointment'),
         ),
         OutlinedButton(
-          onPressed: () => _open(() => AppointmentsScreen(booking: booking, now: now)),
+          onPressed: () => _open(() => AppointmentsScreen(booking: booking, now: now, media: widget.media)),
           child: const Text('My appointments'),
         ),
         OutlinedButton(

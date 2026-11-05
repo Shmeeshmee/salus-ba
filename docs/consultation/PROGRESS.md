@@ -9,7 +9,7 @@
 | 5 Revocation and cancellation during a call | done, 2026-11-05 | `consultation(5)` |
 | 5.1 Owner changes after package 5 | done, 2026-11-05 | `consultation(5.1)` |
 | 6 Web | done, 2026-11-05 | `consultation(6)` |
-| 7 Mobile | not started | |
+| 7 Mobile | done, 2026-11-05 | `consultation(7)` |
 | 8 End-to-end | not started | |
 
 ## Decisions
@@ -170,10 +170,44 @@
   other than leaving, a closed room or a second tab) asks for a new token and rejoins once; if that fails it
   shows W25 with "Try again". A room closed while the status is still `open` is rejoined the same way.
 
+- 2026-11-05, package 7 (runner): the patient learns why their connection ended from LiveKit's reason and our
+  API, as the owner's brief says. Removed from the room (`participantRemoved`): the join endpoint is asked once;
+  `consent_required` shows M27, `consultation_ended` M28 (a removal happens only on a revocation or a
+  cancellation, so with the consent active it was the cancellation), `practitioner_did_not_join` M25 and M26, and
+  a 200 rejoins. The room deleted or closed: the status says how it ended (`practitioner_absent` M25 and M26,
+  `time_limit` M22 and M24, `cancelled` M28, otherwise M22 and M23); a status still `open` rejoins, as on the web.
+  A lost connection asks for a new token and rejoins; a rejoin refused as `consultation_ended` shows the end from
+  the status without rejoining again, so it cannot loop. Each join request is audited as any join.
+- 2026-11-05, package 7 (runner): COPY.md has no text for some cases, so none was written. On Android the
+  explanation M35 is shown on the device check and the system prompt follows once that frame is on screen; there
+  is no "continue" button, as COPY.md has no label for one (see the questions). A patient who joins from a second
+  device replaces the first connection, and the first goes back to the device check (W23 is web only). Leave and
+  the back button close the call screen and return to my appointments, which are read again. The ended and the
+  removed screens have the approved heading where COPY.md gives one (M22, M25) and none for M27 and M28
+  (`ui.Page` takes no title). The microphone level has no label (W5 is web only). M2 shows under a booked
+  appointment until its window opens; the list reads the clock every 15 seconds, as the web does.
+- 2026-11-05, package 7 (runner): `permission_handler` 13.0.2 is needed: livekit_client cannot say whether a
+  permission is still to be asked (M35 before the prompt) and cannot open the app's settings (M11), and
+  `url_launcher` cannot open them on Android. On iOS the plugin (Swift Package Manager, as the project uses)
+  enables the camera and microphone from the Info.plist keys, so no Podfile macro is needed. Android declares
+  `CAMERA`, `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS`, the network state permissions and the pre-Android 12
+  Bluetooth ones (install time, no prompt), and the camera as not required. `BLUETOOTH_CONNECT` is not declared:
+  on Android 12 and later it is a run-time prompt with no approved explanation; without it a Bluetooth headset
+  may not carry the call's audio (see the questions).
+- 2026-11-05, package 7 (runner): the device check stops its previews on Join (on Android a camera already open
+  for the preview would keep LiveKit from opening it) and opens them again when the join is refused. Silence (M5)
+  shows when no reading has reached 0.02 for 5 seconds; until a first reading arrives the level is not measured,
+  as on the web. The level is the loudest band of LiveKit's audio visualizer; the threshold is the web's and has
+  not been checked on a device.
+
 ## Waiting on people
 
 - Before production: `SPEC.md` §8 (LiveKit domain, TLS, TURN, keys, node IP; retention and lawful basis;
   localisation).
+- Package 7, for the owner: (1) whether M35 should have its own button before the Android system prompt
+  (COPY.md has no label; the prompt now follows once M35 is on screen); (2) whether to support Bluetooth headsets
+  on Android 12 and later, which needs `BLUETOOTH_CONNECT` and approved text for its prompt; (3) text for a
+  patient replaced by their own second device (now: back to the device check, no message).
 
 ## Log
 
@@ -840,3 +874,90 @@ stopped and removed. The Playwright image `mcr.microsoft.com/playwright/python:v
 Docker image cache. Port 5173 is held by an unrelated container on this machine, so the walk used
 `SALUS_WEB_PORT=5175`; nothing of ours was changed for it.
 
+### 2026-11-05 — package 7: Mobile
+
+**What was built.**
+- `mobile/pubspec.yaml`: `livekit_client` 2.13.2 (the current release, published 2026-10-26; it pins
+  `flutter_webrtc` 1.6.3) and `permission_handler` 13.0.2 (current, 2026-09-04), both exact, with their
+  dependencies in the lockfile.
+- `mobile/lib/call.dart` is the one file that uses livekit_client and permission_handler. It holds the `Media`
+  and `Room` contract the screens use, and `LiveKitMedia`: the permission state (allowed, not asked, refused),
+  the system prompt, the app's settings, previews (the camera's picture, the microphone's level from LiveKit's
+  audio visualizer), and the room. The room publishes camera and microphone only and sets no name, metadata or
+  attributes; LiveKit's client log is off. It maps LiveKit's events to peer, reconnecting, reconnected and
+  disconnected, with an `Ending`: left, removed, ended, replaced or lost. `test/fake_call.dart` is its fake.
+- `mobile/lib/device_check.dart`: M3 and M4, M35 before the system prompt on Android, the camera preview, the
+  microphone level and M5, the denied and missing states (M9 to M12) with "Open settings", the "Join with …
+  off" options (M6), Join and Joining… (M7, M8). A device allowed in the settings opens when the app comes back.
+- `mobile/lib/call_screen.dart`: joining, waiting (M13, M14), the call (the practitioner's video large, the own
+  camera small; M15 to M17), the practitioner leaving (M18), reconnecting (M19 to M21), the end (M22 to M26),
+  removed (M27, M28), and the join errors (M29, M30, M32 to M34).
+- `appointments_screen.dart`: M1 inside the join window, M2 before it; the list reads the clock every 15
+  seconds and is read again after the call. `booking.dart`: the join and status calls. `messages.dart`: every M
+  string from `COPY.md`, word for word, with its number. `ui.Page`: a page may have no title. The `Media` is
+  passed from `main.dart` through the screens to my appointments, as the clock is.
+- iOS `Info.plist`: `NSCameraUsageDescription` and `NSMicrophoneUsageDescription` as approved. Android
+  `AndroidManifest.xml`: the permissions under Decisions.
+- `README.md`: the LiveKit URL on an emulator (`ws://localhost:7880` through `adb reverse`). `docs/privacy/dpia.md`:
+  package 7.
+
+**Tests seen failing first** (`docker compose … run flutter flutter test`).
+- The first run, with `test/fake_call.dart`, `call_test.dart`, `copy_test.dart` and the new
+  `appointments_test.dart` cases written: compilation failed, `Error when reading 'lib/call.dart': No such file
+  or directory` and `No named parameter with the name 'media'`.
+- With `call.dart`'s contract and the `media` parameter in place, before any screen: 47 failed. Among them every
+  device check, joining, call and end test (`Found 0 widgets with type "FilledButton"` for Join consultation),
+  both window tests (`Expected: exactly 2 matching candidates, Actual: Found 0`), and the iOS and Android
+  manifest tests (`Expected: contains '<key>NSCameraUsageDescription</key>…'`).
+- With the screens written, 2 failed on test bugs: a record compared with a matcher (`Expected: (true,
+  _IsNull)`), and a tap on a Join below the screen's edge; fixed in the tests.
+- `copy_test.dart`'s strings check passed on its first run, because `messages.dart` was written before the
+  suite compiled. It was then seen failing with M14 changed by one character (`Expected: contains '$name will
+  join you here. Keep this screen open.'`), and passing again with the approved text.
+- `call_adapter_test.dart` (the disconnect reasons, the permission states, the level) was written after
+  `call.dart`; it was seen failing against three broken mappings (`Expected: Ending.removed, Actual:
+  Ending.lost`; `Access.unasked`/`Access.refused`; `0.4`/`0.2`) and passing with the real ones.
+- Found while reviewing, test first: `says nothing about the practitioner while it asks why it was removed`
+  failed (`Found 1 widget with text containing has left the`) before the stage hid its lines without a room.
+- Not seen failing: `every consultation screen fits a phone 390 px wide` and `prints nothing through a
+  consultation` passed on their first run, as the screens were already written; they guard against regressions.
+
+**What the tests cover.** The window to the second (10 minutes before the start, until 30 minutes after the
+end), closed for every status but `booked`, M2 before it, and Join appearing when the clock passes the opening.
+The device check: preview and level, no prompt when both were allowed, M35 on screen before the system prompt
+on Android and not on iOS, a denied camera (M9, settings opened, joins with audio only, camera turn-on
+disabled), a camera allowed in the settings opening on return, a denied microphone (M10), both denied still
+joining, missing devices (M12), joining with either off, silence after 5 seconds and again after sound, an
+unmeasured level, previews stopped on back and on Join. Joining: the token request without the CSRF header, the
+URL and token passed to the room, Joining…, each refusal's text with no connection, `practitioner_did_not_join`
+(M25, M26), a failed connection (M34). In the call: waiting until the practitioner's participant appears, the
+lines without a name, camera off and muted, the practitioner leaving, the toggles, leave and back, reconnecting
+and reconnected, a lost connection rejoined with a new token and the same settings, a failed rejoin with "Try
+again", a second device. The end: a deleted room for each `endReason`, a room deleted while open rejoined,
+removed after a revocation (M27) and a cancellation (M28), removed with access still there rejoined, a rejoin
+refused as ended, no loop when the status is still open, the window closing while waiting (M25). 390 px without
+overflow, and nothing printed. Every M string against `COPY.md`, the iOS texts against `Info.plist`, the Android
+permissions against the manifest.
+
+**Checks.** `make mobile-analyze`: no issues. `make mobile-test`: 133 tests pass. `dart format --line-length 120
+--set-exit-if-changed lib test`: no change. `make gen-clients`: no diff. `make lint`: 0 issues in both
+modules, no migration from `main` changed. `make archcheck`: passes. `make test`: passes. `make cover`: every
+package at 80% or more, total 94.9%. No Go, `openapi.yaml` or FHIR change, so `make sqlc` and `make
+fhir-validate` are not affected.
+
+**Not run.** The app on a device or an emulator (a manual step, README.md): there is no Flutter, Android SDK,
+emulator or Xcode on this machine, and the `flutter` image has no Android or iOS toolchain. So `LiveKitMedia`
+(the permissions, the previews, the visualizer's level and the room) is checked by the analyzer only, and the
+`adb reverse` route in README.md has not been tried. The first device run should check: the M35 frame before
+the prompt, "Open settings", the camera preview, the level against the 0.02 threshold, audio and video both
+ways with the web app, and a reconnect.
+
+**Deferred.**
+- `BLUETOOTH_CONNECT` and its explanation, if the owner wants Bluetooth headsets on Android 12 and later.
+- The main Android manifest has no `INTERNET` permission (only the debug and profile ones have it), so a
+  release build reaches neither the API nor LiveKit. It predates this package; the release build is not set up
+  yet.
+- The Playwright and Go participant journeys are package 8.
+
+**Dev stack left.** No migration and no data: the tests use the fake API and the fake room. The stack was up
+when the package started and was left up, unchanged.

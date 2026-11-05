@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'appointments_screen.dart';
 import 'booking.dart';
+import 'call.dart';
 import 'consent_screen.dart';
 import 'fhir.dart';
 import 'loading.dart';
@@ -16,10 +17,18 @@ const _days = 28;
 
 /// A practitioner's free times on one day at a time, in the clinic's time zone.
 class SlotsScreen extends StatefulWidget {
-  const SlotsScreen({super.key, required this.booking, required this.now, required this.clinic, required this.role});
+  const SlotsScreen({
+    super.key,
+    required this.booking,
+    required this.now,
+    required this.media,
+    required this.clinic,
+    required this.role,
+  });
 
   final Booking booking;
   final DateTime Function() now;
+  final Media media;
   final Organization clinic;
   final PractitionerRole role;
 
@@ -55,8 +64,14 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
   Future<void> _choose(Slot slot) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            BookScreen(booking: widget.booking, now: widget.now, clinic: widget.clinic, role: widget.role, slot: slot),
+        builder: (_) => BookScreen(
+          booking: widget.booking,
+          now: widget.now,
+          media: widget.media,
+          clinic: widget.clinic,
+          role: widget.role,
+          slot: slot,
+        ),
       ),
     );
     if (mounted) reload();
@@ -107,6 +122,7 @@ class BookScreen extends StatefulWidget {
     super.key,
     required this.booking,
     required this.now,
+    required this.media,
     required this.clinic,
     required this.role,
     required this.slot,
@@ -114,6 +130,7 @@ class BookScreen extends StatefulWidget {
 
   final Booking booking;
   final DateTime Function() now;
+  final Media media;
   final Organization clinic;
   final PractitionerRole role;
   final Slot slot;
@@ -194,7 +211,12 @@ class _BookScreenState extends State<BookScreen> {
     navigator.popUntil((route) => route.isFirst);
     navigator.push(
       MaterialPageRoute<void>(
-        builder: (_) => AppointmentsScreen(booking: widget.booking, now: widget.now, notice: appointmentBooked),
+        builder: (_) => AppointmentsScreen(
+          booking: widget.booking,
+          now: widget.now,
+          media: widget.media,
+          notice: appointmentBooked,
+        ),
       ),
     );
   }

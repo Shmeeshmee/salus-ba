@@ -131,3 +131,68 @@ String? validatePhone(String? value) {
   final phone = normalisePhone(value);
   return phone.isEmpty || _phone.hasMatch(phone) ? null : invalidPhone;
 }
+
+// Video consultations: the owner's text, word for word (docs/consultation/COPY.md, with its M numbers). A
+// change goes back to the owner first.
+const joinConsultation = 'Join consultation'; // M1
+const joinFrom = 'You can join from 10 minutes before the start.'; // M2
+const checkTitle = 'Check your camera and microphone'; // M3
+const checkIntro = 'The practitioner will see and hear you once you join.'; // M4
+const noSound = 'No sound detected. Check that your microphone is on and not muted.'; // M5
+const joinCameraOff = 'Join with camera off'; // M6
+const joinMicrophoneOff = 'Join with microphone off'; // M6
+const joinNow = 'Join'; // M7
+const joining = 'Joining…'; // M8
+const cameraDenied =
+    'Salus does not have access to your camera. You can allow it in your device settings, or join without video.'; // M9
+const microphoneDenied =
+    'Salus does not have access to your microphone. You can allow it in your device settings. Without it, the '
+    'practitioner cannot hear you.'; // M10
+const openSettings = 'Open settings'; // M11
+const noCamera = 'No camera found.'; // M12
+const noMicrophone = 'No microphone found.'; // M12
+const waiting = 'Waiting for the practitioner'; // M13
+String joinsYouHere(String name) => '$name will join you here. Keep this screen open.'; // M14
+const mute = 'Mute microphone'; // M15
+const unmute = 'Unmute microphone'; // M15
+const cameraOff = 'Turn camera off'; // M15
+const cameraOn = 'Turn camera on'; // M15
+const leave = 'Leave'; // M15
+String peerCameraOff(String name) => "$name's camera is off"; // M16
+String peerMuted(String name) => '$name is muted'; // M17
+String peerLeft(String name) =>
+    '$name has left the consultation. They can join again until the consultation ends.'; // M18
+const reconnecting = 'Connection lost. Reconnecting…'; // M19
+const notRestored = 'The connection could not be restored.'; // M20
+const tryAgain = 'Try again'; // M20
+const reconnected = 'Reconnected'; // M21
+const consultationOver = 'The consultation has ended'; // M22
+const closeScreen = 'You can close this screen.'; // M23
+const timeLimit = 'The consultation reached its time limit and has ended.'; // M24
+const practitionerAbsent = 'The practitioner did not join'; // M25
+const timePassed =
+    'The time to join this consultation has passed. The clinic can see that you joined. The clinic may contact '
+    'you, or you can book a new appointment.'; // M26
+const withdrewConsent = 'You withdrew your consent for this clinic, so you have left the consultation.'; // M27
+const appointmentWasCancelled = 'This appointment was cancelled, so the consultation has ended.'; // M28
+const windowNotOpen = 'This consultation opens 10 minutes before the start.'; // M29
+const consultationEnded = 'This consultation has ended.'; // M30
+const joinNeedsConsent = 'Joining needs your consent for this clinic.'; // M32
+const consultationNotAvailable = 'This consultation is not available.'; // M33
+const cannotConnect = 'The video connection could not be started. Check your connection and try again.'; // M34
+const whyCameraAndMicrophone =
+    'To join the video consultation, Salus needs your camera and microphone. The consultation is not '
+    'recorded.'; // M35, Android, before the system prompt
+
+/// The approved sentence for a refused join (M29, M30, M32, M33); `practitioner_did_not_join` is its own screen
+/// (M31: M25 and M26).
+String joinMessage(ApiFailure failure) {
+  if (failure.unreachable) return unreachable;
+  return switch (failure.code) {
+    'join_window_not_open' => windowNotOpen,
+    'consultation_ended' => consultationEnded,
+    'consent_required' => joinNeedsConsent,
+    'not_found' => consultationNotAvailable,
+    _ => somethingWrong,
+  };
+}

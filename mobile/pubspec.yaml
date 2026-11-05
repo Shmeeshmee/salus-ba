@@ -48,6 +48,15 @@ dependencies:
   # Android otherwise. Pinned exact.
   url_launcher: 6.3.3
 
+  # Video consultations (docs/consultation/SPEC.md "Mobile client"): LiveKit's Flutter SDK, reached only
+  # through lib/call.dart. Pinned exact.
+  livekit_client: 2.13.2
+
+  # Camera and microphone permissions: whether they are still to be asked (M35 before the system prompt on
+  # Android), and the device settings when they were denied (M11), which neither livekit_client nor
+  # url_launcher can open on Android. Reached only through lib/call.dart. Pinned exact.
+  permission_handler: 13.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Salus uses the camera so the practitioner can see you during a video consultation. The consultation is not recorded.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Salus uses the microphone so the practitioner can hear you during a video consultation. The consultation is not recorded.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

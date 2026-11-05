@@ -757,3 +757,29 @@ who left from one removed after withdrawing consent (`consent_required`); that r
 | The browser keeps the camera or microphone on after the check or the call | Previews are stopped when another device is picked and when the check is left (tested with a fake); the room is left on leave, end and when the screen closes |
 | Patient data in what the web app sends to LiveKit | Nothing but our token; no name, metadata or attributes are set by the client (`call.ts`); the walk's api, worker and LiveKit logs held no name, e-mail or token |
 | Text that misstates what happens to the appointment | Every string is the owner's approved text (`docs/consultation/COPY.md`), checked word for word |
+
+### Package 7: mobile app
+
+**Processing added.** No new table, column or endpoint. The patient's app joins the consultation with
+`livekit_client` (pinned, `mobile/lib/call.dart` the only file that uses it, with `permission_handler` for the
+camera and microphone permissions): it asks our API for a token on every join and rejoin and connects to our own
+LiveKit; LiveKit gets the token only, never a name. The practitioner's name shown in the call comes from the join
+response (`peerName`, the practitioner's public name). When LiveKit removes the patient or deletes the room, the
+app asks the join endpoint or the consultation's status (both audited since packages 1 and 4) to say why. The
+token is held in memory for the connection only: never stored, printed or logged. LiveKit's own client log is
+turned off.
+
+**Device permissions.** The camera and the microphone are asked for on the device check, not at install or
+launch. iOS shows the approved `NSCameraUsageDescription` and `NSMicrophoneUsageDescription`; Android shows the
+approved explanation (M35) before the system prompt. A refusal is respected: the patient can still join with
+what remains, and the app offers the device settings. "The consultation is not recorded" is true while
+ADR 0006 holds and must change if recording is ever added.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The phone keeps the camera or microphone on after the check or the call | The previews are stopped on Join and when the check is left; the room is left on Leave, on back and when the screen closes (tested with a fake) |
+| Patient data in what the app sends to LiveKit | Nothing but our token; the app sets no name, metadata or attributes (`call.dart`) |
+| Patient data in the device log | The app prints nothing through a consultation (tested); LiveKit's client log is off |
+| Text that misstates what happens | Every string and both iOS permission texts are the owner's approved text (`docs/consultation/COPY.md`), checked word for word by `mobile/test/copy_test.dart` |

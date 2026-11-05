@@ -20,12 +20,14 @@ class Booking {
     : fhir = Fhir(client),
       _patient = api.PatientApi(client),
       _consents = api.ConsentsApi(client),
-      _appointments = api.AppointmentsApi(client);
+      _appointments = api.AppointmentsApi(client),
+      _consultation = api.ConsultationApi(client);
 
   final Fhir fhir;
   final api.PatientApi _patient;
   final api.ConsentsApi _consents;
   final api.AppointmentsApi _appointments;
+  final api.ConsultationApi _consultation;
 
   /// The signed-in patient's profile, or null before it is first saved.
   Future<api.Patient?> me() async {
@@ -71,6 +73,21 @@ class Booking {
       apiCall(() => _appointments.bookAppointment(api.BookAppointmentRequest(slotId: slotId)));
 
   Future<void> cancel(String appointmentId) => apiCall(() => _appointments.cancelAppointment(appointmentId));
+
+  /// A token for the appointment's video consultation (docs/consultation/SPEC.md "Join response"). The token is a
+  /// secret: it goes to LiveKit and nowhere else.
+  Future<api.ConsultationJoin> join(String appointmentId) async {
+    final join = await apiCall(() => _consultation.joinConsultation(appointmentId));
+    if (join == null) throw const ApiFailure(status: HttpStatus.badGateway);
+    return join;
+  }
+
+  /// Where the appointment's video consultation stands.
+  Future<api.ConsultationStatus> consultation(String appointmentId) async {
+    final status = await apiCall(() => _consultation.getConsultation(appointmentId));
+    if (status == null) throw const ApiFailure(status: HttpStatus.badGateway);
+    return status;
+  }
 
   /// The listed clinics, with the practitioners of those among [clinicIds]. A clinic that is no longer listed
   /// is in neither map.
