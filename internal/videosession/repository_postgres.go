@@ -72,6 +72,20 @@ func (r *postgresRepository) SetRoom(ctx context.Context, room string) error {
 	return postgres.SetLocal(ctx, "app.video_room", room)
 }
 
+func (r *postgresRepository) SetAppointment(ctx context.Context, id string) error {
+	return postgres.SetLocal(ctx, "app.appointment_id", id)
+}
+
+func (r *postgresRepository) Removed(ctx context.Context, id string, reason Reason, at time.Time) error {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return nil
+	}
+	return r.q(ctx).RecordRemoval(ctx, videosessiondb.RecordRemovalParams{
+		ID: u, At: ts(at), Reason: pgtype.Text{String: string(reason), Valid: true},
+	})
+}
+
 func (r *postgresRepository) ByRoom(ctx context.Context, room string) (Session, error) {
 	row, err := r.q(ctx).SessionByRoom(ctx, room)
 	switch {
@@ -133,7 +147,7 @@ func toSession(row videosessiondb.VideoSession) Session {
 		PatientJoinedAt: row.PatientJoinedAt.Time, PractitionerJoinedAt: row.PractitionerJoinedAt.Time, EndedAt: row.EndedAt.Time,
 		ID: row.ID.String(), AppointmentID: row.AppointmentID.String(), OrganizationID: row.OrganizationID.String(),
 		Room: row.Room, PatientIdentity: row.PatientIdentity, PractitionerIdentity: row.PractitionerIdentity,
-		EndReason: EndReason(row.EndReason.String),
+		EndReason: EndReason(row.EndReason.String), RemovalReason: Reason(row.RemovalReason.String),
 	}
 }
 

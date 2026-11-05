@@ -2,8 +2,10 @@ import {
   createLocalAudioTrack,
   createLocalVideoTrack,
   DisconnectReason,
+  LogLevel,
   Room as LiveKitRoom,
   RoomEvent,
+  setLogLevel,
   Track,
   type LocalAudioTrack,
   type LocalVideoTrack,
@@ -13,6 +15,10 @@ import {
 // call.ts is the one module that reaches LiveKit (livekit-client) and the browser's camera and microphone.
 // The screens see only the types below, so they are tested with a fake (src/test/fakeCall.ts). Nothing here
 // logs, and nothing about the people in the call goes to LiveKit: the token from our API is all it gets.
+
+// livekit-client's own log is off: its connection steps and errors can carry the signalling URL, which holds
+// the token (SPEC §2 "Changed after package 6").
+setLogLevel(LogLevel.silent)
 
 export type Kind = 'camera' | 'microphone'
 

@@ -18,9 +18,10 @@ const _ink = Color(0xFF0E1512);
 /// The patient's video consultation (docs/consultation/SPEC.md "Client states"): the device check, joining,
 /// waiting for the practitioner, the call, reconnecting, and the end. The token comes from our API on every join
 /// and rejoin; the server decides whether one is issued. Why the patient's connection ended comes from LiveKit's
-/// reason with our API's answer: removed from the room, the join endpoint says whether the consent was withdrawn
-/// or the appointment cancelled; the room deleted, the consultation's status says how it ended. Events of a room
-/// this screen has left are ignored (the generation), so a late event of an old connection changes nothing.
+/// reason with the consultation's status: removed from the room or the room deleted, the status's reason says
+/// whether the consent was withdrawn or the appointment cancelled, and how it ended. The join endpoint is never
+/// asked why. Events of a room this screen has left are ignored (the generation), so a late event of an old
+/// connection changes nothing.
 class CallScreen extends StatefulWidget {
   const CallScreen({super.key, required this.booking, required this.media, required this.appointmentId});
 
@@ -66,15 +67,14 @@ class _CallScreenState extends State<CallScreen> {
     _connect(again: false);
   }
 
-  /// Asks for a token and joins the room; [again] is a rejoin of a connection that ended, [removed] after LiveKit
-  /// removed the patient.
-  Future<void> _connect({required bool again, bool removed = false}) async {
+  /// Asks for a token and joins the room; [again] is a rejoin of a connection that ended.
+  Future<void> _connect({required bool again}) async {
     final gen = ++_generation;
     final api.ConsultationJoin join;
     try {
       join = await widget.booking.join(widget.appointmentId);
     } on ApiFailure catch (failure) {
-      if (_current(gen)) _refused(failure, again: again, removed: removed);
+      if (_current(gen)) _refused(failure, again: again);
       return;
     }
     if (!_current(gen)) return;
@@ -102,14 +102,12 @@ class _CallScreenState extends State<CallScreen> {
     if (again) _flashReconnected();
   }
 
-  void _refused(ApiFailure failure, {required bool again, required bool removed}) {
+  void _refused(ApiFailure failure, {required bool again}) {
     switch (failure.code) {
       case 'practitioner_did_not_join':
         return _ended(practitionerAbsent, timePassed);
       case 'consent_required' when again:
         return _ended(null, withdrewConsent);
-      case 'consultation_ended' when removed:
-        return _ended(null, appointmentWasCancelled);
       case 'consultation_ended' when again:
         _finish(rejoin: false);
         return;
@@ -121,8 +119,8 @@ class _CallScreenState extends State<CallScreen> {
     });
   }
 
-  /// Shows how the consultation ended once its room is gone; a room gone while the consultation is still open is
-  /// joined again ([rejoin]).
+  /// Shows why the patient was removed or how the consultation ended once its room is gone; a room gone while the
+  /// consultation is still open, without a removal, is joined again ([rejoin]).
   Future<void> _finish({bool rejoin = true}) async {
     final gen = ++_generation;
     api.ConsultationStatus? status;
@@ -132,6 +130,13 @@ class _CallScreenState extends State<CallScreen> {
       status = null;
     }
     if (!_current(gen)) return;
+    switch (status?.reason) {
+      case api.ConsultationStatusReasonEnum.consentWithdrawn:
+        return _ended(null, withdrewConsent);
+      case api.ConsultationStatusReasonEnum.cancelled:
+        return _ended(null, appointmentWasCancelled);
+      default:
+    }
     if (status?.state != api.ConsultationStatusStateEnum.ended) {
       return rejoin ? _connect(again: true) : _ended(consultationOver, closeScreen);
     }
@@ -186,9 +191,7 @@ class _CallScreenState extends State<CallScreen> {
       case Ending.replaced:
         _generation++;
         setState(() => _phase = _Phase.check);
-      case Ending.removed:
-        _connect(again: true, removed: true);
-      case Ending.ended:
+      case Ending.removed || Ending.ended:
         _finish();
       case Ending.lost || Ending.left:
         setState(() => _phase = _Phase.reconnecting);

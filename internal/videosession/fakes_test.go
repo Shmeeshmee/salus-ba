@@ -61,7 +61,7 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 	}
 	events, sessions, jobs, finished := len(t.f.audit.events), clone(t.f.repo.sessions), len(t.f.jobs.enqueued), len(t.f.encounters.finished)
 	started := len(t.f.encounters.started)
-	t.f.repo.patient, t.f.repo.clinic, t.f.repo.room = "", "", ""
+	t.f.repo.patient, t.f.repo.clinic, t.f.repo.room, t.f.repo.narrowed = "", "", "", ""
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
 		t.f.audit.events, t.f.repo.sessions = t.f.audit.events[:events], sessions
@@ -81,10 +81,11 @@ func clone(m map[string]videosession.Session) map[string]videosession.Session {
 
 // fakeAppointments gives each caller (by account) their attendance of each appointment.
 type fakeAppointments struct {
-	err        error
-	attendance map[string]appointment.Attendance // by account id + appointment id
-	repo       *fakeRepository                   // whose scope Lookup reads in
-	hidden     bool                              // Lookup does not see the appointment in the clinic's scope (after a revocation); the patient's does
+	err             error
+	practitionerErr error
+	attendance      map[string]appointment.Attendance // by account id + appointment id
+	repo            *fakeRepository                   // whose scope Lookup reads in
+	hidden          bool                              // Lookup does not see the appointment in the clinic's scope (after a revocation); the patient's does
 }
 
 func (a *fakeAppointments) Attendance(ctx context.Context, c appointment.Caller, id string) (appointment.Attendance, error) {
@@ -95,7 +96,7 @@ func (a *fakeAppointments) Attendance(ctx context.Context, c appointment.Caller,
 		return appointment.Attendance{}, a.err
 	}
 	att, ok := a.attendance[c.AccountID+id]
-	if !ok {
+	if !ok || (a.hidden && c.OrganizationID != "") {
 		return appointment.Attendance{}, appointment.ErrNotFound
 	}
 	return att, nil
@@ -114,6 +115,22 @@ func (a *fakeAppointments) Lookup(ctx context.Context, id string) (appointment.A
 		return appointment.Appointment{}, appointment.ErrNotFound
 	}
 	return att.Appointment, nil
+}
+
+// LookupPractitioner gives the practitioner of the appointment's role in a transaction in the clinic's scope:
+// when it is not hidden, or narrowed to the appointment (SetAppointment).
+func (a *fakeAppointments) LookupPractitioner(ctx context.Context, id string) (string, error) {
+	if ctx.Value(txKey{}) == nil {
+		return "", errors.New("LookupPractitioner outside a transaction")
+	}
+	if a.practitionerErr != nil {
+		return "", a.practitionerErr
+	}
+	att, ok := a.attendance[accountA+id]
+	if !ok || a.repo.clinic != att.Appointment.OrganizationID || (a.hidden && a.repo.narrowed != id) {
+		return "", appointment.ErrNotFound
+	}
+	return att.PractitionerID, nil
 }
 
 // fakeConsents gives the state of patient A's consent with clinic A in a transaction: active unless revoked.
@@ -143,6 +160,7 @@ type fakeRepository struct {
 	patient   string // set by SetPatient
 	clinic    string // set by SetClinic
 	room      string // set by SetRoom
+	narrowed  string // the appointment set by SetAppointment
 	opened    []videosession.Session
 	next      int
 	// hidden: the clinic's scope does not show the sessions (after a revocation, of the appointments that had
@@ -200,6 +218,28 @@ func (r *fakeRepository) Joined(ctx context.Context, id string, role videosessio
 	return videosession.Session{}, false, nil
 }
 
+func (r *fakeRepository) SetAppointment(_ context.Context, id string) error {
+	r.narrowed = id
+	return nil
+}
+
+// Removed records the removal's reason in the room's scope, unless one is recorded.
+func (r *fakeRepository) Removed(ctx context.Context, id string, reason videosession.Reason, _ time.Time) error {
+	if ctx.Value(txKey{}) == nil {
+		return errors.New("Removed outside a transaction")
+	}
+	if r.err != nil {
+		return r.err
+	}
+	for k, s := range r.sessions {
+		if s.ID == id && s.Room == r.room && s.RemovalReason == "" {
+			s.RemovalReason = reason
+			r.sessions[k] = s
+		}
+	}
+	return nil
+}
+
 func (r *fakeRepository) SetPatient(_ context.Context, id string) error {
 	r.patient = id
 	return nil
@@ -243,8 +283,8 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (videosession.Sess
 	return videosession.Session{}, videosession.ErrNotFound
 }
 
-// ByAppointment gives the appointment's session in the patient's scope (every session is patient A's) or
-// the clinic's.
+// ByAppointment gives the appointment's session in the patient's scope (every session is patient A's), the
+// clinic's, or the clinic's narrowed to the appointment once its practitioner joined.
 func (r *fakeRepository) ByAppointment(ctx context.Context, id string) (videosession.Session, error) {
 	if ctx.Value(txKey{}) == nil {
 		return videosession.Session{}, errors.New("ByAppointment outside a transaction")
@@ -253,7 +293,8 @@ func (r *fakeRepository) ByAppointment(ctx context.Context, id string) (videoses
 		return videosession.Session{}, r.err
 	}
 	s, ok := r.sessions[id]
-	if !ok || (r.patient != patientA && !r.inClinic(s)) {
+	attended := r.clinic == s.OrganizationID && r.narrowed == id && !s.PractitionerJoinedAt.IsZero()
+	if !ok || (r.patient != patientA && !r.inClinic(s) && !attended) {
 		return videosession.Session{}, videosession.ErrNotFound
 	}
 	return s, nil

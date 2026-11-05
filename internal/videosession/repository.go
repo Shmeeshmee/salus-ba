@@ -18,6 +18,10 @@ type Repository interface {
 	Open(ctx context.Context, s Session) (Session, bool, error)
 	// SetRoom scopes the rest of the transaction in ctx to the session of the room (the webhook's scope).
 	SetRoom(ctx context.Context, room string) error
+	// SetAppointment narrows the clinic's scope set by SetClinic to the appointment id: it then also shows
+	// that appointment's session once its practitioner joined, whatever the consent (the practitioner's read
+	// of a consultation they were in), and the appointment itself (appointment's notice scope).
+	SetAppointment(ctx context.Context, id string) error
 	// ByID returns the session, or ErrNotFound (also outside the scope, or for an id that is not a UUID).
 	ByID(ctx context.Context, id string) (Session, error)
 	// ByAppointment returns the appointment's session, or ErrNotFound (also outside the scope).
@@ -30,6 +34,9 @@ type Repository interface {
 	// Joined records that the role joined the session id at at, updated now, unless that role's join is
 	// recorded already or the session ended, and returns it and whether it changed.
 	Joined(ctx context.Context, id string, role Role, at, now time.Time) (Session, bool, error)
+	// Removed records, in the room's scope, why the patient was removed from the session id, at at, unless a
+	// reason is recorded already.
+	Removed(ctx context.Context, id string, reason Reason, at time.Time) error
 	// End ends the session id at at for reason unless it has ended, and returns it and whether it changed.
 	End(ctx context.Context, id string, reason EndReason, at time.Time) (Session, bool, error)
 	// DeleteEndedBefore deletes the sessions that ended before before, and those never ended whose window

@@ -62,6 +62,7 @@ type statusJSON struct {
 	PractitionerJoinedAt string    `json:"practitionerJoinedAt,omitempty"`
 	EndedAt              string    `json:"endedAt,omitempty"`
 	EndReason            EndReason `json:"endReason,omitempty"`
+	Reason               Reason    `json:"reason,omitempty"`
 }
 
 // instant is t in UTC as RFC 3339, empty for the zero time.
@@ -75,7 +76,7 @@ func instant(t time.Time) string {
 func toStatusJSON(s Status) statusJSON {
 	return statusJSON{
 		State: s.State, PatientJoinedAt: instant(s.PatientJoinedAt), PractitionerJoinedAt: instant(s.PractitionerJoinedAt),
-		EndedAt: instant(s.EndedAt), EndReason: s.EndReason,
+		EndedAt: instant(s.EndedAt), EndReason: s.EndReason, Reason: s.Reason,
 	}
 }
 

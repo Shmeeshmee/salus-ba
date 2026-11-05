@@ -46,6 +46,7 @@ func (s *Service) joined(ctx context.Context, e Event) error {
 	now := s.Clock.Now()
 	var session Session
 	var remove bool
+	var reason Reason
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
 		if session, err = s.inRoom(ctx, e.Room); err != nil {
@@ -68,7 +69,7 @@ func (s *Service) joined(ctx context.Context, e Event) error {
 			}
 		}
 		if role == RolePatient {
-			remove, err = s.accessGone(ctx, session.AppointmentID)
+			remove, reason, err = s.accessGone(ctx, session.AppointmentID)
 			return err
 		}
 		if !changed {
@@ -83,7 +84,7 @@ func (s *Service) joined(ctx context.Context, e Event) error {
 	if err != nil || !remove {
 		return err
 	}
-	return s.removeFromRoom(ctx, agentWebhook, session)
+	return s.removeFromRoom(ctx, agentWebhook, session, reason)
 }
 
 // left ends the session when a participant left or the room finished after the window closed, as the
@@ -129,20 +130,28 @@ func (s *Service) inRoom(ctx context.Context, room string) (Session, error) {
 	return session, s.Repo.SetClinic(ctx, session.OrganizationID)
 }
 
-// accessGone reports whether the patient may no longer be in the appointment's room: the clinic's scope no
-// longer shows it, it is no longer booked, or the patient's consent with the clinic is not active.
-func (s *Service) accessGone(ctx context.Context, appointmentID string) (bool, error) {
+// accessGone reports whether the patient may no longer be in the appointment's room, and why: the clinic's
+// scope no longer shows it (only a revocation hides it) or the patient's consent with the clinic is not
+// active, consent_withdrawn (checked first: a revocation cancels too); it is cancelled, cancelled; it was
+// marked by hand, no reason.
+func (s *Service) accessGone(ctx context.Context, appointmentID string) (bool, Reason, error) {
 	a, err := s.Appointments.Lookup(ctx, appointmentID)
 	switch {
 	case errors.Is(err, appointment.ErrNotFound):
-		return true, nil
+		return true, ReasonConsentWithdrawn, nil
 	case err != nil:
-		return false, err
-	case a.Status != appointment.StatusBooked:
-		return true, nil
+		return false, "", err
 	}
 	consent, err := s.Consents.State(ctx, a.PatientID, a.OrganizationID)
-	return !consent.Active, err
+	switch {
+	case err != nil:
+		return false, "", err
+	case !consent.Active:
+		return true, ReasonConsentWithdrawn, nil
+	case a.Status == appointment.StatusCancelled:
+		return true, ReasonCancelled, nil
+	}
+	return a.Status != appointment.StatusBooked, "", nil
 }
 
 // roleOf is the role of the participant identity in the session; false for an identity not its own.

@@ -14,10 +14,12 @@ import (
 // practitioner's account.
 const agentEnd = "consultation_end"
 
-// Status gives where the appointment's consultation stands (SPEC.md §2 "Consultation status") to its
-// patient, its practitioner and the clinic's admin, as access.Appointment lets them see the appointment (the
-// name level or more), read in their own scope and audited as a read of the appointment. ErrNotFound to
-// anyone else, audited without the entity.
+// Status gives where the appointment's consultation stands, and why it ended or the patient was removed
+// (SPEC.md §2 "Consultation status") to its patient, its practitioner and the clinic's admin, as
+// access.Appointment lets them see the appointment (the name level or more), read in their own scope. The
+// practitioner who was in the room reads it by the room rule too, when a revocation hid the appointment from
+// the clinic (attended). Audited as a read of the appointment; ErrNotFound to anyone else, audited without the
+// entity.
 func (s *Service) Status(ctx context.Context, c appointment.Caller, appointmentID string) (Status, error) {
 	var out Status
 	var refused error
@@ -25,22 +27,21 @@ func (s *Service) Status(ctx context.Context, c appointment.Caller, appointmentI
 		_, err := s.Appointments.Attendance(ctx, c, appointmentID)
 		switch {
 		case errors.Is(err, appointment.ErrNotFound):
-			refused = ErrNotFound
-			return s.record(ctx, c, auditevent.CodeRead, "", auditevent.OutcomeMinorFailure)
-		case err != nil:
-			return err
-		}
-		if err := s.scope(ctx, c); err != nil {
-			return err
-		}
-		session, err := s.Repo.ByAppointment(ctx, appointmentID)
-		switch {
-		case errors.Is(err, ErrNotFound):
-			out = Status{State: StateNotStarted}
+			session, ok, err := s.attended(ctx, c, appointmentID)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				refused = ErrNotFound
+				return s.record(ctx, c, auditevent.CodeRead, "", auditevent.OutcomeMinorFailure)
+			}
+			out = session.status()
 		case err != nil:
 			return err
 		default:
-			out = session.status()
+			if out, err = s.ownStatus(ctx, c, appointmentID); err != nil {
+				return err
+			}
 		}
 		return s.record(ctx, c, auditevent.CodeRead, "Appointment/"+appointmentID, auditevent.OutcomeSuccess)
 	})
@@ -51,6 +52,53 @@ func (s *Service) Status(ctx context.Context, c appointment.Caller, appointmentI
 		return Status{}, refused
 	}
 	return out, nil
+}
+
+// ownStatus is the appointment's consultation read in the caller's own scope: not started without a session.
+func (s *Service) ownStatus(ctx context.Context, c appointment.Caller, appointmentID string) (Status, error) {
+	if err := s.scope(ctx, c); err != nil {
+		return Status{}, err
+	}
+	session, err := s.Repo.ByAppointment(ctx, appointmentID)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return Status{State: StateNotStarted}, nil
+	case err != nil:
+		return Status{}, err
+	}
+	return session.status(), nil
+}
+
+// attended is the room rule (SPEC.md §2 "Consultation status", changed after package 6): the session of the
+// appointment id when the staff caller is the practitioner of its role and joined its room, read in their
+// clinic's scope narrowed to the appointment, whatever the consent; false for anyone else.
+func (s *Service) attended(ctx context.Context, c appointment.Caller, id string) (Session, bool, error) {
+	if c.OrganizationID == "" || c.Admin || c.PractitionerID == "" {
+		return Session{}, false, nil
+	}
+	if err := s.Repo.SetClinic(ctx, c.OrganizationID); err != nil {
+		return Session{}, false, err
+	}
+	if err := s.Repo.SetAppointment(ctx, id); err != nil {
+		return Session{}, false, err
+	}
+	session, err := s.Repo.ByAppointment(ctx, id)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return Session{}, false, nil
+	case err != nil:
+		return Session{}, false, err
+	case session.PractitionerJoinedAt.IsZero():
+		return Session{}, false, nil
+	}
+	practitionerID, err := s.Appointments.LookupPractitioner(ctx, id)
+	switch {
+	case errors.Is(err, appointment.ErrNotFound):
+		return Session{}, false, nil
+	case err != nil:
+		return Session{}, false, err
+	}
+	return session, practitionerID == c.PractitionerID, nil
 }
 
 // End is the practitioner's end of the consultation (SPEC.md §2 "Ending"): the appointment's practitioner

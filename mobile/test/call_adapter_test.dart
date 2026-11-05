@@ -1,10 +1,25 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
+import 'package:logging/logging.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:salus/call.dart';
 
 // The mappings in call.dart from LiveKit's and the system's values to what the screens act on.
 void main() {
+  // livekit_client logs its connection steps and errors, the signalling URL among them, which carries the token
+  // (SPEC.md "Changed after package 6"); LiveKitMedia turns its log off, so nothing reaches a listener.
+  test("LiveKit's own log is off", () {
+    final records = <LogRecord>[];
+    final listening = Logger.root.onRecord.listen(records.add);
+    addTearDown(listening.cancel);
+
+    LiveKitMedia();
+    Logger('livekit').warning('could not connect to ws://livekit.test/rtc?access_token=synthetic-token');
+
+    expect(lk.getLoggingLevel(), Level.OFF);
+    expect(records, isEmpty);
+  });
+
   test("LiveKit's disconnect reasons", () {
     expect(endingOf(lk.DisconnectReason.clientInitiated), Ending.left);
     expect(endingOf(lk.DisconnectReason.duplicateIdentity), Ending.replaced);

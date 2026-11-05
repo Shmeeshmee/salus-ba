@@ -21,12 +21,13 @@ Map<String, Object?> joined({String peerName = 'Cy Example'}) => {
   'role': 'patient',
 };
 
-Map<String, Object?> status(String state, {String? endReason}) => {
+Map<String, Object?> status(String state, {String? endReason, String? reason}) => {
   'state': state,
   'patientJoinedAt': '2026-11-04T09:00:00Z',
   'practitionerJoinedAt': ?(endReason == 'practitioner_absent' ? null : '2026-11-04T09:00:00Z'),
   'endedAt': ?(state == 'ended' ? '2026-11-04T09:30:00Z' : null),
   'endReason': ?endReason,
+  'reason': ?reason,
 };
 
 const practitioner = Peer(present: true, camera: true, microphone: true);
@@ -487,10 +488,11 @@ void main() {
       expect(find.text('Waiting for the practitioner'), findsOneWidget);
     });
 
+    // Why the patient was removed comes from the status's reason alone; the join endpoint is not asked.
     testWidgets('removed after withdrawing consent says so', (tester) async {
       final h = await inCall(tester);
       await emit(tester, h, const PeerChanged(practitioner));
-      h.api.answer(joinRoute, 409, error('consent_required'));
+      h.api.answer(statusRoute, 200, status('open', reason: 'consent_withdrawn'));
 
       await emit(tester, h, const Disconnected(Ending.removed));
 
@@ -499,35 +501,50 @@ void main() {
         findsOneWidget,
       );
       expect(h.media.rooms, hasLength(1));
+      expect(joins(h), 1, reason: 'no join request to learn why');
     });
 
     testWidgets('says nothing about the practitioner while it asks why it was removed', (tester) async {
       final h = await inCall(tester);
       await emit(tester, h, const PeerChanged(practitioner));
       final answer = Completer<http.Response>();
-      h.api.on(joinRoute, (_) => answer.future);
+      h.api.on(statusRoute, (_) => answer.future);
 
       await emit(tester, h, const Disconnected(Ending.removed));
 
       expect(find.textContaining('has left the consultation'), findsNothing);
       expect(find.text('Waiting for the practitioner'), findsNothing);
-      answer.complete(jsonResponse(409, error('consent_required')));
+      answer.complete(jsonResponse(200, status('open', reason: 'consent_withdrawn')));
       await tester.pumpAndSettle();
       expect(find.textContaining('You withdrew your consent'), findsOneWidget);
     });
 
     testWidgets('removed after a cancellation says so', (tester) async {
       final h = await inCall(tester);
-      h.api.answer(joinRoute, 409, error('consultation_ended'));
+      h.api.answer(statusRoute, 200, status('ended', endReason: 'cancelled', reason: 'cancelled'));
 
       await emit(tester, h, const Disconnected(Ending.removed));
 
       expect(find.text('This appointment was cancelled, so the consultation has ended.'), findsOneWidget);
-      expect(h.api.calls, isNot(contains(statusRoute)));
+      expect(joins(h), 1, reason: 'no join request to learn why');
+    });
+
+    testWidgets('a deleted room says the consent was withdrawn when a revocation before the start cancelled it', (
+      tester,
+    ) async {
+      final h = await inCall(tester);
+      h.api.answer(statusRoute, 200, status('ended', endReason: 'cancelled', reason: 'consent_withdrawn'));
+
+      await emit(tester, h, const Disconnected(Ending.ended));
+
+      expect(find.textContaining('You withdrew your consent'), findsOneWidget);
+      expect(joins(h), 1);
     });
 
     testWidgets('removed while access is still there joins again', (tester) async {
       final h = await inCall(tester);
+      h.api.answer(statusRoute, 200, status('open', reason: 'left'));
+
       await emit(tester, h, const Disconnected(Ending.removed));
 
       expect(h.media.rooms, hasLength(2));

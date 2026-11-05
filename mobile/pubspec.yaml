@@ -57,6 +57,11 @@ dependencies:
   # url_launcher can open on Android. Reached only through lib/call.dart. Pinned exact.
   permission_handler: 13.0.2
 
+  # livekit_client logs through package:logging, which it already depends on; lib/call.dart turns that log off
+  # (its connection steps carry the signalling URL with the token), and the logger's level can only be set with
+  # hierarchical logging on. Pinned exact, the version livekit_client resolves.
+  logging: 1.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

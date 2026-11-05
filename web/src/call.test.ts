@@ -1,6 +1,36 @@
 import { DisconnectReason } from 'livekit-client'
-import { describe, expect, it } from 'vitest'
-import { endingOf, levelOf, problemOf } from './call'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { endingOf, levelOf, liveKit, problemOf } from './call'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
+
+// livekit-client logs its connection steps and errors to the console, which can carry the signalling URL with
+// the token (SPEC §2 "Changed after package 6"); call.ts turns its log off.
+// FakePeerConnection is just enough of WebRTC for livekit-client, which jsdom lacks, to try the signalling
+// connection.
+class FakePeerConnection extends EventTarget {
+  addTransceiver() {}
+  addTrack() {}
+  close() {}
+}
+
+describe('liveKit', () => {
+  it('prints nothing, and no token, when the connection fails', async () => {
+    vi.stubGlobal('RTCPeerConnection', FakePeerConnection)
+    const methods = ['log', 'info', 'warn', 'error', 'debug', 'trace'] as const
+    const spies = methods.map((m) => vi.spyOn(console, m).mockImplementation(() => {}))
+    const token = 'synthetic-token-that-must-not-print'
+
+    await expect(liveKit.connect('ws://127.0.0.1:9', token, { camera: false, microphone: false }, () => {})).rejects.toBeTruthy()
+
+    const printed = spies.flatMap((s) => s.mock.calls.map((args) => args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a) ?? String(a))).join(' ')))
+    expect(printed.filter((line) => line.includes(token))).toEqual([])
+    expect(printed).toEqual([])
+  }, 20_000)
+})
 
 describe('endingOf', () => {
   it.each([

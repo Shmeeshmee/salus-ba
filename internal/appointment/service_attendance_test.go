@@ -114,6 +114,43 @@ func TestLookup_GivesTheAppointmentInTheCallersScopeUnaudited(t *testing.T) {
 	}
 }
 
+// LookupPractitioner gives the consultation's room rule the practitioner of the appointment's role, in the
+// caller's transaction and scope, unaudited: after a revocation hid the appointment from the clinic, the
+// clinic's scope narrowed to it (the notice scope) still shows it. ErrNotFound when the scope does not.
+func TestLookupPractitioner_GivesThePractitionerOfTheRoleInTheCallersScope(t *testing.T) {
+	f := cancelFixture(revokedAt.Add(time.Hour))
+	f.consents.state[patientA+clinicA] = access.Consent{RevokedAt: revokedAt}
+	lookup := func(org, narrowed string) (string, error) {
+		var got string
+		err := inClinic(t, f, org, func(ctx context.Context) error {
+			if narrowed != "" {
+				if err := f.repo.SetNotice(ctx, narrowed); err != nil {
+					return err
+				}
+			}
+			var err error
+			got, err = f.svc.LookupPractitioner(ctx, apptA)
+			return err
+		})
+		return got, err
+	}
+	if got, err := lookup(clinicA, apptA); err != nil || got != practA1 {
+		t.Errorf("narrowed to the appointment: LookupPractitioner() = %q, %v; want %q", got, err, practA1)
+	}
+	for name, scope := range map[string][2]string{"clinic A": {clinicA, ""}, "clinic B narrowed": {clinicB, apptA}} {
+		if _, err := lookup(scope[0], scope[1]); !errors.Is(err, appointment.ErrNotFound) {
+			t.Errorf("%s: LookupPractitioner() = %v, want ErrNotFound", name, err)
+		}
+	}
+	if len(f.audit.events) != 0 {
+		t.Errorf("audited %v, want nothing", f.audit.events)
+	}
+	f.roles.err = errBackend
+	if _, err := lookup(clinicA, apptA); !errors.Is(err, errBackend) {
+		t.Errorf("with the roles failing: LookupPractitioner() = %v, want the error", err)
+	}
+}
+
 // The consultation's outcome: a booked appointment becomes fulfilled when the patient joined and noshow when
 // they did not, audited as an update by the agent in the appointment's clinic.
 func TestRecordConsultationOutcome_MarksABookedAppointmentByWhetherThePatientJoined(t *testing.T) {

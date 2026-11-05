@@ -167,3 +167,81 @@ func TestVideoSession_HoldsAConsistentState(t *testing.T) {
 		}
 	}
 }
+
+// The practitioner's read of a consultation they were in (docs/consultation/SPEC.md §2 "Consultation status",
+// changed after package 6): a clinic's scope narrowed to one appointment (app.appointment_id, as the notice
+// scope of appointment) sees that appointment's session once its practitioner joined, whatever the consent,
+// so a revocation that cancelled it before its start does not hide why it ended. Before the practitioner
+// joined, for another clinic, without the clinic, or with a patient or an account set, it sees nothing more.
+func TestVideoSession_OneAppointmentsScopeSeesItsSessionOnceThePractitionerJoined(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	p, _, a := seedAppointments(t, owner)
+	s := seedVideoSessions(t, owner, a)
+	one := func(extra map[string]string) map[string]string {
+		scope := map[string]string{"app.appointment_id": a.bFuture}
+		for k, v := range extra {
+			scope[k] = v
+		}
+		return scope
+	}
+	query := "SELECT id::text FROM video_session"
+	if got, want := idsIn(t, app, one(map[string]string{"app.organization_id": clinicB}), query), sorted(s[a.bPast]); !slices.Equal(got, want) {
+		t.Errorf("before the practitioner joined: sees %v, want %v", got, want)
+	}
+	if _, err := owner.Exec(t.Context(), "UPDATE video_session SET practitioner_joined_at = now() WHERE appointment_id IN ($1, $2)", a.bFuture, a.aFuture); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		scope map[string]string
+		name  string
+		want  []string
+	}{
+		{name: "clinic B with the cancelled appointment", scope: one(map[string]string{"app.organization_id": clinicB}), want: sorted(s[a.bPast], s[a.bFuture])},
+		{name: "clinic A with clinic B's appointment", scope: one(map[string]string{"app.organization_id": clinicA}), want: sorted(s[a.aPast], s[a.aFuture])},
+		{name: "the appointment without a clinic", scope: one(nil)},
+		{name: "clinic B without the appointment", scope: map[string]string{"app.organization_id": clinicB}, want: sorted(s[a.bPast])},
+		{name: "with patient B set", scope: one(map[string]string{"app.organization_id": clinicB, "app.patient_id": p[1].patient}), want: sorted(s[a.other])},
+		{name: "with an account set", scope: one(map[string]string{"app.organization_id": clinicB, "app.account_id": p[0].account})},
+	} {
+		if got := idsIn(t, app, tt.scope, query); !slices.Equal(got, tt.want) {
+			t.Errorf("%s: sees %v, want %v", tt.name, got, tt.want)
+		}
+	}
+	err := asApp(t, app, one(map[string]string{"app.organization_id": clinicB}), func(ctx context.Context, db postgres.Querier) error {
+		tag, err := db.Exec(ctx, "UPDATE video_session SET ended_at = now(), end_reason = 'practitioner' WHERE appointment_id = $1", a.bFuture)
+		if err == nil && tag.RowsAffected() != 0 {
+			t.Errorf("the scope of one appointment ended its session; want a read only")
+		}
+		return err
+	})
+	if err != nil {
+		t.Errorf("the update: %v", err)
+	}
+}
+
+// salus_app records why the patient was removed, once, in the room's scope; only the two reasons of a
+// removal are stored.
+func TestVideoSession_RecordsWhyThePatientWasRemoved(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	_, _, a := seedAppointments(t, owner)
+	seedVideoSessions(t, owner, a)
+	err := asApp(t, app, map[string]string{"app.video_room": "r_" + a.bFuture}, func(ctx context.Context, db postgres.Querier) error {
+		_, err := db.Exec(ctx, "UPDATE video_session SET removal_reason = 'consent_withdrawn', updated_at = now()")
+		return err
+	})
+	if err != nil {
+		t.Errorf("the room's scope records the removal: %v", err)
+	}
+	for _, reason := range []string{"cancelled", "consent_withdrawn"} {
+		if _, err := owner.Exec(t.Context(), "UPDATE video_session SET removal_reason = $2 WHERE appointment_id = $1", a.aFuture, reason); err != nil {
+			t.Errorf("removal_reason %s: %v", reason, err)
+		}
+	}
+	for _, reason := range []string{"left", "ended", "bored"} {
+		if _, err := owner.Exec(t.Context(), "UPDATE video_session SET removal_reason = $2 WHERE appointment_id = $1", a.aFuture, reason); sqlState(err) != "23514" {
+			t.Errorf("removal_reason %s: %v, want check_violation (23514)", reason, err)
+		}
+	}
+}

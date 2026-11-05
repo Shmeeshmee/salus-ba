@@ -28,6 +28,20 @@ const (
 	EndCancelled          EndReason = "cancelled"           // the appointment was cancelled
 )
 
+// Reason is why the session ended or its patient was removed, as the clients show it (SPEC.md §2
+// "Consultation status", changed after package 6).
+type Reason string
+
+// The reasons. A removal records consent_withdrawn or cancelled on the session (RemovalReason).
+const (
+	ReasonConsentWithdrawn       Reason = "consent_withdrawn"         // the patient was removed: their consent was withdrawn
+	ReasonCancelled              Reason = "cancelled"                 // the patient was removed, or it ended: the appointment was cancelled
+	ReasonLeft                   Reason = "left"                      // open, and the patient who joined was not removed: they left on their own
+	ReasonEnded                  Reason = "ended"                     // the practitioner ended it, or the window closed with the room empty
+	ReasonPractitionerDidNotJoin Reason = "practitioner_did_not_join" // the window closed without the practitioner
+	ReasonTimeLimit              Reason = "time_limit"                // 2 hours after the scheduled end
+)
+
 // Session is the room of one appointment. Room, PatientIdentity and PractitionerIdentity are random and
 // opaque, never logged; the identity of each role is fixed for the session, so a reconnect from a second
 // device replaces the first connection.
@@ -44,6 +58,7 @@ type Session struct {
 	PatientIdentity      string
 	PractitionerIdentity string
 	EndReason            EndReason // empty while not ended
+	RemovalReason        Reason    // why the patient was removed: consent_withdrawn or cancelled; empty until then
 }
 
 // Room is a room to create: no metadata, at most MaxParticipants, kept by LiveKit for EmptyTimeout while
@@ -90,6 +105,7 @@ type Status struct {
 	EndedAt              time.Time
 	State                State
 	EndReason            EndReason
+	Reason               Reason // why it ended or the patient was removed; empty when neither
 }
 
 // status is the session's Status.
@@ -100,8 +116,28 @@ func (s Session) status() Status {
 	}
 	return Status{
 		State: state, PatientJoinedAt: s.PatientJoinedAt, PractitionerJoinedAt: s.PractitionerJoinedAt,
-		EndedAt: s.EndedAt, EndReason: s.EndReason,
+		EndedAt: s.EndedAt, EndReason: s.EndReason, Reason: s.reason(),
 	}
+}
+
+// reasonOfEnd is the Reason of each EndReason.
+var reasonOfEnd = map[EndReason]Reason{
+	EndPractitioner: ReasonEnded, EndWindowClosed: ReasonEnded, EndPractitionerAbsent: ReasonPractitionerDidNotJoin,
+	EndTimeLimit: ReasonTimeLimit, EndCancelled: ReasonCancelled,
+}
+
+// reason is why the session ended or its patient was removed: the removal's reason first (a revocation before
+// the start also ends the session cancelled), then the end's; while open, left once the patient joined.
+func (s Session) reason() Reason {
+	switch {
+	case s.RemovalReason != "":
+		return s.RemovalReason
+	case !s.EndedAt.IsZero():
+		return reasonOfEnd[s.EndReason]
+	case !s.PatientJoinedAt.IsZero():
+		return ReasonLeft
+	}
+	return ""
 }
 
 // refusal is why the ended session refuses a join: the practitioner did not join when it ended with them

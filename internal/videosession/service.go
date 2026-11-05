@@ -38,10 +38,12 @@ type Auditor interface {
 }
 
 // Appointments gives the appointment, with the caller's access facts for a join or in the caller's scope for
-// the webhook, in the caller's transaction, unaudited (appointment.Service).
+// the webhook, and the practitioner of its role in the caller's scope for the room rule, in the caller's
+// transaction, unaudited (appointment.Service).
 type Appointments interface {
 	Attendance(ctx context.Context, c appointment.Caller, id string) (appointment.Attendance, error)
 	Lookup(ctx context.Context, id string) (appointment.Appointment, error)
+	LookupPractitioner(ctx context.Context, id string) (string, error)
 }
 
 // Consents gives the state of a patient's consent with a clinic, in the caller's transaction and scope,

@@ -593,3 +593,76 @@ func TestEnd_InTheRoomsScopeEndsASessionTheClinicNoLongerSees(t *testing.T) {
 		t.Errorf("End() in the room's scope = %+v, %t, %v; want it ended cancelled", got, changed, err)
 	}
 }
+
+// Removed records, in the room's scope, why the patient was removed, once: a later removal keeps the first
+// reason. The session read afterwards carries it.
+func TestRemoved_RecordsTheFirstReasonInTheRoomsScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
+	s := seedDB(t, owner, at)
+	opened, err := open(t, app, s, session(s, "r_removed", at))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, reason := range []videosession.Reason{videosession.ReasonConsentWithdrawn, videosession.ReasonCancelled} {
+		err := inRoom(t, app, "r_removed", func(ctx context.Context, r videosession.Repository) error {
+			return r.Removed(ctx, opened.ID, reason, at)
+		})
+		if err != nil {
+			t.Fatalf("Removed(%s) = %v", reason, err)
+		}
+	}
+	var got videosession.Session
+	err = inClinic(t, app, s.clinic, func(ctx context.Context, r videosession.Repository) error {
+		got, err = r.ByID(ctx, opened.ID)
+		return err
+	})
+	if err != nil || got.RemovalReason != videosession.ReasonConsentWithdrawn {
+		t.Errorf("ByID() = %+v, %v; want the first reason, consent_withdrawn", got, err)
+	}
+}
+
+// After a revocation before the start the clinic's scope no longer shows the session; narrowed to the
+// appointment it shows it again once the practitioner joined (the practitioner's room rule), and not before.
+func TestSetAppointment_ShowsTheSessionOfOneAppointmentOnceThePractitionerJoined(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
+	s := seedDB(t, owner, at)
+	opened, err := open(t, app, s, session(s, "r_attended", at))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(t.Context(), "UPDATE consent SET status = 'inactive', revoked_at = $2::timestamptz - interval '5 minutes' WHERE patient_id = $1",
+		s.patient, at); err != nil {
+		t.Fatal(err)
+	}
+	read := func(narrow bool) error {
+		return inClinic(t, app, s.clinic, func(ctx context.Context, r videosession.Repository) error {
+			if narrow {
+				if err := r.SetAppointment(ctx, s.appointment); err != nil {
+					return err
+				}
+			}
+			_, err := r.ByAppointment(ctx, s.appointment)
+			return err
+		})
+	}
+	if err := read(true); !errors.Is(err, videosession.ErrNotFound) {
+		t.Errorf("narrowed, before the practitioner joined: %v, want ErrNotFound", err)
+	}
+	err = inRoom(t, app, "r_attended", func(ctx context.Context, r videosession.Repository) error {
+		_, _, err := r.Joined(ctx, opened.ID, videosession.RolePractitioner, at, at)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := read(false); !errors.Is(err, videosession.ErrNotFound) {
+		t.Errorf("the clinic's scope after the revocation: %v, want ErrNotFound", err)
+	}
+	if err := read(true); err != nil {
+		t.Errorf("narrowed to the appointment the practitioner joined: %v, want the session", err)
+	}
+}

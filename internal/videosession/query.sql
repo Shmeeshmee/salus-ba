@@ -8,7 +8,7 @@ ON CONFLICT (appointment_id) DO NOTHING;
 
 -- name: SessionByAppointment :one
 SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-       organization_id, room, patient_identity, practitioner_identity, end_reason
+       organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason
 FROM video_session
 WHERE appointment_id = @appointment_id;
 
@@ -20,7 +20,7 @@ WHERE coalesce(ended_at, closes_at) < @before::timestamptz;
 
 -- name: SessionByID :one
 SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-       organization_id, room, patient_identity, practitioner_identity, end_reason
+       organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason
 FROM video_session
 WHERE id = @id;
 
@@ -30,11 +30,11 @@ UPDATE video_session
 SET ended_at = @at, end_reason = @reason, updated_at = @at
 WHERE id = @id AND ended_at IS NULL
 RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-          organization_id, room, patient_identity, practitioner_identity, end_reason;
+          organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason;
 
 -- name: SessionByRoom :one
 SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-       organization_id, room, patient_identity, practitioner_identity, end_reason
+       organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason
 FROM video_session
 WHERE room = @room;
 
@@ -44,7 +44,7 @@ UPDATE video_session
 SET patient_joined_at = @at, updated_at = @updated_at
 WHERE id = @id AND patient_joined_at IS NULL AND ended_at IS NULL
 RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-          organization_id, room, patient_identity, practitioner_identity, end_reason;
+          organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason;
 
 -- name: PractitionerJoined :one
 -- The practitioner's first join, never after the end: a repeat or a late event leaves no row.
@@ -52,13 +52,19 @@ UPDATE video_session
 SET practitioner_joined_at = @at, updated_at = @updated_at
 WHERE id = @id AND practitioner_joined_at IS NULL AND ended_at IS NULL
 RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-          organization_id, room, patient_identity, practitioner_identity, end_reason;
+          organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason;
 
 -- name: SessionsClosingAfter :many
 -- The revocation's removal, in the patient's scope (row-level security shows only their sessions): their
 -- sessions of the clinic whose window closes after @after, so whose room may still be open.
 SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-       organization_id, room, patient_identity, practitioner_identity, end_reason
+       organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason
 FROM video_session
 WHERE organization_id = @organization_id AND closes_at > @after
 ORDER BY closes_at, id;
+
+-- name: RecordRemoval :exec
+-- Why the patient was removed, in the room's scope; the first reason stays.
+UPDATE video_session
+SET removal_reason = @reason, updated_at = @at
+WHERE id = @id AND removal_reason IS NULL;

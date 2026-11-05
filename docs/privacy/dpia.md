@@ -783,3 +783,35 @@ ADR 0006 holds and must change if recording is ever added.
 | Patient data in what the app sends to LiveKit | Nothing but our token; the app sets no name, metadata or attributes (`call.dart`) |
 | Patient data in the device log | The app prints nothing through a consultation (tested); LiveKit's client log is off |
 | Text that misstates what happens | Every string and both iOS permission texts are the owner's approved text (`docs/consultation/COPY.md`), checked word for word by `mobile/test/copy_test.dart` |
+
+### Package 7.1: the owner's changes after package 6
+
+**Processing added.** One column, `video_session.removal_reason` (`consent_withdrawn` | `cancelled`,
+`migrations/00024_video_session_reason.sql`): why the patient was removed from the room, written once, in the
+removal's own audited transaction and only when LiveKit lists the patient in the room. It reveals that the
+patient withdrew consent or that the appointment was cancelled, which the clinic already knows from `consent`
+and `appointment`; it is deleted with the session (retention unchanged, 30 days after the end).
+`GET /appointments/{id}/consultation` gains `reason`, derived from it and from the end. Neither client asks the
+join endpoint any more to learn why someone left, so the extra token request and its audit event of package 6
+are gone.
+
+**Access.** The practitioner who was in the room keeps reading the status of that consultation when a revocation
+before the start hid the appointment from the clinic: a new read-only policy (`video_session_attended`) shows a
+clinic's scope narrowed to one appointment (`app.appointment_id`, the setting of the notice scope) that
+appointment's session once its practitioner joined, and the service then checks that the caller is the
+practitioner of the appointment's role. The read returns only the status (state, times, reasons), never the
+patient's name, and is audited as a read of the appointment. Another practitioner, the clinic's admin and
+another clinic get 404, audited (tested as `salus_app` on the real database).
+
+**Client logs.** `livekit-client` (web) logs nothing (`setLogLevel(silent)`); `livekit_client` (mobile) has its
+logger off, which until now threw before any call could start. Chrome itself still prints a failed signalling
+connection's URL, the token in its query, to the user's own console (tested in the walk); it is the browser's
+network log, not ours or LiveKit's, and the token is valid 5 minutes for that one room.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The room rule shows a consultation to someone else | It needs the clinic, the one appointment, the practitioner's join and the caller being the role's practitioner; tested in SQL (RLS), with fakes and on the real database |
+| The removal's reason outlives its purpose | It lives on `video_session` and is deleted with it |
+| A token in the console | livekit-client and livekit_client logs are off (tested); the browser's own network error lines remain (above) |

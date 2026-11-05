@@ -10,7 +10,7 @@
 | 5.1 Owner changes after package 5 | done, 2026-11-05 | `consultation(5.1)` |
 | 6 Web | done, 2026-11-05 | `consultation(6)` |
 | 7 Mobile | done, 2026-11-05 | `consultation(7)` |
-| 7.1 Owner changes after package 6 | not started | |
+| 7.1 Owner changes after package 6 | done, 2026-11-05 | `consultation(7.1)` |
 | 8 End-to-end | not started | |
 
 ## Decisions
@@ -206,10 +206,53 @@
   LiveKit client log levels on web and mobile, fixed before the PR merges; the bundle size left, in SPEC §7.
   Package 7.1.
 
+- 2026-11-05, package 7.1 (runner): the removal's reason is not derivable from what is stored: a revocation
+  before the start cancels the appointment and ends the session `cancelled`, the same end as a plain
+  cancellation, and the consent's state today says nothing about the order of a cancellation and a later
+  revocation. So `video_session.removal_reason` (`consent_withdrawn` | `cancelled`, migration 00024) records it,
+  once (the first reason stays), in the room's scope, in the removal's audited transaction, and only when LiveKit
+  lists the patient in the room (package 5.1's rule for the audit). The webhook's re-check now asks the consent
+  first, so a patient whose consent was withdrawn is `consent_withdrawn` even when the revocation also cancelled
+  the appointment; an appointment marked fulfilled or no-show by hand removes the patient with no reason.
+- 2026-11-05, package 7.1 (runner): `reason` on the status is the removal's reason first, then the end's
+  (`practitioner` and `window_closed` → `ended`, `practitioner_absent` → `practitioner_did_not_join`,
+  `time_limit`, `cancelled`), and, while open, `left` once the patient joined; absent otherwise. `endReason` stays
+  as it was.
+- 2026-11-05, package 7.1 (runner): the room rule for the practitioner. The practitioner's request carries no room
+  (and must not), so `app.video_room` cannot be set for it. Migration 00023's idea is kept: a new read-only policy
+  `video_session_attended` shows a clinic's scope narrowed to one appointment (`app.appointment_id`, the setting
+  appointment's notice scope already uses) that appointment's session once its practitioner joined, whatever the
+  consent. `Status` uses it only when the caller's own access rule finds nothing and the caller is a practitioner
+  (not an admin): it reads the session narrowed to the appointment, requires `practitioner_joined_at`, and asks
+  `appointment.Service.LookupPractitioner` (new: the practitioner of the role, in the caller's transaction and
+  scope, unaudited, like `Lookup`) whether the caller is that practitioner. Audited as the read of the
+  appointment; anyone else 404, audited without the entity.
+- 2026-11-05, package 7.1 (runner): web. When the patient goes (present before, absent now) the app reads the
+  status once and shows W18, W18a (`consent_withdrawn`) or W18b (`cancelled`); W18 while the read is pending or
+  fails. The end screen: W18a for an end `cancelled` whose reason is `consent_withdrawn` (the revocation before
+  the start), W18b for any other cancellation, otherwise as before (an end by the practitioner after a removal
+  still says W28). W40 replaces W23 when LiveKit replaces the connection with a second tab, with W23's "Join
+  again" button, which takes the call back to this tab (the other then shows W40); W40 stays on screen while that
+  join runs.
+- 2026-11-05, package 7.1 (runner): mobile. A removal or a deleted room reads the status: `consent_withdrawn` M27,
+  `cancelled` M28, then the end as before; an open status without a removal rejoins. A rejoin refused for consent
+  (a lost connection) still shows M27; that is a join the patient needed, not a probe.
+- 2026-11-05, package 7.1 (runner): client logs. Web: `setLogLevel(LogLevel.silent)` when `call.ts` loads.
+  Mobile: package 7's `lk.disableLogging()` threw (`package:logging` refuses a level on a non-root logger unless
+  `hierarchicalLoggingEnabled` is on), so `LiveKitMedia` could not be built; it now turns hierarchical logging on
+  first, and `logging` 1.3.0 (already resolved through livekit_client) is a direct, exact dependency for that.
+  On native platforms livekit_client sends the token in a header, not the URL. Chrome's own network error lines
+  still print a failed signalling URL with its token (see "Waiting on people").
+
 ## Waiting on people
 
 - Before production: `SPEC.md` §8 (LiveKit domain, TLS, TURN, keys, node IP; retention and lawful basis;
   localisation).
+- Package 7.1, for the owner: Chrome itself prints a failed signalling connection's URL, with the token in its
+  query, to the practitioner's own console (`WebSocket connection to 'ws://…/rtc/v1?access_token=…' failed` and
+  the `…/rtc/v1/validate?access_token=…` request). No log level reaches it: it is the browser's network log, and
+  LiveKit's browser signalling carries the token in the URL because a browser WebSocket cannot send a header. The
+  token is valid 5 minutes for that one room. Accept, or ask for another measure.
 - Package 7, for the owner: (1) whether M35 should have its own button before the Android system prompt
   (COPY.md has no label; the prompt now follows once M35 is on screen); (2) whether to support Bluetooth headsets
   on Android 12 and later, which needs `BLUETOOTH_CONNECT` and approved text for its prompt; (3) text for a
@@ -967,3 +1010,96 @@ ways with the web app, and a reconnect.
 
 **Dev stack left.** No migration and no data: the tests use the fake API and the fake room. The stack was up
 when the package started and was left up, unchanged.
+
+### 2026-11-05 — package 7.1: Owner changes after package 6
+
+**What was built.**
+- `migrations/00024_video_session_reason.sql`: `video_session.removal_reason` (`consent_withdrawn` | `cancelled`,
+  `UPDATE` granted to `salus_app` for that column only), and the read-only policy `video_session_attended` (a
+  clinic's scope narrowed to one appointment sees its session once its practitioner joined, whatever the
+  consent). SPEC §5 has the column's line; the DPIA has a package 7.1 note.
+- `videosession`: `Reason` and `Status.Reason` (Decisions above); `Repository.Removed` (first reason stays, room
+  scope) and `SetAppointment`; `removeFromRoom` records the reason with its audit event (`EndAccess`
+  `cancelled`, `EndPatientAccess` `consent_withdrawn`, the webhook's re-check from `accessGone`, which now asks the
+  consent first); `Status` reads by the room rule (`attended`) when the caller's own rule finds nothing.
+  `handler_http.go` answers `reason`.
+- `appointment.Service.LookupPractitioner`: the practitioner of the appointment's role in the caller's
+  transaction and scope, unaudited.
+- `api/openapi.yaml`: `ConsultationStatus.reason` and the read's description; `make gen-clients`.
+- Web: `CallScreen.tsx` reads the status once when the patient goes (W18, W18a, W18b), the end screen's W18a for a
+  revocation before the start, W40 for a second tab; the join probe is gone. `messages.ts`: W40. `call.ts`:
+  livekit-client's log level `silent`.
+- Mobile: `call_screen.dart` reads the status on a removal or a deleted room (M27, M28) and no longer asks the
+  join endpoint; `call.dart` turns hierarchical logging on before turning LiveKit's log off (it threw before);
+  `pubspec.yaml`: `logging` 1.3.0 exact.
+
+**Tests seen failing first.**
+- migrations: TestVideoSession_RecordsWhyThePatientWasRemoved: column "removal_reason" of relation "video_session" does not exist (42703), 6 errors. TestVideoSession_OneAppointmentsScopeSeesItsSessionOnceThePractitionerJoined: clinic B with the cancelled appointment: sees [bPast], want [bPast bFuture].
+- videosession repository: build failed, undefined: videosession.Reason, ReasonConsentWithdrawn, ReasonCancelled; r.Removed, got.RemovalReason, r.SetAppointment undefined.
+- videosession service (fakes), with Status.Reason and the fake's LookupPractitioner in place: TestStatus_SaysWhyTheConsultationEndedOrThePatientWasRemoved failed on all 11 paths with a reason, e.g. `Status() = {… State:ended EndReason:practitioner Reason:}; want ended with the reason "ended"`, `{… State:open … Reason:}; want open with the reason "consent_withdrawn"` (revocation after the start), `{… EndReason:cancelled Reason:}; want … "consent_withdrawn"` (before the start), `want open with the reason "left"`. TestStatus_KeepsTheFirstRemovalsReason: `want ended cancelled, with the reason consent_withdrawn`. TestStatus_ThePractitionerWhoWasInTheRoomReadsItAfterTheClinicLostSightOfIt: `Status() by the practitioner = {}, videosession: not found; want {State:ended EndReason:cancelled Reason:consent_withdrawn …}`. TestStatus_TheRoomRuleFailsWithTheBackend: `Status() = videosession: not found, want the backend's error`. (TestStatus_TheRoomRuleShowsNobodyElse passed: it asserts the refusals that already held.)
+- the reason table's removal paths then failed on a test bug: one shared slice for the room's participants, which the fake's removal changes, so later cases had nobody to remove (`Reason:left; want … consent_withdrawn`); each case now gets a fresh slice. Existing status and end tests gained the reason in their expected values (`Reason:left`, `practitioner_did_not_join`, `ended`).
+- appointment: TestLookupPractitioner_GivesThePractitionerOfTheRoleInTheCallersScope: build failed, f.svc.LookupPractitioner undefined.
+- api (real database, salus_app): TestStatus_ThePractitionerWhoWasInTheRoomReadsItAfterARevocationBeforeTheStart was written after the service code, so it was seen failing with the room rule switched off in `attended`: `Status() by the practitioner = {}, videosession: not found; want ended cancelled, with the reason consent_withdrawn` and `0 reads of the appointment by the practitioner and 3 refusals audited, want 1 and 3`; restored, it passes.
+- videosession handler: TestStatusAndEndHandlers_AnswerTheState failed on the open and the ended cases: the body had no `"reason"` (`want 200 {…,"reason":"consent_withdrawn"}`).
+- web CallScreen (Vitest): 5 failed. `says why when the patient left on their own, from the status alone`: `expected [ 'POST …/consultation/join', 'GET …/consultation' ] to deeply equal [ 'GET …/consultation' ]` (the join probe); withdrawn consent and cancellation: `Unable to find an element with the text` (the status was not read for the reason; W18b not shown); `says the consultation is open in another tab…`: W40 not found; `…when the room is deleted, by a revocation before the start`: W18a not found (W18b shown).
+- web call.ts (Vitest, jsdom with a stub RTCPeerConnection so livekit-client tries the signalling connection to a closed port): `prints nothing, and no token, when the connection fails` failed, livekit-client printed `connection state changed: disconnected -> connecting …` and `connecting -> disconnected` (in a probe before the test, at its default info level it also printed `signal connecting to ws://…/rtc/v1?access_token=%3Credacted%3E&join_request=…` and `Couldn't connect to server, attempt 1 of 1`).
+- web: `keeps saying the consultation is open elsewhere while it joins again from this tab` failed with `Unable to find an element with the text: The consultation is open in another tab or window.` while the busy state dropped otherTab; then once on a test bug (the held join answered before the request reached it; the test now waits for the request). `…by the practitioner after removing the patient for a withdrawn consent` (W28, not W18a) was written after endLine's first version and seen failing against it.
+- mobile (flutter test): `LiveKit's own log is off` failed with `Unsupported operation: Please set "hierarchicalLoggingEnabled" to true if you want to change the level on a non-root logger.` from `lk.disableLogging` in `new LiveKitMedia` (call.dart:118): package 7's call threw, so LiveKitMedia could not be built at all (never run on a device). call_test.dart: 4 failed. `removed after withdrawing consent says so`: M27 not found (the status's reason was not read; the join probe rejoined); `says nothing about the practitioner while it asks why it was removed`: `Found 1 widget with text containing has left the` (the held status was not what it waited on); `removed after a cancellation says so`: M28 not found; `a deleted room says the consent was withdrawn when a revocation before the start cancelled it`: M27 not found (M28 shown).
+- web, found in the browser walk (three status reads after one removal, from LiveKit's track events while the patient was gone), test first: `reads the status once when the patient goes, however many events LiveKit sends while they are gone` failed with `expected [ …(3) ] to deeply equal [ Array(1) ]`.
+
+**What the tests cover.** The reason per path through the service: the practitioner's end, the window's close
+with the room empty and without the practitioner, the hard cap, a cancellation, a revocation after and before
+the start, the webhook's re-check (consent revoked, appointment out of scope, cancelled), a plain leave, nobody
+joined; the first removal's reason kept. The room rule with fakes (the practitioner after a revocation before the
+start; another practitioner, the admin, another clinic and the practitioner before they joined refused, audited;
+a backend failure) and on the real database as `salus_app` (the practitioner reads it, audited; the colleague,
+the admin and another clinic's practitioner get 404, audited; the patient reads `consent_withdrawn`). In SQL: the
+new policy for every scope, read only; the column's grant and check. The handler's JSON. Web: W18, W18a, W18b
+from the status alone with no join request, one status read however many LiveKit events, W18 when the read fails,
+W40 and its rejoin, the end lines (W18a for the revocation before the start, W28 for the practitioner's end after a
+removal), livekit-client printing nothing on a failed connection. Mobile: M27 and M28 from the status with no
+join request, M27 on a deleted room after a revocation before the start, a rejoin when the status shows no
+removal, LiveKit's log off with nothing reaching a listener.
+
+**Browser walk** (`make up`, which applied migration 24; the Vite dev server on `SALUS_WEB_PORT=5175`; Chromium
+from the Playwright 1.55.0 image, headless with fake devices, driven by a throwaway Python script; the patient was
+a second browser context using livekit-client's UMD build with a token from the join endpoint and the patient's
+bearer). Two synthetic consultations per run, made through the API by a temporary e2e helper (deleted before the
+commit). The first run stopped on a script error (it revoked the consent before a step that needed it); the
+second, on fresh data, passed every step:
+- The patient left: W18, and the only request was the status `GET` (no join).
+- A second tab: W40 in the first tab at 390 px with no horizontal scroll; "Join again" took the call back and the
+  second tab showed W40.
+- A join answer rewritten to a closed port: W34; livekit-client printed nothing.
+- A revocation after the start: LiveKit removed the patient (reason 4), W18a, one status `GET`, no join; 390 px
+  without horizontal scroll. "End consultation" then said "The appointment is marked as fulfilled."
+- A revocation before the start, both in the room: the room was deleted and the practitioner saw W27 with W18a,
+  read by the room rule (two status reads: the patient's removal and the room's deletion, no join); 390 px.
+- The console: the app and livekit-client printed nothing but Vite's and React's development lines. Chrome's own
+  network errors printed the failed signalling URL and the validate request with the token (Waiting on people).
+- Found and fixed in the walk, test first: three status reads after one removal (LiveKit's track events while
+  the patient was gone).
+- The api's and the worker's logs from the walk held no name, e-mail, room, identity or token; LiveKit's held no
+  name or e-mail.
+
+**Checks.** `make gen-clients`: no diff after the regeneration in this package. `make lint`: 0 issues in
+both modules, no migration from `main` changed. `make archcheck`: passes. `make test`: passes. `make cover`: every
+package at 80% or more (`internal/videosession` 94.7%, `internal/appointment` 93.2%, total 94.8%). `make web-lint`:
+0 warnings, 0 errors. `make web-typecheck`: passes. `make web-test`: 16 files, 209 tests pass. `make web-build`:
+passes, with Vite's chunk-size warning (835 kB, SPEC §7). `make mobile-analyze`: no issues. `make mobile-test`: 135
+tests pass. `dart format --line-length 120 --set-exit-if-changed lib test`: no change. W40 checked word for word
+against `COPY.md`. No FHIR change, so `make fhir-validate` is not affected.
+
+**Deferred.**
+- The mobile app has still not run on a device (package 7's note); the logger fix is checked by the test only.
+- Chrome's own network error lines with the token (Waiting on people).
+
+**Dev stack left.** Migration 24 is applied (goose version 24). Besides package 6's walk data, the dev
+database holds this walk's, made through the API: 4 clinics, each with an admin and a practitioner, 4 patients
+and 4 appointments with their slots, jobs, audit events and e-mails in Mailpit. The first run stopped on a script
+error after its revocation: its started appointment is booked with the consent revoked, its session open with
+`removal_reason` `consent_withdrawn` (its window-close job will end it and delete the room), and its other
+appointment is booked with an active consent and no session. The second run's: one fulfilled (session ended by
+the practitioner, `removal_reason` `consent_withdrawn`) and one cancelled by the revocation before its start
+(session ended `cancelled`, `removal_reason` `consent_withdrawn`). The Vite dev container was stopped and
+removed; the Playwright image stays in the host's Docker cache.

@@ -18,6 +18,7 @@ class ConsultationStatus {
     this.practitionerJoinedAt,
     this.endedAt,
     this.endReason,
+    this.reason,
   });
 
   ConsultationStatusStateEnum state;
@@ -51,6 +52,9 @@ class ConsultationStatus {
   /// Why it ended: the practitioner ended it; the window closed with the room empty; the practitioner never joined; the 2-hour limit after the scheduled end; the appointment was cancelled.
   ConsultationStatusEndReasonEnum? endReason;
 
+  /// Why the patient was removed or the consultation ended, as the clients show it: the patient was removed because their consent was withdrawn (also when that cancelled the appointment), or because the appointment was cancelled; while open, the patient who joined left on their own; the practitioner ended it or the window closed with the room empty; the window closed without the practitioner; the 2-hour limit. Absent while nobody has joined or left.
+  ConsultationStatusReasonEnum? reason;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -59,7 +63,8 @@ class ConsultationStatus {
           other.patientJoinedAt == patientJoinedAt &&
           other.practitionerJoinedAt == practitionerJoinedAt &&
           other.endedAt == endedAt &&
-          other.endReason == endReason;
+          other.endReason == endReason &&
+          other.reason == reason;
 
   @override
   int get hashCode =>
@@ -68,11 +73,12 @@ class ConsultationStatus {
       (patientJoinedAt == null ? 0 : patientJoinedAt!.hashCode) +
       (practitionerJoinedAt == null ? 0 : practitionerJoinedAt!.hashCode) +
       (endedAt == null ? 0 : endedAt!.hashCode) +
-      (endReason == null ? 0 : endReason!.hashCode);
+      (endReason == null ? 0 : endReason!.hashCode) +
+      (reason == null ? 0 : reason!.hashCode);
 
   @override
   String toString() =>
-      'ConsultationStatus[state=$state, patientJoinedAt=$patientJoinedAt, practitionerJoinedAt=$practitionerJoinedAt, endedAt=$endedAt, endReason=$endReason]';
+      'ConsultationStatus[state=$state, patientJoinedAt=$patientJoinedAt, practitionerJoinedAt=$practitionerJoinedAt, endedAt=$endedAt, endReason=$endReason, reason=$reason]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -98,6 +104,11 @@ class ConsultationStatus {
       json[r'endReason'] = this.endReason;
     } else {
       json[r'endReason'] = null;
+    }
+    if (this.reason != null) {
+      json[r'reason'] = this.reason;
+    } else {
+      json[r'reason'] = null;
     }
     return json;
   }
@@ -126,6 +137,7 @@ class ConsultationStatus {
         practitionerJoinedAt: mapDateTime(json, r'practitionerJoinedAt', r''),
         endedAt: mapDateTime(json, r'endedAt', r''),
         endReason: ConsultationStatusEndReasonEnum.fromJson(json[r'endReason']),
+        reason: ConsultationStatusReasonEnum.fromJson(json[r'reason']),
       );
     }
     return null;
@@ -364,4 +376,100 @@ class ConsultationStatusEndReasonEnumTypeTransformer {
 
   /// The singleton instance of this transformer.
   static ConsultationStatusEndReasonEnumTypeTransformer? _instance;
+}
+
+/// Why the patient was removed or the consultation ended, as the clients show it: the patient was removed because their consent was withdrawn (also when that cancelled the appointment), or because the appointment was cancelled; while open, the patient who joined left on their own; the practitioner ended it or the window closed with the room empty; the window closed without the practitioner; the 2-hour limit. Absent while nobody has joined or left.
+enum ConsultationStatusReasonEnum {
+  consentWithdrawn._(r'consent_withdrawn'),
+  cancelled._(r'cancelled'),
+  left._(r'left'),
+  ended._(r'ended'),
+  practitionerDidNotJoin._(r'practitioner_did_not_join'),
+  timeLimit._(r'time_limit'),
+  ;
+
+  /// Instantiate a new enum with the provided value.
+  const ConsultationStatusReasonEnum._(this._value);
+
+  /// The underlying value of this enum member.
+  final String _value;
+
+  @override
+  String toString() => _value;
+
+  /// Encodes this enum as a value suitable for JSON.
+  String toJson() => _value;
+
+  /// Returns the instance of [ConsultationStatusReasonEnum] that was successfully decoded
+  /// from the passed [value] on success, null otherwise.
+  static ConsultationStatusReasonEnum? fromJson(dynamic value) =>
+      ConsultationStatusReasonEnumTypeTransformer().decode(value);
+
+  /// Returns a [List] containing instances of [ConsultationStatusReasonEnum]
+  /// that were successfully decoded from the passed [JSON][json].
+  static List<ConsultationStatusReasonEnum> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final result = <ConsultationStatusReasonEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = ConsultationStatusReasonEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [ConsultationStatusReasonEnum] to String,
+/// and [decode] dynamic data back to [ConsultationStatusReasonEnum].
+class ConsultationStatusReasonEnumTypeTransformer {
+  factory ConsultationStatusReasonEnumTypeTransformer() =>
+      _instance ??= const ConsultationStatusReasonEnumTypeTransformer._();
+
+  const ConsultationStatusReasonEnumTypeTransformer._();
+
+  String encode(ConsultationStatusReasonEnum data) => data._value;
+
+  /// Returns the instance of [ConsultationStatusReasonEnum] that was successfully decoded
+  /// from the passed [data] value on success, null otherwise.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  ConsultationStatusReasonEnum? decode(dynamic data, {bool allowNull = true}) {
+    if (data is ConsultationStatusReasonEnum) {
+      return data;
+    }
+    if (data != null) {
+      switch (data) {
+        case r'consent_withdrawn':
+          return ConsultationStatusReasonEnum.consentWithdrawn;
+        case r'cancelled':
+          return ConsultationStatusReasonEnum.cancelled;
+        case r'left':
+          return ConsultationStatusReasonEnum.left;
+        case r'ended':
+          return ConsultationStatusReasonEnum.ended;
+        case r'practitioner_did_not_join':
+          return ConsultationStatusReasonEnum.practitionerDidNotJoin;
+        case r'time_limit':
+          return ConsultationStatusReasonEnum.timeLimit;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// The singleton instance of this transformer.
+  static ConsultationStatusReasonEnumTypeTransformer? _instance;
 }

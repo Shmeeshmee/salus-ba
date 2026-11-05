@@ -226,26 +226,47 @@ describe('CallScreen: in the call', () => {
     expect(last().camera).toEqual([false])
   })
 
-  it('says the patient left and may join again, when their consent is still active', async () => {
+  // The status says why the patient is gone; the join endpoint is not asked (SPEC §2 "Consultation status").
+  it.each([
+    ['left on their own', 'left', 'Ada Example has left the consultation. They can join again until the consultation ends.'],
+    ['was removed after withdrawing consent', 'consent_withdrawn', 'The patient withdrew consent for this clinic, so the consultation has ended.'],
+    ['was removed after a cancellation', 'cancelled', 'This appointment was cancelled, so the consultation has ended.'],
+  ])('says why when the patient %s, from the status alone', async (_, reason, line) => {
+    let state: object = open
+    const { last, requests } = await inCall({ routes: { [statusGet]: () => Response.json(state) } })
+    act(() => last().emit(peer(true)))
+    state = { ...open, patientJoinedAt: '2026-11-09T08:02:00Z', reason }
+    const before = requests.length
+
+    act(() => last().emit(peer(false)))
+
+    expect(await screen.findByText(line)).toBeTruthy()
+    expect(paths(requests.slice(before))).toEqual([statusGet])
+    expect(screen.getByRole('button', { name: 'End consultation' })).toBeTruthy()
+  })
+
+  it('reads the status once when the patient goes, however many events LiveKit sends while they are gone', async () => {
     const { last, requests } = await inCall()
     act(() => last().emit(peer(true)))
+    const before = requests.length
+
+    act(() => last().emit(peer(false)))
+    act(() => last().emit(peer(false, false, false)))
+    act(() => last().emit(peer(false)))
+
+    await screen.findByText('Ada Example has left the consultation. They can join again until the consultation ends.')
+    expect(paths(requests.slice(before))).toEqual([statusGet])
+  })
+
+  it('says the patient left when the status cannot be read', async () => {
+    let readable = true
+    const { last } = await inCall({ routes: { [statusGet]: () => (readable ? Response.json(open) : apiError(500, 'internal')) } })
+    act(() => last().emit(peer(true)))
+    readable = false
 
     act(() => last().emit(peer(false)))
 
     expect(await screen.findByText('Ada Example has left the consultation. They can join again until the consultation ends.')).toBeTruthy()
-    expect(paths(requests).filter((p) => p === joinPost)).toHaveLength(2)
-  })
-
-  it('says the consultation has ended when the patient was removed after withdrawing consent', async () => {
-    let consent = true
-    const { last } = await inCall({ routes: { [joinPost]: () => (consent ? Response.json(joined) : apiError(409, 'consent_required')) } })
-    act(() => last().emit(peer(true)))
-    consent = false
-
-    act(() => last().emit(peer(false)))
-
-    expect(await screen.findByText('The patient withdrew consent for this clinic, so the consultation has ended.')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'End consultation' })).toBeTruthy()
   })
 
   it('shows reconnecting, then reconnected', async () => {
@@ -322,12 +343,33 @@ describe('CallScreen: in the call', () => {
     expect(await screen.findByRole('button', { name: 'Leave' })).toBeTruthy()
   })
 
-  it('treats joining from another tab as leaving this one', async () => {
-    const { last } = await inCall()
+  it('says the consultation is open in another tab when LiveKit replaced this connection, and rejoins only when asked', async () => {
+    const { last, rooms, requests } = await inCall()
+    const before = requests.length
 
     act(() => last().emit({ type: 'disconnected', ending: 'replaced' }))
 
-    expect(await screen.findByText('You left the consultation. You can join again until it ends.')).toBeTruthy()
+    expect(await screen.findByText('The consultation is open in another tab or window.')).toBeTruthy()
+    expect(screen.queryByText('You left the consultation. You can join again until it ends.')).toBeNull()
+    expect(requests.length).toBe(before)
+    fireEvent.click(button('Join again'))
+    await vi.waitFor(() => expect(rooms).toHaveLength(2))
+  })
+
+  it('keeps saying the consultation is open elsewhere while it joins again from this tab', async () => {
+    let answer: ((r: Response) => void) | undefined
+    let held = false
+    const { last } = await inCall({ routes: { [joinPost]: () => (held ? new Promise<Response>((r) => (answer = r)) : Response.json(joined)) } })
+    act(() => last().emit({ type: 'disconnected', ending: 'replaced' }))
+    held = true
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Join again' }))
+
+    await vi.waitFor(() => expect(answer).toBeDefined())
+    expect(screen.getByText('The consultation is open in another tab or window.')).toBeTruthy()
+    expect((button('Join again') as HTMLButtonElement).disabled).toBe(true)
+    answer?.(Response.json(joined))
+    expect(await screen.findByRole('button', { name: 'Leave' })).toBeTruthy()
   })
 })
 
@@ -338,7 +380,17 @@ describe('CallScreen: the end', () => {
     ['ended by the practitioner with the patient', { endReason: 'practitioner', patientJoinedAt: '2026-11-09T08:02:00Z' }, 'The appointment is marked as fulfilled.'],
     ['ended without the patient', { endReason: 'practitioner' }, 'The appointment is marked as a no-show.'],
     ['at the time limit', { endReason: 'time_limit', patientJoinedAt: '2026-11-09T08:02:00Z' }, 'The consultation reached its time limit and has ended.'],
-    ['by a cancellation', { endReason: 'cancelled', patientJoinedAt: '2026-11-09T08:02:00Z' }, 'This appointment was cancelled, so the consultation has ended.'],
+    ['by a cancellation', { endReason: 'cancelled', patientJoinedAt: '2026-11-09T08:02:00Z', reason: 'cancelled' }, 'This appointment was cancelled, so the consultation has ended.'],
+    [
+      'by the practitioner after removing the patient for a withdrawn consent',
+      { endReason: 'practitioner', patientJoinedAt: '2026-11-09T08:02:00Z', reason: 'consent_withdrawn' },
+      'The appointment is marked as fulfilled.',
+    ],
+    [
+      'by a revocation before the start',
+      { endReason: 'cancelled', patientJoinedAt: '2026-11-09T08:02:00Z', reason: 'consent_withdrawn' },
+      'The patient withdrew consent for this clinic, so the consultation has ended.',
+    ],
   ])('says the consultation has ended when the room is deleted, %s', async (_, status, line) => {
     let state: object = open
     const { last } = await inCall({ routes: { [statusGet]: () => Response.json(state) } })

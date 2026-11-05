@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
+import 'package:logging/logging.dart' show hierarchicalLoggingEnabled;
 import 'package:permission_handler/permission_handler.dart' as ph;
 
 // call.dart is the one file that reaches LiveKit (livekit_client) and the device's camera, microphone and
@@ -114,7 +115,9 @@ abstract interface class Media {
 /// Media on livekit_client and permission_handler. No LiveKit UI components; the screens draw their own.
 class LiveKitMedia implements Media {
   LiveKitMedia() {
-    // LiveKit's own log could carry the server URL with the token; it stays off.
+    // LiveKit's own log could carry the server URL with the token; it stays off. Its logger is not the root one,
+    // so its level can be set only with hierarchical logging on (package:logging throws otherwise).
+    hierarchicalLoggingEnabled = true;
     lk.disableLogging();
   }
 

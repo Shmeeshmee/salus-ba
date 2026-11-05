@@ -66,7 +66,7 @@ UPDATE video_session
 SET ended_at = $1, end_reason = $2, updated_at = $1
 WHERE id = $3 AND ended_at IS NULL
 RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-          organization_id, room, patient_identity, practitioner_identity, end_reason
+          organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason
 `
 
 type EndSessionParams struct {
@@ -93,6 +93,7 @@ func (q *Queries) EndSession(ctx context.Context, arg EndSessionParams) (VideoSe
 		&i.PatientIdentity,
 		&i.PractitionerIdentity,
 		&i.EndReason,
+		&i.RemovalReason,
 	)
 	return i, err
 }
@@ -102,7 +103,7 @@ UPDATE video_session
 SET patient_joined_at = $1, updated_at = $2
 WHERE id = $3 AND patient_joined_at IS NULL AND ended_at IS NULL
 RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-          organization_id, room, patient_identity, practitioner_identity, end_reason
+          organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason
 `
 
 type PatientJoinedParams struct {
@@ -129,6 +130,7 @@ func (q *Queries) PatientJoined(ctx context.Context, arg PatientJoinedParams) (V
 		&i.PatientIdentity,
 		&i.PractitionerIdentity,
 		&i.EndReason,
+		&i.RemovalReason,
 	)
 	return i, err
 }
@@ -138,7 +140,7 @@ UPDATE video_session
 SET practitioner_joined_at = $1, updated_at = $2
 WHERE id = $3 AND practitioner_joined_at IS NULL AND ended_at IS NULL
 RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-          organization_id, room, patient_identity, practitioner_identity, end_reason
+          organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason
 `
 
 type PractitionerJoinedParams struct {
@@ -165,13 +167,32 @@ func (q *Queries) PractitionerJoined(ctx context.Context, arg PractitionerJoined
 		&i.PatientIdentity,
 		&i.PractitionerIdentity,
 		&i.EndReason,
+		&i.RemovalReason,
 	)
 	return i, err
 }
 
+const recordRemoval = `-- name: RecordRemoval :exec
+UPDATE video_session
+SET removal_reason = $1, updated_at = $2
+WHERE id = $3 AND removal_reason IS NULL
+`
+
+type RecordRemovalParams struct {
+	Reason pgtype.Text
+	At     pgtype.Timestamptz
+	ID     pgtype.UUID
+}
+
+// Why the patient was removed, in the room's scope; the first reason stays.
+func (q *Queries) RecordRemoval(ctx context.Context, arg RecordRemovalParams) error {
+	_, err := q.db.Exec(ctx, recordRemoval, arg.Reason, arg.At, arg.ID)
+	return err
+}
+
 const sessionByAppointment = `-- name: SessionByAppointment :one
 SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-       organization_id, room, patient_identity, practitioner_identity, end_reason
+       organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason
 FROM video_session
 WHERE appointment_id = $1
 `
@@ -193,13 +214,14 @@ func (q *Queries) SessionByAppointment(ctx context.Context, appointmentID pgtype
 		&i.PatientIdentity,
 		&i.PractitionerIdentity,
 		&i.EndReason,
+		&i.RemovalReason,
 	)
 	return i, err
 }
 
 const sessionByID = `-- name: SessionByID :one
 SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-       organization_id, room, patient_identity, practitioner_identity, end_reason
+       organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason
 FROM video_session
 WHERE id = $1
 `
@@ -221,13 +243,14 @@ func (q *Queries) SessionByID(ctx context.Context, id pgtype.UUID) (VideoSession
 		&i.PatientIdentity,
 		&i.PractitionerIdentity,
 		&i.EndReason,
+		&i.RemovalReason,
 	)
 	return i, err
 }
 
 const sessionByRoom = `-- name: SessionByRoom :one
 SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-       organization_id, room, patient_identity, practitioner_identity, end_reason
+       organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason
 FROM video_session
 WHERE room = $1
 `
@@ -249,13 +272,14 @@ func (q *Queries) SessionByRoom(ctx context.Context, room string) (VideoSession,
 		&i.PatientIdentity,
 		&i.PractitionerIdentity,
 		&i.EndReason,
+		&i.RemovalReason,
 	)
 	return i, err
 }
 
 const sessionsClosingAfter = `-- name: SessionsClosingAfter :many
 SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
-       organization_id, room, patient_identity, practitioner_identity, end_reason
+       organization_id, room, patient_identity, practitioner_identity, end_reason, removal_reason
 FROM video_session
 WHERE organization_id = $1 AND closes_at > $2
 ORDER BY closes_at, id
@@ -291,6 +315,7 @@ func (q *Queries) SessionsClosingAfter(ctx context.Context, arg SessionsClosingA
 			&i.PatientIdentity,
 			&i.PractitionerIdentity,
 			&i.EndReason,
+			&i.RemovalReason,
 		); err != nil {
 			return nil, err
 		}

@@ -67,6 +67,21 @@ func (s *Service) Lookup(ctx context.Context, id string) (Appointment, error) {
 	return a, err
 }
 
+// LookupPractitioner returns the practitioner of the appointment id's role, read in the caller's transaction
+// and scope, unaudited, for the consultation's room rule (docs/consultation/SPEC.md §2 "Consultation status"),
+// which decides and audits the read itself. ErrNotFound when the scope does not show the appointment.
+func (s *Service) LookupPractitioner(ctx context.Context, id string) (string, error) {
+	a, err := s.Lookup(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	practitionerID, err := s.practitionerOf(ctx, map[string]string{}, a)
+	if err != nil {
+		return "", fmt.Errorf("appointment: lookup practitioner: %w", err)
+	}
+	return practitionerID, nil
+}
+
 // RecordConsultationOutcome records the end of the appointment's consultation (docs/consultation/SPEC.md §2
 // "Outcome"), a system method of the agent in the caller's transaction and scope: a booked appointment
 // becomes fulfilled when the patient joined, else noshow, audited as an update by the agent. Any other status

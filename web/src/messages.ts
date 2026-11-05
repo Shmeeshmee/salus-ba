@@ -50,6 +50,7 @@ export const consultation = {
   keep: 'Cancel', // W22
   left: 'You left the consultation. You can join again until it ends.', // W23
   joinAgain: 'Join again', // W23
+  otherTab: 'The consultation is open in another tab or window.', // W40
   reconnecting: 'Connection lost. Reconnecting…', // W24
   notRestored: 'The connection could not be restored.', // W25
   tryAgain: 'Try again', // W25

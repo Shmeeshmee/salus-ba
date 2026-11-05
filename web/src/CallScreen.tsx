@@ -17,12 +17,14 @@ type Phase =
   | { name: 'call' }
   | { name: 'reconnecting' }
   | { name: 'lost' }
-  | { name: 'left'; busy?: boolean }
+  | { name: 'left'; busy?: boolean; otherTab?: boolean }
   | { name: 'ended'; status?: Status }
 
-// Gone is why the patient is no longer in the room: they left, or the server removed them because the consent
-// is no longer active (the join endpoint says so when asked again).
-type Gone = 'left' | 'consent'
+// Gone is why the patient is no longer in the room, as the status's reason says: they left, or the server
+// removed them because the consent was withdrawn or the appointment cancelled.
+type Gone = 'left' | 'consent' | 'cancelled'
+
+const goneOf: Partial<Record<NonNullable<Status['reason']>, Gone>> = { consent_withdrawn: 'consent', cancelled: 'cancelled' }
 
 const nobody: Peer = { present: false, camera: false, microphone: false }
 
@@ -44,7 +46,7 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
   const [reconnected, setReconnected] = useState(false)
   const generation = useRef(0)
   const settings = useRef<Settings>({ camera: false, microphone: false })
-  const seen = useRef(false)
+  const present = useRef(false)
   const params = { params: { path: { id } } }
 
   useEffect(() => () => void room?.leave(), [room])
@@ -112,24 +114,27 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
     setPeer(nobody)
     if (e.ending === 'replaced') {
       generation.current++
-      return setPhase({ name: 'left' })
+      return setPhase({ name: 'left', otherTab: true })
     }
     if (e.ending === 'ended') return void finish()
     setPhase({ name: 'reconnecting' })
     void connect(true)
   }
 
+  // onPeer follows the patient; when they go (present before, not now), the status says why, read once.
   function onPeer(p: Peer) {
     setPeer(p)
+    const was = present.current
+    present.current = p.present
     if (p.present) {
-      seen.current = true
       setPatientJoined(true)
       return setGone(undefined)
     }
-    if (!seen.current) return
+    if (!was) return
     setGone('left')
-    attempt(api.POST('/appointments/{id}/consultation/join', params)).then((res) => {
-      if (!res.ok && res.code === 'consent_required') setGone((g) => (g === 'left' ? 'consent' : g))
+    void readStatus().then((status) => {
+      const gone = status?.reason && goneOf[status.reason]
+      if (gone) setGone((g) => (g === 'left' ? gone : g))
     })
   }
 
@@ -168,13 +173,13 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
       return <DeviceCheck media={media} busy={phase.name === 'joining'} error={phase.name === 'check' ? phase.error : undefined} onJoin={join} />
     case 'left':
       return (
-        <Message text={text.left}>
+        <Message text={phase.otherTab ? text.otherTab : text.left}>
           <button
             type="button"
             className="primary"
             disabled={phase.busy}
             onClick={() => {
-              setPhase({ name: 'left', busy: true })
+              setPhase({ name: 'left', busy: true, otherTab: phase.otherTab })
               void connect(false)
             }}
           >
@@ -265,6 +270,7 @@ function Stage({ room, peer, name, gone, reconnecting, cameraOn }: StageProps) {
 
 function Absent({ name, gone }: { name: string; gone?: Gone }) {
   if (gone === 'consent') return <p>{text.peerWithdrewConsent}</p>
+  if (gone === 'cancelled') return <p>{text.cancelled}</p>
   if (gone === 'left') return name ? <p>{text.peerLeft(name)}</p> : null
   return (
     <>
@@ -330,8 +336,10 @@ function Ended({ status }: { status?: Status }) {
   )
 }
 
+// endLine says how the consultation ended: a cancellation by the patient's revocation (the reason) is the
+// withdrawn consent.
 function endLine(status: Status): string {
-  if (status.endReason === 'cancelled') return text.cancelled
+  if (status.endReason === 'cancelled') return status.reason === 'consent_withdrawn' ? text.peerWithdrewConsent : text.cancelled
   if (status.endReason === 'time_limit') return text.timeLimit
   return status.patientJoinedAt ? text.markedFulfilled : text.markedNoShow
 }

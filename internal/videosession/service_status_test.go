@@ -37,7 +37,7 @@ func TestStatus_GivesTheParticipantsAndTheAdminTheConsultationsState(t *testing.
 		{name: "open, nobody joined", fixture: func() *fixture { return opened(now, time.Time{}, time.Time{}) }, want: videosession.Status{State: videosession.StateOpen}},
 		{
 			name: "open, both joined", fixture: func() *fixture { return opened(now, practitionerJoined, patientJoined) },
-			want: videosession.Status{State: videosession.StateOpen, PractitionerJoinedAt: practitionerJoined, PatientJoinedAt: patientJoined},
+			want: videosession.Status{State: videosession.StateOpen, PractitionerJoinedAt: practitionerJoined, PatientJoinedAt: patientJoined, Reason: videosession.ReasonLeft},
 		},
 		{
 			name: "ended, the practitioner absent",
@@ -48,7 +48,10 @@ func TestStatus_GivesTheParticipantsAndTheAdminTheConsultationsState(t *testing.
 				f.repo.sessions[apptA] = s
 				return f
 			},
-			want: videosession.Status{State: videosession.StateEnded, PatientJoinedAt: patientJoined, EndedAt: closes, EndReason: videosession.EndPractitionerAbsent},
+			want: videosession.Status{
+				State: videosession.StateEnded, PatientJoinedAt: patientJoined, EndedAt: closes, EndReason: videosession.EndPractitionerAbsent,
+				Reason: videosession.ReasonPractitionerDidNotJoin,
+			},
 		},
 	} {
 		for _, c := range []appointment.Caller{me, pract, admin} {
@@ -125,7 +128,10 @@ func TestEnd_ThePractitionerEndsTheConsultation(t *testing.T) {
 		f := opened(start.Add(20*time.Minute), start, patientJoined)
 		got, err := f.svc.End(t.Context(), pract, apptA)
 		at := start.Add(20 * time.Minute)
-		want := videosession.Status{State: videosession.StateEnded, PractitionerJoinedAt: start, PatientJoinedAt: patientJoined, EndedAt: at, EndReason: videosession.EndPractitioner}
+		want := videosession.Status{
+			State: videosession.StateEnded, PractitionerJoinedAt: start, PatientJoinedAt: patientJoined, EndedAt: at, EndReason: videosession.EndPractitioner,
+			Reason: videosession.ReasonEnded,
+		}
 		if err != nil || got != want {
 			t.Fatalf("End() = %+v, %v; want %+v", got, err, want)
 		}

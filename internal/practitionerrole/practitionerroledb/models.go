@@ -284,4 +284,5 @@ type VideoSession struct {
 	PatientIdentity      string
 	PractitionerIdentity string
 	EndReason            pgtype.Text
+	RemovalReason        pgtype.Text
 }

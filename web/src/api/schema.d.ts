@@ -447,7 +447,7 @@ export interface paths {
         };
         /**
          * Where an appointment's video consultation stands
-         * @description The state of the consultation (`not_started` before anyone asked for a token, `open` while its room exists, `ended`), when the patient and the practitioner first joined, and when and why it ended. For the appointment's patient, its practitioner and the clinic's admin, as they may see the appointment (after a revocation, a past one too). Not cached. Audited as a read of the appointment, also when refused.
+         * @description The state of the consultation (`not_started` before anyone asked for a token, `open` while its room exists, `ended`), when the patient and the practitioner first joined, when and why it ended, and why the patient was removed. For the appointment's patient, its practitioner and the clinic's admin, as they may see the appointment (after a revocation, a past one too); and for its practitioner once they joined the room, also after a revocation hid the appointment from the clinic. The clients read `reason` when the other side leaves or the room closes. Not cached. Audited as a read of the appointment, also when refused.
          */
         get: operations["getConsultation"];
         put?: never;
@@ -829,6 +829,11 @@ export interface components {
              * @enum {string}
              */
             endReason?: "practitioner" | "window_closed" | "practitioner_absent" | "time_limit" | "cancelled";
+            /**
+             * @description Why the patient was removed or the consultation ended, as the clients show it: the patient was removed because their consent was withdrawn (also when that cancelled the appointment), or because the appointment was cancelled; while open, the patient who joined left on their own; the practitioner ended it or the window closed with the room empty; the window closed without the practitioner; the 2-hour limit. Absent while nobody has joined or left.
+             * @enum {string}
+             */
+            reason?: "consent_withdrawn" | "cancelled" | "left" | "ended" | "practitioner_did_not_join" | "time_limit";
         };
         /** @description LiveKit's WebhookEvent in its JSON form (protojson); only `event`, `room.name`, the participant's `identity` and `joinedAt`/`joinedAtMs`, and `createdAt` are read. */
         LiveKitWebhookEvent: {

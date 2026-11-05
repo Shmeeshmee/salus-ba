@@ -42,7 +42,7 @@ func (s *Service) EndAccess(ctx context.Context, appointmentID, org string) erro
 	case err != nil:
 		return fmt.Errorf("videosession: end access: %w", err)
 	}
-	if err := s.removePatient(ctx, agentAccessEnd, session, cancelled, now); err != nil {
+	if err := s.removePatient(ctx, agentAccessEnd, session, ReasonCancelled, cancelled, now); err != nil {
 		return fmt.Errorf("videosession: end access: %w", err)
 	}
 	return nil
@@ -82,7 +82,7 @@ func (s *Service) EndPatientAccess(ctx context.Context, patientID, org string) e
 	}
 	var errs []error
 	for i, session := range sessions {
-		errs = append(errs, s.removePatient(ctx, agentRevocation, session, cancelled[i], now))
+		errs = append(errs, s.removePatient(ctx, agentRevocation, session, ReasonConsentWithdrawn, cancelled[i], now))
 	}
 	if err := errors.Join(errs...); err != nil {
 		return fmt.Errorf("videosession: end patient access: %w", err)
@@ -99,11 +99,11 @@ func (s *Service) isCancelled(ctx context.Context, appointmentID string) (bool, 
 	return a.Status == appointment.StatusCancelled, nil
 }
 
-// removePatient removes the patient from the session's room and, when its appointment is cancelled, ends the
-// session cancelled by the agent at now, which deletes the room (a session ended already only has its room deleted
-// again).
-func (s *Service) removePatient(ctx context.Context, agent string, session Session, cancelled bool, now time.Time) error {
-	if err := s.removeFromRoom(ctx, agent, session); err != nil {
+// removePatient removes the patient from the session's room for reason and, when its appointment is cancelled,
+// ends the session cancelled by the agent at now, which deletes the room (a session ended already only has its
+// room deleted again).
+func (s *Service) removePatient(ctx context.Context, agent string, session Session, reason Reason, cancelled bool, now time.Time) error {
+	if err := s.removeFromRoom(ctx, agent, session, reason); err != nil {
 		return err
 	}
 	if !cancelled {
@@ -113,16 +113,28 @@ func (s *Service) removePatient(ctx context.Context, agent string, session Sessi
 }
 
 // removeFromRoom removes the patient from the session's room for the agent, whose path decided their access
-// is gone (SPEC.md §2 "Changed after package 5"). When the patient is in the room, the removal is audited
-// first, so no removal goes unaudited; one who is not there (gone already: a repeat) is not removed, and
-// nothing is audited. LiveKit is asked to remove them either way, outside any transaction.
-func (s *Service) removeFromRoom(ctx context.Context, agent string, session Session) error {
+// is gone for reason (SPEC.md §2 "Changed after package 5", "Changed after package 6"). When the patient is in
+// the room, the removal and its reason ("" records none) are stored and audited first, in the room's scope, so
+// no removal goes unaudited and the other side can read why once the patient is gone; one who is not there
+// (gone already: a repeat) is not removed, and nothing is stored or audited. LiveKit is asked to remove them
+// either way, outside any transaction.
+func (s *Service) removeFromRoom(ctx context.Context, agent string, session Session, reason Reason) error {
 	in, err := s.Provider.Participants(ctx, session.Room)
 	if err != nil {
 		return err
 	}
 	if slices.Contains(in, session.PatientIdentity) {
-		err := s.Tx.WithTx(ctx, func(ctx context.Context) error { return s.recordSystem(ctx, agent, session) })
+		err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+			if reason != "" {
+				if err := s.Repo.SetRoom(ctx, session.Room); err != nil {
+					return err
+				}
+				if err := s.Repo.Removed(ctx, session.ID, reason, s.Clock.Now()); err != nil {
+					return err
+				}
+			}
+			return s.recordSystem(ctx, agent, session)
+		})
 		if err != nil {
 			return err
 		}

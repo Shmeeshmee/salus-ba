@@ -198,17 +198,17 @@ func TestStatusAndEndHandlers_AnswerTheState(t *testing.T) {
 		},
 		{
 			method: http.MethodGet, path: "/appointments/" + apptA + "/consultation", asked: "status " + apptA,
-			status: videosession.Status{State: videosession.StateOpen, PatientJoinedAt: start},
-			want:   `{"state":"open","patientJoinedAt":"2030-01-07T09:00:00Z"}`,
+			status: videosession.Status{State: videosession.StateOpen, PatientJoinedAt: start, Reason: videosession.ReasonConsentWithdrawn},
+			want:   `{"state":"open","patientJoinedAt":"2030-01-07T09:00:00Z","reason":"consent_withdrawn"}`,
 		},
 		{
 			method: http.MethodPost, path: "/appointments/" + apptA + "/consultation/end", asked: "end " + apptA,
 			status: videosession.Status{
 				State: videosession.StateEnded, PatientJoinedAt: start, PractitionerJoinedAt: start.Add(time.Minute),
-				EndedAt: end, EndReason: videosession.EndPractitioner,
+				EndedAt: end, EndReason: videosession.EndPractitioner, Reason: videosession.ReasonEnded,
 			},
 			want: `{"state":"ended","patientJoinedAt":"2030-01-07T09:00:00Z","practitionerJoinedAt":"2030-01-07T09:01:00Z",` +
-				`"endedAt":"2030-01-07T09:30:00Z","endReason":"practitioner"}`,
+				`"endedAt":"2030-01-07T09:30:00Z","endReason":"practitioner","reason":"ended"}`,
 		},
 	} {
 		var log bytes.Buffer
