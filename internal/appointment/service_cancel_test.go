@@ -40,7 +40,7 @@ func TestCancel_ThePatientCancelsUpTo24HoursBeforeTheStart(t *testing.T) {
 	if want := []string{clinicA + "/" + "51" + apptA[2:]}; !slices.Equal(f.slots.released, want) {
 		t.Errorf("released %v, want the appointment's slot %v", f.slots.released, want)
 	}
-	if want := []string{"cancelled " + apptA + " " + clinicA}; !slices.Equal(f.jobs.enqueued, want) {
+	if want := []string{"cancelled " + apptA + " " + clinicA, "access_end " + apptA + " " + clinicA}; !slices.Equal(f.jobs.enqueued, want) {
 		t.Errorf("enqueued %v, want %v", f.jobs.enqueued, want)
 	}
 	checkEvents(t, "Cancel", f.audit, event(me, auditevent.CodeUpdate, "Appointment", apptA, auditevent.OutcomeSuccess))
@@ -54,8 +54,8 @@ func TestCancel_StaffCancelAtAnyTime(t *testing.T) {
 			t.Errorf("Cancel() as %s = %+v, %v; want cancelled by them (prov)", c.AccountID, got, err)
 			continue
 		}
-		if f.repo.patient != "" || f.repo.clinic != clinicA || len(f.slots.released) != 1 || len(f.jobs.enqueued) != 1 {
-			t.Errorf("as %s: patient %q, clinic %q, released %v, enqueued %v; want clinic A's scope, the slot freed and the e-mail", c.AccountID,
+		if f.repo.patient != "" || f.repo.clinic != clinicA || len(f.slots.released) != 1 || len(f.jobs.enqueued) != 2 {
+			t.Errorf("as %s: patient %q, clinic %q, released %v, enqueued %v; want clinic A's scope, the slot freed, the e-mail and the access's end", c.AccountID,
 				f.repo.patient, f.repo.clinic, f.slots.released, f.jobs.enqueued)
 		}
 		checkEvents(t, "Cancel as staff", f.audit, event(c, auditevent.CodeUpdate, "Appointment", apptA, auditevent.OutcomeSuccess))
@@ -223,8 +223,12 @@ func TestCancelForRevokedConsent_CancelsTheFutureAppointmentsBookedBeforeTheRevo
 	if f.repo.patient != patientA || f.repo.clinic != clinicA || len(f.slots.released) != 3 {
 		t.Errorf("in patient %q and clinic %q, released %v; want patient A's scope with clinic A and three slots", f.repo.patient, f.repo.clinic, f.slots.released)
 	}
-	if want := []string{"cancelled " + apptA + " " + clinicA, "cancelled " + apptA2 + " " + clinicA, "cancelled " + startedAfter.ID + " " + clinicA}; !slices.Equal(sortedCopy(f.jobs.enqueued), sortedCopy(want)) {
-		t.Errorf("enqueued %v, want one cancellation e-mail each", f.jobs.enqueued)
+	wantJobs := []string{}
+	for _, id := range []string{apptA, apptA2, startedAfter.ID} {
+		wantJobs = append(wantJobs, "cancelled "+id+" "+clinicA, "access_end "+id+" "+clinicA)
+	}
+	if !slices.Equal(sortedCopy(f.jobs.enqueued), sortedCopy(wantJobs)) {
+		t.Errorf("enqueued %v, want one cancellation e-mail and one end of the consultation's access each", f.jobs.enqueued)
 	}
 	want := []auditevent.AuditEvent{}
 	for _, id := range []string{apptA, apptA2, startedAfter.ID} {

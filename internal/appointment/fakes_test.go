@@ -357,6 +357,10 @@ func (j *fakeJobs) EnqueueCancelled(ctx context.Context, id, org string) error {
 	return j.add(ctx, "cancelled "+id+" "+org)
 }
 
+func (j *fakeJobs) EnqueueAccessEnd(ctx context.Context, id, org string) error {
+	return j.add(ctx, "access_end "+id+" "+org)
+}
+
 func (j *fakeJobs) EnqueueReminder(ctx context.Context, id, org string, at time.Time) error {
 	return j.add(ctx, fmt.Sprintf("reminder %s %s at %s", id, org, at.Format(time.RFC3339)))
 }

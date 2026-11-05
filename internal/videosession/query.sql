@@ -53,3 +53,12 @@ SET practitioner_joined_at = @at, updated_at = @updated_at
 WHERE id = @id AND practitioner_joined_at IS NULL AND ended_at IS NULL
 RETURNING id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
           organization_id, room, patient_identity, practitioner_identity, end_reason;
+
+-- name: SessionsClosingAfter :many
+-- The revocation's removal, in the patient's scope (row-level security shows only their sessions): their
+-- sessions of the clinic whose window closes after @after, so whose room may still be open.
+SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
+       organization_id, room, patient_identity, practitioner_identity, end_reason
+FROM video_session
+WHERE organization_id = @organization_id AND closes_at > @after
+ORDER BY closes_at, id;

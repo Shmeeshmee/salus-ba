@@ -22,6 +22,9 @@ type Repository interface {
 	ByID(ctx context.Context, id string) (Session, error)
 	// ByAppointment returns the appointment's session, or ErrNotFound (also outside the scope).
 	ByAppointment(ctx context.Context, appointmentID string) (Session, error)
+	// ClosingAfter returns the sessions in the scope (the patient's, set by SetPatient) of the clinic org whose
+	// join window closes after after.
+	ClosingAfter(ctx context.Context, org string, after time.Time) ([]Session, error)
 	// ByRoom returns the session of the room, or ErrNotFound (also outside the scope).
 	ByRoom(ctx context.Context, room string) (Session, error)
 	// Joined records that the role joined the session id at at, updated now, unless that role's join is

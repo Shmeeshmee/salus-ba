@@ -112,16 +112,22 @@ func runWorkerJobWith(t *testing.T, db logins, p videosession.Provider, args riv
 		t.Fatal(err)
 	}
 	defer func() { _ = client.Stop(context.WithoutCancel(t.Context())) }()
-	if _, err := client.Insert(t.Context(), args, nil); err != nil {
+	inserted, err := client.Insert(t.Context(), args, nil)
+	if err != nil {
 		t.Fatalf("Insert() error = %v", err)
 	}
-	select {
-	case ev := <-events:
-		return ev.Kind, logs.String()
-	case <-time.After(15 * time.Second):
-		t.Fatalf("the %s job did not finish within 15s", args.Kind())
+	timeout := time.After(15 * time.Second)
+	for { // the job may enqueue others, which the client works too: wait for this one's end
+		select {
+		case ev := <-events:
+			if ev.Job.ID == inserted.Job.ID {
+				return ev.Kind, logs.String()
+			}
+		case <-timeout:
+			t.Fatalf("the %s job did not finish within 15s", args.Kind())
+			return "", ""
+		}
 	}
-	return "", ""
 }
 
 func count(t *testing.T, owner *pgxpool.Pool, table string) int {

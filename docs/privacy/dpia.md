@@ -682,3 +682,31 @@ an end causes are audited with the agent `consultation_end`, purpose `HOPERAT`.
 | A token, a room or a name leaks through the logs | The handlers log nothing on success and only the error on a 500; the access log carries the route pattern, not the path; tested to hold no token or name (handler and `api.New` tests), and the api's log after 3,000 joins in the stack held none |
 | Anyone other than the participants learns that the patient attended | The status is 404 for anyone `access.Appointment` gives nothing, audited without the entity; the join and the end are 404 for anyone but the participants (tested per caller) |
 | A response is cached by a shared cache | Every consultation response is `Cache-Control: no-store` (tested) |
+
+### Package 5: Revocation and cancellation during a call
+
+**Processing added.** No new table or column. Every cancellation (the patient's, staff's, or the revocation
+job's) also enqueues `consultation_access_end` in its transaction, with the appointment's and the clinic's ids
+only; its worker removes the patient from the appointment's video room and ends the session (`cancelled`),
+which deletes the room. After a revocation, the `consent_revoked` job, once it has cancelled the appointments
+that had not started, reads the patient's sessions with that clinic whose room may still be open (in the
+patient's own scope) and removes the patient from each; the practitioner stays in the room of a consultation
+that started before the revocation and ends it as usual. The session of an appointment the revocation cancelled
+is ended there in its room's scope (`app.video_room`), because the clinic's scope no longer shows it.
+
+**Purpose and lawful basis.** Giving effect to a revoked consent and to a cancellation at once (GDPR Art. 7(3)
+for the consent): no further token is issued from the commit, and the patient is taken out of a call already
+running as soon as the worker picks up the job.
+
+**Access.** The jobs read only the sessions and appointments they act on, in the narrowest scope that shows
+them; their writes (the session's end, the `Encounter`'s finish) are audited with the job's kind as agent,
+purpose `HOPERAT`. The removal itself writes nothing and is not audited on its own, as in package 3.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A patient stays in a call after revoking or after a cancellation | The token is refused from the commit (tested through `api.New` with the job still queued); the patient is removed by the job (tested on the real LiveKit: the patient disconnected, the practitioner still in the room after a revocation, both gone after a cancellation); in the stack the patient was disconnected 5 to 27 ms after the revoke's response (`make bench-removal`) |
+| A failed removal leaves the patient in the room | The job fails and River retries it; a failure in one room does not stop the removal from the others; a join on a token issued before the commit is removed by the webhook (package 3) |
+| The jobs or their logs carry personal data | The job arguments are opaque ids (tested); the `consultation_access_end` log line carries the appointment's id only, the revocation's the count (tested to hold no name, e-mail, room or identity; the stack's logs after the measurement held none) |
+| Open: an `Encounter` started before the start of an appointment the revocation cancels stays `in-progress` | Neither the clinic's scope (hidden after the revocation) nor the patient's (read only) may finish it; it holds no clinical content. Owner decision pending (`docs/consultation/PROGRESS.md`, "Waiting on people") |

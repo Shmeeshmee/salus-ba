@@ -151,3 +151,19 @@ func (r *postgresRepository) ByAppointment(ctx context.Context, appointmentID st
 	}
 	return toSession(row), nil
 }
+
+func (r *postgresRepository) ClosingAfter(ctx context.Context, org string, after time.Time) ([]Session, error) {
+	var u pgtype.UUID
+	if u.Scan(org) != nil {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).SessionsClosingAfter(ctx, videosessiondb.SessionsClosingAfterParams{OrganizationID: u, After: ts(after)})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Session, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toSession(row))
+	}
+	return out, nil
+}

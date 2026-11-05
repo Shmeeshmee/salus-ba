@@ -92,8 +92,13 @@ func (s *Service) end(ctx context.Context, agent string, session Session, reason
 }
 
 // ending is end's transaction, in the transaction in ctx: it returns the session as it ended, also when
-// another path ended it first (then it changes, finishes and audits nothing).
+// another path ended it first (then it changes, finishes and audits nothing). The session is ended in its
+// room's scope, which shows it whatever the consent (EndPatientAccess ends one the clinic's scope no longer
+// shows); the Encounter and the Appointment are written in its clinic's.
 func (s *Service) ending(ctx context.Context, agent string, session Session, reason EndReason, at time.Time) (Session, error) {
+	if err := s.Repo.SetRoom(ctx, session.Room); err != nil {
+		return Session{}, err
+	}
 	if err := s.Repo.SetClinic(ctx, session.OrganizationID); err != nil {
 		return Session{}, err
 	}

@@ -11,7 +11,7 @@ NODE    := $(COMPOSE) run --rm -T node
 FLUTTER := $(COMPOSE) run --rm -T flutter
 LANDING := $(COMPOSE) run --rm -T -w /src/landing node
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal lint archcheck arch-gate e2e fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
@@ -49,6 +49,13 @@ bench-join: tools-image
 bench-join-http: up tools-image
 	$(COMPOSE) run --rm -e E2E_BASE_URL=http://api:8080 -e E2E_MAILPIT_URL=http://mailpit:8025 -e E2E_SALUSCTL=/tmp/salusctl \
 		tools sh -c 'go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e,loadtest -count=1 -v -run TestJoinLatency ./test/e2e/'
+
+## bench-removal: the time from a revocation's commit to the patient's removal from the call, through the running
+## stack (api, worker, LiveKit), 3 runs each for a started and a not-started consultation
+## (docs/consultation/PROGRESS.md, package 5). Not part of make e2e.
+bench-removal: up tools-image
+	$(COMPOSE) run --rm -e E2E_BASE_URL=http://api:8080 -e E2E_MAILPIT_URL=http://mailpit:8025 -e E2E_SALUSCTL=/tmp/salusctl \
+		tools sh -c 'go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e,loadtest -count=1 -v -run TestRemovalLatency ./test/e2e/'
 
 ## lint: gofmt, go vet, golangci-lint (both modules) and the migration immutability check
 lint: tools-image

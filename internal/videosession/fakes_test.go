@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
@@ -82,7 +83,8 @@ func clone(m map[string]videosession.Session) map[string]videosession.Session {
 type fakeAppointments struct {
 	err        error
 	attendance map[string]appointment.Attendance // by account id + appointment id
-	hidden     bool                              // Lookup does not see the appointment (the clinic's scope after a revocation)
+	repo       *fakeRepository                   // whose scope Lookup reads in
+	hidden     bool                              // Lookup does not see the appointment in the clinic's scope (after a revocation); the patient's does
 }
 
 func (a *fakeAppointments) Attendance(ctx context.Context, c appointment.Caller, id string) (appointment.Attendance, error) {
@@ -108,7 +110,7 @@ func (a *fakeAppointments) Lookup(ctx context.Context, id string) (appointment.A
 		return appointment.Appointment{}, a.err
 	}
 	att, ok := a.attendance[practAcc+id]
-	if !ok || a.hidden {
+	if !ok || (a.hidden && a.repo.patient != patientA) {
 		return appointment.Appointment{}, appointment.ErrNotFound
 	}
 	return att.Appointment, nil
@@ -143,6 +145,9 @@ type fakeRepository struct {
 	room      string // set by SetRoom
 	opened    []videosession.Session
 	next      int
+	// hidden: the clinic's scope does not show the sessions (after a revocation, of the appointments that had
+	// not started); the patient's and the room's do.
+	hidden bool
 	// endedElsewhere ends the session window_closed when End is called, as a concurrent end that committed
 	// first: End then changes nothing.
 	endedElsewhere bool
@@ -231,7 +236,7 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (videosession.Sess
 		return videosession.Session{}, r.err
 	}
 	for _, s := range r.sessions {
-		if s.ID == id && r.clinic != "" && s.OrganizationID == r.clinic {
+		if s.ID == id && (r.inClinic(s) || r.room == s.Room) {
 			return s, nil
 		}
 	}
@@ -248,7 +253,7 @@ func (r *fakeRepository) ByAppointment(ctx context.Context, id string) (videoses
 		return videosession.Session{}, r.err
 	}
 	s, ok := r.sessions[id]
-	if !ok || (r.patient != patientA && (r.clinic == "" || s.OrganizationID != r.clinic)) {
+	if !ok || (r.patient != patientA && !r.inClinic(s)) {
 		return videosession.Session{}, videosession.ErrNotFound
 	}
 	return s, nil
@@ -262,18 +267,43 @@ func (r *fakeRepository) End(ctx context.Context, id string, reason videosession
 		return videosession.Session{}, false, r.endErr
 	}
 	for k, s := range r.sessions {
-		if s.ID == id && s.OrganizationID == r.clinic && s.EndedAt.IsZero() && r.endedElsewhere {
+		inScope := r.inClinic(s) || (r.room != "" && r.room == s.Room)
+		if s.ID == id && inScope && s.EndedAt.IsZero() && r.endedElsewhere {
 			s.EndedAt, s.EndReason = at.Add(-time.Second), videosession.EndWindowClosed
 			r.sessions[k] = s
 			return videosession.Session{}, false, nil
 		}
-		if s.ID == id && s.OrganizationID == r.clinic && s.EndedAt.IsZero() {
+		if s.ID == id && inScope && s.EndedAt.IsZero() {
 			s.EndedAt, s.EndReason = at, reason
 			r.sessions[k] = s
 			return s, true, nil
 		}
 	}
 	return videosession.Session{}, false, nil
+}
+
+// inClinic reports whether the clinic's scope shows s.
+func (r *fakeRepository) inClinic(s videosession.Session) bool {
+	return r.clinic != "" && s.OrganizationID == r.clinic && !r.hidden
+}
+
+// ClosingAfter gives, in the patient's scope (every session is patient A's), the sessions of the clinic org
+// whose window closes after after, by appointment id.
+func (r *fakeRepository) ClosingAfter(ctx context.Context, org string, after time.Time) ([]videosession.Session, error) {
+	if ctx.Value(txKey{}) == nil {
+		return nil, errors.New("ClosingAfter outside a transaction")
+	}
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []videosession.Session
+	for _, s := range r.sessions {
+		if r.patient == patientA && s.OrganizationID == org && s.ClosesAt.After(after) {
+			out = append(out, s)
+		}
+	}
+	slices.SortFunc(out, func(a, b videosession.Session) int { return strings.Compare(a.AppointmentID, b.AppointmentID) })
+	return out, nil
 }
 
 func (r *fakeRepository) DeleteEndedBefore(context.Context, time.Time) (int64, error) {
@@ -477,6 +507,7 @@ func newFixture(at time.Time) *fixture {
 		jobs: &fakeJobs{}, consents: &fakeConsents{},
 	}
 	f.encounters = &fakeEncounters{repo: f.repo}
+	f.appts.repo = f.repo
 	f.svc = videosession.NewService(videosession.Ports{
 		Repo: f.repo, Provider: f.provider, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: at},
 		Appointments: f.appts, Patients: f.patients, Practitioners: f.practitioners, PublicURL: publicURL,

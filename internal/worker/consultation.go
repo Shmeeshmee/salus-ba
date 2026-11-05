@@ -37,8 +37,26 @@ func (w *windowCloseWorker) Work(ctx context.Context, job *river.Job[videosessio
 	return nil
 }
 
+// accessEndWorker ends the patient's access to the consultation of a cancelled appointment
+// (consultation_access_end, enqueued in the cancellation's transaction): it removes the patient from the room
+// and ends the session. It logs the appointment's id, nothing else.
+type accessEndWorker struct {
+	river.WorkerDefaults[appointment.AccessEndArgs]
+	sessions *videosession.Service
+	log      *slog.Logger
+}
+
+func (w *accessEndWorker) Work(ctx context.Context, job *river.Job[appointment.AccessEndArgs]) error {
+	if err := w.sessions.EndAccess(ctx, job.Args.AppointmentID, job.Args.OrganizationID); err != nil {
+		return err
+	}
+	w.log.InfoContext(ctx, "consultation access ended", "appointment_id", job.Args.AppointmentID)
+	return nil
+}
+
 // newSessions builds the videosession service on pool (salus_app) at clk for CloseWindow: the sessions, the
-// video provider, and the encounter, which records the appointment's outcome.
+// video provider, and the encounter, which records the appointment's outcome; and for EndAccess and
+// EndPatientAccess, which read the appointment through Lookup.
 func newSessions(pool *pgxpool.Pool, provider videosession.Provider, clk clock.Clock) *videosession.Service {
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
@@ -49,5 +67,6 @@ func newSessions(pool *pgxpool.Pool, provider videosession.Provider, clk clock.C
 	})
 	return videosession.NewService(videosession.Ports{
 		Repo: videosession.NewPostgresRepository(pool), Provider: provider, Audit: audit, Tx: tx, Clock: clk, Encounters: encounters,
+		Appointments: appointments,
 	})
 }

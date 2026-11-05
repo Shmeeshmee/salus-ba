@@ -11,22 +11,28 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/consent"
+	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
 // revocationWorker cancels a patient's future appointments with a clinic after they revoked their consent
-// there (consent_revoked, enqueued in the revocation's transaction). It logs the count, nothing else.
+// there (consent_revoked, enqueued in the revocation's transaction), then removes the patient from their
+// consultations there. It logs the count, nothing else.
 type revocationWorker struct {
 	river.WorkerDefaults[consent.RevokedArgs]
 	appointments *appointment.Service
+	sessions     *videosession.Service
 	log          *slog.Logger
 }
 
 func (w *revocationWorker) Work(ctx context.Context, job *river.Job[consent.RevokedArgs]) error {
 	n, err := w.appointments.CancelForRevokedConsent(ctx, job.Args.PatientID, job.Args.OrganizationID)
 	w.log.InfoContext(ctx, "appointments cancelled after a revocation", "cancelled", n)
-	return err
+	if err != nil {
+		return err
+	}
+	return w.sessions.EndPatientAccess(ctx, job.Args.PatientID, job.Args.OrganizationID)
 }
 
 // newRevocations builds the appointment service on pool (salus_app) at clk for CancelForRevokedConsent: the

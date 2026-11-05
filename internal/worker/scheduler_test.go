@@ -109,7 +109,7 @@ func TestScheduler_KnowsEveryKindTheWorkerAndTheNotifierWork(t *testing.T) {
 
 	for _, args := range []river.JobArgs{
 		NoopArgs{}, RetentionApplyArgs{}, schedule.SlotsGenerateArgs{}, consent.RevokedArgs{}, auth.InviteEmailArgs{},
-		appointment.BookedEmailArgs{}, appointment.CancelledEmailArgs{}, appointment.ReminderEmailArgs{},
+		appointment.BookedEmailArgs{}, appointment.CancelledEmailArgs{}, appointment.ReminderEmailArgs{}, appointment.AccessEndArgs{},
 	} {
 		var unknown *river.UnknownJobKindError
 		if _, err := client.Insert(t.Context(), args, nil); errors.As(err, &unknown) || err != nil {

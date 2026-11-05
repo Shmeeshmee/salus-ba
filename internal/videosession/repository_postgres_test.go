@@ -489,3 +489,107 @@ func TestByAppointment_ReadsTheSessionInTheScope(t *testing.T) {
 		}
 	}
 }
+
+// ClosingAfter reads, in the patient's scope, their sessions of the one clinic whose window closes after the
+// time given: not another clinic's, not another patient's, not one closed by then.
+func TestClosingAfter_ReadsThePatientsSessionsOfTheClinicInTheirScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
+	s := seedDB(t, owner, at)
+	other := seedDB(t, owner, at)
+	later, elsewhere := s, s
+	if err := owner.QueryRow(t.Context(), `INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period)
+		VALUES ($1, $2, $3, gen_random_uuid(), tstzrange($4::timestamptz + interval '2 hours', $4::timestamptz + interval '150 minutes'))
+		RETURNING id::text`, s.patient, s.role, s.clinic, at).Scan(&later.appointment); err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.QueryRow(t.Context(), `WITH c AS (INSERT INTO consent (patient_id, organization_id, status, date_time) VALUES ($1, $3, 'active', $4))
+		INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period)
+		VALUES ($1, $2, $3, gen_random_uuid(), tstzrange($4::timestamptz + interval '1 hour', $4::timestamptz + interval '90 minutes'))
+		RETURNING id::text`, s.patient, other.role, other.clinic, at).Scan(&elsewhere.appointment); err != nil {
+		t.Fatal(err)
+	}
+	elsewhere.clinic = other.clinic
+	var want []videosession.Session
+	for _, o := range []struct {
+		at   time.Time
+		s    seeded
+		room string
+	}{{at, s, "r_first"}, {at.Add(2 * time.Hour), later, "r_later"}, {at, elsewhere, "r_elsewhere"}, {at, other, "r_other"}} {
+		opened, err := open(t, app, o.s, session(o.s, o.room, o.at))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if o.s.patient == s.patient && o.s.clinic == s.clinic {
+			want = append(want, opened)
+		}
+	}
+	repo := videosession.NewPostgresRepository(app)
+	read := func(patientID string, after time.Time) []videosession.Session {
+		var out []videosession.Session
+		err := postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+			if err := repo.SetPatient(ctx, patientID); err != nil {
+				return err
+			}
+			var err error
+			out, err = repo.ClosingAfter(ctx, s.clinic, after)
+			return err
+		})
+		if err != nil {
+			t.Fatalf("ClosingAfter() = %v", err)
+		}
+		return out
+	}
+	// The first closes at 10:00, the later one at 12:00.
+	if got := read(s.patient, at); !slices.Equal(got, want) {
+		t.Errorf("ClosingAfter() = %+v,\nwant %+v", got, want)
+	}
+	if got := read(s.patient, at.Add(time.Hour)); !slices.Equal(got, want[1:]) {
+		t.Errorf("ClosingAfter(the first's close) = %+v, want only the later one", got)
+	}
+	if got := read(other.patient, at); len(got) != 0 {
+		t.Errorf("ClosingAfter() as another patient = %+v, want none of the clinic's", got)
+	}
+}
+
+// The room's scope ends a session the clinic's scope no longer shows: after a revocation, of an appointment
+// that had not started.
+func TestEnd_InTheRoomsScopeEndsASessionTheClinicNoLongerSees(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
+	s := seedDB(t, owner, at)
+	opened, err := open(t, app, s, session(s, "r_revoked", at))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(t.Context(), "UPDATE consent SET status = 'inactive', revoked_at = $2::timestamptz - interval '5 minutes' WHERE patient_id = $1",
+		s.patient, at); err != nil {
+		t.Fatal(err)
+	}
+	ended := at.Add(-time.Minute)
+	err = inClinic(t, app, s.clinic, func(ctx context.Context, r videosession.Repository) error {
+		_, changed, err := r.End(ctx, opened.ID, videosession.EndCancelled, ended)
+		if changed {
+			t.Error("End() in the clinic's scope ended a session it no longer sees")
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got videosession.Session
+	var changed bool
+	err = inRoom(t, app, "r_revoked", func(ctx context.Context, r videosession.Repository) error {
+		if err := r.SetClinic(ctx, s.clinic); err != nil {
+			return err
+		}
+		var err error
+		got, changed, err = r.End(ctx, opened.ID, videosession.EndCancelled, ended)
+		return err
+	})
+	if err != nil || !changed || got.EndReason != videosession.EndCancelled || !got.EndedAt.Equal(ended) {
+		t.Errorf("End() in the room's scope = %+v, %t, %v; want it ended cancelled", got, changed, err)
+	}
+}

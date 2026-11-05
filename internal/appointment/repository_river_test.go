@@ -86,3 +86,43 @@ func TestRiverJobs_EnqueueTheEmailsInTheTransactionWithOnlyTheTwoIDs(t *testing.
 		}
 	}
 }
+
+func TestRiverJobs_EnqueueTheConsultationsAccessEndOnTheDefaultQueueInTheTransactionWithOnlyTheTwoIDs(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	client, err := river.NewClient(riverpgxv5.New(app), &river.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs := appointment.NewRiverJobs(client)
+	tr := postgres.NewTransactor(app)
+	ctx := t.Context()
+
+	errRollBack := errors.New("the cancellation failed")
+	err = tr.WithTx(ctx, func(ctx context.Context) error {
+		if err := jobs.EnqueueAccessEnd(ctx, apptA, clinicA); err != nil {
+			return err
+		}
+		return errRollBack
+	})
+	var n int
+	if qerr := owner.QueryRow(ctx, "SELECT count(*) FROM river_job").Scan(&n); !errors.Is(err, errRollBack) || qerr != nil || n != 0 {
+		t.Fatalf("after a rolled-back cancellation: %d jobs (%v, %v), want none", n, err, qerr)
+	}
+
+	if err := tr.WithTx(ctx, func(ctx context.Context) error { return jobs.EnqueueAccessEnd(ctx, apptA, clinicA) }); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	var kind, queue, args string
+	if err := owner.QueryRow(ctx, "SELECT kind, queue, args::text FROM river_job").Scan(&kind, &queue, &args); err != nil {
+		t.Fatal(err)
+	}
+	want := `{"appointment_id": "` + apptA + `", "organization_id": "` + clinicA + `"}`
+	if kind != "consultation_access_end" || queue != river.QueueDefault || args != want {
+		t.Errorf("job %s on %s with %s; want consultation_access_end on %s with %s", kind, queue, args, river.QueueDefault, want)
+	}
+
+	if err := jobs.EnqueueAccessEnd(ctx, apptA, clinicA); !errors.Is(err, postgres.ErrNoTx) {
+		t.Errorf("EnqueueAccessEnd outside a transaction = %v, want postgres.ErrNoTx", err)
+	}
+}

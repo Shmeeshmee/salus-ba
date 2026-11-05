@@ -6,7 +6,7 @@
 | 2 encounter | done, 2026-11-05 | `consultation(2)` |
 | 3 Webhooks | done, 2026-11-05 | `consultation(3)` |
 | 4 API | done, 2026-11-05 | `consultation(4)` |
-| 5 Revocation and cancellation during a call | not started | |
+| 5 Revocation and cancellation during a call | done, 2026-11-05 | `consultation(5)` |
 | 6 Web | held: copy review | |
 | 7 Mobile | held: copy review | |
 | 8 End-to-end | not started | |
@@ -95,10 +95,41 @@
   vets and lints `test/` with both tags. It books through the API and then moves the appointment's start 5
   minutes ahead as the owner, since the generated slots start at least an hour ahead.
 
+- 2026-11-05, package 5 (runner): the session of an appointment that the revocation cancels (it had not
+  started) is ended by `EndPatientAccess`, not by `EndAccess`. After the revocation the clinic's scope, which
+  `consultation_access_end` reads in (it carries the appointment and clinic ids only, SPEC §2), no longer shows
+  that session; this is the case package 2 left open. The revocation job has the patient's id, so it reads the
+  patient's sessions with the clinic in the patient's scope (`ClosingAfter`: those whose window closes after
+  `now` − 90 minutes, so whose room may still exist), removes the patient from each, and ends `cancelled` the
+  sessions whose appointment is cancelled. The `consultation_access_end` jobs that the same cancellation queued
+  then find nothing and do nothing.
+- 2026-11-05, package 5 (runner): `end` now writes the session's end in its room's scope (`app.video_room`) as
+  well as its clinic's, so a system path can end a session it has already read when the clinic's scope hides it.
+  The room's scope shows that one session only, the same row the webhook may update. No migration and no new
+  policy. The `Encounter` and the `Appointment` are still written in the clinic's scope.
+- 2026-11-05, package 5 (runner): `EndAccess(ctx, appointmentID, org)` takes the clinic id from the job, like
+  `CloseWindow`. It removes the patient and, when the appointment is `cancelled`, ends the session; for any
+  other status it only removes the patient. Repeating either job writes and audits nothing; each repeat only asks
+  LiveKit again to remove and delete what is already gone, so a retry after a failed delete heals. Removing the
+  patient is not audited on its own (package 3's rule); ending the session is audited, with the job's kind as
+  agent (`consultation_access_end` or `consent_revoked`, `HOPERAT`).
+- 2026-11-05, package 5 (runner): a removal that fails in one room does not keep the patient in the others.
+  `EndPatientAccess` tries every room and returns the joined error for River to retry. The revocation worker
+  calls `EndPatientAccess` only after `CancelForRevokedConsent` succeeds (SPEC order), because it needs the
+  statuses that call writes.
+
 ## Waiting on people
 
 - The owner, before package 6: review of every new web and mobile string, sent on its own. Packages 6 and 7
   are marked `hold` in `RUN.tsv` until the answer is recorded here.
+- The owner, from package 5: an `Encounter` stays `in-progress` when the practitioner joins in the 10 minutes
+  before the start and the patient then revokes before the start. The revocation cancels the appointment and
+  ends its session `cancelled`, but after the revocation neither the clinic's scope nor the patient's
+  (`encounter` is read-only for the patient) may finish the `Encounter`, so `Finish` changes nothing. The stack
+  measurement produced three such rows. It holds no clinical content. Finishing it needs a new row-level security
+  scope on `encounter`, for example the session's room, as the webhook has on `video_session`. That changes SPEC
+  §2 "Tables", so it is not done here. Options: add that scope in a later package, finish such an Encounter as
+  `cancelled` (an R4 status this feature does not model yet), or accept it.
 - Before production: `SPEC.md` §8 (LiveKit domain, TLS, TURN, keys, node IP; retention and lawful basis;
   localisation).
 
@@ -456,3 +487,123 @@ their sessions and the rooms in the compose LiveKit (nobody connected, so each w
 `practitioner_absent` and deletes its room when the window closes, about 65 minutes after the run), their slots,
 jobs and audit events.
 
+
+### 2026-11-05 — package 5: Revocation and cancellation during a call
+
+**What was built.**
+- `appointment`: `AccessEndArgs` (`consultation_access_end`, default queue, the appointment's and the clinic's
+  ids) and `Jobs.EnqueueAccessEnd`. `cancelled`, which every cancellation goes through (the patient's, staff's and
+  `CancelForRevokedConsent`), enqueues it in the cancel's transaction next to the e-mail.
+- `videosession` (`service_access.go`): `EndAccess(ctx, appointmentID, org)` and
+  `EndPatientAccess(ctx, patientID, org)` (SPEC §2 "Removal"; Decisions above). `Repository.ClosingAfter`
+  (`SessionsClosingAfter`) is the patient's sessions with a clinic whose room may still be open. `ending` also sets
+  the room's scope.
+- `internal/worker`: the `consultation_access_end` worker (`accessEndWorker`, logging the appointment's id only).
+  The `consent_revoked` worker calls `EndPatientAccess` after `CancelForRevokedConsent`. The worker's
+  videosession service gets the `Appointments` port, for `Lookup`.
+- `make bench-removal` (`test/e2e/consultation_removal_test.go`, tags `e2e && loadtest`). DPIA notes.
+
+**Tests seen failing first.**
+- appointment River jobs: `jobs.EnqueueAccessEnd undefined (type appointment.Jobs has no field or method
+  EnqueueAccessEnd)` (build failed).
+- appointment service: `TestCancel_ThePatientCancelsUpTo24HoursBeforeTheStart` failed with `enqueued [cancelled e1… a0…],
+  want [cancelled e1… a0… access_end e1… a0…]`. `TestCancel_StaffCancelAtAnyTime` failed with `enqueued [cancelled …];
+  want … the e-mail and the access's end`. `TestCancelForRevokedConsent_…` failed with `enqueued [cancelled ×3], want one
+  cancellation e-mail and one end of the consultation's access each`.
+- videosession service: `f.svc.EndAccess undefined`, `f.svc.EndPatientAccess undefined` (build failed). To check
+  that `ending` needs the room's scope, I took it out: `TestEndPatientAccess_EndsTheSessionOfAnAppointmentTheRevocationCancelled`
+  failed with `EndPatientAccess() = videosession: end patient access: videosession: end: videosession: not found`. Restored.
+- videosession repository: `*postgresRepository does not implement Repository (missing method ClosingAfter)`
+  (build failed). Against a stub that returned none: `ClosingAfter() = [], want [first, later]` and
+  `ClosingAfter(the first's close) = [], want only the later one`. One test bug on the way: the other clinic's
+  seed appointment overlapped its role's appointment (`appointment_no_double_booking`), so it was moved an hour.
+- worker: `TestConsultationAccessEnd_EndsTheCancelledConsultation` failed with `Insert() error = job kind is not
+  registered in the client's Workers bundle: consultation_access_end`. The scheduler's kinds test failed with
+  `Insert(consultation_access_end) … want the kind known`. `TestConsentRevoked_RemovesThePatientFromTheConsultations`
+  failed with `run 1: the job ended job_failed`. That event belonged to the `consultation_access_end` job the
+  revocation queued ("Unhandled job kind"), not to the revocation: the shared `runWorkerJobWith` returned the
+  first job event of any job. The helper now waits for the event of the job it inserted (a condition, no sleep),
+  so a job that queues others is measured on its own end. Then, with the workers registered but the
+  sessions service built without the `Appointments` port: a nil-pointer panic in both jobs, fixed in
+  `newSessions`.
+- `internal/api` through `api.New`, written against refusals the join already made. I saw them fail by taking
+  code out and then restored it. Without `EnqueueAccessEnd` in the cancel: `queued consultation_access_end [],
+  want one with {…}`. Without the join's `booked` check: `POST …/consultation/join = 200 …; want 409
+  consultation_ended`. Without the consent check: the patient's join after the revocation `= 200 …; want 409
+  consent_required`.
+- videosession on the real LiveKit, written after the service. I saw it fail with the removal and the end taken
+  out of `removePatient`, then restored them: `the patient is still connected`, `the practitioner is still
+  connected`, `Participants() = [p_pat_… p_pra_…], want none`.
+
+**What the tests cover.**
+- Service (fakes): on a cancelled appointment, `EndAccess` removes the patient, ends the session `cancelled` in
+  the clinic's scope, finishes the Encounter with whether the patient joined, audits the end by
+  `consultation_access_end`, and deletes the room after the commit. Repeated, it changes and audits nothing and
+  only deletes the room again. With no session, or a session out of the clinic's scope, it does nothing. On a
+  booked appointment it only removes the patient. A failed read, removal or end ends nothing; a failed delete
+  leaves the end committed.
+- Service (fakes): `EndPatientAccess` reads in the patient's scope. On a consultation that started before the
+  revocation it removes the patient after the commit and leaves the practitioner and the session. On the session
+  of an appointment the revocation cancelled, which the clinic's scope hides, it ends the session `cancelled` in
+  the room's scope, audited by `consent_revoked`, and deletes the room. Another clinic's session, and one past its
+  hard cap, are left alone. Repeated, it changes and audits nothing. With no session it does nothing. A failure
+  fails the job, and a failed removal in one room does not stop the removal from the others.
+- Repository (real database, `salus_app`): `ClosingAfter` shows only the patient's own sessions with the clinic,
+  closing after the given time; not another clinic's and not another patient's. A clinic's scope after a
+  revocation cannot end the session of an appointment that had not started; the room's scope can.
+- River (real database): `consultation_access_end` is queued on the default queue in the transaction, with only
+  the two ids. A rollback leaves none, and outside a transaction it is `ErrNoTx`.
+- Worker (real database, compose LiveKit through a recording provider): the cancelled consultation ends
+  `cancelled`, its Encounter `finished`, its appointment stays `cancelled`, two audit events by the job, the
+  patient removed and the room deleted, and a repeat changes nothing in the database. The revocation removes the
+  patient from the started consultation, whose session stays open, and from the cancelled one, whose session
+  ends `cancelled` and whose room is deleted, with one audit event of that end. A repeat changes nothing. Both
+  logs hold no name, e-mail, room or identity; the access-end log carries the appointment's id. The scheduler
+  knows the new kind.
+- Through `api.New`: both sides joined, then right after the practitioner cancels, both get 409
+  `consultation_ended` while `consultation_access_end` is still queued. Right after the patient revokes, the
+  patient gets 409 `consent_required` and the practitioner 404 (the appointment had not started), while
+  `consent_revoked` is still queued.
+- Real LiveKit: two Go SDK participants with the provider's tokens. After `EndAccess` on the cancelled
+  appointment both are disconnected and the room is empty. After `EndPatientAccess` the patient is disconnected
+  `removed by server` and only the practitioner is in the room.
+
+**Removal latency in the stack (`make bench-removal`; api, worker and LiveKit in compose, i7-14700HX).**
+Each run uses a fresh synthetic clinic, practitioner and patient. The patient books through the API; the
+appointment is moved, as the owner, to have started a minute ago or to start in 5 minutes. Both sides take their
+tokens from the join endpoint and connect as Go SDK participants on the compose network. The patient revokes
+through the API, and the test timestamps the patient's disconnection. The commit lies between the consent's
+`revoked_at`, set in the revocation's transaction, and the revoke's response, so the two columns bracket the
+time from the commit to the removal. Three runs each.
+
+| Case | From the revoke's response | From `revoked_at` |
+| --- | --- | --- |
+| Started before the revocation (patient removed, practitioner stays) | 11, 10, 5 ms | 14, 13, 8 ms |
+| Not started (appointment cancelled, then patient removed and room deleted) | 21, 19, 27 ms | 24, 22, 30 ms |
+
+River's notify brings the job to the worker well under a second, as SPEC §2 expected. The not-started case is
+about 10 ms slower: the job first cancels the appointment (slot, e-mail, audit) and only then removes the patient.
+No change is made for speed here. After the runs, the worker's and the api's logs from that period held no name,
+e-mail, token, room or identity.
+
+**Checks.** `make lint`: 0 issues (both modules, `test/` with its tags), migrations unchanged. `make archcheck`:
+passes. `make test`: passes. `make cover`: every package at 80% or more (`internal/videosession` 95.7%,
+`internal/appointment` 92.9%, `internal/worker` 94.6%, `internal/api` 91.1%, total 94.9%). `make sqlc`:
+regenerated (one query). No `openapi.yaml` or FHIR change, so `make gen-clients` and `make fhir-validate` are
+not affected. Stack: `make up` (through `make bench-removal`) rebuilt the api and the worker, then the measurement
+above ran.
+
+**Deferred.** The `Encounter` of an appointment the revocation cancels after the practitioner joined stays
+`in-progress` ("Waiting on people"). Also, `TestScheduler_KnowsEveryKindTheWorkerAndTheNotifierWork` does not
+list package 2's `consultation_window_close`. The scheduler does register it, so this is only a gap in the test,
+left for a later package.
+
+**Dev stack left.** No migration. The api and the worker were rebuilt by `make up` and run with this package's
+code. The six measurement runs left their synthetic e2e data in the dev database, as `make e2e` and package 4's
+runs do: six clinics, each with an admin and a practitioner, and six patients, each with a revoked consent and
+one appointment with its session, slots, jobs and audit events (285 new `audit_event` rows, which are
+append-only). The three started consultations stay `booked` with their sessions open and their `Encounter`s
+`in-progress`; their rooms are empty in the compose LiveKit. Each window-close job ends its session
+`window_closed` about an hour after its run, finishing the `Encounter` and marking the appointment
+`fulfilled`. The three not-started ones are `cancelled` with their sessions ended `cancelled` and their rooms
+deleted, and their `Encounter`s stay `in-progress` (the open point above).

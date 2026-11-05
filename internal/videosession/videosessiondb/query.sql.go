@@ -252,3 +252,52 @@ func (q *Queries) SessionByRoom(ctx context.Context, room string) (VideoSession,
 	)
 	return i, err
 }
+
+const sessionsClosingAfter = `-- name: SessionsClosingAfter :many
+SELECT id, created_at, updated_at, closes_at, patient_joined_at, practitioner_joined_at, ended_at, appointment_id,
+       organization_id, room, patient_identity, practitioner_identity, end_reason
+FROM video_session
+WHERE organization_id = $1 AND closes_at > $2
+ORDER BY closes_at, id
+`
+
+type SessionsClosingAfterParams struct {
+	OrganizationID pgtype.UUID
+	After          pgtype.Timestamptz
+}
+
+// The revocation's removal, in the patient's scope (row-level security shows only their sessions): their
+// sessions of the clinic whose window closes after @after, so whose room may still be open.
+func (q *Queries) SessionsClosingAfter(ctx context.Context, arg SessionsClosingAfterParams) ([]VideoSession, error) {
+	rows, err := q.db.Query(ctx, sessionsClosingAfter, arg.OrganizationID, arg.After)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []VideoSession
+	for rows.Next() {
+		var i VideoSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ClosesAt,
+			&i.PatientJoinedAt,
+			&i.PractitionerJoinedAt,
+			&i.EndedAt,
+			&i.AppointmentID,
+			&i.OrganizationID,
+			&i.Room,
+			&i.PatientIdentity,
+			&i.PractitionerIdentity,
+			&i.EndReason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -81,8 +81,9 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &noopWorker{})
 	river.AddWorker(workers, &retentionWorker{rules: s.rules, log: log})
 	river.AddWorker(workers, &slotsWorker{slots: s.slots, log: log})
-	river.AddWorker(workers, &revocationWorker{appointments: s.appointments, log: log})
+	river.AddWorker(workers, &revocationWorker{appointments: s.appointments, sessions: s.sessions, log: log})
 	river.AddWorker(workers, &windowCloseWorker{sessions: s.sessions, log: log})
+	river.AddWorker(workers, &accessEndWorker{sessions: s.sessions, log: log})
 }
 
 // workConfig is the configuration of a client that works queue with workers and never leads.

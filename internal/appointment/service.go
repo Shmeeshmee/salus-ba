@@ -64,10 +64,12 @@ type Roles interface {
 	OfPractitioner(ctx context.Context, org, practitionerID string) (practitionerrole.PractitionerRole, error)
 }
 
-// Jobs enqueues the appointment's e-mails in the transaction in ctx.
+// Jobs enqueues the appointment's e-mails, and the end of its consultation's access on a cancellation, in the
+// transaction in ctx.
 type Jobs interface {
 	EnqueueBooked(ctx context.Context, id, org string) error
 	EnqueueCancelled(ctx context.Context, id, org string) error
+	EnqueueAccessEnd(ctx context.Context, id, org string) error
 	EnqueueReminder(ctx context.Context, id, org string, at time.Time) error
 }
 

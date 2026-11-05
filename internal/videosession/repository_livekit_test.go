@@ -392,3 +392,85 @@ func TestParseWebhook_FailsOnASignedBodyThatIsNotAnEvent(t *testing.T) {
 		t.Errorf("ParseWebhook() = %v; want an error of its own without the body", err)
 	}
 }
+
+// onLiveKit is the fixture with appointment A's session in a fresh room of the compose LiveKit, the service
+// on the real provider, and the patient and the practitioner connected with its tokens; it returns their
+// disconnections.
+func onLiveKit(t *testing.T) (f *fixture, svc *videosession.Service, patientGone, practitionerGone <-chan lksdk.DisconnectionReason) {
+	t.Helper()
+	lk := newLiveKitServer(t)
+	f = opened(during, start, start)
+	s := f.session()
+	s.Room, s.PatientIdentity, s.PractitionerIdentity = lk.room(t), "p_pat_"+strings.ToLower(rand.Text()), "p_pra_"+strings.ToLower(rand.Text())
+	f.repo.sessions[apptA] = s
+	p := lk.provider()
+	svc = videosession.NewService(videosession.Ports{
+		Repo: f.repo, Provider: p, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: during},
+		Appointments: f.appts, Encounters: f.encounters, Consents: f.consents,
+	})
+	gone := make([]<-chan lksdk.DisconnectionReason, 2)
+	for i, identity := range []string{s.PatientIdentity, s.PractitionerIdentity} {
+		token, err := p.Token(videosession.Grant{Room: s.Room, Identity: identity, ValidFor: 5 * time.Minute})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var room *lksdk.Room
+		if room, gone[i] = lk.connect(t, token); room == nil {
+			t.Fatalf("participant %d did not join", i)
+		}
+	}
+	waitFor(t, "both in the room", func() bool {
+		in, err := p.Participants(t.Context(), s.Room)
+		return err == nil && len(in) == 2
+	})
+	return f, svc, gone[0], gone[1]
+}
+
+// Real LiveKit: after EndAccess on a cancelled appointment both are gone (the room is deleted), the patient
+// first.
+func TestEndAccess_OnLiveKitDisconnectsThePatientAndDeletesTheRoom(t *testing.T) {
+	t.Parallel()
+	f, svc, patientGone, practitionerGone := onLiveKit(t)
+	f.cancel()
+	if err := svc.EndAccess(t.Context(), apptA, clinicA); err != nil {
+		t.Fatalf("EndAccess() = %v", err)
+	}
+	for who, gone := range map[string]<-chan lksdk.DisconnectionReason{"patient": patientGone, "practitioner": practitionerGone} {
+		select {
+		case <-gone:
+		case <-time.After(10 * time.Second):
+			t.Errorf("the %s is still connected", who)
+		}
+	}
+	if in, err := svc.Provider.Participants(t.Context(), f.session().Room); err != nil || len(in) != 0 {
+		t.Errorf("Participants() = %v, %v; want none", in, err)
+	}
+}
+
+// Real LiveKit: after the revocation's EndPatientAccess the patient is gone and the practitioner is still in
+// the room.
+func TestEndPatientAccess_OnLiveKitDisconnectsOnlyThePatient(t *testing.T) {
+	t.Parallel()
+	f, svc, patientGone, practitionerGone := onLiveKit(t)
+	f.consents.revoked = true
+	if err := svc.EndPatientAccess(t.Context(), patientA, clinicA); err != nil {
+		t.Fatalf("EndPatientAccess() = %v", err)
+	}
+	select {
+	case reason := <-patientGone:
+		if reason != lksdk.ParticipantRemoved {
+			t.Errorf("the patient left for %q, want %q", reason, lksdk.ParticipantRemoved)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the patient is still connected")
+	}
+	in, err := svc.Provider.Participants(t.Context(), f.session().Room)
+	if want := []string{f.session().PractitionerIdentity}; err != nil || !slices.Equal(in, want) {
+		t.Errorf("Participants() = %v, %v; want only the practitioner %v", in, err, want)
+	}
+	select {
+	case reason := <-practitionerGone:
+		t.Errorf("the practitioner left (%q), want them still in the room", reason)
+	default:
+	}
+}
