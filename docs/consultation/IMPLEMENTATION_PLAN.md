@@ -201,6 +201,23 @@ while waiting; the waiting screen until the practitioner's participant appears; 
 Checks: Mobile, Clients. Running on a device is the manual step in `README.md`, which gains the LiveKit URL for
 an emulator.
 
+### 7.1. Owner changes after package 6
+
+`videosession`: the status gains `reason` (SPEC §2 "Consultation status", "Changed after package 6"), set from
+the session's end and from each patient removal (a new column in a new migration if the removal reason is not
+derivable from what is stored; recorded either way), and readable by the practitioner who was in the room
+under the room-based rule, as for `encounter`. `api/openapi.yaml`, `make gen-clients`. Web: when the patient
+leaves, read the status and show W18 (`left`), W18a (`consent_withdrawn`) or W18b (`cancelled`), also in the
+revoked-before-start case; remove the join probe; W40 from LiveKit's duplicate-identity disconnect, locally;
+`livekit-client`'s log level so no token or token-bearing URL reaches the console. Mobile: replace the join
+probe with the status `reason`; `livekit_client`'s logging checked and lowered the same way.
+Tests: the reason per path (practitioner end, window closed, practitioner absent, time limit, cancellation,
+revocation, a plain leave); the practitioner reads the status after a revocation before the start (real
+database, RLS), another practitioner and another clinic do not; no join request is made when the patient
+leaves (web and mobile); W40 on a duplicate-identity disconnect; the logger configured at the level that hides
+tokens (a test that a connection error prints no token).
+Checks: Go, Clients, Web, Mobile.
+
 ### 8. End-to-end
 
 `deployments/docker-compose.yml`: the `playwright` service (pinned image, profile `e2e`) and the e2e network

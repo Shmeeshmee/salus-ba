@@ -147,7 +147,12 @@ Decisions taken in this plan (reopen only with the owner):
   "patientJoinedAt", "practitionerJoinedAt", "endedAt", "endReason"}` (`state`: `not_started` | `open` |
   `ended`), for the appointment's patient, its practitioner and the clinic's admin under `access.Appointment`
   (`Name` or more); 404 for anyone else. Audited as a read of the `Appointment`. The web app's appointment
-  detail shows whether the patient and the practitioner joined.
+  detail shows whether the patient and the practitioner joined. **Changed after package 6:** the status also
+  carries `reason`, why the session ended or the patient was removed: `consent_withdrawn`, `cancelled`, `left`,
+  `ended`, `practitioner_did_not_join`, `time_limit`. The practitioner who was in the room keeps read access to
+  the status under the room-based rule (as for `encounter`), so a revocation or cancellation that hides the
+  appointment from the clinic still lets them read why. Neither client asks the join endpoint to learn why
+  someone left; the status is the only source.
 - **Encounter.** FHIR R4: `status` (`in-progress` → `finished`); `class` `http://terminology.hl7.org/CodeSystem/v3-ActCode`
   `VR` "virtual"; `subject` `Patient/<id>`; `participant` one, `type` `v3-ParticipationType` `PPRF`,
   `individual` `PractitionerRole/<id>`; `appointment` `Appointment/<id>`; `period` `start`, and `end` when
@@ -229,6 +234,17 @@ Changed after package 5 (2026-11-05, owner):
 - The open questions of packages 1–5 are approved as described (PROGRESS "Decisions").
 - The web and mobile text is approved with the owner's changes: `COPY.md` is the source.
 
+Changed after package 6 (2026-11-05, owner):
+
+- The status endpoint carries the end or removal `reason` (above); the practitioner keeps read access to the
+  status of a room they were in, under the room-based rule. The web app reads it when the patient leaves and
+  shows W18a or W18b, including the revoked-before-start case. The join-endpoint probe is removed (from the
+  mobile app too, which reads the same `reason`).
+- A practitioner's second tab: W40 "The consultation is open in another tab or window.", detected locally from
+  LiveKit's duplicate-identity disconnect, with no API change.
+- `livekit-client` (web) and `livekit_client` (mobile) log at a level that never prints a token or the
+  signalling URL with it to the console.
+
 ## 3. The LiveKit Go SDK
 
 The settled decision is to use the official server SDK (`github.com/livekit/server-sdk-go/v2`, with
@@ -287,6 +303,8 @@ joining from the web, break-glass, `Provenance`, FHIR writes to `Encounter`, net
 
 - **Live transcription.** A speech-to-text engine for bs/hr/sr, its own SPEC, and DPA review if hosted.
 - **Clinical notes in the consultation.** `Observation` and `Provenance` (clinical feature).
+- **Web bundle size.** `livekit-client` makes the web bundle 835 kB minified (233 kB gzip); split it out of the
+  first page load if a measurement shows the cost (owner, after package 6).
 
 ## 8. Before production
 

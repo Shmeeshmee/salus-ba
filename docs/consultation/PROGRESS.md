@@ -10,6 +10,7 @@
 | 5.1 Owner changes after package 5 | done, 2026-11-05 | `consultation(5.1)` |
 | 6 Web | done, 2026-11-05 | `consultation(6)` |
 | 7 Mobile | done, 2026-11-05 | `consultation(7)` |
+| 7.1 Owner changes after package 6 | not started | |
 | 8 End-to-end | not started | |
 
 ## Decisions
@@ -199,6 +200,11 @@
   shows when no reading has reached 0.02 for 5 seconds; until a first reading arrives the level is not measured,
   as on the web. The level is the loudest band of LiveKit's audio visualizer; the threshold is the web's and has
   not been checked on a device.
+
+- 2026-11-05, owner (after package 6, recorded in `SPEC.md` §2 "Changed after package 6"): the status
+  `reason` and the practitioner's room-based read of it, replacing the join probe; W40 for a second tab; the
+  LiveKit client log levels on web and mobile, fixed before the PR merges; the bundle size left, in SPEC §7.
+  Package 7.1.
 
 ## Waiting on people
 

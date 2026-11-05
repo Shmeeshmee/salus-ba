@@ -48,6 +48,7 @@ API.
 - W21b: "The patient has not joined. The appointment will be marked as a no-show."
 - W22: "End consultation", "Cancel"
 - W23: "You left the consultation. You can join again until it ends." with the button "Join again"
+- W40 (web, the practitioner opened the call in another tab or window; owner, after package 6): "The consultation is open in another tab or window."
 
 ## Reconnecting
 - W24 / M19: "Connection lost. Reconnecting…"
