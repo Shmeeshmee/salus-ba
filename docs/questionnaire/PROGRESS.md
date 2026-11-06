@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | 1 questionnaire | done, 2026-11-06 | `questionnaire(1)` |
 | 2 questionnaire API | done, 2026-11-06 | `questionnaire(2)` |
-| 3 questionnaireresponse and the access rule | not started | |
+| 3 questionnaireresponse and the access rule | done, 2026-11-06 | `questionnaire(3)` |
 | 4 Answers | not started | |
 | 5 Booking and cancellation | not started | |
 | 6 Responses API | not started | |
@@ -186,3 +186,90 @@ Deferred, for a person:
 - FHIR R4 `que-1` requires a `group` to have items; the service accepts a section with none (package 1), so
   an empty section would be invalid FHIR. Whether publishing should refuse one is a product question; nothing
   is changed here.
+
+## Package 3: questionnaireresponse and the access rule (done, 2026-11-06)
+
+Built:
+- `internal/access`: `QuestionnaireResponse(viewer, facts, visit, submitted)` and `RequestsQuestionnaire(viewer,
+  facts, visit)`, table-tested over role × consent × appointment × clinic × submitted, with the assertion that
+  nobody but the patient and the appointment's practitioner is ever `Full`, and the revocation boundary to the
+  second.
+- Migration `00026_questionnaire_response.sql`: `questionnaire_response` (SPEC §2 "Tables"), foreign keys to
+  the appointment, the patient, the role and the version in the same clinic (`(questionnaire_id,
+  organization_id)`), checks (`authored_at` exactly when `completed`, no answers when `stopped`, the statuses and
+  sources), the partial unique index `questionnaire_response_one_live` (appointment, series) where not stopped,
+  and indexes on the patient and on the unsubmitted rows' due time. RLS: the patient's own (select, update); the
+  clinic's with an active consent (select, insert, update) and, after a revocation, the `completed` rows of
+  appointments that started before it (select only, on the copied `due_at`); the notice scope (select); the
+  discard `DELETE` policy (the appointment named in `app.appointment_id`, of the clinic in
+  `app.organization_id`, and cancelled). The patient-scope policy on `questionnaire` (the versions their own
+  responses reference). Grants: `salus_app` `SELECT, INSERT, DELETE` and `UPDATE` of the status, answers,
+  submit time, `updated_at` and `version_id` only; `salus_retention` `SELECT, DELETE`.
+- Ownership entry (`personal_data: true`), retention rule `delete` (period zero: an unsubmitted response once
+  due) and its purger `questionnaireresponse.Purger` (`service_retention.go`), registered in
+  `internal/worker/retention.go`. `config.yaml` `clinical: [questionnaire, questionnaireresponse]`, CLAUDE.md's
+  `clinical` line, `sqlc.yaml` entry (`make sqlc` also adds the table to every domain's generated `models.go`).
+- `internal/questionnaireresponse`: `model.go` (`Response`, `Answer`, `Value`, `Status`, `Source`, `Seen`,
+  `Filter`), `errors.go`, `repository.go`, `repository_postgres.go`, `query.sql`, `service.go` (`Request`,
+  `Withdraw`), `service_read.go` (`Read`, `Search`), `service_retention.go`. Every call audited in its
+  transaction, refusals included: `QuestionnaireResponse/<id>`, `TREAT` for staff and `PATRQT` for the patient;
+  a refused call without disclosure has no entity; a search one event per response returned or one without an
+  entity.
+- `appointment.Attendance` gains `RevokedAt` (the latest revocation of the patient's consent with the clinic),
+  so a domain can run its own `access` rule on the attendance; `TestAttendance_GivesTheInactiveConsentAfterARevocation`
+  asserts it.
+- `docs/privacy/dpia.md`: a "Questionnaires" section with this package's subsection.
+- Not wired into `internal/api/app.go` yet: no handler calls the service before package 6.
+
+Failing first (red), each for the right reason before the code:
+- `internal/access`: the new tests did not build (`undefined: access.QuestionnaireResponse`,
+  `access.RequestsQuestionnaire`).
+- `migrations`: the eight `TestQuestionnaireResponse_*` tests, `relation "questionnaire_response" does not
+  exist`; then `TestRetention_RoleIsGrantedSelectAndDeleteOnExactlyTheTablesWhoseRuleIsDelete` failed on the new
+  grant until the retention rule existed. Two of the new tests were wrong and were fixed in the test: the notice
+  scope sets the clinic too, so the clinic's own view shows beside the notice's (as for `appointment`); and the
+  insert-for-another-clinic case read the version through row-level security and so inserted nothing without an
+  error (it now inserts the ids directly and gets `42501`).
+- `internal/retention`: `TestRules_DeleteQuestionnaireResponsesOnceDue` (no rule), the `Apply` and `NewService`
+  tests (no purger, then `ErrNoApplier` naming `questionnaire_response`).
+- `internal/appointment`: `got.RevokedAt undefined`.
+- `internal/questionnaireresponse`: every service test against stubs returning `todo`; the repository tests did
+  not build (`undefined: questionnaireresponse.NewPostgresRepository`), then one failed only on the time's
+  location (pgx gives `Local`), fixed in the test.
+
+Checks: `make lint` 0 issues, migrations unchanged; `make test` pass; `make archcheck` pass; `make cover` pass,
+`internal/questionnaireresponse` 93.5%, `internal/access` 100%, total 94.9%; `make sqlc` regenerated; `make
+migrate` applied 00026 to the dev database.
+
+Readings:
+- After a revocation the admin sees that a response exists (`Name`) only for a `completed` one of a past
+  appointment, like the practitioner's `Full`: SPEC §2 "Tables" lets the clinic scope see only those rows then,
+  so the rule matches row-level security rather than giving `Name` to rows the database hides.
+- `Request` reads the version through `questionnaire.Service.Read` (CLAUDE.md: wire the sibling's method
+  rather than an adapter), so a request also writes the practitioner's audited read of the version. Its
+  refusals map to this domain's errors (a version of another clinic or unknown is `ErrNotFound`).
+- A request to an appointment that is no longer booked (cancelled, fulfilled, no-show) is `ErrAppointmentClosed`
+  (409 `appointment_closed`, the code `appointment` already answers), which SPEC §2's list of 409s does not name;
+  a booked one at or after its start is `appointment_started`. `consent_required` is what the appointment's
+  practitioner gets when the consent is not active (in practice a past appointment after a revocation, whose
+  future ones were cancelled); anyone else gets `ErrNotFound`. The checks run in that order: who, consent,
+  status, start, version, duplicate.
+- `Withdraw` is the appointment's practitioner's with an active consent (`access.RequestsQuestionnaire`);
+  someone who sees the response but may not withdraw it (the patient, the admin) gets `ErrForbidden`, audited
+  with the entity; a withdrawn one again is `ErrWithdrawn`. It locks the row (`FOR NO KEY UPDATE`) so it
+  serialises with package 4's submit.
+- The retention rule's period is zero (SPEC §5: deleted once `due_at` has passed). `TestRules_AreCompleteAndNameEachTableOnce`
+  required a positive period for every delete rule; it now requires none for keep and restrict, a positive one
+  for remove-range and zero or more for delete, and `TestRules_DeleteQuestionnaireResponsesOnceDue` pins this
+  rule.
+- `appointment.Attendance` gains `RevokedAt` rather than the whole `access.Facts`: a slice in it would make the
+  struct uncomparable, which the existing attendance tests rely on; with `ConsentActive`, `Patient`,
+  `Practitioner` and the appointment it is all the rule needs.
+- The `Lookup` port from `appointment` named in the plan is not declared yet: nothing in this package calls it
+  (package 5's discard does). `Value` holds the answer kinds of SPEC §2 (`valueDecimal` as `json.Number`, so no
+  digit is lost); package 4 checks them.
+
+Deferred: answers and submit (package 4); `RequestDefault` and `Discard`, and the `Lookup` port (package 5);
+the handlers, the FHIR mapping, the wiring in `app.go` and the patient's read of the referenced versions in the
+`questionnaire` service (package 6).
+

@@ -227,3 +227,111 @@ func TestLevel_String(t *testing.T) {
 		}
 	}
 }
+
+// QuestionnaireResponse (docs/questionnaire/SPEC.md §2 "Access rule"), over every combination and whether the
+// response is submitted: the patient everything of their own; with an active consent the appointment's
+// practitioner the answers once submitted and the name (that it exists, its status) before, the clinic's admin
+// the name; after a revocation, for a past appointment, the practitioner the submitted answers (D9) and the
+// admin the name of a submitted one, as row-level security shows only submitted ones then; nothing else.
+func TestQuestionnaireResponse_OverEveryRoleConsentAppointmentClinicAndSubmission(t *testing.T) {
+	want := map[string]access.Level{
+		"practitioner/active/past/match/submitted":   access.Full,
+		"practitioner/active/past/match/open":        access.Name,
+		"practitioner/active/future/match/submitted": access.Full,
+		"practitioner/active/future/match/open":      access.Name,
+		// D9: the care record of a past appointment, to its practitioner only.
+		"practitioner/revoked/past/match/submitted": access.Full,
+	}
+	for _, an := range []string{"past", "future", "other practitioner"} {
+		for _, sub := range []string{"submitted", "open"} {
+			want["admin/active/"+an+"/match/"+sub] = access.Name
+		}
+	}
+	want["admin/revoked/past/match/submitted"] = access.Name
+	want["admin/revoked/other practitioner/match/submitted"] = access.Name
+	for cn := range consents {
+		for _, an := range []string{"past", "future", "other practitioner"} {
+			for kn := range clinics {
+				for _, sub := range []string{"submitted", "open"} {
+					want[fmt.Sprintf("patient/%s/%s/%s/%s", cn, an, kn, sub)] = access.Full
+				}
+			}
+		}
+	}
+
+	seen := map[string]bool{}
+	each(func(key string, v access.Viewer, f access.Facts) {
+		if len(f.Visits) == 0 {
+			return // no appointment to judge
+		}
+		for sub, submitted := range map[string]bool{"submitted": true, "open": false} {
+			k := key + "/" + sub
+			seen[k] = true
+			got := access.QuestionnaireResponse(v, f, f.Visits[0], submitted)
+			if got != want[k] {
+				t.Errorf("QuestionnaireResponse(%s) = %v, want %v", k, got, want[k])
+			}
+			// Nobody but the patient and the appointment's practitioner is ever Full.
+			own := v.Role == access.RolePatient && v.Patient == f.Patient ||
+				v.Role == access.RolePractitioner && v.PractitionerRole == f.Visits[0].PractitionerRole
+			if got == access.Full && !own {
+				t.Errorf("QuestionnaireResponse(%s) = Full to someone who is neither the patient nor the practitioner", k)
+			}
+		}
+	})
+	for key := range want {
+		if !seen[key] {
+			t.Errorf("expectation %q is no combination", key)
+		}
+	}
+}
+
+// After a revocation the practitioner reads the submitted answers of an appointment that started before it,
+// to the second, and nothing of a later one; granting again restores the rule of an active consent.
+func TestQuestionnaireResponse_PastMeansStartedBeforeTheLatestRevocation(t *testing.T) {
+	v := viewers["practitioner"]
+	for _, tt := range []struct {
+		start time.Time
+		name  string
+		want  access.Level
+	}{
+		{name: "a second before", start: revokedAt.Add(-time.Second), want: access.Full},
+		{name: "at the revocation", start: revokedAt, want: access.None},
+		{name: "a second after", start: revokedAt.Add(time.Second), want: access.None},
+	} {
+		visit := access.Visit{PractitionerRole: roleA1, Start: tt.start}
+		f := access.Facts{Patient: patientA, Clinic: clinicA, Consent: consents["revoked"], Visits: []access.Visit{visit}}
+		if got := access.QuestionnaireResponse(v, f, visit, true); got != tt.want {
+			t.Errorf("%s: QuestionnaireResponse = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+	future := access.Visit{PractitionerRole: roleA1, Start: revokedAt.Add(48 * time.Hour)}
+	again := access.Facts{Patient: patientA, Clinic: clinicA, Consent: access.Consent{Active: true, RevokedAt: revokedAt}, Visits: []access.Visit{future}}
+	if got := access.QuestionnaireResponse(v, again, future, false); got != access.Name {
+		t.Errorf("granted again, open: QuestionnaireResponse = %v, want Name", got)
+	}
+}
+
+// RequestsQuestionnaire: the appointment's practitioner with an active consent, and nobody else; that the
+// appointment is booked and ahead is the service's check.
+func TestRequestsQuestionnaire_OverEveryRoleConsentAppointmentAndClinic(t *testing.T) {
+	want := map[string]bool{
+		"practitioner/active/past/match":   true,
+		"practitioner/active/future/match": true,
+	}
+	seen := map[string]bool{}
+	each(func(key string, v access.Viewer, f access.Facts) {
+		if len(f.Visits) == 0 {
+			return
+		}
+		seen[key] = true
+		if got := access.RequestsQuestionnaire(v, f, f.Visits[0]); got != want[key] {
+			t.Errorf("RequestsQuestionnaire(%s) = %v, want %v", key, got, want[key])
+		}
+	})
+	for key := range want {
+		if !seen[key] {
+			t.Errorf("expectation %q is no combination", key)
+		}
+	}
+}

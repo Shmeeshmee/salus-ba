@@ -828,3 +828,49 @@ values). This is SPEC §2 "LiveKit logs", now checked on every run and in CI.
 **Seen in LiveKit's log, not ours to decide here.** At `info` LiveKit logs each client connection's
 `remoteAddress` and `localAddress` (IP and port) and its SDK and browser; in production a client's IP is personal
 data. Recorded for the owner with the production LiveKit setup (SPEC §8).
+
+## Questionnaires (`docs/questionnaire`)
+
+### Package 3: questionnaire responses and the access rule
+
+**Processing added.** The FHIR `QuestionnaireResponse` (`questionnaire_response` table): a request to the
+patient to fill in one questionnaire version before one appointment, and later their answers (package 4). The
+appointment, the clinic, the patient, the practitioner role and the due time (the appointment's start) are
+copied once from the appointment; the questionnaire version and its series; how it was requested (`default` or
+`added`); the status (`in-progress`, `completed`, `stopped`), the submit time and the answers (a flat list of
+`linkId` and values). That a patient was asked a given questionnaire is itself health data (its title can name a
+condition). In this package the appointment's practitioner can request a questionnaire for a booked appointment
+that has not started, with the patient's active consent, and withdraw it while it is not submitted; a
+withdrawal clears the answers at once and keeps the row, with no answers, as the record of the request. Reads
+and searches exist in the service; the endpoints come in package 6.
+
+**Purpose and lawful basis.** Preparing the appointment and, once submitted, the care record (Art. 9(2)(h)),
+with the consent for sharing before care. **Needs legal confirmation before production** (SPEC §4, §8).
+
+**Access.** `access.QuestionnaireResponse`, pure and table-tested over role, consent, appointment, clinic and
+submission: the patient their own; with an active consent, the appointment's practitioner the answers once
+submitted and only that it exists and its status before, the clinic's admin that it exists and its status; after
+a revocation, for an appointment that started before it, the practitioner the submitted answers (D9) and the
+admin that it exists; nobody else, and nobody but the patient and the appointment's practitioner ever sees
+answers (asserted for every combination). Row-level security on `questionnaire_response` matches it: the patient
+their own (read and update); a clinic the rows of its patients with an active consent (read, request, withdraw)
+and after a revocation only the `completed` rows of appointments that started before it (read only); the
+notifier's notice scope the rows of its one appointment; deletion only by the discard scope, for a cancelled
+appointment, and by `salus_retention`'s purger. `salus_app` cannot change whose a response is, which appointment,
+version or due time (tested). The patient scope now also reads the questionnaire versions its own responses
+reference, and nothing else of the library. Every request, withdrawal, read and returned search result writes an
+`AuditEvent` in its transaction, refusals included (`TREAT` for staff, `PATRQT` for the patient); a request also
+records the practitioner's read of the version.
+
+**Retention.** `questionnaire_response`: `delete` an unsubmitted response (in progress or withdrawn) once its due
+time has passed, by the daily retention job (one `AuditEvent` per run with the count); a `completed` one is kept
+with the clinical record. **Needs a legal decision before production** (SPEC §5, §8).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A practitioner reads answers the patient has not submitted | The rule gives them the status only, and a `Name` view carries no answers (tested); after a revocation row-level security hides unsubmitted rows |
+| Answers left after a withdrawal | The withdrawal clears them in the same statement; a check constraint refuses a withdrawn row with answers (tested) |
+| Unsubmitted answers kept after the appointment | The purger deletes them once due, in every clinic (tested at the due time ± 1 s) |
+| The fact of a request reaching another clinic | Row-level security and the service both scope to the clinic and the patient's consent; a request's version must belong to its clinic (foreign key, tested) |

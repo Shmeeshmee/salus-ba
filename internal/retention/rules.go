@@ -79,5 +79,10 @@ func Rules() []Rule {
 			Basis: "The clinic's care record that the consultation took place and when (GDPR Art. 9(2)(h)); kept with the clinical record, needs a legal decision before production (docs/consultation/SPEC.md sections 4 and 5)",
 			Then:  ThenKeep,
 		},
+		{
+			Table: "questionnaire_response",
+			Basis: "Preparing the appointment (GDPR Art. 9(2)(h), with the consent for sharing before care) until it starts; an unsubmitted response is then deleted, a submitted one kept with the clinical record; needs a legal decision before production (docs/questionnaire/SPEC.md sections 4 and 5)",
+			Then:  ThenDelete, // unsubmitted ones once due_at has passed; completed ones are kept
+		},
 	}
 }

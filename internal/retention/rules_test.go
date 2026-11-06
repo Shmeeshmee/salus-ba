@@ -13,11 +13,24 @@ func TestRules_AreCompleteAndNameEachTableOnce(t *testing.T) {
 		if r.Table == "" || r.Basis == "" || r.Then == "" {
 			t.Errorf("rule %+v: want a table, a basis and what happens then", r)
 		}
-		// A row kept while its subject exists, or restricted once it is no longer active, has no period; every
-		// other rule has a positive one.
-		noPeriod := r.Then == retention.ThenKeep || r.Then == retention.ThenRestrict
-		if noPeriod != (r.Keep == 0) || r.Keep < 0 {
-			t.Errorf("rule %+v: want no period exactly when the row is kept or restricted, a positive one otherwise", r)
+		// A row kept while its subject exists, or restricted once it is no longer active, has no period; a row
+		// removed by range has a positive one; a deleted row may be deleted as soon as it stops being used (a
+		// questionnaire response once due), so its period is zero or more.
+		switch r.Then {
+		case retention.ThenKeep, retention.ThenRestrict:
+			if r.Keep != 0 {
+				t.Errorf("rule %+v: want no period for a kept or restricted row", r)
+			}
+		case retention.ThenRemoveRange:
+			if r.Keep <= 0 {
+				t.Errorf("rule %+v: want a positive period for a row removed by range", r)
+			}
+		case retention.ThenDelete:
+			if r.Keep < 0 {
+				t.Errorf("rule %+v: want a period of zero or more for a deleted row", r)
+			}
+		default:
+			t.Errorf("rule %+v: unknown then", r)
 		}
 		if seen[r.Table] {
 			t.Errorf("table %s has two rules", r.Table)
@@ -146,4 +159,18 @@ func TestRules_RestrictSchedulesAndDeleteFreeSlotsThirtyDaysAfterTheyEnd(t *test
 	for table := range want {
 		t.Errorf("no rule for %s", table)
 	}
+}
+
+// An unsubmitted questionnaire response is deleted once its due time (the appointment's start) has passed; a
+// completed one is the purger's to keep (docs/questionnaire/SPEC.md §5).
+func TestRules_DeleteQuestionnaireResponsesOnceDue(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "questionnaire_response" {
+			if r.Then != retention.ThenDelete || r.Keep != 0 {
+				t.Errorf("questionnaire_response then %q after %v, want %q at once", r.Then, r.Keep, retention.ThenDelete)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for questionnaire_response")
 }

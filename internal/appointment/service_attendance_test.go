@@ -44,14 +44,14 @@ func TestAttendance_GivesTheAppointmentWithTheCallersAccessFacts(t *testing.T) {
 }
 
 // After a revocation the patient keeps their appointment and its practitioner a past one at the name level,
-// both with the consent inactive.
+// both with the consent inactive and the time of the revocation (questionnaireresponse's rule needs it).
 func TestAttendance_GivesTheInactiveConsentAfterARevocation(t *testing.T) {
 	for _, c := range []appointment.Caller{me, pract} {
 		f := cancelFixture(revokedAt.Add(-time.Hour))
 		f.consents.state[patientA+clinicA] = access.Consent{RevokedAt: revokedAt}
 		got, err := f.svc.Attendance(t.Context(), c, apptA)
-		if err != nil || got.ConsentActive || got.Level == access.None || got.Patient != (c == me) || got.Practitioner != (c == pract) {
-			t.Errorf("as %s: Attendance() = %+v, %v; want the appointment with the consent inactive", c.AccountID, got, err)
+		if err != nil || got.ConsentActive || !got.RevokedAt.Equal(revokedAt) || got.Level == access.None || got.Patient != (c == me) || got.Practitioner != (c == pract) {
+			t.Errorf("as %s: Attendance() = %+v, %v; want the appointment with the consent inactive since the revocation", c.AccountID, got, err)
 		}
 	}
 }

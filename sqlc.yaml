@@ -107,3 +107,11 @@ sql:
         package: questionnairedb
         out: internal/questionnaire/questionnairedb
         sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/questionnaireresponse/query.sql
+    gen:
+      go:
+        package: questionnaireresponsedb
+        out: internal/questionnaireresponse/questionnaireresponsedb
+        sql_package: pgx/v5
