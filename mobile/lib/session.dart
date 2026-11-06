@@ -8,17 +8,20 @@ import 'token_store.dart';
 /// A failed call: the API's error code, or none when the API could not be reached ([status] 0). Nothing from
 /// the response but the fixed code is kept, so nothing else can reach the screen.
 class ApiFailure implements Exception {
-  const ApiFailure({this.status = 0, this.code, this.retryAfter});
+  const ApiFailure({this.status = 0, this.code, this.retryAfter, this.linkIds = const []});
 
   final int status;
   final String? code;
   final Duration? retryAfter;
 
+  /// The questionnaire items a 422 `answers_invalid` names (opaque ids).
+  final List<String> linkIds;
+
   bool get unreachable => status == 0;
 
   factory ApiFailure.fromApi(ApiException e) {
     if (e.innerException != null) return const ApiFailure();
-    return ApiFailure(status: e.code, code: _errorCode(e.message));
+    return ApiFailure(status: e.code, code: _errorCode(e.message), linkIds: _linkIds(e.message));
   }
 
   /// A refused login, which also says when to try again (`Retry-After`, in seconds).
@@ -29,6 +32,16 @@ class ApiFailure implements Exception {
       code: _errorCode(body),
       retryAfter: seconds == null || seconds <= 0 ? null : Duration(seconds: seconds),
     );
+  }
+
+  static List<String> _linkIds(String? body) {
+    try {
+      final json = jsonDecode(body ?? '');
+      final ids = json is Map ? json['linkIds'] : null;
+      return ids is List ? ids.whereType<String>().toList() : const [];
+    } on FormatException {
+      return const [];
+    }
   }
 
   static String? _errorCode(String? body) {

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:salus_api/api.dart' show ApiClient, QueryParam;
 
+import 'questionnaire.dart';
 import 'session.dart';
 
 // The FHIR reads the app makes, hand-written for the elements it shows (docs/booking/SPEC.md "Web and mobile
@@ -114,18 +115,46 @@ class Fhir {
       ),
   ];
 
+  /// The patient's questionnaire responses that are not withdrawn, and the versions they answer by canonical
+  /// (`<url>|<version>`), in one search (docs/questionnaire/SPEC.md §2 "FHIR").
+  Future<({List<Response> responses, Map<String, Version> versions})> questionnaireResponses(String patientId) async {
+    final all = await _search('QuestionnaireResponse', [
+      QueryParam('patient', 'Patient/$patientId'),
+      const QueryParam('_include', 'QuestionnaireResponse:questionnaire'),
+    ], includes: true);
+    final versions = {
+      for (final r in all)
+        if (r['resourceType'] == 'Questionnaire') Version.fromFhir(r).canonical: Version.fromFhir(r),
+    };
+    return (
+      responses: [
+        for (final r in all)
+          if (r['resourceType'] == 'QuestionnaireResponse' && r['status'] != 'stopped') Response.fromFhir(r),
+      ],
+      versions: versions,
+    );
+  }
+
+  /// One questionnaire response, read again.
+  Future<Response> questionnaireResponse(String id) async => Response.fromFhir(await _get('QuestionnaireResponse/$id'));
+
   /// The resources of a searchset: the matches, and the included ones when [includes].
   Future<List<Map<String, dynamic>>> _search(String type, List<QueryParam> query, {bool includes = false}) async {
-    final response = await apiCall(
-      () => _client.invokeAPI('/fhir/R4/$type', 'GET', query, null, {'Accept': 'application/fhir+json'}, {}, null),
-    );
-    if (response.statusCode >= 400) throw ApiFailure(status: response.statusCode);
-    // FHIR JSON is UTF-8 (the media type has no charset parameter, so the body is decoded here, not by http).
-    final bundle = jsonDecode(utf8.decode(response.bodyBytes));
+    final bundle = await _get(type, query);
     return [
       for (final entry in (bundle['entry'] as List?) ?? const [])
         if (includes || entry['search']?['mode'] != 'include') entry['resource'] as Map<String, dynamic>,
     ];
+  }
+
+  /// The resource or bundle at /fhir/R4/[path].
+  Future<Map<String, dynamic>> _get(String path, [List<QueryParam> query = const []]) async {
+    final response = await apiCall(
+      () => _client.invokeAPI('/fhir/R4/$path', 'GET', query, null, {'Accept': 'application/fhir+json'}, {}, null),
+    );
+    if (response.statusCode >= 400) throw ApiFailure(status: response.statusCode);
+    // FHIR JSON is UTF-8 (the media type has no charset parameter, so the body is decoded here, not by http).
+    return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
   }
 
   static String _instant(DateTime t) => '${t.toUtc().toIso8601String().split('.').first}Z';

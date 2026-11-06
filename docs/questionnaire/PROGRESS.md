@@ -11,7 +11,7 @@
 | 7 E-mail mention | done, 2026-11-06 | `questionnaire(7)` |
 | 8 Web: library and builder | done, 2026-11-06 | `questionnaire(8)` |
 | 9 Web: appointment and working hours | done, 2026-11-06 | `questionnaire(9)` |
-| 10 Mobile | not started | |
+| 10 Mobile | done, 2026-11-06 | `questionnaire(10)` |
 | 11 End-to-end | not started | |
 
 ## Decisions
@@ -870,3 +870,112 @@ with an admin, a practitioner, a patient, two appointments (one moved into the p
 questionnaires, their requests (one submitted with synthetic answers, one added and withdrawn by the walk), and
 their audit events (synthetic data only, as earlier walks). Screenshots are in the ignored
 `.claude/runs/questionnaire/walk-9/`.
+
+## Package 10: Mobile (done, 2026-11-06)
+
+Built:
+- `mobile/lib/messages.dart`: M1 to M16 exactly as `COPY.md`, placeholders as parameters (`savedAsYouGo`,
+  `upToCharacters`, `submitBody`, `submittedAt`), and `answersMessage` mapping the save and submit codes to M16.
+  `test/copy_test.dart` checks every quoted M string of `docs/questionnaire/COPY.md` against the file (47 strings;
+  checked to fail on a changed full stop).
+- `questionnaire.dart`: the FHIR `Questionnaire` (items, sections, help from the `help` item control, options, one
+  `enableWhen`; an unknown type such as the reserved `attachment` kept as `unsupported` and not shown) and the
+  patient's `QuestionnaireResponse` (appointment from the extension, answers flattened out of their sections, each
+  value in its item's type); `enabled`, `missing` and `shownAnswers`, the server's condition evaluation
+  (`enabled.go`) in one function; `readTyped`, each typed answer checked against the server's limits with the M10
+  sentence; `toApi` and `fromApi` for the JSON API.
+- `fhir.dart`: `questionnaireResponses` (one search, `patient` with `_include=QuestionnaireResponse:questionnaire`,
+  the withdrawn left out, the versions by canonical) and `questionnaireResponse` (a read, for a 412). `booking.dart`:
+  `saveAnswers` and `submitAnswers` through the generated `QuestionnairesApi`, `If-Match: W/"<versionId>"`.
+  `session.dart`: `ApiFailure.linkIds` from a 422's body.
+- `appointments_screen.dart`: per questionnaire on the appointment's card, its title and M1 status, M3 and "Fill in"
+  or "Continue" while it can be filled in, M4 once the appointment has started without it, "View answers" once
+  submitted; nothing on a cancelled appointment; the list read again after the screen.
+- `questionnaire_screen.dart` and `questionnaire_fields.dart`: one scrolling page (M5, sections as headings, help
+  behind the M8 icon, "Required", each type's native widget: text fields, radio buttons, check boxes, the date
+  picker with M9 and M10 as its texts), the saved state (M6) and the last refusal in a footer that stays in view,
+  "Submit" with M11, M12 and the field errors, M13 and the read-only view (M14) after submitting, M15 on leaving
+  with an answer not saved, M16 per code.
+
+Save behaviour: a typed answer is checked at once and saved 2 s after typing stops (the timer restarts on each
+change) or when the field loses focus; a choice, yes or no, or a date is saved at once. One save runs at a time;
+changes made during it are saved after it. A lost connection or a 5xx shows M6's "Not saved…" and is tried again
+after 5 s (and on the next change). A 412 reads the response again over FHIR and shows the latest answers with
+M16; a 422 marks the questions it names; a 404 or 409 shows M16 and ends filling in (no more saves, no Submit).
+
+Test first (failures seen before the code):
+- `questionnaire_test.dart`: `Error: Couldn't resolve the package 'salus' in 'package:salus/questionnaire.dart'`.
+- `fhir_test.dart`: `The method 'questionnaireResponses' isn't defined for the type 'Fhir'` (and
+  `questionnaireResponse`).
+- `questionnaire_screen_test.dart`: the same compile failure, then 2 of 24 failed on the first run, both the
+  tests' own: one did not answer the saves (a 404 closed the screen), and the leave test relied on the field
+  keeping its focus while the dialog opened (it loses it, and the save that follows made the second back press
+  leave at once; rewritten with a failing save). After the lazy list (below), 10 failed until the tests scrolled to
+  the rows they assert, which showed that the saved state and the messages scrolled out of view: they moved to the
+  footer.
+- `copy_test.dart`: the new test failed with a changed full stop in M9, restored.
+
+Tests (Flutter, 208 in all, 72 new): the conditions against the 13 cases of package 4's
+`TestSubmit_EvaluatesTheConditions` (missing and kept), a hidden section's items; each typed type at and one past its
+limit, table-driven (27 cases); the FHIR mapping both ways and the JSON API's values; the two FHIR calls. Widgets
+(`MockClient`): the card's states (to fill in, in progress, submitted, closed; withdrawn and cancelled not shown); the
+page (M5, sections as headings, help behind the icon, Required); a condition showing and hiding; a choice saved at
+once and typing saved 2 s after it stops, not per keystroke (none at 1.999 s), `If-Match` chained; a field left
+saving at once; each typed check on its field and an invalid answer left out of the save; several choices and a date
+from the picker; saved answers shown again; a failed save shown and tried again; 409 `consent_required`, `past_due`,
+`withdrawn`, `submitted` and a 412 with their messages; a 422 on its question; M15 with Stay and Leave, and none when
+saved; submit with a required question unanswered (no request), with M11 cancelled and confirmed, M13 and the
+read-only view; a 422 and a 409 on submit; a submitted response read only with every type and "Not answered"; no
+CSRF header; nothing printed (no title, question or answer in the log).
+
+Checks: `make mobile-analyze` no issues; `make mobile-test` 208 tests pass; `make gen-clients` no diff (no
+`openapi.yaml` change). Not in this package's check sets, run as CLAUDE.md asks before done: `make lint` 0 issues,
+migrations unchanged; `make archcheck` passes; `make test` passes (no Go change).
+
+Measurements (SPEC §2 "Performance", the first frame of the screen with 200 items: 10 sections of 19 questions of
+every type, a third with help text; `flutter test` in the `flutter` container, i7-14700HX, a 390 × 844 point
+surface; `pumpWidget` timed with a `Stopwatch`, six runs per process, three processes; a temporary test, not
+committed). The test VM runs debug JIT code on a software renderer, so these are upper bounds and comparisons, not
+device numbers:
+
+| Layout | First run | Warm runs (5 per process, 3 processes) |
+| --- | --- | --- |
+| A `Column` in a `SingleChildScrollView` (as `ui.Page`) | 1,401 ms | 617 to 872 ms, settling at about 620 |
+| A lazy `ListView.builder` (committed) | 415 to 423 ms | 44 to 56 ms |
+
+The lazy list builds only the rows in view and is about 13 times faster warm, so the screen uses it (with
+`ui.Page`'s look) instead of `ui.Page`. The first frame on a real device, read from the dev tools, is the manual step
+(SPEC §8 "Before production").
+
+Readings:
+- The card's status: "To fill in" while in progress with no saved answer, "In progress" with one, "Submitted", and
+  "Closed" once the appointment has started without a submit (the response's `due_at` is the start, and the FHIR
+  resource carries the appointment, not `due_at`). A withdrawn request is not shown: the patient no longer needs to
+  fill it in; a cancelled appointment shows none (its responses are deleted by the discard job).
+- A typed answer that fails its check is shown on its field and left out of the save (it is not an answer), so a
+  previously saved value of that question is replaced by none; Submit is refused while a shown field has an error.
+- Decimals are sent as Dart numbers by the generated client, which writes an exponent below 0.000001; the server
+  refuses an exponent, so the app refuses such a number with "Enter a number." A trailing zero (`1.50`) is sent as
+  `1.5`. Only `.` is accepted as the decimal separator (localisation is out of scope, SPEC §6).
+- M10's "This number is too large." is shown for a whole number outside 32 bits and a decimal with more than 15
+  digits before the point; other decimal errors are "Enter a number."
+- A 422 on a save shows the type's check on each named question (M10 for typed ones, M9's "Select one." or "Select
+  all that apply." for choices); on submit, M12 and "This question is required.".
+- The date picker gets M9 and M10 as its title and errors and "Cancel" (M11); its "OK" and its input-mode labels are
+  Flutter's own (no approved text); the range is 1900 to 2100.
+- The page is not `ui.Page` but a lazy list with its look (measured above); the saved state and the refusals sit in a
+  footer so they stay in view on a long questionnaire. The read-only view is in the same list.
+- Help text opens under its item when the icon is tapped (no dialog).
+- Instructions are not repeated in the read-only view (as the web app's answers view).
+
+Deferred: the end-to-end journeys (11). The 200-item first frame on a real Android device and an iOS build, and the
+screen with a screen reader (SPEC §8).
+
+Questions for a person: none new. Package 8's are still open. For the localisation before production: whether
+decimals typed with a comma should be accepted.
+
+Dev stack: no migration, nothing written to the dev database (the Flutter tests use `MockClient`; the Go tests their
+own databases). The stack was found running and left running; the api, worker, scheduler, notifier and agent show a
+restart during the session that no target of this package makes (none runs `up`), with the branch's code (no Go
+change in this package).
+

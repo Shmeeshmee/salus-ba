@@ -998,3 +998,33 @@ role's default.
 | The questionnaire's title, which can name a condition, in an e-mail | The sentence is a constant; the service returns a boolean only; the e-mail is tested on the real database not to hold the title, a question or the version's id |
 | A mention for a questionnaire already submitted | A submitted or withdrawn response, or a submitted default, is not outstanding (service tests and the real database) |
 | A failed check sending the e-mail without the sentence | A failed check sends nothing and the job retries (tested) |
+
+### Package 10: mobile
+
+**Processing added.** The patient app shows, on each appointment's card in My appointments, the questionnaires
+asked for it, read with one FHIR search of the patient's own responses with the versions they answer
+(`QuestionnaireResponse?patient=…&_include=QuestionnaireResponse:questionnaire`); a withdrawn one is not shown,
+nor anything on a cancelled appointment. The questionnaire screen saves the answers through the JSON API when the
+patient leaves a field, 2 seconds after they stop typing, and at once for a choice, yes or no, or a date; it submits
+them after a confirmation and shows them read only afterwards. No new field, table, endpoint or processor; no new
+dependency.
+
+**Purpose and lawful basis.** As package 3.
+
+**Access.** Only the signed-in patient's own responses, through the API's access rule and consent check (packages
+3, 4 and 6); the app decides nothing the server does not decide again. Conditions are evaluated on the device the
+same way as on the server, only to show and hide questions; the server removes the answers of hidden items on
+submit.
+
+**Storage on the device.** None: answers live in the screen's memory while it is open and on the server once
+saved. Nothing is written to disk, shared preferences or a cache; the session token stays in the platform's
+secure storage as before.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Answers or the questionnaire's title in the device's log | The app prints nothing while filling in, saving, a refused save and submitting (tested) |
+| An answer lost without the patient knowing | The saved state is always in view (M6); a failed save is shown and tried again every 5 seconds; leaving with an answer not saved asks first (M15) (tested) |
+| A save after the consent was revoked or the appointment started | The server refuses it (409); the app shows M16 and stops saving (tested) |
+| Answers shown to someone else on a shared device | The app's session rules apply as for appointments; the read-only view shows only the patient's own submitted answers |

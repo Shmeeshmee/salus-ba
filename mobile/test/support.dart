@@ -91,12 +91,14 @@ final privacyNoticeUrl = Uri.parse('https://privacy.example.test/notice');
 
 /// The app wired to [api] and [store], as main.dart wires it to the network and the device.
 class Harness {
-  /// A signed-in patient with a profile unless the test answers `GET /me/patient` otherwise.
+  /// A signed-in patient with a profile and no questionnaires unless the test answers `GET /me/patient` or
+  /// `GET /fhir/R4/QuestionnaireResponse` otherwise.
   Harness({FakeTokenStore? store, DateTime? now}) : store = store ?? FakeTokenStore(), now = now ?? wednesday {
     client = ApiClient(basePath: 'http://api.test', authentication: bearer)..client = MockClient(api._handle);
     session = Session(api: AuthApi(client), bearer: bearer, store: this.store);
     booking = Booking(client);
     api.answer('GET /me/patient', 200, patient());
+    api.on('GET /fhir/R4/QuestionnaireResponse', (_) async => fhirResponse(200, bundle(const [])));
   }
 
   final api = FakeApi();
