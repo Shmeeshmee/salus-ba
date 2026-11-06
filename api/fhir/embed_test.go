@@ -82,8 +82,10 @@ func TestCapabilityStatement_ListsExactlyTheInteractionsServed(t *testing.T) {
 		"Practitioner":     "read ",
 		"PractitionerRole": "read search-type param:organization:reference include:PractitionerRole:practitioner ",
 		"Questionnaire":    "read search-type param:url:uri param:version:token param:status:token ",
-		"Schedule":         "read search-type param:actor:reference ",
-		"Slot":             "search-type param:schedule:reference param:start:date param:status:token ",
+		"QuestionnaireResponse": "read search-type param:appointment:reference param:patient:reference param:status:token " +
+			"include:QuestionnaireResponse:questionnaire ",
+		"Schedule": "read search-type param:actor:reference ",
+		"Slot":     "search-type param:schedule:reference param:start:date param:status:token ",
 	}
 	if len(got) != len(want) {
 		t.Errorf("resources = %v, want %v", got, want)
@@ -134,5 +136,66 @@ func TestCapabilityStatement_DefinesListedByItsSearchParameter(t *testing.T) {
 			len(sd.Context) != 1 || sd.Context[0].Expression != "Organization" {
 			t.Errorf("organization-%s = %+v, want an extension of Organization at its URL", name, sd)
 		}
+	}
+}
+
+// The appointment search parameter of QuestionnaireResponse is defined by our SearchParameter over the
+// questionnaireresponse-appointment extension (docs/questionnaire/SPEC.md §2 "The appointment extension").
+func TestCapabilityStatement_DefinesTheResponsesAppointmentByItsSearchParameter(t *testing.T) {
+	var sp struct {
+		ResourceType string   `json:"resourceType"`
+		URL          string   `json:"url"`
+		Code         string   `json:"code"`
+		Type         string   `json:"type"`
+		Expression   string   `json:"expression"`
+		Base         []string `json:"base"`
+		Target       []string `json:"target"`
+	}
+	raw, err := os.ReadFile("SearchParameter-questionnaireresponse-appointment.json")
+	if err != nil || json.Unmarshal(raw, &sp) != nil {
+		t.Fatalf("SearchParameter-questionnaireresponse-appointment.json: %v", err)
+	}
+	const ext = "https://salus.invalid/fhir/StructureDefinition/questionnaireresponse-appointment"
+	if sp.ResourceType != "SearchParameter" || sp.Code != "appointment" || sp.Type != "reference" ||
+		len(sp.Base) != 1 || sp.Base[0] != "QuestionnaireResponse" || len(sp.Target) != 1 || sp.Target[0] != "Appointment" ||
+		!strings.Contains(sp.Expression, ext) {
+		t.Errorf("SearchParameter = %+v, want the reference appointment on QuestionnaireResponse over the extension", sp)
+	}
+	if !strings.Contains(fhir.CapabilityStatement(), `"definition": "`+sp.URL+`"`) {
+		t.Errorf("the CapabilityStatement does not define appointment by %s", sp.URL)
+	}
+	var sd struct {
+		URL     string `json:"url"`
+		Type    string `json:"type"`
+		Context []struct {
+			Expression string `json:"expression"`
+		} `json:"context"`
+		Differential struct {
+			Element []struct {
+				ID   string `json:"id"`
+				Type []struct {
+					Code          string   `json:"code"`
+					TargetProfile []string `json:"targetProfile"`
+				} `json:"type"`
+				Min int `json:"min"`
+			} `json:"element"`
+		} `json:"differential"`
+	}
+	raw, err = os.ReadFile("StructureDefinition-questionnaireresponse-appointment.json")
+	if err != nil || json.Unmarshal(raw, &sd) != nil {
+		t.Fatalf("StructureDefinition-questionnaireresponse-appointment.json: %v", err)
+	}
+	if sd.URL != ext || sd.Type != "Extension" || len(sd.Context) != 1 || sd.Context[0].Expression != "QuestionnaireResponse" {
+		t.Errorf("questionnaireresponse-appointment = %+v, want an extension of QuestionnaireResponse at its URL", sd)
+	}
+	refersToAppointment := false
+	for _, e := range sd.Differential.Element {
+		if e.ID == "Extension.value[x]" && e.Min == 1 && len(e.Type) == 1 && e.Type[0].Code == "Reference" &&
+			len(e.Type[0].TargetProfile) == 1 && e.Type[0].TargetProfile[0] == "http://hl7.org/fhir/StructureDefinition/Appointment" {
+			refersToAppointment = true
+		}
+	}
+	if !refersToAppointment {
+		t.Errorf("questionnaireresponse-appointment's value is not a required Reference(Appointment)")
 	}
 }

@@ -210,6 +210,10 @@ class ApiClient {
           return Acceptance.fromJson(value);
         case 'Account':
           return Account.fromJson(value);
+        case 'Answer':
+          return Answer.fromJson(value);
+        case 'AnswerValue':
+          return AnswerValue.fromJson(value);
         case 'Appointment':
           return Appointment.fromJson(value);
         case 'Availability':
@@ -260,10 +264,16 @@ class ApiClient {
           return QuestionnaireItemAnswerOptionInner.fromJson(value);
         case 'QuestionnaireItemEnableWhen':
           return QuestionnaireItemEnableWhen.fromJson(value);
+        case 'QuestionnaireResponse':
+          return QuestionnaireResponse.fromJson(value);
         case 'RegisterRequest':
           return RegisterRequest.fromJson(value);
+        case 'RequestQuestionnaireRequest':
+          return RequestQuestionnaireRequest.fromJson(value);
         case 'RoleSpecialty':
           return RoleSpecialty.fromJson(value);
+        case 'SaveAnswersRequest':
+          return SaveAnswersRequest.fromJson(value);
         case 'SaveAvailabilityRequest':
           return SaveAvailabilityRequest.fromJson(value);
         case 'SavePatientRequest':

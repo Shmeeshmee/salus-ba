@@ -27,6 +27,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
+	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/internal/videosession"
@@ -132,7 +133,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, log *slog.Lo
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, questionnaireRoutes(pool, audit, tx, roles, accounts, fhirBase, log)...),
+		}, questionnaireRoutes(pool, audit, tx, roles, accounts, appointments, patients, fhirBase, log)...),
 		Timeout: RequestTimeout,
 	})
 	return &App{Handler: h, pool: pool, redis: rdb}, nil
@@ -153,17 +154,24 @@ func newConsultation(pool *pgxpool.Pool, lk config.LiveKit, jobs *river.Client[p
 	})
 }
 
-// questionnaireRoutes builds the clinic's questionnaire library and its JSON and FHIR routes.
+// questionnaireRoutes builds the clinic's questionnaire library and the patients' responses, and their JSON and
+// FHIR routes.
 func questionnaireRoutes(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, roles *practitionerrole.Service,
-	accounts *auth.Service, fhirBase string, log *slog.Logger,
+	accounts *auth.Service, appointments *appointment.Service, patients *patient.Service, fhirBase string, log *slog.Logger,
 ) []func(*http.ServeMux) {
 	questionnaires := questionnaire.NewService(questionnaire.Ports{
 		Repo: questionnaire.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Roles: roles,
 	})
-	caller := questionnaireCaller(accounts)
+	responses := questionnaireresponse.NewService(questionnaireresponse.Ports{
+		Repo: questionnaireresponse.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
+		Appointments: appointments, Questionnaires: questionnaires,
+	})
+	caller, responseCaller := questionnaireCaller(accounts, patients), appointmentCaller(accounts, patients)
 	return []func(*http.ServeMux){
 		questionnaire.NewHTTPHandler(questionnaires, caller, log).Routes,
 		questionnaire.NewHandler(questionnaires, caller, fhirBase, log).Routes,
+		questionnaireresponse.NewHTTPHandler(responses, responseCaller, log).Routes,
+		questionnaireresponse.NewHandler(responses, questionnaires, responseCaller, fhirBase, log).Routes,
 	}
 }
 
@@ -236,18 +244,31 @@ func scheduleCaller(accounts *auth.Service) func(ctx context.Context) (schedule.
 
 // questionnaireCaller is the questionnaire domain's view of the signed-in session: for staff of the
 // session's clinic, its clinic, whether it is the admin and which practitioner it is, as read from the
-// database; for anyone else (a patient), no clinic.
-func questionnaireCaller(accounts *auth.Service) func(ctx context.Context) (questionnaire.Caller, bool, error) {
+// database; for a patient, no clinic and their profile's id, read (and audited) through the patient service,
+// empty before the profile exists.
+func questionnaireCaller(accounts *auth.Service, patients *patient.Service) func(ctx context.Context) (questionnaire.Caller, bool, error) {
 	return func(ctx context.Context) (questionnaire.Caller, bool, error) {
 		s, ok := auth.SessionFrom(ctx)
 		if !ok {
 			return questionnaire.Caller{}, false, nil
 		}
+		c := questionnaire.Caller{AccountID: s.AccountID}
+		if s.OrganizationID == "" {
+			p, err := patients.Me(ctx, patient.Caller{AccountID: s.AccountID})
+			switch {
+			case errors.Is(err, patient.ErrNotFound):
+			case err != nil:
+				return questionnaire.Caller{}, false, err
+			default:
+				c.PatientID = p.ID
+			}
+			return c, true, nil
+		}
 		m, err := accounts.ClinicMember(ctx, s)
 		if err != nil {
 			return questionnaire.Caller{}, false, err
 		}
-		c := questionnaire.Caller{AccountID: s.AccountID, PractitionerID: m.PractitionerID, Admin: m.Admin}
+		c.PractitionerID, c.Admin = m.PractitionerID, m.Admin
 		if m.Admin || m.PractitionerID != "" {
 			c.OrganizationID = s.OrganizationID
 		}

@@ -1438,6 +1438,176 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /appointments/{id}/questionnaires:
+    post:
+      operationId: requestQuestionnaire
+      summary: Ask the patient to fill in a questionnaire
+      description: >-
+        The appointment's practitioner asks the patient to fill in an active questionnaire of the clinic before
+        the appointment starts (FHIR QuestionnaireResponse, in progress, no answers; reads go through FHIR).
+        The appointment must be booked and not started, and the patient's consent with the clinic active. Not
+        cached. Audited, also when refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/AppointmentID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RequestQuestionnaireRequest"}
+      responses:
+        "201":
+          $ref: "#/components/responses/QuestionnaireResponse"
+        "400":
+          description: "`invalid_request`: a body that is not the request."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/CSRF"
+        "404":
+          description: "`not_found`: no such appointment or questionnaire, or the caller is not the appointment's practitioner."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: >-
+            `already_requested`: the appointment has a request of that questionnaire (a withdrawn one may be
+            requested again); `not_active`: the version is a draft or retired; `appointment_started`: the
+            appointment has started; `appointment_closed`: it is no longer booked; `consent_required`: the
+            patient's consent with the clinic is not active.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /questionnaire-responses/{id}/answers:
+    parameters:
+      - $ref: "#/components/parameters/QuestionnaireResponseID"
+    put:
+      operationId: saveQuestionnaireAnswers
+      summary: Save the answers
+      description: >-
+        The patient replaces the saved answers of their questionnaire while it is in progress, before the
+        appointment starts, with an active consent. Send If-Match with the version read; the answer carries the
+        new version as its ETag. Each answer is checked against its item's type and limits; required questions
+        and conditions are checked on submit. The body is read up to 256 KiB. Not cached. Audited, also when
+        refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SaveAnswersRequest"}
+      responses:
+        "200":
+          $ref: "#/components/responses/QuestionnaireResponse"
+        "400":
+          description: >-
+            `invalid_request`: no or an unreadable If-Match, a body that is not the request (an integer outside
+            32 bits included), or over 256 KiB.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/AnswersForbidden"
+        "404":
+          $ref: "#/components/responses/QuestionnaireResponseNotFound"
+        "409":
+          $ref: "#/components/responses/AnswersClosed"
+        "412":
+          $ref: "#/components/responses/QuestionnaireResponseChanged"
+        "422":
+          $ref: "#/components/responses/AnswersInvalid"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /questionnaire-responses/{id}/submit:
+    parameters:
+      - $ref: "#/components/parameters/QuestionnaireResponseID"
+    post:
+      operationId: submitQuestionnaireAnswers
+      summary: Submit the answers
+      description: >-
+        The patient submits the saved answers, as they were read (If-Match): every shown required question
+        must be answered; the answers of hidden questions are removed. Final: no later change. The appointment's
+        practitioner reads the answers from then on. Not cached. Audited, also when refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          $ref: "#/components/responses/QuestionnaireResponse"
+        "400":
+          description: "`invalid_request`: no or an unreadable If-Match."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/AnswersForbidden"
+        "404":
+          $ref: "#/components/responses/QuestionnaireResponseNotFound"
+        "409":
+          $ref: "#/components/responses/AnswersClosed"
+        "412":
+          $ref: "#/components/responses/QuestionnaireResponseChanged"
+        "422":
+          $ref: "#/components/responses/AnswersInvalid"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /questionnaire-responses/{id}/withdraw:
+    parameters:
+      - $ref: "#/components/parameters/QuestionnaireResponseID"
+    post:
+      operationId: withdrawQuestionnaire
+      summary: Withdraw a questionnaire request
+      description: >-
+        The appointment's practitioner withdraws a request the patient has not submitted: it is stopped and its
+        answers are cleared at once. Not cached. Audited, also when refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "200":
+          $ref: "#/components/responses/QuestionnaireResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: the caller sees the request but may not withdraw it (the patient, the clinic's admin); or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          $ref: "#/components/responses/QuestionnaireResponseNotFound"
+        "409":
+          description: "`submitted`: the patient has submitted it; `withdrawn`: it is already withdrawn."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /webhooks/livekit:
     post:
       operationId: receiveLiveKitWebhook
@@ -1496,6 +1666,14 @@ components:
       schema:
         type: string
         format: uuid
+    QuestionnaireResponseID:
+      name: id
+      in: path
+      required: true
+      description: The response's id (FHIR QuestionnaireResponse.id).
+      schema:
+        type: string
+        format: uuid
     IfMatch:
       name: If-Match
       in: header
@@ -1548,6 +1726,44 @@ components:
         `invalid_questionnaire`: the content breaks a rule of docs/questionnaire/SPEC.md §2 "Item model",
         "Limits" or "linkIds"; `linkIds` names the offending items (none when the title, the description, the
         number of items or a malformed linkId is at fault).
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    QuestionnaireResponse:
+      description: The questionnaire request and its answers.
+      headers:
+        ETag: {schema: {type: string}, description: 'The version, W/"<versionId>".'}
+        Cache-Control: {schema: {type: string, const: no-store}}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/QuestionnaireResponse"}
+    QuestionnaireResponseNotFound:
+      description: "`not_found`: no such questionnaire request, or the caller may not see it."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    QuestionnaireResponseChanged:
+      description: "`version_conflict`: the answers changed since they were read; read them again."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    AnswersForbidden:
+      description: "`forbidden`: the caller sees the request but is not its patient (staff); or `csrf`."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    AnswersClosed:
+      description: >-
+        `submitted`: already submitted; `withdrawn`: the practitioner withdrew it; `past_due`: the appointment
+        has started; `consent_required`: the patient's consent with the clinic is not active.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    AnswersInvalid:
+      description: >-
+        `answers_invalid`: an answer does not fit its item's type or limits (docs/questionnaire/SPEC.md §2
+        "Limits"), or, on submit, a shown required question is unanswered; `linkIds` names them in document
+        order (an answer to no item of the questionnaire is refused without being named).
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
@@ -2148,6 +2364,103 @@ components:
           type: string
           format: uuid
           description: Any version of the questionnaire.
+    RequestQuestionnaireRequest:
+      type: object
+      required: [questionnaireId]
+      additionalProperties: false
+      properties:
+        questionnaireId:
+          type: string
+          format: uuid
+          description: The active version to ask.
+    AnswerValue:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      maxProperties: 1
+      description: >-
+        One answer value, as FHIR QuestionnaireResponse.item.answer.value[x], of the item's type: `valueString`
+        for string, text and choice (one of its options), `valueBoolean`, `valueInteger`, `valueDecimal`
+        (written plainly, at most 15 significant digits), `valueDate` (YYYY-MM-DD).
+      properties:
+        valueString:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        valueBoolean:
+          type: boolean
+        valueInteger:
+          type: integer
+          format: int32
+        valueDecimal:
+          type: number
+        valueDate:
+          type: string
+          format: date
+    Answer:
+      type: object
+      required: [linkId, values]
+      additionalProperties: false
+      description: The answer to one question; several values only for a choice with repeats.
+      properties:
+        linkId:
+          type: string
+        values:
+          type: array
+          minItems: 1
+          items: {$ref: "#/components/schemas/AnswerValue"}
+    SaveAnswersRequest:
+      type: object
+      required: [answers]
+      additionalProperties: false
+      properties:
+        answers:
+          type: array
+          description: Every saved answer; a question left out is unanswered.
+          items: {$ref: "#/components/schemas/Answer"}
+    QuestionnaireResponse:
+      type: object
+      required: [id, appointmentId, questionnaireId, status, source, answers, dueAt, lastUpdated, versionId]
+      description: >-
+        A questionnaire the patient is asked to fill in before an appointment, and their answers (FHIR
+        QuestionnaireResponse; reads go through FHIR, the answers nested under the questionnaire's sections).
+      properties:
+        id:
+          type: string
+          format: uuid
+        appointmentId:
+          type: string
+          format: uuid
+        questionnaireId:
+          type: string
+          format: uuid
+          description: The questionnaire version asked.
+        status:
+          type: string
+          enum: [in-progress, completed, stopped]
+          description: In progress, submitted, or withdrawn by the practitioner.
+        source:
+          type: string
+          enum: [default, added]
+          description: The practitioner role's default, with the booking, or added by the practitioner.
+        answers:
+          type: array
+          items: {$ref: "#/components/schemas/Answer"}
+        dueAt:
+          type: string
+          format: date-time
+          description: The appointment's start; the answers are due before it.
+        authored:
+          type: string
+          format: date-time
+          description: When the patient submitted; absent before.
+        lastUpdated:
+          type: string
+          format: date-time
+        versionId:
+          type: integer
+          format: int32
+          description: The version of the answers, for If-Match.
     Error:
       type: object
       required: [error]
@@ -2196,12 +2509,18 @@ components:
             - not_active
             - draft_exists
             - invalid_questionnaire
+            - already_requested
+            - appointment_started
+            - submitted
+            - withdrawn
+            - past_due
+            - answers_invalid
             - internal error
             - timeout
         linkIds:
           type: array
           items: {type: string}
-          description: With `invalid_questionnaire` only, the offending items' linkIds in document order.
+          description: With `invalid_questionnaire` and `answers_invalid` only, the offending items' linkIds in document order.
     ConsultationJoin:
       type: object
       required: [url, token, expiresAt, peerName, role]

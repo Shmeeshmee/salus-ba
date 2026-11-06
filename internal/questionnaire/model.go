@@ -107,10 +107,11 @@ type Default struct {
 }
 
 // Caller is who asks: the signed-in account and, for staff, its clinic, whether they are its admin and the
-// practitioner they are (empty for an admin who is not one).
+// practitioner they are (empty for an admin who is not one); for a patient, their profile's id.
 type Caller struct {
 	AccountID      string
 	OrganizationID string // empty for a patient
 	PractitionerID string
+	PatientID      string // a patient's profile; empty for staff and before the profile exists
 	Admin          bool
 }

@@ -22,6 +22,10 @@ const maxBody = 256 << 10
 // placeholder base until the real domain is known.
 const canonicalBase = "https://salus.invalid/fhir/Questionnaire/"
 
+// CanonicalURL is the canonical url of the series seriesID: Questionnaire.url, and with "|<version>"
+// QuestionnaireResponse.questionnaire.
+func CanonicalURL(seriesID string) string { return canonicalBase + seriesID }
+
 // Library edits a clinic's questionnaires and its roles' defaults for a caller (Service).
 type Library interface {
 	Create(ctx context.Context, c Caller, in Content) (Questionnaire, error)
@@ -214,7 +218,7 @@ func (h *HTTPHandler) write(w http.ResponseWriter, r *http.Request, status int, 
 	}
 	w.Header().Set("ETag", fhir.ETag(strconv.FormatInt(int64(q.VersionID), 10)))
 	httpx.JSON(w, status, questionnaireJSON{
-		ID: q.ID, URL: canonicalBase + q.SeriesID, Version: q.Version, Status: q.Status, Title: q.Title,
+		ID: q.ID, URL: CanonicalURL(q.SeriesID), Version: q.Version, Status: q.Status, Title: q.Title,
 		Description: q.Description, Items: items, VersionID: q.VersionID, LastUpdated: q.LastUpdated.UTC().Format(time.RFC3339),
 	})
 }
@@ -226,7 +230,7 @@ func (h *HTTPHandler) writeDefault(w http.ResponseWriter, r *http.Request, d Def
 	}
 	out := defaultJSON{PractitionerRoleID: d.PractitionerRoleID, VersionID: d.VersionID}
 	if d.SeriesID != "" {
-		out.URL = canonicalBase + d.SeriesID
+		out.URL = CanonicalURL(d.SeriesID)
 	}
 	httpx.JSON(w, http.StatusOK, out)
 }

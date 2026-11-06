@@ -402,6 +402,94 @@ class QuestionnairesApi {
     return null;
   }
 
+  /// Ask the patient to fill in a questionnaire
+  ///
+  /// The appointment's practitioner asks the patient to fill in an active questionnaire of the clinic before the appointment starts (FHIR QuestionnaireResponse, in progress, no answers; reads go through FHIR). The appointment must be booked and not started, and the patient's consent with the clinic active. Not cached. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [RequestQuestionnaireRequest] requestQuestionnaireRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> requestQuestionnaireWithHttpInfo(
+    String id,
+    RequestQuestionnaireRequest requestQuestionnaireRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/appointments/{id}/questionnaires'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody = requestQuestionnaireRequest;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Ask the patient to fill in a questionnaire
+  ///
+  /// The appointment's practitioner asks the patient to fill in an active questionnaire of the clinic before the appointment starts (FHIR QuestionnaireResponse, in progress, no answers; reads go through FHIR). The appointment must be booked and not started, and the patient's consent with the clinic active. Not cached. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [RequestQuestionnaireRequest] requestQuestionnaireRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<QuestionnaireResponse?> requestQuestionnaire(
+    String id,
+    RequestQuestionnaireRequest requestQuestionnaireRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await requestQuestionnaireWithHttpInfo(
+      id,
+      requestQuestionnaireRequest,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'QuestionnaireResponse',
+      ) as QuestionnaireResponse;
+    }
+    return null;
+  }
+
   /// Retire the active version
   ///
   /// Retires an active version: it is no longer requested, also as a role's default; requests already made keep it. Staff of the clinic. Audited, also when refused.
@@ -568,6 +656,107 @@ class QuestionnairesApi {
     return null;
   }
 
+  /// Save the answers
+  ///
+  /// The patient replaces the saved answers of their questionnaire while it is in progress, before the appointment starts, with an active consent. Send If-Match with the version read; the answer carries the new version as its ETag. Each answer is checked against its item's type and limits; required questions and conditions are checked on submit. The body is read up to 256 KiB. Not cached. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [String] id (required):
+  ///   The response's id (FHIR QuestionnaireResponse.id).
+  ///
+  /// * [SaveAnswersRequest] saveAnswersRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> saveQuestionnaireAnswersWithHttpInfo(
+    String ifMatch,
+    String id,
+    SaveAnswersRequest saveAnswersRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path =
+        r'/questionnaire-responses/{id}/answers'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody = saveAnswersRequest;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+    headerParams[r'If-Match'] = parameterToString(ifMatch);
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'PUT',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Save the answers
+  ///
+  /// The patient replaces the saved answers of their questionnaire while it is in progress, before the appointment starts, with an active consent. Send If-Match with the version read; the answer carries the new version as its ETag. Each answer is checked against its item's type and limits; required questions and conditions are checked on submit. The body is read up to 256 KiB. Not cached. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [String] id (required):
+  ///   The response's id (FHIR QuestionnaireResponse.id).
+  ///
+  /// * [SaveAnswersRequest] saveAnswersRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<QuestionnaireResponse?> saveQuestionnaireAnswers(
+    String ifMatch,
+    String id,
+    SaveAnswersRequest saveAnswersRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await saveQuestionnaireAnswersWithHttpInfo(
+      ifMatch,
+      id,
+      saveAnswersRequest,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'QuestionnaireResponse',
+      ) as QuestionnaireResponse;
+    }
+    return null;
+  }
+
   /// Set a practitioner role's default questionnaire
   ///
   /// Makes the questionnaire of `questionnaireId` (any of its versions) the role's default: from now on its active version is requested with every booking with the role. Who may is as for the read. Audited, also when refused.
@@ -653,6 +842,99 @@ class QuestionnairesApi {
         await _decodeBodyBytes(response),
         'QuestionnaireDefault',
       ) as QuestionnaireDefault;
+    }
+    return null;
+  }
+
+  /// Submit the answers
+  ///
+  /// The patient submits the saved answers, as they were read (If-Match): every shown required question must be answered; the answers of hidden questions are removed. Final: no later change. The appointment's practitioner reads the answers from then on. Not cached. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [String] id (required):
+  ///   The response's id (FHIR QuestionnaireResponse.id).
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> submitQuestionnaireAnswersWithHttpInfo(
+    String ifMatch,
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/questionnaire-responses/{id}/submit'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+    headerParams[r'If-Match'] = parameterToString(ifMatch);
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Submit the answers
+  ///
+  /// The patient submits the saved answers, as they were read (If-Match): every shown required question must be answered; the answers of hidden questions are removed. Final: no later change. The appointment's practitioner reads the answers from then on. Not cached. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [String] id (required):
+  ///   The response's id (FHIR QuestionnaireResponse.id).
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<QuestionnaireResponse?> submitQuestionnaireAnswers(
+    String ifMatch,
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await submitQuestionnaireAnswersWithHttpInfo(
+      ifMatch,
+      id,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'QuestionnaireResponse',
+      ) as QuestionnaireResponse;
     }
     return null;
   }
@@ -753,6 +1035,90 @@ class QuestionnairesApi {
         await _decodeBodyBytes(response),
         'Questionnaire',
       ) as Questionnaire;
+    }
+    return null;
+  }
+
+  /// Withdraw a questionnaire request
+  ///
+  /// The appointment's practitioner withdraws a request the patient has not submitted: it is stopped and its answers are cleared at once. Not cached. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The response's id (FHIR QuestionnaireResponse.id).
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> withdrawQuestionnaireWithHttpInfo(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path =
+        r'/questionnaire-responses/{id}/withdraw'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Withdraw a questionnaire request
+  ///
+  /// The appointment's practitioner withdraws a request the patient has not submitted: it is stopped and its answers are cleared at once. Not cached. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The response's id (FHIR QuestionnaireResponse.id).
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<QuestionnaireResponse?> withdrawQuestionnaire(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await withdrawQuestionnaireWithHttpInfo(
+      id,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'QuestionnaireResponse',
+      ) as QuestionnaireResponse;
     }
     return null;
   }

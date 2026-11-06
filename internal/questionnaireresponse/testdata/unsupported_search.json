@@ -1,0 +1,1 @@
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"Search by appointment, patient and status, each once, optionally with _include=QuestionnaireResponse:questionnaire."}]}

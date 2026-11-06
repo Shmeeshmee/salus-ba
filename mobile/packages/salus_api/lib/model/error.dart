@@ -19,7 +19,7 @@ class Error {
 
   ErrorErrorEnum error;
 
-  /// With `invalid_questionnaire` only, the offending items' linkIds in document order.
+  /// With `invalid_questionnaire` and `answers_invalid` only, the offending items' linkIds in document order.
   List<String> linkIds;
 
   @override
@@ -170,6 +170,12 @@ enum ErrorErrorEnum {
   notActive._(r'not_active'),
   draftExists._(r'draft_exists'),
   invalidQuestionnaire._(r'invalid_questionnaire'),
+  alreadyRequested._(r'already_requested'),
+  appointmentStarted._(r'appointment_started'),
+  submitted._(r'submitted'),
+  withdrawn._(r'withdrawn'),
+  pastDue._(r'past_due'),
+  answersInvalid._(r'answers_invalid'),
   internalError._(r'internal error'),
   timeout._(r'timeout'),
   ;
@@ -315,6 +321,18 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.draftExists;
         case r'invalid_questionnaire':
           return ErrorErrorEnum.invalidQuestionnaire;
+        case r'already_requested':
+          return ErrorErrorEnum.alreadyRequested;
+        case r'appointment_started':
+          return ErrorErrorEnum.appointmentStarted;
+        case r'submitted':
+          return ErrorErrorEnum.submitted;
+        case r'withdrawn':
+          return ErrorErrorEnum.withdrawn;
+        case r'past_due':
+          return ErrorErrorEnum.pastDue;
+        case r'answers_invalid':
+          return ErrorErrorEnum.answersInvalid;
         case r'internal error':
           return ErrorErrorEnum.internalError;
         case r'timeout':

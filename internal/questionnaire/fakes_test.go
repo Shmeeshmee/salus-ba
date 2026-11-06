@@ -106,7 +106,7 @@ func (r *fakeRepository) Search(ctx context.Context, f questionnaire.Filter) ([]
 	r.seen(ctx, "Search")
 	var out []questionnaire.Questionnaire
 	for _, q := range r.rows {
-		if r.visible(q.OrganizationID) && (f.SeriesID == "" || q.SeriesID == f.SeriesID) &&
+		if r.shows(q) && (f.SeriesID == "" || q.SeriesID == f.SeriesID) &&
 			(f.Status == "" || q.Status == f.Status) && (f.Version == 0 || q.Version == f.Version) {
 			out = append(out, q)
 		}

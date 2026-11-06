@@ -247,8 +247,12 @@ func (s *Service) DeleteDraft(ctx context.Context, c Caller, id string) error {
 	})
 }
 
-// Read returns the version id of c's clinic.
+// Read returns the version id of c's clinic, or, to a patient, a version their own responses reference
+// (Referenced).
 func (s *Service) Read(ctx context.Context, c Caller, id string) (Questionnaire, error) {
+	if patientCaller(c) {
+		return s.Referenced(ctx, c, c.PatientID, id)
+	}
 	var out Questionnaire
 	err := s.do(ctx, c, opRead, func(ctx context.Context) ([]string, error, error) {
 		var failed, err error
@@ -297,9 +301,13 @@ func (s *Service) Referenced(ctx context.Context, c Caller, patientID, id string
 	return out, nil
 }
 
-// Search returns the versions of c's clinic the filter gives, oldest first. Each one returned is audited; a
-// search that returns none writes one event without an entity.
+// Search returns the versions of c's clinic the filter gives, oldest first, or, to a patient, those of the
+// versions their own responses reference (row-level security of the patient's scope). Each one returned is
+// audited; a search that returns none writes one event without an entity.
 func (s *Service) Search(ctx context.Context, c Caller, f Filter) ([]Questionnaire, error) {
+	if patientCaller(c) {
+		return s.searchReferenced(ctx, c, f)
+	}
 	var out []Questionnaire
 	err := s.do(ctx, c, opSearch, func(ctx context.Context) ([]string, error, error) {
 		all, err := s.Repo.Search(ctx, f)
@@ -317,6 +325,36 @@ func (s *Service) Search(ctx context.Context, c Caller, f Filter) ([]Questionnai
 	})
 	if err != nil {
 		return nil, err
+	}
+	return out, nil
+}
+
+// patientCaller tells whether c is a patient with a profile, who reads the versions their responses reference.
+func patientCaller(c Caller) bool { return c.OrganizationID == "" && c.PatientID != "" }
+
+// searchReferenced is Search in the scope of the patient c.
+func (s *Service) searchReferenced(ctx context.Context, c Caller, f Filter) ([]Questionnaire, error) {
+	var out []Questionnaire
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.Repo.SetPatient(ctx, c.PatientID); err != nil {
+			return err
+		}
+		var err error
+		if out, err = s.Repo.Search(ctx, f); err != nil {
+			return err
+		}
+		if len(out) == 0 {
+			return s.record(ctx, c, opSearch, "", auditevent.OutcomeSuccess)
+		}
+		for _, q := range out {
+			if err := s.record(ctx, c, opSearch, q.ID, auditevent.OutcomeSuccess); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("questionnaire: search: %w", err)
 	}
 	return out, nil
 }

@@ -60,7 +60,8 @@ func TestNew_ServesTheQuestionnaireLibraryToStaffOfTheClinicAndAuditsIt(t *testi
 		{"the updates of the version", "subtype_code = 'update' AND entity_reference = 'Questionnaire/' || $1 AND outcome = 0", 3, 0},
 		{"the refused updates", "subtype_code = 'update' AND entity_reference = 'Questionnaire/' || $1 AND outcome = 4", 3, 0},
 		{"the refused revises", "subtype_code = 'create' AND entity_reference = 'Questionnaire/' || $1 AND outcome = 4", 2, 0},
-		{"the refusals without a clinic", "entity_reference IS NULL AND organization_id IS NULL AND outcome = 4 AND purpose_code = 'PATRQT'", 5, 0},
+		// The patient's 5 refused calls, and before each the caller's refused lookup of their profile (they have none).
+		{"the refusals without a clinic", "entity_reference IS NULL AND organization_id IS NULL AND outcome = 4 AND purpose_code = 'PATRQT'", 10, 0},
 		{"another clinic's refusals", "entity_reference IS NULL AND organization_id = 'b0000000-0000-4000-8000-00000000000b' AND outcome = 4", 4, 0},
 		{"the reads of the version", "subtype_code = 'read' AND entity_reference = 'Questionnaire/' || $1 AND outcome = 0", 2, 0},
 		{"each version a search returned", "subtype_code = 'search-type' AND entity_reference LIKE 'Questionnaire/%'", 3, 0},

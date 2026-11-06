@@ -46,8 +46,8 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /fhir/R4/Questionnaire", h.search)
 }
 
-// resource is a Questionnaire as FHIR R4 JSON.
-type resource struct {
+// Resource is a Questionnaire as FHIR R4 JSON.
+type Resource struct {
 	ResourceType string     `json:"resourceType"`
 	ID           string     `json:"id"`
 	Meta         fhir.Meta  `json:"meta"`
@@ -86,10 +86,11 @@ type itemControl struct {
 	ValueCodeableConcept fhir.CodeableConcept `json:"valueCodeableConcept"`
 }
 
-func toFHIR(q Questionnaire) resource {
-	return resource{
+// ToFHIR is the version q as a FHIR Questionnaire; a QuestionnaireResponse search includes it.
+func ToFHIR(q Questionnaire) Resource {
+	return Resource{
 		ResourceType: "Questionnaire", ID: q.ID, Meta: fhir.NewMeta(q.VersionID, q.LastUpdated),
-		URL: canonicalBase + q.SeriesID, Version: strconv.FormatInt(int64(q.Version), 10), Title: q.Title, Status: q.Status,
+		URL: CanonicalURL(q.SeriesID), Version: strconv.FormatInt(int64(q.Version), 10), Title: q.Title, Status: q.Status,
 		SubjectType: []string{"Patient"}, Date: q.LastUpdated.UTC().Format(time.RFC3339), Description: q.Description,
 		Item: toFHIRItems(q.Items),
 	}
@@ -133,7 +134,7 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 		fhir.InternalError(w, r, h.log, err)
 	default:
 		w.Header().Set("ETag", fhir.ETag(strconv.FormatInt(int64(q.VersionID), 10)))
-		fhir.Write(w, http.StatusOK, toFHIR(q))
+		fhir.Write(w, http.StatusOK, ToFHIR(q))
 	}
 }
 
@@ -159,7 +160,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	}
 	matches := make([]fhir.BundleEntry, 0, len(all))
 	for _, v := range all {
-		matches = append(matches, fhir.BundleEntry{FullURL: h.base + "/Questionnaire/" + v.ID, Resource: toFHIR(v)})
+		matches = append(matches, fhir.BundleEntry{FullURL: h.base + "/Questionnaire/" + v.ID, Resource: ToFHIR(v)})
 	}
 	self := h.base + "/Questionnaire"
 	if len(q) > 0 {

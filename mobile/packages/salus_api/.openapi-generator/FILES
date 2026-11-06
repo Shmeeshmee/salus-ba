@@ -23,6 +23,8 @@ lib/auth/oauth.dart
 lib/model/accept_invite_request.dart
 lib/model/acceptance.dart
 lib/model/account.dart
+lib/model/answer.dart
+lib/model/answer_value.dart
 lib/model/appointment.dart
 lib/model/availability.dart
 lib/model/availability_rule.dart
@@ -48,8 +50,11 @@ lib/model/questionnaire_default.dart
 lib/model/questionnaire_item.dart
 lib/model/questionnaire_item_answer_option_inner.dart
 lib/model/questionnaire_item_enable_when.dart
+lib/model/questionnaire_response.dart
 lib/model/register_request.dart
+lib/model/request_questionnaire_request.dart
 lib/model/role_specialty.dart
+lib/model/save_answers_request.dart
 lib/model/save_availability_request.dart
 lib/model/save_patient_request.dart
 lib/model/save_questionnaire_request.dart

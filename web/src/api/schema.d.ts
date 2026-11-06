@@ -644,6 +644,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/appointments/{id}/questionnaires": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the patient to fill in a questionnaire
+         * @description The appointment's practitioner asks the patient to fill in an active questionnaire of the clinic before the appointment starts (FHIR QuestionnaireResponse, in progress, no answers; reads go through FHIR). The appointment must be booked and not started, and the patient's consent with the clinic active. Not cached. Audited, also when refused.
+         */
+        post: operations["requestQuestionnaire"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questionnaire-responses/{id}/answers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The response's id (FHIR QuestionnaireResponse.id). */
+                id: components["parameters"]["QuestionnaireResponseID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save the answers
+         * @description The patient replaces the saved answers of their questionnaire while it is in progress, before the appointment starts, with an active consent. Send If-Match with the version read; the answer carries the new version as its ETag. Each answer is checked against its item's type and limits; required questions and conditions are checked on submit. The body is read up to 256 KiB. Not cached. Audited, also when refused.
+         */
+        put: operations["saveQuestionnaireAnswers"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questionnaire-responses/{id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The response's id (FHIR QuestionnaireResponse.id). */
+                id: components["parameters"]["QuestionnaireResponseID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit the answers
+         * @description The patient submits the saved answers, as they were read (If-Match): every shown required question must be answered; the answers of hidden questions are removed. Final: no later change. The appointment's practitioner reads the answers from then on. Not cached. Audited, also when refused.
+         */
+        post: operations["submitQuestionnaireAnswers"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questionnaire-responses/{id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The response's id (FHIR QuestionnaireResponse.id). */
+                id: components["parameters"]["QuestionnaireResponseID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw a questionnaire request
+         * @description The appointment's practitioner withdraws a request the patient has not submitted: it is stopped and its answers are cleared at once. Not cached. Audited, also when refused.
+         */
+        post: operations["withdrawQuestionnaire"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhooks/livekit": {
         parameters: {
             query?: never;
@@ -1012,11 +1101,77 @@ export interface components {
              */
             questionnaireId: string;
         };
+        RequestQuestionnaireRequest: {
+            /**
+             * Format: uuid
+             * @description The active version to ask.
+             */
+            questionnaireId: string;
+        };
+        /** @description One answer value, as FHIR QuestionnaireResponse.item.answer.value[x], of the item's type: `valueString` for string, text and choice (one of its options), `valueBoolean`, `valueInteger`, `valueDecimal` (written plainly, at most 15 significant digits), `valueDate` (YYYY-MM-DD). */
+        AnswerValue: {
+            valueString?: string;
+            valueBoolean?: boolean;
+            /** Format: int32 */
+            valueInteger?: number;
+            valueDecimal?: number;
+            /** Format: date */
+            valueDate?: string;
+        };
+        /** @description The answer to one question; several values only for a choice with repeats. */
+        Answer: {
+            linkId: string;
+            values: components["schemas"]["AnswerValue"][];
+        };
+        SaveAnswersRequest: {
+            /** @description Every saved answer; a question left out is unanswered. */
+            answers: components["schemas"]["Answer"][];
+        };
+        /** @description A questionnaire the patient is asked to fill in before an appointment, and their answers (FHIR QuestionnaireResponse; reads go through FHIR, the answers nested under the questionnaire's sections). */
+        QuestionnaireResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            appointmentId: string;
+            /**
+             * Format: uuid
+             * @description The questionnaire version asked.
+             */
+            questionnaireId: string;
+            /**
+             * @description In progress, submitted, or withdrawn by the practitioner.
+             * @enum {string}
+             */
+            status: "in-progress" | "completed" | "stopped";
+            /**
+             * @description The practitioner role's default, with the booking, or added by the practitioner.
+             * @enum {string}
+             */
+            source: "default" | "added";
+            answers: components["schemas"]["Answer"][];
+            /**
+             * Format: date-time
+             * @description The appointment's start; the answers are due before it.
+             */
+            dueAt: string;
+            /**
+             * Format: date-time
+             * @description When the patient submitted; absent before.
+             */
+            authored?: string;
+            /** Format: date-time */
+            lastUpdated: string;
+            /**
+             * Format: int32
+             * @description The version of the answers, for If-Match.
+             */
+            versionId: number;
+        };
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "internal error" | "timeout";
-            /** @description With `invalid_questionnaire` only, the offending items' linkIds in document order. */
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "internal error" | "timeout";
+            /** @description With `invalid_questionnaire` and `answers_invalid` only, the offending items' linkIds in document order. */
             linkIds?: string[];
         };
         /** @description What a client needs to join the room. The token is a secret: it is never logged or stored. Health data: it shows whom the patient consults. */
@@ -1148,6 +1303,63 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description The questionnaire request and its answers. */
+        QuestionnaireResponse: {
+            headers: {
+                /** @description The version, W/"<versionId>". */
+                ETag?: string;
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["QuestionnaireResponse"];
+            };
+        };
+        /** @description `not_found`: no such questionnaire request, or the caller may not see it. */
+        QuestionnaireResponseNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `version_conflict`: the answers changed since they were read; read them again. */
+        QuestionnaireResponseChanged: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `forbidden`: the caller sees the request but is not its patient (staff); or `csrf`. */
+        AnswersForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `submitted`: already submitted; `withdrawn`: the practitioner withdrew it; `past_due`: the appointment has started; `consent_required`: the patient's consent with the clinic is not active. */
+        AnswersClosed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `answers_invalid`: an answer does not fit its item's type or limits (docs/questionnaire/SPEC.md §2 "Limits"), or, on submit, a shown required question is unanswered; `linkIds` names them in document order (an answer to no item of the questionnaire is refused without being named). */
+        AnswersInvalid: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description The next step (`verify` or `enrol`, with the challenge), or `done` with the session: in the `salus_session` cookie (HttpOnly, Secure, SameSite=Strict) when `X-Salus-CSRF: 1` was sent, else as `token`. Not cached. */
         LoginStep: {
             headers: {
@@ -1195,6 +1407,8 @@ export interface components {
         CSRF: "1";
         /** @description The version's id (FHIR Questionnaire.id). */
         QuestionnaireID: string;
+        /** @description The response's id (FHIR QuestionnaireResponse.id). */
+        QuestionnaireResponseID: string;
         /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
         IfMatch: string;
         AppointmentID: string;
@@ -2933,6 +3147,172 @@ export interface operations {
                 };
             };
             /** @description `consultation_not_started`: the practitioner has not joined the consultation. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    requestQuestionnaire: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: components["parameters"]["AppointmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestQuestionnaireRequest"];
+            };
+        };
+        responses: {
+            201: components["responses"]["QuestionnaireResponse"];
+            /** @description `invalid_request`: a body that is not the request. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["CSRF"];
+            /** @description `not_found`: no such appointment or questionnaire, or the caller is not the appointment's practitioner. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `already_requested`: the appointment has a request of that questionnaire (a withdrawn one may be requested again); `not_active`: the version is a draft or retired; `appointment_started`: the appointment has started; `appointment_closed`: it is no longer booked; `consent_required`: the patient's consent with the clinic is not active. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    saveQuestionnaireAnswers: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description The response's id (FHIR QuestionnaireResponse.id). */
+                id: components["parameters"]["QuestionnaireResponseID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveAnswersRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["QuestionnaireResponse"];
+            /** @description `invalid_request`: no or an unreadable If-Match, a body that is not the request (an integer outside 32 bits included), or over 256 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AnswersForbidden"];
+            404: components["responses"]["QuestionnaireResponseNotFound"];
+            409: components["responses"]["AnswersClosed"];
+            412: components["responses"]["QuestionnaireResponseChanged"];
+            422: components["responses"]["AnswersInvalid"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    submitQuestionnaireAnswers: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description The response's id (FHIR QuestionnaireResponse.id). */
+                id: components["parameters"]["QuestionnaireResponseID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["QuestionnaireResponse"];
+            /** @description `invalid_request`: no or an unreadable If-Match. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AnswersForbidden"];
+            404: components["responses"]["QuestionnaireResponseNotFound"];
+            409: components["responses"]["AnswersClosed"];
+            412: components["responses"]["QuestionnaireResponseChanged"];
+            422: components["responses"]["AnswersInvalid"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    withdrawQuestionnaire: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The response's id (FHIR QuestionnaireResponse.id). */
+                id: components["parameters"]["QuestionnaireResponseID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["QuestionnaireResponse"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: the caller sees the request but may not withdraw it (the patient, the clinic's admin); or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["QuestionnaireResponseNotFound"];
+            /** @description `submitted`: the patient has submitted it; `withdrawn`: it is already withdrawn. */
             409: {
                 headers: {
                     [name: string]: unknown;

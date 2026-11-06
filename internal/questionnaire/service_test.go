@@ -281,3 +281,59 @@ func TestReferenced_ReturnsTheRepositoryErrorWrapped(t *testing.T) {
 		t.Errorf("Referenced() = %v with %d events, want the error and no event", err, len(f.audit.events))
 	}
 }
+
+// A patient with a profile reads, through Read, the versions their own responses reference (package 6), in
+// their scope and audited as their own request; any other version is ErrNotFound. A patient without a profile
+// is still refused with ErrForbidden (TestService_RefusesAPatientWithForbiddenAndAuditsIt).
+func TestRead_GivesAPatientTheVersionsTheirResponsesReference(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	f.repo.referenced = map[string][]string{patientA: {activeA}}
+	me := questionnaire.Caller{AccountID: patient.AccountID, PatientID: patientA}
+
+	got, err := f.svc.Read(t.Context(), me, activeA)
+	if err != nil || got.ID != activeA {
+		t.Errorf("Read() of a referenced version = %+v, %v; want it", got, err)
+	}
+	for _, id := range []string{draftA, activeB, missing} {
+		if _, err := f.svc.Read(t.Context(), me, id); !errors.Is(err, questionnaire.ErrNotFound) {
+			t.Errorf("Read(%s) of a version no response of theirs references = %v, want ErrNotFound", id, err)
+		}
+	}
+	if f.repo.patient != patientA || f.repo.clinic != "" {
+		t.Errorf("scoped to patient %q, clinic %q; want the patient only", f.repo.patient, f.repo.clinic)
+	}
+	read := func(entity string, outcome auditevent.Outcome) event {
+		return event{agent: patient.AccountID, subtype: auditevent.CodeRead, purpose: auditevent.CodePATRQT, entity: entity, action: auditevent.ActionRead, outcome: outcome}
+	}
+	refused := read("", auditevent.OutcomeMinorFailure)
+	assertEvents(t, f.audit, read("Questionnaire/"+activeA, auditevent.OutcomeSuccess), refused, refused, refused)
+}
+
+// A patient's search runs in their scope: only the versions their own responses reference, by the filter,
+// each audited as their own request; none gives one event without an entity.
+func TestSearch_GivesAPatientOnlyTheVersionsTheirResponsesReference(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	f.repo.referenced = map[string][]string{patientA: {activeA, activeB}}
+	me := questionnaire.Caller{AccountID: patient.AccountID, PatientID: patientA}
+
+	got, err := f.svc.Search(t.Context(), me, questionnaire.Filter{SeriesID: seriesA})
+	if err != nil || len(got) != 1 || got[0].ID != activeA {
+		t.Errorf("Search(series A) = %+v, %v; want version 1 only (the draft is not referenced)", got, err)
+	}
+	none, err := f.svc.Search(t.Context(), me, questionnaire.Filter{Status: questionnaire.StatusDraft})
+	if err != nil || len(none) != 0 {
+		t.Errorf("Search(draft) = %+v, %v; want none", none, err)
+	}
+	if f.repo.patient != patientA || f.repo.clinic != "" {
+		t.Errorf("scoped to patient %q, clinic %q; want the patient only", f.repo.patient, f.repo.clinic)
+	}
+	search := func(entity string) event {
+		return event{agent: patient.AccountID, subtype: auditevent.CodeSearchType, purpose: auditevent.CodePATRQT, entity: entity, action: auditevent.ActionExecute, outcome: auditevent.OutcomeSuccess}
+	}
+	assertEvents(t, f.audit, search("Questionnaire/"+activeA), search(""))
+	if len(f.repo.outside) != 0 {
+		t.Errorf("called outside a transaction: %v", f.repo.outside)
+	}
+}

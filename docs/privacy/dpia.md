@@ -941,3 +941,35 @@ package 3.
 | A questionnaire requested without consent | The request reads the appointment in the clinic's scope, which hides it after a revocation, and the insert policy requires an active consent (tested) |
 | Personal data in job arguments or logs | The arguments are the two ids (tested on River's table); the logs hold the appointment's id only, never a title, question or answer (tested) |
 | A retried job duplicating or deleting more | The request inserts once per series (`ON CONFLICT DO NOTHING`); a repeated discard finds nothing left (tested) |
+
+### Package 6: responses API
+
+**Processing added.** The JSON API: the appointment's practitioner requests a questionnaire for an appointment
+(`POST /appointments/{id}/questionnaires`) and withdraws a request
+(`POST /questionnaire-responses/{id}/withdraw`); the patient saves (`PUT /questionnaire-responses/{id}/answers`)
+and submits (`POST /questionnaire-responses/{id}/submit`) their answers. The FHIR API: `QuestionnaireResponse`
+read and search (by appointment, patient and status, with `_include=QuestionnaireResponse:questionnaire`), the
+answers nested under the questionnaire's sections; and a patient's read and search of the `Questionnaire`
+versions their own responses answer. No new field, table or processor.
+
+**Purpose and lawful basis.** As package 3.
+
+**Access.** Through the services of packages 1 to 4 (`access.QuestionnaireResponse`, the consent check, row-level
+security as `salus_app`): the patient their own; the appointment's practitioner the answers once submitted and
+the status before; the clinic's admin the status only; after a revocation, the appointment's practitioner the
+submitted answers of an appointment that started before it (D9), nobody else; anyone else 404. A `Name` view
+carries no answers. Each response is written against the version it answers, read once per request as the
+caller's own audited read of it. Bodies are read up to 256 KiB, unknown fields refused. Answers are sent with
+`Cache-Control: no-store`.
+
+**Audit.** Every request, withdrawal, save, submit and read writes an `AuditEvent` in its transaction, refusals
+included; a search one per response returned (one without an entity when none), and one read per version it
+answers. The patient's caller reads their own profile first (audited, as for appointments).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Answers shown to staff before the submit, to the admin, or to another practitioner | The handler writes `item` only for a `Full` view; the access matrix is tested through the API on the real database with row-level security on, before and after a revocation |
+| Answers in logs, errors or caches | Error bodies are fixed codes with `linkIds` only; the handlers' logs hold no answer, title or question (tested); `no-store` on every answer |
+| A patient reading another clinic's questionnaire library | A patient reads a version only in their scope, where row-level security shows the versions their own responses reference (tested) |

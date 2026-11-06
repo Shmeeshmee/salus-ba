@@ -7,7 +7,7 @@
 | 3 questionnaireresponse and the access rule | done, 2026-11-06 | `questionnaire(3)` |
 | 4 Answers | done, 2026-11-06 | `questionnaire(4)` |
 | 5 Booking and cancellation | done, 2026-11-06 | `questionnaire(5)` |
-| 6 Responses API | not started | |
+| 6 Responses API | done, 2026-11-06 | `questionnaire(6)` |
 | 7 E-mail mention | not started | |
 | 8 Web: library and builder | held: W41 and W42 not approved | |
 | 9 Web: appointment and working hours | not started | |
@@ -446,4 +446,127 @@ e-mail sentence (package 7).
 
 Dev stack: no migration in this package; the running `api`, `worker` and `scheduler` containers still run the
 code before this package until they are rebuilt (`make up`).
+
+## Package 6: Responses API (done, 2026-11-06)
+
+Built:
+- `internal/questionnaireresponse/handler_http.go`: `POST /appointments/{id}/questionnaires` (201), `PUT
+  /questionnaire-responses/{id}/answers` (`If-Match`), `POST /questionnaire-responses/{id}/submit` (`If-Match`),
+  `/withdraw`. Bodies read up to 256 KiB, known fields only, one object; anything else (an integer outside 32 bits
+  included) 400 `invalid_request` before the service is called. Errors: 403 `forbidden`, 404 `not_found`, 409
+  `already_requested`, `not_active`, `appointment_started`, `appointment_closed`, `consent_required`,
+  `submitted`, `withdrawn`, `past_due`, 412 `version_conflict`, 422 `answers_invalid` with `linkIds`. The answer
+  is the `QuestionnaireResponse` schema with its `versionId` as the ETag, `Cache-Control: no-store`.
+- `internal/questionnaireresponse/handler_fhir.go`: `QuestionnaireResponse` read and search by `appointment`,
+  `patient`, `status` (each at most once) with `_include=QuestionnaireResponse:questionnaire`; anything else 400
+  `not-supported`. `questionnaire` is `<url>|<version>`, `subject` and `author` the patient, `authored` once
+  submitted, the `questionnaireresponse-appointment` extension, and for a `Full` view only `item`: the answers
+  nested under the version's sections in document order (sections without an answer, instructions and
+  unanswered questions left out). Each version the responses answer is read once per request through
+  `questionnaire.Service.Read` as the caller (audited), and included once.
+- `internal/questionnaire`: `Caller.PatientID`; `Read` and `Search` give a patient with a profile the versions
+  their own responses reference, in the patient scope (`Referenced`; `searchReferenced`), audited `PATRQT`; a
+  patient without a profile is still `ErrForbidden`. `ToFHIR` and `CanonicalURL` exported for the response
+  handler (as `practitioner.ToFHIR`).
+- `internal/api/app.go`: the response service and both handlers on `appointmentCaller`; `questionnaireCaller`
+  reads a patient's profile id through `patient.Service.Me`, as `appointmentCaller` does.
+- `api/fhir/`: `StructureDefinition-questionnaireresponse-appointment.json` (context `QuestionnaireResponse`,
+  required `valueReference` to `Appointment`), `SearchParameter-questionnaireresponse-appointment.json`
+  (`appointment`, reference, target `Appointment`); `CapabilityStatement.json` gains `QuestionnaireResponse`
+  (`read`, `search-type`, the three parameters, `searchInclude`) and the patient's access in the `Questionnaire`
+  documentation; `embed_test.go` and the router's `metadata.json` golden follow.
+- `api/openapi.yaml`: the four operations, `RequestQuestionnaireRequest`, `SaveAnswersRequest`, `Answer`,
+  `AnswerValue`, `QuestionnaireResponse`, the six new error codes and `linkIds` for `answers_invalid`; `make
+  gen-clients`.
+- Golden files (`internal/questionnaireresponse/testdata/`): `response_in_progress.json`,
+  `response_completed.json`, `response_name.json`, `search_include.json` (two responses of one version, the
+  version included once), `not_found.json`, `unsupported_search.json`, `unauthenticated.json`. Synthetic,
+  placeholder wording.
+- `test/e2e/questionnaire_latency_test.go` and `make bench-questionnaire-http`.
+- `docs/privacy/dpia.md`: the package 6 subsection.
+
+Failing first (red), each for the right reason before the code:
+- `internal/questionnaire`: `unknown field PatientID in struct literal of type questionnaire.Caller`.
+- `internal/questionnaireresponse`: `undefined: questionnaireresponse.NewHTTPHandler`, then `undefined:
+  questionnaireresponse.NewHandler`; the FHIR tests then needed the golden files, written with `-update` and
+  reviewed.
+- `api/fhir`: `QuestionnaireResponse = ""` and the missing `SearchParameter-questionnaireresponse-appointment.json`.
+- `internal/api/router`: `metadata.json` differed (rewritten with `-update`, diff reviewed: the new resource and two
+  documentation sentences).
+- `internal/api`: `TestNew_ServesQuestionnaireResponsesUnderTheAccessRuleAndAuditsIt`, `404 page not found` before
+  the wiring. Then package 2's `TestNew_ServesTheQuestionnaireLibraryToStaffOfTheClinicAndAuditsIt` counted 10
+  refusals without a clinic instead of 5: each of the patient's 5 calls is now preceded by the caller's audited
+  lookup of their profile (they have none), as for appointments. The expected count is 10, with that reason in
+  the test.
+
+Tests: every route's success and each error code through `httptest`; 401 and 400 without a call; the 256 KiB limit
+at and one byte past it; the log holds nothing on success and refusals and only the error on a 500, never an
+answer. FHIR: the golden files, the version read once per request as the right caller (patient or staff), a
+`Name` view without `item`, `_include` bringing each version once, each parameter and each unreadable one 400
+without a call. Through the app on the real database as `salus_app` (`newMatrix`): requests and their refusals
+(`already_requested`, `not_active` for a draft, `appointment_started`, 404 for another practitioner, the admin, the
+patient and another clinic, 401), the patient's save, 412, 422 with `linkIds`, 400 for an integer outside 32 bits,
+submit and its 422, `submitted` after it, staff's save 403 or 404; the withdrawal and its refusals; the FHIR read
+and search matrix with the consent active (patient `Full`; the practitioner `Name` before the submit and `Full`
+after; the admin `Name`; another practitioner and another clinic 404 and an empty search), the patient's
+`Questionnaire` read and search of the versions their responses reference; after a revocation the practitioner
+`Full` on a completed response of the past appointment (D9), the admin `Name`, another practitioner 404, the
+future appointment's responses 404 for the clinic, the patient's save `consent_required`; the audit per request,
+save, submit, read and returned resource, refusals included; the log holds no title, question or answer.
+
+Checks: `make lint` 0 issues, migrations unchanged; `make test` pass; `make archcheck` pass; `make cover` pass,
+`internal/questionnaireresponse` 96.1%, `internal/questionnaire` 94.9%, `api/fhir` 100%, total 94.9%; `make
+fhir-validate` 0 errors (the dom-6 narrative warning every resource has; "the questionnaire could not be resolved"
+on the `salus.invalid` placeholder canonical, a warning and an information per response; the draft item-control
+code system information); `make gen-clients` run twice, no diff the second time; `make web-typecheck` and `make
+mobile-analyze` pass (not in this package's check sets, run because the clients changed).
+
+Measurements (`make bench-questionnaire-http`: the api container on the compose Postgres, i7-14700HX; one
+synthetic clinic, one patient, 10 appointments, one 200-item questionnaire (10 sections of 19 questions, every
+answer type) requested on each; a save's body 17,708 bytes, 190 answers; each of 10 workers saves its own
+response 100 times, If-Match chained; then all submitted, and the practitioner runs 1,000
+`QuestionnaireResponse?appointment=…&_include=QuestionnaireResponse:questionnaire` round the 10 appointments, each
+answer one completed response with 190 nested answers and the 200-item version; 10 at a time):
+
+| Run | Saves p50 / p95 / p99 (max), throughput | Searches p50 / p95 / p99 (max), throughput |
+| --- | --- | --- |
+| 1 | 9.63 / 17.95 / 24.03 ms (45.7), 928/s | 9.09 / 13.52 / 14.68 ms (16.2), 1,039/s |
+| 2 | 10.16 / 15.01 / 23.29 ms (40.1), 923/s | 21.8 / 28.63 / 35.97 ms (57.6), 430/s |
+| 3 | 10.38 / 15.1 / 19.48 ms (45.2), 915/s | 22.33 / 29.14 / 34.88 ms (47.1), 421/s |
+| 4 | 9.49 / 16.27 / 22.32 ms (45.0), 949/s | 9.8 / 13.04 / 16.3 ms (18.8), 1,016/s |
+
+Saves are steady at about 10 ms p50. Searches were bimodal: runs 2 and 3 took twice as long as runs 1 and 4 on
+the same data (run 4 came after them, so it is not the tables growing; the dev database held about 25,000 audit
+events). Probably other load on the machine or Postgres's autovacuum between runs; not investigated further.
+Every run is recorded and nothing is changed on these numbers. A search costs a transaction for the responses
+(one audit event each) and one for the version (one audit event), plus the session check and the caller's
+lookups.
+
+Readings:
+- The FHIR handler reads each version through `questionnaire.Service.Read` (the port `Versions`), as
+  `practitionerrole`'s handler reads practitioners: the canonical `<url>|<version>` needs the version number and
+  the nesting needs its sections, and `questionnaire_response` may not read the `questionnaire` table. So every
+  FHIR read or search of a response also writes one audited read per version, even without `_include` (the
+  version is used, only its url is shown). For a `Name` view too, since `questionnaire` names the version.
+- The patient's `Questionnaire` read goes through `Read` (delegating to `Referenced`); the patient's search runs in
+  the patient scope, where row-level security shows only the versions their responses reference. A patient
+  without a profile keeps `ErrForbidden` (403 on the search, 404 on the read), as in package 2.
+- `questionnaireCaller` now reads the patient's profile (`patient.Service.Me`, audited) for every patient call,
+  as `appointmentCaller` does; staff callers are unchanged.
+- The JSON answer's `answers` follow the timestamps: `govet` fieldalignment ordered the struct, and JSON order
+  carries no meaning. A `Name` view never reaches the JSON API: its four calls return the caller's own response
+  (patient) or one without answers (request, withdraw).
+- `QuestionnaireResponse.item` carries only `linkId` and `answer`, not the question text: the SPEC lists `item` as
+  the answers, and the text is in the included version. Answers to a choice are `valueString`, as the options
+  are (R4 allows `string` in `answerOption`).
+- The request's 403 is CSRF only: anyone but the appointment's practitioner gets 404 (package 3). Withdraw gives
+  403 to the patient and the admin, who see the request.
+- Not in the CapabilityStatement's interactions: nothing beyond read and search-type, as the SPEC says.
+
+Deferred: `Outstanding` and the e-mail sentence (package 7); the web screens (8, 9) and mobile (10).
+
+Dev stack: no migration. `make bench-questionnaire-http` ran `make up`, so the api, worker, scheduler, notifier and
+agent containers were rebuilt with this package and left running, as found. The four load-test runs left their
+synthetic clinics, patients, appointments, one questionnaire each, 10 responses each and their audit events on the
+dev database (synthetic data only, as `bench-join-http` does).
 
