@@ -1,0 +1,284 @@
+package questionnaire
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/practitionerrole"
+	"github.com/Shmeeshmee/salus/pkg/clock"
+)
+
+// Transactor runs fn in a transaction carried by the context, joining one already there
+// (postgres.Transactor).
+type Transactor interface {
+	WithTx(ctx context.Context, fn func(ctx context.Context) error) error
+}
+
+// Auditor records an AuditEvent inside the caller's transaction (auditevent.Service).
+type Auditor interface {
+	Record(ctx context.Context, e auditevent.AuditEvent) error
+}
+
+// Roles reads a practitioner role of a clinic, unaudited inside the caller's own audited access
+// (practitionerrole.Service).
+type Roles interface {
+	Lookup(ctx context.Context, org, id string) (practitionerrole.PractitionerRole, error)
+}
+
+// Ports are the Service's dependencies.
+type Ports struct {
+	Repo  Repository
+	Audit Auditor
+	Tx    Transactor
+	Clock clock.Clock
+	Roles Roles
+}
+
+// Service holds the questionnaire rules (docs/questionnaire/SPEC.md §2): staff of a clinic, practitioners
+// and admins alike, build its questionnaires; only a draft is edited or deleted; publishing a draft retires
+// its series' active version; an active version is revised into the next draft. A role's default is set by
+// its practitioner or the clinic's admin. Anyone who is not staff gets ErrForbidden, staff of another clinic
+// ErrNotFound. Every call is audited in its transaction, also when refused.
+type Service struct {
+	Ports
+}
+
+// NewService returns a Service on its ports.
+func NewService(p Ports) *Service { return &Service{Ports: p} }
+
+// op is what a call is audited as.
+type op struct {
+	name        string // in wrapped errors
+	interaction string // AuditEvent.subtype
+	resource    string // the entity's resource type
+	action      auditevent.Action
+}
+
+var (
+	opCreate       = op{"create", auditevent.CodeCreate, "Questionnaire", auditevent.ActionCreate}
+	opUpdate       = op{"update draft", auditevent.CodeUpdate, "Questionnaire", auditevent.ActionUpdate}
+	opDelete       = op{"delete draft", auditevent.CodeDelete, "Questionnaire", auditevent.ActionDelete}
+	opPublish      = op{"publish", auditevent.CodeUpdate, "Questionnaire", auditevent.ActionUpdate}
+	opRetire       = op{"retire", auditevent.CodeUpdate, "Questionnaire", auditevent.ActionUpdate}
+	opRevise       = op{"revise", auditevent.CodeCreate, "Questionnaire", auditevent.ActionCreate}
+	opRead         = op{"read", auditevent.CodeRead, "Questionnaire", auditevent.ActionRead}
+	opSearch       = op{"search", auditevent.CodeSearchType, "Questionnaire", auditevent.ActionExecute}
+	opDefault      = op{"default", auditevent.CodeRead, "PractitionerRole", auditevent.ActionRead}
+	opSetDefault   = op{"set default", auditevent.CodeUpdate, "PractitionerRole", auditevent.ActionUpdate}
+	opClearDefault = op{"clear default", auditevent.CodeDelete, "PractitionerRole", auditevent.ActionDelete}
+)
+
+// step is the work of one call inside its transaction, in the caller's clinic scope. It returns the ids of
+// the entities the call disclosed or changed (one event each; none writes one event without an entity), a
+// refusal (failed), which is audited and commits, or any other error, which rolls back.
+type step func(ctx context.Context) (ids []string, failed, err error)
+
+// do runs fn for c and audits it.
+func (s *Service) do(ctx context.Context, c Caller, o op, fn step) error {
+	if c.OrganizationID == "" {
+		if err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+			return s.record(ctx, c, o, "", auditevent.OutcomeMinorFailure)
+		}); err != nil {
+			return fmt.Errorf("questionnaire: %s: %w", o.name, err)
+		}
+		return ErrForbidden
+	}
+	var failed error
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.Repo.SetOrganization(ctx, c.OrganizationID); err != nil {
+			return err
+		}
+		ids, f, err := fn(ctx)
+		if err != nil {
+			return err
+		}
+		failed = f
+		outcome := auditevent.OutcomeSuccess
+		if failed != nil {
+			outcome = auditevent.OutcomeMinorFailure
+		}
+		if len(ids) == 0 {
+			return s.record(ctx, c, o, "", outcome)
+		}
+		for _, id := range ids {
+			if err := s.record(ctx, c, o, id, outcome); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("questionnaire: %s: %w", o.name, err)
+	}
+	return failed
+}
+
+// record audits o by c on the entity id ("" for none). Staff act for healthcare operations, anyone else at
+// their own request.
+func (s *Service) record(ctx context.Context, c Caller, o op, id string, outcome auditevent.Outcome) error {
+	purpose := auditevent.CodeHOPERAT
+	if c.OrganizationID == "" {
+		purpose = auditevent.CodePATRQT
+	}
+	e := auditevent.AuditEvent{
+		Type:           auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
+		Subtype:        auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: o.interaction},
+		Purpose:        auditevent.Coding{System: auditevent.SystemActReason, Code: purpose},
+		Action:         o.action,
+		Outcome:        outcome,
+		AgentAccountID: c.AccountID,
+		OrganizationID: c.OrganizationID,
+	}
+	if id != "" {
+		e.EntityReference = o.resource + "/" + id
+	}
+	return s.Audit.Record(ctx, e)
+}
+
+// version reads the version id of c's clinic, or returns ErrNotFound as failed. lock locks it until the
+// transaction ends.
+func (s *Service) version(ctx context.Context, c Caller, id string, lock bool) (q Questionnaire, failed, err error) {
+	read := s.Repo.ByID
+	if lock {
+		read = s.Repo.Lock
+	}
+	q, err = read(ctx, id)
+	switch {
+	case errors.Is(err, ErrNotFound) || (err == nil && q.OrganizationID != c.OrganizationID): // not on row-level security alone
+		return Questionnaire{}, ErrNotFound, nil
+	case err != nil:
+		return Questionnaire{}, nil, err
+	}
+	return q, nil, nil
+}
+
+// Create stores in as version 1, a draft, of a new questionnaire of c's clinic. An invalid one gives an
+// *InvalidError.
+func (s *Service) Create(ctx context.Context, c Caller, in Content) (Questionnaire, error) {
+	var out Questionnaire
+	err := s.do(ctx, c, opCreate, func(ctx context.Context) ([]string, error, error) {
+		if err := validate(in, nil); err != nil {
+			return nil, err, nil
+		}
+		var err error
+		out, err = s.Repo.Create(ctx, Questionnaire{OrganizationID: c.OrganizationID, Title: in.Title, Description: in.Description, Items: in.Items}, s.Clock.Now())
+		return []string{out.ID}, nil, err
+	})
+	if err != nil {
+		return Questionnaire{}, err
+	}
+	return out, nil
+}
+
+// UpdateDraft sets the content of the draft id at version, the version the caller last read. A published
+// version gives ErrNotDraft, another version ErrConflict, an invalid content an *InvalidError (also a
+// linkId an earlier version of the series gives another type).
+func (s *Service) UpdateDraft(ctx context.Context, c Caller, id string, in Content, version int32) (Questionnaire, error) {
+	var out Questionnaire
+	err := s.do(ctx, c, opUpdate, func(ctx context.Context) ([]string, error, error) {
+		cur, failed, err := s.version(ctx, c, id, false)
+		switch {
+		case err != nil || failed != nil:
+			return nil, failed, err
+		case cur.Status != StatusDraft:
+			return []string{cur.ID}, ErrNotDraft, nil
+		case cur.VersionID != version:
+			return []string{cur.ID}, ErrConflict, nil
+		}
+		earlier, err := s.earlierKinds(ctx, cur)
+		if err != nil {
+			return nil, nil, err
+		}
+		if err := validate(in, earlier); err != nil {
+			return []string{cur.ID}, err, nil
+		}
+		cur.Title, cur.Description, cur.Items = in.Title, in.Description, in.Items
+		out, err = s.Repo.UpdateDraft(ctx, cur, s.Clock.Now())
+		if errors.Is(err, ErrConflict) { // changed since the read
+			return []string{cur.ID}, ErrConflict, nil
+		}
+		return []string{cur.ID}, nil, err
+	})
+	if err != nil {
+		return Questionnaire{}, err
+	}
+	return out, nil
+}
+
+// earlierKinds is the kind of every linkId of the other versions of q's series.
+func (s *Service) earlierKinds(ctx context.Context, q Questionnaire) (map[string]string, error) {
+	if q.Version == 1 {
+		return nil, nil
+	}
+	versions, err := s.Repo.Search(ctx, Filter{SeriesID: q.SeriesID})
+	if err != nil {
+		return nil, err
+	}
+	kinds := map[string]string{}
+	for _, v := range versions {
+		if v.ID != q.ID && v.OrganizationID == q.OrganizationID {
+			addKinds(kinds, v.Items)
+		}
+	}
+	return kinds, nil
+}
+
+// DeleteDraft deletes the draft id. A published version gives ErrNotDraft.
+func (s *Service) DeleteDraft(ctx context.Context, c Caller, id string) error {
+	return s.do(ctx, c, opDelete, func(ctx context.Context) ([]string, error, error) {
+		cur, failed, err := s.version(ctx, c, id, true)
+		switch {
+		case err != nil || failed != nil:
+			return nil, failed, err
+		case cur.Status != StatusDraft:
+			return []string{cur.ID}, ErrNotDraft, nil
+		}
+		if err := s.Repo.DeleteDraft(ctx, cur.ID); err != nil {
+			return nil, nil, err
+		}
+		return []string{cur.ID}, nil, nil
+	})
+}
+
+// Read returns the version id of c's clinic.
+func (s *Service) Read(ctx context.Context, c Caller, id string) (Questionnaire, error) {
+	var out Questionnaire
+	err := s.do(ctx, c, opRead, func(ctx context.Context) ([]string, error, error) {
+		var failed, err error
+		out, failed, err = s.version(ctx, c, id, false)
+		if err != nil || failed != nil {
+			return nil, failed, err
+		}
+		return []string{out.ID}, nil, nil
+	})
+	if err != nil {
+		return Questionnaire{}, err
+	}
+	return out, nil
+}
+
+// Search returns the versions of c's clinic the filter gives, oldest first. Each one returned is audited; a
+// search that returns none writes one event without an entity.
+func (s *Service) Search(ctx context.Context, c Caller, f Filter) ([]Questionnaire, error) {
+	var out []Questionnaire
+	err := s.do(ctx, c, opSearch, func(ctx context.Context) ([]string, error, error) {
+		all, err := s.Repo.Search(ctx, f)
+		if err != nil {
+			return nil, nil, err
+		}
+		ids := make([]string, 0, len(all))
+		for _, q := range all {
+			if q.OrganizationID == c.OrganizationID { // not on row-level security alone
+				out = append(out, q)
+				ids = append(ids, q.ID)
+			}
+		}
+		return ids, nil, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}

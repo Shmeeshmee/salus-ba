@@ -99,3 +99,11 @@ sql:
         package: encounterdb
         out: internal/encounter/encounterdb
         sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/questionnaire/query.sql
+    gen:
+      go:
+        package: questionnairedb
+        out: internal/questionnaire/questionnairedb
+        sql_package: pgx/v5
