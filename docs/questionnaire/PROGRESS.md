@@ -12,7 +12,7 @@
 | 8 Web: library and builder | done, 2026-11-06 | `questionnaire(8)` |
 | 9 Web: appointment and working hours | done, 2026-11-06 | `questionnaire(9)` |
 | 10 Mobile | done, 2026-11-06 | `questionnaire(10)` |
-| 11 End-to-end | not started | |
+| 11 End-to-end | done, 2026-11-06 | `questionnaire(11)` |
 
 ## Decisions
 
@@ -979,3 +979,77 @@ own databases). The stack was found running and left running; the api, worker, s
 restart during the session that no target of this package makes (none runs `up`), with the branch's code (no Go
 change in this package).
 
+
+## Package 11: End-to-end (done, 2026-11-06)
+
+Built:
+- `test/e2e/questionnaire_test.go` (build tag `e2e`), synthetic data fresh per run (a new clinic, practitioner and
+  patient per journey, placeholder wording):
+  - `TestQuestionnaire_TheRoleDefaultIsFilledInAndReadByThePractitioner`: the practitioner creates and publishes,
+    through the JSON API, a questionnaire of every type (a section with a yes or no question, a short answer shown
+    only after "yes" and a long answer; instructions; single and multiple choice; whole number, decimal, date with
+    help text) and sets it as their role's default. The patient consents and books; the confirmation in Mailpit
+    names the clinic, holds E1 and not the title. The default request appears (waited for as a condition) as the
+    version's `<url>|<version>`, in progress; the practitioner's search shows it without `item`. The patient saves
+    twice (`If-Match` chained; the second answers "no", hiding the short answer it keeps) and submits. The
+    practitioner's `QuestionnaireResponse?appointment=…&_include=QuestionnaireResponse:questionnaire` holds the one
+    completed response with `authored`, the included version it names, and the answers nested under the section,
+    the hidden question's answer removed.
+  - `TestQuestionnaire_ACancelledAppointmentDiscardsItsResponses`: the default as above, booked more than 25 hours
+    ahead (a patient may not cancel within 24 hours); the default request appears; the practitioner adds a second
+    questionnaire; the patient saves part of it and cancels (the cancellation receipt is read off Mailpit); both
+    responses are gone from the patient's search (waited for as a condition: the discard job) and the
+    practitioner's.
+- `test/e2e/questionnaire_web_test.go`: `TestQuestionnaire_TheBuilderPublishesAQuestionnaire` makes a clinic,
+  runs `test/e2e/web/questionnaire.spec.ts` and then reads the clinic's active questionnaires over FHIR: the one
+  published in the browser, its three questions in the order the moves left them.
+- `test/e2e/web/questionnaire.spec.ts` (Chromium, the Vite dev server, as the consultation spec): sign in, the
+  "Questionnaires" link, "New questionnaire", the title; "Yes or no", "Short answer" and "Date" each dragged from
+  the palette to the end of the list with the mouse, named and closed; the third dragged by its handle with the
+  mouse onto the first's place (W42 "moved to position 1 of 3"); the second moved up by the keyboard (space,
+  W42 "Moving …", arrow up, W42 "is at position 2 of 3", space, W42 "moved"); the last moved up with "Move up"
+  (W42 in the builder's live region); "Publish" with W22's confirmation, W23; back in the library, the title with
+  "Active".
+- `test/e2e/web/signin.ts`: the password and TOTP sign-in, moved out of `consultation.spec.ts` for its second use.
+  `livekit-forward.ts` forwards LiveKit only when `E2E_LIVEKIT_PUBLIC_URL` is set (the consultation spec now
+  requires it itself); each Go test runs only its own spec (`playwright test … <name>.spec.ts`), so the
+  consultation journey no longer also runs the questionnaire spec.
+
+Test first: the Go journeys passed on their first run against the stack (packages 1 to 10 had built what they
+ask). To see that they can fail, the expected answers were changed to keep the hidden question's answer and E1 to
+another sentence: both assertions failed with the actual values, then were restored. The web spec's first run
+failed for its own reason: space pressed right after the arrow dropped the item before `@dnd-kit` had moved it
+over the new place (order unchanged); it now waits for W42's "is at position 2 of 3", which a screen-reader user
+also hears, before the drop.
+
+Checks: `make e2e` twice in a row, both pass (the Go journeys, the consultation and questionnaire web journeys,
+LiveKit's log check: none of the run's 22 synthetic values, both rooms present). The three questionnaire journeys
+also passed three more times in a row on their own (about 10 s a run). `make lint` 0 issues
+after one fix (`fieldalignment` on the search's decoding struct in the new test, reordered), migrations unchanged;
+`make archcheck` passes; `make test` passes; `make cover` passes (every package at 80% or more, 94.8% in all);
+`make fhir-validate` passes (warnings only, as before); `make gen-clients` no diff; `make web-lint`,
+`make web-typecheck`, `make web-build` pass, `make web-test` 372 tests pass; `make mobile-analyze` no issues,
+`make mobile-test` 208 tests pass. The journeys passed once more after the lint fix.
+
+Readings:
+- One clinic per journey, as the booking and consultation journeys: no journey depends on another's data, and the
+  login rate limit is cleared by `make e2e` before each run.
+- The second journey books a slot 25 hours or more ahead: the patient's own cancellation is refused within 24 hours
+  (`cancellation_window_closed`), and the first free slot is about an hour ahead.
+- The keyboard move waits for the W42 position announcement before the drop rather than for a fixed time.
+- The web spec does not set a condition in the builder: the condition is covered through the API journey (shown,
+  hidden, its answer removed on submit) and the builder's conditions by package 8's Vitest tests and walk.
+- `npm ci` in `test/e2e/web` reports two high-severity advisories in the pinned Playwright toolchain; they were
+  there before this package (no dependency changed) and are left for a dependency update.
+
+Deferred: nothing of this package. The PR into `main` and its CI run are the definition of done's last step, after
+this commit.
+
+Questions for a person: none new. Package 8's (a label for the builder's type select; an empty option's W28 line)
+are still open.
+
+Dev stack: no migration. The stack was found running and left running (`make e2e` runs `make up`, which rebuilt
+the images with the branch as it was). The runs left synthetic clinics on the dev database, each with an admin, a
+practitioner and their questionnaires, patients with their appointments, the submitted response of the first
+journey, and their audit events (synthetic data only, as earlier e2e runs); the cancelled journey's responses were
+deleted by the discard job. Mailpit was left as found (each journey deletes the e-mails it reads).

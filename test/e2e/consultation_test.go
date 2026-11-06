@@ -274,7 +274,7 @@ func startPractitionerInBrowser(t *testing.T, clinic *bookableClinic, p *patient
 	t.Helper()
 	b := &browser{done: make(chan struct{}), output: &bytes.Buffer{}, signal: filepath.Join(t.TempDir(), "end")}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	cmd := exec.CommandContext(ctx, "web/node_modules/.bin/playwright", "test", "--config", "web/playwright.config.ts")
+	cmd := exec.CommandContext(ctx, "web/node_modules/.bin/playwright", "test", "--config", "web/playwright.config.ts", "consultation.spec.ts")
 	cmd.Env = append(os.Environ(),
 		"E2E_APPOINTMENT_ID="+appointmentID,
 		"E2E_PRACTITIONER_EMAIL="+clinic.practitionerAddr,

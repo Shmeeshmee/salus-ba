@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test'
 
-// The web journey of `make e2e`, started by test/e2e/consultation_test.go in the playwright service. Chromium gets
+// The web journeys of `make e2e`, each started by its Go test (test/e2e) in the playwright service. Chromium gets
 // fake camera and microphone devices and allows them without a prompt. The app is the Vite dev server of web/ on
 // this container's localhost (a secure context, as on a developer's host), proxying the API on the compose network.
 // Nothing is written into the repository.
