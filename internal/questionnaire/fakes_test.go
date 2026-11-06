@@ -35,13 +35,15 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 // fakeRepository holds questionnaires and defaults and, unless leak is set, shows only those of the clinic
 // set, as row-level security does. Calls outside a transaction are recorded in outside.
 type fakeRepository struct {
-	err      error
-	clinic   string
-	rows     []questionnaire.Questionnaire
-	defaults []questionnaire.Default
-	outside  []string
-	next     int
-	leak     bool
+	err        error
+	referenced map[string][]string // the versions each patient's responses reference
+	clinic     string
+	patient    string
+	rows       []questionnaire.Questionnaire
+	defaults   []questionnaire.Default
+	outside    []string
+	next       int
+	leak       bool
 }
 
 type fakeState struct {
@@ -63,14 +65,26 @@ func (r *fakeRepository) seen(ctx context.Context, call string) {
 
 func (r *fakeRepository) visible(org string) bool { return r.leak || org == r.clinic }
 
+// shows tells whether the scope shows the version q: the clinic's own, or one the patient's responses
+// reference.
+func (r *fakeRepository) shows(q questionnaire.Questionnaire) bool {
+	return r.visible(q.OrganizationID) || (r.patient != "" && slices.Contains(r.referenced[r.patient], q.ID))
+}
+
 func (r *fakeRepository) SetOrganization(ctx context.Context, id string) error {
 	r.seen(ctx, "SetOrganization")
 	r.clinic = id
 	return nil
 }
 
+func (r *fakeRepository) SetPatient(ctx context.Context, id string) error {
+	r.seen(ctx, "SetPatient")
+	r.patient = id
+	return nil
+}
+
 func (r *fakeRepository) index(id string) int {
-	return slices.IndexFunc(r.rows, func(q questionnaire.Questionnaire) bool { return q.ID == id && r.visible(q.OrganizationID) })
+	return slices.IndexFunc(r.rows, func(q questionnaire.Questionnaire) bool { return q.ID == id && r.shows(q) })
 }
 
 func (r *fakeRepository) ByID(ctx context.Context, id string) (questionnaire.Questionnaire, error) {

@@ -5,7 +5,7 @@
 | 1 questionnaire | done, 2026-11-06 | `questionnaire(1)` |
 | 2 questionnaire API | done, 2026-11-06 | `questionnaire(2)` |
 | 3 questionnaireresponse and the access rule | done, 2026-11-06 | `questionnaire(3)` |
-| 4 Answers | not started | |
+| 4 Answers | done, 2026-11-06 | `questionnaire(4)` |
 | 5 Booking and cancellation | not started | |
 | 6 Responses API | not started | |
 | 7 E-mail mention | not started | |
@@ -273,3 +273,94 @@ Deferred: answers and submit (package 4); `RequestDefault` and `Discard`, and th
 the handlers, the FHIR mapping, the wiring in `app.go` and the patient's read of the referenced versions in the
 `questionnaire` service (package 6).
 
+
+## Package 4: Answers (done, 2026-11-06)
+
+Built:
+- `internal/questionnaireresponse/service_answers.go`: `SaveAnswers` (`If-Match`) replaces the saved answers;
+  `Submit` (`If-Match`) checks them in full, removes the answers of hidden items and completes the response at
+  the clock's time, final. Both lock the response (`FOR NO KEY UPDATE`, so they serialise with a withdrawal),
+  run in the patient's scope and share one set of checks, in this order: who (the patient; staff who see it
+  `ErrForbidden`, anyone else `ErrNotFound`), `submitted`, `withdrawn`, `past_due` (at or after `due_at`),
+  `consent_required`, then the version (412 `ErrConflict`), then the answers (`*AnswersError`, 422
+  `answers_invalid` with the `linkIds` in document order). Every call audited in its transaction as an update,
+  refusals included (with the entity when the caller sees the response).
+- `validate.go`: the answer checks per type and limit (SPEC §2 "Limits"): at least one value, several only
+  for a choice with repeats, each value exactly one `value[x]` of the item's type; `string` 1 to 255 and
+  `text` 1 to 4,000 characters, not blank; a choice one of the item's options, each once; `decimal` written
+  plainly (FHIR's form without an exponent), at most 15 significant digits; `date` a full date that exists, from
+  year 1. A section, an instruction or the reserved `attachment` has no valid answer; an answer to no item of
+  the version is refused unnamed; an item answered twice is named.
+- `enabled.go`: the condition evaluation, one pass in document order: an item is enabled when its section is
+  and its condition holds on the answer to an enabled item (a hidden one counts as unanswered, R4); a choice with
+  repeats matches when any answer does.
+- `repository_postgres.go` and `query.sql`: `SaveAnswers` and `Complete`, each guarded by `status =
+  'in-progress'` and a new `version_id`; an empty kept list is stored as `[]`. `make sqlc` regenerated.
+- `internal/questionnaire`: `Repository.SetPatient` and `Service.Referenced(ctx, caller, patientID, id)`, the
+  patient's read of a version in their own scope (row-level security from package 3 shows only the versions
+  their responses reference), audited `PATRQT`; the `Questionnaires` port of `questionnaireresponse` gains it.
+- `docs/privacy/dpia.md`: the package 4 subsection.
+
+Failing first (red), each for the right reason before the code:
+- `internal/questionnaire`: `repo.SetPatient undefined`, `f.svc.Referenced undefined`.
+- `internal/questionnaireresponse`: `f.svc.SaveAnswers undefined`, `undefined: questionnaireresponse.AnswersError`,
+  `ErrAnswersInvalid`, `ErrPastDue`, `ErrConflict`, `f.svc.Submit undefined`. The repository's two methods were
+  written to satisfy the port before their own repository tests; those tests were checked red by mutation
+  (without the `[]` guard, `Complete` with no answers breaks `questionnaire_response_answers_check`). The service
+  tests were checked to bite by mutation too: a 16-digit decimal limit fails three limit cases, and dropping the
+  section from the condition evaluation fails eight condition cases.
+
+Tests: each type's valid and invalid answers at the limits, table-driven (53 cases, including multibyte strings
+counted in characters and an integer outside 32 bits refused by decoding); every refusal for both calls (submitted,
+withdrawn, at and after the start, without consent, stale version, the appointment's practitioner, the admin,
+another practitioner, another patient, a patient without a profile, another clinic's admin, an unknown response),
+each unchanged and audited once without a read of the version; the save right after a revocation refused; a save
+one second before the start; submit at the clock's time, then again (`submitted`) and a save after it; the
+conditions on a boolean, a single choice, a choice with repeats, a hidden section, a chain of two through a
+section, the missing linkIds in document order, the answers of hidden items removed; a saved answer that breaks
+its item refused on submit; error text without a linkId or an answer; backend failures roll back. Repository, as
+`salus_app`: save and complete in the patient's scope, neither on a completed response nor another patient's.
+Questionnaire: `Referenced` per patient and version, audited; the patient scope on the real database shows only the
+referenced version.
+
+Checks: `make lint` 0 issues, migrations unchanged; `make test` pass; `make archcheck` pass; `make cover` pass,
+`internal/questionnaireresponse` 95.6%, `internal/questionnaire` 95.7%, total 95.0%; `make sqlc` regenerated.
+
+Measurements (`go test -run '^$' -bench 'BenchmarkSaveAnswers|BenchmarkSubmit' -benchmem -benchtime=2s -count=3
+./internal/questionnaireresponse/` in the `tools` container, compose Postgres, i7-14700HX; 200 required questions,
+every type, each shown on the first one's answer, about 30 KB of answers):
+
+| Benchmark | ns/op (3 runs) | B/op | allocs/op |
+| --- | --- | --- | --- |
+| `BenchmarkSaveAnswers` (lock and read the response, check 200 answers, store them; one transaction, audited) | 4.25 M, 4.86 M, 5.04 M | ~590 k | ~1,350 |
+| `BenchmarkSubmit` (the same, plus the conditions and the required check, store completed) | 4.81 M, 5.61 M, 4.82 M | ~695 k | ~1,390 |
+
+The attendance and the version are stubbed (they are other domains' reads, measured there: a 200-item version
+read is 1.1 to 3.5 ms, package 1 and 2), and the audit is counted, not stored (auditevent's repository is not this
+domain's to build in a test, as in package 1). The full path is measured by package 6's `make
+bench-questionnaire-http`. Nothing is changed on these numbers.
+
+Readings:
+- The patient needs the version's items to have their answers checked, and package 1 refuses patients every
+  questionnaire read. `questionnaire.Service.Referenced` reads it in the patient's scope instead, relying on
+  package 3's row-level security for the reference and on the caller, which has checked that the patient's own
+  response references the version; package 6 can build the patient's FHIR read on it. It is audited like any
+  read of a `Questionnaire` (SPEC §2 "Audit"), so a save writes two events.
+- SPEC §2 lists 409 `submitted`, `withdrawn`, `past_due`, `consent_required` and 412 without an order; the checks
+  run status, due time, consent, version, answers, so a closed response says why rather than 412.
+- An answer must hold at least one value: the app clears a field by leaving its answer out of the list. A blank
+  `string` or `text` answer is refused rather than stored.
+- `decimal` is refused with an exponent: FHIR allows one, but the app never sends it and an unbounded exponent is
+  not storable as a Postgres `numeric`.
+- The integer range is held by `Value.Integer` (`int32`): a value outside it fails to decode (package 6's 400),
+  so the service never sees one; a test pins the decoding.
+- `required` is not checked on save (SPEC §2); submit re-checks every saved answer, so the rules hold even for
+  answers saved before a rule tightened.
+- The answers are kept in the order the app sent them; the FHIR handler nests them by the version (package 6).
+- "Right after a revocation commits" is tested with the service fakes: `appointment.Attendance` reads the consent
+  state in the caller's transaction (not cached), and a real-database test across `consent`, `appointment` and
+  this domain belongs to the composition root (package 6's `internal/api` tests), since archcheck refuses another
+  domain's repository in this package's tests.
+
+Deferred: the handlers, the FHIR mapping and the wiring in `app.go` (package 6); `RequestDefault`, `Discard` and the
+`Lookup` port (package 5).

@@ -31,6 +31,22 @@ WHERE id = @id
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
           series_id, version_id, source, status, answers;
 
+-- name: SaveQuestionnaireResponseAnswers :one
+-- The patient's save: the answers replaced, while in progress.
+UPDATE questionnaire_response
+SET answers = @answers, updated_at = @at, version_id = version_id + 1
+WHERE id = @id AND status = 'in-progress'
+RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
+          series_id, version_id, source, status, answers;
+
+-- name: CompleteQuestionnaireResponse :one
+-- The patient's submit: completed with the answers kept, authored now; final.
+UPDATE questionnaire_response
+SET status = 'completed', answers = @answers, authored_at = @at, updated_at = @at, version_id = version_id + 1
+WHERE id = @id AND status = 'in-progress'
+RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
+          series_id, version_id, source, status, answers;
+
 -- name: SearchQuestionnaireResponses :many
 -- QuestionnaireResponse?appointment=…&patient=…&status=…; an absent parameter matches everything, the scope
 -- decides the rest.

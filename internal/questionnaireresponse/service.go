@@ -29,9 +29,11 @@ type Appointments interface {
 	Attendance(ctx context.Context, c appointment.Caller, id string) (appointment.Attendance, error)
 }
 
-// Questionnaires reads a version of the caller's clinic, audited as their read of it (questionnaire.Service).
+// Questionnaires reads a version of the caller's clinic, or one a patient's own response references, audited
+// as the caller's read of it (questionnaire.Service).
 type Questionnaires interface {
 	Read(ctx context.Context, c questionnaire.Caller, id string) (questionnaire.Questionnaire, error)
+	Referenced(ctx context.Context, c questionnaire.Caller, patientID, id string) (questionnaire.Questionnaire, error)
 }
 
 // Ports are the Service's dependencies.

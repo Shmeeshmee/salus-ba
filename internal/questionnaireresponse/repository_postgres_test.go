@@ -11,8 +11,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/migrations"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
@@ -27,7 +30,7 @@ type seeded struct {
 	versions, series      [2]string
 }
 
-func seedDB(t *testing.T, owner *pgxpool.Pool, at time.Time) seeded {
+func seedDB(t testing.TB, owner *pgxpool.Pool, at time.Time) seeded {
 	t.Helper()
 	ctx := t.Context()
 	var s seeded
@@ -317,4 +320,113 @@ func TestPurger_DeletesUnsubmittedResponsesOfEveryClinicOnceDue(t *testing.T) {
 	if n, err := questionnaireresponse.NewPurger(questionnaireresponse.NewPostgresRepository(ret)).Purge(t.Context(), cutOff); err != nil || n != 0 {
 		t.Errorf("Purge() again = %d, %v; want nothing", n, err)
 	}
+}
+
+// In the patient's scope the answers are saved and the response completed, each a new version; neither
+// touches a response that is no longer in progress, or another patient's.
+func TestPostgres_SaveAnswersAndCompleteInThePatientsScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seedDB(t, owner, dbStart)
+	other := seedDB(t, owner, dbStart)
+	id := insert(t, app, s, 0, 0)
+	no, yes := false, true
+	saved := []questionnaireresponse.Answer{{LinkID: "q1", Values: []questionnaireresponse.Value{{Boolean: &no}}}}
+	kept := []questionnaireresponse.Answer{{LinkID: "q1", Values: []questionnaireresponse.Value{{Boolean: &yes}}}}
+	at := dbStart.Add(-time.Hour)
+
+	var got, done questionnaireresponse.Response
+	err := inScope(t, app, "", other.patient, func(ctx context.Context, r questionnaireresponse.Repository) error {
+		if _, err := r.SaveAnswers(ctx, id, saved, at); !errors.Is(err, questionnaireresponse.ErrNotFound) {
+			return errors.Join(err, errors.New("another patient saved"))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = inScope(t, app, "", s.patient, func(ctx context.Context, r questionnaireresponse.Repository) error {
+		var err error
+		if got, err = r.SaveAnswers(ctx, id, saved, at); err != nil {
+			return err
+		}
+		if done, err = r.Complete(ctx, id, kept, at.Add(time.Minute)); err != nil {
+			return err
+		}
+		if _, err := r.SaveAnswers(ctx, id, saved, at); !errors.Is(err, questionnaireresponse.ErrNotFound) {
+			return errors.Join(err, errors.New("saved a completed response"))
+		}
+		if _, err := r.Complete(ctx, id, nil, at); !errors.Is(err, questionnaireresponse.ErrNotFound) {
+			return errors.Join(err, errors.New("completed it twice"))
+		}
+		if _, err := r.SaveAnswers(ctx, "not-a-uuid", saved, at); !errors.Is(err, questionnaireresponse.ErrNotFound) {
+			return errors.Join(err, errors.New("a malformed id"))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.Answers, saved) || got.VersionID != 2 || !got.LastUpdated.Equal(at) || got.Status != questionnaireresponse.StatusInProgress {
+		t.Errorf("SaveAnswers() = %+v, want the answers at version 2, in progress", got)
+	}
+	if !reflect.DeepEqual(done.Answers, kept) || done.VersionID != 3 || done.Status != questionnaireresponse.StatusCompleted ||
+		!done.AuthoredAt.Equal(at.Add(time.Minute)) || !done.LastUpdated.Equal(at.Add(time.Minute)) {
+		t.Errorf("Complete() = %+v, want it completed with the kept answers at version 3", done)
+	}
+}
+
+// A submit with no answers kept stores an empty list.
+func TestPostgres_CompleteWithoutAnswers(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seedDB(t, owner, dbStart)
+	id := insert(t, app, s, 0, 0)
+	if err := inScope(t, app, "", s.patient, func(ctx context.Context, r questionnaireresponse.Repository) error {
+		_, err := r.Complete(ctx, id, nil, dbStart.Add(-time.Hour))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var stored string
+	if err := owner.QueryRow(t.Context(), "SELECT answers::text FROM questionnaire_response WHERE id = $1", id).Scan(&stored); err != nil || stored != "[]" {
+		t.Errorf("stored answers %q, %v; want []", stored, err)
+	}
+}
+
+// benchService is the Service on the real database as salus_app, with a response of the seeded patient in
+// progress, and the patient's caller.
+func benchService(b *testing.B) (*questionnaireresponse.Service, *pgxpool.Pool, string, appointment.Caller) {
+	b.Helper()
+	owner, app := pgtest.NewAppDatabase(b)
+	s := seedDB(b, owner, dbStart)
+	items, _ := large()
+	id := insertB(b, app, s)
+	svc := questionnaireresponse.NewService(questionnaireresponse.Ports{
+		Repo: questionnaireresponse.NewPostgresRepository(app), Audit: &benchAudit{}, Tx: postgres.NewTransactor(app),
+		Clock:        clock.Fixed{T: dbStart.Add(-48 * time.Hour)},
+		Appointments: stubAttendance{a: appointment.Appointment{ID: s.appts[0], PatientID: s.patient, PractitionerRoleID: s.role, OrganizationID: s.clinic, Start: dbStart}},
+		Questionnaires: stubVersion{q: questionnaire.Questionnaire{ID: s.versions[0], SeriesID: s.series[0], OrganizationID: s.clinic,
+			Status: questionnaire.StatusActive, Items: items}},
+	})
+	return svc, owner, id, appointment.Caller{AccountID: accountA, PatientID: s.patient}
+}
+
+func insertB(b *testing.B, app *pgxpool.Pool, s seeded) string {
+	b.Helper()
+	in := s.request(0, 0)
+	in.DueAt = dbStart
+	var id string
+	r := questionnaireresponse.NewPostgresRepository(app)
+	if err := postgres.NewTransactor(app).WithTx(context.Background(), func(ctx context.Context) error {
+		if err := r.SetClinic(ctx, s.clinic); err != nil {
+			return err
+		}
+		got, _, err := r.Insert(ctx, in, dbStart.Add(-72*time.Hour))
+		id = got.ID
+		return err
+	}); err != nil {
+		b.Fatal(err)
+	}
+	return id
 }

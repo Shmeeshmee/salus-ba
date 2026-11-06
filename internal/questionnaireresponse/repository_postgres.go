@@ -94,6 +94,42 @@ func (r *postgresRepository) Stop(ctx context.Context, id string, at time.Time) 
 	return toResponse(row)
 }
 
+func (r *postgresRepository) SaveAnswers(ctx context.Context, id string, answers []Answer, at time.Time) (Response, error) {
+	return r.update(ctx, id, answers, func(u pgtype.UUID, b []byte) (questionnaireresponsedb.QuestionnaireResponse, error) {
+		return r.q(ctx).SaveQuestionnaireResponseAnswers(ctx, questionnaireresponsedb.SaveQuestionnaireResponseAnswersParams{ID: u, Answers: b, At: ts(at)})
+	})
+}
+
+func (r *postgresRepository) Complete(ctx context.Context, id string, answers []Answer, at time.Time) (Response, error) {
+	return r.update(ctx, id, answers, func(u pgtype.UUID, b []byte) (questionnaireresponsedb.QuestionnaireResponse, error) {
+		return r.q(ctx).CompleteQuestionnaireResponse(ctx, questionnaireresponsedb.CompleteQuestionnaireResponseParams{ID: u, Answers: b, At: ts(at)})
+	})
+}
+
+// update writes answers to the response id with write; ErrNotFound when no response in progress has that id.
+func (r *postgresRepository) update(ctx context.Context, id string, answers []Answer,
+	write func(pgtype.UUID, []byte) (questionnaireresponsedb.QuestionnaireResponse, error)) (Response, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Response{}, ErrNotFound
+	}
+	if answers == nil {
+		answers = []Answer{}
+	}
+	b, err := json.Marshal(answers)
+	if err != nil {
+		return Response{}, fmt.Errorf("questionnaireresponse: encode answers: %w", errors.New("not encodable"))
+	}
+	row, err := write(u, b)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Response{}, ErrNotFound
+	case err != nil:
+		return Response{}, err
+	}
+	return toResponse(row)
+}
+
 func (r *postgresRepository) Search(ctx context.Context, f Filter) ([]Response, error) {
 	var p questionnaireresponsedb.SearchQuestionnaireResponsesParams
 	if (f.AppointmentID != "" && p.AppointmentID.Scan(f.AppointmentID) != nil) || (f.PatientID != "" && p.PatientID.Scan(f.PatientID) != nil) {

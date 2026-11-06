@@ -31,6 +31,10 @@ func (r *postgresRepository) SetOrganization(ctx context.Context, id string) err
 	return postgres.SetLocal(ctx, "app.organization_id", id)
 }
 
+func (r *postgresRepository) SetPatient(ctx context.Context, id string) error {
+	return postgres.SetLocal(ctx, "app.patient_id", id)
+}
+
 func (r *postgresRepository) ByID(ctx context.Context, id string) (Questionnaire, error) {
 	var u pgtype.UUID
 	if u.Scan(id) != nil {

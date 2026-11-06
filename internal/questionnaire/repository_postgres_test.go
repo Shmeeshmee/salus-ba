@@ -405,3 +405,46 @@ func TestPublish_TwoConcurrentPublishesLeaveOneActiveVersion(t *testing.T) {
 		t.Errorf("audit events of the publishes: %d, want 2", n)
 	}
 }
+
+// In a patient's scope a version is shown only while one of the patient's own responses references it.
+func TestPostgres_ThePatientScopeShowsOnlyTheVersionsTheirResponsesReference(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	var patient, other string
+	for _, id := range []*string{&patient, &other} {
+		if err := owner.QueryRow(t.Context(), `WITH a AS (INSERT INTO account (email, password_hash, role) VALUES (gen_random_uuid()::text || '@example.test', 'h', 'patient') RETURNING id)
+			INSERT INTO patient (account_id, given_name, family_name, birth_date) SELECT id, 'Ada', 'Example', '1990-01-01' FROM a RETURNING id::text`).Scan(id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := owner.Exec(t.Context(), `WITH a AS (INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period)
+			VALUES ($1, $2, $3, gen_random_uuid(), tstzrange('2030-01-07T09:00:00Z', '2030-01-07T09:30:00Z')) RETURNING id)
+		INSERT INTO questionnaire_response (organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id, series_id, source, status, due_at)
+		SELECT $3, a.id, $1, $2, $4, $5, 'added', 'in-progress', '2030-01-07T09:00:00Z' FROM a`, patient, roleA1, clinicA, activeA, seriesA); err != nil {
+		t.Fatal(err)
+	}
+	repo := questionnaire.NewPostgresRepository(app)
+	read := func(patient, id string) (questionnaire.Questionnaire, error) {
+		var got questionnaire.Questionnaire
+		err := postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+			if err := repo.SetPatient(ctx, patient); err != nil {
+				return err
+			}
+			var err error
+			got, err = repo.ByID(ctx, id)
+			return err
+		})
+		return got, err
+	}
+	if got, err := read(patient, activeA); err != nil || !equal(got, activeARow) {
+		t.Errorf("ByID() of the referenced version = %+v, %v;\nwant %+v", got, err, activeARow)
+	}
+	for _, c := range []struct{ name, patient, id string }{
+		{"another version of the series", patient, draftA}, {"another clinic's", patient, activeB}, {"another patient", other, activeA},
+	} {
+		if _, err := read(c.patient, c.id); !errors.Is(err, questionnaire.ErrNotFound) {
+			t.Errorf("%s: ByID() = %v, want ErrNotFound", c.name, err)
+		}
+	}
+}

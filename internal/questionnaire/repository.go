@@ -6,10 +6,14 @@ import (
 )
 
 // Repository stores questionnaires and the roles' defaults. Every read and write sees only the clinic set
-// by SetOrganization (row-level security).
+// by SetOrganization (row-level security), or, read-only, the versions referenced by the responses of the
+// patient set by SetPatient.
 type Repository interface {
 	// SetOrganization scopes the rest of the transaction in ctx to the clinic id.
 	SetOrganization(ctx context.Context, id string) error
+	// SetPatient scopes the rest of the transaction in ctx to the patient id: the versions their own
+	// questionnaire responses reference.
+	SetPatient(ctx context.Context, id string) error
 	// ByID returns the version id, or ErrNotFound (also outside the scope, or for an id that is not a UUID).
 	ByID(ctx context.Context, id string) (Questionnaire, error)
 	// Lock returns the version id, locked until the transaction ends so lifecycle steps of one version run

@@ -22,6 +22,12 @@ type Repository interface {
 	Lock(ctx context.Context, id string) (Response, error)
 	// Stop withdraws the response at at: stopped, its answers cleared.
 	Stop(ctx context.Context, id string, at time.Time) (Response, error)
+	// SaveAnswers replaces the answers of the in-progress response id at at, moving it to its next version,
+	// or returns ErrNotFound when there is no such response in progress.
+	SaveAnswers(ctx context.Context, id string, answers []Answer, at time.Time) (Response, error)
+	// Complete submits the in-progress response id with answers at at: completed, authored at at, its next
+	// version; or returns ErrNotFound when there is no such response in progress.
+	Complete(ctx context.Context, id string, answers []Answer, at time.Time) (Response, error)
 	// Search returns the responses of f that the scope shows, by due time.
 	Search(ctx context.Context, f Filter) ([]Response, error)
 	// DeleteUnsubmittedBefore deletes, in every clinic, the responses not completed whose due time is

@@ -173,6 +173,36 @@ func (r *fakeRepository) Stop(ctx context.Context, id string, at time.Time) (que
 	return questionnaireresponse.Response{}, questionnaireresponse.ErrNotFound
 }
 
+func (r *fakeRepository) SaveAnswers(ctx context.Context, id string, answers []questionnaireresponse.Answer, at time.Time) (questionnaireresponse.Response, error) {
+	return r.update(ctx, id, func(x *questionnaireresponse.Response) { x.Answers = answers }, at)
+}
+
+func (r *fakeRepository) Complete(ctx context.Context, id string, answers []questionnaireresponse.Answer, at time.Time) (questionnaireresponse.Response, error) {
+	return r.update(ctx, id, func(x *questionnaireresponse.Response) {
+		x.Answers, x.Status, x.AuthoredAt = answers, questionnaireresponse.StatusCompleted, at
+	}, at)
+}
+
+// update changes the in-progress response id with set at at, as the patient's update does.
+func (r *fakeRepository) update(ctx context.Context, id string, set func(*questionnaireresponse.Response), at time.Time) (questionnaireresponse.Response, error) {
+	if err := inTx(ctx); err != nil {
+		return questionnaireresponse.Response{}, err
+	}
+	if r.err != nil {
+		return questionnaireresponse.Response{}, r.err
+	}
+	for i, x := range r.responses {
+		if x.ID == id && r.visible(x) && x.Status == questionnaireresponse.StatusInProgress {
+			set(&x)
+			x.LastUpdated = at
+			x.VersionID++
+			r.responses[i] = x
+			return x, nil
+		}
+	}
+	return questionnaireresponse.Response{}, questionnaireresponse.ErrNotFound
+}
+
 func (r *fakeRepository) Search(ctx context.Context, f questionnaireresponse.Filter) ([]questionnaireresponse.Response, error) {
 	if err := inTx(ctx); err != nil {
 		return nil, err
@@ -242,9 +272,29 @@ func (a *fakeAppointments) Attendance(ctx context.Context, c appointment.Caller,
 // fakeQuestionnaires holds the versions and reads one of the caller's clinic, audited as questionnaire.Service
 // does.
 type fakeQuestionnaires struct {
+	err      error
 	audit    *fakeAudit
 	versions map[string]questionnaire.Questionnaire
 	callers  []questionnaire.Caller
+	patients []string // the patients Referenced was asked for
+}
+
+// Referenced reads a version for a patient, audited as questionnaire.Service does; the fake shows every
+// version (the service has checked the reference).
+func (q *fakeQuestionnaires) Referenced(ctx context.Context, c questionnaire.Caller, patientID, id string) (questionnaire.Questionnaire, error) {
+	if err := inTx(ctx); err != nil {
+		return questionnaire.Questionnaire{}, err
+	}
+	if q.err != nil {
+		return questionnaire.Questionnaire{}, q.err
+	}
+	q.callers, q.patients = append(q.callers, c), append(q.patients, patientID)
+	got, ok := q.versions[id]
+	if !ok {
+		return questionnaire.Questionnaire{}, questionnaire.ErrNotFound
+	}
+	q.audit.events = append(q.audit.events, auditevent.AuditEvent{EntityReference: "Questionnaire/" + id, Outcome: auditevent.OutcomeSuccess, AgentName: "questionnaire read"})
+	return got, nil
 }
 
 func (q *fakeQuestionnaires) Read(ctx context.Context, c questionnaire.Caller, id string) (questionnaire.Questionnaire, error) {
@@ -284,7 +334,10 @@ func newFixture(at time.Time) *fixture {
 		roles:    map[string]string{practA1: roleA1, practA2: roleA2},
 	}
 	f.questionnaires = &fakeQuestionnaires{audit: f.audit, versions: map[string]questionnaire.Questionnaire{
-		qActive:  {ID: qActive, SeriesID: seriesA, OrganizationID: clinicA, Status: questionnaire.StatusActive, Version: 1},
+		qActive: {ID: qActive, SeriesID: seriesA, OrganizationID: clinicA, Status: questionnaire.StatusActive, Version: 1, Items: []questionnaire.Item{
+			{LinkID: "q1", Text: "Placeholder question", Type: questionnaire.ItemBoolean, Required: true},
+			{LinkID: "q2", Text: "Placeholder question", Type: questionnaire.ItemString},
+		}},
 		qDraft:   {ID: qDraft, SeriesID: seriesA, OrganizationID: clinicA, Status: questionnaire.StatusDraft, Version: 2},
 		qRetired: {ID: qRetired, SeriesID: seriesB, OrganizationID: clinicA, Status: questionnaire.StatusRetired, Version: 1},
 		qOther:   {ID: qOther, SeriesID: seriesB, OrganizationID: clinicB, Status: questionnaire.StatusActive, Version: 1},

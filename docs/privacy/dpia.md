@@ -874,3 +874,36 @@ with the clinical record. **Needs a legal decision before production** (SPEC §5
 | Answers left after a withdrawal | The withdrawal clears them in the same statement; a check constraint refuses a withdrawn row with answers (tested) |
 | Unsubmitted answers kept after the appointment | The purger deletes them once due, in every clinic (tested at the due time ± 1 s) |
 | The fact of a request reaching another clinic | Row-level security and the service both scope to the clinic and the patient's consent; a request's version must belong to its clinic (foreign key, tested) |
+
+### Package 4: answers
+
+**Processing added.** The patient's answers to a requested questionnaire (`questionnaire_response.answers`, a
+flat list of `linkId` and values) and their submission (`status` `completed`, `authored_at`). The patient saves
+answers as they go, each save replacing the saved list, and submits once; a submitted response is final. Each
+answer is checked against its item's type and limits; on submit every enabled required question must be
+answered, and the answers of items hidden by a condition are removed, so only what the clinic asked and the
+patient was shown is kept. The endpoints come in package 6.
+
+**Purpose and lawful basis.** As package 3: preparing the appointment and, once submitted, the care record
+(Art. 9(2)(h)), with the consent for sharing before care. **Needs legal confirmation before production.**
+
+**Access.** Only the patient saves and submits their own response, while it is in progress, before the
+appointment starts and with their active consent with the clinic: the consent is read in the same transaction,
+so a revocation refuses the very next save (service test). Staff who see the response are refused (`ErrForbidden`),
+anyone else is told it does not exist. To check the answers the service reads the questionnaire version in the
+patient's scope, where row-level security shows only the versions their own responses reference; that read is
+audited as the patient's (`PATRQT`). Every save and submit writes an `AuditEvent` in its transaction, refusals
+included. A save or submit is made on the version last read (`If-Match`), so a stale device cannot overwrite
+newer answers.
+
+**Retention.** Unchanged from package 3: unsubmitted answers are deleted once due; submitted ones are kept with
+the clinical record.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Answers kept for questions the patient never saw | Submit removes the answers of hidden items (conditions and hidden sections, chains, tested) |
+| Answers saved after a revocation | The consent is read in the save's transaction, not cached (service test) |
+| Answers or linkIds in logs or errors | Error text names no linkId and no value; the offending linkIds travel only in `AnswersError.LinkIDs` for the 422 (tested) |
+| Oversized or malformed answers stored | Every answer is checked against its item's type and limits on every save and again on submit (tested at each limit) |

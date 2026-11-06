@@ -28,4 +28,24 @@ var (
 	ErrSubmitted = errors.New("questionnaireresponse: submitted")
 	// ErrWithdrawn is returned for a change to a withdrawn response (withdrawn).
 	ErrWithdrawn = errors.New("questionnaireresponse: withdrawn")
+	// ErrPastDue is returned for a change to a response once its appointment has started (past_due).
+	ErrPastDue = errors.New("questionnaireresponse: past due")
+	// ErrConflict is returned for a change made on a version of the response that is not the current one
+	// (412, version_conflict).
+	ErrConflict = errors.New("questionnaireresponse: version conflict")
+	// ErrAnswersInvalid is what every *AnswersError is (answers_invalid).
+	ErrAnswersInvalid = errors.New("questionnaireresponse: answers invalid")
 )
+
+// AnswersError is a set of answers that breaks the rules of SPEC.md §2 "Limits" and "Patient flow": an answer
+// that does not fit its item's type or limits, or, on submit, an enabled required question left unanswered.
+// LinkIDs are the offending items' linkIds, in document order; an answer to no item of the version is refused
+// without being named. Its text holds no linkId and no answer.
+type AnswersError struct {
+	LinkIDs []string
+}
+
+func (e *AnswersError) Error() string { return ErrAnswersInvalid.Error() }
+
+// Is makes errors.Is(err, ErrAnswersInvalid) hold.
+func (e *AnswersError) Is(target error) bool { return target == ErrAnswersInvalid }

@@ -241,3 +241,43 @@ func TestService_AnotherClinicsAdminSeesNothingOfClinicA(t *testing.T) {
 		t.Errorf("Publish() of clinic A's by clinic B's admin = %v, want ErrNotFound", err)
 	}
 }
+
+const patientA = "c2000000-0000-4000-8000-0000000000c1"
+
+// A patient reads a version their own response references, in their scope, audited as their own request;
+// any other version is ErrNotFound, audited without the entity.
+func TestReferenced_GivesThePatientTheVersionsTheirResponsesReferenceAndAuditsIt(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	f.repo.referenced = map[string][]string{patientA: {activeA}}
+
+	got, err := f.svc.Referenced(t.Context(), patient, patientA, activeA)
+	if err != nil || got.ID != activeA || len(got.Items) != 2 {
+		t.Errorf("Referenced() = %+v, %v; want version 1 of series A with its items", got, err)
+	}
+	if f.repo.patient != patientA || f.repo.clinic != "" {
+		t.Errorf("scoped to patient %q, clinic %q; want the patient only", f.repo.patient, f.repo.clinic)
+	}
+	for _, c := range []struct{ patient, id string }{{patientA, draftA}, {patientA, activeB}, {patientA, missing}, {"", activeA}} {
+		if _, err := f.svc.Referenced(t.Context(), patient, c.patient, c.id); !errors.Is(err, questionnaire.ErrNotFound) {
+			t.Errorf("Referenced(%q, %s) = %v, want ErrNotFound", c.patient, c.id, err)
+		}
+	}
+	read := func(entity string, outcome auditevent.Outcome) event {
+		return event{agent: patient.AccountID, subtype: auditevent.CodeRead, purpose: auditevent.CodePATRQT, entity: entity, action: auditevent.ActionRead, outcome: outcome}
+	}
+	refused := read("", auditevent.OutcomeMinorFailure)
+	assertEvents(t, f.audit, read("Questionnaire/"+activeA, auditevent.OutcomeSuccess), refused, refused, refused, refused)
+	if len(f.repo.outside) != 0 {
+		t.Errorf("called outside a transaction: %v", f.repo.outside)
+	}
+}
+
+func TestReferenced_ReturnsTheRepositoryErrorWrapped(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	f.repo.err = errors.New("the database is down")
+	if _, err := f.svc.Referenced(t.Context(), patient, patientA, activeA); !errors.Is(err, f.repo.err) || len(f.audit.events) != 0 {
+		t.Errorf("Referenced() = %v with %d events, want the error and no event", err, len(f.audit.events))
+	}
+}

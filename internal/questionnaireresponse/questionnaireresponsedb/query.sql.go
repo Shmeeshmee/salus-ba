@@ -11,6 +11,44 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const completeQuestionnaireResponse = `-- name: CompleteQuestionnaireResponse :one
+UPDATE questionnaire_response
+SET status = 'completed', answers = $1, authored_at = $2, updated_at = $2, version_id = version_id + 1
+WHERE id = $3 AND status = 'in-progress'
+RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
+          series_id, version_id, source, status, answers
+`
+
+type CompleteQuestionnaireResponseParams struct {
+	Answers []byte
+	At      pgtype.Timestamptz
+	ID      pgtype.UUID
+}
+
+// The patient's submit: completed with the answers kept, authored now; final.
+func (q *Queries) CompleteQuestionnaireResponse(ctx context.Context, arg CompleteQuestionnaireResponseParams) (QuestionnaireResponse, error) {
+	row := q.db.QueryRow(ctx, completeQuestionnaireResponse, arg.Answers, arg.At, arg.ID)
+	var i QuestionnaireResponse
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DueAt,
+		&i.AuthoredAt,
+		&i.OrganizationID,
+		&i.AppointmentID,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.QuestionnaireID,
+		&i.SeriesID,
+		&i.VersionID,
+		&i.Source,
+		&i.Status,
+		&i.Answers,
+	)
+	return i, err
+}
+
 const deleteUnsubmittedQuestionnaireResponses = `-- name: DeleteUnsubmittedQuestionnaireResponses :execrows
 DELETE FROM questionnaire_response
 WHERE status <> 'completed' AND due_at < $1
@@ -123,6 +161,44 @@ WHERE id = $1
 
 func (q *Queries) QuestionnaireResponseByID(ctx context.Context, id pgtype.UUID) (QuestionnaireResponse, error) {
 	row := q.db.QueryRow(ctx, questionnaireResponseByID, id)
+	var i QuestionnaireResponse
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DueAt,
+		&i.AuthoredAt,
+		&i.OrganizationID,
+		&i.AppointmentID,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.QuestionnaireID,
+		&i.SeriesID,
+		&i.VersionID,
+		&i.Source,
+		&i.Status,
+		&i.Answers,
+	)
+	return i, err
+}
+
+const saveQuestionnaireResponseAnswers = `-- name: SaveQuestionnaireResponseAnswers :one
+UPDATE questionnaire_response
+SET answers = $1, updated_at = $2, version_id = version_id + 1
+WHERE id = $3 AND status = 'in-progress'
+RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
+          series_id, version_id, source, status, answers
+`
+
+type SaveQuestionnaireResponseAnswersParams struct {
+	Answers []byte
+	At      pgtype.Timestamptz
+	ID      pgtype.UUID
+}
+
+// The patient's save: the answers replaced, while in progress.
+func (q *Queries) SaveQuestionnaireResponseAnswers(ctx context.Context, arg SaveQuestionnaireResponseAnswersParams) (QuestionnaireResponse, error) {
+	row := q.db.QueryRow(ctx, saveQuestionnaireResponseAnswers, arg.Answers, arg.At, arg.ID)
 	var i QuestionnaireResponse
 	err := row.Scan(
 		&i.ID,

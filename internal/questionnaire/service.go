@@ -259,6 +259,39 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (Questionnaire,
 	return out, nil
 }
 
+// Referenced returns the version id to the patient patientID, c their account, read in the patient's scope,
+// where row-level security shows a patient only the versions their own questionnaire responses reference. It
+// serves the questionnaireresponse service, which has checked that the patient's response references it.
+// Audited as the patient's read; ErrNotFound for any other version (and without a patient), audited without
+// the entity.
+func (s *Service) Referenced(ctx context.Context, c Caller, patientID, id string) (Questionnaire, error) {
+	var out Questionnaire
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if patientID == "" {
+			return s.record(ctx, c, opRead, "", auditevent.OutcomeMinorFailure)
+		}
+		if err := s.Repo.SetPatient(ctx, patientID); err != nil {
+			return err
+		}
+		q, err := s.Repo.ByID(ctx, id)
+		switch {
+		case errors.Is(err, ErrNotFound):
+			return s.record(ctx, c, opRead, "", auditevent.OutcomeMinorFailure)
+		case err != nil:
+			return err
+		}
+		out = q
+		return s.record(ctx, c, opRead, q.ID, auditevent.OutcomeSuccess)
+	})
+	switch {
+	case err != nil:
+		return Questionnaire{}, fmt.Errorf("questionnaire: referenced: %w", err)
+	case out.ID == "":
+		return Questionnaire{}, ErrNotFound
+	}
+	return out, nil
+}
+
 // Search returns the versions of c's clinic the filter gives, oldest first. Each one returned is audited; a
 // search that returns none writes one event without an entity.
 func (s *Service) Search(ctx context.Context, c Caller, f Filter) ([]Questionnaire, error) {
