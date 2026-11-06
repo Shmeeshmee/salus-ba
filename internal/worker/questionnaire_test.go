@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/consent"
@@ -121,5 +122,64 @@ func TestQuestionnaireResponsesDiscard_AfterARevocationDeletesTheFutureAppointme
 	if n := countWhere(t, db, `SELECT count(*) FROM audit_event WHERE agent_name = 'questionnaire_responses_discard' AND purpose_code = 'HOPERAT'
 		AND subtype_code = 'delete' AND entity_reference LIKE 'QuestionnaireResponse/%'`); n != 1 {
 		t.Errorf("%d audit events of the discard by the job, want 1", n)
+	}
+}
+
+// e1 is COPY.md E1.
+const e1 = "There is a questionnaire to fill in before your appointment. You can find it in the Salus app."
+
+// The confirmation and the reminder carry E1 while a questionnaire is outstanding, read in the notifier's
+// notice scope as salus_app: the role's default before its request, a response in progress; not once it is
+// submitted, nor without a default. Never the title or a question.
+func TestNotifier_MentionsAnOutstandingQuestionnaireWithoutItsTitle(t *testing.T) {
+	t.Parallel()
+	db := newLogins(t)
+	b := seedBooking(t, db.owner)
+	version := seedQuestionnaire(t, db, b)
+	setResponse := func(status string) {
+		t.Helper()
+		if _, err := db.owner.Exec(t.Context(), `DELETE FROM questionnaire_response;
+			INSERT INTO questionnaire_response (organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id, series_id,
+				source, status, due_at, authored_at)
+			SELECT a.organization_id, a.id, a.patient_id, a.practitioner_role_id, q.id, q.series_id, 'default', '`+status+`', lower(a.period),
+				CASE WHEN '`+status+`' = 'completed' THEN now() END
+			FROM appointment a, questionnaire q WHERE a.id = '`+b.future+`' AND q.id = '`+version+`'`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	booked := appointment.BookedEmailArgs{AppointmentID: b.future, OrganizationID: clinicID}
+	reminder := appointment.ReminderEmailArgs{AppointmentID: b.future, OrganizationID: clinicID}
+	for _, tt := range []struct {
+		setup func()
+		args  river.JobArgs
+		name  string
+		want  bool
+	}{
+		{name: "the confirmation before the default's request", args: booked, want: true, setup: func() {}},
+		{name: "the reminder with the default in progress", args: reminder, want: true, setup: func() { setResponse("in-progress") }},
+		{name: "the reminder with the default submitted", args: reminder, want: false, setup: func() { setResponse("completed") }},
+		{name: "the confirmation without a default", args: booked, want: false, setup: func() {
+			if _, err := db.owner.Exec(t.Context(), "DELETE FROM questionnaire_response; DELETE FROM questionnaire_default"); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	} {
+		tt.setup()
+		if state := runEmailJob(t, db.app, tt.args); state != rivertype.JobStateCompleted {
+			t.Fatalf("%s: job state %s, want completed", tt.name, state)
+		}
+		text := mailpitText(t, b.email)
+		if strings.Contains(text, e1) != tt.want {
+			t.Errorf("%s: E1 in the e-mail is %v, want %v:\n%s", tt.name, !tt.want, tt.want, text)
+		}
+		for _, never := range []string{placeholderTitle, "Placeholder question", version} {
+			if strings.Contains(text, never) {
+				t.Errorf("%s: the e-mail holds %q", tt.name, never)
+			}
+		}
+	}
+	if n := countWhere(t, db, `SELECT count(*) FROM audit_event WHERE agent_name IN ('appointment_booked_email', 'appointment_reminder_email')
+		AND purpose_code = 'HOPERAT' AND subtype_code = 'search-type'`); n != 4 {
+		t.Errorf("%d audit events of the jobs' checks, want 4: one per e-mail", n)
 	}
 }

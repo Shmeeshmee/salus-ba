@@ -973,3 +973,28 @@ answers. The patient's caller reads their own profile first (audited, as for app
 | Answers shown to staff before the submit, to the admin, or to another practitioner | The handler writes `item` only for a `Full` view; the access matrix is tested through the API on the real database with row-level security on, before and after a revocation |
 | Answers in logs, errors or caches | Error bodies are fixed codes with `linkIds` only; the handlers' logs hold no answer, title or question (tested); `no-store` on every answer |
 | A patient reading another clinic's questionnaire library | A patient reads a version only in their scope, where row-level security shows the versions their own responses reference (tested) |
+
+### Package 7: e-mail mention
+
+**Processing added.** The booking confirmation and the 24-hour reminder add one fixed sentence (COPY E1) when
+the appointment has a questionnaire outstanding: a response in progress, or the active default of the
+appointment's role not yet requested. The notifier asks `questionnaireresponse.Service.Outstanding` with the
+appointment's id and the clinic's id; only a yes or no comes back. No new field, table, job or processor; SES
+(not wired in) would carry the sentence, recorded in `processors.md`.
+
+**Purpose and lawful basis.** As package 3, and as the appointment e-mails (`docs/booking`): so the patient knows
+to fill the questionnaire in before the appointment.
+
+**Access.** The check runs in the clinic's scope with the appointment's notice, as `salus_app`: row-level
+security shows the responses of that one appointment; the service drops any of another clinic. It reads their
+status and series, not their answers. It is audited with the e-mail job as agent (`HOPERAT`): a search event per
+response read, or one without an entity when there is none; the questionnaire's service audits the read of the
+role's default.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The questionnaire's title, which can name a condition, in an e-mail | The sentence is a constant; the service returns a boolean only; the e-mail is tested on the real database not to hold the title, a question or the version's id |
+| A mention for a questionnaire already submitted | A submitted or withdrawn response, or a submitted default, is not outstanding (service tests and the real database) |
+| A failed check sending the e-mail without the sentence | A failed check sends nothing and the job retries (tested) |

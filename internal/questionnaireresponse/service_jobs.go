@@ -101,9 +101,13 @@ func (s *Service) Discard(ctx context.Context, appointmentID, org string) error 
 	return nil
 }
 
-// recordJob audits interaction on QuestionnaireResponse/id by the job agent (its kind) in the clinic org, for
-// operations.
+// recordJob audits interaction on QuestionnaireResponse/id ("" for none) by the job agent (its kind) in the
+// clinic org, for operations.
 func (s *Service) recordJob(ctx context.Context, agent, org, interaction string, action auditevent.Action, id string) error {
+	entity := ""
+	if id != "" {
+		entity = "QuestionnaireResponse/" + id
+	}
 	return s.Audit.Record(ctx, auditevent.AuditEvent{
 		Type:            auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
 		Subtype:         auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: interaction},
@@ -112,6 +116,6 @@ func (s *Service) recordJob(ctx context.Context, agent, org, interaction string,
 		Outcome:         auditevent.OutcomeSuccess,
 		AgentName:       agent,
 		OrganizationID:  org,
-		EntityReference: "QuestionnaireResponse/" + id,
+		EntityReference: entity,
 	})
 }

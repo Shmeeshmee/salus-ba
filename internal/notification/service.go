@@ -24,7 +24,9 @@ type Ports struct {
 	Appointments Appointments
 	Accounts     Accounts
 	Clinics      Clinics
-	Sender       Sender
+	// Questionnaires is asked by the booking confirmation and the reminder only.
+	Questionnaires Questionnaires
+	Sender         Sender
 	// WebBaseURL is WEB_BASE_URL: invite links point at <WebBaseURL>/invite#<token>.
 	WebBaseURL string
 	// PatientAppURL is PATIENT_APP_URL: appointment e-mails link to <PatientAppURL>/appointments.
@@ -33,19 +35,21 @@ type Ports struct {
 
 // Service composes and sends the e-mails.
 type Service struct {
-	invites       Invites
-	appointments  Appointments
-	accounts      Accounts
-	clinics       Clinics
-	sender        Sender
-	webBaseURL    string
-	patientAppURL string
+	invites        Invites
+	appointments   Appointments
+	accounts       Accounts
+	clinics        Clinics
+	questionnaires Questionnaires
+	sender         Sender
+	webBaseURL     string
+	patientAppURL  string
 }
 
 // NewService returns a Service on its ports.
 func NewService(p Ports) *Service {
 	return &Service{
-		invites: p.Invites, appointments: p.Appointments, accounts: p.Accounts, clinics: p.Clinics, sender: p.Sender,
+		invites: p.Invites, appointments: p.Appointments, accounts: p.Accounts, clinics: p.Clinics,
+		questionnaires: p.Questionnaires, sender: p.Sender,
 		webBaseURL: strings.TrimRight(p.WebBaseURL, "/"), patientAppURL: strings.TrimRight(p.PatientAppURL, "/"),
 	}
 }

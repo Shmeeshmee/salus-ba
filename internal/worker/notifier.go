@@ -50,7 +50,7 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, smtpAddr, webBaseURL, pat
 	})
 	mail := notification.NewService(notification.Ports{
 		Invites: accounts, Appointments: appointments, Accounts: accounts, Clinics: clinics,
-		Sender: notification.NewSMTPSender(smtpAddr), WebBaseURL: webBaseURL, PatientAppURL: patientAppURL,
+		Questionnaires: newQuestionnaireResponses(pool, clk), Sender: notification.NewSMTPSender(smtpAddr), WebBaseURL: webBaseURL, PatientAppURL: patientAppURL,
 	})
 
 	workers := river.NewWorkers()

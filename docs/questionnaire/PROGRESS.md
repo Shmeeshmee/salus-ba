@@ -8,7 +8,7 @@
 | 4 Answers | done, 2026-11-06 | `questionnaire(4)` |
 | 5 Booking and cancellation | done, 2026-11-06 | `questionnaire(5)` |
 | 6 Responses API | done, 2026-11-06 | `questionnaire(6)` |
-| 7 E-mail mention | not started | |
+| 7 E-mail mention | done, 2026-11-06 | `questionnaire(7)` |
 | 8 Web: library and builder | held: W41 and W42 not approved | |
 | 9 Web: appointment and working hours | not started | |
 | 10 Mobile | not started | |
@@ -569,4 +569,59 @@ Dev stack: no migration. `make bench-questionnaire-http` ran `make up`, so the a
 agent containers were rebuilt with this package and left running, as found. The four load-test runs left their
 synthetic clinics, patients, appointments, one questionnaire each, 10 responses each and their audit events on the
 dev database (synthetic data only, as `bench-join-http` does).
+
+## Package 7: E-mail mention (done, 2026-11-06)
+
+Built:
+- `questionnaireresponse.Service.Outstanding(ctx, agent, org, appointmentID)` (`service_notice.go`): in one
+  transaction in the clinic's scope with the appointment's notice, the appointment's responses (any of another
+  clinic dropped, not on row-level security alone); outstanding when one is in progress, or else when the role's
+  active default (`ActiveDefault`, with the job as agent) is of a series none of them is of. An appointment the
+  scope does not show, or of another clinic, has nothing outstanding. Audited with the e-mail job as agent
+  (`HOPERAT`): a `search-type` event per response read, one without an entity when there are none.
+  `recordJob` takes an empty id for that event.
+- `notification`: the port `Questionnaires` (that one method); the booking confirmation and the reminder ask it
+  after the clinic read and before the account read, and add COPY E1 as their second paragraph when it says yes;
+  the cancellation never asks. A failed check sends nothing (the job retries). Golden files
+  `booked_questionnaire.txt` and `reminder_questionnaire.txt`; `booked.txt` and `reminder.txt` unchanged.
+- `internal/worker`: the notifier gets the questionnaireresponse service from `newQuestionnaireResponses`.
+- `docs/privacy/processors.md`: the SES entry gains the E1 sentence. `docs/privacy/dpia.md`: "Package 7: e-mail
+  mention".
+
+Test first (failures seen before the code):
+- `questionnaireresponse`: `f.svc.Outstanding undefined` (the three new tests).
+- `notification`: `unknown field Questionnaires in struct literal of type notification.Ports`.
+- `worker`: `TestNotifier_MentionsAnOutstandingQuestionnaireWithoutItsTitle` and the existing
+  `TestNotifier_SendsTheAppointmentEmailsToThePatient` left the job `available` (the unwired port). Once wired,
+  the latter counted 8 reads by the e-mail jobs instead of 6: each now also reads the role's default (audited by
+  the questionnaire's service, `PractitionerRole/<id>`). The expected count is 8 with that reason, and a second
+  assertion counts the 2 default reads.
+
+Tests: `Outstanding` table-driven (nothing, in progress, submitted, withdrawn, the default not yet requested, the
+default submitted, the default retired, a default of another clinic, another appointment's response), each with
+the scope and the audit events; an unknown appointment and another clinic's; each backend failure rolls back the
+audit. The e-mails with and without a questionnaire outstanding (goldens, E1 the second paragraph, the job as
+agent), the cancellation not asking, a failed check sending nothing, a reminder that no longer applies not
+asking. On the real database through the notifier as `salus_app`: the confirmation before the default's request
+holds E1, the reminder with the default in progress holds it, with it submitted does not, the confirmation without
+a default does not; no e-mail holds the synthetic title, the question or the version's id; 4 `search-type` audit
+events by the jobs.
+
+Checks: `make lint` 0 issues, migrations unchanged; `make test` pass; `make archcheck` pass; `make cover` pass,
+`internal/notification` 91.6%, `internal/questionnaireresponse` 95.6%, `internal/worker` 93.7%, total 94.8%.
+
+Readings:
+- "A role default not yet requested" is read as: the role has an active default and the appointment has no
+  response of its series, in any status. A submitted or withdrawn response of that series (default or added)
+  counts as requested, so a withdrawn default is not mentioned again.
+- The check is audited as a search of the appointment's responses by the job, as package 6 audits a search, and
+  reads no answer. The appointment's `Lookup` is unaudited, as in the jobs of package 5; the appointment is read
+  and audited by the e-mail's `Notice` already.
+- The check comes before the account's e-mail is read, so a failed check reads no address.
+
+Deferred: nothing of this package. The web screens (8, 9), mobile (10), end to end (11).
+
+Dev stack: no migration, nothing written to the dev database (the tests use their own databases and the compose
+Mailpit, whose test messages they delete). The running notifier container still has package 6's build; `make
+up` rebuilds it.
 

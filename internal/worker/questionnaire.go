@@ -50,8 +50,8 @@ func (w *questionnaireDiscardWorker) Work(ctx context.Context, job *river.Job[ap
 }
 
 // newQuestionnaireResponses builds the questionnaireresponse service on pool (salus_app) at clk for
-// RequestDefault and Discard: the appointment, read through Lookup, and the role's default questionnaire,
-// through ActiveDefault.
+// RequestDefault and Discard, and the notifier's Outstanding: the appointment, read through Lookup, and the
+// role's default questionnaire, through ActiveDefault.
 func newQuestionnaireResponses(pool *pgxpool.Pool, clk clock.Clock) *questionnaireresponse.Service {
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
