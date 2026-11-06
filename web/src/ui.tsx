@@ -41,6 +41,21 @@ export function Alert({ message }: { message?: string }) {
   )
 }
 
+// TipTag is a tag with a tooltip, shown on hover and on focus.
+export function TipTag({ className, label, tip }: { className: string; label: string; tip: string }) {
+  const id = useId()
+  return (
+    <span className="tip">
+      <span className={`tag ${className}`} tabIndex={0} aria-describedby={id}>
+        {label}
+      </span>
+      <span role="tooltip" id={id}>
+        {tip}
+      </span>
+    </span>
+  )
+}
+
 export function Notice({ message }: { message?: string }) {
   if (!message) return null
   return (

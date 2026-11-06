@@ -74,7 +74,7 @@ export const consultation = {
   timePassed: 'The time to join this consultation has passed.', // W39
 } as const
 
-// Questionnaires: the library and the builder (docs/questionnaire/COPY.md, approved by the owner, word for
+// Questionnaires: the library, the builder, the role's default and the appointment's requests (docs/questionnaire/COPY.md, approved by the owner, word for
 // word; the W numbers are COPY.md's). [Item] is the item's text, or its type (W11) while it has none.
 export const questionnaires = {
   title: 'Questionnaires', // W1
@@ -173,4 +173,32 @@ export const questionnaires = {
   inSection: (item: string, section: string, n: number, total: number) => `${item} is in ${section}, at position ${n} of ${total}.`, // W42
   moved: (item: string, n: number, total: number) => `${item} moved to position ${n} of ${total}.`, // W42
   cancelled: (item: string, n: number, total: number) => `Move cancelled. ${item} is back at position ${n} of ${total}.`, // W42
+  defaultLabel: 'Questionnaire for every booking', // W30
+  none: 'None', // W30
+  defaultHint: 'Patients who book from now on are asked to fill it in before their appointment.', // W30
+  defaultNotActive: 'This questionnaire is not active. Choose an active one.', // W31
+  requests: 'Questionnaires', // W32
+  noRequests: 'No questionnaires requested.', // W33
+  notSubmitted: 'Not submitted yet', // W34
+  submitted: (when: string) => `Submitted ${when}`, // W34
+  withdrawn: 'Withdrawn', // W34
+  notSubmittedBefore: 'Not submitted before the appointment', // W34
+  add: 'Add questionnaire', // W35
+  picker: 'Questionnaire', // W35
+  addConfirm: 'Add', // W35
+  addHint: 'The patient sees it in the Salus app and is asked to submit it before the appointment starts.', // W35
+  withdraw: 'Withdraw', // W36
+  withdrawQuestion: 'Withdraw this questionnaire?', // W36
+  withdrawWarning: 'The patient no longer needs to fill it in, and any answers they have saved are deleted.', // W36
+  viewAnswers: 'View answers', // W37
+  hideAnswers: 'Hide answers', // W37
+  notAnswered: 'Not answered', // W38
+  answersPrivate: "Only the appointment's practitioner can see the answers.", // W39
+  requestErrors: {
+    already_requested: 'This questionnaire has already been requested for this appointment.',
+    not_active: 'This questionnaire is no longer active.',
+    appointment_started: 'The appointment has started, so questionnaires can no longer be added.',
+    consent_required: "The patient's consent for this clinic is not active, so a questionnaire cannot be requested.",
+    submitted: 'The patient has already submitted this questionnaire.',
+  } as Record<string, string | undefined>, // W40
 } as const

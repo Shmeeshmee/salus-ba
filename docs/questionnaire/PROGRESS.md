@@ -10,7 +10,7 @@
 | 6 Responses API | done, 2026-11-06 | `questionnaire(6)` |
 | 7 E-mail mention | done, 2026-11-06 | `questionnaire(7)` |
 | 8 Web: library and builder | done, 2026-11-06 | `questionnaire(8)` |
-| 9 Web: appointment and working hours | not started | |
+| 9 Web: appointment and working hours | done, 2026-11-06 | `questionnaire(9)` |
 | 10 Mobile | not started | |
 | 11 End-to-end | not started | |
 
@@ -771,3 +771,102 @@ practitioner, a role with working hours and free slots, a 200-item draft, and fr
 "Placeholder walk questionnaire" and their audit events (synthetic data only, as earlier walks). The running
 `node` dev server (Vite) picks up the new config and packages from the mounted `web/` on its own; nothing else on
 the stack changed. Screenshots of the walk are in the ignored `.claude/runs/questionnaire/walk-8/`.
+
+## Package 9: Web: appointment and working hours (done, 2026-11-06)
+
+Built:
+- `web/src/messages.ts`: W30 to W40 exactly as `COPY.md` (a script compared the 31 quoted strings of those sections,
+  placeholders against the template parameters: none missing); W38's "Yes" and "No" were already there (package 8).
+- `responses.ts`: the requests as pure functions. `requestsOf` reads the `QuestionnaireResponse` search with the
+  included versions (each response's title from its `url|version`); `answered` lists a submitted response's
+  enabled questions by section, with its answers (an item is enabled when its section is and its condition's
+  question is enabled and answered as the condition says, any answer of a choice with repeats; instructions and
+  hidden items left out; an enabled question without an answer kept, with no values); `valueText` writes each
+  answer type; `statusOf` is W34.
+- `AppointmentQuestionnaires.tsx`, on `AppointmentDetail.tsx` after the consultation: W32, W33, each request with
+  its title and W34; for the appointment's own practitioner (the account's practitioner is the appointment's
+  `Practitioner` participant) "View answers" and "Hide answers" (W37) on a submitted one, the answers by section
+  in a `dl` (W38, multiple choice as a list, long answers with their line breaks), "Withdraw" with W36 while in
+  progress, and "Add questionnaire" with the picker and W35 while the appointment is booked and has not started;
+  W40 per error. An admin sees the requests and their status only, W39 in a tooltip on the status (hover and
+  focus).
+- `Availability.tsx`: under the hours, the role's default (W30): "None" and the clinic's active questionnaires,
+  saved as soon as one is picked (`PUT`, or `DELETE` for "None"), the picker disabled while it saves; W31 on a
+  409 `not_active`, and also when the role's default has no active version any more.
+- `ui.tsx`: `TipTag`, the library's status tooltip (package 8's `StatusTag`) made shared for its second use.
+  `api/fhir.ts`: `QuestionnaireResponse`. `vite.config.ts`: the dev server proxies `POST
+  /appointments/<id>/questionnaires` and `/questionnaire-responses`. `app.css`. `test/responses.ts`: synthetic
+  responses and the search bundle.
+
+Test first (failures seen before the code):
+- `responses.test.ts`: `Failed to resolve import "./responses"`.
+- `AppointmentQuestionnaires.test.tsx`: `Failed to resolve import "./AppointmentQuestionnaires"`. Its first run
+  after the code: 1 of 27 failed, the test's own fixture (a Name view pointing at another version than the one
+  included).
+- `AppointmentDetail.test.tsx`: the three new tests, no `Questionnaires` region before the wiring.
+- `Availability.test.tsx`: the nine new tests, no "Questionnaire for every booking" before the code.
+
+Tests (Vitest, 372 in all, 61 new): `answered` by section, unanswered, a hidden section, a chain of two, a choice
+with repeats; `valueText` per type; `requestsOf` pairing and an empty search; `statusOf` each status and the
+start. The section: the search's parameters; each status (before and after the start, submitted in the clinic
+zone, withdrawn); a failed load; the answers of every type by section, hidden items and instructions left out,
+"Not answered", hide; no "View answers" before submit or once withdrawn; the admin's status only with W39 and a
+Name view of a submitted response; add (only active questionnaires without a live request, a withdrawn one
+offered again, the body, CSRF), cancel, each W40 code, not offered to an admin, another practitioner, after the
+start or on a cancelled appointment; withdraw with W36 and CSRF, kept when not confirmed, W40 `submitted`, not
+offered when submitted, withdrawn or to an admin. The detail: the section for the own practitioner, the admin and
+another practitioner. The default: read among the actives (`status=active`), None, set with CSRF, clear, 409
+`not_active` and a failure keep the old value, a default without an active version, an admin's choice of
+practitioner, a failed load.
+
+Checks: `make web-lint` 0 warnings, 0 errors; `make web-typecheck` passes; `make web-test` 22 files, 372 tests;
+`make web-build` passes, with Vite's chunk-size warning (926 kB minified, 261 kB gzip; 916 kB after package 8);
+`make gen-clients` no diff (no `openapi.yaml` change). Not in this package's check sets, run as CLAUDE.md asks
+before done: `make lint` 0 issues, migrations unchanged; `make archcheck` passes; `make test` passes.
+
+Browser walk (`make up` stack; Chromium 1.55 in the `playwright` service with the Vite dev server inside it, as in
+package 8; a temporary e2e test made a synthetic clinic with its admin and practitioner, a patient with consent, a
+future and a past appointment, three published questionnaires (one with every type, a section, instructions, a
+condition and an optional question), two requests on the future appointment, one of them answered and submitted
+by the patient, and one on the past appointment, then ran a temporary spec; both deleted before the commit; 3 of 3
+passed on the final run):
+- Desktop 1280 px and 390 px, the practitioner: the requests with W34 (submitted with its time, not submitted
+  yet), the answers of every type by section with "Not answered" and the hidden question and instructions absent,
+  hide; "Add questionnaire" offering only the one not requested, added, withdrawn with W36, offered again after a
+  reload, the picker opened and cancelled by keyboard (Enter); the past appointment with W34's "Not submitted
+  before the appointment" and no "Add questionnaire"; Working hours: the default set, kept after a reload, cleared
+  with None. No horizontal scroll on any of them.
+- The admin: statuses only, no button in the section, W39 shown when the status has the focus; Working hours: the
+  practitioner's default changed with the arrow key on the focused picker (saved on change, kept after a reload),
+  then cleared.
+- The walk found that the dev server did not proxy the two new JSON endpoints (`vite.config.ts` above).
+
+Readings:
+- The requests come from one FHIR search, `QuestionnaireResponse?appointment=Appointment/<id>&_include=…`: the
+  practitioner's view is `Full` once submitted and `Name` before (package 3), so the answers are in the same
+  answer; the version included gives the title and the sections. An admin's view never has answers; the screen
+  does not offer them by role, not by their absence.
+- "Withdraw" is offered while the response is in progress, as the plan says, also once the appointment has
+  started (the service allows it then).
+- The picker leaves out the questionnaires the appointment already has an in-progress or submitted request of
+  (409 `already_requested` otherwise); a withdrawn one is offered again. It reads the actives when opened, not
+  with the page, so a plain view of the appointment audits no `Questionnaire` search.
+- The default is saved on change, without a "Save" button or a success line: COPY.md has neither for it, and the
+  picker showing the new value (and the error otherwise) is the feedback. A default whose questionnaire has no
+  active version shows "None" with W31, the closest approved sentence; nothing is requested for it until another
+  version is published or the default changes.
+- A request whose version is missing from the search answer is titled W35's "Questionnaire".
+- Dates of `date` answers are written as "15 January 2026" (as the patient's birth date), not in the clinic zone:
+  they are calendar dates.
+
+Deferred: mobile (10); the end-to-end journeys (11). Splitting the bundle is not measured as a problem and not done.
+
+Questions for a person: none new. Package 8's (a label for the builder's type select; an empty option's W28 line)
+are still open.
+
+Dev stack: no migration. `make up` rebuilt and restarted the api, worker, scheduler, notifier and agent with the
+branch as it was (no Go change in this package). The walk runs left 3 synthetic clinics on the dev database, each
+with an admin, a practitioner, a patient, two appointments (one moved into the past), three published
+questionnaires, their requests (one submitted with synthetic answers, one added and withdrawn by the walk), and
+their audit events (synthetic data only, as earlier walks). Screenshots are in the ignored
+`.claude/runs/questionnaire/walk-9/`.

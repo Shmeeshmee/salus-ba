@@ -1,12 +1,13 @@
-import { useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import type { Account, ApiClient } from './api/client'
-import type { FhirClient } from './api/fhir'
+import type { Bundle, FhirClient, Questionnaire } from './api/fhir'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
 import { CrossIcon } from './icons'
 import { useLoad } from './load'
-import { somethingWrong } from './messages'
+import { questionnaires as t, somethingWrong } from './messages'
 import { PractitionerPicker } from './PractitionerPicker'
+import { fromFHIR, type Version } from './questionnaire'
 import { loadStaff, loadTimeZone } from './staff'
 import { Alert, Field, Notice, Submit } from './ui'
 import { useSubmit } from './useSubmit'
@@ -19,6 +20,7 @@ const loadFailed = 'The working hours could not be loaded. Reload the page to tr
 
 // Availability edits a practitioner's slot length and weekly working hours, in the clinic's time zone: their
 // own, or, for an admin, those of the practitioner they pick. Saving sends If-Match with the version read.
+// Below them, the role's default questionnaire (W30, W31), saved as soon as it is picked.
 export function Availability({ api, fhir, account }: { api: ApiClient; fhir: FhirClient; account: Account }) {
   const organizationId = account.organizationId ?? ''
   const admin = account.role === 'admin'
@@ -41,6 +43,7 @@ export function Availability({ api, fhir, account }: { api: ApiClient; fhir: Fhi
         <p className="muted small">Times in {zone}</p>
       </div>
       {member ? <Editor key={member.roleId} api={api} roleId={member.roleId} /> : <p className="muted">No practitioners yet.</p>}
+      {member && <DefaultQuestionnaire key={member.roleId} api={api} fhir={fhir} roleId={member.roleId} />}
     </Panel>
   )
 }
@@ -172,6 +175,60 @@ function HoursForm({ api, saved, onSaved, onReload }: FormProps) {
         )}
       </div>
     </form>
+  )
+}
+
+type Defaults = { url?: string; actives: Version[] }
+
+// DefaultQuestionnaire picks the questionnaire requested with every booking with the role, among the clinic's
+// active ones, or none. A default whose questionnaire has no active version any more shows as none, with W31.
+function DefaultQuestionnaire({ api, fhir, roleId }: { api: ApiClient; fhir: FhirClient; roleId: string }) {
+  const id = useId()
+  const { state, set } = useLoad(async (): Promise<Defaults> => {
+    const [res, bundle] = await Promise.all([
+      attempt(api.GET('/practitioner-roles/{id}/questionnaire', { params: { path: { id: roleId } } })),
+      fhir.get<Bundle<Questionnaire>>(`Questionnaire?${new URLSearchParams({ status: 'active' })}`),
+    ])
+    if (!res.ok) throw new Error('default questionnaire')
+    const actives = (bundle.entry ?? []).map((e) => fromFHIR(e.resource)).sort((a, b) => a.title.localeCompare(b.title))
+    return { url: res.data.url, actives }
+  }, [api, fhir, roleId])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+
+  if (state.name === 'loading') return <p className="muted">Loading</p>
+  if (state.name === 'failed') return <Alert message={somethingWrong} />
+  const { url, actives } = state.value
+  const current = actives.find((v) => v.url === url)
+
+  async function change(questionnaireId: string) {
+    setBusy(true)
+    setError(undefined)
+    const params = { params: { path: { id: roleId } } }
+    const res = await (questionnaireId === ''
+      ? attempt(api.DELETE('/practitioner-roles/{id}/questionnaire', params))
+      : attempt(api.PUT('/practitioner-roles/{id}/questionnaire', { ...params, body: { questionnaireId } })))
+    setBusy(false)
+    if (res.ok) set({ actives, url: actives.find((v) => v.id === questionnaireId)?.url })
+    else setError(res.code === 'not_active' ? t.defaultNotActive : somethingWrong)
+  }
+
+  return (
+    <div className="field default-questionnaire">
+      <label htmlFor={id}>{t.defaultLabel}</label>
+      <select id={id} value={current?.id ?? ''} disabled={busy} aria-describedby={`${id}-hint`} onChange={(e) => change(e.target.value)}>
+        <option value="">{t.none}</option>
+        {actives.map((v) => (
+          <option key={v.id} value={v.id}>
+            {v.title}
+          </option>
+        ))}
+      </select>
+      <p className="hint" id={`${id}-hint`}>
+        {t.defaultHint}
+      </p>
+      <Alert message={error ?? (url !== undefined && !current ? t.defaultNotActive : undefined)} />
+    </div>
   )
 }
 

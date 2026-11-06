@@ -105,6 +105,34 @@ export interface Questionnaire {
   item?: QuestionnaireItem[]
 }
 
+export interface AnswerValue {
+  valueString?: string
+  valueBoolean?: boolean
+  valueInteger?: number
+  valueDecimal?: number
+  valueDate?: string
+}
+
+// QuestionnaireResponseItem is an answered question, or a section holding them (SPEC §2 "FHIR").
+export interface QuestionnaireResponseItem {
+  linkId: string
+  answer?: AnswerValue[]
+  item?: QuestionnaireResponseItem[]
+}
+
+export interface QuestionnaireResponse {
+  resourceType: 'QuestionnaireResponse'
+  id: string
+  meta: Meta
+  extension?: { url: string; valueReference?: Reference }[]
+  questionnaire: string // the version's canonical url|version
+  status: 'in-progress' | 'completed' | 'stopped'
+  subject: Reference
+  author: Reference
+  authored?: string
+  item?: QuestionnaireResponseItem[] // a Name view has none
+}
+
 export interface Bundle<R = PractitionerRole | Practitioner> {
   resourceType: 'Bundle'
   type: 'searchset'

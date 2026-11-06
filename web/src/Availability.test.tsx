@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Availability } from './Availability'
 import { newApiClient, type Account } from './api/client'
 import { newFhirClient } from './api/fhir'
-import { apiError, expectCsrfOnWrites, fakeFetch, type Route } from './test/fakeFetch'
+import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, paths, type Route } from './test/fakeFetch'
 import { admin, clinicRoute, cy, dee, practitioner, staffRoute } from './test/fixtures'
+import { questionnaireFHIR } from './test/questionnaires'
+import { responsesBundle } from './test/responses'
 
 afterEach(cleanup)
 
@@ -17,8 +19,22 @@ const saved = {
   versionId: 2,
 }
 
+const defaultPath = (roleId: string) => `/practitioner-roles/${roleId}/questionnaire`
+const none = (roleId: string) => () => Response.json({ practitionerRoleId: roleId, versionId: 0 })
+const intake = { ...questionnaireFHIR(), status: 'active' as const }
+const followUp = { ...intake, id: 'q2', url: 'https://salus.invalid/fhir/Questionnaire/s2', title: 'Placeholder follow-up' }
+const actives = 'GET /fhir/R4/Questionnaire'
+const activesRoute = { [actives]: () => fhirJSON(responsesBundle([], [intake, followUp])) }
+
 function renderEditor(account: Account, routes: Record<string, Route>) {
-  const fake = fakeFetch({ ...clinicRoute, ...staffRoute, ...routes })
+  const fake = fakeFetch({
+    ...clinicRoute,
+    ...staffRoute,
+    ...activesRoute,
+    [`GET ${defaultPath(cy.roleId)}`]: none(cy.roleId),
+    [`GET ${defaultPath(dee.roleId)}`]: none(dee.roleId),
+    ...routes,
+  })
   render(<Availability api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} />)
   return fake
 }
@@ -152,5 +168,105 @@ describe('Availability', () => {
     renderEditor(practitioner, { [`GET ${path(cy.roleId)}`]: () => apiError(500, 'internal error') })
 
     expect((await screen.findByRole('alert')).textContent).toBe('The working hours could not be loaded. Reload the page to try again.')
+  })
+
+  describe('the questionnaire for every booking', () => {
+    const hours = { [`GET ${path(cy.roleId)}`]: () => Response.json(saved) }
+    const picker = async () => (await screen.findByLabelText('Questionnaire for every booking')) as HTMLSelectElement
+    const options = (select: HTMLSelectElement) => Array.from(select.options).map((o) => o.textContent)
+
+    it("reads the role's default among the clinic's active questionnaires", async () => {
+      const { requests } = renderEditor(practitioner, { ...hours, [`GET ${defaultPath(cy.roleId)}`]: () => Response.json({ practitionerRoleId: cy.roleId, url: followUp.url, versionId: 3 }) })
+
+      const select = await picker()
+      expect(options(select)).toEqual(['None', 'Placeholder follow-up', 'Placeholder intake'])
+      expect(select.value).toBe('q2')
+      expect(screen.getByText('Patients who book from now on are asked to fill it in before their appointment.')).toBeTruthy()
+      const search = requests.find((r) => new URL(r.url).pathname === '/fhir/R4/Questionnaire')!
+      expect(new URL(search.url).searchParams.get('status')).toBe('active')
+    })
+
+    it('shows None while the role has no default', async () => {
+      renderEditor(practitioner, hours)
+
+      expect((await picker()).value).toBe('')
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('sets the default with the CSRF header', async () => {
+      const { requests } = renderEditor(practitioner, {
+        ...hours,
+        [`PUT ${defaultPath(cy.roleId)}`]: () => Response.json({ practitionerRoleId: cy.roleId, url: intake.url, versionId: 1 }),
+      })
+
+      fireEvent.change(await picker(), { target: { value: 'q1' } })
+
+      await vi.waitFor(() => expect(paths(requests)).toContain(`PUT ${defaultPath(cy.roleId)}`))
+      expect(await requests.find((r) => r.method === 'PUT')!.json()).toEqual({ questionnaireId: 'q1' })
+      expectCsrfOnWrites(requests)
+      await vi.waitFor(async () => expect((await picker()).disabled).toBe(false))
+      expect((await picker()).value).toBe('q1')
+    })
+
+    it('clears the default with None', async () => {
+      const { requests } = renderEditor(practitioner, {
+        ...hours,
+        [`GET ${defaultPath(cy.roleId)}`]: () => Response.json({ practitionerRoleId: cy.roleId, url: intake.url, versionId: 1 }),
+        [`DELETE ${defaultPath(cy.roleId)}`]: () => new Response(null, { status: 204 }),
+      })
+
+      const select = await picker()
+      await vi.waitFor(() => expect(select.value).toBe('q1'))
+      fireEvent.change(select, { target: { value: '' } })
+
+      await vi.waitFor(() => expect(paths(requests)).toContain(`DELETE ${defaultPath(cy.roleId)}`))
+      expectCsrfOnWrites(requests)
+      await vi.waitFor(async () => expect((await picker()).disabled).toBe(false))
+      expect((await picker()).value).toBe('')
+    })
+
+    it.each([
+      [409, 'not_active', 'This questionnaire is not active. Choose an active one.'],
+      [500, 'internal error', 'Something went wrong. Try again.'],
+    ])('keeps the default and says why on %i %s', async (status, code, message) => {
+      renderEditor(practitioner, { ...hours, [`PUT ${defaultPath(cy.roleId)}`]: () => apiError(status, code) })
+
+      fireEvent.change(await picker(), { target: { value: 'q1' } })
+
+      await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toBe(message))
+      expect((await picker()).value).toBe('')
+    })
+
+    it('says so when the default has no active version any more', async () => {
+      renderEditor(practitioner, {
+        ...hours,
+        [`GET ${defaultPath(cy.roleId)}`]: () => Response.json({ practitionerRoleId: cy.roleId, url: 'https://salus.invalid/fhir/Questionnaire/retired', versionId: 2 }),
+      })
+
+      expect((await screen.findByRole('alert')).textContent).toBe('This questionnaire is not active. Choose an active one.')
+      expect((await picker()).value).toBe('')
+    })
+
+    it("lets an admin read and set another practitioner's role default", async () => {
+      const { requests } = renderEditor(admin, {
+        ...hours,
+        [`GET ${path(dee.roleId)}`]: () => Response.json({ practitionerRoleId: dee.roleId, availability: [], versionId: 0 }),
+        [`PUT ${defaultPath(dee.roleId)}`]: () => Response.json({ practitionerRoleId: dee.roleId, url: followUp.url, versionId: 1 }),
+      })
+
+      await picker()
+      fireEvent.change(await screen.findByLabelText('Practitioner'), { target: { value: dee.practitionerId } })
+      await vi.waitFor(() => expect(paths(requests)).toContain(`GET ${defaultPath(dee.roleId)}`))
+      fireEvent.change(await picker(), { target: { value: 'q2' } })
+
+      await vi.waitFor(() => expect(paths(requests)).toContain(`PUT ${defaultPath(dee.roleId)}`))
+    })
+
+    it('says when the default cannot be loaded', async () => {
+      renderEditor(practitioner, { ...hours, [actives]: () => outcome(500, 'exception') })
+
+      expect((await screen.findByRole('alert')).textContent).toBe('Something went wrong. Try again.')
+      expect(screen.queryByLabelText('Questionnaire for every booking')).toBeNull()
+    })
   })
 })

@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import type { Account, ApiClient } from './api/client'
 import type { Bundle, FhirClient, Questionnaire } from './api/fhir'
 import { attempt } from './api/result'
@@ -8,7 +8,7 @@ import { libraryOf, type Status, type Version } from './questionnaire'
 import { navigate } from './route'
 import { loadTimeZone } from './staff'
 import { longDate } from './time'
-import { Alert, Link } from './ui'
+import { Alert, Link, TipTag } from './ui'
 
 type Filter = 'all' | Status
 const filters: Filter[] = ['all', 'draft', 'active', 'retired']
@@ -69,24 +69,9 @@ function Library({ versions, zone }: { versions: Version[]; zone: string }) {
       {versions.map((v) => (
         <li key={v.id}>
           <Link to={`/questionnaires/${encodeURIComponent(v.id)}`}>{v.title}</Link>
-          <StatusTag status={v.status} tip={t.versionTip(v.version, longDate(new Date(v.lastUpdated), zone))} />
+          <TipTag className={v.status} label={t.statuses[v.status]} tip={t.versionTip(v.version, longDate(new Date(v.lastUpdated), zone))} />
         </li>
       ))}
     </ul>
-  )
-}
-
-// StatusTag shows the status; the version and the last change sit in a tooltip, shown on hover and on focus.
-export function StatusTag({ status, tip }: { status: Status; tip: string }) {
-  const id = useId()
-  return (
-    <span className="tip">
-      <span className={`tag ${status}`} tabIndex={0} aria-describedby={id}>
-        {t.statuses[status]}
-      </span>
-      <span role="tooltip" id={id}>
-        {tip}
-      </span>
-    </span>
   )
 }

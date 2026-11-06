@@ -219,6 +219,25 @@ p.hint.join { margin-bottom: 20px; }
 .consultation ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 15px; color: var(--color-text-muted); }
 .consultation li:first-child { color: var(--color-ink); }
 
+/* Questionnaires on the appointment detail and the role's default on Working hours */
+.requests { margin: 0 0 20px; display: grid; gap: 10px; }
+.requests h2 { font-size: 15px; margin: 0; }
+.requests > ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.requests > ul > li { display: grid; gap: 10px; }
+.request { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.request-title { font-weight: 600; overflow-wrap: anywhere; }
+.request .quiet { padding: 4px 8px; font-size: 14px; }
+.tag.completed { color: var(--color-brand-hover); border-color: var(--color-mint); background: var(--color-mint-faint); }
+.tag.stopped { color: var(--color-text-muted); background: var(--color-page); }
+.answers { padding: 12px 16px; border-left: 2px solid var(--color-border); display: grid; gap: 10px; }
+.answers h3 { font-size: 15px; margin: 6px 0 0; }
+.answers dl { display: grid; gap: 10px; margin: 0; }
+.answers dt { font-size: 14px; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.answers dd { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.answers dd ul { margin: 0; padding-left: 18px; white-space: normal; }
+.requests .confirm .field select { width: 100%; }
+.default-questionnaire { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--color-border); max-width: 480px; }
+
 /* Device check */
 .check-media { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 24px; align-items: start; }
 .preview { aspect-ratio: 4 / 3; border-radius: var(--radius-control); background: var(--color-page); border: 1px solid var(--color-border); overflow: hidden; }
