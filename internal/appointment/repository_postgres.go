@@ -80,6 +80,21 @@ func (r *postgresRepository) ByID(ctx context.Context, id string) (Appointment, 
 	return toAppointment(row), nil
 }
 
+func (r *postgresRepository) ByIDForShare(ctx context.Context, id string) (Appointment, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Appointment{}, ErrNotFound
+	}
+	row, err := r.q(ctx).AppointmentByIDForShare(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Appointment{}, ErrNotFound
+	case err != nil:
+		return Appointment{}, err
+	}
+	return toAppointment(appointmentdb.AppointmentByIDRow(row)), nil
+}
+
 func (r *postgresRepository) Search(ctx context.Context, f Filter) ([]Appointment, error) {
 	var p appointmentdb.SearchAppointmentsParams
 	for _, id := range []struct {

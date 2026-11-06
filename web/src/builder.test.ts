@@ -222,7 +222,8 @@ describe('problems', () => {
 
   it.each([
     ['an empty text', (i: Item[]) => update(i, 'b', { text: ' ' }), 'b', t.noText],
-    ['an empty option', (i: Item[]) => update(i, 'y', { options: ['P', ''] }), 'y', t.noText],
+    ['an empty option', (i: Item[]) => update(i, 'y', { options: ['P', ''] }), 'y', 'Fill in this option.'],
+    ['an empty section', (i: Item[]) => update(i, 's', { items: [] }), 's', 'Add at least one item to this section.'],
     ['one option', (i: Item[]) => update(i, 'y', { options: ['P'] }), 'y', t.fewOptions],
     ['51 options', (i: Item[]) => update(i, 'y', { options: Array.from({ length: 51 }, (_, n) => `O${n}`) }), 'y', t.manyOptions],
     ['the same option twice', (i: Item[]) => update(i, 'y', { options: ['P', 'P'] }), 'y', t.sameOptions],

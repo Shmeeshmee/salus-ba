@@ -80,8 +80,17 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
     return (
       all: all,
       places: await widget.booking.places(consents.map((c) => c.organizationId)),
-      questionnaires: await widget.booking.fhir.questionnaireResponses(me.id),
+      questionnaires: await _questionnaires(me.id),
     );
+  }
+
+  /// The questionnaires, or none when they cannot be read: the appointments (and Join) still show.
+  Future<_Questionnaires> _questionnaires(String patientId) async {
+    try {
+      return await widget.booking.fhir.questionnaireResponses(patientId);
+    } on ApiFailure {
+      return _none;
+    }
   }
 
   /// The questionnaire screen; the list is read again after it, as the response's status may have changed.

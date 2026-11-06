@@ -6,7 +6,7 @@ import { useLoad } from './load'
 import { questionnaires as t, somethingWrong } from './messages'
 import { fromFHIR, type Version } from './questionnaire'
 import { requestOfVersion, requestsOf, statusOf, valueText, type Block, type Question, type Request } from './responses'
-import { Alert, TipTag } from './ui'
+import { Alert, Confirm, TipTag } from './ui'
 
 type Props = { api: ApiClient; fhir: FhirClient; appt: Appointment; zone: string; own: boolean; admin: boolean; now: Date }
 
@@ -56,6 +56,7 @@ type RowProps = { api: ApiClient; request: Request; status: string; own: boolean
 function RequestRow({ api, request, status, own, admin, onChanged }: RowProps) {
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [refocus, setRefocus] = useState(false) // Withdraw takes the focus back when it returns
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
 
@@ -67,7 +68,10 @@ function RequestRow({ api, request, status, own, admin, onChanged }: RowProps) {
     setConfirming(false)
     // Already withdrawn (by another tab) is what was asked for.
     if (res.ok || res.code === 'withdrawn') onChanged({ ...request, status: 'stopped', answers: [] })
-    else setError(t.requestErrors[res.code ?? ''] ?? somethingWrong)
+    else {
+      setError(t.requestErrors[res.code ?? ''] ?? somethingWrong)
+      setRefocus(true)
+    }
   }
 
   return (
@@ -81,27 +85,28 @@ function RequestRow({ api, request, status, own, admin, onChanged }: RowProps) {
           </button>
         )}
         {own && request.status === 'in-progress' && !confirming && (
-          <button type="button" className="quiet danger-text" onClick={() => setConfirming(true)}>
+          // autoFocus only once the confirm closed without a withdrawal: the button was gone meanwhile, and gets
+          // the focus back.
+          <button type="button" className="quiet danger-text" autoFocus={refocus} onClick={() => setConfirming(true)}>
             {t.withdraw}
           </button>
         )}
       </div>
       <Alert message={error} />
       {confirming && (
-        <div className="confirm">
-          <p>
-            <strong>{t.withdrawQuestion}</strong>
-          </p>
-          <p>{t.withdrawWarning}</p>
-          <div className="actions">
-            <button type="button" className="danger" disabled={busy} onClick={withdraw}>
-              {t.withdraw}
-            </button>
-            <button type="button" disabled={busy} onClick={() => setConfirming(false)}>
-              {t.cancel}
-            </button>
-          </div>
-        </div>
+        <Confirm
+          question={t.withdrawQuestion}
+          lines={[t.withdrawWarning]}
+          confirm={t.withdraw}
+          cancel={t.cancel}
+          danger
+          busy={busy}
+          onConfirm={withdraw}
+          onCancel={() => {
+            setConfirming(false)
+            setRefocus(true)
+          }}
+        />
       )}
       {open && <Answers blocks={request.answers} />}
     </li>

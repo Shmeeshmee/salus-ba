@@ -361,7 +361,7 @@ p.hint.join { margin-bottom: 20px; }
 .item .tag { font-size: 12px; }
 .handle { cursor: grab; touch-action: none; }
 .handle:active { cursor: grabbing; }
-.item .icon:disabled { opacity: .35; cursor: default; background: none; }
+.item .icon:disabled, .item .icon[aria-disabled='true'] { opacity: .35; cursor: default; background: none; }
 .problems { margin: 0 12px 8px 44px; padding: 0; list-style: none; color: var(--color-error); font-size: 14px; }
 .item .confirm { margin: 0 12px 12px; }
 .item-body { display: grid; gap: 14px; padding: 4px 16px 16px 44px; }

@@ -677,7 +677,7 @@ export interface paths {
         get?: never;
         /**
          * Save the answers
-         * @description The patient replaces the saved answers of their questionnaire while it is in progress, before the appointment starts, with an active consent. Send If-Match with the version read; the answer carries the new version as its ETag. Each answer is checked against its item's type and limits; required questions and conditions are checked on submit. The body is read up to 256 KiB. Not cached. Audited, also when refused.
+         * @description The patient replaces the saved answers of their questionnaire while it is in progress, while the appointment is booked and before it starts, with an active consent. Send If-Match with the version read; the answer carries the new version as its ETag. Each answer is checked against its item's type and limits; required questions and conditions are checked on submit. The body is read up to 256 KiB. Not cached. Audited, also when refused.
          */
         put: operations["saveQuestionnaireAnswers"];
         post?: never;
@@ -1342,7 +1342,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description `submitted`: already submitted; `withdrawn`: the practitioner withdrew it; `past_due`: the appointment has started; `consent_required`: the patient's consent with the clinic is not active. */
+        /** @description `submitted`: already submitted; `withdrawn`: the practitioner withdrew it; `appointment_closed`: the appointment is no longer booked (cancelled); `past_due`: the appointment has started; `consent_required`: the patient's consent with the clinic is not active. */
         AnswersClosed: {
             headers: {
                 [name: string]: unknown;

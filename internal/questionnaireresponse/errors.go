@@ -18,8 +18,8 @@ var (
 	// ErrAppointmentStarted is returned for a request to an appointment that has started
 	// (appointment_started).
 	ErrAppointmentStarted = errors.New("questionnaireresponse: appointment started")
-	// ErrAppointmentClosed is returned for a request to an appointment that is no longer booked
-	// (appointment_closed, as appointment answers it).
+	// ErrAppointmentClosed is returned for a request to an appointment that is no longer booked, and for a
+	// change of the answers of one (appointment_closed, as appointment answers it).
 	ErrAppointmentClosed = errors.New("questionnaireresponse: appointment no longer booked")
 	// ErrConsentRequired is returned when the patient's consent with the clinic is not active
 	// (consent_required).

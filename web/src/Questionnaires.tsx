@@ -48,7 +48,7 @@ export function Questionnaires({ api, fhir, account }: { api: ApiClient; fhir: F
       {state.name === 'loaded' && state.value.versions.length === 0 && <p className="muted">{t.emptyLibrary}</p>}
       {state.name === 'loaded' && state.value.versions.length > 0 && (
         <>
-          <div className="segmented" role="group" aria-label="Status">
+          <div className="segmented" role="group">
             {filters.map((f) => (
               <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}>
                 {t.filters[f]}

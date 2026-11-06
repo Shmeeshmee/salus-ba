@@ -86,7 +86,8 @@ nine were answered on 2026-11-06 (§3).
   answers), `integer`, `decimal`, `date`. Per item: `linkId`, `text`, `type`, `required` (questions only),
   `repeats` (choice only), `answerOption` (choice only: `valueString`, the clinic's own wording, so no code is
   invented), help text, and at most one `enableWhen`. Sections are top level only and hold questions and
-  instructions, not other sections. Help text is the R4 core way: a child `display` item with the core
+  instructions, not other sections. A draft may keep a section without items; publishing refuses it (FHIR
+  `que-1`: 422 `invalid_questionnaire`, the section's `linkId` in `linkIds`). Help text is the R4 core way: a child `display` item with the core
   extension `http://hl7.org/fhir/StructureDefinition/questionnaire-itemControl`, `http://hl7.org/fhir/questionnaire-item-control`
   `help`. `enableWhen`: `question` an earlier `boolean` or `choice` item (earlier in document order),
   `operator` `=`, `answerBoolean` or `answerString` (one of that item's options); for a choice with repeats,
@@ -124,20 +125,25 @@ nine were answered on 2026-11-06 (§3).
   - **Added by the practitioner.** `POST /appointments/{id}/questionnaires` `{questionnaireId}`: the
     appointment's practitioner only (`access.RequestsQuestionnaire`), the appointment `booked` and not yet
     started, the questionnaire an active version of the clinic; 404 for anyone else, 409 `already_requested`,
-    `not_active`, `appointment_started`, `consent_required`. `source: added`.
+    `not_active`, `appointment_started`, `appointment_closed` (no longer booked), `consent_required`.
+    `source: added`. A request and the default request lock the appointment in their transaction against a
+    cancellation: a cancellation that committed first refuses the request (the job then does nothing); one that
+    comes later waits for it, and its discard job deletes the response.
   - **Withdrawn.** `POST /questionnaire-responses/{id}/withdraw`, the appointment's practitioner, while not
     submitted: `status` becomes `stopped` and the answers are cleared at once. The row stays as a record that
     the request was made and withdrawn, with no answers.
 - **Patient flow (D5).** `PUT /questionnaire-responses/{id}/answers` `{answers}` (`If-Match`) replaces the
-  saved answers of an `in-progress` response: the patient only, with an active consent, before `due_at`. Each
-  answer is checked against its item's type and limits; `required` is not checked yet. 409 `submitted`,
-  `withdrawn`, `past_due`, `consent_required`; 412 on a stale version; 422 `answers_invalid` with the
+  saved answers of an `in-progress` response: the patient only, with an active consent, while the appointment
+  is `booked`, before `due_at`. Each answer is checked against its item's type and limits; `required` is not
+  checked yet. 409 `submitted`, `withdrawn`, `appointment_closed` (the appointment was cancelled; the discard
+  job has not yet deleted the response), `past_due`, `consent_required`; 412 on a stale version; 422 `answers_invalid` with the
   offending `linkIds`. `POST /questionnaire-responses/{id}/submit` (`If-Match`) checks the saved answers in full:
-  every enabled required question answered (422 `answers_invalid` with the `linkIds` otherwise); it removes the
+  every enabled required question answered (422 `answers_invalid` with the `linkIds` otherwise), with the same
+  409s as the save; it removes the
   answers of hidden items, sets `completed` and `authored_at`, and is final: no later save, no amendment. The
   mobile app saves when the patient leaves a field and 2 seconds after they stop typing, not on each keystroke.
-  Due before the appointment starts; after `due_at`, an unsubmitted response is closed and never shown to the
-  practitioner.
+  Due before the appointment starts; after `due_at`, an unsubmitted response is closed and its answers are
+  never shown to the practitioner (staff see its status, "Not submitted before the appointment", W34).
 - **What the practitioner sees.** That a questionnaire was requested and whether it was submitted, and when;
   the answers only once it is `completed`. Admins see the requests and their status for the clinic's
   appointments, never the answers.
@@ -348,6 +354,8 @@ write brings it), localisation (before production, as for the rest of the patien
 - The canonical base `https://salus.invalid/fhir` replaced by the real domain (booking SPEC §7); the
   questionnaires' canonical urls follow it.
 - The mobile questionnaire screen checked on a real Android device and an iOS build, with a screen reader.
+- Decimals typed with a comma (bs/hr/sr) accepted by the mobile app, with the localisation.
+- The mobile date picker's locale (owner, on review of PR #24): it still shows Flutter's US-English header date ("Wed, Nov 4"), month tooltips and screen-reader labels; `flutter_localizations` (Flutter SDK) with the bs/hr/sr localisation sets them.
 
 ## 9. Done when
 

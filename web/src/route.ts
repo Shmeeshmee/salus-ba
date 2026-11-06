@@ -2,8 +2,9 @@ import { useSyncExternalStore } from 'react'
 
 // The app has a handful of screens and no router library: the screen follows location.pathname.
 
-// A screen with unsaved changes guards leaving it: ask answers whether to leave here for to now. navigate asks
-// it first, and usePath asks it before following the browser's back or forward, which it undoes on a no. The
+// A screen with unsaved changes guards leaving it: ask(to) says whether the screen at here may be left for to
+// now. navigate asks it first, and usePath asks it before following the browser's back or forward, which it
+// undoes on a no. The
 // check sits in usePath's own listener: the browser renders between popstate listeners, so a separate one
 // could run after the screen is already gone.
 let guard: { here: string; ask: (to: string) => boolean } | undefined

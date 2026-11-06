@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ApiClient, ErrorCode } from './api/client'
 import { FhirError, type Bundle, type FhirClient, type Questionnaire } from './api/fhir'
 import { attempt, type Outcome } from './api/result'
@@ -31,7 +31,7 @@ import { useLoad } from './load'
 import { questionnaires as t, somethingWrong } from './messages'
 import { fromFHIR, fromJSON, toRequest, type Version } from './questionnaire'
 import { guardLeaving, navigate } from './route'
-import { Alert, Link } from './ui'
+import { Alert, Confirm, Link } from './ui'
 
 type Loaded = { version: Version; series: Version[] }
 type Props = { api: ApiClient; fhir: FhirClient; id: string }
@@ -114,39 +114,6 @@ function FailureAlert({ failure, onReload }: { failure?: Failure; onReload?: () 
   )
 }
 
-type ConfirmProps = {
-  question: string
-  lines: string[]
-  confirm: string
-  cancel?: string
-  danger?: boolean
-  busy?: boolean
-  onConfirm: () => void
-  onCancel: () => void
-}
-
-function Confirm({ question, lines, confirm, cancel = t.cancel, danger, busy, onConfirm, onCancel }: ConfirmProps) {
-  const id = useId()
-  return (
-    <div className="confirm" role="group" aria-labelledby={id}>
-      <p className="strong" id={id}>
-        {question}
-      </p>
-      {lines.map((l) => (
-        <p key={l}>{l}</p>
-      ))}
-      <div className="actions">
-        <button type="button" className={danger ? 'danger' : 'primary'} disabled={busy} onClick={onConfirm}>
-          {confirm}
-        </button>
-        <button type="button" disabled={busy} onClick={onCancel}>
-          {cancel}
-        </button>
-      </div>
-    </div>
-  )
-}
-
 type EditorProps = { api: ApiClient; loaded: Loaded; onReload: () => void; onPublished: (v: Version) => void }
 
 function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
@@ -157,6 +124,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
   const [dirty, setDirty] = useState(false)
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const [opened, setOpened] = useState<string[]>([])
   const [flagged, setFlagged] = useState<string[]>([])
   const [failed, setFailed] = useState<Failure>()
@@ -165,6 +133,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
   const [announcement, setAnnouncement] = useState('')
   const [fresh, setFresh] = useState<string>() // the item just added, whose text takes the focus
   const dirtyRef = useRef(false)
+  const edits = useRef(0) // every change counts: a save clears dirty only if none came while it was in flight
   const v = loaded.version
 
   useEffect(() => {
@@ -188,6 +157,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
   }, [])
 
   function changed() {
+    edits.current++
     setDirty(true)
     dirtyRef.current = true
     setSaved(false)
@@ -207,6 +177,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
     setBusy(true)
     setFailed(undefined)
     setSaved(false)
+    const sent = edits.current
     const res = await attempt(
       api.PUT('/questionnaires/{id}', {
         params: { path: { id: v.id }, header: { 'If-Match': `W/"${versionId}"` } },
@@ -219,10 +190,12 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
       return undefined
     }
     setVersionId(res.data.versionId)
-    setDirty(false)
-    dirtyRef.current = false
-    setSaved(true)
     setFlagged([])
+    if (edits.current === sent) {
+      setDirty(false)
+      dirtyRef.current = false
+      setSaved(true)
+    }
     return res.data.versionId
   }
 
@@ -235,15 +208,34 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
     setOpened((o) => [...new Set([...o, ...ids])])
   }
 
+  // askPublish checks the items as the API will before it asks: a draft with problems is shown, not offered.
+  function askPublish() {
+    const ids = [...found.keys()]
+    if (ids.length === 0) {
+      setConfirm('publish')
+      return
+    }
+    setFailed({ message: t.needsAttention })
+    setOpened((o) => [...new Set([...o, ...ids])])
+  }
+
+  // publish saves what is unsaved, then publishes that version. The items are out of reach meanwhile (inert), so
+  // no edit can come after the save and be lost to the published version.
   async function publish() {
-    setConfirm(undefined)
+    setPublishing(true)
     const current = dirty ? await save() : versionId
-    if (current === undefined) return
+    if (current === undefined) {
+      setPublishing(false)
+      setConfirm(undefined)
+      return
+    }
     setBusy(true)
     const res = await attempt(
       api.POST('/questionnaires/{id}/publish', { params: { path: { id: v.id }, header: { 'If-Match': `W/"${current}"` } } }),
     )
     setBusy(false)
+    setPublishing(false)
+    setConfirm(undefined)
     if (res.ok) onPublished(fromJSON(res.data))
     else refused(res)
   }
@@ -307,7 +299,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
       </p>
       <DragArea items={items} label={label} newLinkId={newLinkId} onChange={placed} onNested={() => setFailed({ message: t.nestedSection })}>
         {(movingSection) => (
-          <div className="builder">
+          <div className="builder" inert={publishing}>
             <Palette full={full} count={count(items)} onAdd={add} />
             <div className="sheet">
               <TextField
@@ -390,7 +382,8 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
           question={t.publishQuestion}
           lines={active ? [t.publishWarning, t.publishRetires(active.version)] : [t.publishWarning]}
           confirm={t.publish}
-          busy={busy}
+          cancel={t.cancel}
+          busy={busy || publishing}
           onConfirm={publish}
           onCancel={() => setConfirm(undefined)}
         />
@@ -400,6 +393,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
           question={t.discardQuestion}
           lines={[t.discardWarning]}
           confirm={t.discardConfirm}
+          cancel={t.cancel}
           danger
           busy={busy}
           onConfirm={discard}
@@ -410,7 +404,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
         <button type="button" className="primary" disabled={busy} onClick={save}>
           {busy ? t.saving : t.save}
         </button>
-        <button type="button" disabled={busy} onClick={() => setConfirm('publish')}>
+        <button type="button" disabled={busy} onClick={askPublish}>
           {t.publish}
         </button>
         <button type="button" className="quiet danger-text" disabled={busy} onClick={() => setConfirm('discard')}>
@@ -502,6 +496,7 @@ function Published({ api, loaded, onChanged }: PublishedProps) {
               question={t.retireQuestion}
               lines={[t.retireWarning]}
               confirm={t.retire}
+              cancel={t.cancel}
               danger
               busy={busy}
               onConfirm={retire}

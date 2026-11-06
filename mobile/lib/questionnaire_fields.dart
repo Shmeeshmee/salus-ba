@@ -114,9 +114,16 @@ class QuestionField extends StatelessWidget {
           ),
       ],
     ),
-    ItemType.date => OutlinedButton(
-      onPressed: enabled ? () => _pick(context) : null,
-      child: Text(values.isEmpty ? chooseDate : Zone.longDate(values.first as DateTime)),
+    // The button says the answer or "Choose a date"; the question goes with it for TalkBack and VoiceOver. A typed
+    // answer's field and a choice's options get it from the header already.
+    ItemType.date => MergeSemantics(
+      child: Semantics(
+        label: item.text,
+        child: OutlinedButton(
+          onPressed: enabled ? () => _pick(context) : null,
+          child: Text(values.isEmpty ? chooseDate : Zone.longDate(values.first as DateTime)),
+        ),
+      ),
     ),
     _ => TextField(
       controller: controller,
@@ -148,8 +155,11 @@ class QuestionField extends StatelessWidget {
       currentDate: today,
       firstDate: DateTime(1900),
       lastDate: DateTime(2100, 12, 31),
+      // Calendar only: typed entry would ask for the US mm/dd/yyyy.
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
       helpText: chooseDate,
       cancelText: cancel,
+      confirmText: done,
       errorFormatText: enterValidDate,
       errorInvalidText: enterValidDate,
     );

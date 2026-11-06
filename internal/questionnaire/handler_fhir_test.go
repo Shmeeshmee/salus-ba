@@ -132,7 +132,8 @@ func TestHandlerRead_SendsTheQuestionnaire(t *testing.T) {
 	} {
 		svc := &stubReader{out: []questionnaire.Questionnaire{tt.q}}
 		rec := getFHIR(t, svc, as(practitionerA1), &bytes.Buffer{}, "/fhir/R4/Questionnaire/"+tt.q.ID)
-		if rec.Code != http.StatusOK || rec.Header().Get("ETag") != tt.etag || rec.Header().Get("Content-Type") != "application/fhir+json" {
+		if rec.Code != http.StatusOK || rec.Header().Get("ETag") != tt.etag || rec.Header().Get("Content-Type") != "application/fhir+json" ||
+			rec.Header().Get("Cache-Control") != "no-store" {
 			t.Fatalf("status = %d %s %v, want 200 with %s", rec.Code, rec.Body, rec.Header(), tt.etag)
 		}
 		if svc.caller != practitionerA1 || svc.id != tt.q.ID {
@@ -149,8 +150,8 @@ func TestHandlerSearch_PassesTheFilterAndSendsASearchset(t *testing.T) {
 	rec := getFHIR(t, svc, as(adminA), &bytes.Buffer{},
 		"/fhir/R4/Questionnaire?url=https://salus.invalid/fhir/Questionnaire/"+seriesA+"&status=draft&version=2")
 	want := questionnaire.Filter{SeriesID: seriesA, Status: questionnaire.StatusDraft, Version: 2}
-	if rec.Code != http.StatusOK || svc.caller != adminA || svc.filter != want {
-		t.Fatalf("status = %d %s after Search(%+v, %+v), want 200 and %+v", rec.Code, rec.Body, svc.caller, svc.filter, want)
+	if rec.Code != http.StatusOK || svc.caller != adminA || svc.filter != want || rec.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("status = %d %s %v after Search(%+v, %+v), want 200, no-store and %+v", rec.Code, rec.Body, rec.Header(), svc.caller, svc.filter, want)
 	}
 	assertGolden(t, "search.json", rec.Body.Bytes())
 
@@ -181,6 +182,9 @@ func TestHandlerSearch_RejectsAParameterItCannotReadWithoutCallingTheService(t *
 		"url=https://salus.invalid/fhir/Questionnaire/",
 		"url=https://salus.invalid/fhir/Questionnaire/" + seriesA + "|1",
 		"url=https://salus.invalid/fhir/Questionnaire/" + seriesA + "/x",
+		"url=https://salus.invalid/fhir/Questionnaire/not-a-uuid",
+		"url=https://salus.invalid/fhir/Questionnaire/" + seriesA + "0",
+		"url=https://salus.invalid/fhir/Questionnaire/" + strings.ReplaceAll(seriesA, "-", "x"),
 		"status=%zz",
 	} {
 		svc := &stubReader{}

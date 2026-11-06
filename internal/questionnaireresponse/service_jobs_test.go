@@ -56,6 +56,9 @@ func TestRequestDefault_RequestsTheActiveVersionOfTheRolesDefaultOnce(t *testing
 	if !equalResponse(got, want) {
 		t.Errorf("the request = %+v,\nwant %+v", got, want)
 	}
+	if !slices.Equal(f.appts.locked, []string{apptA, apptA}) {
+		t.Errorf("locked %v, want the appointment on each run, against a concurrent cancellation", f.appts.locked)
+	}
 	if f.repo.clinic != clinicA || !slices.Equal(f.questionnaires.agents, []string{agentRequest, agentRequest}) {
 		t.Errorf("in clinic %q, the default asked by %v; want clinic A's scope, the job as agent", f.repo.clinic, f.questionnaires.agents)
 	}
@@ -81,6 +84,7 @@ func TestRequestDefault_DoesNothingWhenThereIsNothingToRequest(t *testing.T) {
 			a.Status = appointment.StatusCancelled
 			f.appts.appts[apptA] = a
 		}},
+		{name: "a cancellation committed before the lock", appt: apptA, org: clinicA, at: now, setup: func(f *fixture) { f.appts.committed[apptA] = true }},
 		{name: "an appointment that has started", appt: apptA, org: clinicA, at: start},
 		{name: "an unknown appointment", appt: unknownID, org: clinicA, at: now},
 		{name: "an appointment of another clinic", appt: apptA, org: clinicB, at: now},

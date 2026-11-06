@@ -24,10 +24,13 @@ type Auditor interface {
 }
 
 // Appointments gives a response its appointment with the caller's access facts, read in the caller's scope
-// and unaudited, and to a job the appointment in the transaction's scope, unaudited (appointment.Service).
+// and unaudited, and to a job the appointment in the transaction's scope, unaudited; LookupLocked also locks
+// it against a cancellation until the transaction ends, for a write that rests on it being booked
+// (appointment.Service).
 type Appointments interface {
 	Attendance(ctx context.Context, c appointment.Caller, id string) (appointment.Attendance, error)
 	Lookup(ctx context.Context, id string) (appointment.Appointment, error)
+	LookupLocked(ctx context.Context, id string) (appointment.Appointment, error)
 }
 
 // Questionnaires reads a version of the caller's clinic, or one a patient's own response references, audited
@@ -62,7 +65,9 @@ func NewService(p Ports) *Service {
 // the response: in progress, no answers, due at the appointment's start (source added). The appointment must
 // be booked and not started, the version an active one of the clinic (read through the questionnaire's
 // service, which audits that read), and the appointment without a live request of its questionnaire. In one
-// transaction in the clinic's scope, audited as a create. ErrNotFound to anyone else and for an appointment or
+// transaction in the clinic's scope, which locks the appointment against a cancellation (a cancellation that
+// committed first refuses the request; one that comes later waits, and its discard job deletes the response),
+// audited as a create. ErrNotFound to anyone else and for an appointment or
 // a version the caller may not see; ErrConsentRequired, ErrAppointmentClosed, ErrAppointmentStarted,
 // ErrNotActive, ErrAlreadyRequested; each refusal is audited.
 func (s *Service) Request(ctx context.Context, c appointment.Caller, appointmentID, questionnaireID string) (Response, error) {
@@ -99,15 +104,18 @@ func (s *Service) request(ctx context.Context, c appointment.Caller, appointment
 	if err != nil || !ok {
 		return Response{}, ErrNotFound, err
 	}
-	a, now := att.Appointment, s.Clock.Now()
 	switch v, f, visit := rule(c, att); {
 	case !access.RequestsQuestionnaire(v, f, visit) && att.Practitioner && !att.ConsentActive:
 		return Response{}, ErrConsentRequired, nil
 	case !access.RequestsQuestionnaire(v, f, visit):
 		return Response{}, ErrNotFound, nil
-	case a.Status != appointment.StatusBooked:
-		return Response{}, ErrAppointmentClosed, nil
-	case !now.Before(a.Start):
+	}
+	a, refused, err := s.booked(ctx, appointmentID)
+	if err != nil || refused != nil {
+		return Response{}, refused, err
+	}
+	now := s.Clock.Now()
+	if !now.Before(a.Start) {
 		return Response{}, ErrAppointmentStarted, nil
 	}
 	q, err := s.Questionnaires.Read(ctx, questionnaire.Caller{AccountID: c.AccountID, OrganizationID: c.OrganizationID, PractitionerID: c.PractitionerID}, questionnaireID)
@@ -130,6 +138,22 @@ func (s *Service) request(ctx context.Context, c appointment.Caller, appointment
 		return Response{}, ErrAlreadyRequested, nil
 	}
 	return out, nil, nil
+}
+
+// booked locks the appointment id in the transaction in ctx against a change and gives it, or the refusal:
+// ErrAppointmentClosed once it is not booked (a cancellation that committed first included), ErrNotFound when
+// the scope may not lock it.
+func (s *Service) booked(ctx context.Context, id string) (a appointment.Appointment, refused, err error) {
+	a, err = s.Appointments.LookupLocked(ctx, id)
+	switch {
+	case errors.Is(err, appointment.ErrNotFound):
+		return appointment.Appointment{}, ErrNotFound, nil
+	case err != nil:
+		return appointment.Appointment{}, nil, err
+	case a.Status != appointment.StatusBooked:
+		return appointment.Appointment{}, ErrAppointmentClosed, nil
+	}
+	return a, nil, nil
 }
 
 // Withdraw withdraws the response id, as the practitioner of its appointment (access.RequestsQuestionnaire),
@@ -163,18 +187,24 @@ func (s *Service) Withdraw(ctx context.Context, c appointment.Caller, id string)
 }
 
 // withdraw withdraws the response in the transaction in ctx, or gives the refusal and whether the caller
-// sees the response it refused.
+// sees the response it refused. The response is read to decide, and locked only for a withdrawal the caller
+// may make: after a revocation the clinic still sees a submitted one (D9) but its scope may not lock it.
 func (s *Service) withdraw(ctx context.Context, c appointment.Caller, id string) (out Response, seen bool, refused, err error) {
-	r, att, level, err := s.view(ctx, c, id, s.Repo.Lock)
+	r, att, level, err := s.view(ctx, c, id, s.Repo.ByID)
 	switch {
 	case err != nil:
 		return Response{}, false, nil, err
 	case level == access.None:
 		return Response{}, false, ErrNotFound, nil
 	}
-	switch v, f, visit := rule(c, att); {
-	case !access.RequestsQuestionnaire(v, f, visit):
+	if v, f, visit := rule(c, att); !access.RequestsQuestionnaire(v, f, visit) {
 		return r, true, ErrForbidden, nil
+	}
+	switch r, err = s.Repo.Lock(ctx, r.ID); {
+	case errors.Is(err, ErrNotFound): // discarded or out of the scope since it was read
+		return Response{}, false, ErrNotFound, nil
+	case err != nil:
+		return Response{}, false, nil, err
 	case r.Status == StatusCompleted:
 		return r, true, ErrSubmitted, nil
 	case r.Status == StatusStopped:

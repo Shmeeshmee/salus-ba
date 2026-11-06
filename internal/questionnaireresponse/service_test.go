@@ -35,6 +35,9 @@ func TestRequest_ByTheAppointmentsPractitionerStoresItInProgressAndAudits(t *tes
 	if f.repo.clinic != clinicA || f.repo.patient != "" {
 		t.Errorf("scoped to clinic %q, patient %q; want clinic A only", f.repo.clinic, f.repo.patient)
 	}
+	if !slices.Equal(f.appts.locked, []string{apptA}) {
+		t.Errorf("locked %v, want the appointment, against a concurrent cancellation", f.appts.locked)
+	}
 	if want := []questionnaire.Caller{{AccountID: practAcc, OrganizationID: clinicA, PractitionerID: practA1}}; !slices.Equal(f.questionnaires.callers, want) {
 		t.Errorf("read the version as %+v, want %+v", f.questionnaires.callers, want)
 	}
@@ -69,6 +72,8 @@ func TestRequest_RefusesAnyoneButThePractitionerAndAnythingButABookedFutureAppoi
 		{name: "an unknown appointment", caller: pract, appt: unknownID, q: qActive, want: questionnaireresponse.ErrNotFound},
 		{name: "a cancelled appointment", caller: pract, appt: apptA, q: qActive, want: questionnaireresponse.ErrAppointmentClosed,
 			setup: func(f *fixture) { f.setStatus(apptA, appointment.StatusCancelled) }},
+		{name: "a cancellation committed before the lock", caller: pract, appt: apptA, q: qActive, want: questionnaireresponse.ErrAppointmentClosed,
+			setup: func(f *fixture) { f.appts.committed[apptA] = true }},
 		{name: "a fulfilled appointment", caller: pract, appt: apptA, q: qActive, want: questionnaireresponse.ErrAppointmentClosed,
 			setup: func(f *fixture) { f.setStatus(apptA, appointment.StatusFulfilled) }},
 		{name: "an appointment at its start", caller: pract, appt: apptA, q: qActive, at: start, want: questionnaireresponse.ErrAppointmentStarted},
@@ -210,6 +215,29 @@ func TestWithdraw_RefusesAnyoneButThePractitionerAndASubmittedOrWithdrawnRespons
 		}
 		if want := []auditevent.AuditEvent{event(tt.caller, auditevent.CodeUpdate, entity, auditevent.OutcomeMinorFailure)}; !slices.Equal(f.audit.events, want) {
 			t.Errorf("%s: audited %+v,\nwant %+v", tt.name, f.audit.events, want)
+		}
+	}
+}
+
+// After a revocation the clinic still sees the submitted response of a past appointment (D9) but may no
+// longer change it: a withdrawal is forbidden, audited with the entity, and not a 404.
+func TestWithdraw_AfterARevocationIsForbiddenToTheClinicThatSeesIt(t *testing.T) {
+	for _, c := range []appointment.Caller{pract, admin} {
+		f := newFixture(now)
+		f.revoke(revokedAt.Add(-time.Hour))
+		id := f.seed(apptA, questionnaireresponse.StatusCompleted)
+		before := f.repo.responses[0]
+
+		_, err := f.svc.Withdraw(t.Context(), c, id)
+
+		if !errors.Is(err, questionnaireresponse.ErrForbidden) {
+			t.Errorf("Withdraw() by %s after a revocation = %v, want ErrForbidden", c.AccountID, err)
+		}
+		if !equal(f.repo.responses[0], before) || len(f.repo.locked) != 0 {
+			t.Errorf("stored %+v, locked %v; want it unchanged and unlocked", f.repo.responses[0], f.repo.locked)
+		}
+		if want := []auditevent.AuditEvent{event(c, auditevent.CodeUpdate, id, auditevent.OutcomeMinorFailure)}; !slices.Equal(f.audit.events, want) {
+			t.Errorf("audited %+v,\nwant %+v", f.audit.events, want)
 		}
 	}
 }

@@ -247,6 +247,7 @@ const withdrawnByClinic = 'The clinic withdrew this questionnaire. You do not ne
 const alreadySubmitted = 'You have already submitted this questionnaire.'; // M16
 const changedElsewhere = 'These answers were changed on another device. The latest answers are shown.'; // M16
 const questionnaireNotAvailable = 'This questionnaire is not available.'; // M16
+const done = 'Done'; // M17, the date picker's confirm button (added on review of PR #24, owner)
 
 /// The approved sentence for a refused save or submit (M16); a 422 is shown on its questions instead.
 String answersMessage(ApiFailure failure) {
@@ -258,6 +259,8 @@ String answersMessage(ApiFailure failure) {
     'submitted' => alreadySubmitted,
     'version_conflict' => changedElsewhere,
     'not_found' => questionnaireNotAvailable,
+    // The appointment was cancelled (added on review of PR #24, owner).
+    'appointment_closed' => questionnaireNotAvailable,
     _ => somethingWrong,
   };
 }

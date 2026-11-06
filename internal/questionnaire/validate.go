@@ -33,6 +33,22 @@ func validate(in Content, earlier map[string]string) error {
 	return nil
 }
 
+// publishable checks what a draft may keep but a published version may not (SPEC.md §2 "Item model"): a
+// section without items, which FHIR's que-1 refuses. It returns an *InvalidError naming those sections in
+// document order, or nil. Sections are top-level only.
+func publishable(items []Item) error {
+	var empty []string
+	for _, it := range items {
+		if it.Type == ItemGroup && len(it.Items) == 0 {
+			empty = append(empty, it.LinkID)
+		}
+	}
+	if len(empty) > 0 {
+		return &InvalidError{LinkIDs: empty}
+	}
+	return nil
+}
+
 // validator walks the item tree in document order.
 type validator struct {
 	seen      map[string]Item   // the items before the current one, by linkId

@@ -19,8 +19,9 @@ const (
 // RequestDefault is the questionnaire_default_request job, enqueued with every booking of an appointment of
 // the clinic org (SPEC.md §2 "Requests"): it requests the active version of the default questionnaire of the
 // appointment's role (source default), once. In one transaction in the clinic's scope, which shows a future
-// appointment only while the patient's consent there is active: an appointment it does not show, one no
-// longer booked or already started, a role without a default or a default without an active version, and a
+// appointment only while the patient's consent there is active, and locks the appointment against a
+// cancellation as a request does: an appointment it does not show, one no longer booked (a cancellation that
+// committed first included) or already started, a role without a default or a default without an active version, and a
 // series the appointment already has a live request of, are left as they are. The request is audited as a
 // create with the job as agent (the read of the default by the questionnaire's service). Repeated, it changes
 // nothing.
@@ -30,7 +31,7 @@ func (s *Service) RequestDefault(ctx context.Context, appointmentID, org string)
 			return err
 		}
 		now := s.Clock.Now()
-		a, err := s.Appointments.Lookup(ctx, appointmentID)
+		a, err := s.Appointments.LookupLocked(ctx, appointmentID)
 		switch {
 		case errors.Is(err, appointment.ErrNotFound):
 			return nil

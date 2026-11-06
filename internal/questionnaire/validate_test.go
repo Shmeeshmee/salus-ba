@@ -69,6 +69,7 @@ var validationCases = []struct {
 		question("n", questionnaire.ItemInteger), question("x", questionnaire.ItemDecimal), question("dt", questionnaire.ItemDate),
 	}}},
 	{name: "no items", valid: true, in: questionnaire.Content{Title: "T"}},
+	{name: "an empty section, which a draft keeps", valid: true, in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{section("s")}}},
 	{name: "the reserved attachment type", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{question("a", questionnaire.ItemAttachment)}}, links: []string{"a"}},
 	{name: "an unknown type", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{question("u", "open-choice")}}, links: []string{"u"}},
 

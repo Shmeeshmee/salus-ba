@@ -2,6 +2,7 @@ import { useId, useState, type CSSProperties } from 'react'
 import { isChoice, isQuestion, kinds, maxHelp, maxOption, maxOptions, maxText, type Condition, type Item, type Kind } from './builder'
 import { ArrowIcon, CrossIcon, GripIcon } from './icons'
 import { questionnaires as t } from './messages'
+import { Confirm } from './ui'
 
 // RowParts are what @dnd-kit attaches to the row: kept apart from the rest so no other prop is read as a ref.
 type RowParts = {
@@ -38,7 +39,6 @@ export type CardProps = RowParts & EditProps
 export function ItemCard({ nodeRef, style, handle, dragging, ...p }: CardProps) {
   const { item } = p
   const [confirming, setConfirming] = useState(false)
-  const confirmId = useId()
   const name = p.label(item)
   const classes = ['item', item.kind === 'group' ? 'section' : '', p.depth === 1 ? 'nested' : '', p.attention ? 'attention' : '', dragging ? 'dragging' : '']
 
@@ -53,15 +53,21 @@ export function ItemCard({ nodeRef, style, handle, dragging, ...p }: CardProps) 
         <button type="button" className="icon handle" aria-label={t.drag} title={t.drag} {...handle}>
           <GripIcon />
         </button>
-        <button type="button" className="item-toggle" aria-label={name} aria-expanded={p.open} onClick={p.onToggle}>
-          <span className="item-text">{name}</span>
-          <span className="tag">{t.kinds[item.kind]}</span>
-          {item.required && <span className="tag">{t.required}</span>}
+        {/* Named by what it shows; the spaces keep the parts apart when it is read. */}
+        <button type="button" className="item-toggle" aria-expanded={p.open} onClick={p.onToggle}>
+          <span className="item-text">{name}</span> <span className="tag">{t.kinds[item.kind]}</span>
+          {item.required && (
+            <>
+              {' '}
+              <span className="tag">{t.required}</span>
+            </>
+          )}
         </button>
-        <button type="button" className="icon" aria-label={t.moveUp} title={t.moveUp} disabled={!p.canUp} onClick={() => p.onStep(-1)}>
+        {/* aria-disabled, not disabled: a button disabled under the focus would drop it to the page. */}
+        <button type="button" className="icon" aria-label={t.moveUp} title={t.moveUp} aria-disabled={!p.canUp} onClick={() => p.canUp && p.onStep(-1)}>
           <ArrowIcon direction="up" />
         </button>
-        <button type="button" className="icon" aria-label={t.moveDown} title={t.moveDown} disabled={!p.canDown} onClick={() => p.onStep(1)}>
+        <button type="button" className="icon" aria-label={t.moveDown} title={t.moveDown} aria-disabled={!p.canDown} onClick={() => p.canDown && p.onStep(1)}>
           <ArrowIcon direction="down" />
         </button>
         <button type="button" className="icon" aria-label={t.delete} title={t.delete} onClick={remove}>
@@ -76,20 +82,15 @@ export function ItemCard({ nodeRef, style, handle, dragging, ...p }: CardProps) 
         </ul>
       )}
       {confirming && (
-        <div className="confirm" role="group" aria-labelledby={confirmId}>
-          <p className="strong" id={confirmId}>
-            {t.deleteQuestion}
-          </p>
-          <p>{t.dependents(p.dependents)}</p>
-          <div className="actions">
-            <button type="button" className="danger" onClick={p.onDelete}>
-              {t.delete}
-            </button>
-            <button type="button" onClick={() => setConfirming(false)}>
-              {t.cancel}
-            </button>
-          </div>
-        </div>
+        <Confirm
+          question={t.deleteQuestion}
+          lines={[t.dependents(p.dependents)]}
+          confirm={t.delete}
+          cancel={t.cancel}
+          danger
+          onConfirm={p.onDelete}
+          onCancel={() => setConfirming(false)}
+        />
       )}
       {p.open && <ItemEditor {...p} />}
     </li>
@@ -109,16 +110,18 @@ function ItemEditor(p: EditProps) {
   return (
     <div className="item-body">
       {item.kind !== 'group' && (
-        // The type has no label of its own in COPY.md: the select is named by the item it belongs to.
-        <select id={kindId} aria-label={p.label(item)} value={item.kind} onChange={(e) => p.onKind(e.target.value as Kind)} className="kind">
-          {kinds
-            .filter((k) => k !== 'group')
-            .map((k) => (
-              <option key={k} value={k}>
-                {t.kinds[k]}
-              </option>
-            ))}
-        </select>
+        <div className="field">
+          <label htmlFor={kindId}>{t.type}</label>
+          <select id={kindId} value={item.kind} onChange={(e) => p.onKind(e.target.value as Kind)} className="kind">
+            {kinds
+              .filter((k) => k !== 'group')
+              .map((k) => (
+                <option key={k} value={k}>
+                  {t.kinds[k]}
+                </option>
+              ))}
+          </select>
+        </div>
       )}
       <TextField
         label={textLabel(item.kind)}

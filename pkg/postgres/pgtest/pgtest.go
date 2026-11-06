@@ -20,6 +20,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -225,3 +226,26 @@ func withDatabase(serverURL, name string) string {
 func uniqueName(prefix string) string {
 	return prefix + "_" + strings.ToLower(rand.Text())
 }
+
+// WaitForLockWait returns once a session on db's database waits on a lock (a row another transaction holds),
+// for a test of what a lock makes wait. It fails the test when none does within lockWaitTimeout. db must see
+// the other sessions' activity: the owner pool does.
+func WaitForLockWait(t testing.TB, db *pgxpool.Pool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), lockWaitTimeout)
+	defer cancel()
+	for {
+		var waiting bool
+		err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock')`).Scan(&waiting)
+		switch {
+		case err != nil:
+			t.Fatalf("pgtest: no session waited on a lock: %v", err)
+		case waiting:
+			return
+		}
+	}
+}
+
+// lockWaitTimeout bounds WaitForLockWait.
+const lockWaitTimeout = 30 * time.Second

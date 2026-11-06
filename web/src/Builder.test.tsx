@@ -44,19 +44,21 @@ function list(): HTMLElement {
   return ul
 }
 
-// toggles are the buttons that open and close the item cards, named by the item's text (or type).
+// toggles are the buttons that open and close the item cards, showing the item's text (or type).
 function toggles(): HTMLElement[] {
   return within(list())
     .queryAllByRole('button')
     .filter((b) => b.classList.contains('item-toggle'))
 }
 
+const textOf = (b: HTMLElement) => b.querySelector('.item-text')?.textContent ?? ''
+
 function cards(): string[] {
-  return toggles().map((b) => b.getAttribute('aria-label') ?? '')
+  return toggles().map(textOf)
 }
 
 function toggle(text: string): HTMLElement {
-  const b = toggles().find((x) => x.getAttribute('aria-label') === text)
+  const b = toggles().find((x) => textOf(x) === text)
   if (!b) throw new Error(`no card ${text}`)
   return b
 }
@@ -68,6 +70,18 @@ function card(text: string) {
 function saveBody(requests: Request[]) {
   const put = requests.filter((r) => r.method === 'PUT').at(-1)
   return put?.json() as Promise<SaveRequest>
+}
+
+// description is the text an element's aria-describedby points at.
+function description(el: HTMLElement): string {
+  const ids = el.getAttribute('aria-describedby')?.split(' ') ?? []
+  return ids.map((id) => document.getElementById(id)?.textContent ?? '').join(' ')
+}
+
+function deferred() {
+  let resolve: () => void = () => undefined
+  const promise = new Promise<void>((r) => (resolve = r))
+  return { promise, resolve }
 }
 
 const saved = (extra = {}) => () => Response.json({ ...questionnaireJSON(), versionId: 4, ...extra })
@@ -85,6 +99,47 @@ describe('Builder: a draft', () => {
     expect(within(card('Placeholder yes or no')).getByText('Yes or no')).toBeTruthy()
     expect(within(card('Placeholder yes or no')).getByText('Required')).toBeTruthy()
     expect(screen.queryByLabelText('Question')).toBeNull()
+  })
+
+  it("names a card's toggle by what it shows: the text, the type and Required", async () => {
+    renderBuilder({})
+    await screen.findByLabelText('Title')
+
+    const b = screen.getByRole('button', { name: 'Placeholder yes or no Yes or no Required' })
+    expect(b.getAttribute('aria-label')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Placeholder single Single choice' })).toBeTruthy()
+  })
+
+  it('labels the type of an opened card "Type" (W13)', async () => {
+    renderBuilder({})
+    await screen.findByLabelText('Title')
+    fireEvent.click(toggle('Placeholder single'))
+
+    const select = within(card('Placeholder single')).getByLabelText('Type') as HTMLSelectElement
+    expect(select.value).toBe('single')
+    expect(within(card('Placeholder single')).getByText('Type').tagName).toBe('LABEL')
+  })
+
+  it('says an empty section needs an item (W28), and does not offer to publish it', async () => {
+    const { requests } = renderBuilder({}, draft({ item: [{ linkId: 'sec', text: 'Placeholder section', type: 'group' }] }))
+    await screen.findByLabelText('Title')
+
+    expect(within(card('Placeholder section')).getByText('Add at least one item to this section.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
+
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toBe('Some items need attention.')
+    expect(card('Placeholder section').classList.contains('attention')).toBe(true)
+    expect(requests.some((r) => r.method !== 'GET')).toBe(false)
+  })
+
+  it('says an empty option needs filling in (W28)', async () => {
+    renderBuilder({})
+    await screen.findByLabelText('Title')
+    fireEvent.click(toggle('Placeholder single'))
+    fireEvent.change(within(card('Placeholder single')).getByLabelText('Option 2'), { target: { value: '' } })
+
+    expect(within(card('Placeholder single')).getByText('Fill in this option.')).toBeTruthy()
   })
 
   it('opens a card to edit it, with help text and the condition behind "More options"', async () => {
@@ -138,7 +193,7 @@ describe('Builder: a draft', () => {
     const { requests } = renderBuilder({ 'PUT /questionnaires/q1': saved() })
     await screen.findByLabelText('Title')
     fireEvent.click(toggle('Placeholder single'))
-    fireEvent.change(within(card('Placeholder single')).getByRole('combobox', { name: 'Placeholder single' }), { target: { value: 'multiple' } })
+    fireEvent.change(within(card('Placeholder single')).getByLabelText('Type'), { target: { value: 'multiple' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
 
     await vi.waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true))
@@ -150,14 +205,36 @@ describe('Builder: a draft', () => {
 })
 
 describe('Builder: moving items', () => {
-  it('disables Move up on the first item and Move down on the last', async () => {
+  // aria-disabled, not disabled: a button that becomes disabled under the focus drops it to the page.
+  it('marks Move up on the first item and Move down on the last as unavailable, and ignores them', async () => {
     renderBuilder({})
     await screen.findByLabelText('Title')
 
-    expect((within(card('Placeholder instructions')).getByRole('button', { name: 'Move up' }) as HTMLButtonElement).disabled).toBe(true)
-    expect((within(card('Placeholder instructions')).getByRole('button', { name: 'Move down' }) as HTMLButtonElement).disabled).toBe(false)
-    expect((within(card('Placeholder section')).getByRole('button', { name: 'Move down' }) as HTMLButtonElement).disabled).toBe(true)
-    expect((within(card('Placeholder multiple')).getByRole('button', { name: 'Move down' }) as HTMLButtonElement).disabled).toBe(false)
+    const unavailable = (text: string, name: string) => {
+      const b = within(card(text)).getByRole('button', { name }) as HTMLButtonElement
+      return !b.disabled && b.getAttribute('aria-disabled') === 'true'
+    }
+    expect(unavailable('Placeholder instructions', 'Move up')).toBe(true)
+    expect(unavailable('Placeholder instructions', 'Move down')).toBe(false)
+    expect(unavailable('Placeholder section', 'Move down')).toBe(true)
+    expect(unavailable('Placeholder multiple', 'Move down')).toBe(false)
+
+    const before = cards()
+    fireEvent.click(within(card('Placeholder instructions')).getByRole('button', { name: 'Move up' }))
+    expect(cards()).toEqual(before)
+    expect(document.querySelector('[role="status"][aria-live]')?.textContent).toBe('')
+  })
+
+  it('keeps the focus on Move down when the item reaches the end', async () => {
+    renderBuilder({}, draft({ item: [{ linkId: 'a', text: 'Placeholder A', type: 'string' }, { linkId: 'b', text: 'Placeholder B', type: 'string' }] }))
+    await screen.findByLabelText('Title')
+    const down = within(card('Placeholder A')).getByRole('button', { name: 'Move down' })
+    down.focus()
+    fireEvent.click(down)
+
+    expect(cards()).toEqual(['Placeholder B', 'Placeholder A'])
+    expect(document.activeElement).toBe(within(card('Placeholder A')).getByRole('button', { name: 'Move down' }))
+    expect(document.activeElement?.getAttribute('aria-disabled')).toBe('true')
   })
 
   it('moves with Move up and Move down, and announces where the item is (W42)', async () => {
@@ -244,13 +321,14 @@ describe('Builder: deleting', () => {
     await screen.findByLabelText('Title')
 
     fireEvent.click(within(card('Placeholder single')).getByRole('button', { name: 'Delete' }))
-    const confirm = within(card('Placeholder single')).getByRole('group', { name: 'Delete this question?' })
-    expect(within(confirm).getByText('1 items are shown only after an answer to it. Their conditions will be removed.')).toBeTruthy()
+    const confirm = within(card('Placeholder single')).getByRole('alertdialog', { name: 'Delete this question?' })
+    expect(description(confirm)).toBe('1 items are shown only after an answer to it. Their conditions will be removed.')
+    expect(confirm.contains(document.activeElement)).toBe(true)
     fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
     expect(cards()).toContain('Placeholder single')
 
     fireEvent.click(within(card('Placeholder single')).getByRole('button', { name: 'Delete' }))
-    const again = within(card('Placeholder single')).getByRole('group', { name: 'Delete this question?' })
+    const again = within(card('Placeholder single')).getByRole('alertdialog', { name: 'Delete this question?' })
     fireEvent.click(within(again).getByRole('button', { name: 'Delete' }))
     expect(cards()).not.toContain('Placeholder single')
 
@@ -287,6 +365,21 @@ describe('Builder: saving', () => {
     expect(puts.map((r) => r.headers.get('If-Match'))).toEqual(['W/"3"', 'W/"4"'])
     expect((await puts[0].json()).title).toBe('Placeholder renamed')
     expectCsrfOnWrites(requests)
+  })
+
+  it('keeps an edit made while a save is in flight unsaved, and asks before leaving', async () => {
+    const put = deferred()
+    const { requests } = renderBuilder({ 'PUT /questionnaires/q1': () => put.promise.then(saved()) })
+    fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Placeholder renamed' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
+    await vi.waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true))
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Placeholder renamed again' } })
+    await act(async () => put.resolve())
+
+    expect(screen.queryByText('Saved')).toBeNull()
+    act(() => navigate('/'))
+    expect(location.pathname).toBe(path)
+    expect(screen.getByRole('alertdialog', { name: 'You have unsaved changes. Leave without saving?' })).toBeTruthy()
   })
 
   it('says someone else changed it on a 412, and reloads', async () => {
@@ -354,13 +447,26 @@ describe('Builder: limits', () => {
 })
 
 describe('Builder: publishing and the lifecycle', () => {
+  it('asks in an alert dialog that takes the focus, and gives it back on Cancel', async () => {
+    renderBuilder({})
+    const publish = await screen.findByRole('button', { name: 'Publish' })
+    publish.focus()
+    fireEvent.click(publish)
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })
+    expect(description(dialog)).toBe('Once published, it cannot be changed. To change it later, you create a new version.')
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(document.activeElement).toBe(publish)
+  })
+
   it('asks to confirm a publish, and keeps the draft on Cancel', async () => {
     const { requests } = renderBuilder({})
     fireEvent.click(await screen.findByRole('button', { name: 'Publish' }))
 
     expect(screen.getByText('Publish this questionnaire?')).toBeTruthy()
     expect(screen.getByText('Once published, it cannot be changed. To change it later, you create a new version.')).toBeTruthy()
-    fireEvent.click(within(screen.getByRole('group', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByText('Publish this questionnaire?')).toBeNull()
     expect(requests.some((r) => r.method === 'POST')).toBe(false)
   })
@@ -377,7 +483,7 @@ describe('Builder: publishing and the lifecycle', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Publish' }))
     expect(screen.getByText('Version 1 will be retired. Patients who have already been asked keep that version.')).toBeTruthy()
-    fireEvent.click(within(screen.getByRole('group', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Publish' }))
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Publish' }))
 
     expect(await screen.findByText('This questionnaire is published and cannot be changed.')).toBeTruthy()
     const post = fake.requests.find((r) => r.method === 'POST')
@@ -392,11 +498,37 @@ describe('Builder: publishing and the lifecycle', () => {
     })
     fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Placeholder renamed' } })
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
-    fireEvent.click(within(screen.getByRole('group', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Publish' }))
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Publish' }))
 
     expect(await screen.findByText('This questionnaire is published and cannot be changed.')).toBeTruthy()
     expect(paths(requests).filter((p) => !p.startsWith('GET'))).toEqual(['PUT /questionnaires/q1', 'POST /questionnaires/q1/publish'])
     expect(requests.find((r) => r.method === 'POST')?.headers.get('If-Match')).toBe('W/"4"')
+  })
+
+  it('shows a publish refused with 422 on the section it names', async () => {
+    renderBuilder({ 'POST /questionnaires/q1/publish': () => Response.json({ error: 'invalid_questionnaire', linkIds: ['sec'] }, { status: 422 }) })
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish' }))
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Publish' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Some items need attention.')
+    expect(card('Placeholder section').classList.contains('attention')).toBe(true)
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+  })
+
+  it('keeps editing out of reach while it publishes, so no edit is lost to the published version', async () => {
+    const put = deferred()
+    renderBuilder({
+      'PUT /questionnaires/q1': () => put.promise.then(saved()),
+      'POST /questionnaires/q1/publish': () => Response.json({ ...questionnaireJSON(), status: 'active', versionId: 5 }),
+    })
+    fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Placeholder renamed' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Publish' }))
+
+    await vi.waitFor(() => expect(document.querySelector('.builder')?.hasAttribute('inert')).toBe(true))
+    expect(screen.getByLabelText('Title').closest('[inert]')).toBeTruthy()
+    put.resolve()
+    expect(await screen.findByText('This questionnaire is published and cannot be changed.')).toBeTruthy()
   })
 
   it('opens the new version after "Edit as new version"', async () => {
@@ -439,7 +571,8 @@ describe('Builder: publishing and the lifecycle', () => {
         'It is no longer sent with new bookings or added to appointments, including as a default questionnaire. Patients who have already been asked can still submit it.',
       ),
     ).toBeTruthy()
-    fireEvent.click(within(screen.getByRole('group', { name: 'Retire this questionnaire?' })).getByRole('button', { name: 'Retire' }))
+    expect(screen.getByRole('alertdialog', { name: 'Retire this questionnaire?' }).contains(document.activeElement)).toBe(true)
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Retire this questionnaire?' })).getByRole('button', { name: 'Retire' }))
 
     expect(await screen.findByText('This questionnaire is retired. It is no longer sent to patients.')).toBeTruthy()
     expectCsrfOnWrites(requests)
@@ -451,7 +584,9 @@ describe('Builder: publishing and the lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
     expect(screen.getByText('Discard this draft?')).toBeTruthy()
     expect(screen.getByText('This cannot be undone.')).toBeTruthy()
-    fireEvent.click(within(screen.getByRole('group', { name: 'Discard this draft?' })).getByRole('button', { name: 'Discard' }))
+    expect(description(screen.getByRole('alertdialog', { name: 'Discard this draft?' }))).toBe('This cannot be undone.')
+    expect(screen.getByRole('alertdialog', { name: 'Discard this draft?' }).contains(document.activeElement)).toBe(true)
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Discard this draft?' })).getByRole('button', { name: 'Discard' }))
 
     await vi.waitFor(() => expect(location.pathname).toBe('/questionnaires'))
     expectCsrfOnWrites(requests)
@@ -464,6 +599,16 @@ describe('Builder: publishing and the lifecycle', () => {
 })
 
 describe('Builder: leaving with unsaved changes', () => {
+  it('asks in an alert dialog that takes the focus', async () => {
+    renderBuilder({})
+    fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Placeholder unsaved' } })
+    act(() => navigate('/'))
+
+    const dialog = screen.getByRole('alertdialog', { name: 'You have unsaved changes. Leave without saving?' })
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    expect(document.activeElement?.textContent).toBe('Stay')
+  })
+
   it('asks before leaving, stays on Stay, and leaves on Leave', async () => {
     renderBuilder({})
     fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Placeholder unsaved' } })
@@ -471,7 +616,7 @@ describe('Builder: leaving with unsaved changes', () => {
     act(() => navigate('/'))
     expect(location.pathname).toBe(path)
     expect(screen.getByText('You have unsaved changes. Leave without saving?')).toBeTruthy()
-    fireEvent.click(within(screen.getByRole('group', { name: 'You have unsaved changes. Leave without saving?' })).getByRole('button', { name: 'Stay' }))
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'You have unsaved changes. Leave without saving?' })).getByRole('button', { name: 'Stay' }))
     expect(location.pathname).toBe(path)
     expect(screen.queryByText('You have unsaved changes. Leave without saving?')).toBeNull()
 

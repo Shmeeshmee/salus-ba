@@ -24,7 +24,7 @@ test('the practitioner builds a questionnaire by drag and drop, publishes it and
     await drag(page, page.getByRole('button', { name: kind, exact: true }), page.locator('.list-end'))
     const fresh = rows(page).last()
     await fresh.getByLabel('Question', { exact: true }).fill(text) // W13
-    await fresh.getByRole('button', { name: text, exact: true }).click()
+    await toggle(fresh, text).click()
   }
   await expect(texts(page)).toHaveText(['Placeholder question A', 'Placeholder question B', 'Placeholder question C'])
 
@@ -49,7 +49,7 @@ test('the practitioner builds a questionnaire by drag and drop, publishes it and
   await expect(announced(page, 'Placeholder question A moved to position 2 of 3.')).toBeAttached()
 
   await page.getByRole('button', { name: 'Publish', exact: true }).click() // W22
-  const confirm = page.getByRole('group', { name: 'Publish this questionnaire?' })
+  const confirm = page.getByRole('alertdialog', { name: 'Publish this questionnaire?' })
   await expect(confirm.getByText('Once published, it cannot be changed. To change it later, you create a new version.')).toBeVisible()
   await confirm.getByRole('button', { name: 'Publish' }).click()
   await expect(page.getByText('This questionnaire is published and cannot be changed.')).toBeVisible() // W23
@@ -81,7 +81,10 @@ async function box(l: Locator): Promise<{ x: number; y: number }> {
 
 const rows = (page: Page) => page.locator('ul.items > li.item')
 const texts = (page: Page) => rows(page).locator('.item-text')
-const row = (page: Page, text: string) => rows(page).filter({ has: page.getByRole('button', { name: text, exact: true }) })
+// A card's toggle is named by what it shows (the text, the type, Required): it is found by its text.
+const itemText = (page: Page, text: string) => page.locator('.item-text').getByText(text, { exact: true })
+const toggle = (card: Locator, text: string) => card.locator('button.item-toggle').filter({ has: itemText(card.page(), text) })
+const row = (page: Page, text: string) => rows(page).filter({ has: itemText(page, text) })
 const handle = (page: Page, text: string) => row(page, text).getByRole('button', { name: 'Drag to reorder' })
 
 // announced is a W42 announcement in a live region: the builder's own, or the one @dnd-kit renders.

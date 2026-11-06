@@ -127,6 +127,30 @@ func TestPublish_MakesTheDraftActiveAndRetiresTheActiveVersionOfItsSeries(t *tes
 	assertEvents(t, f.audit, staffEvent(practitionerA1, auditevent.CodeUpdate, auditevent.ActionUpdate, "Questionnaire/"+draftA, auditevent.OutcomeSuccess))
 }
 
+// A draft may keep a section without items, but it does not publish (FHIR que-1): 422 naming each empty
+// section, in document order; nothing changes, and the refusal is audited.
+func TestPublish_RefusesADraftWithAnEmptySection(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	for i := range f.repo.rows {
+		if f.repo.rows[i].ID == draftA {
+			f.repo.rows[i].Items = []questionnaire.Item{section("s1"), section("s2", question("q", questionnaire.ItemString)), section("s3")}
+		}
+	}
+	before, active := f.row(draftA), f.row(activeA)
+
+	_, err := f.svc.Publish(t.Context(), practitionerA1, draftA, 1)
+
+	invalid, ok := errors.AsType[*questionnaire.InvalidError](err)
+	if !ok || !slices.Equal(invalid.LinkIDs, []string{"s1", "s3"}) {
+		t.Fatalf("Publish() = %v, want an *InvalidError naming s1 and s3", err)
+	}
+	if !sameRow(f.row(draftA), before) || !sameRow(f.row(activeA), active) {
+		t.Errorf("Publish() changed the series: %+v, %+v", f.row(draftA), f.row(activeA))
+	}
+	assertEvents(t, f.audit, staffEvent(practitionerA1, auditevent.CodeUpdate, auditevent.ActionUpdate, "Questionnaire/"+draftA, auditevent.OutcomeMinorFailure))
+}
+
 func TestPublish_AFailedAuditRollsTheRetirementBack(t *testing.T) {
 	t.Parallel()
 	f := newFixture()

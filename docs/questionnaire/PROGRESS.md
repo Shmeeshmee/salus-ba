@@ -1053,3 +1053,256 @@ the images with the branch as it was). The runs left synthetic clinics on the de
 practitioner and their questionnaires, patients with their appointments, the submitted response of the first
 journey, and their audit events (synthetic data only, as earlier e2e runs); the cancelled journey's responses were
 deleted by the discard job. Mailpit was left as found (each journey deletes the e-mails it reads).
+
+## Review of PR #24
+
+Copilot (two doc comments) and two reviewers who did not write the code (one on Go, migrations and contracts,
+one on web, mobile and e2e) reviewed the PR against CLAUDE.md, `SPEC.md` and `COPY.md`. Every finding was fixed
+test first; the failing tests are recorded below.
+
+Owner's answers on review (2026-11-06):
+
+- Publishing refuses a section with no items (R4 que-1), 422 `invalid_questionnaire` with its linkId; a draft
+  may keep one. New W28 line "Add at least one item to this section."
+- W13 gains the visible label "Type"; W28 gains "Fill in this option."
+- After a revocation an admin sees nothing of an unsubmitted response of a past appointment (kept as built);
+  `appointment_closed` is in the SPEC's 409 lists.
+- Decimals typed with a comma: before production, with the localisation (SPEC §8).
+- Mobile date picker: calendar only, confirm "Done" (M17); its remaining US-English text goes to SPEC §8 with
+  the localisation.
+
+Load test after the fixes (`make bench-questionnaire-http`; saves and requests now lock the appointment row
+`FOR SHARE`): 1,000 saves, 10 concurrent: p50 10.55 / p95 15.3 / p99 21.49 ms (max 46.64), 889/s; 1,000
+searches: p50 9.69 / p95 12.97 / p99 16.76 ms (max 19.87), 1,016/s. No measurable change from the lock.
+
+All checks pass after the fixes: lint, test, archcheck, cover, fhir-validate, gen-clients (no diff), web, mobile
+and e2e.
+
+### Go
+
+## 1. Requests race cancellations; answers writable on a cancelled appointment
+
+Failing tests first:
+- `internal/appointment/repository_postgres_test.go`
+  - `TestByIDForShare_LocksTheAppointmentInThePatientsScopeAndTheClinicsWithAConsent` (NewAppDatabase, RLS on):
+    the patient-only scope (save/submit) and the clinic-only scope (request, and the `questionnaire_default_request`
+    job, which sets the same `app.organization_id` only) may take the lock with an active consent; the clinic
+    without a consent, another patient, a non-UUID id get ErrNotFound. Red: build failure (no `ByIDForShare`).
+  - `TestByIDForShare_MakesACancellationWaitForTheTransaction`: a `Cancel` waits while another transaction holds
+    the share lock (waited on with the new `pgtest.WaitForLockWait`, which polls `pg_stat_activity` for a session
+    in `wait_event_type = 'Lock'`; no sleeps), then commits; the next read sees it cancelled. Checked red for the
+    right reason by removing `FOR SHARE` from the generated query: "pgtest: no session waited on a lock".
+- `internal/appointment/service_attendance_test.go` `TestLookupLocked_…`: the share lock in the caller's tx and
+  scope, unaudited; ErrNotFound in another clinic and after a revocation; backend error passed on. Red: no method.
+- `pkg/postgres/pgtest/pgtest_test.go` `TestWaitForLockWait_ReturnsOnceASessionWaitsOnALock`. Red: no function.
+- `internal/questionnaireresponse`: fake `Appointments.LookupLocked` (patient's own scope, or the clinic's with an
+  active consent, as the UPDATE policies) with `committed` (a cancellation that committed after Attendance read the
+  appointment: the lock sees it cancelled). New cases, all red before the change:
+  - Request: "a cancellation committed before the lock" -> ErrAppointmentClosed, nothing stored, refusal audited
+    without entity; the success test asserts the appointment was locked.
+  - RequestDefault: "a cancellation committed before the lock" -> no-op, nothing audited; the success test
+    asserts a lock on each run.
+  - SaveAnswers and Submit: "a cancelled appointment" and "a cancellation committed before the lock" ->
+    ErrAppointmentClosed, unchanged, audited as an update with `QuestionnaireResponse/<id>`, minor failure.
+- `internal/api/questionnaire_cancel_test.go`
+  `TestQuestionnaireRequest_AndACancellationOfTheAppointmentDoNotInterleave` (real services on salus_app): the
+  request's transaction is held right after the lock (a wrapper on questionnaire.Service.Read waits on a
+  channel); the practitioner's Cancel waits (WaitForLockWait), the request commits, then the cancel; a second
+  request after the committed cancel gets ErrAppointmentClosed and is audited. Red without `FOR SHARE`
+  ("no session waited on a lock").
+- `internal/api/app_questionnaire_response_test.go` `TestNew_RefusesQuestionnaireChangesOnACancelledAppointment`:
+  through the HTTP API, between the cancel and its discard job, save and submit answer 409 `appointment_closed`
+  (two refusals audited with the entity, PATRQT) and a new request 409 `appointment_closed`. The existing
+  matrix test's successful request and save/submit also prove each scope may take the lock under RLS.
+
+Changes:
+- `appointment`: query `AppointmentByIDForShare` (`… FOR SHARE`, `make sqlc`), `Repository.ByIDForShare`,
+  `Service.LookupLocked(ctx, id)`: the caller's tx and scope, unaudited like `Lookup`. Only appointment's
+  repository touches its table. FOR SHARE needs the UPDATE policies too: `appointment_own` (FOR ALL) for the
+  patient, `appointment_clinic_update` (active consent) for the clinic; the column UPDATE grant suffices for the
+  privilege.
+- `questionnaireresponse`: the `Appointments` port gains `LookupLocked`. `Request`: after the access rule, the new
+  `booked` helper locks the appointment and refuses `ErrAppointmentClosed` unless `booked` (ErrNotFound when the
+  scope may not lock it); the start check uses the locked row. `RequestDefault`: `LookupLocked` instead of
+  `Lookup` (non-booked -> no-op). `SaveAnswers`/`Submit`: `open` now takes ctx and, for the patient on an open
+  response, locks the appointment and refuses `ErrAppointmentClosed` (order: forbidden, submitted, withdrawn,
+  appointment_closed, past_due, consent_required, version_conflict). Doc comments updated.
+- Lock order is response row (FOR UPDATE) then appointment (FOR SHARE); a cancellation takes only the
+  appointment row and the discard job runs in its own transaction, so no deadlock cycle.
+- `api/openapi.yaml`: `AnswersClosed` (save and submit 409) lists `appointment_closed`; the save description
+  says "while the appointment is booked". `make gen-clients` regenerated `web/src/api/schema.d.ts` and
+  `mobile/packages/salus_api/lib/api/questionnaires_api.dart` (doc text only, 4 lines each).
+- New test helper `pgtest.WaitForLockWait(t, db)` (two real uses), timeout 30 s.
+- Performance: save, submit and request add one primary-key `SELECT … FOR SHARE`. Not measured here: the
+  `bench-questionnaire-http` target needs `make up`, which I was not to run. The in-package benchmarks still pass
+  (they stub the appointment port).
+
+## 2. SPEC §2 "Patient flow"
+
+"never shown to the practitioner" -> "its answers are never shown to the practitioner (staff see its status,
+'Not submitted before the appointment', W34)". Code unchanged.
+
+## 3. Withdraw after a revocation answered 404 without the entity
+
+Failing tests: the fake repository's `Lock` now models the clinic's UPDATE policy (no lock without an active
+consent). `TestWithdraw_AfterARevocationIsForbiddenToTheClinicThatSeesIt` (practitioner and admin, a completed
+response of a past appointment after a revocation) was red: "not found, want ErrForbidden", audited without the
+entity. In the HTTP matrix test, after the revocation: the practitioner's and the admin's withdrawal of the past
+response -> 403 `forbidden`; checked red with the old code (404 `not_found`).
+Change: `withdraw` reads with `ByID`, decides the level and the rule, and refuses 403 with the entity; it locks
+(`Repo.Lock`) only when the withdrawal is allowed and re-checks submitted/withdrawn on the locked row (a row gone
+from the scope in between -> 404).
+Decision: the same 404 appeared for staff calling save/submit after a revocation (the answer path also locked
+first). Fixed the same way (staff read with `ByID`, never lock; they always get 403): new case "the appointment's
+practitioner after a revocation" in `TestAnswers_RefuseAnyoneButThePatientAndAClosedResponse`, red before
+("not found, want forbidden"). The test's table moved to `answerRefusals` (funlen).
+
+## 4. Questionnaire FHIR read and search without Cache-Control
+
+Failing test: `TestHandlerRead_SendsTheQuestionnaire` and `TestHandlerSearch_PassesTheFilterAndSendsASearchset`
+now assert `Cache-Control: no-store` (red: header absent). Change: set on both 200s in
+`internal/questionnaire/handler_fhir.go`.
+
+## 5. Empty section published as invalid FHIR (que-1)
+
+Failing test: `TestPublish_RefusesADraftWithAnEmptySection` (draft with s1 empty, s2 with a question, s3 empty):
+red "Publish() = <nil>, want an *InvalidError naming s1 and s3". Validation case "an empty section, which a draft
+keeps" (valid) added. Change: `publishable(items)` in `validate.go`, called by `Publish` after the draft/version
+checks: `*InvalidError{LinkIDs: empty sections in document order}`, 422 `invalid_questionnaire` through the
+existing mapping, audited as a refused update with the entity, nothing changed. SPEC §2 "Item model" says so.
+`make fhir-validate` green (74 files, no errors; no golden holds an empty section).
+Note for the owner: a draft that keeps an empty section is still served by `GET /fhir/R4/Questionnaire/<id>` (staff
+read drafts), and that draft resource fails que-1. Not changed (drafts may keep it, per the decision).
+
+## 6. Questionnaire search url with a non-UUID id gave 200
+
+Failing test: three new rows in `TestHandlerSearch_RejectsAParameterItCannotReadWithoutCallingTheService`
+(`…/Questionnaire/not-a-uuid`, a UUID with an extra character, one with the hyphens replaced): red, 200 and the
+service called. Change: `searchQuery` requires the id after the canonical base to be a UUID (`isUUID`, 8-4-4-4-12
+hex, 15 lines, no dependency); 400 `not-supported` as the CapabilityStatement says.
+
+## 7. Copilot wording
+
+`service_notice.go`: "the appointment appointmentID" -> "the appointment with the id appointmentID".
+
+## 8. SPEC
+
+§2 "Requests": 409 list for adding a questionnaire gains `appointment_closed` (no longer booked), and a sentence on
+the lock (a cancellation that committed first refuses; a later one waits and its discard deletes the response; the
+default job then does nothing). §2 "Patient flow": save is allowed while the appointment is `booked`; 409 list gains
+`appointment_closed`; submit has the same 409s. §8 "Before production": decimals typed with a comma (bs/hr/sr)
+accepted by the mobile app, with the localisation.
+
+## Checks
+
+- `make lint`: 0 issues (golangci-lint, both modules), gofmt clean, check-migrations ok.
+- `make test`: all packages pass.
+- `make archcheck`: pass (no allowlist change; no new table, no migration edited).
+- `make cover`: pass, total 94.8%; appointment 92.9%, questionnaire 94.9%, questionnaireresponse 94.9%,
+  pgtest 83.8%.
+- `make fhir-validate`: 74 files, Success, no errors.
+- `make gen-clients`: regenerated `web/src/api/schema.d.ts` and
+  `mobile/packages/salus_api/lib/api/questionnaires_api.dart` (the `AnswersClosed` and save description text).
+- No migration changed: the lock uses the existing UPDATE policies and grants.
+
+### Web and mobile
+
+Not committed. Owned: web/ (not schema.d.ts), mobile/ (not salus_api), test/e2e/web/, docs/questionnaire/COPY.md.
+
+## Owner's decisions built
+
+New strings in COPY.md, each marked "(added on review of PR #24, owner)", and in the messages files:
+- W13 "Type" (`questionnaires.type`): a visible `<label>` on the item type select of an opened card. This
+  replaces the select's `aria-label` (the item's text). Test: "labels the type of an opened card "Type" (W13)".
+  Before the fix it failed: "Unable to find a label with the text of: Type".
+- W28 "Fill in this option." (`emptyOption`) and "Add at least one item to this section." (`emptySection`) in
+  `problems()` (web/src/builder.ts). A blank option now gives "Fill in this option." in place of "Add text to
+  this item." (blank item text still gives that). Tests in builder.test.ts: "names an empty option" (failed:
+  got [ 'Add text to this item.' ]) and "names an empty section" (failed: got undefined). Builder.test.tsx:
+  "says an empty option needs filling in", "says an empty section needs an item (W28), and does not offer to
+  publish it" (failed: text not found).
+- Client-side check before publish: "Publish" now checks `problems()` first. With any problem it shows W29
+  "Some items need attention.", opens the cards with problems and does not ask or send anything. Decision: all
+  problems block, not only an empty section: they are the API's checks, and the server refuses them on publish
+  anyway. A 422 `invalid_questionnaire` on publish already marked and opened the named linkIds. Test "shows a
+  publish refused with 422 on the section it names": it now uses the alert dialog role, and the marking itself
+  needed no change.
+- Mobile date picker: `initialEntryMode: DatePickerEntryMode.calendarOnly`, `confirmText: done` (M17 "Done",
+  `done` in messages.dart); cancel stays M11 "Cancel". Test "several choices and a date from the picker" now
+  asserts calendarOnly, no TextField, no edit icon, no "OK", "Cancel" and taps "Done". It failed with
+  "Expected: calendarOnly, Actual: calendar". copy_test picked up M17 and failed ("match 'Done'") until the
+  string was added.
+- `appointment_closed` (409) on save or submit: `answersMessage` maps it to M16 not found "This questionnaire is
+  not available."; a 409 already closes the form. Tests: the refused save loop gains `appointment_closed`
+  (failed: text not found), and "a submit refused as the appointment was cancelled says it is not available,
+  and closes" (failed the same way). COPY.md M16 notes this.
+
+### Date picker: default Material text left in calendar mode (for the owner, nothing invented)
+Calendar mode still shows these Material defaults (DefaultMaterialLocalizations, en_US; the app has no
+localizations delegate):
+- Visible: the header with the selected date in US medium format, e.g. "Wed, Nov 4", where COPY.md writes dates
+  as "Wednesday 4 November 2026". Also the month and year "November 2026" and the weekday initials.
+- Tooltips (shown on long press and read by screen readers): "Previous month", "Next month".
+- Screen reader only: "Select year", "Today", and each day read in US order, e.g. "Sunday, November 1, 2026".
+Fixing these means a localizations delegate with en_GB (flutter_localizations, a new dependency) or custom
+MaterialLocalizations text. That needs the owner's decision.
+
+## Findings
+
+1. Builder save/publish race (web/src/Builder.tsx). Every change now increments an edit counter
+   (`edits` ref). `save()` captures it when it sends and clears dirty/shows "Saved" only if it has not changed.
+   Publish: the confirm stays open and busy while the request runs, and the item area (`.builder`, which holds
+   the title, description and items) is `inert` from the start of the save to the end of the POST. So no edit
+   can land between the save and the POST and be lost to the published version. Decision: inert instead of a
+   re-save loop, because an edit during the POST could not be kept anyway.
+   Tests: "keeps an edit made while a save is in flight unsaved, and asks before leaving". It failed because
+   "Saved" was shown. "keeps editing out of reach while it publishes…" failed because there was no alertdialog
+   and no inert. jsdom does not implement inert, so the test asserts the attribute.
+2. Confirms (W19, W21, W22, W24, W26, W36). There is now one shared `Confirm` in web/src/ui.tsx (Builder,
+   ItemCard and AppointmentQuestionnaires use it, so it has three real uses). It is `role="alertdialog"`, has
+   aria-labelledby (the question) and aria-describedby (the lines), and focuses Cancel/Stay on mount (the
+   button that changes nothing). When it closes it gives the focus back to the element that had it, if focus
+   was in the dialog or lost and that element is still there. "Withdraw" is not rendered while its confirm is
+   open, so it takes the focus back with autoFocus after Cancel or after a refused withdrawal.
+   Tests: alertdialog, description and focus for publish (with focus back to "Publish" on Cancel), discard,
+   retire, delete question and leave (focus on "Stay"), and withdraw (focus back to "Withdraw" on Cancel and
+   after a 409). Before the fix they failed: "Unable to find an accessible element with the role
+   "alertdialog"". The refocus after a refused withdrawal was checked by taking the line out: the test then
+   failed. Existing tests now query `alertdialog` in place of `group`. The e2e spec does too.
+3. Move up/Move down (web/src/ItemCard.tsx) use `aria-disabled` and ignore the click at the ends. CSS gives
+   `[aria-disabled='true']` the disabled look. Tests: "marks Move up on the first item and Move down on the last
+   as unavailable, and ignores them" (failed: expected false to be true), and "keeps the focus on Move down when
+   the item reaches the end" (failed: the focus was on body).
+4. web/src/Questionnaires.tsx: `aria-label="Status"` removed. The group is named by nothing, as COPY.md has no
+   string for it. Test "names the status filter by its buttons only" failed with "expected 'Status' to be null".
+5. Card toggle (ItemCard): the `aria-label` is removed, so the button is named by what it shows, with spaces
+   between the parts: "Placeholder yes or no Yes or no Required". Test "names a card's toggle by what it shows"
+   failed with "Unable to find … name "Placeholder yes or no Yes or no Required"". The Builder test helpers
+   and the e2e `row`/`toggle` now find cards by `.item-text`.
+6. Mobile labels (verified with the semantics tree). The finding was only partly true. Each text field's node
+   is already labelled "question\n[Required\n]Your answer", because the header text merges into it. Each
+   choice's options sit in a node labelled "question\n…". Only the date button was labelled "Choose a date"
+   alone, with the question in a parent node. Fix: the date button is
+   `MergeSemantics(Semantics(label: item.text, OutlinedButton))`, so it reads "Placeholder date\nChoose a
+   date". The test "each answer is labelled with its question for TalkBack and VoiceOver" pins all of it: the
+   first line of each text field's label is the question; an ancestor of each option is labelled with the
+   question; the date button is a button whose first line is the question. Only the date part failed before:
+   "Expected: 'Placeholder date', Actual: 'Choose a date'". Text fields and choices were left as they were
+   rather than adding a second label.
+7. mobile/lib/appointments_screen.dart: the questionnaire search is in `_questionnaires()`, which returns none
+   on an ApiFailure, so the appointments and Join still show. Test "a failed questionnaire search leaves the
+   appointments shown, with Join, and no questionnaire lines" failed with "Found 0 widgets with text "Booked"".
+8. mobile/lib/questionnaire_screen.dart `_reload()`: when the response read again after a 412 is `stopped`, it
+   shows M16 withdrawn and closes the form, in place of "changed on another device". Test "a 412 whose response
+   was withdrawn meanwhile says so (M16), and closes the form" failed: the withdrawn text was not found.
+9. web/src/route.ts: the comment now reads "ask(to) says whether the screen at here may be left for to now".
+
+## Checks (all in Docker through make)
+- make web-lint: 0 warnings, 0 errors
+- make web-typecheck: passes
+- make web-test: 22 files, 385 tests passed
+- make web-build: built
+- make mobile-analyze: no issues
+- make mobile-test: 213 tests passed
+- Not run (as instructed): make gen-clients, make e2e, make up/down. The e2e spec change
+  (test/e2e/web/questionnaire.spec.ts: alertdialog, cards found by `.item-text`) has not been run.

@@ -405,7 +405,7 @@ func benchService(b *testing.B) (*questionnaireresponse.Service, *pgxpool.Pool, 
 	svc := questionnaireresponse.NewService(questionnaireresponse.Ports{
 		Repo: questionnaireresponse.NewPostgresRepository(app), Audit: &benchAudit{}, Tx: postgres.NewTransactor(app),
 		Clock:        clock.Fixed{T: dbStart.Add(-48 * time.Hour)},
-		Appointments: stubAttendance{a: appointment.Appointment{ID: s.appts[0], PatientID: s.patient, PractitionerRoleID: s.role, OrganizationID: s.clinic, Start: dbStart}},
+		Appointments: stubAttendance{a: appointment.Appointment{ID: s.appts[0], PatientID: s.patient, PractitionerRoleID: s.role, OrganizationID: s.clinic, Status: appointment.StatusBooked, Start: dbStart}},
 		Questionnaires: stubVersion{q: questionnaire.Questionnaire{ID: s.versions[0], SeriesID: s.series[0], OrganizationID: s.clinic,
 			Status: questionnaire.StatusActive, Items: items}},
 	})

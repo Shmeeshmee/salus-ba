@@ -106,6 +106,7 @@ export const questionnaires = {
   instructions: 'Instructions', // W13
   sectionTitle: 'Section title', // W13
   required: 'Required', // W13
+  type: 'Type', // W13 (added on review of PR #24, owner)
   templateHint: "This questionnaire is a template for all patients. Do not include any patient's details.", // W14
   options: 'Options', // W15
   addOption: 'Add option', // W15
@@ -160,6 +161,8 @@ export const questionnaires = {
   noText: 'Add text to this item.', // W28
   conditionOrder: 'This condition depends on a question that is no longer above this item.', // W28
   conditionAnswer: "This condition's answer is no longer one of the options.", // W28
+  emptyOption: 'Fill in this option.', // W28 (added on review of PR #24, owner)
+  emptySection: 'Add at least one item to this section.', // W28 (added on review of PR #24, owner)
   draftExists: 'A draft of this questionnaire already exists.', // W29
   openDraft: 'Open draft', // W29
   changed: 'Someone else changed this questionnaire. Reload to see their changes. Your changes since the last save will be lost.', // W29

@@ -69,6 +69,18 @@ func (s *Service) Lookup(ctx context.Context, id string) (Appointment, error) {
 	return a, err
 }
 
+// LookupLocked is Lookup, locking the appointment against a change until the caller's transaction ends: a
+// cancellation waits for it, and one that committed first is seen (docs/questionnaire/SPEC.md §2 "Requests").
+// For a questionnaire request or answer, which audits its own write. The scope must also let it change the
+// appointment: the patient's own, or the clinic's with the patient's active consent; ErrNotFound otherwise.
+func (s *Service) LookupLocked(ctx context.Context, id string) (Appointment, error) {
+	a, err := s.Repo.ByIDForShare(ctx, id)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return Appointment{}, fmt.Errorf("appointment: lookup locked: %w", err)
+	}
+	return a, err
+}
+
 // LookupPractitioner returns the practitioner of the appointment id's role, read in the caller's transaction
 // and scope, unaudited, for the consultation's room rule (docs/consultation/SPEC.md §2 "Consultation status"),
 // which decides and audits the read itself. ErrNotFound when the scope does not show the appointment.

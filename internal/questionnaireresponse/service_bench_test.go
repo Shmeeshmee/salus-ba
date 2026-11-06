@@ -99,6 +99,10 @@ func (s stubAttendance) Lookup(context.Context, string) (appointment.Appointment
 	return appointment.Appointment{}, errors.New("not for the benchmarks")
 }
 
+func (s stubAttendance) LookupLocked(context.Context, string) (appointment.Appointment, error) {
+	return s.a, nil
+}
+
 type stubVersion struct{ q questionnaire.Questionnaire }
 
 func (s stubVersion) ActiveDefault(context.Context, string, string, string) (questionnaire.Questionnaire, error) {

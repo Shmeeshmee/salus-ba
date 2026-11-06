@@ -21,6 +21,10 @@ type Repository interface {
 	Create(ctx context.Context, a Appointment) (Appointment, error)
 	// ByID returns the appointment, or ErrNotFound (also outside the scope, or for an id that is not a UUID).
 	ByID(ctx context.Context, id string) (Appointment, error)
+	// ByIDForShare is ByID, locking the appointment against a change until the transaction ends (FOR SHARE: a
+	// concurrent cancellation waits, and one that committed first is seen). The scope must also let it change
+	// the appointment: the patient's own, or the clinic's with the patient's active consent.
+	ByIDForShare(ctx context.Context, id string) (Appointment, error)
 	// Search returns the appointments the filter and the scope give, by start.
 	Search(ctx context.Context, f Filter) ([]Appointment, error)
 	// Cancel cancels the booked appointment id at at for reason, by the account by (empty for a job), and

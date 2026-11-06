@@ -21,7 +21,7 @@ by the app.
 - W10: "Add an item", with the hint "Drag an item into the questionnaire, or select it to add it at the end."
 - W11 (item types): "Section", "Instructions", "Short answer", "Long answer", "Yes or no", "Single choice", "Multiple choice", "Whole number", "Decimal number", "Date"
 - W12 (empty questionnaire): "Drag items here, or select one on the left."
-- W13 (item fields): "Question", "Instructions", "Section title", "Required"
+- W13 (item fields): "Question", "Instructions", "Section title", "Required"; "Type" (the visible label of the item type dropdown on an opened card; added on review of PR #24, owner)
 - W14 (under the title): "This questionnaire is a template for all patients. Do not include any patient's details."
 - W15 (choice options): "Options", "Add option", "Option [n]", "Remove option"
 - W16: "More options", "Add help text", "Help text", with the hint "Patients see this when they tap the information icon."
@@ -36,7 +36,7 @@ by the app.
 - W25 (retired version): "This questionnaire is retired. It is no longer sent to patients."
 - W26 (leaving with unsaved changes): "You have unsaved changes. Leave without saving?" with the buttons "Leave", "Stay"
 - W27 (limits): "[n] of 200 items"; "A questionnaire can have up to 200 items."; "[n] of [max] characters" (shown near the limit); "A choice question needs at least 2 options."; "A choice question can have up to 50 options."; "Each option must be different."; "Sections cannot be placed inside other sections."
-- W28 (item errors, on the item): "Add text to this item."; "This condition depends on a question that is no longer above this item."; "This condition's answer is no longer one of the options."
+- W28 (item errors, on the item): "Add text to this item."; "This condition depends on a question that is no longer above this item."; "This condition's answer is no longer one of the options."; "Fill in this option." (on an empty choice option); "Add at least one item to this section." (on a section with no items; a version with an empty section cannot be published) (added on review of PR #24, owner)
 - W29 (errors): `draft_exists`: "A draft of this questionnaire already exists." with the button "Open draft"; 412: "Someone else changed this questionnaire. Reload to see their changes. Your changes since the last save will be lost." with the button "Reload"; `not_draft`: "This version is published and can no longer be changed."; 422: "Some items need attention."; not found: "This questionnaire is not available."
 
 ## Drag and drop for screen readers (web)
@@ -79,7 +79,8 @@ the item's text, or its type (W11) while it has none; [Section] the section's ti
 - M13 (submitted): "Answers submitted" / "Your practitioner can see them before your appointment. You can view them from My appointments."
 - M14 (read-only view): "Your answers", "Submitted [date and time]", "Not answered"
 - M15 (leaving while a save is pending): "Your last answer is not saved yet. Leave anyway?" with the buttons "Leave", "Stay"
-- M16 (errors): `consent_required`: "Filling in this questionnaire needs your consent for this clinic."; `past_due`: "The appointment has started, so this questionnaire can no longer be changed."; `withdrawn`: "The clinic withdrew this questionnaire. You do not need to fill it in."; `submitted`: "You have already submitted this questionnaire."; 412: "These answers were changed on another device. The latest answers are shown."; not found: "This questionnaire is not available."
+- M16 (errors): `consent_required`: "Filling in this questionnaire needs your consent for this clinic."; `past_due`: "The appointment has started, so this questionnaire can no longer be changed."; `withdrawn`: "The clinic withdrew this questionnaire. You do not need to fill it in."; `submitted`: "You have already submitted this questionnaire."; 412: "These answers were changed on another device. The latest answers are shown."; not found: "This questionnaire is not available.", also shown for `appointment_closed` (a save or submit on a cancelled appointment; the form closes) (added on review of PR #24, owner)
+- M17 (date picker confirm button): "Done"; its cancel button is "Cancel" (M11) (added on review of PR #24, owner)
 
 ## E-mail
 - E1 (added after the first paragraph of the booking confirmation and the 24-hour reminder, when a questionnaire is outstanding): "There is a questionnaire to fill in before your appointment. You can find it in the Salus app."

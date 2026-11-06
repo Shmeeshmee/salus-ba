@@ -270,6 +270,19 @@ describe('AppointmentQuestionnaires', () => {
       expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull()
     })
 
+    it('asks in an alert dialog that takes the focus, and gives it back to Withdraw on Cancel', async () => {
+      renderSection('own', [responseFHIR('r1', 'in-progress')], [intake])
+
+      fireEvent.click((await rowOf('Placeholder intake')).getByRole('button', { name: 'Withdraw' }))
+      const dialog = screen.getByRole('alertdialog', { name: 'Withdraw this questionnaire?' })
+      const described = document.getElementById(dialog.getAttribute('aria-describedby') ?? '')
+      expect(described?.textContent).toBe('The patient no longer needs to fill it in, and any answers they have saved are deleted.')
+      expect(dialog.contains(document.activeElement)).toBe(true)
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+      expect(document.activeElement).toBe((await rowOf('Placeholder intake')).getByRole('button', { name: 'Withdraw' }))
+    })
+
     it('keeps the request when not confirmed', async () => {
       const { requests } = renderSection('own', [responseFHIR('r1', 'in-progress')], [intake])
 
@@ -287,6 +300,7 @@ describe('AppointmentQuestionnaires', () => {
       fireEvent.click(within(screen.getByText('Withdraw this questionnaire?').closest('.confirm') as HTMLElement).getByRole('button', { name: 'Withdraw' }))
 
       await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toBe('The patient has already submitted this questionnaire.'))
+      expect(document.activeElement).toBe((await rowOf('Placeholder intake')).getByRole('button', { name: 'Withdraw' }))
     })
 
     it.each([

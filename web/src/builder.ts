@@ -213,7 +213,11 @@ export function problems(items: Item[]): Map<string, string[]> {
 }
 
 function textProblems(it: Item): string[] {
-  return blank(it.text) || (isChoice(it.kind) && it.options.some(blank)) ? [t.noText] : []
+  return [
+    ...(blank(it.text) ? [t.noText] : []),
+    ...(isChoice(it.kind) && it.options.some(blank) ? [t.emptyOption] : []),
+    ...(it.kind === 'group' && it.items.length === 0 ? [t.emptySection] : []),
+  ]
 }
 
 function optionProblems(it: Item): string[] {

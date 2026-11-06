@@ -11,8 +11,8 @@ import (
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 )
 
-// Outstanding tells the e-mail job agent (its kind) whether the appointment appointmentID of the clinic org has
-// a questionnaire for the patient to fill in (SPEC.md §2 "Notifications", D6): a response in progress, or the
+// Outstanding tells the e-mail job agent (its kind) whether the appointment with the id appointmentID, of the
+// clinic org, has a questionnaire for the patient to fill in (SPEC.md §2 "Notifications", D6): a response in progress, or the
 // active default of the appointment's role not yet requested (the booking confirmation can run before the
 // default-request job). In one transaction in the clinic's scope with the appointment's notice; the responses
 // read are audited as a search by the job (one event without an entity when there are none), the default's

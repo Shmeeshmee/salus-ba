@@ -223,8 +223,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         _errors.clear();
         _savedEdits = _edits;
         _saving = _Saving.none;
-        _message = changedElsewhere;
         _closed = r.status == ResponseStatus.stopped;
+        _message = _closed ? withdrawnByClinic : changedElsewhere;
         for (final it in flatten(_items).where(_isTyped)) {
           _controllers[it.linkId]!.text = _shown(it);
         }

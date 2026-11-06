@@ -81,6 +81,9 @@ func TestSaveAnswers_ByThePatientReplacesTheAnswersAndAudits(t *testing.T) {
 	if !slices.Equal(f.repo.locked, []string{id}) || f.repo.patient != patientA || f.repo.clinic != "" {
 		t.Errorf("locked %v in patient %q, clinic %q; want the response, in the patient's scope", f.repo.locked, f.repo.patient, f.repo.clinic)
 	}
+	if !slices.Equal(f.appts.locked, []string{apptA}) {
+		t.Errorf("locked appointments %v, want the response's, against a concurrent cancellation", f.appts.locked)
+	}
 	if want := []questionnaire.Caller{{AccountID: accountA}}; !slices.Equal(f.questionnaires.callers, want) || !slices.Equal(f.questionnaires.patients, []string{patientA}) {
 		t.Errorf("read the version as %+v for %v, want the patient's account for patient A", f.questionnaires.callers, f.questionnaires.patients)
 	}
@@ -221,36 +224,44 @@ func TestValue_AnIntegerOutside32BitsDoesNotDecode(t *testing.T) {
 	}
 }
 
+// answerRefusals are the refusals of TestAnswers_RefuseAnyoneButThePatientAndAClosedResponse.
+var answerRefusals = []struct {
+	setup   func(f *fixture)
+	want    error
+	name    string
+	status  questionnaireresponse.Status
+	at      time.Time
+	caller  appointment.Caller
+	version int32
+	unknown bool
+	entity  bool
+}{
+	{name: "submitted", caller: me, status: questionnaireresponse.StatusCompleted, want: questionnaireresponse.ErrSubmitted, entity: true},
+	{name: "withdrawn", caller: me, status: questionnaireresponse.StatusStopped, want: questionnaireresponse.ErrWithdrawn, entity: true},
+	{name: "at the start", caller: me, at: start, want: questionnaireresponse.ErrPastDue, entity: true},
+	{name: "after the start", caller: me, at: start.Add(time.Minute), want: questionnaireresponse.ErrPastDue, entity: true},
+	{name: "without consent", caller: me, want: questionnaireresponse.ErrConsentRequired, entity: true,
+		setup: func(f *fixture) { f.revoke(start) }},
+	{name: "a cancelled appointment", caller: me, want: questionnaireresponse.ErrAppointmentClosed, entity: true,
+		setup: func(f *fixture) { f.setStatus(apptA, appointment.StatusCancelled) }},
+	{name: "a cancellation committed before the lock", caller: me, want: questionnaireresponse.ErrAppointmentClosed, entity: true,
+		setup: func(f *fixture) { f.appts.committed[apptA] = true }},
+	{name: "a stale version", caller: me, version: 2, want: questionnaireresponse.ErrConflict, entity: true},
+	{name: "the appointment's practitioner", caller: pract, want: questionnaireresponse.ErrForbidden, entity: true},
+	{name: "the clinic's admin", caller: admin, want: questionnaireresponse.ErrForbidden, entity: true},
+	{name: "the appointment's practitioner after a revocation", caller: pract, status: questionnaireresponse.StatusCompleted,
+		want: questionnaireresponse.ErrForbidden, entity: true, setup: func(f *fixture) { f.revoke(revokedAt.Add(-time.Hour)) }},
+	{name: "another practitioner", caller: pract2, want: questionnaireresponse.ErrNotFound},
+	{name: "another patient", caller: other, want: questionnaireresponse.ErrNotFound},
+	{name: "a patient without a profile", caller: noProfile, want: questionnaireresponse.ErrNotFound},
+	{name: "another clinic's admin", caller: adminB, want: questionnaireresponse.ErrNotFound},
+	{name: "an unknown response", caller: me, unknown: true, want: questionnaireresponse.ErrNotFound},
+}
+
 // Saving and submitting are the patient's alone, on an in-progress response, before it is due, with an
 // active consent and the version they last read. Every refusal changes nothing and is audited as an update
 // that failed: with the entity when the caller may see the response, without it otherwise.
 func TestAnswers_RefuseAnyoneButThePatientAndAClosedResponse(t *testing.T) {
-	tests := []struct {
-		setup   func(f *fixture)
-		want    error
-		name    string
-		status  questionnaireresponse.Status
-		at      time.Time
-		caller  appointment.Caller
-		version int32
-		unknown bool
-		entity  bool
-	}{
-		{name: "submitted", caller: me, status: questionnaireresponse.StatusCompleted, want: questionnaireresponse.ErrSubmitted, entity: true},
-		{name: "withdrawn", caller: me, status: questionnaireresponse.StatusStopped, want: questionnaireresponse.ErrWithdrawn, entity: true},
-		{name: "at the start", caller: me, at: start, want: questionnaireresponse.ErrPastDue, entity: true},
-		{name: "after the start", caller: me, at: start.Add(time.Minute), want: questionnaireresponse.ErrPastDue, entity: true},
-		{name: "without consent", caller: me, want: questionnaireresponse.ErrConsentRequired, entity: true,
-			setup: func(f *fixture) { f.revoke(start) }},
-		{name: "a stale version", caller: me, version: 2, want: questionnaireresponse.ErrConflict, entity: true},
-		{name: "the appointment's practitioner", caller: pract, want: questionnaireresponse.ErrForbidden, entity: true},
-		{name: "the clinic's admin", caller: admin, want: questionnaireresponse.ErrForbidden, entity: true},
-		{name: "another practitioner", caller: pract2, want: questionnaireresponse.ErrNotFound},
-		{name: "another patient", caller: other, want: questionnaireresponse.ErrNotFound},
-		{name: "a patient without a profile", caller: noProfile, want: questionnaireresponse.ErrNotFound},
-		{name: "another clinic's admin", caller: adminB, want: questionnaireresponse.ErrNotFound},
-		{name: "an unknown response", caller: me, unknown: true, want: questionnaireresponse.ErrNotFound},
-	}
 	calls := map[string]func(f *fixture, c appointment.Caller, id string, version int32) error{
 		"SaveAnswers": func(f *fixture, c appointment.Caller, id string, version int32) error {
 			_, err := f.svc.SaveAnswers(t.Context(), c, id, []questionnaireresponse.Answer{answer("q1", boolean(false))}, version)
@@ -262,7 +273,7 @@ func TestAnswers_RefuseAnyoneButThePatientAndAClosedResponse(t *testing.T) {
 		},
 	}
 	for call, do := range calls {
-		for _, tt := range tests {
+		for _, tt := range answerRefusals {
 			at := now
 			if !tt.at.IsZero() {
 				at = tt.at

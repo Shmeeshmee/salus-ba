@@ -7,7 +7,8 @@ import (
 
 // Publish makes the draft id, at version (the version the caller last read), its series' active version,
 // and retires the version that was active, in one transaction. Once published it never changes. A published
-// version gives ErrNotDraft, another version ErrConflict.
+// version gives ErrNotDraft, another version ErrConflict, and a draft with a section without items (which a
+// draft may keep, FHIR que-1 refuses) an *InvalidError naming those sections.
 func (s *Service) Publish(ctx context.Context, c Caller, id string, version int32) (Questionnaire, error) {
 	var out Questionnaire
 	err := s.do(ctx, c, opPublish, func(ctx context.Context) ([]string, error, error) {
@@ -20,6 +21,9 @@ func (s *Service) Publish(ctx context.Context, c Caller, id string, version int3
 			return []string{cur.ID}, ErrNotDraft, nil
 		case cur.VersionID != version:
 			return []string{cur.ID}, ErrConflict, nil
+		}
+		if invalid := publishable(cur.Items); invalid != nil {
+			return []string{cur.ID}, invalid, nil
 		}
 		at := s.Clock.Now()
 		if err := s.Repo.RetireActive(ctx, cur.SeriesID, at); err != nil {

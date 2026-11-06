@@ -209,6 +209,12 @@ func checkResponsesAfterRevocation(t *testing.T, m matrix, submittedFuture, open
 		t.Errorf("the admin's read after the revocation = %s, want no item", body)
 	}
 	expect(t, "another practitioner's read of the past one", m.other, pastPath, http.StatusNotFound)
+	run(t, []step{
+		{m.practitioner, "the practitioner's withdrawal of the past one", http.MethodPost, "/questionnaire-responses/" + past + "/withdraw", "", "",
+			`"forbidden"`, http.StatusForbidden},
+		{m.admin, "the admin's withdrawal of the past one", http.MethodPost, "/questionnaire-responses/" + past + "/withdraw", "", "",
+			`"forbidden"`, http.StatusForbidden},
+	})
 	for _, c := range []*client{m.practitioner, m.admin} {
 		expect(t, "the clinic's read of the future one", c, "/fhir/R4/QuestionnaireResponse/"+submittedFuture, http.StatusNotFound)
 	}
@@ -251,5 +257,38 @@ func checkResponseAudit(t *testing.T, m matrix, owner *pgxpool.Pool, first strin
 	}
 	if n := count("subtype_code = 'read' AND outcome = 4 AND entity_reference IS NULL AND agent_account_id = $1", m.otherAccount); n < 1 {
 		t.Errorf("another practitioner's refused reads were not audited")
+	}
+}
+
+// Between a cancellation and its discard job (not run here), the response of the cancelled appointment takes
+// no answers and no submit, and the appointment no new request: 409 appointment_closed, audited as refusals.
+func TestNew_RefusesQuestionnaireChangesOnACancelledAppointment(t *testing.T) {
+	cfg := testConfig(t)
+	owner := ownerPool(t, cfg)
+	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)
+	app, err := api.New(t.Context(), cfg, testLiveKit(), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(app.Close)
+	m := newMatrix(t, app.Handler, owner, cfg.FHIRBaseURL)
+	v1, v2 := publishQuestionnaire(t, m.practitioner, qrBody), publishQuestionnaire(t, m.admin, qrBody)
+	r := request(t, m, m.future, v1)
+	if rec := m.practitioner.do(http.MethodPost, "/appointments/"+m.future+"/cancel", ""); rec.Code != http.StatusOK {
+		t.Fatalf("cancelling = %d %s", rec.Code, rec.Body)
+	}
+
+	run(t, []step{
+		{m.patient, "a save on the cancelled appointment", http.MethodPut, "/questionnaire-responses/" + r.ID + "/answers", `W/"1"`, qrAnswers,
+			`"appointment_closed"`, http.StatusConflict},
+		{m.patient, "a submit on the cancelled appointment", http.MethodPost, "/questionnaire-responses/" + r.ID + "/submit", `W/"1"`, "",
+			`"appointment_closed"`, http.StatusConflict},
+		{m.practitioner, "a request on the cancelled appointment", http.MethodPost, "/appointments/" + m.future + "/questionnaires", "",
+			`{"questionnaireId":"` + v2 + `"}`, `"appointment_closed"`, http.StatusConflict},
+	})
+	var refused int
+	if err := owner.QueryRow(t.Context(), `SELECT count(*) FROM audit_event WHERE subtype_code = 'update' AND outcome = 4
+		AND entity_reference = $1 AND purpose_code = 'PATRQT'`, "QuestionnaireResponse/"+r.ID).Scan(&refused); err != nil || refused != 2 {
+		t.Errorf("audited %d refused changes of the response (%v), want the save and the submit", refused, err)
 	}
 }

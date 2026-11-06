@@ -72,6 +72,13 @@ describe('Questionnaires', () => {
     expect(rows().map((r) => within(r).getByRole('link').textContent)).toEqual(titles)
   })
 
+  it('names the status filter by its buttons only: COPY.md has no name for it', async () => {
+    renderLibrary({ 'GET /fhir/R4/Questionnaire': () => fhirJSON(searchset(library)) })
+
+    const group = (await screen.findByRole('button', { name: 'Drafts' })).closest('[role="group"]')
+    expect(group?.getAttribute('aria-label')).toBeNull()
+  })
+
   it('says when the library is empty, and when a filter finds nothing', async () => {
     renderLibrary({ 'GET /fhir/R4/Questionnaire': () => fhirJSON(searchset([library[2]])) })
 

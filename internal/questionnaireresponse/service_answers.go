@@ -13,10 +13,12 @@ import (
 // SaveAnswers replaces the saved answers of the response id with answers, as its patient (SPEC.md §2
 // "Patient flow"), and returns it at its next version. Each answer is checked against its item's type and
 // limits; conditions and required questions are checked on submit. The response must be in progress, not yet
-// due, its patient's consent with the clinic active, and version (If-Match) its current version. In one
-// transaction in the patient's scope, audited as an update beside the patient's audited read of the
-// questionnaire version. ErrNotFound to anyone who may not see it, ErrForbidden to anyone else who sees it
-// (staff), ErrSubmitted, ErrWithdrawn, ErrPastDue, ErrConsentRequired, ErrConflict, an *AnswersError; each
+// due, its appointment booked, its patient's consent with the clinic active, and version (If-Match) its current
+// version. In one transaction in the patient's scope, which locks the appointment against a cancellation (a
+// cancellation that committed first refuses the change; one that comes later waits, and its discard job
+// deletes the response), audited as an update beside the patient's audited read of the questionnaire version.
+// ErrNotFound to anyone who may not see it, ErrForbidden to anyone else who sees it (staff), ErrSubmitted,
+// ErrWithdrawn, ErrAppointmentClosed, ErrPastDue, ErrConsentRequired, ErrConflict, an *AnswersError; each
 // refusal is audited.
 func (s *Service) SaveAnswers(ctx context.Context, c appointment.Caller, id string, answers []Answer, version int32) (Response, error) {
 	return s.answer(ctx, c, id, version, "save answers", func(ctx context.Context, r Response, items []questionnaire.Item) (Response, error, error) {
@@ -53,7 +55,11 @@ func (s *Service) answer(ctx context.Context, c appointment.Caller, id string, v
 	var out Response
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		r, att, level, err := s.view(ctx, c, id, s.Repo.Lock)
+		read := s.Repo.Lock
+		if c.OrganizationID != "" { // staff never change the answers: read to refuse, as the clinic after a revocation may not lock
+			read = s.Repo.ByID
+		}
+		r, att, level, err := s.view(ctx, c, id, read)
 		switch {
 		case err != nil:
 			return err
@@ -61,7 +67,10 @@ func (s *Service) answer(ctx context.Context, c appointment.Caller, id string, v
 			refused = ErrNotFound
 			return s.record(ctx, c, auditevent.CodeUpdate, "", auditevent.OutcomeMinorFailure)
 		}
-		if refused = s.open(r, att, version); refused == nil {
+		if refused, err = s.open(ctx, r, att, version); err != nil {
+			return err
+		}
+		if refused == nil {
 			q, err := s.Questionnaires.Referenced(ctx, questionnaire.Caller{AccountID: c.AccountID}, c.PatientID, r.QuestionnaireID)
 			if err != nil {
 				return err // the version a response references is always there
@@ -85,23 +94,29 @@ func (s *Service) answer(ctx context.Context, c appointment.Caller, id string, v
 }
 
 // open gives the refusal of a change of r's answers by the caller whose attendance is att, or nil: only the
-// patient changes them, while in progress and not yet due, with an active consent, on the current version.
-func (s *Service) open(r Response, att appointment.Attendance, version int32) error {
+// patient changes them, while in progress, its appointment booked (locked in the transaction in ctx against a
+// cancellation) and not yet due, with an active consent, on the current version.
+func (s *Service) open(ctx context.Context, r Response, att appointment.Attendance, version int32) (refused, err error) {
 	switch {
 	case !att.Patient:
-		return ErrForbidden
+		return ErrForbidden, nil
 	case r.Status == StatusCompleted:
-		return ErrSubmitted
+		return ErrSubmitted, nil
 	case r.Status == StatusStopped:
-		return ErrWithdrawn
-	case !s.Clock.Now().Before(r.DueAt):
-		return ErrPastDue
-	case !att.ConsentActive:
-		return ErrConsentRequired
-	case r.VersionID != version:
-		return ErrConflict
+		return ErrWithdrawn, nil
 	}
-	return nil
+	if _, refused, err = s.booked(ctx, r.AppointmentID); err != nil || refused != nil {
+		return refused, err
+	}
+	switch {
+	case !s.Clock.Now().Before(r.DueAt):
+		return ErrPastDue, nil
+	case !att.ConsentActive:
+		return ErrConsentRequired, nil
+	case r.VersionID != version:
+		return ErrConflict, nil
+	}
+	return nil, nil
 }
 
 // submitted gives the answers a submit keeps, those of the enabled items, or an *AnswersError naming, in

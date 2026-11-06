@@ -100,7 +100,8 @@ type fakeRepository struct {
 	searched  []questionnaireresponse.Filter
 	patient   string
 	clinic    string
-	notice    string // the appointment set by SetNotice
+	consents  map[string]access.Consent // by patient + clinic, the appointments' (the clinic's UPDATE policy)
+	notice    string                    // the appointment set by SetNotice
 	locked    []string
 }
 
@@ -179,9 +180,15 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (questionnaireresp
 	return questionnaireresponse.Response{}, questionnaireresponse.ErrNotFound
 }
 
+// Lock is ByID in a scope whose UPDATE policies let it lock the row: the patient's own, or the clinic's with
+// the patient's active consent.
 func (r *fakeRepository) Lock(ctx context.Context, id string) (questionnaireresponse.Response, error) {
 	r.locked = append(r.locked, id)
-	return r.ByID(ctx, id)
+	x, err := r.ByID(ctx, id)
+	if err == nil && r.patient == "" && !r.consents[x.PatientID+x.OrganizationID].Active {
+		return questionnaireresponse.Response{}, questionnaireresponse.ErrNotFound
+	}
+	return x, err
 }
 
 func (r *fakeRepository) Stop(ctx context.Context, id string, at time.Time) (questionnaireresponse.Response, error) {
@@ -259,7 +266,11 @@ type fakeAppointments struct {
 	appts    map[string]appointment.Appointment
 	consents map[string]access.Consent // by patient + clinic
 	roles    map[string]string         // the role of each practitioner, in clinic A
-	asked    []string                  // the appointments whose attendance was asked
+	// committed holds the appointments a cancellation committed for after Attendance read them: LookupLocked
+	// sees them cancelled, as the share lock does once the cancellation's UPDATE has committed.
+	committed map[string]bool
+	asked     []string // the appointments whose attendance was asked
+	locked    []string // the appointments LookupLocked locked
 }
 
 func (a *fakeAppointments) Attendance(ctx context.Context, c appointment.Caller, id string) (appointment.Attendance, error) {
@@ -310,6 +321,31 @@ func (a *fakeAppointments) Lookup(ctx context.Context, id string) (appointment.A
 	consent := a.consents[appt.PatientID+appt.OrganizationID]
 	if !ok || appt.OrganizationID != a.repo.clinic || (a.repo.notice != id && !consent.Active && !appt.Start.Before(consent.RevokedAt)) {
 		return appointment.Appointment{}, appointment.ErrNotFound
+	}
+	return appt, nil
+}
+
+// LookupLocked shows the appointment as Lookup does, in a scope whose UPDATE policies let it take the share
+// lock: the patient's own, or the clinic's with the patient's active consent. A cancellation in committed is
+// seen.
+func (a *fakeAppointments) LookupLocked(ctx context.Context, id string) (appointment.Appointment, error) {
+	if err := inTx(ctx); err != nil {
+		return appointment.Appointment{}, err
+	}
+	a.locked = append(a.locked, id)
+	if a.err != nil {
+		return appointment.Appointment{}, a.err
+	}
+	appt, ok := a.appts[id]
+	switch {
+	case !ok:
+		return appointment.Appointment{}, appointment.ErrNotFound
+	case a.repo.patient != "" && appt.PatientID != a.repo.patient,
+		a.repo.patient == "" && (appt.OrganizationID != a.repo.clinic || !a.consents[appt.PatientID+appt.OrganizationID].Active):
+		return appointment.Appointment{}, appointment.ErrNotFound
+	}
+	if a.committed[id] {
+		appt.Status = appointment.StatusCancelled
 	}
 	return appt, nil
 }
@@ -397,10 +433,12 @@ func newFixture(at time.Time) *fixture {
 			apptB: {ID: apptB, PatientID: patientB, PractitionerRoleID: roleA1, OrganizationID: clinicA, Status: appointment.StatusBooked,
 				Start: start.Add(time.Hour), End: start.Add(90 * time.Minute)},
 		},
-		consents: map[string]access.Consent{patientA + clinicA: {Active: true}, patientB + clinicA: {Active: true}},
-		roles:    map[string]string{practA1: roleA1, practA2: roleA2},
-		repo:     f.repo,
+		consents:  map[string]access.Consent{patientA + clinicA: {Active: true}, patientB + clinicA: {Active: true}},
+		roles:     map[string]string{practA1: roleA1, practA2: roleA2},
+		committed: map[string]bool{},
+		repo:      f.repo,
 	}
+	f.repo.consents = f.appts.consents
 	f.questionnaires = &fakeQuestionnaires{audit: f.audit, defaults: map[string]string{}, versions: map[string]questionnaire.Questionnaire{
 		qActive: {ID: qActive, SeriesID: seriesA, OrganizationID: clinicA, Status: questionnaire.StatusActive, Version: 1, Items: []questionnaire.Item{
 			{LinkID: "q1", Text: "Placeholder question", Type: questionnaire.ItemBoolean, Required: true},

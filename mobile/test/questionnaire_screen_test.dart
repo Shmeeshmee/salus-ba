@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
@@ -85,6 +86,11 @@ Future<void> _openSection(WidgetTester tester) async {
   await _tapIn(tester, 'smoker', 'Yes');
   await _tapIn(tester, 'freq', 'Placeholder option B');
 }
+
+/// The labels of the semantics nodes around [node], nearest first.
+List<String> _ancestorLabels(SemanticsNode node) => [for (var p = node.parent; p != null; p = p.parent) p.label];
+
+String _firstLine(String label) => label.split('\n').first;
 
 void main() {
   group('the card in my appointments', () {
@@ -180,6 +186,29 @@ void main() {
 
       expect(find.text('Cancelled'), findsOneWidget);
       expect(find.text('Placeholder intake questionnaire'), findsNothing);
+    });
+  });
+
+  group('a failed questionnaire search', () {
+    testWidgets('leaves the appointments shown, with Join, and no questionnaire lines', (tester) async {
+      final h = Harness(store: FakeTokenStore(token), now: DateTime.utc(2026, 11, 5, 7, 55));
+      h.api.answer('GET /auth/me', 200, account());
+      answerDirectory(h.api);
+      h.api.on('GET /fhir/R4/Appointment', (_) async => fhirResponse(200, _appointments()));
+      h.api.answer('GET /me/consents', 200, {
+        'consents': [consent('c1')],
+      });
+      h.api.on(
+        'GET /fhir/R4/QuestionnaireResponse',
+        (_) async => fhirResponse(500, {'resourceType': 'OperationOutcome'}),
+      );
+      await h.pump(tester);
+      await tapOutlined(tester, 'My appointments');
+
+      expect(find.text('Booked'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Join consultation'), findsOneWidget);
+      expect(find.text('Placeholder intake questionnaire'), findsNothing);
+      expect(find.text('Try again'), findsNothing);
     });
   });
 
@@ -341,9 +370,15 @@ void main() {
 
       await _tapIn(tester, 'since', 'Choose a date');
       expect(find.text('Choose a date'), findsWidgets, reason: "the picker's title");
+      final picker = find.byType(DatePickerDialog);
+      expect(tester.widget<DatePickerDialog>(picker).initialEntryMode, DatePickerEntryMode.calendarOnly);
+      expect(find.descendant(of: picker, matching: find.byType(TextField)), findsNothing, reason: 'no typed entry');
+      expect(find.descendant(of: picker, matching: find.byIcon(Icons.edit_outlined)), findsNothing);
+      expect(find.descendant(of: picker, matching: find.text('OK')), findsNothing);
+      expect(find.descendant(of: picker, matching: find.text('Cancel')), findsOneWidget);
       await tester.tap(find.text('15'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('OK'));
+      await tester.tap(find.descendant(of: picker, matching: find.text('Done')));
       await tester.pumpAndSettle();
 
       expect(find.text('Sunday 15 November 2026'), findsOneWidget);
@@ -412,6 +447,8 @@ void main() {
       ('past_due', 409, 'The appointment has started, so this questionnaire can no longer be changed.'),
       ('withdrawn', 409, 'The clinic withdrew this questionnaire. You do not need to fill it in.'),
       ('submitted', 409, 'You have already submitted this questionnaire.'),
+      // The appointment was cancelled (added on review of PR #24, owner).
+      ('appointment_closed', 409, 'This questionnaire is not available.'),
     ]) {
       testWidgets('a refused save, $code, says so and stops saving', (tester) async {
         final h = await _opened(tester);
@@ -460,6 +497,55 @@ void main() {
       _answerSaves(h, from: 6);
       await _tapIn(tester, 'smoker', 'Yes');
       expect(h.api.last(_route).headers['If-Match'], 'W/"5"');
+    });
+
+    testWidgets('a 412 whose response was withdrawn meanwhile says so (M16), and closes the form', (tester) async {
+      final h = await _opened(tester);
+      h.api.answer(_route, 412, error('version_conflict'));
+      h.api.on(
+        'GET /fhir/R4/QuestionnaireResponse/r1',
+        (_) async => fhirResponse(200, response('r1', versionId: 5, status: 'stopped')),
+      );
+
+      await _tapIn(tester, 'smoker', 'Yes');
+
+      expect(find.text('The clinic withdrew this questionnaire. You do not need to fill it in.'), findsOneWidget);
+      expect(find.text('These answers were changed on another device. The latest answers are shown.'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Submit'), findsNothing);
+    });
+
+    // The question is the first line of each input's label (or of its options' group), so a screen reader says what
+    // is asked on the field itself, not only the hint "Your answer".
+    testWidgets('each answer is labelled with its question for TalkBack and VoiceOver', (tester) async {
+      final semantics = tester.ensureSemantics();
+      _answerSaves(await _opened(tester));
+      await _openSection(tester);
+
+      for (final (linkId, question) in [
+        ('name', 'Placeholder short answer'),
+        ('notes', 'Placeholder long answer'),
+        ('count', 'Placeholder whole number'),
+        ('weight', 'Placeholder decimal number'),
+      ]) {
+        await _reveal(tester, _field(linkId));
+        final field = tester.getSemantics(find.descendant(of: _field(linkId), matching: find.byType(EditableText)));
+        expect(field, isSemantics(isTextField: true), reason: linkId);
+        expect(_firstLine(field.label), question, reason: linkId);
+      }
+      for (final (linkId, question, type) in [
+        ('smoker', 'Placeholder yes or no question', RadioListTile<bool>),
+        ('freq', 'Placeholder single choice', RadioListTile<String>),
+        ('many', 'Placeholder multiple choice', CheckboxListTile),
+      ]) {
+        await _reveal(tester, _field(linkId));
+        final option = tester.getSemantics(find.descendant(of: _field(linkId), matching: find.byType(type)).first);
+        expect(_ancestorLabels(option).map(_firstLine), contains(question), reason: linkId);
+      }
+      await _reveal(tester, _field('since'));
+      final date = tester.getSemantics(find.descendant(of: _field('since'), matching: find.byType(OutlinedButton)));
+      expect(date, isSemantics(isButton: true));
+      expect(_firstLine(date.label), 'Placeholder date');
+      semantics.dispose();
     });
 
     testWidgets('a 422 marks the named questions', (tester) async {
@@ -595,6 +681,22 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('The appointment has started, so this questionnaire can no longer be changed.'), findsOneWidget);
+    });
+
+    testWidgets('a submit refused as the appointment was cancelled says it is not available, and closes', (
+      tester,
+    ) async {
+      final h = await _opened(tester);
+      _answerSaves(h);
+      await _tapIn(tester, 'smoker', 'No');
+      h.api.answer(_submit, 409, error('appointment_closed'));
+
+      await _submitTapped(tester);
+      await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('Submit')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('This questionnaire is not available.'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Submit'), findsNothing);
     });
 
     testWidgets('a submitted one opens read-only, every shown question with its answer or Not answered', (
