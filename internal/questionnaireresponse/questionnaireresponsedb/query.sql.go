@@ -49,6 +49,34 @@ func (q *Queries) CompleteQuestionnaireResponse(ctx context.Context, arg Complet
 	return i, err
 }
 
+const deleteQuestionnaireResponsesOfAppointment = `-- name: DeleteQuestionnaireResponsesOfAppointment :many
+DELETE FROM questionnaire_response
+WHERE appointment_id = $1
+RETURNING id
+`
+
+// The discard job, in the clinic's scope with the appointment's notice: every response of the appointment; the
+// discard policy lets it delete them only once the appointment is cancelled.
+func (q *Queries) DeleteQuestionnaireResponsesOfAppointment(ctx context.Context, appointmentID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, deleteQuestionnaireResponsesOfAppointment, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteUnsubmittedQuestionnaireResponses = `-- name: DeleteUnsubmittedQuestionnaireResponses :execrows
 DELETE FROM questionnaire_response
 WHERE status <> 'completed' AND due_at < $1

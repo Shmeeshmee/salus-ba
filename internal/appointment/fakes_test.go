@@ -361,6 +361,14 @@ func (j *fakeJobs) EnqueueAccessEnd(ctx context.Context, id, org string) error {
 	return j.add(ctx, "access_end "+id+" "+org)
 }
 
+func (j *fakeJobs) EnqueueQuestionnaireRequest(ctx context.Context, id, org string) error {
+	return j.add(ctx, "questionnaire_request "+id+" "+org)
+}
+
+func (j *fakeJobs) EnqueueQuestionnaireDiscard(ctx context.Context, id, org string) error {
+	return j.add(ctx, "questionnaire_discard "+id+" "+org)
+}
+
 func (j *fakeJobs) EnqueueReminder(ctx context.Context, id, org string, at time.Time) error {
 	return j.add(ctx, fmt.Sprintf("reminder %s %s at %s", id, org, at.Format(time.RFC3339)))
 }

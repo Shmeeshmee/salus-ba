@@ -64,13 +64,16 @@ type Roles interface {
 	OfPractitioner(ctx context.Context, org, practitionerID string) (practitionerrole.PractitionerRole, error)
 }
 
-// Jobs enqueues the appointment's e-mails, and the end of its consultation's access on a cancellation, in the
-// transaction in ctx.
+// Jobs enqueues the appointment's e-mails, the request of its role's default questionnaire on a booking, and
+// the end of its consultation's access and the discard of its questionnaire responses on a cancellation, in
+// the transaction in ctx.
 type Jobs interface {
 	EnqueueBooked(ctx context.Context, id, org string) error
 	EnqueueCancelled(ctx context.Context, id, org string) error
 	EnqueueAccessEnd(ctx context.Context, id, org string) error
 	EnqueueReminder(ctx context.Context, id, org string, at time.Time) error
+	EnqueueQuestionnaireRequest(ctx context.Context, id, org string) error
+	EnqueueQuestionnaireDiscard(ctx context.Context, id, org string) error
 }
 
 // Ports are the Service's dependencies. The notifier builds it for Notice only (Repo, Audit, Tx, Clock,
@@ -101,8 +104,9 @@ func NewService(p Ports) *Service {
 // Book books the free slot slotID for the calling patient and returns the appointment. The slot is resolved
 // in the public directory first (free, of an active role of a listed clinic); then, in one transaction in
 // the patient's scope with the slot's clinic set, the clinic is checked listed and the patient's consent with
-// it active, the slot is held, the appointment stored, the confirmation enqueued (and the reminder, 24 hours
-// before the start, when that is ahead), and the booking audited. ErrForbidden to staff, ErrProfileRequired
+// it active, the slot is held, the appointment stored, the confirmation and the request of the role's default
+// questionnaire (questionnaire_default_request) enqueued (and the reminder, 24 hours before the start, when that
+// is ahead), and the booking audited. ErrForbidden to staff, ErrProfileRequired
 // without a profile, ErrSlotUnavailable for a slot that is not free and ahead or a time the practitioner is
 // booked at, ErrConsentRequired without an active consent; each refusal is audited.
 func (s *Service) Book(ctx context.Context, c Caller, slotID string) (Appointment, error) {
@@ -176,6 +180,9 @@ func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.
 		return Appointment{}, nil, err
 	}
 	if err := s.Jobs.EnqueueBooked(ctx, out.ID, out.OrganizationID); err != nil {
+		return Appointment{}, nil, err
+	}
+	if err := s.Jobs.EnqueueQuestionnaireRequest(ctx, out.ID, out.OrganizationID); err != nil {
 		return Appointment{}, nil, err
 	}
 	if at := out.Start.Add(-reminderBefore); at.After(now) {

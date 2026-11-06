@@ -24,16 +24,19 @@ type Auditor interface {
 }
 
 // Appointments gives a response its appointment with the caller's access facts, read in the caller's scope
-// and unaudited (appointment.Service).
+// and unaudited, and to a job the appointment in the transaction's scope, unaudited (appointment.Service).
 type Appointments interface {
 	Attendance(ctx context.Context, c appointment.Caller, id string) (appointment.Attendance, error)
+	Lookup(ctx context.Context, id string) (appointment.Appointment, error)
 }
 
 // Questionnaires reads a version of the caller's clinic, or one a patient's own response references, audited
-// as the caller's read of it (questionnaire.Service).
+// as the caller's read of it, and the active version of a role's default for a job, audited with the job as
+// agent (questionnaire.Service).
 type Questionnaires interface {
 	Read(ctx context.Context, c questionnaire.Caller, id string) (questionnaire.Questionnaire, error)
 	Referenced(ctx context.Context, c questionnaire.Caller, patientID, id string) (questionnaire.Questionnaire, error)
+	ActiveDefault(ctx context.Context, agent, org, roleID string) (questionnaire.Questionnaire, error)
 }
 
 // Ports are the Service's dependencies.

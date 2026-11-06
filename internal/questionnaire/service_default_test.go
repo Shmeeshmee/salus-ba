@@ -129,3 +129,80 @@ func TestClearDefault_KeepsAnotherRolesDefault(t *testing.T) {
 		t.Errorf("defaults after clearing role A1's: %+v; want role A2's", f.repo.defaults)
 	}
 }
+
+// jobEvent is the audit event of a read by the job agent in the clinic org.
+func jobEvent(agent, org, entity string) event {
+	return event{job: agent, org: org, subtype: auditevent.CodeRead, purpose: auditevent.CodeHOPERAT, entity: entity,
+		action: auditevent.ActionRead, outcome: auditevent.OutcomeSuccess}
+}
+
+// The questionnaire_default_request job asks for the active version of the role's default
+// (docs/questionnaire/SPEC.md §2 "Requests"), audited with the job as agent.
+func TestActiveDefault_GivesTheActiveVersionOfTheRolesDefaultToTheJob(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	if _, err := f.svc.SetDefault(t.Context(), adminA, roleA1, draftA); err != nil {
+		t.Fatal(err)
+	}
+	f.audit.events = nil
+	got, err := f.svc.ActiveDefault(t.Context(), "questionnaire_default_request", clinicA, roleA1)
+	if err != nil || got.ID != activeA || got.Status != questionnaire.StatusActive || len(got.Items) == 0 {
+		t.Fatalf("ActiveDefault() = %+v, %v; want the active version 1 of series A with its items", got, err)
+	}
+	if f.repo.clinic != clinicA {
+		t.Errorf("read in the scope of clinic %q, want clinic A", f.repo.clinic)
+	}
+	assertEvents(t, f.audit,
+		jobEvent("questionnaire_default_request", clinicA, "PractitionerRole/"+roleA1),
+		jobEvent("questionnaire_default_request", clinicA, "Questionnaire/"+activeA))
+}
+
+func TestActiveDefault_GivesNothingWithoutADefaultOrAnActiveVersion(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		want      error
+		setup     func(f fixture)
+		name, org string
+	}{
+		{name: "a role without a default", org: clinicA, want: questionnaire.ErrNotFound, setup: func(f fixture) {
+			if err := f.svc.ClearDefault(t.Context(), adminA, roleA1); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "the series retired", org: clinicA, want: questionnaire.ErrNotActive, setup: func(f fixture) {
+			if _, err := f.svc.Retire(t.Context(), adminA, activeA); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "the series with its draft only", org: clinicA, want: questionnaire.ErrNotActive, setup: func(f fixture) {
+			f.repo.rows[0].Status = questionnaire.StatusRetired
+		}},
+		{name: "asked in another clinic", org: clinicB, want: questionnaire.ErrNotFound},
+	} {
+		f := newFixture()
+		if _, err := f.svc.SetDefault(t.Context(), adminA, roleA1, activeA); err != nil {
+			t.Fatal(err)
+		}
+		if tt.setup != nil {
+			tt.setup(f)
+		}
+		f.audit.events = nil
+		got, err := f.svc.ActiveDefault(t.Context(), "questionnaire_default_request", tt.org, roleA1)
+		if !errors.Is(err, tt.want) || got.ID != "" {
+			t.Errorf("%s: ActiveDefault() = %+v, %v; want %v", tt.name, got, err, tt.want)
+		}
+		assertEvents(t, f.audit, jobEvent("questionnaire_default_request", tt.org, "PractitionerRole/"+roleA1))
+	}
+}
+
+func TestActiveDefault_FailsOnABackendError(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	if _, err := f.svc.SetDefault(t.Context(), adminA, roleA1, activeA); err != nil {
+		t.Fatal(err)
+	}
+	f.audit.err = errors.New("the database is down")
+	if _, err := f.svc.ActiveDefault(t.Context(), "questionnaire_default_request", clinicA, roleA1); err == nil || errors.Is(err, questionnaire.ErrNotFound) {
+		t.Errorf("ActiveDefault() with the audit down = %v, want the backend's error", err)
+	}
+}

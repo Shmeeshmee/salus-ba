@@ -20,6 +20,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/internal/videosession"
@@ -62,7 +63,7 @@ func New(pool, retentionPool *pgxpool.Pool, provider videosession.Provider, log 
 	workers := river.NewWorkers()
 	addDefaultWorkers(workers, defaultServices{
 		rules: rules, slots: newSlots(pool, clock.System{}), appointments: newRevocations(pool, inserter, clock.System{}),
-		sessions: newSessions(pool, provider, clock.System{}),
+		sessions: newSessions(pool, provider, clock.System{}), responses: newQuestionnaireResponses(pool, clock.System{}),
 	}, log)
 	return river.NewClient(riverpgxv5.New(pool), workConfig(log, river.QueueDefault, workers))
 }
@@ -73,6 +74,7 @@ type defaultServices struct {
 	slots        *slot.Service
 	appointments *appointment.Service
 	sessions     *videosession.Service
+	responses    *questionnaireresponse.Service
 }
 
 // addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with no services:
@@ -84,6 +86,8 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &revocationWorker{appointments: s.appointments, sessions: s.sessions, log: log})
 	river.AddWorker(workers, &windowCloseWorker{sessions: s.sessions, log: log})
 	river.AddWorker(workers, &accessEndWorker{sessions: s.sessions, log: log})
+	river.AddWorker(workers, &questionnaireRequestWorker{responses: s.responses, log: log})
+	river.AddWorker(workers, &questionnaireDiscardWorker{responses: s.responses, log: log})
 }
 
 // workConfig is the configuration of a client that works queue with workers and never leads.

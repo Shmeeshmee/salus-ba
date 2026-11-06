@@ -430,3 +430,79 @@ func insertB(b *testing.B, app *pgxpool.Pool, s seeded) string {
 	}
 	return id
 }
+
+// The discard job's delete (SPEC.md §2 "Cancellation and revocation"): in the clinic's scope with the notice
+// of the appointment, every response of that appointment once it is cancelled, submitted or not, also after a
+// revocation; nothing of an appointment still booked, nothing without the notice, nothing of another one.
+func TestPostgres_DeleteOfAppointmentDeletesEveryResponseOfTheCancelledAppointmentInTheNoticeScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seedDB(t, owner, dbStart)
+	first, second, kept := insert(t, app, s, 0, 0), insert(t, app, s, 0, 1), insert(t, app, s, 1, 0)
+	if _, err := owner.Exec(t.Context(), `UPDATE questionnaire_response SET status = 'completed', authored_at = now() WHERE id = $1`, second); err != nil {
+		t.Fatal(err)
+	}
+	deleteIn := func(clinic, notice, appt string) []string {
+		t.Helper()
+		var ids []string
+		r := questionnaireresponse.NewPostgresRepository(app)
+		if err := postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+			if err := r.SetClinic(ctx, clinic); err != nil {
+				return err
+			}
+			if notice != "" {
+				if err := r.SetNotice(ctx, notice); err != nil {
+					return err
+				}
+			}
+			var err error
+			ids, err = r.DeleteOfAppointment(ctx, appt)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return ids
+	}
+
+	if ids := deleteIn(s.clinic, s.appts[0], s.appts[0]); len(ids) != 0 {
+		t.Errorf("deleted %v of a booked appointment, want none", ids)
+	}
+	if _, err := owner.Exec(t.Context(), `UPDATE appointment SET status = 'cancelled', cancelled_at = now(), cancellation_reason = 'pat' WHERE id = $1`, s.appts[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(t.Context(), `UPDATE consent SET status = 'inactive', revoked_at = now()`); err != nil {
+		t.Fatal(err)
+	}
+	if ids := deleteIn(s.clinic, "", s.appts[0]); len(ids) != 0 {
+		t.Errorf("deleted %v without the notice, want none", ids)
+	}
+	if ids := deleteIn(s.clinic, s.appts[1], s.appts[0]); len(ids) != 0 {
+		t.Errorf("deleted %v with the notice of another appointment, want none", ids)
+	}
+	if ids := deleteIn(s.clinic, s.appts[0], "not-a-uuid"); len(ids) != 0 {
+		t.Errorf("deleted %v for an id that is not a UUID, want none", ids)
+	}
+	ids := deleteIn(s.clinic, s.appts[0], s.appts[0])
+	slices.Sort(ids)
+	want := []string{first, second}
+	slices.Sort(want)
+	if !slices.Equal(ids, want) {
+		t.Errorf("deleted %v, want both responses of the cancelled appointment %v", ids, want)
+	}
+	var left []string
+	rows, err := owner.Query(t.Context(), "SELECT id::text FROM questionnaire_response ORDER BY id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		left = append(left, id)
+	}
+	if !slices.Equal(left, []string{kept}) {
+		t.Errorf("left %v, want only the other appointment's %s", left, kept)
+	}
+}

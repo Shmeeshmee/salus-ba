@@ -309,9 +309,9 @@ func (f fixture) row(id string) questionnaire.Questionnaire {
 
 // event is the part of an AuditEvent the tests compare.
 type event struct {
-	agent, org, subtype, purpose, entity string
-	action                               auditevent.Action
-	outcome                              auditevent.Outcome
+	agent, job, org, subtype, purpose, entity string
+	action                                    auditevent.Action
+	outcome                                   auditevent.Outcome
 }
 
 func events(a *fakeAuditor) []event {
@@ -323,7 +323,7 @@ func events(a *fakeAuditor) []event {
 			continue
 		}
 		out = append(out, event{
-			agent: e.AgentAccountID, org: e.OrganizationID, subtype: e.Subtype.Code, purpose: e.Purpose.Code,
+			agent: e.AgentAccountID, job: e.AgentName, org: e.OrganizationID, subtype: e.Subtype.Code, purpose: e.Purpose.Code,
 			entity: e.EntityReference, action: e.Action, outcome: e.Outcome,
 		})
 	}

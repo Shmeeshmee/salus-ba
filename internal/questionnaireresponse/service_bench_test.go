@@ -95,7 +95,15 @@ func (s stubAttendance) Attendance(context.Context, appointment.Caller, string) 
 	return appointment.Attendance{Appointment: s.a, Level: access.Full, Patient: true, ConsentActive: true}, nil
 }
 
+func (s stubAttendance) Lookup(context.Context, string) (appointment.Appointment, error) {
+	return appointment.Appointment{}, errors.New("not for the benchmarks")
+}
+
 type stubVersion struct{ q questionnaire.Questionnaire }
+
+func (s stubVersion) ActiveDefault(context.Context, string, string, string) (questionnaire.Questionnaire, error) {
+	return questionnaire.Questionnaire{}, errors.New("not for the benchmarks")
+}
 
 func (s stubVersion) Read(context.Context, questionnaire.Caller, string) (questionnaire.Questionnaire, error) {
 	return s.q, nil

@@ -3,6 +3,9 @@ package questionnaire
 import (
 	"context"
 	"errors"
+	"fmt"
+
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 )
@@ -68,6 +71,57 @@ func (s *Service) ClearDefault(ctx context.Context, c Caller, roleID string) err
 		}
 		return []string{roleID}, nil, s.Repo.ClearDefault(ctx, roleID)
 	})
+}
+
+// opJobRead is a job's read of a role's default or a version.
+var opJobRead = op{"active default", auditevent.CodeRead, "", auditevent.ActionRead}
+
+// ActiveDefault returns the active version of the default questionnaire of the role roleID of the clinic org,
+// for the job agent (questionnaire_default_request), in the clinic's scope, in the transaction in ctx or one of
+// its own. ErrNotFound when the role has no default there, ErrNotActive when its series has no active version.
+// The read of the default, and of the version when there is one, is audited with the job as agent.
+func (s *Service) ActiveDefault(ctx context.Context, agent, org, roleID string) (Questionnaire, error) {
+	var out Questionnaire
+	var failed error
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.Repo.SetOrganization(ctx, org); err != nil {
+			return err
+		}
+		d, err := s.Repo.Default(ctx, roleID)
+		switch {
+		case errors.Is(err, ErrNotFound) || (err == nil && d.OrganizationID != org): // not on row-level security alone
+			failed = ErrNotFound
+		case err != nil:
+			return err
+		}
+		if err := s.recordJob(ctx, agent, org, "PractitionerRole/"+roleID); err != nil || failed != nil {
+			return err
+		}
+		active, err := s.Repo.Search(ctx, Filter{SeriesID: d.SeriesID, Status: StatusActive})
+		if err != nil {
+			return err
+		}
+		if len(active) == 0 || active[0].OrganizationID != org {
+			failed = ErrNotActive
+			return nil
+		}
+		out = active[0]
+		return s.recordJob(ctx, agent, org, "Questionnaire/"+out.ID)
+	})
+	switch {
+	case err != nil:
+		return Questionnaire{}, fmt.Errorf("questionnaire: active default: %w", err)
+	case failed != nil:
+		return Questionnaire{}, failed
+	}
+	return out, nil
+}
+
+// recordJob audits the job agent's read of entity in the clinic org, for operations.
+func (s *Service) recordJob(ctx context.Context, agent, org, entity string) error {
+	e := entry(Caller{OrganizationID: org}, opJobRead, "", auditevent.OutcomeSuccess)
+	e.AgentName, e.EntityReference = agent, entity
+	return s.Audit.Record(ctx, e)
 }
 
 // ownRole returns ErrNotFound as failed unless the role roleID is of c's clinic and c is its practitioner

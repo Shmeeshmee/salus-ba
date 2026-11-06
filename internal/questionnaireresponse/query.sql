@@ -62,3 +62,10 @@ ORDER BY due_at, created_at, id;
 -- The retention purger, as salus_retention in every clinic: the responses never submitted once due.
 DELETE FROM questionnaire_response
 WHERE status <> 'completed' AND due_at < @before;
+
+-- name: DeleteQuestionnaireResponsesOfAppointment :many
+-- The discard job, in the clinic's scope with the appointment's notice: every response of the appointment; the
+-- discard policy lets it delete them only once the appointment is cancelled.
+DELETE FROM questionnaire_response
+WHERE appointment_id = @appointment_id
+RETURNING id;

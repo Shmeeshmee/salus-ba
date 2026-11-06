@@ -907,3 +907,37 @@ the clinical record.
 | Answers saved after a revocation | The consent is read in the save's transaction, not cached (service test) |
 | Answers or linkIds in logs or errors | Error text names no linkId and no value; the offending linkIds travel only in `AnswersError.LinkIDs` for the 422 (tested) |
 | Oversized or malformed answers stored | Every answer is checked against its item's type and limits on every save and again on submit (tested at each limit) |
+
+### Package 5: booking and cancellation
+
+**Processing added.** Two jobs on the worker's default queue, each enqueued in the transaction that causes it,
+with the appointment's id and the clinic's id only. `questionnaire_default_request`, with every booking: the
+active version of the default questionnaire of the appointment's role is requested from the patient (a
+`questionnaire_response` row, in progress, no answers, source `default`), once. `questionnaire_responses_discard`,
+with every cancellation (by the patient, by staff, and by the revocation job): every response of the cancelled
+appointment is deleted, submitted or not (D8).
+
+**Purpose and lawful basis.** As package 3. The request needs the patient's active consent with the clinic:
+the job reads the appointment in the clinic's scope, which shows a future appointment only while the consent is
+active, and the insert policy requires it too.
+
+**Access.** The jobs act on one appointment of one clinic. The request runs in the clinic's scope; it does
+nothing for an appointment it cannot see, one no longer booked or already started, a role without a default, or
+a default with no active version. The discard runs in the clinic's scope with the appointment's notice and first
+checks that the appointment is cancelled; the delete policy checks it again. Both are audited with the job as
+agent (`HOPERAT`): one create per request and one delete per response deleted; the questionnaire's service
+audits the job's read of the role's default and the version. The jobs log the appointment's id only.
+
+**Retention.** Responses of a cancelled appointment are deleted at once by the discard, including after a
+revocation; responses of appointments that started before a revocation are kept (D9). Otherwise unchanged from
+package 3.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Answers kept for an appointment that will not take place | Every cancellation path enqueues the discard in its own transaction (service tests); the discard deletes submitted and unsubmitted responses (tested on the real database, also after a revocation) |
+| A past appointment's care record lost to a revocation | The discard deletes only for a cancelled appointment; the revocation cancels only future ones; the past one's completed response stays (tested end to end in the worker) |
+| A questionnaire requested without consent | The request reads the appointment in the clinic's scope, which hides it after a revocation, and the insert policy requires an active consent (tested) |
+| Personal data in job arguments or logs | The arguments are the two ids (tested on River's table); the logs hold the appointment's id only, never a title, question or answer (tested) |
+| A retried job duplicating or deleting more | The request inserts once per series (`ON CONFLICT DO NOTHING`); a repeated discard finds nothing left (tested) |

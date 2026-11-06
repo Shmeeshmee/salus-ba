@@ -67,7 +67,7 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 		return fn(ctx)
 	}
 	events, responses := len(t.f.audit.events), slices.Clone(t.f.repo.responses)
-	t.f.repo.patient, t.f.repo.clinic = "", ""
+	t.f.repo.patient, t.f.repo.clinic, t.f.repo.notice = "", "", ""
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
 		t.f.audit.events, t.f.repo.responses = t.f.audit.events[:events], responses
@@ -100,6 +100,7 @@ type fakeRepository struct {
 	searched  []questionnaireresponse.Filter
 	patient   string
 	clinic    string
+	notice    string // the appointment set by SetNotice
 	locked    []string
 }
 
@@ -118,6 +119,31 @@ func (r *fakeRepository) SetPatient(ctx context.Context, id string) error {
 func (r *fakeRepository) SetClinic(ctx context.Context, id string) error {
 	r.clinic = id
 	return inTx(ctx)
+}
+
+func (r *fakeRepository) SetNotice(ctx context.Context, id string) error {
+	r.notice = id
+	return inTx(ctx)
+}
+
+// DeleteOfAppointment deletes the responses of the appointment id in the clinic's scope with its notice, as the
+// discard policy does; the fake does not know whether the appointment is cancelled.
+func (r *fakeRepository) DeleteOfAppointment(ctx context.Context, id string) ([]string, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	if r.err != nil {
+		return nil, r.err
+	}
+	var ids []string
+	r.responses = slices.DeleteFunc(r.responses, func(x questionnaireresponse.Response) bool {
+		gone := r.clinic != "" && r.notice == id && x.AppointmentID == id && x.OrganizationID == r.clinic
+		if gone {
+			ids = append(ids, x.ID)
+		}
+		return gone
+	})
+	return ids, nil
 }
 
 func (r *fakeRepository) Insert(ctx context.Context, x questionnaireresponse.Response, at time.Time) (questionnaireresponse.Response, bool, error) {
@@ -229,6 +255,7 @@ func (r *fakeRepository) DeleteUnsubmittedBefore(context.Context, time.Time) (in
 // access.Appointment, over the patient's consent with the clinic and the practitioner's role.
 type fakeAppointments struct {
 	err      error
+	repo     *fakeRepository // its scope decides what Lookup shows
 	appts    map[string]appointment.Appointment
 	consents map[string]access.Consent // by patient + clinic
 	roles    map[string]string         // the role of each practitioner, in clinic A
@@ -269,14 +296,54 @@ func (a *fakeAppointments) Attendance(ctx context.Context, c appointment.Caller,
 	}, nil
 }
 
+// Lookup shows the appointment as row-level security does in the scope of the repository: in its clinic with
+// an active consent, or one that started before the revocation, or with its notice.
+func (a *fakeAppointments) Lookup(ctx context.Context, id string) (appointment.Appointment, error) {
+	if err := inTx(ctx); err != nil {
+		return appointment.Appointment{}, err
+	}
+	a.asked = append(a.asked, id)
+	if a.err != nil {
+		return appointment.Appointment{}, a.err
+	}
+	appt, ok := a.appts[id]
+	consent := a.consents[appt.PatientID+appt.OrganizationID]
+	if !ok || appt.OrganizationID != a.repo.clinic || (a.repo.notice != id && !consent.Active && !appt.Start.Before(consent.RevokedAt)) {
+		return appointment.Appointment{}, appointment.ErrNotFound
+	}
+	return appt, nil
+}
+
 // fakeQuestionnaires holds the versions and reads one of the caller's clinic, audited as questionnaire.Service
 // does.
 type fakeQuestionnaires struct {
 	err      error
 	audit    *fakeAudit
 	versions map[string]questionnaire.Questionnaire
+	defaults map[string]string // the default version of each role, as its series' active one
 	callers  []questionnaire.Caller
 	patients []string // the patients Referenced was asked for
+	agents   []string // the jobs ActiveDefault was asked by
+}
+
+// ActiveDefault gives the role's default version when it is active, audited as questionnaire.Service does.
+func (q *fakeQuestionnaires) ActiveDefault(ctx context.Context, agent, org, roleID string) (questionnaire.Questionnaire, error) {
+	if err := inTx(ctx); err != nil {
+		return questionnaire.Questionnaire{}, err
+	}
+	if q.err != nil {
+		return questionnaire.Questionnaire{}, q.err
+	}
+	q.agents = append(q.agents, agent)
+	q.audit.events = append(q.audit.events, auditevent.AuditEvent{EntityReference: "PractitionerRole/" + roleID, AgentName: "questionnaire read"})
+	got, ok := q.versions[q.defaults[roleID]]
+	switch {
+	case !ok || got.OrganizationID != org:
+		return questionnaire.Questionnaire{}, questionnaire.ErrNotFound
+	case got.Status != questionnaire.StatusActive:
+		return questionnaire.Questionnaire{}, questionnaire.ErrNotActive
+	}
+	return got, nil
 }
 
 // Referenced reads a version for a patient, audited as questionnaire.Service does; the fake shows every
@@ -332,8 +399,9 @@ func newFixture(at time.Time) *fixture {
 		},
 		consents: map[string]access.Consent{patientA + clinicA: {Active: true}, patientB + clinicA: {Active: true}},
 		roles:    map[string]string{practA1: roleA1, practA2: roleA2},
+		repo:     f.repo,
 	}
-	f.questionnaires = &fakeQuestionnaires{audit: f.audit, versions: map[string]questionnaire.Questionnaire{
+	f.questionnaires = &fakeQuestionnaires{audit: f.audit, defaults: map[string]string{}, versions: map[string]questionnaire.Questionnaire{
 		qActive: {ID: qActive, SeriesID: seriesA, OrganizationID: clinicA, Status: questionnaire.StatusActive, Version: 1, Items: []questionnaire.Item{
 			{LinkID: "q1", Text: "Placeholder question", Type: questionnaire.ItemBoolean, Required: true},
 			{LinkID: "q2", Text: "Placeholder question", Type: questionnaire.ItemString},

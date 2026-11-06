@@ -130,6 +130,28 @@ type AccessEndArgs struct {
 // Kind names the job in river_job.
 func (AccessEndArgs) Kind() string { return "consultation_access_end" }
 
+// QuestionnaireRequestArgs is the questionnaire_default_request job on the default queue, enqueued with every
+// booking: the questionnaire responses (docs/questionnaire/SPEC.md §2 "Requests") request the default
+// questionnaire of the appointment's role, if it has one. Opaque ids only.
+type QuestionnaireRequestArgs struct {
+	AppointmentID  string `json:"appointment_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (QuestionnaireRequestArgs) Kind() string { return "questionnaire_default_request" }
+
+// QuestionnaireDiscardArgs is the questionnaire_responses_discard job on the default queue, enqueued with
+// every cancellation: the questionnaire responses (docs/questionnaire/SPEC.md §2 "Cancellation and
+// revocation") delete every response of the cancelled appointment. Opaque ids only.
+type QuestionnaireDiscardArgs struct {
+	AppointmentID  string `json:"appointment_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (QuestionnaireDiscardArgs) Kind() string { return "questionnaire_responses_discard" }
+
 // ReminderEmailArgs is the appointment_reminder_email job, scheduled 24 hours before the start. Opaque ids
 // only.
 type ReminderEmailArgs struct {

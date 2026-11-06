@@ -118,6 +118,11 @@ func (s *Service) do(ctx context.Context, c Caller, o op, fn step) error {
 // record audits o by c on the entity id ("" for none). Staff act for healthcare operations, anyone else at
 // their own request.
 func (s *Service) record(ctx context.Context, c Caller, o op, id string, outcome auditevent.Outcome) error {
+	return s.Audit.Record(ctx, entry(c, o, id, outcome))
+}
+
+// entry is the audit event of o by c on the entity id ("" for none).
+func entry(c Caller, o op, id string, outcome auditevent.Outcome) auditevent.AuditEvent {
 	purpose := auditevent.CodeHOPERAT
 	if c.OrganizationID == "" {
 		purpose = auditevent.CodePATRQT
@@ -134,7 +139,7 @@ func (s *Service) record(ctx context.Context, c Caller, o op, id string, outcome
 	if id != "" {
 		e.EntityReference = o.resource + "/" + id
 	}
-	return s.Audit.Record(ctx, e)
+	return e
 }
 
 // version reads the version id of c's clinic, or returns ErrNotFound as failed. lock locks it until the

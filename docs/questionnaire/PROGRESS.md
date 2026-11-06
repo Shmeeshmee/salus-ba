@@ -6,7 +6,7 @@
 | 2 questionnaire API | done, 2026-11-06 | `questionnaire(2)` |
 | 3 questionnaireresponse and the access rule | done, 2026-11-06 | `questionnaire(3)` |
 | 4 Answers | done, 2026-11-06 | `questionnaire(4)` |
-| 5 Booking and cancellation | not started | |
+| 5 Booking and cancellation | done, 2026-11-06 | `questionnaire(5)` |
 | 6 Responses API | not started | |
 | 7 E-mail mention | not started | |
 | 8 Web: library and builder | held: W41 and W42 not approved | |
@@ -364,3 +364,86 @@ Readings:
 
 Deferred: the handlers, the FHIR mapping and the wiring in `app.go` (package 6); `RequestDefault`, `Discard` and the
 `Lookup` port (package 5).
+
+## Package 5: Booking and cancellation (done, 2026-11-06)
+
+Built:
+- `internal/appointment`: the `Jobs` port gains `EnqueueQuestionnaireRequest`, enqueued by `Book` in the booking
+  transaction, and `EnqueueQuestionnaireDiscard`, enqueued in the shared `cancelled` step, so the patient's, staff's
+  and the revocation job's cancellations all enqueue it. Job args in `model.go`: `QuestionnaireRequestArgs`
+  (`questionnaire_default_request`) and `QuestionnaireDiscardArgs` (`questionnaire_responses_discard`), the
+  appointment's and the clinic's ids only, on River's default queue (the worker's), as `consultation_access_end`.
+- `internal/questionnaire`: `Service.ActiveDefault(ctx, agent, org, roleID)`, the active version of a role's
+  default for a job, in the clinic's scope; `ErrNotFound` without a default, `ErrNotActive` without an active
+  version. The read of the default (`PractitionerRole/<id>`) and of the version are audited with the job as agent
+  (`HOPERAT`).
+- `internal/questionnaireresponse`: `service_jobs.go` with `RequestDefault` and `Discard` (SPEC §2 "Requests",
+  "Cancellation and revocation"); the `Appointments` port gains `Lookup`, the `Questionnaires` port
+  `ActiveDefault`; the repository gains `SetNotice` and `DeleteOfAppointment` (`DELETE … RETURNING id`, bound by
+  package 3's `questionnaire_response_discard` policy). Each request is audited as a create and each deleted
+  response as a delete, with the job as agent (`HOPERAT`). `make sqlc` regenerated.
+- `internal/worker/questionnaire.go`: the `questionnaire_default_request` and `questionnaire_responses_discard`
+  workers on the default queue and their service; registered in `addDefaultWorkers`, so the scheduler knows the
+  kinds. They log the appointment's id only.
+- `docs/privacy/dpia.md`: the package 5 subsection.
+
+Failing first (red), each for the right reason before the code:
+- `internal/appointment`: `jobs.EnqueueQuestionnaireRequest undefined`, `jobs.EnqueueQuestionnaireDiscard
+  undefined`; with the port and the River implementation in place, the booking and cancellation tests failed on
+  the missing enqueues (`TestBook_*`, `TestCancel_*`, `TestCancelForRevokedConsent_*`).
+- `internal/questionnaire`: `f.svc.ActiveDefault undefined`; then one case failed on a test bug (the "without a
+  default" case had the shared default set), fixed in the test.
+- `internal/questionnaireresponse`: `r.SetNotice undefined`, `r.DeleteOfAppointment undefined`,
+  `f.svc.RequestDefault undefined`, `f.svc.Discard undefined`; with stubs returning nil, every new service test
+  failed on behaviour. The repository test first failed on its own SQL (two statements in one prepared
+  statement), fixed in the test.
+- `internal/worker`: `TestScheduler_KnowsEveryKindTheWorkerAndTheNotifierWork` and both job tests, `job kind is
+  not registered in the client's Workers bundle`.
+
+Tests: booking enqueues the request in its transaction with the two ids (fake jobs, the rollback cases of
+`TestBook_FailsOnABackendError…`, and River's table: a rolled-back transaction leaves no job); each cancellation
+path (patient, practitioner, admin, revocation) enqueues the discard. `ActiveDefault` with a default, without one,
+the series retired, a draft only, another clinic, a backend failure, and its audit. `RequestDefault` with a
+default (one row, in progress, due at the start, source `default`, audited once), twice (one row), already
+requested by the practitioner (no second row), without a default, with the series retired, a draft only, a
+default of another clinic, a cancelled, started, unknown or other clinic's appointment, a consent revoked since the
+booking, and backend failures (rolled back, error without the id). `Discard` deletes the in-progress, completed
+and withdrawn responses of a cancelled appointment and keeps another appointment's, once (a repeat changes
+nothing), in the clinic's scope with the notice; does nothing for a booked, unknown or other clinic's appointment;
+after a revocation deletes the future (cancelled) appointment's and keeps the past one's completed response.
+Repository, as `salus_app`: the delete removes both responses of the cancelled appointment, also after a
+revocation, and nothing of a booked appointment, without the notice, with another appointment's notice, or for an
+id that is not a UUID. Worker, on the real database: the request job twice gives one row and one audit event, and
+nothing for the started appointment; the revocation job cancels the future appointment and enqueues its discard
+(the two ids on the default queue); the discard job (twice, then for the past appointment) leaves the past
+appointment's completed response only, with one audit event; no log line holds a name, the e-mail, the title or a
+question.
+
+Checks: `make lint` 0 issues, migrations unchanged; `make test` pass; `make archcheck` pass; `make cover` pass,
+`internal/appointment` 92.9%, `internal/questionnaire` 95.4%, `internal/questionnaireresponse` 95.0%,
+`internal/worker` 93.7%, total 94.8%; `make sqlc` regenerated.
+
+Readings:
+- The two jobs run on the default queue (the worker's), as `consultation_access_end`: they write the database
+  and send nothing.
+- `RequestDefault` checks the appointment through `appointment.Lookup` in the clinic's scope, which shows a
+  future appointment only while the patient's consent is active: after a revocation it finds nothing and does
+  nothing, rather than failing on the insert policy and being retried. A booked appointment that has started by
+  the time the job runs gets no request (it could never be answered).
+- A repeated request writes no second row and no second create event; the questionnaire's service still audits
+  the job's read of the default on every run, as every read of a role's default is audited.
+- `ActiveDefault` audits the job's read as one event per entity disclosed: the role's default always, the version
+  when there is an active one. A job has no account, so the agent is its kind, purpose `HOPERAT`.
+- `Discard` sets the clinic and the appointment's notice (`app.appointment_id`), so the appointment's own notice
+  policy shows the cancelled appointment after a revocation, and checks it is cancelled before deleting; the
+  delete policy checks it again. Each deleted response is one delete event; nothing deleted, nothing audited.
+- "A default applies to bookings made after it is set" (SPEC §2 "Requests") is met by the job running right after
+  the booking; a default set in the seconds between the booking and the job applies to that booking too. Not
+  guarded: a guard would need the default's history.
+
+Deferred: the handlers, the FHIR mapping, the wiring of the service in `app.go` (package 6); `Outstanding` and the
+e-mail sentence (package 7).
+
+Dev stack: no migration in this package; the running `api`, `worker` and `scheduler` containers still run the
+code before this package until they are rebuilt (`make up`).
+

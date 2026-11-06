@@ -37,6 +37,26 @@ func (r *postgresRepository) SetClinic(ctx context.Context, id string) error {
 	return postgres.SetLocal(ctx, "app.organization_id", id)
 }
 
+func (r *postgresRepository) SetNotice(ctx context.Context, id string) error {
+	return postgres.SetLocal(ctx, "app.appointment_id", id)
+}
+
+func (r *postgresRepository) DeleteOfAppointment(ctx context.Context, id string) ([]string, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).DeleteQuestionnaireResponsesOfAppointment(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.String())
+	}
+	return ids, nil
+}
+
 func (r *postgresRepository) Insert(ctx context.Context, x Response, at time.Time) (Response, bool, error) {
 	var p questionnaireresponsedb.InsertQuestionnaireResponseParams
 	if p.OrganizationID.Scan(x.OrganizationID) != nil || p.AppointmentID.Scan(x.AppointmentID) != nil || p.PatientID.Scan(x.PatientID) != nil ||
