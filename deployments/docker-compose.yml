@@ -45,8 +45,10 @@ services:
       POSTGRES_PASSWORD: salus # local only; synthetic data only
       POSTGRES_DB: salus
     volumes: [postgres:/var/lib/postgresql]
+    # Over TCP, as every client connects: on a fresh volume the image first runs a setup server on its Unix
+    # socket only, then restarts; a socket check passed during setup and migrate failed to connect.
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "salus", "-d", "salus"]
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "salus", "-d", "salus"]
       interval: 1s
       timeout: 3s
       retries: 30
