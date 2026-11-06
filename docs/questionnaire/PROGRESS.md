@@ -9,7 +9,7 @@
 | 5 Booking and cancellation | done, 2026-11-06 | `questionnaire(5)` |
 | 6 Responses API | done, 2026-11-06 | `questionnaire(6)` |
 | 7 E-mail mention | done, 2026-11-06 | `questionnaire(7)` |
-| 8 Web: library and builder | held: W41 and W42 not approved | |
+| 8 Web: library and builder | not started | |
 | 9 Web: appointment and working hours | not started | |
 | 10 Mobile | not started | |
 | 11 End-to-end | not started | |
@@ -23,6 +23,7 @@
   M13 changed.
 - 2026-11-06, plan: `@dnd-kit` speaks to screen readers during a drag, and the approved text has nothing for
   it; W41 and W42 are proposed in `COPY.md`, and package 8 is held until the owner approves them.
+- 2026-11-06, owner: W41 and W42 approved as written; the hold on package 8 is lifted.
 
 ## Package 1: questionnaire (done, 2026-11-06)
 

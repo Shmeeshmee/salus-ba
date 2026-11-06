@@ -1,7 +1,7 @@
 # Questionnaires: text for review
 
-Status: approved by the owner, 2026-11-06, with the owner's changes (W11, W35, M13), except W41 and W42, which
-are proposed and not approved. Packages 7 to 10 put these strings into `notification`, `web/src/messages.ts` and
+Status: approved by the owner, 2026-11-06, with the owner's changes (W11, W35, M13); W41 and W42 approved as
+written the same day. Packages 7 to 10 put these strings into `notification`, `web/src/messages.ts` and
 `mobile/lib/messages.dart` exactly as approved here. A change to any of them goes back to the owner first. W is
 the web app (practitioners and admins), M the mobile app (patients), E the e-mails. [Brackets] are filled in
 by the app.
@@ -39,7 +39,7 @@ by the app.
 - W28 (item errors, on the item): "Add text to this item."; "This condition depends on a question that is no longer above this item."; "This condition's answer is no longer one of the options."
 - W29 (errors): `draft_exists`: "A draft of this questionnaire already exists." with the button "Open draft"; 412: "Someone else changed this questionnaire. Reload to see their changes. Your changes since the last save will be lost." with the button "Reload"; `not_draft`: "This version is published and can no longer be changed."; 422: "Some items need attention."; not found: "This questionnaire is not available."
 
-## Drag and drop for screen readers (web): proposed, not approved
+## Drag and drop for screen readers (web)
 
 Needed because `@dnd-kit` (D7) speaks to screen readers during a drag and its own text is not ours. [Item] is
 the item's text, or its type (W11) while it has none; [Section] the section's title.

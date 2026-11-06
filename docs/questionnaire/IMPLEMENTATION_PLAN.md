@@ -168,8 +168,7 @@ Checks: Go.
 
 ### 8. Web: library and builder
 
-**Held until the owner approves W41 and W42** (`COPY.md`, the drag-and-drop screen-reader text, proposed
-2026-11-06). The strings go into `web/src/messages.ts` exactly as `COPY.md` has them. `web/package.json`:
+Copy approved, W41 and W42 included (2026-11-06). The strings go into `web/src/messages.ts` exactly as `COPY.md` has them. `web/package.json`:
 `@dnd-kit/core` and `@dnd-kit/sortable`, exact versions (the current releases, their runtime dependencies
 checked, all recorded in `PROGRESS.md`); an oxlint `no-restricted-imports` rule so only `builder-dnd.tsx` imports
 them. `web/src`: the "Questionnaires" link in the main navigation; the library page (W1 to W8:
