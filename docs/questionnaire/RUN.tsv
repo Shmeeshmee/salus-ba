@@ -1,0 +1,15 @@
+# prefix: questionnaire
+# title: Questionnaires
+# base: main
+# Row 8 is held until the owner approves W41 and W42 in COPY.md.
+1		questionnaire
+2		questionnaire API
+3		questionnaireresponse and the access rule
+4		Answers
+5		Booking and cancellation
+6		Responses API
+7		E-mail mention
+8		Web: library and builder	hold
+9		Web: appointment and working hours
+10		Mobile
+11		End-to-end
