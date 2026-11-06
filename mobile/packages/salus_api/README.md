@@ -96,6 +96,15 @@ Class | Method | HTTP request | Description
 *InvitesApi* | [**listInvites**](doc//InvitesApi.md#listinvites) | **GET** /invites | The clinic's open invites
 *PatientApi* | [**getMyPatient**](doc//PatientApi.md#getmypatient) | **GET** /me/patient | The signed-in patient's profile
 *PatientApi* | [**saveMyPatient**](doc//PatientApi.md#savemypatient) | **PUT** /me/patient | Save the signed-in patient's profile
+*QuestionnairesApi* | [**clearRoleQuestionnaire**](doc//QuestionnairesApi.md#clearrolequestionnaire) | **DELETE** /practitioner-roles/{id}/questionnaire | Clear a practitioner role's default questionnaire
+*QuestionnairesApi* | [**createQuestionnaire**](doc//QuestionnairesApi.md#createquestionnaire) | **POST** /questionnaires | Create a questionnaire
+*QuestionnairesApi* | [**deleteQuestionnaire**](doc//QuestionnairesApi.md#deletequestionnaire) | **DELETE** /questionnaires/{id} | Discard a draft
+*QuestionnairesApi* | [**getRoleQuestionnaire**](doc//QuestionnairesApi.md#getrolequestionnaire) | **GET** /practitioner-roles/{id}/questionnaire | Read a practitioner role's default questionnaire
+*QuestionnairesApi* | [**publishQuestionnaire**](doc//QuestionnairesApi.md#publishquestionnaire) | **POST** /questionnaires/{id}/publish | Publish a draft
+*QuestionnairesApi* | [**retireQuestionnaire**](doc//QuestionnairesApi.md#retirequestionnaire) | **POST** /questionnaires/{id}/retire | Retire the active version
+*QuestionnairesApi* | [**reviseQuestionnaire**](doc//QuestionnairesApi.md#revisequestionnaire) | **POST** /questionnaires/{id}/revise | Edit as new version
+*QuestionnairesApi* | [**setRoleQuestionnaire**](doc//QuestionnairesApi.md#setrolequestionnaire) | **PUT** /practitioner-roles/{id}/questionnaire | Set a practitioner role's default questionnaire
+*QuestionnairesApi* | [**updateQuestionnaire**](doc//QuestionnairesApi.md#updatequestionnaire) | **PUT** /questionnaires/{id} | Edit a draft
 *SchedulingApi* | [**getAvailability**](doc//SchedulingApi.md#getavailability) | **GET** /practitioner-roles/{id}/availability | Read a practitioner role's weekly availability
 *SchedulingApi* | [**saveAvailability**](doc//SchedulingApi.md#saveavailability) | **PUT** /practitioner-roles/{id}/availability | Set a practitioner role's weekly availability
 
@@ -125,11 +134,18 @@ Class | Method | HTTP request | Description
  - [LoginRequest](doc//LoginRequest.md)
  - [LoginResponse](doc//LoginResponse.md)
  - [Patient](doc//Patient.md)
+ - [Questionnaire](doc//Questionnaire.md)
+ - [QuestionnaireDefault](doc//QuestionnaireDefault.md)
+ - [QuestionnaireItem](doc//QuestionnaireItem.md)
+ - [QuestionnaireItemAnswerOptionInner](doc//QuestionnaireItemAnswerOptionInner.md)
+ - [QuestionnaireItemEnableWhen](doc//QuestionnaireItemEnableWhen.md)
  - [RegisterRequest](doc//RegisterRequest.md)
  - [RoleSpecialty](doc//RoleSpecialty.md)
  - [SaveAvailabilityRequest](doc//SaveAvailabilityRequest.md)
  - [SavePatientRequest](doc//SavePatientRequest.md)
+ - [SaveQuestionnaireRequest](doc//SaveQuestionnaireRequest.md)
  - [SetAppointmentStatusRequest](doc//SetAppointmentStatusRequest.md)
+ - [SetRoleQuestionnaireRequest](doc//SetRoleQuestionnaireRequest.md)
  - [SetSpecialtyRequest](doc//SetSpecialtyRequest.md)
  - [Specialty](doc//Specialty.md)
  - [SpecialtyList](doc//SpecialtyList.md)

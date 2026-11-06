@@ -1,7 +1,7 @@
 {
   "resourceType": "CapabilityStatement",
   "status": "active",
-  "date": "2026-11-05",
+  "date": "2026-11-06",
   "publisher": "Salus",
   "kind": "instance",
   "implementation": {
@@ -12,7 +12,7 @@
   "rest": [
     {
       "mode": "server",
-      "documentation": "The clinic directory, patients, consents, appointments and their consultations. A signed-in session is a bearer token or the web app's cookie. The public directory (Organization?listed=true, a listed clinic's PractitionerRole search, Schedule and Slot) needs no session and is not audited. Every other interaction needs a session, shows a caller only what the access rules allow (anything else is 404) and is audited. Search values that are dates are instants with an offset, prefixed ge or lt. Any search parameter not listed here gives 400. Also GET /fhir/R4/metadata.",
+      "documentation": "The clinic directory, patients, consents, appointments and their consultations, and the clinic's questionnaires. A signed-in session is a bearer token or the web app's cookie. The public directory (Organization?listed=true, a listed clinic's PractitionerRole search, Schedule and Slot) needs no session and is not audited. Every other interaction needs a session, shows a caller only what the access rules allow (anything else is 404) and is audited. Search values that are dates are instants with an offset, prefixed ge or lt. Any search parameter not listed here gives 400. Also GET /fhir/R4/metadata.",
       "resource": [
         {
           "type": "Organization",
@@ -150,6 +150,31 @@
               "definition": "http://hl7.org/fhir/SearchParameter/Encounter-practitioner",
               "type": "reference",
               "documentation": "One practitioner, the one behind the participant's practitioner role."
+            }
+          ]
+        },
+        {
+          "type": "Questionnaire",
+          "interaction": [{ "code": "read" }, { "code": "search-type" }],
+          "documentation": "A version of one of the clinic's questionnaires: draft, active (published, never changed again) or retired. Read and search: staff of the clinic; anyone else gets 404 on a read, and a patient 403 on a search. No create or update: questionnaires are built through the JSON API. Help text is a child display item with the questionnaire-itemControl extension, code help.",
+          "searchParam": [
+            {
+              "name": "url",
+              "definition": "http://hl7.org/fhir/SearchParameter/conformance-url",
+              "type": "uri",
+              "documentation": "One canonical url of this server, https://salus.invalid/fhir/Questionnaire/<id>, without a version: every version of one questionnaire. Any other url gives 400."
+            },
+            {
+              "name": "version",
+              "definition": "http://hl7.org/fhir/SearchParameter/conformance-version",
+              "type": "token",
+              "documentation": "One version number, 1, 2, …"
+            },
+            {
+              "name": "status",
+              "definition": "http://hl7.org/fhir/SearchParameter/conformance-status",
+              "type": "token",
+              "documentation": "One of draft, active, retired."
             }
           ]
         }

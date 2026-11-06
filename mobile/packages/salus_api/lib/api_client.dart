@@ -250,6 +250,16 @@ class ApiClient {
           return LoginResponse.fromJson(value);
         case 'Patient':
           return Patient.fromJson(value);
+        case 'Questionnaire':
+          return Questionnaire.fromJson(value);
+        case 'QuestionnaireDefault':
+          return QuestionnaireDefault.fromJson(value);
+        case 'QuestionnaireItem':
+          return QuestionnaireItem.fromJson(value);
+        case 'QuestionnaireItemAnswerOptionInner':
+          return QuestionnaireItemAnswerOptionInner.fromJson(value);
+        case 'QuestionnaireItemEnableWhen':
+          return QuestionnaireItemEnableWhen.fromJson(value);
         case 'RegisterRequest':
           return RegisterRequest.fromJson(value);
         case 'RoleSpecialty':
@@ -258,8 +268,12 @@ class ApiClient {
           return SaveAvailabilityRequest.fromJson(value);
         case 'SavePatientRequest':
           return SavePatientRequest.fromJson(value);
+        case 'SaveQuestionnaireRequest':
+          return SaveQuestionnaireRequest.fromJson(value);
         case 'SetAppointmentStatusRequest':
           return SetAppointmentStatusRequest.fromJson(value);
+        case 'SetRoleQuestionnaireRequest':
+          return SetRoleQuestionnaireRequest.fromJson(value);
         case 'SetSpecialtyRequest':
           return SetSpecialtyRequest.fromJson(value);
         case 'Specialty':

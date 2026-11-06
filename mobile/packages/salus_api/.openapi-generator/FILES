@@ -10,6 +10,7 @@ lib/api/directory_api.dart
 lib/api/health_api.dart
 lib/api/invites_api.dart
 lib/api/patient_api.dart
+lib/api/questionnaires_api.dart
 lib/api/scheduling_api.dart
 lib/api_client.dart
 lib/api_exception.dart
@@ -42,11 +43,18 @@ lib/model/live_kit_webhook_event.dart
 lib/model/login_request.dart
 lib/model/login_response.dart
 lib/model/patient.dart
+lib/model/questionnaire.dart
+lib/model/questionnaire_default.dart
+lib/model/questionnaire_item.dart
+lib/model/questionnaire_item_answer_option_inner.dart
+lib/model/questionnaire_item_enable_when.dart
 lib/model/register_request.dart
 lib/model/role_specialty.dart
 lib/model/save_availability_request.dart
 lib/model/save_patient_request.dart
+lib/model/save_questionnaire_request.dart
 lib/model/set_appointment_status_request.dart
+lib/model/set_role_questionnaire_request.dart
 lib/model/set_specialty_request.dart
 lib/model/specialty.dart
 lib/model/specialty_list.dart

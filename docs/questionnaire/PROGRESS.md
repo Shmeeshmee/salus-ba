@@ -3,7 +3,7 @@
 | Package | Status | Commit |
 | --- | --- | --- |
 | 1 questionnaire | done, 2026-11-06 | `questionnaire(1)` |
-| 2 questionnaire API | not started | |
+| 2 questionnaire API | done, 2026-11-06 | `questionnaire(2)` |
 | 3 questionnaireresponse and the access rule | not started | |
 | 4 Answers | not started | |
 | 5 Booking and cancellation | not started | |
@@ -100,3 +100,89 @@ Readings:
 
 Deferred: the handlers, `openapi.yaml`, the FHIR mapping and the wiring in `app.go` (package 2); the patient
 scope's policy on `questionnaire` (package 3).
+
+## Package 2: questionnaire API (done, 2026-11-06)
+
+Built:
+- `internal/questionnaire/handler_http.go`: `POST /questionnaires` (201), `PUT` (`If-Match`) and `DELETE`
+  (204) `/questionnaires/{id}`, `POST /questionnaires/{id}/publish` (`If-Match`), `/retire`, `/revise` (201),
+  and `GET`, `PUT` (`{"questionnaireId"}`) and `DELETE` (204) `/practitioner-roles/{id}/questionnaire`. Bodies
+  are read up to 256 KiB, known fields only (the items too), one object; anything else is 400
+  `invalid_request` before the service is called. Errors: 403 `forbidden`, 404 `not_found`, 409 `not_draft`,
+  `not_active`, `draft_exists`, 412 `version_conflict`, 422 `invalid_questionnaire` with `linkIds` (an empty
+  list when none is named). Versions carry their `versionId` as the ETag.
+- `internal/questionnaire/handler_fhir.go`: `Questionnaire` read and search by `url`, `version`, `status`
+  (each at most once; anything else 400 `not-supported`). `url`, `version` (a string), `title`, `status`,
+  `subjectType` `Patient`, `date` (the last change), `description`, `item`, `meta`. Conditions as
+  `enableWhen` with operator `=`; help text as a child `display` item `<linkId>.help` with the R4 core
+  `questionnaire-itemControl` extension, code `help` (`.` is never in one of our linkIds, so it cannot clash).
+- `internal/api/app.go`: the service and both handlers (`questionnaireRoutes`), and `questionnaireCaller`:
+  the session's clinic only for its admin or a practitioner (from `auth.ClinicMember`), so a patient is a
+  caller without a clinic and gets `ErrForbidden`.
+- `api/openapi.yaml`: the nine operations (tag `questionnaires`), `SaveQuestionnaireRequest`,
+  `QuestionnaireItem` (the type enum without `attachment`), `Questionnaire`, `QuestionnaireDefault`,
+  `SetRoleQuestionnaireRequest`, the four new error codes and `Error.linkIds`; `make gen-clients` (TypeScript
+  `web/src/api/schema.d.ts`, Dart `mobile/packages/salus_api`).
+- `api/fhir/CapabilityStatement.json`: `Questionnaire` with `read`, `search-type` and `url` (uri), `version`
+  and `status` (token), the core `conformance-*` definitions; `embed_test.go` and the router's `metadata.json`
+  golden follow.
+- Golden files (`internal/questionnaire/testdata/`): `questionnaire_active.json` (every item type, help text
+  on a question and a section, conditions on a boolean and a choice, one hiding a section),
+  `questionnaire_draft.json`, `search.json`, `not_found.json`, `unsupported_search.json`, and also
+  `forbidden.json` and `unauthenticated.json`. Synthetic, placeholder wording.
+
+Failing first (red), each for the right reason before the code:
+- `internal/questionnaire`: the handler tests did not build (`undefined: questionnaire.NewHTTPHandler`,
+  `undefined: questionnaire.NewHandler`); then the FHIR tests failed on the missing golden files until they
+  were written with `-update` and reviewed.
+- `api/fhir`: `TestCapabilityStatement_ListsExactlyTheInteractionsServed`, `Questionnaire = ""`.
+- `internal/api/router`: `metadata.json` differed from the new CapabilityStatement (rewritten with `-update`,
+  diff reviewed: the new resource, the date and one sentence of the documentation).
+- `internal/api`: `TestNew_ServesTheQuestionnaireLibraryToStaffOfTheClinicAndAuditsIt` was written after the
+  wiring; checked red by taking the routes out again (`404 page not found`), then put back.
+
+Tests: every route's success and each error code through `httptest`; 401 and 400 without calling the
+service; the 256 KiB limit at and one byte past it; the log holds nothing on success and only the error on a
+failure, never a title, text, option or help text. FHIR: read and search golden files, the filter passed, each
+unreadable parameter 400 without a call. Through the app on the real database as `salus_app`: the lifecycle
+(edit, 412, 422 with `linkIds` for the reserved `attachment` type, publish, `not_draft`, revise,
+`draft_exists`, retire, discard of the new draft), the default (set, read by the admin, cleared, `not_active`
+for a retired series), a patient (403 on the JSON API and the FHIR search, 404 on the FHIR read), another
+clinic's admin (404, an empty search), and the audit: one event per call and per version a search returned,
+refusals included, counted against a baseline.
+
+Checks: `make lint` 0 issues, migrations unchanged; `make test` pass; `make archcheck` pass; `make cover` pass,
+`internal/questionnaire` 95.8%, total 94.9%; `make fhir-validate` 0 errors (only the dom-6 narrative warning
+every resource has, and an information that the item-control code system is draft in R4); `make gen-clients`
+run twice, no diff the second time; `make web-typecheck` pass (not in this package's check sets, run because
+`schema.d.ts` changed).
+
+Measurements (`go test -run '^$' -bench 'BenchmarkFHIRReadVersion|BenchmarkReadVersion' -benchmem
+-benchtime=2s -count=3 ./internal/questionnaire/` in the `tools` container, compose Postgres, i7-14700HX; the
+200-item questionnaire of package 1):
+
+| Benchmark | ns/op (3 runs) | B/op | allocs/op |
+| --- | --- | --- | --- |
+| `BenchmarkFHIRReadVersion` (encode one version as FHIR JSON through the read handler, service stubbed) | 532 k, 542 k, 545 k | ~205 k | 805 |
+| `BenchmarkReadVersion` (package 1's, run again beside it) | 1.13 M, 1.16 M, 1.17 M | ~189 k | ~867 |
+
+A FHIR read of a 200-item version costs about 1.7 ms in all, a third of it the encoding. `BenchmarkReadVersion`
+ran faster than package 1's run (3.2 to 3.5 M), on the same machine with a less loaded database; both are
+recorded. Nothing is changed on these numbers.
+
+Readings:
+- A patient's FHIR read is 404, as SPEC.md §2 "FHIR" says for anyone who may not see a version; a patient's
+  search is 403 (`forbidden.json`), since they may not search the library yet. Package 6 gives patients the
+  versions their own responses reference, in the patient scope.
+- A search `url` must be a canonical url of this server, without `|version` (use `version`); anything else
+  is 400, documented in the CapabilityStatement, rather than an empty searchset.
+- The JSON API carries the model's own item JSON (`linkId`, `text`, `type`, `help`, `answerOption`, `item`,
+  `required`, `repeats`, `enableWhen` without an operator), so the builder writes what it reads; FHIR is mapped
+  in `handler_fhir.go`. Versions are named by `url` (the canonical url), not by a series id.
+- A role's default has no `If-Match`: it is one setting, replaced whole, and the service takes no version.
+- An over-limit body is 400 `invalid_request`, as the other JSON endpoints answer it.
+
+Deferred, for a person:
+- FHIR R4 `que-1` requires a `group` to have items; the service accepts a section with none (package 1), so
+  an empty section would be invalid FHIR. Whether publishing should refuse one is a product question; nothing
+  is changed here.

@@ -826,6 +826,316 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /questionnaires:
+    post:
+      operationId: createQuestionnaire
+      summary: Create a questionnaire
+      description: >-
+        Creates a questionnaire of the caller's clinic as version 1, a draft (FHIR Questionnaire; reads go
+        through FHIR). Staff of the clinic, practitioners and admins alike. The body is read up to 256 KiB and
+        checked against docs/questionnaire/SPEC.md §2 "Item model", "Limits" and "linkIds". The answer carries
+        the version as its ETag. Audited, also when refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SaveQuestionnaireRequest"}
+      responses:
+        "201":
+          $ref: "#/components/responses/Questionnaire"
+        "400":
+          description: "`invalid_request`: a body that is not the request, or over 256 KiB."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/QuestionnaireForbidden"
+        "422":
+          $ref: "#/components/responses/InvalidQuestionnaire"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /questionnaires/{id}:
+    parameters:
+      - $ref: "#/components/parameters/QuestionnaireID"
+    put:
+      operationId: updateQuestionnaire
+      summary: Edit a draft
+      description: >-
+        Replaces the title, description and items of a draft. Send If-Match with the version read; the answer
+        carries the new version as its ETag. A later version keeps each linkId's type (single and multiple
+        choice count as different types). Staff of the clinic. Audited, also when refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SaveQuestionnaireRequest"}
+      responses:
+        "200":
+          $ref: "#/components/responses/Questionnaire"
+        "400":
+          description: "`invalid_request`: no or an unreadable If-Match, or a body that is not the request, or over 256 KiB."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/QuestionnaireForbidden"
+        "404":
+          $ref: "#/components/responses/QuestionnaireNotFound"
+        "409":
+          description: "`not_draft`: the version is published and can no longer be changed."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          $ref: "#/components/responses/QuestionnaireChanged"
+        "422":
+          $ref: "#/components/responses/InvalidQuestionnaire"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      operationId: deleteQuestionnaire
+      summary: Discard a draft
+      description: Deletes a draft. A published version is never deleted. Staff of the clinic. Audited, also when refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204":
+          description: The draft is deleted.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/QuestionnaireForbidden"
+        "404":
+          $ref: "#/components/responses/QuestionnaireNotFound"
+        "409":
+          description: "`not_draft`: the version is published."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /questionnaires/{id}/publish:
+    parameters:
+      - $ref: "#/components/parameters/QuestionnaireID"
+    post:
+      operationId: publishQuestionnaire
+      summary: Publish a draft
+      description: >-
+        Makes the draft, as it was read (If-Match), the questionnaire's active version, and retires the version
+        that was active, in one transaction. A published version never changes. Staff of the clinic. Audited,
+        also when refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          $ref: "#/components/responses/Questionnaire"
+        "400":
+          description: "`invalid_request`: no or an unreadable If-Match."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/QuestionnaireForbidden"
+        "404":
+          $ref: "#/components/responses/QuestionnaireNotFound"
+        "409":
+          description: "`not_draft`: the version is already published."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          $ref: "#/components/responses/QuestionnaireChanged"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /questionnaires/{id}/retire:
+    parameters:
+      - $ref: "#/components/parameters/QuestionnaireID"
+    post:
+      operationId: retireQuestionnaire
+      summary: Retire the active version
+      description: >-
+        Retires an active version: it is no longer requested, also as a role's default; requests already made
+        keep it. Staff of the clinic. Audited, also when refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "200":
+          $ref: "#/components/responses/Questionnaire"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/QuestionnaireForbidden"
+        "404":
+          $ref: "#/components/responses/QuestionnaireNotFound"
+        "409":
+          description: "`not_active`: the version is not active."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /questionnaires/{id}/revise:
+    parameters:
+      - $ref: "#/components/parameters/QuestionnaireID"
+    post:
+      operationId: reviseQuestionnaire
+      summary: Edit as new version
+      description: >-
+        Copies an active version into the next version, a draft with the same items and linkIds. The active
+        version stays active until the draft is published. Staff of the clinic. Audited, also when refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "201":
+          $ref: "#/components/responses/Questionnaire"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/QuestionnaireForbidden"
+        "404":
+          $ref: "#/components/responses/QuestionnaireNotFound"
+        "409":
+          description: "`not_active`: the version is not active; `draft_exists`: the questionnaire already has a draft."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /practitioner-roles/{id}/questionnaire:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getRoleQuestionnaire
+      summary: Read a practitioner role's default questionnaire
+      description: >-
+        The questionnaire requested with every booking with the role, as its canonical url (its active version
+        is requested); no url while the role has none. The practitioner reads their own role's, the clinic's
+        admin any role's. Audited, also when refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/QuestionnaireDefault"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/QuestionnaireForbidden"
+        "404":
+          description: "`not_found`: no such role in the caller's clinic, or another practitioner's."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      operationId: setRoleQuestionnaire
+      summary: Set a practitioner role's default questionnaire
+      description: >-
+        Makes the questionnaire of `questionnaireId` (any of its versions) the role's default: from now on its
+        active version is requested with every booking with the role. Who may is as for the read. Audited, also
+        when refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SetRoleQuestionnaireRequest"}
+      responses:
+        "200":
+          $ref: "#/components/responses/QuestionnaireDefault"
+        "400":
+          description: "`invalid_request`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/QuestionnaireForbidden"
+        "404":
+          description: "`not_found`: no such role or questionnaire in the caller's clinic, or another practitioner's role."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`not_active`: the questionnaire has no active version."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      operationId: clearRoleQuestionnaire
+      summary: Clear a practitioner role's default questionnaire
+      description: Removes the role's default, if it has one. Who may is as for the read. Audited, also when refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204":
+          description: The role has no default.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/QuestionnaireForbidden"
+        "404":
+          description: "`not_found`: no such role in the caller's clinic, or another practitioner's."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /appointments:
     post:
       operationId: bookAppointment
@@ -1178,6 +1488,21 @@ components:
       schema:
         type: string
         const: "1"
+    QuestionnaireID:
+      name: id
+      in: path
+      required: true
+      description: The version's id (FHIR Questionnaire.id).
+      schema:
+        type: string
+        format: uuid
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: The version read, as a weak ETag, `W/"<versionId>"`.
+      schema:
+        type: string
     AppointmentID:
       name: id
       in: path
@@ -1186,6 +1511,46 @@ components:
         type: string
         format: uuid
   responses:
+    Unauthenticated:
+      description: "`unauthenticated`: no valid session."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Questionnaire:
+      description: The questionnaire's version.
+      headers:
+        ETag: {schema: {type: string}, description: 'The version, W/"<versionId>".'}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Questionnaire"}
+    QuestionnaireDefault:
+      description: The role's default questionnaire.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/QuestionnaireDefault"}
+    QuestionnaireForbidden:
+      description: "`forbidden`: the caller is not staff of a clinic (a patient); or `csrf`."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    QuestionnaireNotFound:
+      description: "`not_found`: no such questionnaire in the caller's clinic."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    QuestionnaireChanged:
+      description: "`version_conflict`: the version changed since it was read; read it again."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    InvalidQuestionnaire:
+      description: >-
+        `invalid_questionnaire`: the content breaks a rule of docs/questionnaire/SPEC.md §2 "Item model",
+        "Limits" or "linkIds"; `linkIds` names the offending items (none when the title, the description, the
+        number of items or a malformed linkId is at fault).
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
     LoginStep:
       description: >-
         The next step (`verify` or `enrol`, with the challenge), or `done` with the session: in the
@@ -1649,6 +2014,140 @@ components:
         versionId:
           type: integer
           format: int32
+    SaveQuestionnaireRequest:
+      type: object
+      required: [title, item]
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          description: Not blank.
+        description:
+          type: string
+          maxLength: 1000
+        item:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/QuestionnaireItem"}
+          description: At most 200 items in all, sections and instructions included.
+    QuestionnaireItem:
+      type: object
+      required: [linkId, text, type]
+      additionalProperties: false
+      description: >-
+        One item, as FHIR Questionnaire.item. Sections (`group`) are top level only and hold questions and
+        instructions. Single and multiple choice are both `choice`; `repeats` tells them apart.
+      properties:
+        linkId:
+          type: string
+          pattern: "^[A-Za-z0-9-]{1,64}$"
+          description: Opaque and random, unique within the questionnaire, kept by later versions.
+        text:
+          type: string
+          maxLength: 500
+          description: Not blank.
+        type:
+          type: string
+          enum: [group, display, string, text, boolean, choice, integer, decimal, date]
+        required:
+          type: boolean
+          description: Questions only.
+        repeats:
+          type: boolean
+          description: Choice only, several answers.
+        help:
+          type: string
+          maxLength: 500
+          description: Help text, on questions and sections.
+        answerOption:
+          type: array
+          minItems: 2
+          maxItems: 50
+          description: Choice only, each value different.
+          items:
+            type: object
+            required: [valueString]
+            additionalProperties: false
+            properties:
+              valueString:
+                type: string
+                minLength: 1
+                maxLength: 200
+        enableWhen:
+          type: object
+          required: [question]
+          additionalProperties: false
+          description: >-
+            Shown only when the earlier item `question`, a boolean or a choice, is answered `answerBoolean` or
+            `answerString` (one of its options); a choice with repeats when any answer matches.
+          properties:
+            question:
+              type: string
+            answerBoolean:
+              type: boolean
+            answerString:
+              type: string
+        item:
+          type: array
+          items: {$ref: "#/components/schemas/QuestionnaireItem"}
+          description: A section's questions and instructions.
+    Questionnaire:
+      type: object
+      required: [id, url, status, title, item, lastUpdated, version, versionId]
+      description: A version of a questionnaire (FHIR Questionnaire; reads go through FHIR).
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          description: The canonical url, the same for every version of the questionnaire.
+          examples: ["https://salus.invalid/fhir/Questionnaire/0b6f3a0e-1d1c-4c43-9a51-6d2b9b1d5e7a"]
+        status:
+          type: string
+          enum: [draft, active, retired]
+        title:
+          type: string
+        description:
+          type: string
+        item:
+          type: array
+          items: {$ref: "#/components/schemas/QuestionnaireItem"}
+        lastUpdated:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int32
+          description: 1, 2, … within the questionnaire.
+        versionId:
+          type: integer
+          format: int32
+          description: The version of this row, for If-Match.
+    QuestionnaireDefault:
+      type: object
+      required: [practitionerRoleId, versionId]
+      properties:
+        practitionerRoleId:
+          type: string
+          format: uuid
+        url:
+          type: string
+          description: The canonical url of the default questionnaire; absent while the role has none.
+        versionId:
+          type: integer
+          format: int32
+          description: 0 while the role has none.
+    SetRoleQuestionnaireRequest:
+      type: object
+      required: [questionnaireId]
+      additionalProperties: false
+      properties:
+        questionnaireId:
+          type: string
+          format: uuid
+          description: Any version of the questionnaire.
     Error:
       type: object
       required: [error]
@@ -1693,8 +2192,16 @@ components:
             - consultation_ended
             - practitioner_did_not_join
             - consultation_not_started
+            - not_draft
+            - not_active
+            - draft_exists
+            - invalid_questionnaire
             - internal error
             - timeout
+        linkIds:
+          type: array
+          items: {type: string}
+          description: With `invalid_questionnaire` only, the offending items' linkIds in document order.
     ConsultationJoin:
       type: object
       required: [url, token, expiresAt, peerName, role]

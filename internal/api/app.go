@@ -26,6 +26,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
+	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/internal/videosession"
@@ -114,7 +115,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, log *slog.Lo
 			{Name: "redis", Ping: func(ctx context.Context) error { return rdb.Ping(ctx).Err() }},
 		},
 		Session: authHandler.Session,
-		Routes: []func(*http.ServeMux){
+		Routes: append([]func(*http.ServeMux){
 			authHandler.Routes,
 			organization.NewHandler(clinics, organizationCaller(accounts), fhirBase, log).Routes,
 			practitioner.NewHandler(practitioners, practitionerCaller, log).Routes,
@@ -131,7 +132,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, log *slog.Lo
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		},
+		}, questionnaireRoutes(pool, audit, tx, roles, accounts, fhirBase, log)...),
 		Timeout: RequestTimeout,
 	})
 	return &App{Handler: h, pool: pool, redis: rdb}, nil
@@ -150,6 +151,20 @@ func newConsultation(pool *pgxpool.Pool, lk config.LiveKit, jobs *river.Client[p
 		Jobs: videosession.NewRiverJobs(jobs), Encounters: encounters, Audit: audit, Tx: tx, Clock: clock.System{},
 		Appointments: appointments, Consents: consents, Patients: patients, Practitioners: practitioners, PublicURL: lk.PublicURL,
 	})
+}
+
+// questionnaireRoutes builds the clinic's questionnaire library and its JSON and FHIR routes.
+func questionnaireRoutes(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, roles *practitionerrole.Service,
+	accounts *auth.Service, fhirBase string, log *slog.Logger,
+) []func(*http.ServeMux) {
+	questionnaires := questionnaire.NewService(questionnaire.Ports{
+		Repo: questionnaire.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Roles: roles,
+	})
+	caller := questionnaireCaller(accounts)
+	return []func(*http.ServeMux){
+		questionnaire.NewHTTPHandler(questionnaires, caller, log).Routes,
+		questionnaire.NewHandler(questionnaires, caller, fhirBase, log).Routes,
+	}
 }
 
 // absoluteURL is FHIR_BASE_URL without a trailing slash, or an error when it is not an absolute http(s) URL.
@@ -216,6 +231,27 @@ func scheduleCaller(accounts *auth.Service) func(ctx context.Context) (schedule.
 			return schedule.Caller{}, false, err
 		}
 		return schedule.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID, PractitionerID: m.PractitionerID, Admin: m.Admin}, true, nil
+	}
+}
+
+// questionnaireCaller is the questionnaire domain's view of the signed-in session: for staff of the
+// session's clinic, its clinic, whether it is the admin and which practitioner it is, as read from the
+// database; for anyone else (a patient), no clinic.
+func questionnaireCaller(accounts *auth.Service) func(ctx context.Context) (questionnaire.Caller, bool, error) {
+	return func(ctx context.Context) (questionnaire.Caller, bool, error) {
+		s, ok := auth.SessionFrom(ctx)
+		if !ok {
+			return questionnaire.Caller{}, false, nil
+		}
+		m, err := accounts.ClinicMember(ctx, s)
+		if err != nil {
+			return questionnaire.Caller{}, false, err
+		}
+		c := questionnaire.Caller{AccountID: s.AccountID, PractitionerID: m.PractitionerID, Admin: m.Admin}
+		if m.Admin || m.PractitionerID != "" {
+			c.OrganizationID = s.OrganizationID
+		}
+		return c, true, nil
 	}
 }
 

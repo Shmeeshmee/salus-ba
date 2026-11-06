@@ -30,8 +30,8 @@ func TestCapabilityStatement_IsAnR4CapabilityStatement(t *testing.T) {
 	}
 }
 
-// TestCapabilityStatement_ListsExactlyTheInteractionsServed: docs/accounts/SPEC.md "FHIR interactions" and
-// docs/booking/SPEC.md "FHIR reads and searches".
+// TestCapabilityStatement_ListsExactlyTheInteractionsServed: docs/accounts/SPEC.md "FHIR interactions",
+// docs/booking/SPEC.md "FHIR reads and searches" and docs/questionnaire/SPEC.md §2 "FHIR".
 func TestCapabilityStatement_ListsExactlyTheInteractionsServed(t *testing.T) {
 	var cs struct {
 		Rest []struct {
@@ -81,6 +81,7 @@ func TestCapabilityStatement_ListsExactlyTheInteractionsServed(t *testing.T) {
 		"Patient":          "read ",
 		"Practitioner":     "read ",
 		"PractitionerRole": "read search-type param:organization:reference include:PractitionerRole:practitioner ",
+		"Questionnaire":    "read search-type param:url:uri param:version:token param:status:token ",
 		"Schedule":         "read search-type param:actor:reference ",
 		"Slot":             "search-type param:schedule:reference param:start:date param:status:token ",
 	}
