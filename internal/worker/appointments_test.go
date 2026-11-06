@@ -164,8 +164,13 @@ func TestNotifier_SendsTheAppointmentEmailsToThePatient(t *testing.T) {
 	}
 	var n int
 	if err := owner.QueryRow(t.Context(), `SELECT count(*) FROM audit_event WHERE agent_name IN ('appointment_booked_email', 'appointment_reminder_email')
-		AND purpose_code = 'HOPERAT' AND subtype_code = 'read'`).Scan(&n); err != nil || n != 6 {
-		t.Errorf("%d audit events of the jobs' reads (%v), want 6: the appointment, the patient and the account, twice", n, err)
+		AND purpose_code = 'HOPERAT' AND subtype_code = 'read'`).Scan(&n); err != nil || n != 8 {
+		t.Errorf("%d audit events of the jobs' reads (%v), want 8: the appointment, the patient, the account and the "+
+			"role's default (the questionnaire check, docs/questionnaire package 7), twice", n, err)
+	}
+	if err := owner.QueryRow(t.Context(), `SELECT count(*) FROM audit_event WHERE agent_name IN ('appointment_booked_email', 'appointment_reminder_email')
+		AND subtype_code = 'read' AND entity_reference LIKE 'PractitionerRole/%'`).Scan(&n); err != nil || n != 2 {
+		t.Errorf("%d audit events of the role's default read by the jobs (%v), want 2", n, err)
 	}
 }
 

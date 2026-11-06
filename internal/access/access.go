@@ -134,6 +134,35 @@ func RecordsOutcome(v Viewer, f Facts, a Visit) bool {
 	return f.Consent.Active || past(f, a)
 }
 
+// QuestionnaireResponse is what viewer may see of the patient's questionnaire response to appointment a
+// (docs/questionnaire/SPEC.md §2 "Access rule"), submitted or not: the patient everything; with an active
+// consent, the appointment's practitioner everything once submitted and the name (that it exists, its status)
+// before, and the clinic's admin the name; without one, for a past appointment and a submitted response, the
+// practitioner everything (D9, the care record) and the admin the name; everyone else nothing. Nobody but the
+// patient and the appointment's practitioner is ever Full.
+func QuestionnaireResponse(v Viewer, f Facts, a Visit, submitted bool) Level {
+	if self(v, f) {
+		return Full
+	}
+	if !staffOf(v, f) || (v.Role == RolePractitioner && !ofPractitioner(v, a)) {
+		return None
+	}
+	switch {
+	case !f.Consent.Active && (!past(f, a) || !submitted):
+		return None
+	case v.Role == RolePractitioner && submitted:
+		return Full
+	}
+	return Name
+}
+
+// RequestsQuestionnaire reports whether viewer may ask the patient to fill in a questionnaire before
+// appointment a: its practitioner, with an active consent; nobody else. That a is booked and has not started
+// is the service's check.
+func RequestsQuestionnaire(v Viewer, f Facts, a Visit) bool {
+	return v.Role == RolePractitioner && staffOf(v, f) && ofPractitioner(v, a) && f.Consent.Active
+}
+
 // self reports whether v is the patient the facts are about.
 func self(v Viewer, f Facts) bool {
 	return v.Role == RolePatient && v.Patient != "" && v.Patient == f.Patient

@@ -210,6 +210,10 @@ class ApiClient {
           return Acceptance.fromJson(value);
         case 'Account':
           return Account.fromJson(value);
+        case 'Answer':
+          return Answer.fromJson(value);
+        case 'AnswerValue':
+          return AnswerValue.fromJson(value);
         case 'Appointment':
           return Appointment.fromJson(value);
         case 'Availability':
@@ -250,16 +254,36 @@ class ApiClient {
           return LoginResponse.fromJson(value);
         case 'Patient':
           return Patient.fromJson(value);
+        case 'Questionnaire':
+          return Questionnaire.fromJson(value);
+        case 'QuestionnaireDefault':
+          return QuestionnaireDefault.fromJson(value);
+        case 'QuestionnaireItem':
+          return QuestionnaireItem.fromJson(value);
+        case 'QuestionnaireItemAnswerOptionInner':
+          return QuestionnaireItemAnswerOptionInner.fromJson(value);
+        case 'QuestionnaireItemEnableWhen':
+          return QuestionnaireItemEnableWhen.fromJson(value);
+        case 'QuestionnaireResponse':
+          return QuestionnaireResponse.fromJson(value);
         case 'RegisterRequest':
           return RegisterRequest.fromJson(value);
+        case 'RequestQuestionnaireRequest':
+          return RequestQuestionnaireRequest.fromJson(value);
         case 'RoleSpecialty':
           return RoleSpecialty.fromJson(value);
+        case 'SaveAnswersRequest':
+          return SaveAnswersRequest.fromJson(value);
         case 'SaveAvailabilityRequest':
           return SaveAvailabilityRequest.fromJson(value);
         case 'SavePatientRequest':
           return SavePatientRequest.fromJson(value);
+        case 'SaveQuestionnaireRequest':
+          return SaveQuestionnaireRequest.fromJson(value);
         case 'SetAppointmentStatusRequest':
           return SetAppointmentStatusRequest.fromJson(value);
+        case 'SetRoleQuestionnaireRequest':
+          return SetRoleQuestionnaireRequest.fromJson(value);
         case 'SetSpecialtyRequest':
           return SetSpecialtyRequest.fromJson(value);
         case 'Specialty':

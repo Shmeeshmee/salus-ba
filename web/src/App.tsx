@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react'
 import { AcceptInvite } from './AcceptInvite'
 import { AppointmentDetail } from './AppointmentDetail'
 import { Availability } from './Availability'
+import { Builder } from './Builder'
 import { Calendar } from './Calendar'
 import { CallScreen } from './CallScreen'
 import { ClinicSettings } from './ClinicSettings'
 import { Practitioners } from './Practitioners'
+import { Questionnaires } from './Questionnaires'
 import { SignIn } from './SignIn'
 import type { Account, ApiClient } from './api/client'
 import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
-import { CalendarIcon, ClinicIcon, ClockIcon, Logo, PeopleIcon, SignOutIcon } from './icons'
-import { somethingWrong } from './messages'
+import { CalendarIcon, ClinicIcon, ClockIcon, ListIcon, Logo, PeopleIcon, SignOutIcon } from './icons'
+import { questionnaires, somethingWrong } from './messages'
 import { navigate, usePath } from './route'
 import { Alert, Link } from './ui'
 
@@ -79,6 +81,10 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
               <PeopleIcon />
               Practitioners
             </Link>
+            <Link to="/questionnaires">
+              <ListIcon />
+              {questionnaires.title}
+            </Link>
             {admin && (
               <Link to="/clinic">
                 <ClinicIcon />
@@ -92,7 +98,7 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
           Sign out
         </button>
       </header>
-      <main className={path === '/' || callPath.test(path) ? 'page wide' : 'page'}>
+      <main className={path === '/' || callPath.test(path) || questionnairePath.test(path) ? 'page wide' : 'page'}>
         <Alert message={signOutError} />
         <Screen api={api} fhir={fhir} path={path} account={account} />
       </main>
@@ -102,6 +108,7 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
 
 const appointmentPath = /^\/appointments\/([^/]+)$/
 const callPath = /^\/appointments\/([^/]+)\/call$/
+const questionnairePath = /^\/questionnaires\/([^/]+)$/
 
 function Screen({ api, fhir, path, account }: Clients & { path: string; account: Account }) {
   if (account.role === 'patient') {
@@ -114,6 +121,9 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   if (path === '/') return <Calendar fhir={fhir} account={account} />
   if (path === '/availability') return <Availability api={api} fhir={fhir} account={account} />
   if (path === '/practitioners') return <Practitioners api={api} fhir={fhir} account={account} />
+  if (path === '/questionnaires') return <Questionnaires api={api} fhir={fhir} account={account} />
+  const questionnaire = questionnairePath.exec(path)
+  if (questionnaire) return <Builder key={questionnaire[1]} api={api} fhir={fhir} id={decodeURIComponent(questionnaire[1])} />
   if (path === '/clinic' && account.role === 'admin') {
     return <ClinicSettings fhir={fhir} organizationId={account.organizationId ?? ''} />
   }

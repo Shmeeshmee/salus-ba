@@ -9,6 +9,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
+	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/internal/videosession"
@@ -46,9 +47,10 @@ func newRetention(pool, retentionPool *pgxpool.Pool) (*retention.Service, error)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), postgres.NewTransactor(pool), clock.System{})
 	accounts := auth.NewPostgresRepository(retentionPool)
 	return retention.NewService(map[string]retention.Purger{
-		"session":       auth.NewSessionPurger(accounts),
-		"invite":        auth.NewInvitePurger(accounts),
-		"slot":          slot.NewPurger(slot.NewPostgresRepository(retentionPool)),
-		"video_session": videosession.NewPurger(videosession.NewPostgresRepository(retentionPool)),
+		"session":                auth.NewSessionPurger(accounts),
+		"invite":                 auth.NewInvitePurger(accounts),
+		"slot":                   slot.NewPurger(slot.NewPostgresRepository(retentionPool)),
+		"video_session":          videosession.NewPurger(videosession.NewPostgresRepository(retentionPool)),
+		"questionnaire_response": questionnaireresponse.NewPurger(questionnaireresponse.NewPostgresRepository(retentionPool)),
 	}, audit, clock.System{})
 }

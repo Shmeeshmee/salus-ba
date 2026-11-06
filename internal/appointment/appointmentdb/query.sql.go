@@ -58,6 +58,56 @@ func (q *Queries) AppointmentByID(ctx context.Context, id pgtype.UUID) (Appointm
 	return i, err
 }
 
+const appointmentByIDForShare = `-- name: AppointmentByIDForShare :one
+SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+       cancelled_by_account_id, version_id, status, cancellation_reason,
+       lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+FROM appointment
+WHERE id = $1
+FOR SHARE
+`
+
+type AppointmentByIDForShareRow struct {
+	ID                   pgtype.UUID
+	CreatedAt            pgtype.Timestamptz
+	UpdatedAt            pgtype.Timestamptz
+	CancelledAt          pgtype.Timestamptz
+	PatientID            pgtype.UUID
+	PractitionerRoleID   pgtype.UUID
+	OrganizationID       pgtype.UUID
+	SlotID               pgtype.UUID
+	CancelledByAccountID pgtype.UUID
+	VersionID            int32
+	Status               string
+	CancellationReason   pgtype.Text
+	StartAt              pgtype.Timestamptz
+	EndAt                pgtype.Timestamptz
+}
+
+// AppointmentByID, locking the row against a change (a cancellation's UPDATE waits) until the transaction
+// ends: a write that rests on the appointment being booked. Row-level security asks the UPDATE policies too.
+func (q *Queries) AppointmentByIDForShare(ctx context.Context, id pgtype.UUID) (AppointmentByIDForShareRow, error) {
+	row := q.db.QueryRow(ctx, appointmentByIDForShare, id)
+	var i AppointmentByIDForShareRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CancelledAt,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.OrganizationID,
+		&i.SlotID,
+		&i.CancelledByAccountID,
+		&i.VersionID,
+		&i.Status,
+		&i.CancellationReason,
+		&i.StartAt,
+		&i.EndAt,
+	)
+	return i, err
+}
+
 const cancelAppointment = `-- name: CancelAppointment :one
 UPDATE appointment
 SET status = 'cancelled', cancelled_at = $1, cancellation_reason = $2, cancelled_by_account_id = $3,

@@ -196,3 +196,71 @@ String joinMessage(ApiFailure failure) {
     _ => somethingWrong,
   };
 }
+
+// Questionnaires: the owner's text, word for word (docs/questionnaire/COPY.md, with its M numbers). A change goes
+// back to the owner first.
+const toFillIn = 'To fill in'; // M1
+const inProgress = 'In progress'; // M1
+const submittedStatus = 'Submitted'; // M1
+const closedStatus = 'Closed'; // M1
+const fillIn = 'Fill in'; // M2
+const continueFilling = 'Continue'; // M2
+const viewAnswers = 'View answers'; // M2
+const submitBeforeStart = 'Please submit it before your appointment starts.'; // M3
+const questionnaireClosed = 'The appointment has started, so this questionnaire can no longer be filled in.'; // M4
+String savedAsYouGo(String clinic) =>
+    'Your answers are saved as you go. $clinic sees them only after you submit.'; // M5
+const saved = 'Saved'; // M6
+const saving = 'Saving…'; // M6
+const notSaved = 'Not saved. Check your connection. Saving will try again.'; // M6
+const requiredQuestion = 'Required'; // M7
+const moreInformation = 'More information'; // M8
+const yourAnswer = 'Your answer'; // M9
+const chooseDate = 'Choose a date'; // M9
+const selectOne = 'Select one.'; // M9
+const selectAll = 'Select all that apply.'; // M9
+const yes = 'Yes'; // M9
+const no = 'No'; // M9
+const questionRequired = 'This question is required.'; // M10
+const enterWholeNumber = 'Enter a whole number.'; // M10
+const enterNumber = 'Enter a number.'; // M10
+const numberTooLarge = 'This number is too large.'; // M10
+String upToCharacters(int max) => 'Enter up to $max characters.'; // M10
+const enterValidDate = 'Enter a valid date.'; // M10
+const submit = 'Submit'; // M11
+const submitTitle = 'Submit your answers?'; // M11
+String submitBody(String clinic) =>
+    'You cannot change them after you submit. Your practitioner at $clinic will see them.'; // M11
+const cancel = 'Cancel'; // M11
+const requiredMissing = 'Some required questions are not answered.'; // M12
+const answersSubmitted = 'Answers submitted'; // M13
+const answersSubmittedBody =
+    'Your practitioner can see them before your appointment. You can view them from My appointments.'; // M13
+const yourAnswers = 'Your answers'; // M14
+String submittedAt(String when) => 'Submitted $when'; // M14
+const notAnswered = 'Not answered'; // M14
+const leaveUnsaved = 'Your last answer is not saved yet. Leave anyway?'; // M15
+const stay = 'Stay'; // M15
+const fillingNeedsConsent = 'Filling in this questionnaire needs your consent for this clinic.'; // M16
+const pastDue = 'The appointment has started, so this questionnaire can no longer be changed.'; // M16
+const withdrawnByClinic = 'The clinic withdrew this questionnaire. You do not need to fill it in.'; // M16
+const alreadySubmitted = 'You have already submitted this questionnaire.'; // M16
+const changedElsewhere = 'These answers were changed on another device. The latest answers are shown.'; // M16
+const questionnaireNotAvailable = 'This questionnaire is not available.'; // M16
+const done = 'Done'; // M17, the date picker's confirm button (added on review of PR #24, owner)
+
+/// The approved sentence for a refused save or submit (M16); a 422 is shown on its questions instead.
+String answersMessage(ApiFailure failure) {
+  if (failure.unreachable) return unreachable;
+  return switch (failure.code) {
+    'consent_required' => fillingNeedsConsent,
+    'past_due' => pastDue,
+    'withdrawn' => withdrawnByClinic,
+    'submitted' => alreadySubmitted,
+    'version_conflict' => changedElsewhere,
+    'not_found' => questionnaireNotAvailable,
+    // The appointment was cancelled (added on review of PR #24, owner).
+    'appointment_closed' => questionnaireNotAvailable,
+    _ => somethingWrong,
+  };
+}

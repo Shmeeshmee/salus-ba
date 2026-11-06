@@ -25,6 +25,23 @@ void main() {
     }
   });
 
+  test('every mobile string of the questionnaire COPY.md is in messages.dart, placeholders as parameters', () {
+    final messages = File('lib/messages.dart').readAsStringSync().replaceAll("'\n    '", '');
+    final strings = [
+      for (final line in File('../docs/questionnaire/COPY.md').readAsLinesSync())
+        if (RegExp(r'^- M\d+[ :]').hasMatch(line))
+          for (final m in RegExp(r'"([^"]+)"').allMatches(line))
+            // "[Questionnaire title]" alone is the title itself, not a sentence.
+            if (!RegExp(r'^\[[^\]]+\]$').hasMatch(m[1]!)) m[1]!,
+    ];
+
+    expect(strings, hasLength(greaterThan(45)), reason: 'COPY.md parsed');
+    for (final s in strings) {
+      final pattern = RegExp.escape("'${s.replaceAll("'", r"\'")}'").replaceAll(RegExp(r'\\\[[^\]]+\\\]'), r'\$\w+');
+      expect(messages, matches(RegExp(pattern)), reason: s);
+    }
+  });
+
   test("iOS asks for the camera and the microphone in the owner's words", () {
     final plist = File('ios/Runner/Info.plist').readAsStringSync();
     for (final key in ['NSCameraUsageDescription', 'NSMicrophoneUsageDescription']) {

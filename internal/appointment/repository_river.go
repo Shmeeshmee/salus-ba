@@ -40,6 +40,18 @@ func (j *riverJobs) EnqueueAccessEnd(ctx context.Context, id, org string) error 
 	return j.insertOn(ctx, river.QueueDefault, AccessEndArgs{AppointmentID: id, OrganizationID: org}, time.Time{})
 }
 
+// EnqueueQuestionnaireRequest enqueues questionnaire_default_request on the default queue, which the worker
+// works.
+func (j *riverJobs) EnqueueQuestionnaireRequest(ctx context.Context, id, org string) error {
+	return j.insertOn(ctx, river.QueueDefault, QuestionnaireRequestArgs{AppointmentID: id, OrganizationID: org}, time.Time{})
+}
+
+// EnqueueQuestionnaireDiscard enqueues questionnaire_responses_discard on the default queue, which the worker
+// works.
+func (j *riverJobs) EnqueueQuestionnaireDiscard(ctx context.Context, id, org string) error {
+	return j.insertOn(ctx, river.QueueDefault, QuestionnaireDiscardArgs{AppointmentID: id, OrganizationID: org}, time.Time{})
+}
+
 // insert enqueues args on the email queue in the transaction in ctx, to run at at (zero for now).
 func (j *riverJobs) insert(ctx context.Context, args river.JobArgs, at time.Time) error {
 	return j.insertOn(ctx, emailQueue, args, at)

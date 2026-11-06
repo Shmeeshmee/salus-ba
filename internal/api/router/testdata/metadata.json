@@ -1,7 +1,7 @@
 {
   "resourceType": "CapabilityStatement",
   "status": "active",
-  "date": "2026-11-05",
+  "date": "2026-11-06",
   "publisher": "Salus",
   "kind": "instance",
   "implementation": {
@@ -12,7 +12,7 @@
   "rest": [
     {
       "mode": "server",
-      "documentation": "The clinic directory, patients, consents, appointments and their consultations. A signed-in session is a bearer token or the web app's cookie. The public directory (Organization?listed=true, a listed clinic's PractitionerRole search, Schedule and Slot) needs no session and is not audited. Every other interaction needs a session, shows a caller only what the access rules allow (anything else is 404) and is audited. Search values that are dates are instants with an offset, prefixed ge or lt. Any search parameter not listed here gives 400. Also GET /fhir/R4/metadata.",
+      "documentation": "The clinic directory, patients, consents, appointments and their consultations, the clinic's questionnaires and the patients' answers to them. A signed-in session is a bearer token or the web app's cookie. The public directory (Organization?listed=true, a listed clinic's PractitionerRole search, Schedule and Slot) needs no session and is not audited. Every other interaction needs a session, shows a caller only what the access rules allow (anything else is 404) and is audited. Search values that are dates are instants with an offset, prefixed ge or lt. Any search parameter not listed here gives 400. Also GET /fhir/R4/metadata.",
       "resource": [
         {
           "type": "Organization",
@@ -150,6 +150,57 @@
               "definition": "http://hl7.org/fhir/SearchParameter/Encounter-practitioner",
               "type": "reference",
               "documentation": "One practitioner, the one behind the participant's practitioner role."
+            }
+          ]
+        },
+        {
+          "type": "Questionnaire",
+          "interaction": [{ "code": "read" }, { "code": "search-type" }],
+          "documentation": "A version of one of the clinic's questionnaires: draft, active (published, never changed again) or retired. Read and search: staff of the clinic, and a patient the versions their own questionnaire responses answer; anyone else gets 404 on a read; a search gives staff of another clinic nothing, and a patient without a profile 403. No create or update: questionnaires are built through the JSON API. Help text is a child display item with the questionnaire-itemControl extension, code help.",
+          "searchParam": [
+            {
+              "name": "url",
+              "definition": "http://hl7.org/fhir/SearchParameter/conformance-url",
+              "type": "uri",
+              "documentation": "One canonical url of this server, https://salus.invalid/fhir/Questionnaire/<id>, without a version: every version of one questionnaire. Any other url gives 400."
+            },
+            {
+              "name": "version",
+              "definition": "http://hl7.org/fhir/SearchParameter/conformance-version",
+              "type": "token",
+              "documentation": "One version number, 1, 2, …"
+            },
+            {
+              "name": "status",
+              "definition": "http://hl7.org/fhir/SearchParameter/conformance-status",
+              "type": "token",
+              "documentation": "One of draft, active, retired."
+            }
+          ]
+        },
+        {
+          "type": "QuestionnaireResponse",
+          "interaction": [{ "code": "read" }, { "code": "search-type" }],
+          "searchInclude": ["QuestionnaireResponse:questionnaire"],
+          "documentation": "A questionnaire the appointment's practitioner (or the practitioner role's default, with the booking) asked the patient to fill in before an appointment, and the patient's answers, nested under the questionnaire's sections. As the access rules allow: the patient their own; the appointment's practitioner the answers once submitted and the status before, the clinic's admin the status only, while the patient's consent is active; after a revocation, the submitted responses of appointments that started before it only. Anyone else gets 404 on a read and nothing from a search. Every response carries the questionnaireresponse-appointment extension. No create or update: requests and answers go through the JSON API.",
+          "searchParam": [
+            {
+              "name": "appointment",
+              "definition": "https://salus.invalid/fhir/SearchParameter/questionnaireresponse-appointment",
+              "type": "reference",
+              "documentation": "One appointment."
+            },
+            {
+              "name": "patient",
+              "definition": "http://hl7.org/fhir/SearchParameter/QuestionnaireResponse-patient",
+              "type": "reference",
+              "documentation": "One patient; a patient always gets their own."
+            },
+            {
+              "name": "status",
+              "definition": "http://hl7.org/fhir/SearchParameter/QuestionnaireResponse-status",
+              "type": "token",
+              "documentation": "One of in-progress, completed, stopped."
             }
           ]
         }

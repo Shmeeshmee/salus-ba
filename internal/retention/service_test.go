@@ -52,16 +52,18 @@ func (a *fakeAudit) CountRecordedBefore(_ context.Context, before time.Time) (in
 }
 
 type appliers struct {
-	sessions, invites, slots, videoSessions *fakePurger
-	audit                                   *fakeAudit
+	sessions, invites, slots, videoSessions, responses *fakePurger
+	audit                                              *fakeAudit
 }
 
 func newAppliers() appliers {
-	return appliers{sessions: &fakePurger{rows: 4}, invites: &fakePurger{rows: 1}, slots: &fakePurger{rows: 9}, videoSessions: &fakePurger{rows: 2}, audit: &fakeAudit{}}
+	return appliers{sessions: &fakePurger{rows: 4}, invites: &fakePurger{rows: 1}, slots: &fakePurger{rows: 9}, videoSessions: &fakePurger{rows: 2},
+		responses: &fakePurger{rows: 3}, audit: &fakeAudit{}}
 }
 
 func (a appliers) purgers() map[string]retention.Purger {
-	return map[string]retention.Purger{"session": a.sessions, "invite": a.invites, "slot": a.slots, "video_session": a.videoSessions}
+	return map[string]retention.Purger{"session": a.sessions, "invite": a.invites, "slot": a.slots, "video_session": a.videoSessions,
+		"questionnaire_response": a.responses}
 }
 
 func (a appliers) service(t *testing.T) *retention.Service {
@@ -86,12 +88,16 @@ func TestApply_CallsEachApplierOnceWithItsRulesCutOffAndCountsTheRows(t *testing
 		t.Errorf("purged sessions before %v, invites before %v and slots before %v, want once each before %v",
 			a.sessions.before, a.invites.before, a.slots.before, want)
 	}
+	if want := []time.Time{now}; !slices.Equal(a.responses.before, want) {
+		t.Errorf("purged questionnaire responses before %v, want once before %v", a.responses.before, want)
+	}
 	if want := []time.Time{now.Add(-3653 * day)}; !slices.Equal(a.audit.before, want) {
 		t.Errorf("counted audit events before %v, want once before %v", a.audit.before, want)
 	}
 	// keep and restrict apply nothing: account, practitioner, practitioner_role, patient, consent and schedule
 	// have no result.
-	want := []retention.Result{{Table: "audit_event"}, {Table: "session", Deleted: 4}, {Table: "invite", Deleted: 1}, {Table: "slot", Deleted: 9}, {Table: "video_session", Deleted: 2}}
+	want := []retention.Result{{Table: "audit_event"}, {Table: "session", Deleted: 4}, {Table: "invite", Deleted: 1}, {Table: "slot", Deleted: 9}, {Table: "video_session", Deleted: 2},
+		{Table: "questionnaire_response", Deleted: 3}}
 	if !slices.Equal(results, want) {
 		t.Errorf("results %+v, want %+v", results, want)
 	}
@@ -118,7 +124,7 @@ func TestApply_AuditsEachDeleteRuleOnceWithItsTableAndRowCount(t *testing.T) {
 			Outcome:     auditevent.OutcomeSuccess,
 		}
 	}
-	want := []auditevent.AuditEvent{event("session", 4), event("invite", 1), event("slot", 0), event("video_session", 2)}
+	want := []auditevent.AuditEvent{event("session", 4), event("invite", 1), event("slot", 0), event("video_session", 2), event("questionnaire_response", 3)}
 	if !slices.Equal(a.audit.events, want) {
 		t.Errorf("recorded %+v,\nwant %+v", a.audit.events, want)
 	}
@@ -162,6 +168,17 @@ func TestApply_StopsAtAnApplierThatFails(t *testing.T) {
 	}
 }
 
+// purgersBut is p for every table whose rule is delete but the table without, and for each extra table.
+func purgersBut(p retention.Purger, without string, extra ...string) map[string]retention.Purger {
+	out := map[string]retention.Purger{}
+	for _, table := range append([]string{"session", "invite", "slot", "video_session", "questionnaire_response"}, extra...) {
+		if table != without {
+			out[table] = p
+		}
+	}
+	return out
+}
+
 // The job refuses to start when a delete or remove-range rule has no applier, or an applier has no delete
 // rule to apply.
 func TestNewService_RefusesRulesWithoutAnApplierAndAppliersWithoutARule(t *testing.T) {
@@ -172,13 +189,14 @@ func TestNewService_RefusesRulesWithoutAnApplierAndAppliersWithoutARule(t *testi
 		name    string
 		table   string
 	}{
-		{name: "no session purger", purgers: map[string]retention.Purger{"invite": purger, "slot": purger, "video_session": purger}, audit: &fakeAudit{}, table: "session"},
-		{name: "no invite purger", purgers: map[string]retention.Purger{"session": purger, "slot": purger, "video_session": purger}, audit: &fakeAudit{}, table: "invite"},
-		{name: "no slot purger", purgers: map[string]retention.Purger{"session": purger, "invite": purger, "video_session": purger}, audit: &fakeAudit{}, table: "slot"},
-		{name: "no video_session purger", purgers: map[string]retention.Purger{"session": purger, "invite": purger, "slot": purger}, audit: &fakeAudit{}, table: "video_session"},
-		{name: "no audit check", purgers: map[string]retention.Purger{"session": purger, "invite": purger, "slot": purger, "video_session": purger}, table: "audit_event"},
-		{name: "a purger for a kept table", purgers: map[string]retention.Purger{"session": purger, "invite": purger, "slot": purger, "video_session": purger, "account": purger}, audit: &fakeAudit{}, table: "account"},
-		{name: "a purger for a restricted table", purgers: map[string]retention.Purger{"session": purger, "invite": purger, "slot": purger, "video_session": purger, "schedule": purger}, audit: &fakeAudit{}, table: "schedule"},
+		{name: "no session purger", purgers: purgersBut(purger, "session"), audit: &fakeAudit{}, table: "session"},
+		{name: "no invite purger", purgers: purgersBut(purger, "invite"), audit: &fakeAudit{}, table: "invite"},
+		{name: "no slot purger", purgers: purgersBut(purger, "slot"), audit: &fakeAudit{}, table: "slot"},
+		{name: "no video_session purger", purgers: purgersBut(purger, "video_session"), audit: &fakeAudit{}, table: "video_session"},
+		{name: "no questionnaire_response purger", purgers: purgersBut(purger, "questionnaire_response"), audit: &fakeAudit{}, table: "questionnaire_response"},
+		{name: "no audit check", purgers: purgersBut(purger, ""), table: "audit_event"},
+		{name: "a purger for a kept table", purgers: purgersBut(purger, "", "account"), audit: &fakeAudit{}, table: "account"},
+		{name: "a purger for a restricted table", purgers: purgersBut(purger, "", "schedule"), audit: &fakeAudit{}, table: "schedule"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

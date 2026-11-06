@@ -15,6 +15,16 @@ SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_i
 FROM appointment
 WHERE id = @id;
 
+-- name: AppointmentByIDForShare :one
+-- AppointmentByID, locking the row against a change (a cancellation's UPDATE waits) until the transaction
+-- ends: a write that rests on the appointment being booked. Row-level security asks the UPDATE policies too.
+SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+       cancelled_by_account_id, version_id, status, cancellation_reason,
+       lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+FROM appointment
+WHERE id = @id
+FOR SHARE;
+
 -- name: SearchAppointments :many
 -- Appointment?patient=…&date=ge…&date=lt…&status=…, a clinic's calendar, a patient's visits in a clinic. An
 -- absent parameter matches everything; the scope decides the rest.

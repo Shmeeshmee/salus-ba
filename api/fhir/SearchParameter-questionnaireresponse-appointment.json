@@ -1,0 +1,17 @@
+{
+  "resourceType": "SearchParameter",
+  "id": "questionnaireresponse-appointment",
+  "url": "https://salus.invalid/fhir/SearchParameter/questionnaireresponse-appointment",
+  "version": "0.1.0",
+  "name": "QuestionnaireResponseAppointment",
+  "status": "active",
+  "date": "2026-11-06",
+  "publisher": "Salus",
+  "description": "The questionnaire responses that prepare an appointment (the questionnaireresponse-appointment extension).",
+  "code": "appointment",
+  "base": ["QuestionnaireResponse"],
+  "type": "reference",
+  "expression": "QuestionnaireResponse.extension('https://salus.invalid/fhir/StructureDefinition/questionnaireresponse-appointment').value",
+  "xpathUsage": "normal",
+  "target": ["Appointment"]
+}

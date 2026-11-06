@@ -312,3 +312,115 @@ func TestSetScope_NeedsATransaction(t *testing.T) {
 		}
 	}
 }
+
+// ByIDForShare reads the appointment as ByID does and locks it against a change until the transaction ends.
+// Row-level security lets the patient's own scope take that lock, and the clinic's (a request, the default
+// request job) while the patient's consent with it is active; not the clinic without one.
+func TestByIDForShare_LocksTheAppointmentInThePatientsScopeAndTheClinicsWithAConsent(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seedDB(t, owner)
+	var a, b appointment.Appointment
+	if err := inScope(t, app, asPatient(s.patientA), func(ctx context.Context, r appointment.Repository) error {
+		var err error
+		a, err = r.Create(ctx, newAppt(s, s.patientA, start))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := inScope(t, app, asPatient(s.patientB), func(ctx context.Context, r appointment.Repository) error {
+		var err error
+		b, err = r.Create(ctx, newAppt(s, s.patientB, start.Add(time.Hour)))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	patientOnly := func(id string) func(ctx context.Context, r appointment.Repository) error {
+		return func(ctx context.Context, r appointment.Repository) error { return r.SetPatient(ctx, id) }
+	}
+	tests := []struct {
+		scope func(ctx context.Context, r appointment.Repository) error
+		want  error
+		name  string
+		id    string
+	}{
+		{name: "the patient's own", scope: patientOnly(s.patientA), id: a.ID},
+		{name: "the clinic with the patient's consent", scope: asClinic, id: a.ID},
+		{name: "the clinic without a consent", scope: asClinic, id: b.ID, want: appointment.ErrNotFound},
+		{name: "another patient", scope: patientOnly(s.patientB), id: a.ID, want: appointment.ErrNotFound},
+		{name: "an id that is not a UUID", scope: asClinic, id: "x", want: appointment.ErrNotFound},
+	}
+	for _, tt := range tests {
+		var got appointment.Appointment
+		err := inScope(t, app, tt.scope, func(ctx context.Context, r appointment.Repository) error {
+			var err error
+			got, err = r.ByIDForShare(ctx, tt.id)
+			return err
+		})
+		if !errors.Is(err, tt.want) || (tt.want == nil && !same(got, a)) {
+			t.Errorf("%s: ByIDForShare() = %+v, %v; want %v", tt.name, got, err, tt.want)
+		}
+	}
+}
+
+// A cancellation waits while another transaction holds the appointment's share lock, and commits once it ends;
+// the next ByIDForShare sees it cancelled.
+func TestByIDForShare_MakesACancellationWaitForTheTransaction(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seedDB(t, owner)
+	var a appointment.Appointment
+	if err := inScope(t, app, asPatient(s.patientA), func(ctx context.Context, r appointment.Repository) error {
+		var err error
+		a, err = r.Create(ctx, newAppt(s, s.patientA, start))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	locked, release, cancelled := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	held := make(chan error, 1)
+	go func() {
+		held <- inScope(t, app, asClinic, func(ctx context.Context, r appointment.Repository) error {
+			if _, err := r.ByIDForShare(ctx, a.ID); err != nil {
+				close(locked)
+				return err
+			}
+			close(locked)
+			select { // until released, or the test ends
+			case <-release:
+			case <-ctx.Done():
+			}
+			return nil
+		})
+	}()
+	<-locked
+	go func() {
+		cancelled <- inScope(t, app, asClinic, func(ctx context.Context, r appointment.Repository) error {
+			_, err := r.Cancel(ctx, a.ID, appointment.ReasonProvider, "", now)
+			return err
+		})
+	}()
+	pgtest.WaitForLockWait(t, owner)
+	select {
+	case err := <-cancelled:
+		t.Fatalf("Cancel() returned %v while the lock was held, want it to wait", err)
+	default:
+	}
+	close(release)
+	if err := <-held; err != nil {
+		t.Fatalf("the locking transaction = %v", err)
+	}
+	if err := <-cancelled; err != nil {
+		t.Fatalf("Cancel() after the lock was released = %v", err)
+	}
+	err := inScope(t, app, asClinic, func(ctx context.Context, r appointment.Repository) error {
+		got, err := r.ByIDForShare(ctx, a.ID)
+		if err == nil && got.Status != appointment.StatusCancelled {
+			t.Errorf("ByIDForShare() after the cancellation = %s, want cancelled", got.Status)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

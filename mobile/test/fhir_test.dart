@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:salus/fhir.dart';
 import 'package:salus/session.dart';
 
+import 'questionnaires.dart';
 import 'support.dart';
 
 void main() {
@@ -128,5 +129,40 @@ void main() {
       fhir.freeSlots(scheduleId, DateTime.utc(2026), DateTime.utc(2027)),
       throwsA(isA<ApiFailure>().having((f) => f.unreachable, 'unreachable', true)),
     );
+  });
+
+  test("the patient's questionnaire responses with the versions they answer, the withdrawn left out", () async {
+    h.api.on(
+      'GET /fhir/R4/QuestionnaireResponse',
+      (_) async => fhirResponse(
+        200,
+        bundle(
+          [
+            response('r1'),
+            response('r2', status: 'completed', authored: '2026-11-03T08:00:00Z'),
+            response('r3', status: 'stopped'),
+          ],
+          included: [everyType()],
+        ),
+      ),
+    );
+
+    final found = await fhir.questionnaireResponses(patientId);
+
+    expect(query('GET /fhir/R4/QuestionnaireResponse'), {
+      'patient': ['Patient/$patientId'],
+      '_include': ['QuestionnaireResponse:questionnaire'],
+    });
+    expect([for (final r in found.responses) r.id], ['r1', 'r2']);
+    expect(found.versions.keys, ['$questionnaireUrl|1']);
+    expect(found.versions['$questionnaireUrl|1']!.title, 'Placeholder intake questionnaire');
+  });
+
+  test('one questionnaire response, read again', () async {
+    h.api.on('GET /fhir/R4/QuestionnaireResponse/r1', (_) async => fhirResponse(200, response('r1', versionId: 7)));
+
+    final r = await fhir.questionnaireResponse('r1');
+
+    expect((r.id, r.versionId), ('r1', 7));
   });
 }

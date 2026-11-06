@@ -828,3 +828,203 @@ values). This is SPEC §2 "LiveKit logs", now checked on every run and in CI.
 **Seen in LiveKit's log, not ours to decide here.** At `info` LiveKit logs each client connection's
 `remoteAddress` and `localAddress` (IP and port) and its SDK and browser; in production a client's IP is personal
 data. Recorded for the owner with the production LiveKit setup (SPEC §8).
+
+## Questionnaires (`docs/questionnaire`)
+
+### Package 3: questionnaire responses and the access rule
+
+**Processing added.** The FHIR `QuestionnaireResponse` (`questionnaire_response` table): a request to the
+patient to fill in one questionnaire version before one appointment, and later their answers (package 4). The
+appointment, the clinic, the patient, the practitioner role and the due time (the appointment's start) are
+copied once from the appointment; the questionnaire version and its series; how it was requested (`default` or
+`added`); the status (`in-progress`, `completed`, `stopped`), the submit time and the answers (a flat list of
+`linkId` and values). That a patient was asked a given questionnaire is itself health data (its title can name a
+condition). In this package the appointment's practitioner can request a questionnaire for a booked appointment
+that has not started, with the patient's active consent, and withdraw it while it is not submitted; a
+withdrawal clears the answers at once and keeps the row, with no answers, as the record of the request. Reads
+and searches exist in the service; the endpoints come in package 6.
+
+**Purpose and lawful basis.** Preparing the appointment and, once submitted, the care record (Art. 9(2)(h)),
+with the consent for sharing before care. **Needs legal confirmation before production** (SPEC §4, §8).
+
+**Access.** `access.QuestionnaireResponse`, pure and table-tested over role, consent, appointment, clinic and
+submission: the patient their own; with an active consent, the appointment's practitioner the answers once
+submitted and only that it exists and its status before, the clinic's admin that it exists and its status; after
+a revocation, for an appointment that started before it, the practitioner the submitted answers (D9) and the
+admin that it exists; nobody else, and nobody but the patient and the appointment's practitioner ever sees
+answers (asserted for every combination). Row-level security on `questionnaire_response` matches it: the patient
+their own (read and update); a clinic the rows of its patients with an active consent (read, request, withdraw)
+and after a revocation only the `completed` rows of appointments that started before it (read only); the
+notifier's notice scope the rows of its one appointment; deletion only by the discard scope, for a cancelled
+appointment, and by `salus_retention`'s purger. `salus_app` cannot change whose a response is, which appointment,
+version or due time (tested). The patient scope now also reads the questionnaire versions its own responses
+reference, and nothing else of the library. Every request, withdrawal, read and returned search result writes an
+`AuditEvent` in its transaction, refusals included (`TREAT` for staff, `PATRQT` for the patient); a request also
+records the practitioner's read of the version.
+
+**Retention.** `questionnaire_response`: `delete` an unsubmitted response (in progress or withdrawn) once its due
+time has passed, by the daily retention job (one `AuditEvent` per run with the count); a `completed` one is kept
+with the clinical record. **Needs a legal decision before production** (SPEC §5, §8).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A practitioner reads answers the patient has not submitted | The rule gives them the status only, and a `Name` view carries no answers (tested); after a revocation row-level security hides unsubmitted rows |
+| Answers left after a withdrawal | The withdrawal clears them in the same statement; a check constraint refuses a withdrawn row with answers (tested) |
+| Unsubmitted answers kept after the appointment | The purger deletes them once due, in every clinic (tested at the due time ± 1 s) |
+| The fact of a request reaching another clinic | Row-level security and the service both scope to the clinic and the patient's consent; a request's version must belong to its clinic (foreign key, tested) |
+
+### Package 4: answers
+
+**Processing added.** The patient's answers to a requested questionnaire (`questionnaire_response.answers`, a
+flat list of `linkId` and values) and their submission (`status` `completed`, `authored_at`). The patient saves
+answers as they go, each save replacing the saved list, and submits once; a submitted response is final. Each
+answer is checked against its item's type and limits; on submit every enabled required question must be
+answered, and the answers of items hidden by a condition are removed, so only what the clinic asked and the
+patient was shown is kept. The endpoints come in package 6.
+
+**Purpose and lawful basis.** As package 3: preparing the appointment and, once submitted, the care record
+(Art. 9(2)(h)), with the consent for sharing before care. **Needs legal confirmation before production.**
+
+**Access.** Only the patient saves and submits their own response, while it is in progress, before the
+appointment starts and with their active consent with the clinic: the consent is read in the same transaction,
+so a revocation refuses the very next save (service test). Staff who see the response are refused (`ErrForbidden`),
+anyone else is told it does not exist. To check the answers the service reads the questionnaire version in the
+patient's scope, where row-level security shows only the versions their own responses reference; that read is
+audited as the patient's (`PATRQT`). Every save and submit writes an `AuditEvent` in its transaction, refusals
+included. A save or submit is made on the version last read (`If-Match`), so a stale device cannot overwrite
+newer answers.
+
+**Retention.** Unchanged from package 3: unsubmitted answers are deleted once due; submitted ones are kept with
+the clinical record.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Answers kept for questions the patient never saw | Submit removes the answers of hidden items (conditions and hidden sections, chains, tested) |
+| Answers saved after a revocation | The consent is read in the save's transaction, not cached (service test) |
+| Answers or linkIds in logs or errors | Error text names no linkId and no value; the offending linkIds travel only in `AnswersError.LinkIDs` for the 422 (tested) |
+| Oversized or malformed answers stored | Every answer is checked against its item's type and limits on every save and again on submit (tested at each limit) |
+
+### Package 5: booking and cancellation
+
+**Processing added.** Two jobs on the worker's default queue, each enqueued in the transaction that causes it,
+with the appointment's id and the clinic's id only. `questionnaire_default_request`, with every booking: the
+active version of the default questionnaire of the appointment's role is requested from the patient (a
+`questionnaire_response` row, in progress, no answers, source `default`), once. `questionnaire_responses_discard`,
+with every cancellation (by the patient, by staff, and by the revocation job): every response of the cancelled
+appointment is deleted, submitted or not (D8).
+
+**Purpose and lawful basis.** As package 3. The request needs the patient's active consent with the clinic:
+the job reads the appointment in the clinic's scope, which shows a future appointment only while the consent is
+active, and the insert policy requires it too.
+
+**Access.** The jobs act on one appointment of one clinic. The request runs in the clinic's scope; it does
+nothing for an appointment it cannot see, one no longer booked or already started, a role without a default, or
+a default with no active version. The discard runs in the clinic's scope with the appointment's notice and first
+checks that the appointment is cancelled; the delete policy checks it again. Both are audited with the job as
+agent (`HOPERAT`): one create per request and one delete per response deleted; the questionnaire's service
+audits the job's read of the role's default and the version. The jobs log the appointment's id only.
+
+**Retention.** Responses of a cancelled appointment are deleted at once by the discard, including after a
+revocation; responses of appointments that started before a revocation are kept (D9). Otherwise unchanged from
+package 3.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Answers kept for an appointment that will not take place | Every cancellation path enqueues the discard in its own transaction (service tests); the discard deletes submitted and unsubmitted responses (tested on the real database, also after a revocation) |
+| A past appointment's care record lost to a revocation | The discard deletes only for a cancelled appointment; the revocation cancels only future ones; the past one's completed response stays (tested end to end in the worker) |
+| A questionnaire requested without consent | The request reads the appointment in the clinic's scope, which hides it after a revocation, and the insert policy requires an active consent (tested) |
+| Personal data in job arguments or logs | The arguments are the two ids (tested on River's table); the logs hold the appointment's id only, never a title, question or answer (tested) |
+| A retried job duplicating or deleting more | The request inserts once per series (`ON CONFLICT DO NOTHING`); a repeated discard finds nothing left (tested) |
+
+### Package 6: responses API
+
+**Processing added.** The JSON API: the appointment's practitioner requests a questionnaire for an appointment
+(`POST /appointments/{id}/questionnaires`) and withdraws a request
+(`POST /questionnaire-responses/{id}/withdraw`); the patient saves (`PUT /questionnaire-responses/{id}/answers`)
+and submits (`POST /questionnaire-responses/{id}/submit`) their answers. The FHIR API: `QuestionnaireResponse`
+read and search (by appointment, patient and status, with `_include=QuestionnaireResponse:questionnaire`), the
+answers nested under the questionnaire's sections; and a patient's read and search of the `Questionnaire`
+versions their own responses answer. No new field, table or processor.
+
+**Purpose and lawful basis.** As package 3.
+
+**Access.** Through the services of packages 1 to 4 (`access.QuestionnaireResponse`, the consent check, row-level
+security as `salus_app`): the patient their own; the appointment's practitioner the answers once submitted and
+the status before; the clinic's admin the status only; after a revocation, the appointment's practitioner the
+submitted answers of an appointment that started before it (D9), nobody else; anyone else 404. A `Name` view
+carries no answers. Each response is written against the version it answers, read once per request as the
+caller's own audited read of it. Bodies are read up to 256 KiB, unknown fields refused. Answers are sent with
+`Cache-Control: no-store`.
+
+**Audit.** Every request, withdrawal, save, submit and read writes an `AuditEvent` in its transaction, refusals
+included; a search one per response returned (one without an entity when none), and one read per version it
+answers. The patient's caller reads their own profile first (audited, as for appointments).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Answers shown to staff before the submit, to the admin, or to another practitioner | The handler writes `item` only for a `Full` view; the access matrix is tested through the API on the real database with row-level security on, before and after a revocation |
+| Answers in logs, errors or caches | Error bodies are fixed codes with `linkIds` only; the handlers' logs hold no answer, title or question (tested); `no-store` on every answer |
+| A patient reading another clinic's questionnaire library | A patient reads a version only in their scope, where row-level security shows the versions their own responses reference (tested) |
+
+### Package 7: e-mail mention
+
+**Processing added.** The booking confirmation and the 24-hour reminder add one fixed sentence (COPY E1) when
+the appointment has a questionnaire outstanding: a response in progress, or the active default of the
+appointment's role not yet requested. The notifier asks `questionnaireresponse.Service.Outstanding` with the
+appointment's id and the clinic's id; only a yes or no comes back. No new field, table, job or processor; SES
+(not wired in) would carry the sentence, recorded in `processors.md`.
+
+**Purpose and lawful basis.** As package 3, and as the appointment e-mails (`docs/booking`): so the patient knows
+to fill the questionnaire in before the appointment.
+
+**Access.** The check runs in the clinic's scope with the appointment's notice, as `salus_app`: row-level
+security shows the responses of that one appointment; the service drops any of another clinic. It reads their
+status and series, not their answers. It is audited with the e-mail job as agent (`HOPERAT`): a search event per
+response read, or one without an entity when there is none; the questionnaire's service audits the read of the
+role's default.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The questionnaire's title, which can name a condition, in an e-mail | The sentence is a constant; the service returns a boolean only; the e-mail is tested on the real database not to hold the title, a question or the version's id |
+| A mention for a questionnaire already submitted | A submitted or withdrawn response, or a submitted default, is not outstanding (service tests and the real database) |
+| A failed check sending the e-mail without the sentence | A failed check sends nothing and the job retries (tested) |
+
+### Package 10: mobile
+
+**Processing added.** The patient app shows, on each appointment's card in My appointments, the questionnaires
+asked for it, read with one FHIR search of the patient's own responses with the versions they answer
+(`QuestionnaireResponse?patient=…&_include=QuestionnaireResponse:questionnaire`); a withdrawn one is not shown,
+nor anything on a cancelled appointment. The questionnaire screen saves the answers through the JSON API when the
+patient leaves a field, 2 seconds after they stop typing, and at once for a choice, yes or no, or a date; it submits
+them after a confirmation and shows them read only afterwards. No new field, table, endpoint or processor; no new
+dependency.
+
+**Purpose and lawful basis.** As package 3.
+
+**Access.** Only the signed-in patient's own responses, through the API's access rule and consent check (packages
+3, 4 and 6); the app decides nothing the server does not decide again. Conditions are evaluated on the device the
+same way as on the server, only to show and hide questions; the server removes the answers of hidden items on
+submit.
+
+**Storage on the device.** None: answers live in the screen's memory while it is open and on the server once
+saved. Nothing is written to disk, shared preferences or a cache; the session token stays in the platform's
+secure storage as before.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Answers or the questionnaire's title in the device's log | The app prints nothing while filling in, saving, a refused save and submitting (tested) |
+| An answer lost without the patient knowing | The saved state is always in view (M6); a failed save is shown and tried again every 5 seconds; leaving with an answer not saved asks first (M15) (tested) |
+| A save after the consent was revoked or the appointment started | The server refuses it (409); the app shows M16 and stops saving (tested) |
+| Answers shown to someone else on a shared device | The app's session rules apply as for appointments; the read-only view shows only the patient's own submitted answers |

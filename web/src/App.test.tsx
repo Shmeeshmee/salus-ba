@@ -24,6 +24,7 @@ const staff = (account: Account): Record<string, Route> => ({
   'GET /auth/me': () => Response.json(account),
   'GET /fhir/R4/PractitionerRole': emptyBundle,
   'GET /fhir/R4/Appointment': emptyBundle,
+  'GET /fhir/R4/Questionnaire': emptyBundle,
   'GET /invites': () => Response.json({ invites: [] }),
   'GET /specialties': () => Response.json({ specialties: [] }),
   [`GET /fhir/R4/Organization/${org}`]: organization,
@@ -64,6 +65,7 @@ describe('App', () => {
   it.each([
     ['Working hours', '/availability'],
     ['Practitioners', '/practitioners'],
+    ['Questionnaires', '/questionnaires'],
   ])('gives staff the calendar and %s', async (screenName, path) => {
     renderAt('/', staff({ ...admin, role: 'practitioner', practitionerId: 'a3000000-0000-4000-8000-0000000000a1' }))
 
@@ -72,6 +74,25 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: screenName })).toBeTruthy()
     expect(location.pathname).toBe(path)
+  })
+
+  it("opens a questionnaire's builder from its path", async () => {
+    renderAt('/questionnaires/q1', {
+      ...staff(admin),
+      'GET /fhir/R4/Questionnaire/q1': () =>
+        fhirJSON({
+          resourceType: 'Questionnaire',
+          id: 'q1',
+          url: 'https://salus.invalid/fhir/Questionnaire/s1',
+          version: '1',
+          title: 'Placeholder intake',
+          status: 'draft',
+          meta: { versionId: '1', lastUpdated: '2026-11-04T09:30:00Z' },
+        }),
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Placeholder intake' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Add an item' })).toBeTruthy()
   })
 
   it('opens an appointment from its path', async () => {

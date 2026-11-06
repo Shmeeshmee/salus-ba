@@ -66,9 +66,25 @@ func (c zonedClinics) Read(_ context.Context, cl organization.Caller, id string)
 	return organization.Organization{ID: id, Name: "Synthetic clinic", TimeZone: "Europe/Sarajevo"}, nil
 }
 
+// fakeQuestionnaires tells whether a questionnaire is outstanding, as set.
+type fakeQuestionnaires struct {
+	err         error
+	asked       []string // agent, clinic, appointment
+	outstanding bool
+}
+
+func (f *fakeQuestionnaires) Outstanding(_ context.Context, agent, org, id string) (bool, error) {
+	f.asked = []string{agent, org, id}
+	return f.outstanding, f.err
+}
+
 func newMail(appts *fakeAppointments, accounts *fakeAccounts, clinics zonedClinics, sender *fakeSender) *notification.Service {
+	return newMailAsking(appts, accounts, clinics, sender, &fakeQuestionnaires{})
+}
+
+func newMailAsking(appts *fakeAppointments, accounts *fakeAccounts, clinics zonedClinics, sender *fakeSender, q *fakeQuestionnaires) *notification.Service {
 	return notification.NewService(notification.Ports{
-		Appointments: appts, Accounts: accounts, Clinics: clinics, Sender: sender,
+		Appointments: appts, Accounts: accounts, Clinics: clinics, Sender: sender, Questionnaires: q,
 		WebBaseURL: "https://app.example.test", PatientAppURL: "https://patient.example.test/",
 	})
 }
@@ -193,5 +209,74 @@ func TestAppointmentEmails_StopAtTheFirstFailureWithoutLeakingTheMessage(t *test
 	err := newMail(&fakeAppointments{err: appointment.ErrNotFound}, &fakeAccounts{}, zonedClinics{}, &fakeSender{}).SendAppointmentReminder(t.Context(), apptID, clinicID)
 	if !errors.Is(err, appointment.ErrNotFound) {
 		t.Errorf("an unknown appointment = %v, want appointment.ErrNotFound for the job to cancel", err)
+	}
+}
+
+// e1 is COPY.md E1, the sentence the confirmation and the reminder add when a questionnaire is outstanding.
+const e1 = "There is a questionnaire to fill in before your appointment. You can find it in the Salus app."
+
+// The confirmation and the reminder add E1 after their first paragraph when the job's check finds a
+// questionnaire outstanding, and leave it out otherwise; the cancellation never asks.
+func TestAppointmentEmails_MentionAnOutstandingQuestionnaireAfterTheFirstParagraph(t *testing.T) {
+	tests := []struct {
+		send   func(s *notification.Service, ctx context.Context) error
+		agent  string
+		golden string
+	}{
+		{func(s *notification.Service, ctx context.Context) error {
+			return s.SendAppointmentBooked(ctx, apptID, clinicID)
+		}, "appointment_booked_email", "booked"},
+		{func(s *notification.Service, ctx context.Context) error {
+			return s.SendAppointmentReminder(ctx, apptID, clinicID)
+		}, "appointment_reminder_email", "reminder"},
+	}
+	for _, tt := range tests {
+		for _, outstanding := range []bool{true, false} {
+			q, sender := &fakeQuestionnaires{outstanding: outstanding}, &fakeSender{}
+			s := newMailAsking(&fakeAppointments{status: appointment.StatusBooked}, &fakeAccounts{}, zonedClinics{}, sender, q)
+			if err := tt.send(s, t.Context()); err != nil {
+				t.Fatalf("%s: error = %v", tt.agent, err)
+			}
+			if want := tt.agent + " " + clinicID + " " + apptID; strings.Join(q.asked, " ") != want {
+				t.Errorf("%s: asked %v, want %s: the job as agent", tt.agent, q.asked, want)
+			}
+			if len(sender.sent) != 1 {
+				t.Fatalf("%s: sent %d e-mails, want 1", tt.agent, len(sender.sent))
+			}
+			body := sender.sent[0].Body
+			if !outstanding {
+				golden(t, tt.golden+".txt", body)
+				continue
+			}
+			golden(t, tt.golden+"_questionnaire.txt", body)
+			paragraphs := strings.Split(body, "\n\n")
+			if len(paragraphs) < 2 || paragraphs[1] != e1 {
+				t.Errorf("%s: the second paragraph is not E1:\n%s", tt.agent, body)
+			}
+		}
+	}
+	q, sender := &fakeQuestionnaires{outstanding: true}, &fakeSender{}
+	if err := newMailAsking(&fakeAppointments{status: appointment.StatusCancelled}, &fakeAccounts{}, zonedClinics{}, sender, q).
+		SendAppointmentCancelled(t.Context(), apptID, clinicID); err != nil {
+		t.Fatal(err)
+	}
+	if q.asked != nil || len(sender.sent) != 1 || strings.Contains(sender.sent[0].Body, "questionnaire") {
+		t.Errorf("the cancellation asked %v and sent %+v, want no check and no mention", q.asked, sender.sent)
+	}
+}
+
+// A failed check sends nothing (the job retries), and an e-mail that no longer applies does not check.
+func TestAppointmentEmails_SendNothingWhenTheQuestionnaireCheckFails(t *testing.T) {
+	down := errors.New("down")
+	q, sender := &fakeQuestionnaires{err: down}, &fakeSender{}
+	err := newMailAsking(&fakeAppointments{status: appointment.StatusBooked}, &fakeAccounts{}, zonedClinics{}, sender, q).
+		SendAppointmentBooked(t.Context(), apptID, clinicID)
+	if !errors.Is(err, down) || len(sender.sent) != 0 {
+		t.Errorf("error = %v, sent %d; want the check's error and nothing sent", err, len(sender.sent))
+	}
+	q = &fakeQuestionnaires{outstanding: true}
+	if err := newMailAsking(&fakeAppointments{status: appointment.StatusCancelled}, &fakeAccounts{}, zonedClinics{}, &fakeSender{}, q).
+		SendAppointmentReminder(t.Context(), apptID, clinicID); err != nil || q.asked != nil {
+		t.Errorf("a reminder of a cancelled appointment: error = %v, asked %v; want nil and no check", err, q.asked)
 	}
 }

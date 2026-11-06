@@ -154,6 +154,21 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (appointment.Appoi
 	return appointment.Appointment{}, appointment.ErrNotFound
 }
 
+// ByIDForShare is ByID in a scope that may also change the appointment: the patient's own, or the clinic's
+// with the patient's active consent (the UPDATE policies).
+func (r *fakeRepository) ByIDForShare(ctx context.Context, id string) (appointment.Appointment, error) {
+	r.seen(ctx, "ByIDForShare")
+	if r.err != nil {
+		return appointment.Appointment{}, r.err
+	}
+	for _, a := range r.appts {
+		if a.ID == id && r.visible(a) && (r.patient != "" || r.consents.state[a.PatientID+a.OrganizationID].Active) {
+			return a, nil
+		}
+	}
+	return appointment.Appointment{}, appointment.ErrNotFound
+}
+
 func (r *fakeRepository) Search(ctx context.Context, f appointment.Filter) ([]appointment.Appointment, error) {
 	r.seen(ctx, "Search")
 	if r.err != nil {
@@ -359,6 +374,14 @@ func (j *fakeJobs) EnqueueCancelled(ctx context.Context, id, org string) error {
 
 func (j *fakeJobs) EnqueueAccessEnd(ctx context.Context, id, org string) error {
 	return j.add(ctx, "access_end "+id+" "+org)
+}
+
+func (j *fakeJobs) EnqueueQuestionnaireRequest(ctx context.Context, id, org string) error {
+	return j.add(ctx, "questionnaire_request "+id+" "+org)
+}
+
+func (j *fakeJobs) EnqueueQuestionnaireDiscard(ctx context.Context, id, org string) error {
+	return j.add(ctx, "questionnaire_discard "+id+" "+org)
 }
 
 func (j *fakeJobs) EnqueueReminder(ctx context.Context, id, org string, at time.Time) error {

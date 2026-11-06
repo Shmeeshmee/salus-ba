@@ -108,8 +108,9 @@ func visits(all []Appointment) []access.Visit {
 
 // Cancel cancels the booked appointment id and returns it: the patient their own until 24 hours before the
 // start (reason pat), its practitioner and the clinic's admin at any time (prov), each with full access to
-// it. In one transaction it frees the slot while its start is ahead, enqueues the cancellation e-mail and the
-// end of the consultation's access (consultation_access_end), and audits. ErrNotFound for an appointment the
+// it. In one transaction it frees the slot while its start is ahead, enqueues the cancellation e-mail, the
+// end of the consultation's access (consultation_access_end) and the discard of its questionnaire responses
+// (questionnaire_responses_discard), and audits. ErrNotFound for an appointment the
 // caller may not see, ErrForbidden for one seen at the name only (a past one after a revocation), ErrClosed for
 // one no longer booked, ErrCancellationWindowClosed for the patient inside the 24 hours; each refusal is
 // audited.
@@ -170,8 +171,9 @@ func (s *Service) cancel(ctx context.Context, c Caller, id string) (out Appointm
 	return out, nil, s.cancelled(ctx, out)
 }
 
-// cancelled frees the slot of the cancelled appointment a and enqueues its e-mail and the end of its
-// consultation's access (consultation_access_end), in its transaction.
+// cancelled frees the slot of the cancelled appointment a and enqueues its e-mail, the end of its
+// consultation's access (consultation_access_end) and the discard of its questionnaire responses
+// (questionnaire_responses_discard), in its transaction. Every cancellation goes through it.
 func (s *Service) cancelled(ctx context.Context, a Appointment) error {
 	if _, err := s.Slots.Release(ctx, a.OrganizationID, a.SlotID); err != nil {
 		return err
@@ -179,7 +181,10 @@ func (s *Service) cancelled(ctx context.Context, a Appointment) error {
 	if err := s.Jobs.EnqueueCancelled(ctx, a.ID, a.OrganizationID); err != nil {
 		return err
 	}
-	return s.Jobs.EnqueueAccessEnd(ctx, a.ID, a.OrganizationID)
+	if err := s.Jobs.EnqueueAccessEnd(ctx, a.ID, a.OrganizationID); err != nil {
+		return err
+	}
+	return s.Jobs.EnqueueQuestionnaireDiscard(ctx, a.ID, a.OrganizationID)
 }
 
 // SetStatus marks the booked appointment id fulfilled or noshow, by its practitioner, once its start has
@@ -242,8 +247,8 @@ func (s *Service) setStatus(ctx context.Context, c Caller, id string, status Sta
 // consent_revoked job), every booked appointment of theirs there that starts after the latest revocation and
 // was booked before it (an appointment booked after consenting again stays), inside the 24 hours too, with
 // reason pat. In one transaction in the patient's scope with the clinic set: each is cancelled, its slot freed
-// while ahead, its e-mail and the end of its consultation's access enqueued and the change audited with the job
-// as agent. It returns how many it
+// while ahead, its e-mail, the end of its consultation's access and the discard of its questionnaire responses
+// enqueued and the change audited with the job as agent. It returns how many it
 // cancelled; a retry finds none left. Nothing happens when the patient never revoked a consent there.
 func (s *Service) CancelForRevokedConsent(ctx context.Context, patientID, org string) (int, error) {
 	var n int

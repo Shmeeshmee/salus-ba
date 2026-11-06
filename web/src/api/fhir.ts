@@ -81,6 +81,58 @@ export interface Appointment {
   participant: { status: string; actor: Reference }[]
 }
 
+export interface QuestionnaireItem {
+  linkId: string
+  text: string
+  type: string
+  required?: boolean
+  repeats?: boolean
+  answerOption?: { valueString: string }[]
+  enableWhen?: { question: string; operator: string; answerBoolean?: boolean; answerString?: string }[]
+  extension?: { url: string; valueCodeableConcept?: CodeableConcept }[]
+  item?: QuestionnaireItem[]
+}
+
+export interface Questionnaire {
+  resourceType: 'Questionnaire'
+  id: string
+  meta: Meta
+  url: string
+  version: string
+  title: string
+  status: 'draft' | 'active' | 'retired'
+  description?: string
+  item?: QuestionnaireItem[]
+}
+
+export interface AnswerValue {
+  valueString?: string
+  valueBoolean?: boolean
+  valueInteger?: number
+  valueDecimal?: number
+  valueDate?: string
+}
+
+// QuestionnaireResponseItem is an answered question, or a section holding them (SPEC §2 "FHIR").
+export interface QuestionnaireResponseItem {
+  linkId: string
+  answer?: AnswerValue[]
+  item?: QuestionnaireResponseItem[]
+}
+
+export interface QuestionnaireResponse {
+  resourceType: 'QuestionnaireResponse'
+  id: string
+  meta: Meta
+  extension?: { url: string; valueReference?: Reference }[]
+  questionnaire: string // the version's canonical url|version
+  status: 'in-progress' | 'completed' | 'stopped'
+  subject: Reference
+  author: Reference
+  authored?: string
+  item?: QuestionnaireResponseItem[] // a Name view has none
+}
+
 export interface Bundle<R = PractitionerRole | Practitioner> {
   resourceType: 'Bundle'
   type: 'searchset'

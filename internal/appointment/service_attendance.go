@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
@@ -12,7 +13,8 @@ import (
 // Attendance is an appointment with what the caller is to it, for the consultation (docs/consultation/SPEC.md
 // §2 "Who may join"), which decides and audits the access itself.
 type Attendance struct {
-	PractitionerID string // the practitioner of the appointment's role
+	RevokedAt      time.Time // the latest revocation of the patient's consent with the clinic; zero when none
+	PractitionerID string    // the practitioner of the appointment's role
 	Appointment    Appointment
 	Level          access.Level // what the caller may see of the appointment (access.Appointment)
 	Profile        access.Level // what the caller may see of its patient (access.Profile)
@@ -42,9 +44,9 @@ func (s *Service) Attendance(ctx context.Context, c Caller, id string) (Attendan
 		}
 		out = Attendance{
 			Appointment: v.a, PractitionerID: practitionerID, Level: v.level, Profile: access.Profile(v.viewer, v.facts),
-			ConsentActive: v.facts.Consent.Active,
-			Patient:       c.patient(),
-			Practitioner:  !c.patient() && v.viewer.PractitionerRole != "" && v.viewer.PractitionerRole == v.a.PractitionerRoleID,
+			ConsentActive: v.facts.Consent.Active, RevokedAt: v.facts.Consent.RevokedAt,
+			Patient:      c.patient(),
+			Practitioner: !c.patient() && v.viewer.PractitionerRole != "" && v.viewer.PractitionerRole == v.a.PractitionerRoleID,
 		}
 		return nil
 	})
@@ -63,6 +65,18 @@ func (s *Service) Lookup(ctx context.Context, id string) (Appointment, error) {
 	a, err := s.Repo.ByID(ctx, id)
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return Appointment{}, fmt.Errorf("appointment: lookup: %w", err)
+	}
+	return a, err
+}
+
+// LookupLocked is Lookup, locking the appointment against a change until the caller's transaction ends: a
+// cancellation waits for it, and one that committed first is seen (docs/questionnaire/SPEC.md §2 "Requests").
+// For a questionnaire request or answer, which audits its own write. The scope must also let it change the
+// appointment: the patient's own, or the clinic's with the patient's active consent; ErrNotFound otherwise.
+func (s *Service) LookupLocked(ctx context.Context, id string) (Appointment, error) {
+	a, err := s.Repo.ByIDForShare(ctx, id)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return Appointment{}, fmt.Errorf("appointment: lookup locked: %w", err)
 	}
 	return a, err
 }

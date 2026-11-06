@@ -194,6 +194,49 @@ type PractitionerRole struct {
 	SpecialtyCode  pgtype.Text
 }
 
+type Questionnaire struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	PublishedAt    pgtype.Timestamptz
+	RetiredAt      pgtype.Timestamptz
+	SeriesID       pgtype.UUID
+	OrganizationID pgtype.UUID
+	Version        int32
+	VersionID      int32
+	Status         string
+	Title          string
+	Description    string
+	Items          []byte
+}
+
+type QuestionnaireDefault struct {
+	PractitionerRoleID pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	OrganizationID     pgtype.UUID
+	SeriesID           pgtype.UUID
+	VersionID          int32
+}
+
+type QuestionnaireResponse struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	DueAt              pgtype.Timestamptz
+	AuthoredAt         pgtype.Timestamptz
+	OrganizationID     pgtype.UUID
+	AppointmentID      pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	QuestionnaireID    pgtype.UUID
+	SeriesID           pgtype.UUID
+	VersionID          int32
+	Source             string
+	Status             string
+	Answers            []byte
+}
+
 type RiverJob struct {
 	ID           int64
 	State        RiverJobState

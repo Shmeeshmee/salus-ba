@@ -21,13 +21,15 @@ class Booking {
       _patient = api.PatientApi(client),
       _consents = api.ConsentsApi(client),
       _appointments = api.AppointmentsApi(client),
-      _consultation = api.ConsultationApi(client);
+      _consultation = api.ConsultationApi(client),
+      _questionnaires = api.QuestionnairesApi(client);
 
   final Fhir fhir;
   final api.PatientApi _patient;
   final api.ConsentsApi _consents;
   final api.AppointmentsApi _appointments;
   final api.ConsultationApi _consultation;
+  final api.QuestionnairesApi _questionnaires;
 
   /// The signed-in patient's profile, or null before it is first saved.
   Future<api.Patient?> me() async {
@@ -87,6 +89,24 @@ class Booking {
     final status = await apiCall(() => _consultation.getConsultation(appointmentId));
     if (status == null) throw const ApiFailure(status: HttpStatus.badGateway);
     return status;
+  }
+
+  /// Replaces the saved answers of the response at [versionId] (docs/questionnaire/SPEC.md §2 "Patient flow");
+  /// the answer carries the new version.
+  Future<api.QuestionnaireResponse> saveAnswers(String id, int versionId, List<api.Answer> answers) => _answered(
+    () => _questionnaires.saveQuestionnaireAnswers(_etag(versionId), id, api.SaveAnswersRequest(answers: answers)),
+  );
+
+  /// Submits the saved answers of the response at [versionId]; final.
+  Future<api.QuestionnaireResponse> submitAnswers(String id, int versionId) =>
+      _answered(() => _questionnaires.submitQuestionnaireAnswers(_etag(versionId), id));
+
+  static String _etag(int versionId) => 'W/"$versionId"';
+
+  static Future<api.QuestionnaireResponse> _answered(Future<api.QuestionnaireResponse?> Function() call) async {
+    final r = await apiCall(call);
+    if (r == null) throw const ApiFailure(status: HttpStatus.badGateway);
+    return r;
   }
 
   /// The listed clinics, with the practitioners of those among [clinicIds]. A clinic that is no longer listed

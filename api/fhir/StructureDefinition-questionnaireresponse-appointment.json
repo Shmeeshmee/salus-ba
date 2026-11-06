@@ -1,0 +1,43 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "questionnaireresponse-appointment",
+  "url": "https://salus.invalid/fhir/StructureDefinition/questionnaireresponse-appointment",
+  "version": "0.1.0",
+  "name": "QuestionnaireResponseAppointment",
+  "title": "QuestionnaireResponse appointment",
+  "status": "active",
+  "date": "2026-11-06",
+  "publisher": "Salus",
+  "description": "The appointment a questionnaire response prepares: the patient fills it in before the appointment starts. R4 QuestionnaireResponse has no reference to an Appointment (basedOn is a CarePlan or ServiceRequest, encounter exists only once the consultation starts, partOf is an Observation or Procedure). Every response of this server carries it.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [{ "type": "element", "expression": "QuestionnaireResponse" }],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "The appointment the response prepares",
+        "definition": "The appointment the questionnaire response prepares.",
+        "min": 0,
+        "max": "1"
+      },
+      { "id": "Extension.extension", "path": "Extension.extension", "max": "0" },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "https://salus.invalid/fhir/StructureDefinition/questionnaireresponse-appointment"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [{ "code": "Reference", "targetProfile": ["http://hl7.org/fhir/StructureDefinition/Appointment"] }]
+      }
+    ]
+  }
+}

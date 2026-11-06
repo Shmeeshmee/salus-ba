@@ -108,3 +108,28 @@ export function LeaveIcon() {
     </svg>
   )
 }
+
+export function ListIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <rect x="4" y="3" width="12" height="14.5" rx="2" />
+      <path d="M7.5 7.5h5M7.5 10.5h5M7.5 13.5h3" />
+    </svg>
+  )
+}
+
+export function GripIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" fill="currentColor">
+      {[6, 10, 14].flatMap((y) => [7.5, 12.5].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.3" />))}
+    </svg>
+  )
+}
+
+export function ArrowIcon({ direction }: { direction: 'up' | 'down' }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <path d={direction === 'up' ? 'M10 15.5v-11M5.5 9 10 4.5 14.5 9' : 'M10 4.5v11M5.5 11 10 15.5 14.5 11'} />
+    </svg>
+  )
+}

@@ -14,25 +14,33 @@ class Error {
   /// Returns a new [Error] instance.
   Error({
     required this.error,
+    this.linkIds = const [],
   });
 
   ErrorErrorEnum error;
 
+  /// With `invalid_questionnaire` and `answers_invalid` only, the offending items' linkIds in document order.
+  List<String> linkIds;
+
   @override
   bool operator ==(Object other) =>
-      identical(this, other) || other is Error && other.error == error;
+      identical(this, other) ||
+      other is Error &&
+          other.error == error &&
+          _deepEquality.equals(other.linkIds, linkIds);
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (error.hashCode);
+      (error.hashCode) + (linkIds.hashCode);
 
   @override
-  String toString() => 'Error[error=$error]';
+  String toString() => 'Error[error=$error, linkIds=$linkIds]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'error'] = this.error;
+    json[r'linkIds'] = this.linkIds;
     return json;
   }
 
@@ -56,6 +64,11 @@ class Error {
 
       return Error(
         error: ErrorErrorEnum.fromJson(json[r'error'])!,
+        linkIds: json[r'linkIds'] is Iterable
+            ? (json[r'linkIds'] as Iterable)
+                .cast<String>()
+                .toList(growable: false)
+            : const [],
       );
     }
     return null;
@@ -153,6 +166,16 @@ enum ErrorErrorEnum {
   consultationEnded._(r'consultation_ended'),
   practitionerDidNotJoin._(r'practitioner_did_not_join'),
   consultationNotStarted._(r'consultation_not_started'),
+  notDraft._(r'not_draft'),
+  notActive._(r'not_active'),
+  draftExists._(r'draft_exists'),
+  invalidQuestionnaire._(r'invalid_questionnaire'),
+  alreadyRequested._(r'already_requested'),
+  appointmentStarted._(r'appointment_started'),
+  submitted._(r'submitted'),
+  withdrawn._(r'withdrawn'),
+  pastDue._(r'past_due'),
+  answersInvalid._(r'answers_invalid'),
   internalError._(r'internal error'),
   timeout._(r'timeout'),
   ;
@@ -290,6 +313,26 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.practitionerDidNotJoin;
         case r'consultation_not_started':
           return ErrorErrorEnum.consultationNotStarted;
+        case r'not_draft':
+          return ErrorErrorEnum.notDraft;
+        case r'not_active':
+          return ErrorErrorEnum.notActive;
+        case r'draft_exists':
+          return ErrorErrorEnum.draftExists;
+        case r'invalid_questionnaire':
+          return ErrorErrorEnum.invalidQuestionnaire;
+        case r'already_requested':
+          return ErrorErrorEnum.alreadyRequested;
+        case r'appointment_started':
+          return ErrorErrorEnum.appointmentStarted;
+        case r'submitted':
+          return ErrorErrorEnum.submitted;
+        case r'withdrawn':
+          return ErrorErrorEnum.withdrawn;
+        case r'past_due':
+          return ErrorErrorEnum.pastDue;
+        case r'answers_invalid':
+          return ErrorErrorEnum.answersInvalid;
         case r'internal error':
           return ErrorErrorEnum.internalError;
         case r'timeout':

@@ -3,6 +3,7 @@ package appointment_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -44,14 +45,14 @@ func TestAttendance_GivesTheAppointmentWithTheCallersAccessFacts(t *testing.T) {
 }
 
 // After a revocation the patient keeps their appointment and its practitioner a past one at the name level,
-// both with the consent inactive.
+// both with the consent inactive and the time of the revocation (questionnaireresponse's rule needs it).
 func TestAttendance_GivesTheInactiveConsentAfterARevocation(t *testing.T) {
 	for _, c := range []appointment.Caller{me, pract} {
 		f := cancelFixture(revokedAt.Add(-time.Hour))
 		f.consents.state[patientA+clinicA] = access.Consent{RevokedAt: revokedAt}
 		got, err := f.svc.Attendance(t.Context(), c, apptA)
-		if err != nil || got.ConsentActive || got.Level == access.None || got.Patient != (c == me) || got.Practitioner != (c == pract) {
-			t.Errorf("as %s: Attendance() = %+v, %v; want the appointment with the consent inactive", c.AccountID, got, err)
+		if err != nil || got.ConsentActive || !got.RevokedAt.Equal(revokedAt) || got.Level == access.None || got.Patient != (c == me) || got.Practitioner != (c == pract) {
+			t.Errorf("as %s: Attendance() = %+v, %v; want the appointment with the consent inactive since the revocation", c.AccountID, got, err)
 		}
 	}
 }
@@ -108,6 +109,51 @@ func TestLookup_GivesTheAppointmentInTheCallersScopeUnaudited(t *testing.T) {
 	})
 	if !errors.Is(err, appointment.ErrNotFound) {
 		t.Errorf("Lookup() in clinic B = %v, want ErrNotFound", err)
+	}
+	if len(f.audit.events) != 0 {
+		t.Errorf("audited %v, want nothing", f.audit.events)
+	}
+}
+
+// LookupLocked gives a questionnaire request or answer the appointment in the caller's transaction and scope,
+// locked against a change until it ends (the repository's share lock), unaudited: the caller audits its own
+// write. ErrNotFound when the scope may not lock it: another clinic, or the clinic after a revocation.
+func TestLookupLocked_GivesTheAppointmentLockedInTheCallersScopeUnaudited(t *testing.T) {
+	f := cancelFixture(start)
+	var got appointment.Appointment
+	err := inClinic(t, f, clinicA, func(ctx context.Context) error {
+		var err error
+		got, err = f.svc.LookupLocked(ctx, apptA)
+		return err
+	})
+	if err != nil || got != f.repo.appts[0] {
+		t.Errorf("LookupLocked() = %+v, %v; want appointment A", got, err)
+	}
+	if !slices.Contains(f.repo.calls, "ByIDForShare") {
+		t.Errorf("repository calls %v, want the share lock in the transaction", f.repo.calls)
+	}
+	err = inClinic(t, f, clinicB, func(ctx context.Context) error {
+		_, err := f.svc.LookupLocked(ctx, apptA)
+		return err
+	})
+	if !errors.Is(err, appointment.ErrNotFound) {
+		t.Errorf("LookupLocked() in clinic B = %v, want ErrNotFound", err)
+	}
+	f.consents.state[patientA+clinicA] = access.Consent{RevokedAt: revokedAt}
+	err = inClinic(t, f, clinicA, func(ctx context.Context) error {
+		_, err := f.svc.LookupLocked(ctx, apptA)
+		return err
+	})
+	if !errors.Is(err, appointment.ErrNotFound) {
+		t.Errorf("LookupLocked() in clinic A after a revocation = %v, want ErrNotFound", err)
+	}
+	f.repo.err = errBackend
+	err = inClinic(t, f, clinicA, func(ctx context.Context) error {
+		_, err := f.svc.LookupLocked(ctx, apptA)
+		return err
+	})
+	if !errors.Is(err, errBackend) {
+		t.Errorf("LookupLocked() on a backend failure = %v, want its error", err)
 	}
 	if len(f.audit.events) != 0 {
 		t.Errorf("audited %v, want nothing", f.audit.events)

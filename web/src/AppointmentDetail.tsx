@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Account, ApiClient } from './api/client'
 import { FhirError, nameOf, participant, type Appointment, type AppointmentStatus, type FhirClient, type Patient } from './api/fhir'
 import { attempt, type Outcome } from './api/result'
+import { AppointmentQuestionnaires } from './AppointmentQuestionnaires'
 import { joinWindow, useNow } from './consultation'
 import { ChevronIcon } from './icons'
 import { useLoad } from './load'
@@ -19,6 +20,7 @@ type Detail = { zone: string; appt: Appointment; profile?: Patient }
 // has the profile (SPEC "FHIR reads and searches"), so it is not asked for. The practitioner records the
 // outcome once the appointment has started; the practitioner and the admin can cancel it. The practitioner joins
 // the video consultation inside its window (an admin cannot join), and both see whether each side joined.
+// Both see the appointment's questionnaire requests; only the appointment's own practitioner changes them.
 export function AppointmentDetail({ api, fhir, account, id, now = () => new Date() }: Props) {
   const organizationId = account.organizationId ?? ''
   const practitioner = account.role === 'practitioner'
@@ -41,7 +43,10 @@ export function AppointmentDetail({ api, fhir, account, id, now = () => new Date
         <Body
           {...state.value}
           api={api}
+          fhir={fhir}
           practitioner={practitioner}
+          own={practitioner && participant(state.value.appt, 'Practitioner')?.id === account.practitionerId}
+          admin={account.role === 'admin'}
           now={now}
           onChanged={(status) => set({ ...state.value, appt: { ...state.value.appt, status } })}
         />
@@ -63,9 +68,17 @@ function loadMessage(err: unknown): string {
   return 'The appointment could not be loaded. Reload the page to try again.'
 }
 
-type BodyProps = Detail & { api: ApiClient; practitioner: boolean; now: () => Date; onChanged: (s: AppointmentStatus) => void }
+type BodyProps = Detail & {
+  api: ApiClient
+  fhir: FhirClient
+  practitioner: boolean
+  own: boolean
+  admin: boolean
+  now: () => Date
+  onChanged: (s: AppointmentStatus) => void
+}
 
-function Body({ zone, appt, profile, api, practitioner, now, onChanged }: BodyProps) {
+function Body({ zone, appt, profile, api, fhir, practitioner, own, admin, now, onChanged }: BodyProps) {
   const at = useNow(now)
   const join = joinWindow(appt, at)
   const start = new Date(appt.start)
@@ -88,6 +101,7 @@ function Body({ zone, appt, profile, api, practitioner, now, onChanged }: BodyPr
       )}
       {practitioner && join === 'before' && <p className="hint join">{text.joinFrom}</p>}
       <Consultation api={api} id={appt.id} zone={zone} />
+      <AppointmentQuestionnaires api={api} fhir={fhir} appt={appt} zone={zone} own={own} admin={admin} now={at} />
       {appt.status === 'booked' && <Actions api={api} id={appt.id} practitioner={practitioner} started={at >= start} onChanged={onChanged} />}
     </>
   )

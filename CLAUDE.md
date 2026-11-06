@@ -78,7 +78,7 @@ directory     practitioner, organization, practitionerrole
 patient       patient, relatedperson
 scheduling    schedule, slot, appointment
 consultation  encounter, videosession, communication
-clinical      observation, condition, medicationrequest, documentreference
+clinical      questionnaire, questionnaireresponse, observation, condition, medicationrequest, documentreference
 privacy       consent, auditevent, datarequest (GDPR subject requests), retention
               and the pure rule package access (who may see what)
 notification  notification

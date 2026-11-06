@@ -4,7 +4,7 @@ import { AppointmentDetail } from './AppointmentDetail'
 import { newApiClient, type Account } from './api/client'
 import { newFhirClient, type Patient } from './api/fhir'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, paths, type Route } from './test/fakeFetch'
-import { admin, appointment, clinicRoute, cy, meta, org, patientId, practitioner } from './test/fixtures'
+import { admin, appointment, clinicRoute, cy, dee, meta, org, patientId, practitioner } from './test/fixtures'
 
 afterEach(cleanup)
 
@@ -28,13 +28,19 @@ const patientRead = `GET /fhir/R4/Patient/${patientId}`
 const statusPost = `POST /appointments/${id}/status`
 const cancelPost = `POST /appointments/${id}/cancel`
 const statusGet = `GET /appointments/${id}/consultation`
+const questionnaireSearch = 'GET /fhir/R4/QuestionnaireResponse'
 
 function answer(status: string) {
   return Response.json({ id, organizationId: org, practitionerRoleId: cy.roleId, slotId: id, start: booked.start, end: booked.end, status, versionId: 2 })
 }
 
 function renderDetail(account: Account, routes: Record<string, Route>, now = after) {
-  const fake = fakeFetch({ ...clinicRoute, [statusGet]: () => apiError(404, 'not_found'), ...routes })
+  const fake = fakeFetch({
+    ...clinicRoute,
+    [statusGet]: () => apiError(404, 'not_found'),
+    [questionnaireSearch]: () => fhirJSON({ resourceType: 'Bundle', type: 'searchset' }),
+    ...routes,
+  })
   render(<AppointmentDetail api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} id={id} now={now} />)
   return fake
 }
@@ -259,6 +265,31 @@ describe('AppointmentDetail', () => {
       await screen.findByRole('button', { name: 'Mark fulfilled' })
       await vi.waitFor(() => expect(screen.queryByText('Loading')).toBeNull())
       expect(screen.queryByRole('region', { name: 'Consultation' })).toBeNull()
+    })
+  })
+
+  describe('the questionnaires', () => {
+    const routes = { [read]: () => fhirJSON(booked), [patientRead]: () => outcome(404, 'not-found') }
+    const section = async () => within(await screen.findByRole('region', { name: 'Questionnaires' }))
+
+    it("are shown to the appointment's practitioner, who may add one before the start", async () => {
+      renderDetail(practitioner, routes, before)
+
+      expect(await (await section()).findByRole('button', { name: 'Add questionnaire' })).toBeTruthy()
+    })
+
+    it('are shown to an admin, who may not add one', async () => {
+      renderDetail(admin, { [read]: () => fhirJSON(booked) }, before)
+
+      await (await section()).findByText('No questionnaires requested.')
+      expect(screen.queryByRole('button', { name: 'Add questionnaire' })).toBeNull()
+    })
+
+    it('cannot be added by a practitioner who is not the appointment\'s', async () => {
+      renderDetail({ ...practitioner, practitionerId: dee.practitionerId }, routes, before)
+
+      await (await section()).findByText('No questionnaires requested.')
+      expect(screen.queryByRole('button', { name: 'Add questionnaire' })).toBeNull()
     })
   })
 })

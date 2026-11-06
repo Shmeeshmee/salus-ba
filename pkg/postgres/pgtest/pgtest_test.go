@@ -1,6 +1,7 @@
 package pgtest_test
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"slices"
@@ -198,5 +199,42 @@ func TestMain_FailsClearlyWithoutTestDatabaseURL(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "TEST_DATABASE_URL is not set") || !strings.Contains(string(out), "make test") {
 		t.Errorf("output does not explain the missing TEST_DATABASE_URL:\n%s", out)
+	}
+}
+
+// WaitForLockWait returns once a session of the database waits on a lock: here an update of a row another
+// transaction holds.
+func TestWaitForLockWait_ReturnsOnceASessionWaitsOnALock(t *testing.T) {
+	t.Parallel()
+	db := pgtest.NewDatabase(t)
+	if _, err := db.Exec(t.Context(), "INSERT INTO probe VALUES (1)"); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := db.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	if _, err := tx.Exec(t.Context(), "UPDATE probe SET id = 2"); err != nil {
+		t.Fatal(err)
+	}
+	waited := make(chan error, 1)
+	go func() {
+		_, err := db.Exec(context.Background(), "UPDATE probe SET id = 3")
+		waited <- err
+	}()
+
+	pgtest.WaitForLockWait(t, db)
+
+	select {
+	case err := <-waited:
+		t.Fatalf("the second update returned %v before the lock was released", err)
+	default:
+	}
+	if err := tx.Commit(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-waited; err != nil {
+		t.Errorf("the second update = %v", err)
 	}
 }

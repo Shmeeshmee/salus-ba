@@ -19,6 +19,9 @@ tables:
   patient: {owner: patient, personal_data: true}
   practitioner: {owner: practitioner, personal_data: true}
   practitioner_role: {owner: practitionerrole, personal_data: true}
+  questionnaire: {owner: questionnaire, personal_data: false}
+  questionnaire_default: {owner: questionnaire, personal_data: false}
+  questionnaire_response: {owner: questionnaireresponse, personal_data: true}
   schedule: {owner: schedule, personal_data: true}
   session: {owner: auth, personal_data: true}
   slot: {owner: slot, personal_data: true}
