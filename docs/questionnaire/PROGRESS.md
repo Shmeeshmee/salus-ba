@@ -9,7 +9,7 @@
 | 5 Booking and cancellation | done, 2026-11-06 | `questionnaire(5)` |
 | 6 Responses API | done, 2026-11-06 | `questionnaire(6)` |
 | 7 E-mail mention | done, 2026-11-06 | `questionnaire(7)` |
-| 8 Web: library and builder | not started | |
+| 8 Web: library and builder | done, 2026-11-06 | `questionnaire(8)` |
 | 9 Web: appointment and working hours | not started | |
 | 10 Mobile | not started | |
 | 11 End-to-end | not started | |
@@ -626,3 +626,148 @@ Dev stack: no migration, nothing written to the dev database (the tests use thei
 Mailpit, whose test messages they delete). The running notifier container still has package 6's build; `make
 up` rebuilds it.
 
+
+## Package 8: Web: library and builder (done, 2026-11-06)
+
+Built:
+- `web/package.json`: `@dnd-kit/core` 6.3.1 and `@dnd-kit/sortable` 10.0.0, exact (the current releases,
+  `npm view` on 2026-11-06). Runtime dependencies checked: `core` needs `tslib` ^2.0.0, `@dnd-kit/accessibility`
+  ^3.1.1 and `@dnd-kit/utilities` ^3.2.2; `sortable` needs `@dnd-kit/utilities` ^3.2.2 and `tslib`; peers
+  `react`/`react-dom` >=16.8. Installed: `@dnd-kit/accessibility` 3.1.1, `@dnd-kit/utilities` 3.2.2 (both MIT,
+  only `tslib` below them), `tslib` 2.8.1 was already in the tree. Four packages added to the lockfile, no
+  advisory. `@dnd-kit/utilities` is not a direct import (the transform string is written by hand).
+- `web/.oxlintrc.json`: `no-restricted-imports` for `@dnd-kit/*`, off only for `src/builder-dnd.tsx`. Checked
+  with a throwaway file importing `@dnd-kit/sortable`: 1 error; deleted.
+- `web/src/messages.ts`: `questionnaires`, W1 to W29, W41 and W42 exactly as `COPY.md` (a script compared all
+  104 quoted strings, placeholders matched against the template parameters: none missing); "Yes" and "No" of W38
+  for a condition's answer.
+- `builder.ts`: the item list as pure functions: `rowsOf` (document order, an end row per section; the top level
+  only while a section moves), `move` (as a sortable list: down lands after the target, up before it), `insert`,
+  `step` and `canStep` (Move up and Move down, one row at a time, so an item steps into and out of sections),
+  `remove` (and the conditions on it), `dependents`, `changeKind` (a new `linkId`, dependents pointed at it),
+  `placement`, `at` and `cancelled` (the W42 sentences), `earlierQuestions`, `problems` (W27 and W28 per item,
+  checked as the API checks). A section never lands inside another: `insert` refuses it (`nested-section`), and a
+  moved section only sees the top level.
+- `builder-dnd.tsx` (the only `@dnd-kit` import): `DragArea` (pointer sensor for mouse and pen, touch sensor with
+  a 250 ms delay, keyboard sensor with `sortableKeyboardCoordinates`; instructions W41 and announcements W42 for
+  start, over, end and cancel; `@dnd-kit`'s `aria-roledescription` dropped, so none of its English is left),
+  `SortableList`, `SortableRow`, `PaletteSource` (pointer and touch only; the keyboard adds by the button),
+  `ListEnd` (the drop area after the last row, W12 while empty).
+- `questionnaire.ts`: FHIR `Questionnaire` and the JSON API's answer to the builder's model (help text from the
+  help item control, single and multiple choice apart), the save body, and `libraryOf`.
+- `Questionnaires.tsx` (`/questionnaires`): W1 to W8, the status filter, the version and last change in a
+  tooltip on hover and focus, "New questionnaire" creating an untitled draft and opening it.
+- `Builder.tsx` (`/questionnaires/<id>`) and `ItemCard.tsx`: palette, title (W14 under it), description, the
+  cards closed by default (text or type, type, Required, handle, Move up, Move down, Delete), opened to edit
+  (type, text, Required, options, "More options" with help text and the condition); "Save draft" (`If-Match`,
+  CSRF), "Publish" with W22 (and the retire line when the series has an active version; unsaved changes saved
+  first), "Discard draft" with W21, an active version read only with W23, "Edit as new version" and "Retire"
+  with W24, a retired one with W25; W29 per error (412 with "Reload", `draft_exists` with "Open draft",
+  `not_draft`, 422 marking the named items, not found); limits before they are reached (item count always,
+  palette off at 200, character counts from 80% of a limit with `maxLength`, "Add option" off at 50); W26 on
+  leaving by a link or the browser's back, `beforeunload` for closing or reloading; Move up and Move down
+  announced with W42 in a polite live region; an added item opens with the focus in its text.
+- `route.ts`: `guardLeaving`; `navigate` and `usePath` ask the guard. `api/result.ts`: a failed outcome carries
+  `linkIds`. `App.tsx`: the "Questionnaires" link and both routes (the builder wide). `vite.config.ts`: the dev
+  server proxies `/questionnaires` writes to the API and serves the app on `GET`. `api/fhir.ts`:
+  `Questionnaire`. `icons.tsx`, `app.css`.
+
+Test first (failures seen before the code):
+- `builder.test.ts`: `Failed to resolve import "./builder"`. `Questionnaires.test.tsx` and `Builder.test.tsx`
+  likewise. `questionnaire.test.ts` was written before `questionnaire.ts`, but its first run came after the
+  module, so no red run of it was recorded.
+- `Builder.test.tsx` first run: 3 of 29 failed, each for its reason: the card helper also caught "More options"
+  (the test), the start-of-drag "over" replaced "Moving …" (fixed: the place a drag starts over is not
+  announced), the leave prompt said "Cancel" instead of W26's "Stay". The keyboard drag then needed the sensor's
+  own next-task listener (`sensorReady`, a wait for that task, not a sleep) and W41's portal (waited for as a
+  condition).
+- `App.test.tsx`: the nav link and the builder's path, 2 failed before the wiring.
+- The focus of an added item: the assertion failed (focus on `body`) before `autoFocus`.
+
+Found in the browser walk (each reproduced in the walk first; jsdom cannot show the first two):
+- A palette type dragged into the list was added twice and the drop lost: the dragged button followed the pointer,
+  so the release was also a click on it, whose "add at the end" overwrote the drop. Fixed: the palette is dragged
+  as a copy (`DragOverlay`, mounted only for palette drags, as a mounted overlay broke keyboard drags of items).
+- The browser's back left the builder without W26: the browser renders between `popstate` listeners, so the
+  screen was gone before a separate guard ran, also as a capturing listener. Fixed: `usePath`'s own listener
+  asks the guard first. A jsdom test of the back path was added.
+- A keyboard move of an open (tall) card never landed: by centre or corners it stays nearest its own place.
+  Fixed: `closestTop`, the row whose top is nearest (the keyboard lines tops up).
+- Two runs early on lost one typed character right after a drop; with the field checked as focused first,
+  never in the six later runs. Probably Vite's first-run dependency optimisation reloading the page after the new
+  packages; not proven.
+
+Tests (Vitest, 311 in all, 99 new): `builder.ts` moves (into, within and out of sections, sections as blocks),
+inserts (each target, a section inside a section refused, an empty section), every Move up and Move down step and
+the ends, placement, the W42 sentences, delete with dependents, the type change's new `linkId`, each problem;
+the mapping both ways; the library (rows, tooltip, each filter, both empty texts, create, failures); the builder
+(each card state, the palette, the type change saved with a new `linkId`, Move up and Move down with W42, the
+handle's W41 and no role description, a keyboard drag space–arrow–space with W42, escape with W42, delete with and
+without W19, save with `If-Match` chained and CSRF, 412, 409 `not_draft`, 422 with `linkIds` on the right items,
+the three limits, publish's confirmation, the retire line, saving before publishing, revise, `draft_exists` with
+"Open draft", retire, discard, not found, W26 on a link and on the back button, leaving when saved).
+
+Checks: `make web-lint` 0 warnings, 0 errors; `make web-typecheck` passes; `make web-test` 20 files, 311 tests;
+`make web-build` passes, with Vite's chunk-size warning (916 kB minified, 258 kB gzip; 835 kB before this package,
+about 80 kB more with `@dnd-kit` and the screens); `make gen-clients` no diff (no `openapi.yaml` change). Not in
+this package's check sets, run as CLAUDE.md asks before done: `make lint` 0 issues, migrations from `main`
+unchanged; `make archcheck` passes; `make test` passes.
+
+Browser walk (`make up` stack; Chromium 1.55 in the `playwright` service with the Vite dev server inside it, as
+the consultation journey runs; a temporary e2e test made the synthetic clinic, practitioner and a 200-item draft
+through the API and started a temporary spec; both deleted before the commit; 6 full passes in a row at the end):
+- Desktop 1280 px, pointer: the nav link, the library, "New questionnaire", a type clicked, Section dragged to the
+  end, Short answer dragged into the section's end, Move up into the section (W42 heard in the live region), a
+  condition, a mouse drag moving the question below its dependent (W28 shown), back with Move up (gone), save,
+  publish with W22, W23, the library with the tooltip (W5) and the Active filter.
+- Keyboard only: open from the library, "Edit as new version", a type added with Enter and typed into, the handle
+  reached by Tab with W41 as its description, space, arrow up, space (W42 at each step), space, arrow up, escape
+  (W42's cancel), Move up, "Save draft", "Discard draft" and "Discard".
+- 390 px with touch emulation (`hasTouch`, `isMobile`): library, new draft, three types tapped, a touch drag
+  (touch start held past the 250 ms delay, moved, ended) reordering them, delete, discard with W21, the published
+  version read only; no horizontal scroll on any of them.
+- Unsaved changes: W26 on the Calendar link (Stay keeps the page), on the library link after the measured
+  drags, on the browser's back (the URL restored, the changes kept, Leave leaves), and the browser's
+  `beforeunload` prompt on closing the tab.
+
+Measurements (SPEC §2 "Performance"; the walk above, i7-14700HX, Vite dev server, so React's development
+build: upper bounds for production). The 200-item draft (10 sections of 19 short answers), first render from
+navigation start to the 200th card in the page, which includes the session check and the two FHIR reads: 283,
+305, 327; 302, 331, 307; 311, 309, 301; 300, 317, 336; 333, 321, 329 ms. One mouse drag of a question within its
+section, from the release to the list in its new order (one CDP round trip and an animation-frame poll included):
+208, 99, 96; 212, 97, 102; 219, 100, 100; 207, 98, 95; 210, 100, 99 ms (the first drag of each run about 210 ms).
+Read by script from `performance.now()`, not the dev tools' profiler. Nothing is changed on these numbers.
+
+Readings:
+- The library lists, per questionnaire, its draft and its active version, or its latest retired one when it has
+  neither (older retired versions are history, reached through the series). A questionnaire with both shows two
+  rows, so neither status is hidden; the filter applies to the rows. One FHIR search, filtered in the browser.
+- The builder reads the version and its series over FHIR (the JSON API has no read): the series gives the active
+  version W22 names and the draft "Open draft" opens.
+- W42 after a move: "[Item] is in [Section], at position…" when the item lands in a section, "[Item] moved to
+  position…" when it lands on the top level; the same after a drop. Move up and Move down are disabled at the
+  ends, so W42's cancel follows only a cancelled drag. A palette drop announces where the new item lands; a
+  cancelled palette drag says nothing (it was nowhere).
+- Positions are counted within the item's list: the top level, or its section.
+- Deleting an item others depend on asks with W19 also for a section (counting the conditions on its items);
+  without dependents it deletes at once.
+- An option left empty counts as text missing (W28 "Add text to this item."): COPY.md has no line for it.
+- A condition whose question is moved below stays and shows W28; it is removed only when the question is
+  deleted (SPEC §2 "linkIds"). A type change points the conditions on the item at its new `linkId`; one that no
+  longer fits shows W28.
+- The type select has no label in COPY.md: it is named by the item's text (`aria-label`), no new text added
+  (question below).
+- The builder shows the status as a tag without the W5 tooltip (the clinic's time zone is not read there).
+- Load failures other than not found use the shared "Something went wrong. Try again.", as elsewhere.
+
+Deferred: the appointment detail and the role's default (package 9); mobile (10); the Playwright journey in `make
+e2e` (11). Splitting the bundle is not measured as a problem and not done.
+
+Questions for a person: a label for the item type select in the builder (proposal: "Type"), and whether an empty
+option should have its own W28 line.
+
+Dev stack: no migration. The walk runs left about 15 synthetic clinics on the dev database, each with an admin, a
+practitioner, a role with working hours and free slots, a 200-item draft, and from the full runs a published
+"Placeholder walk questionnaire" and their audit events (synthetic data only, as earlier walks). The running
+`node` dev server (Vite) picks up the new config and packages from the mounted `web/` on its own; nothing else on
+the stack changed. Screenshots of the walk are in the ignored `.claude/runs/questionnaire/walk-8/`.

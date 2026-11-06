@@ -18,6 +18,8 @@ export default defineConfig({
       // Only the JSON actions: /appointments/<id> and /appointments/<id>/call are screens of the app.
       '^/appointments/[^/]+/(cancel|status|consultation(/join|/end)?)$': apiUrl,
       '/specialties': apiUrl,
+      // /questionnaires and /questionnaires/<id> are also screens of the app: only their writes go to the API.
+      '/questionnaires': { target: apiUrl, bypass: (req) => (req.method === 'GET' ? '/index.html' : undefined) },
       '/fhir': apiUrl,
     },
   },

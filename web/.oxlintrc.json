@@ -3,6 +3,11 @@
   "plugins": ["react", "typescript", "oxc"],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "no-restricted-imports": [
+      "error",
+      { "patterns": [{ "group": ["@dnd-kit/*"], "message": "Only src/builder-dnd.tsx imports @dnd-kit (docs/questionnaire/SPEC.md, D7)." }] }
+    ]
+  },
+  "overrides": [{ "files": ["src/builder-dnd.tsx"], "rules": { "no-restricted-imports": "off" } }]
 }

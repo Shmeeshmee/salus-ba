@@ -81,6 +81,30 @@ export interface Appointment {
   participant: { status: string; actor: Reference }[]
 }
 
+export interface QuestionnaireItem {
+  linkId: string
+  text: string
+  type: string
+  required?: boolean
+  repeats?: boolean
+  answerOption?: { valueString: string }[]
+  enableWhen?: { question: string; operator: string; answerBoolean?: boolean; answerString?: string }[]
+  extension?: { url: string; valueCodeableConcept?: CodeableConcept }[]
+  item?: QuestionnaireItem[]
+}
+
+export interface Questionnaire {
+  resourceType: 'Questionnaire'
+  id: string
+  meta: Meta
+  url: string
+  version: string
+  title: string
+  status: 'draft' | 'active' | 'retired'
+  description?: string
+  item?: QuestionnaireItem[]
+}
+
 export interface Bundle<R = PractitionerRole | Practitioner> {
   resourceType: 'Bundle'
   type: 'searchset'
