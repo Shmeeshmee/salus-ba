@@ -202,7 +202,64 @@ salus-demo-* containers untouched.
 
 ## 1.1 pkg/envelope
 
-Status: not started
+Status: done, 2026-11-07.
+
+Built (`pkg/envelope/`, standard library only):
+- `envelope.go`: `SegmentSize` (64 KiB), `Overhead` (16), `KeySize` (32); `NewDataKey` (32 bytes from
+  `crypto/rand`); `KEK` (`NewKEK(id, key)`, `ID`, `Wrap`, `Unwrap`: AES-256-GCM, the binary id as additional data,
+  a random 96-bit nonce per wrap, stored as nonce followed by the sealed key, 60 bytes); `ErrOpen`, `ErrUnwrap`,
+  `ErrRange`, `ErrKeySize`.
+- `seal.go`: `Writer` (`NewWriter(dst, dek, id)`, `Write`, `Close`) holds one segment and seals it once the next
+  byte shows it is not the last; `Close` seals the last one (an empty file is one empty segment) and does not close
+  the destination. `CiphertextSize(n) = n + 16 × max(1, ceil(n / 65,536))`.
+- `open.go`: `Open(src, dek, id)` streams a whole ciphertext, telling the last segment by what follows it;
+  `OpenRange(dek, id, size, from, to)` returns a `Range` with `Start` and `End`, the inclusive ciphertext bytes to
+  fetch (whole segments), and `Range.Reader(fetched)` decrypts them and yields exactly bytes `from` to `to`.
+  Nonce: the segment index, big-endian, 96 bits; additional data: the id, the index (8 bytes) and the last-segment
+  flag (1 byte). Every tampering is `ErrOpen`; a source's own error is passed on.
+
+Failing first: the tests and benchmarks were written before any code; the build failed with `undefined:
+envelope.SegmentSize`, `envelope.NewDataKey`, `envelope.NewWriter`, `envelope.Range`, `envelope.Open`,
+`envelope.OpenRange`. Once green, the last-segment flag and the nonce index were taken out of the code on purpose:
+`TestOpen_FailsOnTampering` failed ("truncated at a segment boundary", "full segments truncated": opened); restored.
+
+Tests (`envelope_test.go`, `range_test.go`): round trips at 0, 1, 65,535, 65,536, 65,537, 131,072 bytes and
+5 MiB + 12,345, written in uneven chunks, each checked against `CiphertextSize`; the ciphertext holds no plaintext;
+every pair of boundary points (0, 1, 100, each segment edge ±1, the last two bytes) as a range on files of 1 byte,
+one segment, two segments and 3 segments + 500, the bytes and the fetched ciphertext span checked; reads of 7 bytes;
+ranges outside the file refused; a flipped bit, two swapped segments, a segment from another file (another id), a
+truncation inside and at a boundary, an extension by a byte and by a segment, an empty and a sub-tag ciphertext,
+another id and another data key all fail to open, whole and ranged; the last segment does not open as a middle one;
+a wrong KEK, another id, a flipped bit and a truncated wrapped key fail to unwrap; two wraps differ; key sizes;
+writes after `Close` and to a failing destination.
+
+Checks:
+- tests: `go test -count=1 -cover ./pkg/envelope/...`: pass, coverage 96.4%.
+- lint (`scripts/lint.sh`, the main checkout's git dir mounted read-only): 0 issues, check-migrations ok.
+- archcheck: pass.
+
+Readings (`go test -run '^$' -bench . -benchmem -count=3`, tools container, i7-14700HX, one core per benchmark):
+- `BenchmarkSeal` (16 MiB): 3,817 to 4,429 MB/s, 153 KB and 261 allocations per file.
+- `BenchmarkOpen` (16 MiB): 4,651 to 4,786 MB/s, 157 KB per file.
+- `BenchmarkOpenRange` (1 MiB from the middle of a 200 MB file): 3,642 to 3,899 MB/s, 0.27 to 0.29 ms per range,
+  142 KB and 23 allocations. Memory per file is a segment buffer or two, whatever the file's size; encryption is
+  far faster than any phone's upload.
+
+### Decided while the owner was away
+
+- 2026-11-07, session (1.1): `OpenRange` returns a `Range` value (the ciphertext span to fetch) whose `Reader`
+  takes the fetched bytes, because the reader cannot exist before the ranged `GetObject` that feeds it; `from`
+  and `to` are inclusive, like the HTTP `Range` header 2.1 parses. No SPEC row needed.
+- 2026-11-07, session (1.1): an empty plaintext is one empty sealed segment (16 bytes), so even a file cut to
+  nothing fails to open; a plaintext of an exact multiple of 64 KiB has no extra empty segment. The `binary` table
+  allows no empty file anyway. No SPEC row needed.
+- 2026-11-07, session (1.1): the wrapped key's nonce is random (a key-encryption key wraps many keys, so a counter
+  would need state), stored in front of the sealed key in `wrapped_key` (60 bytes). The binary id is the additional
+  data as the string the caller passes: 2.1 must always pass the canonical lowercase UUID. No SPEC row needed.
+
+Copy added by the session, not yet reviewed: none.
+
+Dev stack: untouched (only `docker compose run --rm --no-deps tools` containers, removed on exit).
 
 ## 1.2 pkg/filetype
 
