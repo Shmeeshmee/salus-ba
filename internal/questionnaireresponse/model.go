@@ -48,7 +48,10 @@ type Response struct {
 	SeriesID           string // the questionnaire, whatever its version
 	Source             Source
 	Status             Status
-	Answers            []Answer // a flat list; the FHIR handler nests it under the version's sections
+	// Language is QuestionnaireResponse.language, the language the patient answers in (docs/i18n/SPEC.md §3
+	// "The patient's language"): a tag of the enum language, empty until they start.
+	Language string
+	Answers  []Answer // a flat list; the FHIR handler nests it under the version's sections
 	// Attachments are the files of the attachment items, in upload order (docs/attachments/SPEC.md §2 "Where
 	// an attachment answer lives"): kept in step by binary through the holder, outside Answers and VersionID.
 	Attachments []binary.Attachment

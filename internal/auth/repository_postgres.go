@@ -32,6 +32,7 @@ func (r *postgresRepository) Create(ctx context.Context, a Account) (string, err
 	}
 	id, err := r.q(ctx).CreateAccount(ctx, authdb.CreateAccountParams{
 		Email: a.Email, PasswordHash: a.PasswordHash, Role: string(a.Role), OrganizationID: org,
+		Language: nullLanguage(a.Language), DetectedLanguage: nullLanguage(a.DetectedLanguage),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrEmailTaken
@@ -65,6 +66,29 @@ func (r *postgresRepository) SetPasswordHash(ctx context.Context, id, hash strin
 	return oneRow(n, err)
 }
 
+func (r *postgresRepository) SetLanguage(ctx context.Context, id, language string) error {
+	u, err := uuidOf(id)
+	if err != nil {
+		return err
+	}
+	n, err := r.q(ctx).SetAccountLanguage(ctx, authdb.SetAccountLanguageParams{ID: u, Language: nullLanguage(language)})
+	return oneRow(n, err)
+}
+
+func (r *postgresRepository) SetDetectedLanguage(ctx context.Context, id, language string) error {
+	u, err := uuidOf(id)
+	if err != nil {
+		return err
+	}
+	n, err := r.q(ctx).SetDetectedLanguage(ctx, authdb.SetDetectedLanguageParams{ID: u, DetectedLanguage: nullLanguage(language)})
+	return oneRow(n, err)
+}
+
+// nullLanguage is a language tag as the column takes it: "" is null.
+func nullLanguage(tag string) authdb.NullLanguage {
+	return authdb.NullLanguage{Language: authdb.Language(tag), Valid: tag != ""}
+}
+
 // toAccount maps a row; both account queries select the same columns.
 func toAccount(row authdb.AccountByEmailRow, err error) (Account, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -78,6 +102,9 @@ func toAccount(row authdb.AccountByEmailRow, err error) (Account, error) {
 		Email:        row.Email,
 		Role:         Role(row.Role),
 		PasswordHash: row.PasswordHash,
+		// An unset language scans as "": no choice, no match.
+		Language:         string(row.Language.Language),
+		DetectedLanguage: string(row.DetectedLanguage.Language),
 	}
 	if row.OrganizationID.Valid {
 		a.OrganizationID = row.OrganizationID.String()

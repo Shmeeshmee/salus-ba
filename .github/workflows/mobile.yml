@@ -1,4 +1,4 @@
-# Mobile: flutter analyze, flutter test, the generated Dart client, and the debug APK.
+# Mobile: flutter analyze (after the catalog check), flutter test, the generated Dart client, and the debug APK.
 # Runs on every pull request so its required checks always report; the jobs skip when no path matching the
 # filter changed (a skipped job counts as passed). Everything runs through make in Docker, as locally.
 name: mobile
@@ -26,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: filter
-        run: bash scripts/ci-changed.sh '^mobile/|^api/openapi\.yaml$|^build/package/flutter\.Dockerfile$|^deployments/|^(Makefile|\.github/workflows/mobile\.yml)$' >> "$GITHUB_OUTPUT"
+        run: bash scripts/ci-changed.sh '^mobile/|^api/openapi\.yaml$|^scripts/i18n-check\.|^build/package/flutter\.Dockerfile$|^deployments/|^(Makefile|\.github/workflows/mobile\.yml)$' >> "$GITHUB_OUTPUT"
 
   mobile:
     needs: changes

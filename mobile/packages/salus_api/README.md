@@ -83,6 +83,7 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**login**](doc//AuthApi.md#login) | **POST** /auth/login | Sign in with e-mail and password
 *AuthApi* | [**logout**](doc//AuthApi.md#logout) | **POST** /auth/logout | Sign out
 *AuthApi* | [**register**](doc//AuthApi.md#register) | **POST** /auth/register | Register a patient account
+*AuthApi* | [**updateMe**](doc//AuthApi.md#updateme) | **PATCH** /auth/me | Choose the account's language
 *AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
 *ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic
 *ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
@@ -110,6 +111,7 @@ Class | Method | HTTP request | Description
 *QuestionnairesApi* | [**reviseQuestionnaire**](doc//QuestionnairesApi.md#revisequestionnaire) | **POST** /questionnaires/{id}/revise | Edit as new version
 *QuestionnairesApi* | [**saveQuestionnaireAnswers**](doc//QuestionnairesApi.md#savequestionnaireanswers) | **PUT** /questionnaire-responses/{id}/answers | Save the answers
 *QuestionnairesApi* | [**setRoleQuestionnaire**](doc//QuestionnairesApi.md#setrolequestionnaire) | **PUT** /practitioner-roles/{id}/questionnaire | Set a practitioner role's default questionnaire
+*QuestionnairesApi* | [**startQuestionnaire**](doc//QuestionnairesApi.md#startquestionnaire) | **POST** /questionnaire-responses/{id}/start | Choose the language to answer in
 *QuestionnairesApi* | [**submitQuestionnaireAnswers**](doc//QuestionnairesApi.md#submitquestionnaireanswers) | **POST** /questionnaire-responses/{id}/submit | Submit the answers
 *QuestionnairesApi* | [**updateQuestionnaire**](doc//QuestionnairesApi.md#updatequestionnaire) | **PUT** /questionnaires/{id} | Edit a draft
 *QuestionnairesApi* | [**withdrawQuestionnaire**](doc//QuestionnairesApi.md#withdrawquestionnaire) | **POST** /questionnaire-responses/{id}/withdraw | Withdraw a questionnaire request
@@ -141,6 +143,7 @@ Class | Method | HTTP request | Description
  - [Invite](doc//Invite.md)
  - [InviteList](doc//InviteList.md)
  - [InviteRequest](doc//InviteRequest.md)
+ - [Language](doc//Language.md)
  - [LiveKitWebhookEvent](doc//LiveKitWebhookEvent.md)
  - [LoginRequest](doc//LoginRequest.md)
  - [LoginResponse](doc//LoginResponse.md)
@@ -150,7 +153,9 @@ Class | Method | HTTP request | Description
  - [QuestionnaireItem](doc//QuestionnaireItem.md)
  - [QuestionnaireItemAnswerOptionInner](doc//QuestionnaireItemAnswerOptionInner.md)
  - [QuestionnaireItemEnableWhen](doc//QuestionnaireItemEnableWhen.md)
+ - [QuestionnaireItemTranslation](doc//QuestionnaireItemTranslation.md)
  - [QuestionnaireResponse](doc//QuestionnaireResponse.md)
+ - [QuestionnaireTranslation](doc//QuestionnaireTranslation.md)
  - [RegisterRequest](doc//RegisterRequest.md)
  - [RequestQuestionnaireRequest](doc//RequestQuestionnaireRequest.md)
  - [RoleSpecialty](doc//RoleSpecialty.md)
@@ -163,8 +168,10 @@ Class | Method | HTTP request | Description
  - [SetSpecialtyRequest](doc//SetSpecialtyRequest.md)
  - [Specialty](doc//Specialty.md)
  - [SpecialtyList](doc//SpecialtyList.md)
+ - [StartQuestionnaireRequest](doc//StartQuestionnaireRequest.md)
  - [Status](doc//Status.md)
  - [Unavailable](doc//Unavailable.md)
+ - [UpdateMeRequest](doc//UpdateMeRequest.md)
  - [VerifyRequest](doc//VerifyRequest.md)
 
 

@@ -19,6 +19,7 @@ class Account {
     this.organizationId,
     this.practitionerId,
     required this.mfaEnrolled,
+    this.language,
   });
 
   String id;
@@ -47,6 +48,15 @@ class Account {
 
   bool mfaEnrolled;
 
+  /// The language the user chose; absent while they follow the browser's or the device's language, which the client then matches itself.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  Language? language;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -56,7 +66,8 @@ class Account {
           other.role == role &&
           other.organizationId == organizationId &&
           other.practitionerId == practitionerId &&
-          other.mfaEnrolled == mfaEnrolled;
+          other.mfaEnrolled == mfaEnrolled &&
+          other.language == language;
 
   @override
   int get hashCode =>
@@ -66,11 +77,12 @@ class Account {
       (role.hashCode) +
       (organizationId == null ? 0 : organizationId!.hashCode) +
       (practitionerId == null ? 0 : practitionerId!.hashCode) +
-      (mfaEnrolled.hashCode);
+      (mfaEnrolled.hashCode) +
+      (language == null ? 0 : language!.hashCode);
 
   @override
   String toString() =>
-      'Account[id=$id, email=$email, role=$role, organizationId=$organizationId, practitionerId=$practitionerId, mfaEnrolled=$mfaEnrolled]';
+      'Account[id=$id, email=$email, role=$role, organizationId=$organizationId, practitionerId=$practitionerId, mfaEnrolled=$mfaEnrolled, language=$language]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -88,6 +100,11 @@ class Account {
       json[r'practitionerId'] = null;
     }
     json[r'mfaEnrolled'] = this.mfaEnrolled;
+    if (this.language != null) {
+      json[r'language'] = this.language;
+    } else {
+      json[r'language'] = null;
+    }
     return json;
   }
 
@@ -128,6 +145,7 @@ class Account {
         organizationId: mapValueOfType<String>(json, r'organizationId'),
         practitionerId: mapValueOfType<String>(json, r'practitionerId'),
         mfaEnrolled: mapValueOfType<bool>(json, r'mfaEnrolled')!,
+        language: Language.fromJson(json[r'language']),
       );
     }
     return null;

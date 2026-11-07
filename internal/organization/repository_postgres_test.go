@@ -49,7 +49,7 @@ func TestByID_SeesOnlyTheClinicSet(t *testing.T) {
 		got, err = repo.ByID(ctx, clinicA)
 		return err
 	})
-	want := organization.Organization{ID: clinicA, Name: "Synthetic clinic A", TimeZone: "Europe/Sarajevo", VersionID: 1, Active: true,
+	want := organization.Organization{ID: clinicA, Name: "Synthetic clinic A", TimeZone: "Europe/Sarajevo", DefaultLanguage: "bs", VersionID: 1, Active: true,
 		LastUpdated: time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)}
 	if got.LastUpdated = got.LastUpdated.UTC(); err != nil || got != want {
 		t.Errorf("ByID(clinic A) in clinic A = %+v, %v;\nwant %+v", got, err, want)
@@ -78,10 +78,10 @@ func TestUpdate_MovesToTheNextVersionOrConflicts(t *testing.T) {
 	var got organization.Organization
 	err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
 		var err error
-		got, err = repo.Update(ctx, organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", Listed: true, VersionID: 1}, at)
+		got, err = repo.Update(ctx, organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", DefaultLanguage: "sr-Cyrl", Listed: true, VersionID: 1}, at)
 		return err
 	})
-	want := organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", Listed: true, Active: true, VersionID: 2, LastUpdated: at}
+	want := organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", DefaultLanguage: "sr-Cyrl", Listed: true, Active: true, VersionID: 2, LastUpdated: at}
 	if got.LastUpdated = got.LastUpdated.UTC(); err != nil || got != want {
 		t.Errorf("Update() = %+v, %v;\nwant %+v", got, err, want)
 	}
@@ -103,7 +103,7 @@ func TestUpdate_MovesToTheNextVersionOrConflicts(t *testing.T) {
 		"an id not a UUID": {id: "not-a-uuid", version: 1},
 	} {
 		err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
-			_, err := repo.Update(ctx, organization.Organization{ID: tc.id, Name: "Again", TimeZone: "UTC", VersionID: tc.version}, at)
+			_, err := repo.Update(ctx, organization.Organization{ID: tc.id, Name: "Again", TimeZone: "UTC", DefaultLanguage: "en", VersionID: tc.version}, at)
 			return err
 		})
 		if !errors.Is(err, organization.ErrConflict) {
@@ -131,8 +131,8 @@ func TestCreate_StoresAnActiveClinicAtVersionOne(t *testing.T) {
 
 	got, err := organization.NewPostgresRepository(owner).Create(t.Context(), "Synthetic clinic C")
 
-	if err != nil || got.ID == "" || got.Name != "Synthetic clinic C" || got.VersionID != 1 || !got.Active || got.LastUpdated.IsZero() {
-		t.Errorf("Create() = %+v, %v; want the new clinic at version 1", got, err)
+	if err != nil || got.ID == "" || got.Name != "Synthetic clinic C" || got.VersionID != 1 || !got.Active || got.DefaultLanguage != "bs" || got.LastUpdated.IsZero() {
+		t.Errorf("Create() = %+v, %v; want the new clinic at version 1, in Bosnian", got, err)
 	}
 }
 
@@ -168,8 +168,8 @@ func TestListed_ShowsOnlyListedClinicsInTheDirectoryScopeByName(t *testing.T) {
 	got, err := listed(true)
 	at := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
 	want := []organization.Organization{
-		{ID: clinicC, Name: "Another synthetic clinic", TimeZone: "Europe/Vienna", VersionID: 1, Active: true, Listed: true, LastUpdated: at},
-		{ID: clinicB, Name: "Synthetic clinic B", TimeZone: "Europe/Sarajevo", VersionID: 1, Active: true, Listed: true, LastUpdated: at},
+		{ID: clinicC, Name: "Another synthetic clinic", TimeZone: "Europe/Vienna", DefaultLanguage: "bs", VersionID: 1, Active: true, Listed: true, LastUpdated: at},
+		{ID: clinicB, Name: "Synthetic clinic B", TimeZone: "Europe/Sarajevo", DefaultLanguage: "bs", VersionID: 1, Active: true, Listed: true, LastUpdated: at},
 	}
 	for i := range got {
 		got[i].LastUpdated = got[i].LastUpdated.UTC()

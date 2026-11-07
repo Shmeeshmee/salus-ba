@@ -36,7 +36,8 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 // set, as row-level security does. Calls outside a transaction are recorded in outside.
 type fakeRepository struct {
 	err        error
-	referenced map[string][]string // the versions each patient's responses reference
+	referenced map[string][]string                    // the versions each patient's responses reference
+	translated map[string][]questionnaire.Translation // by version
 	clinic     string
 	patient    string
 	rows       []questionnaire.Questionnaire
@@ -237,6 +238,23 @@ func (r *fakeRepository) ClearDefault(ctx context.Context, roleID string) error 
 	r.defaults = slices.DeleteFunc(r.defaults, func(d questionnaire.Default) bool {
 		return d.PractitionerRoleID == roleID && r.visible(d.OrganizationID)
 	})
+	return nil
+}
+
+func (r *fakeRepository) Translations(ctx context.Context, id string) ([]questionnaire.Translation, error) {
+	r.seen(ctx, "Translations")
+	return slices.Clone(r.translated[id]), r.err
+}
+
+func (r *fakeRepository) PutTranslations(ctx context.Context, id string, ts []questionnaire.Translation, _ time.Time) error {
+	r.seen(ctx, "PutTranslations")
+	if r.err != nil {
+		return r.err
+	}
+	if r.translated == nil {
+		r.translated = map[string][]questionnaire.Translation{}
+	}
+	r.translated[id] = slices.Clone(ts)
 	return nil
 }
 

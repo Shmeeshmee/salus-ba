@@ -15,32 +15,51 @@ class Error {
   Error({
     required this.error,
     this.linkIds = const [],
+    this.language,
   });
 
   ErrorErrorEnum error;
 
-  /// With `invalid_questionnaire` and `answers_invalid` only, the offending items' linkIds in document order.
+  /// With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending items' linkIds in document order.
   List<String> linkIds;
+
+  /// With `translation_incomplete` only, the translation that is incomplete.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  Language? language;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is Error &&
           other.error == error &&
-          _deepEquality.equals(other.linkIds, linkIds);
+          _deepEquality.equals(other.linkIds, linkIds) &&
+          other.language == language;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (error.hashCode) + (linkIds.hashCode);
+      (error.hashCode) +
+      (linkIds.hashCode) +
+      (language == null ? 0 : language!.hashCode);
 
   @override
-  String toString() => 'Error[error=$error, linkIds=$linkIds]';
+  String toString() =>
+      'Error[error=$error, linkIds=$linkIds, language=$language]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'error'] = this.error;
     json[r'linkIds'] = this.linkIds;
+    if (this.language != null) {
+      json[r'language'] = this.language;
+    } else {
+      json[r'language'] = null;
+    }
     return json;
   }
 
@@ -69,6 +88,7 @@ class Error {
                 .cast<String>()
                 .toList(growable: false)
             : const [],
+        language: Language.fromJson(json[r'language']),
       );
     }
     return null;
@@ -185,6 +205,9 @@ enum ErrorErrorEnum {
   scanning._(r'scanning'),
   rangeNotSatisfiable._(r'range_not_satisfiable'),
   attachmentsPending._(r'attachments_pending'),
+  languageUnavailable._(r'language_unavailable'),
+  languageLocked._(r'language_locked'),
+  translationIncomplete._(r'translation_incomplete'),
   internalError._(r'internal error'),
   timeout._(r'timeout'),
   ;
@@ -360,6 +383,12 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.rangeNotSatisfiable;
         case r'attachments_pending':
           return ErrorErrorEnum.attachmentsPending;
+        case r'language_unavailable':
+          return ErrorErrorEnum.languageUnavailable;
+        case r'language_locked':
+          return ErrorErrorEnum.languageLocked;
+        case r'translation_incomplete':
+          return ErrorErrorEnum.translationIncomplete;
         case r'internal error':
           return ErrorErrorEnum.internalError;
         case r'timeout':

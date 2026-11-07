@@ -67,7 +67,7 @@ func (r *postgresRepository) Update(ctx context.Context, o Organization, at time
 		return Organization{}, ErrConflict
 	}
 	row, err := r.q(ctx).UpdateOrganization(ctx, organizationdb.UpdateOrganizationParams{
-		ID: u, Name: o.Name, Listed: o.Listed, TimeZone: o.TimeZone, VersionID: o.VersionID,
+		ID: u, Name: o.Name, Listed: o.Listed, TimeZone: o.TimeZone, DefaultLanguage: organizationdb.Language(o.DefaultLanguage), VersionID: o.VersionID,
 		UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -90,6 +90,6 @@ func (r *postgresRepository) Create(ctx context.Context, name string) (Organizat
 func toOrganization(row organizationdb.OrganizationByIDRow) Organization {
 	return Organization{
 		ID: row.ID.String(), Name: row.Name, TimeZone: row.TimeZone, VersionID: row.VersionID, Active: row.Active,
-		Listed: row.Listed, LastUpdated: row.UpdatedAt.Time,
+		Listed: row.Listed, DefaultLanguage: string(row.DefaultLanguage), LastUpdated: row.UpdatedAt.Time,
 	}
 }

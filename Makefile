@@ -12,7 +12,7 @@ FLUTTER := $(COMPOSE) run --rm -T flutter
 LANDING := $(COMPOSE) run --rm -T -w /src/landing node
 E2E     := $(COMPOSE) run --rm -T playwright
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http lint archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
@@ -71,9 +71,16 @@ bench-questionnaire-http: up tools-image
 bench-binary-http: tools-image
 	$(GO) go test -tags loadtest -count=1 -v -run TestBinaryHTTPReadings ./internal/api/
 
-## lint: gofmt, go vet, golangci-lint (both modules) and the migration immutability check
-lint: tools-image
+## lint: gofmt, go vet, golangci-lint (both modules), the migration immutability check, and the catalog check
+## (the e-mail templates)
+lint: tools-image i18n-check
 	$(GO) bash scripts/lint.sh
+
+## i18n-check: every catalog (web, mobile, e-mail) has the source language's keys and no other, valid ICU
+## messages with the source's placeholders, and the plural categories each language needs (scripts/i18n-check.sh,
+## docs/i18n/SPEC.md §3 "Catalogs"). In the node service, with web/ installed for the ICU parser.
+i18n-check: web-install
+	$(NODE) bash ../scripts/i18n-check.sh
 
 ## archcheck: the architecture rules (tools/archcheck)
 archcheck: tools-image
@@ -142,7 +149,7 @@ web/node_modules/.package-lock.json: web/package.json web/package-lock.json
 	$(NODE) npm ci
 
 ## web-lint, web-typecheck, web-test, web-build: the web app's checks
-web-lint: web-install
+web-lint: web-install i18n-check
 	$(NODE) npm run lint
 web-typecheck: web-install
 	$(NODE) npm run typecheck
@@ -176,7 +183,7 @@ landing-dev: landing-install
 	$(COMPOSE) --profile landing up landing-dev
 
 ## mobile-analyze, mobile-test: the Flutter app's checks (mobile/, flutter service). Device runs are manual.
-mobile-analyze: flutter-image
+mobile-analyze: flutter-image i18n-check
 	$(FLUTTER) flutter analyze
 mobile-test: flutter-image
 	$(FLUTTER) flutter test

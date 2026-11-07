@@ -43,6 +43,7 @@ lib/model/grant_consent_request.dart
 lib/model/invite.dart
 lib/model/invite_list.dart
 lib/model/invite_request.dart
+lib/model/language.dart
 lib/model/live_kit_webhook_event.dart
 lib/model/login_request.dart
 lib/model/login_response.dart
@@ -52,7 +53,9 @@ lib/model/questionnaire_default.dart
 lib/model/questionnaire_item.dart
 lib/model/questionnaire_item_answer_option_inner.dart
 lib/model/questionnaire_item_enable_when.dart
+lib/model/questionnaire_item_translation.dart
 lib/model/questionnaire_response.dart
+lib/model/questionnaire_translation.dart
 lib/model/register_request.dart
 lib/model/request_questionnaire_request.dart
 lib/model/role_specialty.dart
@@ -65,7 +68,9 @@ lib/model/set_role_questionnaire_request.dart
 lib/model/set_specialty_request.dart
 lib/model/specialty.dart
 lib/model/specialty_list.dart
+lib/model/start_questionnaire_request.dart
 lib/model/status.dart
 lib/model/unavailable.dart
+lib/model/update_me_request.dart
 lib/model/verify_request.dart
 pubspec.yaml

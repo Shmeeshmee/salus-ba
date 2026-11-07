@@ -62,7 +62,7 @@ UPDATE questionnaire_response
 SET status = 'completed', answers = $1, authored_at = $2, updated_at = $2, version_id = version_id + 1
 WHERE id = $3 AND status = 'in-progress'
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-          series_id, version_id, source, status, answers, attachments
+          series_id, version_id, source, status, answers, attachments, language
 `
 
 type CompleteQuestionnaireResponseParams struct {
@@ -92,6 +92,7 @@ func (q *Queries) CompleteQuestionnaireResponse(ctx context.Context, arg Complet
 		&i.Status,
 		&i.Answers,
 		&i.Attachments,
+		&i.Language,
 	)
 	return i, err
 }
@@ -145,7 +146,7 @@ VALUES ($1, $2, $3, $4, $5, $6,
         $7, 'in-progress', $8, $9, $9)
 ON CONFLICT (appointment_id, series_id) WHERE status <> 'stopped' DO NOTHING
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-          series_id, version_id, source, status, answers, attachments
+          series_id, version_id, source, status, answers, attachments, language
 `
 
 type InsertQuestionnaireResponseParams struct {
@@ -192,13 +193,14 @@ func (q *Queries) InsertQuestionnaireResponse(ctx context.Context, arg InsertQue
 		&i.Status,
 		&i.Answers,
 		&i.Attachments,
+		&i.Language,
 	)
 	return i, err
 }
 
 const lockQuestionnaireResponse = `-- name: LockQuestionnaireResponse :one
 SELECT id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-       series_id, version_id, source, status, answers, attachments
+       series_id, version_id, source, status, answers, attachments, language
 FROM questionnaire_response
 WHERE id = $1
 FOR NO KEY UPDATE
@@ -225,6 +227,7 @@ func (q *Queries) LockQuestionnaireResponse(ctx context.Context, id pgtype.UUID)
 		&i.Status,
 		&i.Answers,
 		&i.Attachments,
+		&i.Language,
 	)
 	return i, err
 }
@@ -242,7 +245,7 @@ func (q *Queries) QuestionnaireResponseAttachments(ctx context.Context, id pgtyp
 
 const questionnaireResponseByID = `-- name: QuestionnaireResponseByID :one
 SELECT id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-       series_id, version_id, source, status, answers, attachments
+       series_id, version_id, source, status, answers, attachments, language
 FROM questionnaire_response
 WHERE id = $1
 `
@@ -267,6 +270,7 @@ func (q *Queries) QuestionnaireResponseByID(ctx context.Context, id pgtype.UUID)
 		&i.Status,
 		&i.Answers,
 		&i.Attachments,
+		&i.Language,
 	)
 	return i, err
 }
@@ -299,7 +303,7 @@ UPDATE questionnaire_response
 SET answers = $1, updated_at = $2, version_id = version_id + 1
 WHERE id = $3 AND status = 'in-progress'
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-          series_id, version_id, source, status, answers, attachments
+          series_id, version_id, source, status, answers, attachments, language
 `
 
 type SaveQuestionnaireResponseAnswersParams struct {
@@ -329,13 +333,14 @@ func (q *Queries) SaveQuestionnaireResponseAnswers(ctx context.Context, arg Save
 		&i.Status,
 		&i.Answers,
 		&i.Attachments,
+		&i.Language,
 	)
 	return i, err
 }
 
 const searchQuestionnaireResponses = `-- name: SearchQuestionnaireResponses :many
 SELECT id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-       series_id, version_id, source, status, answers, attachments
+       series_id, version_id, source, status, answers, attachments, language
 FROM questionnaire_response
 WHERE ($1::uuid IS NULL OR appointment_id = $1::uuid)
   AND ($2::uuid IS NULL OR patient_id = $2::uuid)
@@ -377,6 +382,7 @@ func (q *Queries) SearchQuestionnaireResponses(ctx context.Context, arg SearchQu
 			&i.Status,
 			&i.Answers,
 			&i.Attachments,
+			&i.Language,
 		); err != nil {
 			return nil, err
 		}
@@ -388,12 +394,52 @@ func (q *Queries) SearchQuestionnaireResponses(ctx context.Context, arg SearchQu
 	return items, nil
 }
 
+const setQuestionnaireResponseLanguage = `-- name: SetQuestionnaireResponseLanguage :one
+UPDATE questionnaire_response
+SET language = $1, updated_at = $2, version_id = version_id + 1
+WHERE id = $3 AND status = 'in-progress' AND answers = '[]' AND attachments = '[]'
+RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
+          series_id, version_id, source, status, answers, attachments, language
+`
+
+type SetQuestionnaireResponseLanguageParams struct {
+	Language NullLanguage
+	At       pgtype.Timestamptz
+	ID       pgtype.UUID
+}
+
+// The patient starts: the language they answer in, while in progress and before anything is answered.
+func (q *Queries) SetQuestionnaireResponseLanguage(ctx context.Context, arg SetQuestionnaireResponseLanguageParams) (QuestionnaireResponse, error) {
+	row := q.db.QueryRow(ctx, setQuestionnaireResponseLanguage, arg.Language, arg.At, arg.ID)
+	var i QuestionnaireResponse
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DueAt,
+		&i.AuthoredAt,
+		&i.OrganizationID,
+		&i.AppointmentID,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.QuestionnaireID,
+		&i.SeriesID,
+		&i.VersionID,
+		&i.Source,
+		&i.Status,
+		&i.Answers,
+		&i.Attachments,
+		&i.Language,
+	)
+	return i, err
+}
+
 const stopQuestionnaireResponse = `-- name: StopQuestionnaireResponse :one
 UPDATE questionnaire_response
 SET status = 'stopped', answers = '[]', attachments = '[]', updated_at = $1, version_id = version_id + 1
 WHERE id = $2
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-          series_id, version_id, source, status, answers, attachments
+          series_id, version_id, source, status, answers, attachments, language
 `
 
 type StopQuestionnaireResponseParams struct {
@@ -423,6 +469,7 @@ func (q *Queries) StopQuestionnaireResponse(ctx context.Context, arg StopQuestio
 		&i.Status,
 		&i.Answers,
 		&i.Attachments,
+		&i.Language,
 	)
 	return i, err
 }
