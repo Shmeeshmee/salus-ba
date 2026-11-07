@@ -236,6 +236,31 @@ p.hint.join { margin-bottom: 20px; }
 .answers dd { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .answers dd ul { margin: 0; padding-left: 18px; white-space: normal; }
 .requests .confirm .field select { width: 100%; }
+
+/* The files of a file upload answer, and the viewer that opens them over the page */
+.answers dd .files { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.files li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-control); }
+.file-name { display: grid; min-width: 0; }
+.file-title { font-weight: 600; overflow-wrap: anywhere; }
+.file-details { font-size: 14px; color: var(--color-text-muted); }
+.file-actions { display: flex; gap: 4px; }
+.file-actions .quiet { padding: 4px 8px; font-size: 14px; }
+.viewer-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 24px; background: rgba(14, 21, 18, .72); }
+.viewer { width: min(100%, 1040px); height: min(100%, 860px); display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--color-surface); border-radius: var(--radius); overflow: hidden; }
+.viewer-bar { display: flex; align-items: center; gap: 4px; padding: 6px 6px 6px 16px; border-bottom: 1px solid var(--color-border); }
+.viewer-title { flex: 1; min-width: 0; margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; }
+.viewer-title .muted { font-size: 14px; }
+.viewer .icon[aria-disabled='true'] { opacity: .35; cursor: default; }
+.viewer-body { min-height: 0; display: grid; place-items: center; background: var(--color-page); }
+.viewer-body img, .viewer-body video { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+.viewer-body object { width: 100%; height: 100%; }
+.viewer-message { display: grid; justify-items: center; gap: 12px; padding: 24px; text-align: center; }
+.viewer-message p { margin: 0; }
+.actions a.button { padding: 10px 16px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); text-decoration: none; }
+@keyframes viewer-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .viewer-backdrop { animation: viewer-in .12s ease-out; }
+}
 .default-questionnaire { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--color-border); max-width: 480px; }
 
 /* Device check */
@@ -379,6 +404,9 @@ p.hint.join { margin-bottom: 20px; }
 .list-end p { margin: 0; text-align: center; }
 .list-end.over { border-color: var(--color-mint); background: var(--color-mint-faint); }
 .builder-actions { align-items: center; margin-top: 16px; }
+.published-actions { margin: 16px 0; }
+.file-kinds .hint { flex-basis: 100%; }
+.items.readonly { margin-top: 16px; }
 .failure { display: grid; gap: 10px; margin-top: 16px; }
 .builder-page > .confirm { margin-top: 16px; }
 .builder-page > .confirm:first-of-type { margin: 0 0 16px; }
@@ -412,4 +440,6 @@ p.hint.join { margin-bottom: 20px; }
   .items .item.nested { margin-left: 10px; }
   .item-body { padding: 4px 12px 14px; }
   .problems { margin-left: 12px; }
+  .viewer-backdrop { padding: 0; }
+  .viewer { width: 100%; height: 100%; border-radius: 0; }
 }

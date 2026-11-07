@@ -159,6 +159,46 @@ describe('AppointmentQuestionnaires', () => {
       expect(row.queryByText('Placeholder short answer')).toBeNull()
     })
 
+    it('list the files of a file upload item, each to open, and say Not answered without one (W7, W8)', async () => {
+      const uploads: Questionnaire = {
+        ...intake,
+        id: 'q5',
+        url: 'https://salus.invalid/fhir/Questionnaire/s5',
+        title: 'Placeholder uploads',
+        item: [
+          { linkId: 'files', text: 'Placeholder files', type: 'attachment', repeats: true },
+          { linkId: 'one', text: 'Placeholder one file', type: 'attachment' },
+          { linkId: 'none', text: 'Placeholder no file', type: 'attachment' },
+        ],
+      }
+      const file = (n: number, contentType: string, title: string, size: number) => ({
+        valueAttachment: { contentType, size, title, hash: 'AAAA', url: `https://api.example.test/binaries/b0000000-0000-4000-8000-00000000000${n}/content` },
+      })
+      renderSection('own', [
+        responseFHIR('r5', 'completed', {
+          questionnaire: `${uploads.url}|1`,
+          authored: '2026-11-08T17:45:00Z',
+          item: [
+            { linkId: 'files', answer: [file(1, 'image/png', 'placeholder.png', 3000), file(2, 'video/mp4', 'placeholder.mp4', 12_300_000)] },
+            { linkId: 'one', answer: [file(3, 'application/pdf', 'placeholder.pdf', 640_000)] },
+          ],
+        }),
+      ], [uploads])
+
+      const row = await rowOf('Placeholder uploads')
+      fireEvent.click(row.getByRole('button', { name: 'View answers' }))
+      const answers = (q: string) => within(row.getByText(q).closest('div')!.querySelector('dd')!)
+      expect(answers('Placeholder files').getByText('2 files')).toBeTruthy()
+      expect(answers('Placeholder files').getAllByRole('listitem').map((li) => li.querySelector('.file-details')?.textContent)).toEqual(['Photo, 3 KB', 'Video, 12.3 MB'])
+      expect(answers('Placeholder one file').getByText('1 file')).toBeTruthy()
+      expect(answers('Placeholder one file').getByText('placeholder.pdf')).toBeTruthy()
+      expect(answers('Placeholder no file').getByText('Not answered')).toBeTruthy()
+
+      fireEvent.click(answers('Placeholder files').getAllByRole('button', { name: 'Open' })[1])
+      const v = screen.getByRole('dialog').querySelector('video') as HTMLVideoElement
+      expect(v.getAttribute('src')).toBe(`${location.origin}/binaries/b0000000-0000-4000-8000-000000000002/content`)
+    })
+
     it('are not offered before the patient submits, nor once withdrawn', async () => {
       renderSection('own', [responseFHIR('r1', 'in-progress'), responseFHIR('r2', 'stopped', { questionnaire: `${followUp.url}|1` })], [intake, followUp])
 

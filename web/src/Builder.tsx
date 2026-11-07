@@ -26,7 +26,7 @@ import {
 } from './builder'
 import { DragArea, ListEnd, PaletteSource, SortableList, SortableRow } from './builder-dnd'
 import { ChevronIcon } from './icons'
-import { ItemCard, TextField } from './ItemCard'
+import { FilesSummary, ItemCard, TextField } from './ItemCard'
 import { useLoad } from './load'
 import { questionnaires as t, somethingWrong } from './messages'
 import { fromFHIR, fromJSON, toRequest, type Version } from './questionnaire'
@@ -483,7 +483,7 @@ function Published({ api, loaded, onChanged }: PublishedProps) {
       {v.status === 'active' ? (
         <>
           <p className="notice">{t.published}</p>
-          <div className="actions">
+          <div className="actions published-actions">
             <button type="button" className="primary" disabled={busy} onClick={revise}>
               {t.revise}
             </button>
@@ -514,6 +514,7 @@ function Published({ api, loaded, onChanged }: PublishedProps) {
             <div className="item-head">
               <span className="item-text">{label(it)}</span>
               <span className="tag">{t.kinds[it.kind]}</span>
+              <FilesSummary item={it} />
               {it.required && <span className="tag">{t.required}</span>}
             </div>
           </li>

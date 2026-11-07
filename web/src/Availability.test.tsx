@@ -44,6 +44,19 @@ function rows() {
 }
 
 describe('Availability', () => {
+  it('renders the hours and the default questionnaire without a duplicate-key warning', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      renderEditor(practitioner, { [`GET ${path(cy.roleId)}`]: () => Response.json(saved) })
+      await screen.findByLabelText('Day 1')
+      await screen.findByLabelText('Questionnaire for every booking')
+      const warnings = errors.mock.calls.map((c) => c.map(String).join(' ')).filter((m) => m.includes('same key'))
+      expect(warnings).toEqual([])
+    } finally {
+      errors.mockRestore()
+    }
+  })
+
   it("shows the practitioner's own slot length and weekly hours in the clinic zone", async () => {
     renderEditor(practitioner, { [`GET ${path(cy.roleId)}`]: () => Response.json(saved) })
 

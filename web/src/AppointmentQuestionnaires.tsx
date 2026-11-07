@@ -2,8 +2,10 @@ import { Fragment, useId, useState, type FormEvent } from 'react'
 import type { ApiClient } from './api/client'
 import type { Appointment, Bundle, FhirClient, Questionnaire, QuestionnaireResponse } from './api/fhir'
 import { attempt } from './api/result'
+import { filesOf } from './attachment'
+import { Files } from './Files'
 import { useLoad } from './load'
-import { questionnaires as t, somethingWrong } from './messages'
+import { files as filesText, questionnaires as t, somethingWrong } from './messages'
 import { fromFHIR, type Version } from './questionnaire'
 import { requestOfVersion, requestsOf, statusOf, valueText, type Block, type Question, type Request } from './responses'
 import { Alert, Confirm, TipTag } from './ui'
@@ -108,12 +110,12 @@ function RequestRow({ api, request, status, own, admin, onChanged }: RowProps) {
           }}
         />
       )}
-      {open && <Answers blocks={request.answers} />}
+      {open && <Answers api={api} blocks={request.answers} />}
     </li>
   )
 }
 
-function Answers({ blocks }: { blocks: Block[] }) {
+function Answers({ api, blocks }: { api: ApiClient; blocks: Block[] }) {
   return (
     <div className="answers">
       {blocks.map((b) => (
@@ -123,7 +125,7 @@ function Answers({ blocks }: { blocks: Block[] }) {
             {b.questions.map((q) => (
               <div key={q.linkId}>
                 <dt>{q.text}</dt>
-                <dd>{answerOf(q)}</dd>
+                <dd>{answerOf(api, q)}</dd>
               </div>
             ))}
           </dl>
@@ -133,8 +135,17 @@ function Answers({ blocks }: { blocks: Block[] }) {
   )
 }
 
-function answerOf(q: Question) {
+function answerOf(api: ApiClient, q: Question) {
   if (q.values.length === 0) return <span className="muted">{t.notAnswered}</span>
+  if (q.kind === 'attachment') {
+    const files = filesOf(q.values)
+    return (
+      <>
+        {filesText.count(files.length)}
+        <Files api={api} files={files} />
+      </>
+    )
+  }
   if (q.kind !== 'multiple') return valueText(q.values[0])
   return (
     <ul>

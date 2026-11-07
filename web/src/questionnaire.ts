@@ -1,6 +1,6 @@
 import type { Questionnaire, QuestionnaireItem } from './api/fhir'
 import type { components } from './api/schema'
-import { isChoice, isQuestion, type Condition, type Item, type Kind } from './builder'
+import { fileKinds, isChoice, isQuestion, type Condition, type FileKind, type Item, type Kind } from './builder'
 
 type JSONQuestionnaire = components['schemas']['Questionnaire']
 type JSONItem = components['schemas']['QuestionnaireItem']
@@ -22,6 +22,24 @@ export type Version = {
 }
 
 const helpControl = 'http://hl7.org/fhir/StructureDefinition/questionnaire-itemControl'
+const mimeType = 'http://hl7.org/fhir/StructureDefinition/mimeType'
+const maxOccurs = 'http://hl7.org/fhir/StructureDefinition/questionnaire-maxOccurs'
+
+// The content types of each kind of file (attachments SPEC §2 "Item model").
+const kindOfType: Record<string, FileKind> = { 'image/jpeg': 'photo', 'image/png': 'photo', 'application/pdf': 'document', 'video/mp4': 'video' }
+
+// ordered lists the kinds once each, in the builder's order.
+function ordered(accept: FileKind[]): FileKind[] {
+  return fileKinds.filter((k) => accept.includes(k))
+}
+
+// filesOfFHIR reads a file upload's kinds from its mimeType extensions and its number of files from maxOccurs.
+function filesOfFHIR(f: QuestionnaireItem): Partial<Item> {
+  if (f.type !== 'attachment') return {}
+  const ext = f.extension ?? []
+  const accept = ext.flatMap((e) => (e.url === mimeType && e.valueCode && kindOfType[e.valueCode] ? [kindOfType[e.valueCode]] : []))
+  return { accept: ordered(accept), maxFiles: ext.find((e) => e.url === maxOccurs)?.valueInteger ?? 1 }
+}
 
 // isHelp tells a help item (SPEC §2 "Item model": a child display item with the help item control).
 function isHelp(f: QuestionnaireItem): boolean {
@@ -50,6 +68,7 @@ function fromFHIRItem(f: QuestionnaireItem): Item {
     options: (f.answerOption ?? []).map((o) => o.valueString),
     condition: conditionOf(f.enableWhen?.[0]),
     items: children.filter((c) => !isHelp(c)).map(fromFHIRItem),
+    ...filesOfFHIR(f),
   })
 }
 
@@ -74,6 +93,7 @@ function fromJSONItem(j: JSONItem): Item {
     options: (j.answerOption ?? []).map((o) => o.valueString),
     condition: conditionOf(j.enableWhen),
     items: (j.item ?? []).map(fromJSONItem),
+    ...(j.type === 'attachment' ? { accept: ordered(j.accept ?? []), maxFiles: j.maxFiles ?? 1 } : {}),
   })
 }
 
@@ -97,6 +117,10 @@ function toJSONItem(it: Item): JSONItem {
   if (it.kind === 'multiple') out.repeats = true
   if (it.kind !== 'display' && it.help.trim() !== '') out.help = it.help
   if (isChoice(it.kind)) out.answerOption = it.options.map((valueString) => ({ valueString }))
+  if (it.kind === 'attachment') {
+    out.accept = ordered(it.accept ?? [])
+    out.maxFiles = it.maxFiles
+  }
   if (it.condition) {
     const { question, answer } = it.condition
     out.enableWhen = typeof answer === 'boolean' ? { question, answerBoolean: answer } : { question, answerString: answer }
