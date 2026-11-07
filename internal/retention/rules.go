@@ -84,5 +84,10 @@ func Rules() []Rule {
 			Basis: "Preparing the appointment (GDPR Art. 9(2)(h), with the consent for sharing before care) until it starts; an unsubmitted response is then deleted, a submitted one kept with the clinical record; needs a legal decision before production (docs/questionnaire/SPEC.md sections 4 and 5)",
 			Then:  ThenDelete, // unsubmitted ones once due_at has passed; completed ones are kept
 		},
+		{
+			Table: "binary",
+			Basis: "The patient's files attached to a questionnaire answer (GDPR Art. 9(2)(h), with the consent for sharing before care): each row lives exactly as long as its questionnaire response and is deleted with it (foreign key) or with its answer; rejected rows and objects without a row go after 24 h once package 3.1's purger exists; needs a legal decision before production (docs/attachments/SPEC.md sections 4 and 5)",
+			Then:  ThenKeep, // package 3.1 makes it ThenDelete, 24 h, with its purger
+		},
 	}
 }

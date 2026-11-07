@@ -848,7 +848,7 @@ class QuestionnairesApi {
 
   /// Submit the answers
   ///
-  /// The patient submits the saved answers, as they were read (If-Match): every shown required question must be answered; the answers of hidden questions are removed. Final: no later change. The appointment's practitioner reads the answers from then on. Not cached. Audited, also when refused.
+  /// The patient submits the saved answers, as they were read (If-Match): every shown required question must be answered (a shown required attachment item needs a file); the answers and files of hidden questions are removed. Final: no later change. The appointment's practitioner reads the answers from then on. Not cached. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -899,7 +899,7 @@ class QuestionnairesApi {
 
   /// Submit the answers
   ///
-  /// The patient submits the saved answers, as they were read (If-Match): every shown required question must be answered; the answers of hidden questions are removed. Final: no later change. The appointment's practitioner reads the answers from then on. Not cached. Audited, also when refused.
+  /// The patient submits the saved answers, as they were read (If-Match): every shown required question must be answered (a shown required attachment item needs a file); the answers and files of hidden questions are removed. Final: no later change. The appointment's practitioner reads the answers from then on. Not cached. Audited, also when refused.
   ///
   /// Parameters:
   ///

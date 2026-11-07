@@ -276,3 +276,168 @@ func TestLoadLiveKit_IsCalledOnlyByTheAPIAndTheWorker(t *testing.T) {
 		t.Errorf("the LiveKit variables are named in %v, want only %v", readers, want)
 	}
 }
+
+// The api's public base for valueAttachment.url is FHIR_BASE_URL without /fhir/R4 (docs/attachments/SPEC.md
+// §2 "Configuration").
+func TestConfig_APIBaseURLIsTheFHIRBaseWithoutFHIRR4(t *testing.T) {
+	for base, want := range map[string]string{
+		"http://localhost:8080/fhir/R4":      "http://localhost:8080",
+		"https://api.example.test/fhir/R4/":  "https://api.example.test",
+		"https://example.test/salus/fhir/R4": "https://example.test/salus",
+		"":                                   "",
+	} {
+		if got := (config.Config{FHIRBaseURL: base}).APIBaseURL(); got != want {
+			t.Errorf("APIBaseURL() of %q = %q, want %q", base, got, want)
+		}
+	}
+}
+
+func TestLoad_RejectsAFHIRBaseURLThatDoesNotEndInFHIRR4WithoutEchoingIt(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+	t.Setenv("FHIR_BASE_URL", "https://secret-marker.example.test/fhir")
+
+	_, err := config.Load()
+	if err == nil || !strings.Contains(err.Error(), "FHIR_BASE_URL") || strings.Contains(err.Error(), "marker") {
+		t.Errorf("Load() = %v, want an error naming FHIR_BASE_URL without its value", err)
+	}
+}
+
+// objectStoreEnv is a valid object store configuration with synthetic values.
+func objectStoreEnv() map[string]string {
+	return map[string]string{
+		"S3_ENDPOINT":          "http://objectstore:3900",
+		"S3_REGION":            "garage",
+		"S3_BUCKET":            "salus-binaries",
+		"S3_ACCESS_KEY_ID":     "GK0123456789abcdef01234567",
+		"S3_SECRET_ACCESS_KEY": "secret-marker",
+		"BINARY_KEK":           base64.StdEncoding.EncodeToString([]byte("synthetic 32-byte KEK for tests!")),
+		"BINARY_KEK_ID":        "local-1",
+	}
+}
+
+func TestLoadObjectStore_ReadsTheSettings(t *testing.T) {
+	for name, v := range objectStoreEnv() {
+		t.Setenv(name, v)
+	}
+
+	got, err := config.LoadObjectStore()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Endpoint != "http://objectstore:3900" || got.Region != "garage" || got.Bucket != "salus-binaries" ||
+		got.AccessKeyID != "GK0123456789abcdef01234567" || got.SecretAccessKey != "secret-marker" ||
+		string(got.KEK) != "synthetic 32-byte KEK for tests!" || got.KEKID != "local-1" {
+		t.Errorf("LoadObjectStore() = %+v", got)
+	}
+}
+
+// Each setting is required; a KEK that is not base64 of 32 bytes and an endpoint that is not an absolute
+// http(s) URL are refused. The error names the variable and never echoes a value.
+func TestLoadObjectStore_RefusesAMissingOrMalformedSettingWithoutEchoingIt(t *testing.T) {
+	cases := map[string]struct{ name, value string }{}
+	for name := range objectStoreEnv() {
+		cases[name+" missing"] = struct{ name, value string }{name, ""}
+	}
+	cases["BINARY_KEK not base64"] = struct{ name, value string }{"BINARY_KEK", "not*base64*marker"}
+	cases["BINARY_KEK of 16 bytes"] = struct{ name, value string }{"BINARY_KEK", base64.StdEncoding.EncodeToString([]byte("16-byte marker!!"))}
+	cases["S3_ENDPOINT relative"] = struct{ name, value string }{"S3_ENDPOINT", "objectstore-marker:3900"}
+	cases["S3_ENDPOINT not http"] = struct{ name, value string }{"S3_ENDPOINT", "ftp://objectstore-marker:3900"}
+	for label, c := range cases {
+		t.Run(label, func(t *testing.T) {
+			for name, v := range objectStoreEnv() {
+				t.Setenv(name, v)
+			}
+			t.Setenv(c.name, c.value)
+			_, err := config.LoadObjectStore()
+			if err == nil || !strings.Contains(err.Error(), c.name) || strings.Contains(err.Error(), "marker") ||
+				strings.Contains(err.Error(), "synthetic") {
+				t.Errorf("LoadObjectStore() = %v, want an error naming %s and no value", err, c.name)
+			}
+		})
+	}
+}
+
+func TestLoadClamd_ReadsTheAddress(t *testing.T) {
+	t.Setenv("CLAMD_ADDR", "clamd:3310")
+
+	got, err := config.LoadClamd()
+
+	if err != nil || got.Addr != "clamd:3310" {
+		t.Errorf("LoadClamd() = %+v, %v; want clamd:3310", got, err)
+	}
+}
+
+func TestLoadClamd_RefusesAMissingOrMalformedAddressWithoutEchoingIt(t *testing.T) {
+	for _, v := range []string{"", "clamd-marker", "clamd-marker:"} {
+		t.Setenv("CLAMD_ADDR", v)
+		_, err := config.LoadClamd()
+		if err == nil || !strings.Contains(err.Error(), "CLAMD_ADDR") || strings.Contains(err.Error(), "marker") {
+			t.Errorf("LoadClamd() with %q = %v, want an error naming CLAMD_ADDR and no value", v, err)
+		}
+	}
+}
+
+// Load never reads the object store's credentials or the KEK; only the api and the worker load the object
+// store, only the worker clamd, and only internal/config names their variables.
+func TestLoadObjectStoreAndLoadClamd_AreCalledOnlyByTheAPIAndTheWorker(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+	for name, v := range objectStoreEnv() {
+		t.Setenv(name, v)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprintf("%#v", cfg); strings.Contains(got, "secret-marker") || strings.Contains(got, "salus-binaries") {
+		t.Errorf("Load() holds the object store's settings: %s", got)
+	}
+
+	root := filepath.Join("..", "..")
+	found := map[string][]string{}
+	needles := map[string]string{
+		"LoadObjectStore": "config.LoadObjectStore(", "LoadClamd": "config.LoadClamd(",
+		"S3": `Getenv("S3_`, "KEK": `Getenv("BINARY_KEK`, "CLAMD": `Getenv("CLAMD_`,
+	}
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && (d.Name() == "node_modules" || d.Name() == ".git" || d.Name() == "tools") {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(root, path)
+		for key, needle := range needles {
+			if strings.Contains(string(src), needle) {
+				found[key] = append(found[key], filepath.ToSlash(rel))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Package 2.1 adds the api's call and 3.1 the worker's; until then a subset passes.
+	for key, allowed := range map[string][]string{
+		"LoadObjectStore": {"cmd/api/main.go", "cmd/worker/main.go"}, "LoadClamd": {"cmd/worker/main.go"},
+		"S3": {"internal/config/config.go"}, "KEK": {"internal/config/config.go"}, "CLAMD": {"internal/config/config.go"},
+	} {
+		for _, f := range found[key] {
+			if !slices.Contains(allowed, f) {
+				t.Errorf("%s is named in %s; only %v may", key, f, allowed)
+			}
+		}
+	}
+	for _, key := range []string{"S3", "KEK", "CLAMD"} {
+		if !slices.Equal(found[key], []string{"internal/config/config.go"}) {
+			t.Errorf("the %s variables are read in %v, want internal/config/config.go", key, found[key])
+		}
+	}
+}

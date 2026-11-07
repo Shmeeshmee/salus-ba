@@ -236,6 +236,10 @@ owner on 2026-11-07. Rows marked "decided by the session, owner to review" were 
 | O11 | Keep the file name? | Yes, as `title`, cut to 200 characters, so the practitioner can tell files apart. It is personal data (a name can say anything), never logged, deleted with the file | 2.1 |
 | O12 | Can the patient open their own files on mobile? | Not in this feature: the read-only view lists title, kind and size. They have the original on their device | 1.7 |
 | O13 | Image and video metadata? | Decided by the owner, 2026-11-07: the app strips location and all other metadata, keeps orientation (§2 "Image and video metadata") | 1.7 |
+| O14 | The init service of §2 "Compose"? | None: Garage's `server --single-node --default-bucket` lays out the one node and creates the bucket `salus-binaries` and the synthetic key from its environment at start, idempotently, with no bind-mounted file (ADR 0010). Decided by the session, owner to review | 0.1 |
+| O15 | The table name `binary` is a reserved word in Postgres | Kept as named, quoted `"binary"` in every statement (archcheck and sqlc accept the quotes). Decided by the session, owner to review | 0.1, 2.1, 3.1 |
+| O16 | `salus_retention`'s `SELECT, DELETE` on `binary` (§2 "Tables") | Granted with the `delete` rule, not before: a migration test requires the role's grants to be exactly the tables whose rule is `delete`, and the cascade from `questionnaire_response` needs no privilege (tested). Package 3.1 adds a new migration with the grant, with its purger and rule. Decided by the session, owner to review | 0.1, 3.1 |
+| O17 | Error codes the §2 "JSON API" does not name | `range_not_satisfiable` (416 on content); `invalid_request` (400) for an upload body that ends before `Content-Length`; `forbidden` (403) for staff on the upload and the deletion, as for the answers; the deletion's 409 are the answers' codes. Decided by the session, owner to review | 0.1, 2.1 |
 
 ## 4. Lawful basis
 

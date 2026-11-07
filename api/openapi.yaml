@@ -1543,8 +1543,9 @@ paths:
       summary: Submit the answers
       description: >-
         The patient submits the saved answers, as they were read (If-Match): every shown required question
-        must be answered; the answers of hidden questions are removed. Final: no later change. The appointment's
-        practitioner reads the answers from then on. Not cached. Audited, also when refused.
+        must be answered (a shown required attachment item needs a file); the answers and files of hidden
+        questions are removed. Final: no later change. The appointment's practitioner reads the answers from
+        then on. Not cached. Audited, also when refused.
       tags: [questionnaires]
       security:
         - sessionCookie: []
@@ -1567,7 +1568,12 @@ paths:
         "404":
           $ref: "#/components/responses/QuestionnaireResponseNotFound"
         "409":
-          $ref: "#/components/responses/AnswersClosed"
+          description: >-
+            `submitted`, `withdrawn`, `appointment_closed`, `past_due`, `consent_required` as for the answers;
+            `attachments_pending`: a file is still being checked for malware; submit once every file is clean.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
         "412":
           $ref: "#/components/responses/QuestionnaireResponseChanged"
         "422":
@@ -1603,6 +1609,189 @@ paths:
           $ref: "#/components/responses/QuestionnaireResponseNotFound"
         "409":
           description: "`submitted`: the patient has submitted it; `withdrawn`: it is already withdrawn."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /questionnaire-responses/{id}/items/{linkId}/attachments:
+    parameters:
+      - $ref: "#/components/parameters/QuestionnaireResponseID"
+      - $ref: "#/components/parameters/LinkID"
+    post:
+      operationId: uploadAttachment
+      summary: Attach a file to an answer
+      description: >-
+        The patient attaches one file to an attachment item of their questionnaire while it is in progress,
+        while the appointment is booked and before it starts, with an active consent (FHIR Binary; the answer
+        is a valueAttachment). The body is the file's bytes, streamed; `Content-Length` is required. The type is
+        detected from the bytes, never from `Content-Type` or the name: PDF, JPEG, PNG or MP4 (H.264 video, AAC
+        audio), as the item accepts. Limits: 20 MB per photo or document, 200 MB per video, the item's
+        `maxFiles`, 500 MB per response. The title is the `filename*` of `Content-Disposition` (RFC 6266), cut
+        to 200 characters, the path removed; never put it in the query string. The file is encrypted, stored and
+        `quarantined` until the malware scan says it is `clean` (`GET /binaries/{id}`). An upload identical to a
+        file already on the item (same SHA-1 and size) returns that file with 200 and stores nothing new, so the
+        app may retry the whole file. Not cached. Audited, also when refused.
+      tags: [attachments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - name: Content-Length
+          in: header
+          required: true
+          description: The file's size in bytes.
+          schema: {type: integer, format: int64, minimum: 1}
+        - name: Content-Disposition
+          in: header
+          required: false
+          description: "`attachment; filename*=UTF-8''<percent-encoded name>`, the file's name as its title."
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        "200":
+          $ref: "#/components/responses/BinaryRetried"
+        "201":
+          $ref: "#/components/responses/Binary"
+        "400":
+          description: "`invalid_request`: the body ended before `Content-Length` bytes."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/AnswersForbidden"
+        "404":
+          $ref: "#/components/responses/QuestionnaireResponseNotFound"
+        "409":
+          description: >-
+            `submitted`, `withdrawn`, `appointment_closed`, `past_due`, `consent_required` as for the answers;
+            `too_many_files`: the item already holds `maxFiles` files.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "411":
+          description: "`length_required`: no `Content-Length`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "413":
+          description: >-
+            `too_large`: larger than the limit of the file's kind (or, before the bytes are read, of every kind
+            the item accepts); `response_full`: the response's files would pass 500 MB.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "415":
+          description: >-
+            `unsupported_type`: the bytes are no type the item accepts, or an MP4 whose video is not H.264 or whose
+            audio is not AAC.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422":
+          description: "`not_attachment_item`: `linkId` is no attachment item of the response's questionnaire."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /binaries/{id}:
+    parameters:
+      - $ref: "#/components/parameters/BinaryID"
+    get:
+      operationId: getBinary
+      summary: Read a file's status
+      description: >-
+        A file's type, size, title and scan status, for whoever may read its questionnaire response in full:
+        the patient, and the appointment's practitioner once the response is submitted. The app polls it until
+        the file is `clean` or `rejected`. Not cached. Audited.
+      tags: [attachments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Binary"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/BinaryNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      operationId: deleteBinary
+      summary: Remove a file from an answer
+      description: >-
+        The patient removes a file from their questionnaire while they may still change its answers; the file
+        is deleted. Audited, also when refused.
+      tags: [attachments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204":
+          description: The file is removed and deleted.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/AnswersForbidden"
+        "404":
+          $ref: "#/components/responses/BinaryNotFound"
+        "409":
+          $ref: "#/components/responses/AnswersClosed"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /binaries/{id}/content:
+    parameters:
+      - $ref: "#/components/parameters/BinaryID"
+    get:
+      operationId: getBinaryContent
+      summary: Download a file
+      description: >-
+        The file's bytes, decrypted, once the scan says it is `clean`, for whoever may read its questionnaire
+        response in full. One `Range` (`bytes=a-b`, `a-` or `-n`) gives 206 with that part, so a video seeks; a
+        request with several ranges gets the whole file. Shown inline, never sniffed, never cached. Every
+        request is audited, ranges included.
+      tags: [attachments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - name: Range
+          in: header
+          required: false
+          description: One byte range, `bytes=<first>-<last>`, `bytes=<first>-` or `bytes=-<suffix length>`.
+          schema: {type: string}
+      responses:
+        "200":
+          $ref: "#/components/responses/BinaryContent"
+        "206":
+          $ref: "#/components/responses/BinaryContent"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such file, a rejected one, or the caller may not read it."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`scanning`: the file is still being checked; try again later."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "416":
+          description: "`range_not_satisfiable`: the range starts past the end of the file."
+          headers:
+            Content-Range: {schema: {type: string}, description: "`bytes */<size>`."}
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -1671,6 +1860,22 @@ components:
       in: path
       required: true
       description: The response's id (FHIR QuestionnaireResponse.id).
+      schema:
+        type: string
+        format: uuid
+    LinkID:
+      name: linkId
+      in: path
+      required: true
+      description: The attachment item's linkId.
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9-]{1,64}$"
+    BinaryID:
+      name: id
+      in: path
+      required: true
+      description: The file's id (FHIR Binary.id).
       schema:
         type: string
         format: uuid
@@ -1763,11 +1968,52 @@ components:
     AnswersInvalid:
       description: >-
         `answers_invalid`: an answer does not fit its item's type or limits (docs/questionnaire/SPEC.md §2
-        "Limits"), or, on submit, a shown required question is unanswered; `linkIds` names them in document
-        order (an answer to no item of the questionnaire is refused without being named).
+        "Limits"), an answer is given to an attachment item (files go through
+        `/questionnaire-responses/{id}/items/{linkId}/attachments`), or, on submit, a shown required question
+        is unanswered; `linkIds` names them in document order (an answer to no item of the questionnaire is
+        refused without being named).
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
+    Binary:
+      description: The file, as stored.
+      headers:
+        Cache-Control: {schema: {type: string, const: no-store}}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Binary"}
+    BinaryRetried:
+      description: An identical file the item already holds; nothing new was stored.
+      headers:
+        Cache-Control: {schema: {type: string, const: no-store}}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Binary"}
+    BinaryNotFound:
+      description: "`not_found`: no such file, or the caller may not see it."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    BinaryContent:
+      description: >-
+        The whole file (200) or the requested range (206), in the type detected on upload. Served with
+        `X-Content-Type-Options: nosniff`, `Cross-Origin-Resource-Policy: same-origin`, `Content-Disposition:
+        inline` with the title as `filename*`, and `Content-Security-Policy: default-src 'none'`.
+      headers:
+        Content-Length: {schema: {type: integer, format: int64}}
+        Content-Range: {schema: {type: string}, description: "206 only: `bytes <first>-<last>/<size>`."}
+        Accept-Ranges: {schema: {type: string, const: bytes}}
+        ETag: {schema: {type: string}, description: "The file's SHA-1, a strong ETag."}
+        Cache-Control: {schema: {type: string, const: "private, no-store"}}
+      content:
+        application/pdf:
+          schema: {type: string, format: binary}
+        image/jpeg:
+          schema: {type: string, format: binary}
+        image/png:
+          schema: {type: string, format: binary}
+        video/mp4:
+          schema: {type: string, format: binary}
     LoginStep:
       description: >-
         The next step (`verify` or `enrol`, with the challenge), or `done` with the session: in the
@@ -2266,13 +2512,30 @@ components:
           description: Not blank.
         type:
           type: string
-          enum: [group, display, string, text, boolean, choice, integer, decimal, date]
+          enum: [group, display, string, text, boolean, choice, integer, decimal, date, attachment]
         required:
           type: boolean
           description: Questions only.
         repeats:
           type: boolean
           description: Choice only, several answers.
+        accept:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          description: >-
+            Attachment only, required: the kinds of file it accepts, `photo` (JPEG, PNG), `document` (PDF),
+            `video` (MP4).
+          items:
+            type: string
+            enum: [photo, document, video]
+        maxFiles:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 10
+          description: Attachment only, required, the number of files it takes.
         help:
           type: string
           maxLength: 500
@@ -2462,6 +2725,32 @@ components:
           type: integer
           format: int32
           description: The version of the answers, for If-Match.
+    Binary:
+      type: object
+      required: [id, contentType, size, title, status]
+      description: A file attached to a questionnaire answer (FHIR Binary; its bytes at `/binaries/{id}/content`).
+      properties:
+        id:
+          type: string
+          format: uuid
+        contentType:
+          type: string
+          enum: [application/pdf, image/jpeg, image/png, video/mp4]
+          description: Detected from the bytes on upload.
+        size:
+          type: integer
+          format: int64
+          description: Bytes.
+        title:
+          type: string
+          maxLength: 200
+          description: The file's name as uploaded; may be empty.
+        status:
+          type: string
+          enum: [quarantined, clean, rejected]
+          description: >-
+            `quarantined` until the malware scan is done; `clean` may be opened; `rejected` was found to hold
+            malware and is removed from the answer.
     Error:
       type: object
       required: [error]
@@ -2516,6 +2805,15 @@ components:
             - withdrawn
             - past_due
             - answers_invalid
+            - not_attachment_item
+            - length_required
+            - too_large
+            - response_full
+            - too_many_files
+            - unsupported_type
+            - scanning
+            - range_not_satisfiable
+            - attachments_pending
             - internal error
             - timeout
         linkIds:

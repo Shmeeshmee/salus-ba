@@ -46,10 +46,10 @@ directory when something goes in it.
 | `internal/config` | The only package that reads the environment |
 | `internal/api` | `app.go` builds every domain (the shared composition root); `router/` mounts middleware and routes |
 | `internal/worker` | The River client for `cmd/worker` and the registration of every job's worker |
-| `pkg/` | Infrastructure with no knowledge of this product: `postgres`, `httpx`, `clock`, `middleware`, `redis`, `fhir` (generic FHIR primitives: `Reference`, `CodeableConcept`, `OperationOutcome`, bundles). Never imports `internal/` |
+| `pkg/` | Infrastructure with no knowledge of this product: `postgres`, `httpx`, `clock`, `middleware`, `redis`, `fhir` (generic FHIR primitives: `Reference`, `CodeableConcept`, `OperationOutcome`, bundles), `envelope` (per-file envelope encryption in AES-GCM segments), `filetype` (file type from the bytes, size limits), `clamd` (the ClamAV `INSTREAM` client). Never imports `internal/` |
 | `api/` | Contracts: `openapi.yaml` for non-FHIR endpoints, `fhir/` for the CapabilityStatement, profiles (StructureDefinitions) and ValueSets we use. The TypeScript client (openapi-typescript) and the Dart client (openapi-generator) are generated from `openapi.yaml` into `web/` and `mobile/` with `make gen-clients`; never edit them by hand |
 | `configs/` | Config templates and defaults (`.env.example`) |
-| `deployments/` | `docker-compose.yml` (the stack, plus the `tools`, `node`, `landing-dev` and `flutter` toolchain services behind profiles), and later the orchestration manifests |
+| `deployments/` | `docker-compose.yml` (the stack, with the `objectstore` (Garage, S3-compatible) and `clamd` (ClamAV) services of ADR 0010, plus the `tools`, `node`, `landing-dev` and `flutter` toolchain services behind profiles), and later the orchestration manifests |
 | `build/` | Dockerfiles (`build/package/`): `dev.Dockerfile` (the Go toolchain behind every `make` target), `flutter.Dockerfile`, `landing.Dockerfile` (builds `landing/` and serves it with nginx), and the runtime image |
 | `.github/` | GitHub Actions workflows, one per app (Go, web, landing, mobile) with path filters, and Dependabot |
 | `migrations/` | goose SQL migrations, numbered, forward-only (no `-- +goose Down`), embedded and applied by `cmd/migrate`. River's schema is migrated here too. A file on `main` is never modified or deleted (`scripts/check-migrations.sh`) |
@@ -78,7 +78,7 @@ directory     practitioner, organization, practitionerrole
 patient       patient, relatedperson
 scheduling    schedule, slot, appointment
 consultation  encounter, videosession, communication
-clinical      questionnaire, questionnaireresponse, observation, condition, medicationrequest, documentreference
+clinical      binary, questionnaire, questionnaireresponse, observation, condition, medicationrequest, documentreference
 privacy       consent, auditevent, datarequest (GDPR subject requests), retention
               and the pure rule package access (who may see what)
 notification  notification
@@ -260,7 +260,10 @@ service).
 
 - `make test` — `go test ./...` in the `tools` container. Its `TEST_DATABASE_URL` and `TEST_REDIS_URL` point
   at the compose Postgres and Redis; `pgtest` migrates a template database once per test package and gives
-  each test its own copy. Without the URLs the tests fail with a message; they never skip.
+  each test its own copy. Without the URLs the tests fail with a message; they never skip. The object store's
+  and clamd's tests use `TEST_S3_ENDPOINT`, `TEST_S3_REGION`, `TEST_S3_BUCKET`, `TEST_S3_ACCESS_KEY_ID`,
+  `TEST_S3_SECRET_ACCESS_KEY` (the compose Garage) and `TEST_CLAMD_ADDR` (the compose clamd) the same way, with
+  object keys prefixed per test.
 - `make cover` — tests with coverage, each package measured by its own tests, failing when any package is
   below 80%. Excluded: `cmd/*/main.go`, and the generated sqlc packages `internal/<domain>/<domain>db`
   (exercised by their domain's repository tests).

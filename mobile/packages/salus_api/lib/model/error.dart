@@ -176,6 +176,15 @@ enum ErrorErrorEnum {
   withdrawn._(r'withdrawn'),
   pastDue._(r'past_due'),
   answersInvalid._(r'answers_invalid'),
+  notAttachmentItem._(r'not_attachment_item'),
+  lengthRequired._(r'length_required'),
+  tooLarge._(r'too_large'),
+  responseFull._(r'response_full'),
+  tooManyFiles._(r'too_many_files'),
+  unsupportedType._(r'unsupported_type'),
+  scanning._(r'scanning'),
+  rangeNotSatisfiable._(r'range_not_satisfiable'),
+  attachmentsPending._(r'attachments_pending'),
   internalError._(r'internal error'),
   timeout._(r'timeout'),
   ;
@@ -333,6 +342,24 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.pastDue;
         case r'answers_invalid':
           return ErrorErrorEnum.answersInvalid;
+        case r'not_attachment_item':
+          return ErrorErrorEnum.notAttachmentItem;
+        case r'length_required':
+          return ErrorErrorEnum.lengthRequired;
+        case r'too_large':
+          return ErrorErrorEnum.tooLarge;
+        case r'response_full':
+          return ErrorErrorEnum.responseFull;
+        case r'too_many_files':
+          return ErrorErrorEnum.tooManyFiles;
+        case r'unsupported_type':
+          return ErrorErrorEnum.unsupportedType;
+        case r'scanning':
+          return ErrorErrorEnum.scanning;
+        case r'range_not_satisfiable':
+          return ErrorErrorEnum.rangeNotSatisfiable;
+        case r'attachments_pending':
+          return ErrorErrorEnum.attachmentsPending;
         case r'internal error':
           return ErrorErrorEnum.internalError;
         case r'timeout':

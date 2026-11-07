@@ -3,6 +3,7 @@ README.md
 analysis_options.yaml
 lib/api.dart
 lib/api/appointments_api.dart
+lib/api/attachments_api.dart
 lib/api/auth_api.dart
 lib/api/consents_api.dart
 lib/api/consultation_api.dart
@@ -28,6 +29,7 @@ lib/model/answer_value.dart
 lib/model/appointment.dart
 lib/model/availability.dart
 lib/model/availability_rule.dart
+lib/model/binary.dart
 lib/model/book_appointment_request.dart
 lib/model/confirm_request.dart
 lib/model/consent.dart

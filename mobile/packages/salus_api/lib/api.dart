@@ -29,6 +29,7 @@ part 'auth/http_basic_auth.dart';
 part 'auth/http_bearer_auth.dart';
 
 part 'api/appointments_api.dart';
+part 'api/attachments_api.dart';
 part 'api/auth_api.dart';
 part 'api/consents_api.dart';
 part 'api/consultation_api.dart';
@@ -47,6 +48,7 @@ part 'model/answer_value.dart';
 part 'model/appointment.dart';
 part 'model/availability.dart';
 part 'model/availability_rule.dart';
+part 'model/binary.dart';
 part 'model/book_appointment_request.dart';
 part 'model/confirm_request.dart';
 part 'model/consent.dart';

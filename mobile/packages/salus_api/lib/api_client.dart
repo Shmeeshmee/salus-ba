@@ -220,6 +220,8 @@ class ApiClient {
           return Availability.fromJson(value);
         case 'AvailabilityRule':
           return AvailabilityRule.fromJson(value);
+        case 'Binary':
+          return Binary.fromJson(value);
         case 'BookAppointmentRequest':
           return BookAppointmentRequest.fromJson(value);
         case 'ConfirmRequest':

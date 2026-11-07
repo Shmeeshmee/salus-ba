@@ -4,7 +4,9 @@ package config
 import (
 	"encoding/base64"
 	"errors"
+	"net"
 	"net/netip"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -55,6 +57,9 @@ func Load() (Config, error) {
 	if cfg.HTTPAddr == "" {
 		cfg.HTTPAddr = ":8080"
 	}
+	if cfg.FHIRBaseURL != "" && !strings.HasSuffix(strings.TrimSuffix(cfg.FHIRBaseURL, "/"), fhirPath) {
+		return Config{}, errors.New("config: FHIR_BASE_URL does not end in " + fhirPath)
+	}
 	var err error
 	if cfg.TOTPKey, err = base64.StdEncoding.DecodeString(os.Getenv("TOTP_KEY")); err != nil {
 		return Config{}, errors.New("config: TOTP_KEY is not base64")
@@ -73,6 +78,15 @@ func Load() (Config, error) {
 		cfg.TrustedProxies = append(cfg.TrustedProxies, p)
 	}
 	return cfg, nil
+}
+
+// fhirPath ends FHIR_BASE_URL; the rest is the api's public base.
+const fhirPath = "/fhir/R4"
+
+// APIBaseURL is the api's absolute public base, FHIR_BASE_URL without /fhir/R4, for the download URL of a
+// valueAttachment (docs/attachments/SPEC.md §2 "Configuration"); empty when FHIR_BASE_URL is.
+func (c Config) APIBaseURL() string {
+	return strings.TrimSuffix(strings.TrimSuffix(c.FHIRBaseURL, "/"), fhirPath)
 }
 
 // Retention holds the retention job's credentials: the salus_retention role, which bypasses row-level
@@ -123,4 +137,65 @@ func LoadLiveKit() (LiveKit, error) {
 		}
 	}
 	return lk, nil
+}
+
+// ObjectStore holds the S3-compatible object store's settings and the key-encryption key that wraps each
+// file's data key (docs/attachments/SPEC.md §2 "Configuration", "Encryption"). Load never reads them; only
+// cmd/api and cmd/worker call LoadObjectStore. Locally the store is the compose Garage and the KEK is
+// synthetic; production takes the KEK from the KMS (SPEC §8), never from a committed file.
+type ObjectStore struct {
+	Endpoint        string // S3_ENDPOINT, an absolute http(s) URL
+	Region          string // S3_REGION
+	Bucket          string // S3_BUCKET
+	AccessKeyID     string // S3_ACCESS_KEY_ID
+	SecretAccessKey string // S3_SECRET_ACCESS_KEY
+	KEKID           string // BINARY_KEK_ID, stored with each wrapped data key
+	KEK             []byte // BINARY_KEK, base64 of 32 bytes (AES-256)
+}
+
+// LoadObjectStore reads the object store's settings from the environment; each is required. Errors name the
+// variable, never a value.
+func LoadObjectStore() (ObjectStore, error) {
+	s := ObjectStore{
+		Endpoint:        os.Getenv("S3_ENDPOINT"),
+		Region:          os.Getenv("S3_REGION"),
+		Bucket:          os.Getenv("S3_BUCKET"),
+		AccessKeyID:     os.Getenv("S3_ACCESS_KEY_ID"),
+		SecretAccessKey: os.Getenv("S3_SECRET_ACCESS_KEY"),
+		KEKID:           os.Getenv("BINARY_KEK_ID"),
+	}
+	kek := os.Getenv("BINARY_KEK")
+	for _, v := range []struct{ name, value string }{
+		{"S3_ENDPOINT", s.Endpoint}, {"S3_REGION", s.Region}, {"S3_BUCKET", s.Bucket},
+		{"S3_ACCESS_KEY_ID", s.AccessKeyID}, {"S3_SECRET_ACCESS_KEY", s.SecretAccessKey},
+		{"BINARY_KEK", kek}, {"BINARY_KEK_ID", s.KEKID},
+	} {
+		if v.value == "" {
+			return ObjectStore{}, errors.New("config: " + v.name + " is required")
+		}
+	}
+	if u, err := url.Parse(s.Endpoint); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return ObjectStore{}, errors.New("config: S3_ENDPOINT is not an absolute http(s) URL")
+	}
+	var err error
+	if s.KEK, err = base64.StdEncoding.DecodeString(kek); err != nil || len(s.KEK) != 32 {
+		return ObjectStore{}, errors.New("config: BINARY_KEK is not base64 of 32 bytes")
+	}
+	return s, nil
+}
+
+// Clamd holds the malware scanner's address (docs/attachments/SPEC.md §2 "Configuration"). Only cmd/worker
+// calls LoadClamd.
+type Clamd struct {
+	Addr string // CLAMD_ADDR, host:port of clamd's TCP socket
+}
+
+// LoadClamd reads clamd's address from the environment; it is required. Errors name the variable, never a
+// value.
+func LoadClamd() (Clamd, error) {
+	addr := os.Getenv("CLAMD_ADDR")
+	if host, port, err := net.SplitHostPort(addr); err != nil || host == "" || port == "" {
+		return Clamd{}, errors.New("config: CLAMD_ADDR is not host:port")
+	}
+	return Clamd{Addr: addr}, nil
 }

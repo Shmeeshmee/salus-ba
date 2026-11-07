@@ -174,3 +174,17 @@ func TestRules_DeleteQuestionnaireResponsesOnceDue(t *testing.T) {
 	}
 	t.Fatal("no rule for questionnaire_response")
 }
+
+// A file's row lives as long as its questionnaire response and goes with it through the foreign key; until
+// package 3.1's purger exists the rule is keep (docs/attachments/SPEC.md §5 "Retention").
+func TestRules_KeepBinariesWithTheirResponseUntilThePurgerExists(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "binary" {
+			if r.Then != retention.ThenKeep || r.Keep != 0 {
+				t.Errorf("binary then %q after %v, want %q", r.Then, r.Keep, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for binary")
+}

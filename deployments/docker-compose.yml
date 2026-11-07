@@ -28,6 +28,18 @@ x-livekit-env: &livekit-env
   LIVEKIT_API_KEY: devkey
   LIVEKIT_API_SECRET: local-only-synthetic-livekit-secret-0123456789
 
+# The object store and the files' key-encryption key (docs/attachments/SPEC.md §2 "Configuration"): only the api
+# and the worker load them (config.LoadObjectStore). The access key pair and the KEK are synthetic, local only;
+# production's store is the hosting provider's and its KEK comes from the KMS (SPEC §8).
+x-objectstore-env: &objectstore-env
+  S3_ENDPOINT: http://objectstore:3900
+  S3_REGION: garage
+  S3_BUCKET: salus-binaries
+  S3_ACCESS_KEY_ID: GK5a1a50000000000000000001
+  S3_SECRET_ACCESS_KEY: 5a1a500000000000000000000000000000000000000000000000000000000001
+  BINARY_KEK: bG9jYWwtb25seS1zeW50aGV0aWMtYmluYXJ5LWtlayE= # base64 of 32 synthetic bytes
+  BINARY_KEK_ID: local-1
+
 x-host-user: &host-user
   # Files the toolchains write into the repo stay owned by the host user. make exports HOST_UID/HOST_GID.
   user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
@@ -80,7 +92,7 @@ services:
     <<: *app
     command: ["/usr/local/bin/api"]
     environment:
-      <<: [*app-env, *livekit-env]
+      <<: [*app-env, *livekit-env, *objectstore-env]
       HTTP_ADDR: ":8080"
       # Synthetic, local only. TOTP_KEY seals TOTP secrets (production: the KMS, not decided yet);
       # RATE_LIMIT_KEY names the login rate-limit counters in Redis by HMAC.
@@ -89,15 +101,23 @@ services:
       # The FHIR API's public base, for the links and fullUrls of a search's Bundle.
       FHIR_BASE_URL: http://localhost:${SALUS_API_PORT:-8080}/fhir/R4
     ports: ["127.0.0.1:${SALUS_API_PORT:-8080}:8080"]
+    depends_on:
+      <<: *app-deps
+      objectstore: {condition: service_healthy}
 
   worker:
     <<: *app
     command: ["/usr/local/bin/worker"]
     environment:
-      <<: [*app-env, *livekit-env]
+      <<: [*app-env, *livekit-env, *objectstore-env]
+      CLAMD_ADDR: clamd:3310 # the binary_scan job's scanner (config.LoadClamd)
       # The retention_apply job's own login, salus_retention (BYPASSRLS, SELECT and DELETE on the tables whose
       # rule is delete). Only this service has it (internal/worker's tests check). Synthetic, local only.
       RETENTION_DATABASE_URL: postgres://salus_retention:local-retention-password@postgres:5432/salus?sslmode=disable
+    depends_on:
+      <<: *app-deps
+      objectstore: {condition: service_healthy}
+      clamd: {condition: service_healthy}
 
   # Enqueues the periodic jobs (retention_apply daily at 03:00 UTC) and is River's only leader.
   scheduler:
@@ -140,6 +160,50 @@ services:
       interval: 1s
       timeout: 3s
       retries: 30
+
+  # The S3-compatible object store for the files patients attach (ADR 0010): Garage, one node, on the compose
+  # network only (the api serves the files). --single-node lays the cluster out at start, --default-bucket creates
+  # the bucket salus-binaries and the synthetic access key of x-objectstore-env and grants it the bucket, so no
+  # init service is needed. Configured inline (configs: below), with no bind mount, so every worktree resolves the
+  # same service. The RPC secret is synthetic, local only. The health check passes once the bucket exists.
+  objectstore:
+    image: dxflrs/garage:v2.4.1
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    environment:
+      GARAGE_RPC_SECRET: 5a1a5fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      GARAGE_DEFAULT_ACCESS_KEY: GK5a1a50000000000000000001
+      GARAGE_DEFAULT_SECRET_KEY: 5a1a500000000000000000000000000000000000000000000000000000000001
+      GARAGE_DEFAULT_BUCKET: salus-binaries
+    configs: [{source: garage, target: /etc/garage.toml}]
+    volumes: [objectstore:/var/lib/garage]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/garage", "bucket", "info", "salus-binaries"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # The malware scanner (ADR 0010): clamd on TCP 3310, compose network only. The image carries a signature
+  # database, copied into the clamav volume on its first start; freshclam then updates it (needs the internet,
+  # once a day; it sends no personal data). The stream and scan limits are 250 MB, above the 200 MB video limit;
+  # ConcurrentDatabaseReload off, so a signature reload does not double clamd's memory (about 1.5 GB) on a
+  # developer machine. Set through the image's CLAMD_CONF_* variables, no bind mount. Healthy once clamd
+  # answers PING with PONG, which waits for the signatures to load.
+  clamd:
+    image: clamav/clamav:1.5.4
+    environment:
+      CLAMD_CONF_StreamMaxLength: 250M
+      CLAMD_CONF_MaxFileSize: 250M
+      CLAMD_CONF_MaxScanSize: 250M
+      CLAMD_CONF_ConcurrentDatabaseReload: "no"
+    volumes: [clamav:/var/lib/clamav]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5m
 
   # Catches every e-mail sent locally; web UI on 127.0.0.1:8025 (SMTP 1025 on the compose network only).
   mailpit:
@@ -187,6 +251,14 @@ services:
       TEST_LIVEKIT_URL: http://livekit:7880
       TEST_LIVEKIT_API_KEY: devkey
       TEST_LIVEKIT_API_SECRET: local-only-synthetic-livekit-secret-0123456789
+      # The object store's and clamd's tests (pkg/clamd, internal/binary) run against the compose Garage and clamd,
+      # with x-objectstore-env's synthetic key pair; object keys are prefixed per test. Without them they fail.
+      TEST_S3_ENDPOINT: http://objectstore:3900
+      TEST_S3_REGION: garage
+      TEST_S3_BUCKET: salus-binaries
+      TEST_S3_ACCESS_KEY_ID: GK5a1a50000000000000000001
+      TEST_S3_SECRET_ACCESS_KEY: 5a1a500000000000000000000000000000000000000000000000000000000001
+      TEST_CLAMD_ADDR: clamd:3310
       DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable # make migrate: the owner
       APP_DATABASE_PASSWORD: local-app-password
       RETENTION_DATABASE_PASSWORD: local-retention-password # make migrate sets it on salus_retention
@@ -200,6 +272,8 @@ services:
       redis: {condition: service_healthy}
       mailpit: {condition: service_healthy}
       livekit: {condition: service_healthy}
+      objectstore: {condition: service_healthy}
+      clamd: {condition: service_healthy}
 
   # The end-to-end runner: `make e2e` (build/package/playwright.Dockerfile). The Go journeys reach the API,
   # Mailpit, Postgres (salusctl and the appointment's start, as the owner) and LiveKit on the compose network; the
@@ -302,8 +376,26 @@ services:
       - ..:/src
       - pub:/cache/pub
 
+# Garage's configuration, inline so that no worktree bind-mounts its own copy (ADR 0010). The RPC secret is in
+# the service's environment.
+configs:
+  garage:
+    content: |
+      metadata_dir = "/var/lib/garage/meta"
+      data_dir = "/var/lib/garage/data"
+      db_engine = "sqlite"
+      replication_factor = 1
+      rpc_bind_addr = "[::]:3901"
+      rpc_public_addr = "127.0.0.1:3901"
+
+      [s3_api]
+      s3_region = "garage"
+      api_bind_addr = "[::]:3900"
+
 volumes:
   postgres:
+  objectstore:
+  clamav:
   gomod:
   gobuild:
   golangci:

@@ -18,6 +18,8 @@ class QuestionnaireItem {
     required this.type,
     this.required_,
     this.repeats,
+    this.accept = const {},
+    this.maxFiles,
     this.help,
     this.answerOption = const [],
     this.enableWhen,
@@ -49,6 +51,21 @@ class QuestionnaireItem {
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
   bool? repeats;
+
+  /// Attachment only, required: the kinds of file it accepts, `photo` (JPEG, PNG), `document` (PDF), `video` (MP4).
+  Set<QuestionnaireItemAcceptEnum> accept;
+
+  /// Attachment only, required, the number of files it takes.
+  ///
+  /// Minimum value: 1
+  /// Maximum value: 10
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? maxFiles;
 
   /// Help text, on questions and sections.
   ///
@@ -82,6 +99,8 @@ class QuestionnaireItem {
           other.type == type &&
           other.required_ == required_ &&
           other.repeats == repeats &&
+          _deepEquality.equals(other.accept, accept) &&
+          other.maxFiles == maxFiles &&
           other.help == help &&
           _deepEquality.equals(other.answerOption, answerOption) &&
           other.enableWhen == enableWhen &&
@@ -95,6 +114,8 @@ class QuestionnaireItem {
       (type.hashCode) +
       (required_ == null ? 0 : required_!.hashCode) +
       (repeats == null ? 0 : repeats!.hashCode) +
+      (accept.hashCode) +
+      (maxFiles == null ? 0 : maxFiles!.hashCode) +
       (help == null ? 0 : help!.hashCode) +
       (answerOption.hashCode) +
       (enableWhen == null ? 0 : enableWhen!.hashCode) +
@@ -102,7 +123,7 @@ class QuestionnaireItem {
 
   @override
   String toString() =>
-      'QuestionnaireItem[linkId=$linkId, text=$text, type=$type, required_=$required_, repeats=$repeats, help=$help, answerOption=$answerOption, enableWhen=$enableWhen, item=$item]';
+      'QuestionnaireItem[linkId=$linkId, text=$text, type=$type, required_=$required_, repeats=$repeats, accept=$accept, maxFiles=$maxFiles, help=$help, answerOption=$answerOption, enableWhen=$enableWhen, item=$item]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -118,6 +139,12 @@ class QuestionnaireItem {
       json[r'repeats'] = this.repeats;
     } else {
       json[r'repeats'] = null;
+    }
+    json[r'accept'] = this.accept.toList(growable: false);
+    if (this.maxFiles != null) {
+      json[r'maxFiles'] = this.maxFiles;
+    } else {
+      json[r'maxFiles'] = null;
     }
     if (this.help != null) {
       json[r'help'] = this.help;
@@ -166,6 +193,9 @@ class QuestionnaireItem {
         type: QuestionnaireItemTypeEnum.fromJson(json[r'type'])!,
         required_: mapValueOfType<bool>(json, r'required'),
         repeats: mapValueOfType<bool>(json, r'repeats'),
+        accept:
+            QuestionnaireItemAcceptEnum.listFromJson(json[r'accept']).toSet(),
+        maxFiles: mapValueOfType<int>(json, r'maxFiles'),
         help: mapValueOfType<String>(json, r'help'),
         answerOption: QuestionnaireItemAnswerOptionInner.listFromJson(
             json[r'answerOption']),
@@ -243,6 +273,7 @@ enum QuestionnaireItemTypeEnum {
   integer._(r'integer'),
   decimal._(r'decimal'),
   date._(r'date'),
+  attachment._(r'attachment'),
   ;
 
   /// Instantiate a new enum with the provided value.
@@ -324,6 +355,8 @@ class QuestionnaireItemTypeEnumTypeTransformer {
           return QuestionnaireItemTypeEnum.decimal;
         case r'date':
           return QuestionnaireItemTypeEnum.date;
+        case r'attachment':
+          return QuestionnaireItemTypeEnum.attachment;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');
@@ -335,4 +368,90 @@ class QuestionnaireItemTypeEnumTypeTransformer {
 
   /// The singleton instance of this transformer.
   static QuestionnaireItemTypeEnumTypeTransformer? _instance;
+}
+
+enum QuestionnaireItemAcceptEnum {
+  photo._(r'photo'),
+  document._(r'document'),
+  video._(r'video'),
+  ;
+
+  /// Instantiate a new enum with the provided value.
+  const QuestionnaireItemAcceptEnum._(this._value);
+
+  /// The underlying value of this enum member.
+  final String _value;
+
+  @override
+  String toString() => _value;
+
+  /// Encodes this enum as a value suitable for JSON.
+  String toJson() => _value;
+
+  /// Returns the instance of [QuestionnaireItemAcceptEnum] that was successfully decoded
+  /// from the passed [value] on success, null otherwise.
+  static QuestionnaireItemAcceptEnum? fromJson(dynamic value) =>
+      QuestionnaireItemAcceptEnumTypeTransformer().decode(value);
+
+  /// Returns a [List] containing instances of [QuestionnaireItemAcceptEnum]
+  /// that were successfully decoded from the passed [JSON][json].
+  static List<QuestionnaireItemAcceptEnum> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final result = <QuestionnaireItemAcceptEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = QuestionnaireItemAcceptEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [QuestionnaireItemAcceptEnum] to String,
+/// and [decode] dynamic data back to [QuestionnaireItemAcceptEnum].
+class QuestionnaireItemAcceptEnumTypeTransformer {
+  factory QuestionnaireItemAcceptEnumTypeTransformer() =>
+      _instance ??= const QuestionnaireItemAcceptEnumTypeTransformer._();
+
+  const QuestionnaireItemAcceptEnumTypeTransformer._();
+
+  String encode(QuestionnaireItemAcceptEnum data) => data._value;
+
+  /// Returns the instance of [QuestionnaireItemAcceptEnum] that was successfully decoded
+  /// from the passed [data] value on success, null otherwise.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  QuestionnaireItemAcceptEnum? decode(dynamic data, {bool allowNull = true}) {
+    if (data is QuestionnaireItemAcceptEnum) {
+      return data;
+    }
+    if (data != null) {
+      switch (data) {
+        case r'photo':
+          return QuestionnaireItemAcceptEnum.photo;
+        case r'document':
+          return QuestionnaireItemAcceptEnum.document;
+        case r'video':
+          return QuestionnaireItemAcceptEnum.video;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// The singleton instance of this transformer.
+  static QuestionnaireItemAcceptEnumTypeTransformer? _instance;
 }

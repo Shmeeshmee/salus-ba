@@ -73,6 +73,10 @@ Class | Method | HTTP request | Description
 *AppointmentsApi* | [**bookAppointment**](doc//AppointmentsApi.md#bookappointment) | **POST** /appointments | Book a free slot
 *AppointmentsApi* | [**cancelAppointment**](doc//AppointmentsApi.md#cancelappointment) | **POST** /appointments/{id}/cancel | Cancel an appointment
 *AppointmentsApi* | [**setAppointmentStatus**](doc//AppointmentsApi.md#setappointmentstatus) | **POST** /appointments/{id}/status | Mark an appointment fulfilled or no-show
+*AttachmentsApi* | [**deleteBinary**](doc//AttachmentsApi.md#deletebinary) | **DELETE** /binaries/{id} | Remove a file from an answer
+*AttachmentsApi* | [**getBinary**](doc//AttachmentsApi.md#getbinary) | **GET** /binaries/{id} | Read a file's status
+*AttachmentsApi* | [**getBinaryContent**](doc//AttachmentsApi.md#getbinarycontent) | **GET** /binaries/{id}/content | Download a file
+*AttachmentsApi* | [**uploadAttachment**](doc//AttachmentsApi.md#uploadattachment) | **POST** /questionnaire-responses/{id}/items/{linkId}/attachments | Attach a file to an answer
 *AuthApi* | [**confirmMfa**](doc//AuthApi.md#confirmmfa) | **POST** /auth/mfa/confirm | Confirm TOTP enrolment with the first code
 *AuthApi* | [**enrolMfa**](doc//AuthApi.md#enrolmfa) | **POST** /auth/mfa/enrol | Start TOTP enrolment
 *AuthApi* | [**getMe**](doc//AuthApi.md#getme) | **GET** /auth/me | The signed-in account
@@ -123,6 +127,7 @@ Class | Method | HTTP request | Description
  - [Appointment](doc//Appointment.md)
  - [Availability](doc//Availability.md)
  - [AvailabilityRule](doc//AvailabilityRule.md)
+ - [Binary](doc//Binary.md)
  - [BookAppointmentRequest](doc//BookAppointmentRequest.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)
  - [Consent](doc//Consent.md)
