@@ -3,8 +3,8 @@
 | Package | Status | Commit |
 | --- | --- | --- |
 | 0.1 Baseline | done (integrated 2026-11-07) | 9b906c3 |
-| 1.1 internal/terminology: service and API | not started | |
-| 1.2 tools/terminology: the seed | not started | |
+| 1.1 internal/terminology: service and API | done (integrated 2026-11-08) | 8f9f6ff |
+| 1.2 tools/terminology: the seed | done (integrated 2026-11-08) | cd5ded5 |
 | 2.1 salusctl: import, export and curation | not started | |
 | 2.2 Web: the cheatsheet | not started | |
 | 3.1 End-to-end, walk and the partner's file | not started | |
@@ -48,6 +48,56 @@
   code only as an identifier from Wikidata). Recorded in `SOURCES.md`.
 - **`term_label.label` at most 300 characters**: a bound for the index and the CSV round trip; Wikidata labels
   are limited to 250.
+
+#### 1.1 internal/terminology: service and API
+
+- **Staff is the session's clinic admin or practitioner** as `auth.Service.ClinicMember` reads it (not audited,
+  like the other callers); a patient's session (no clinic) is refused without a read.
+- **The UI language for the default** is the account's `language`, else its `detectedLanguage`, else none (Latin
+  and English only), read through `auth.Service.Me` (audited as a read of the caller's own account) and only
+  when the request has no `languages`; the cheatsheet (2.2) should send `languages`, so the read is rare. auth
+  has no unaudited language read and is not this package's to change.
+- **The search text is trimmed** before the checks and the search; blank, invalid UTF-8 or a NUL is 400.
+- **`Cache-Control: no-store`** on the response: the search text is in the URL.
+- **query.sql tuned** (0.1's contract allows it): the prefix tier stays in the ranking, but its LIKE is in the
+  filter only for a one-character text (a label that starts with a text of n ≥ 2 characters shares n of its
+  n+1 trigrams, ≥ 0.67 against pg_trgm's 0.6, so `<%` already finds it): one index scan instead of a BitmapOr
+  that evaluated both conditions twice per candidate; each candidate label folded once (materialized CTE);
+  the labels come back in the same query as three parallel arrays (one round trip). `TermLabels` removed
+  (unused). Every 0.1 ranking test unchanged and green; two cases added (one letter, two letters).
+- **The p95 target is met, without margin.** Further levers need a migration, which only 0.1 may change: a
+  stored folded-label column (no `term_fold` in the recheck), or a GiST trigram index for a `<<->`
+  nearest-neighbour order that stops at the limit. Not done; for the owner. The real seed will have fewer
+  labels than the synthetic 88,330 (Wikidata leaves many languages empty); 2.1 or 3.1 can rerun the benchmark
+  against the loaded seed to confirm.
+
+#### 1.2 tools/terminology: the seed
+
+- **Symptoms are a direct instance or subclass** (`wdt:P31|wdt:P279` of *symptom* Q169872 or *medical sign*
+  Q1441305), not the transitive closure: `(wdt:P31|wdt:P279)/wdt:P279*` timed out on the query service both
+  times we tried (60 s). The SPEC says "an instance or subclass of"; the direct form gives 1,317 candidates, more than the
+  500 kept.
+- **One category per item, claimed in the order symptom, anatomy, procedure, drug, diagnosis** (`wikidata_id` is
+  unique, so an item can't sit in two). A symptom with an ICD-10 R code (headache, fever, pain) stays a symptom;
+  diagnosis, the widest, takes what is left. Each ranking query asks for its limit plus the items already kept,
+  so a category still fills.
+- **"Medication or active ingredient" is an ATC code at the substance level** (seven characters, e.g. N02BE01):
+  that level names one substance; shorter codes are groups. It is the simplest test Wikidata supports reliably
+  (drug items are typed inconsistently); it lets in medical gases (oxygen, helium), which ATC classifies as
+  medicines. The curator can drop what doesn't belong.
+- **ICD-9-CM (P1692) codes count as procedure codes only in the procedure format** (two digits and an optional
+  decimal part, e.g. 47.0); ICD-9-CM diagnosis codes (three digits) are not taken. They go into `pcs` with the
+  ICD-10-PCS codes, as `term.pcs` is documented ("ICD-10-PCS or ICD-9-CM procedure code").
+- **Procedure has 143 terms, not 500**: that is every item with either code. Not widened beyond the SPEC's
+  selection; the curator or a later plan can add procedures.
+- **Labels without a letter are dropped** (emoji such as "👀", bare numbers), and duplicates that differ only in
+  case: noise for a search and for the curator.
+- **A Latin-script `sr` label goes to `sr-Latn` as it is** and never into `sr-Cyrl` (Latin to Cyrillic is not one
+  to one); `sr-ec` labels add to `sr-Cyrl`; Љ, Њ, Џ become LJ, NJ, DŽ before a capital, else Lj, Nj, Dž.
+- **Codes are kept as Wikidata has them**, odd ones included (e.g. an ICD-10 `B2424.`, an ICD-10-PCS `B?2`): the
+  tool copies, the curator corrects; filtering them would hide data errors from the review.
+- **JSON key order** is `labels` first, then `wikidata`, `category`, codes, `rank` (struct order, which `govet`
+  fieldalignment sets); the 0.1 contract's example order is not significant to a JSON reader.
 
 ## Waiting on people
 
