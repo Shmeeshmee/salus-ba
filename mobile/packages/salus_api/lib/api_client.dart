@@ -302,6 +302,18 @@ class ApiClient {
           return StartQuestionnaireRequest.fromJson(value);
         case 'Status':
           return Status.fromJson(value);
+        case 'Term':
+          return Term.fromJson(value);
+        case 'TermCategory':
+          return TermCategoryTypeTransformer().decode(value);
+        case 'TermCodes':
+          return TermCodes.fromJson(value);
+        case 'TermLabels':
+          return TermLabels.fromJson(value);
+        case 'TermLanguage':
+          return TermLanguageTypeTransformer().decode(value);
+        case 'TermList':
+          return TermList.fromJson(value);
         case 'Unavailable':
           return Unavailable.fromJson(value);
         case 'UpdateMeRequest':

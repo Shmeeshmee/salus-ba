@@ -13,6 +13,7 @@ lib/api/invites_api.dart
 lib/api/patient_api.dart
 lib/api/questionnaires_api.dart
 lib/api/scheduling_api.dart
+lib/api/terminology_api.dart
 lib/api_client.dart
 lib/api_exception.dart
 lib/api_helper.dart
@@ -70,6 +71,12 @@ lib/model/specialty.dart
 lib/model/specialty_list.dart
 lib/model/start_questionnaire_request.dart
 lib/model/status.dart
+lib/model/term.dart
+lib/model/term_category.dart
+lib/model/term_codes.dart
+lib/model/term_labels.dart
+lib/model/term_language.dart
+lib/model/term_list.dart
 lib/model/unavailable.dart
 lib/model/update_me_request.dart
 lib/model/verify_request.dart
