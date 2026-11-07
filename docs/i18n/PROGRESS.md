@@ -565,6 +565,88 @@ for word; the date's English form is unchanged).
 
 ### 1.4 internal/questionnaire: original language and translations
 
+Done 2026-11-08 on `i18n/1.4` (unattended run, wave 1).
+
+Built:
+- Original language: a new questionnaire takes the language sent, else the clinic's default language through a
+  new port `Clinics.DefaultLanguage(ctx, organizationID) (string, error)` (organization's, added by 1.2); an edit
+  without a language keeps the draft's. Any of the ten tags; another tag is 422 `invalid_questionnaire`.
+- Translations saved with the draft (`POST /questionnaires`, `PUT` with If-Match): absent keeps the draft's, an
+  empty list removes them all. Validated (`validate_translation.go`): a known language, not the original, once;
+  title, description, text, help and option texts within the original's limits; help only where the original
+  has it; options none yet or as many as the item has, the non-blank ones different. Incomplete is fine in a
+  draft. Each save drops the translated texts whose original wording changed (unless the save translates them
+  again) and the entries of removed items, so a new version's changed or new items are missing until translated.
+- Publish refuses an incomplete translation: 422 `translation_incomplete` with `language` (the first in the
+  enum's order) and the missing items' `linkIds` (none when only the title or description is missing), audited
+  as a refusal. Revise copies the translations (0.1's repository); Retire and Revise answer with them.
+- Reads: `Questionnaire.Translations` filled on every read and write; staff see every translation (the builder
+  reads drafts through FHIR), a patient (`Referenced`, the patient's search) only complete ones. JSON
+  `Questionnaire` carries `language` and `translations`.
+- FHIR: `Questionnaire.language`, and the R4 core `translation` extension (`lang`, `content`) on `_title`,
+  `_description` (only when there is a description), `item._text`, the help item's `_text` and
+  `answerOption._valueString`, one per language that has the text. Golden `questionnaire_translated.json`
+  (a draft in Bosnian, English complete, German partial); the existing goldens gain `language`. No
+  CapabilityStatement or profile change (a core extension, read and search unchanged).
+
+Test first (the failures seen):
+- Service: `fakes_test.go:349:103: unknown field Clinics in struct literal of type questionnaire.Ports` (and
+  `undefined: questionnaire.TranslationIncompleteError`); after the code, three rules checked red by breaking
+  them: the publish check removed → `TestPublish_RefusesAnIncompleteTranslation` FAIL; the reworded-text drop
+  removed → `TestUpdateDraft_DropsTheTranslationOfAChangedText` FAIL (`invalid questionnaire`); the patient's
+  filter removed → `TestRead_GivesTheTranslations` FAIL. Two first-run failures were the tests' fixtures (the
+  fake kept the staff scope for the patient call; the draft had no description), fixed in the tests.
+- HTTP: `POST = 400 {"error":"invalid_request"}` (translations refused as an unknown field), the bodies without
+  `language` and `translations`, `publish with questionnaire: translation incomplete = 500`.
+- FHIR: `open testdata/questionnaire_translated.json: no such file or directory`, then the three goldens
+  without `language`; rewritten with `-update`, diff reviewed (only `"language":"bs"`/`"hr"` added).
+- `TestService_TranslationsOnTheDatabase` (real database, salus_app, RLS) passed on its first run, written
+  after the service.
+
+Checks:
+- `go test -count=1 -cover ./internal/questionnaire/`: pass, 94.4%. `go build ./...`, `go vet ./...`: pass.
+  `./internal/questionnaireresponse/` (encodes `ToFHIR`): pass.
+- lint (`scripts/lint.sh`, `--no-deps`, main `.git` mounted): 0 issues, check-migrations ok. archcheck: pass.
+- FHIR: the HL7 validator (`fhir-validator`, `--no-deps`) over `internal/questionnaire/testdata/*.json`: 0
+  errors (warnings: dom-6 narrative, and `Questionnaire.language` "unable to validate code without a server").
+- `./internal/api/` is red on this branch until the wiring below: `TestNew_ServesTheQuestionnaireLibrary…`,
+  `TestNew_ServesQuestionnaireResponses…`, `TestNew_RefusesQuestionnaireChangesOnACancelledAppointment` (the
+  `Clinics` port is nil in `internal/api`).
+- Benchmarks (`-benchtime=200x -count=3`, HEAD copy and this package side by side, the machine shared with
+  other sessions): BenchmarkPublish 11.3–12.9 ms before, 9.7–10.7 ms after; BenchmarkReadVersion 1.0–1.2 ms
+  before, 1.3–1.7 ms after (one more query, the translations); BenchmarkFHIRReadVersion 0.45–0.50 ms before,
+  0.36–0.45 ms after. Within the noise of the shared machine but for the read's extra query.
+
+Integration step must wire (not this package's files): `internal/api/app.go`
+`questionnaire.Ports{…, Clinics: clinics}` (the organization service once 1.2's `DefaultLanguage(ctx,
+organizationID) (string, error)` is merged), and the same in `internal/api/questionnaire_cancel_test.go`'s
+`newResponses`.
+
+Decided while the owner was away:
+- **`Questionnaire` carries its `Translations`** (`model.go`): the reads, the writes' answers and `ToFHIR` (also
+  used by the QuestionnaireResponse `_include`) need them; filled by the service with one repository call per
+  version, as 0.1 decided, so a staff search costs one query per version returned (no new sqlc query: the
+  queries are 0.1's).
+- **An absent `translations` keeps the draft's, an empty list removes them** (the contract's "Absent keeps the
+  draft's").
+- **A save drops a translated text whose original wording changed, unless the same save changes that
+  translation too**, and the entries of items no longer in the draft, instead of refusing them: the builder
+  sends back what it read, and a patient must never read the translation of an older wording (SPEC §3 "texts
+  of items that changed … are missing until translated"). Text, help and options are judged separately.
+- **An unknown language tag is 422 `invalid_questionnaire` without linkIds**, as the other content rules, not
+  400; a translation in the original language (also after changing the original) is refused the same way.
+- **The original language may be any of the ten tags**, like the translations (a clinic may write a
+  questionnaire for German patients); only accounts and the clinic's default are limited to staff languages.
+- **Complete means**: a title; a description when the original has one; for every item its text, its help text
+  when the original has one, and every option. While a draft, an option may be blank (not yet translated)
+  and a translation may hold no options yet.
+- **Publish names the first incomplete translation in the enum's order** (the error carries one language).
+- **A patient reads only complete translations** (`Referenced` and the patient's search filter them), staff
+  every one: the builder reads drafts through the FHIR search, and a published version's are complete anyway.
+- **No CapabilityStatement or profile change**: the translation extension is R4 core.
+
+COPY.md additions (not yet reviewed): none (the server returns codes only).
+
 ### 1.5 Web area A: shell, sign-in, calendar, admin
 
 ### 1.6 Web area B: questionnaires, consultation, attachments

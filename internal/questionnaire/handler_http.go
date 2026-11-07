@@ -69,15 +69,25 @@ func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 
 // questionnaireJSON is the Questionnaire schema; the items are the model's own JSON.
 type questionnaireJSON struct {
-	ID          string `json:"id"`
-	URL         string `json:"url"`
-	Status      Status `json:"status"`
-	Title       string `json:"title"`
-	Description string `json:"description,omitempty"`
-	LastUpdated string `json:"lastUpdated"`
-	Items       []Item `json:"item"`
-	Version     int32  `json:"version"`
-	VersionID   int32  `json:"versionId"`
+	ID           string            `json:"id"`
+	URL          string            `json:"url"`
+	Status       Status            `json:"status"`
+	Title        string            `json:"title"`
+	Description  string            `json:"description,omitempty"`
+	Language     string            `json:"language"`
+	LastUpdated  string            `json:"lastUpdated"`
+	Items        []Item            `json:"item"`
+	Translations []translationJSON `json:"translations"`
+	Version      int32             `json:"version"`
+	VersionID    int32             `json:"versionId"`
+}
+
+// translationJSON is the QuestionnaireTranslation schema; the items' texts are the model's own JSON.
+type translationJSON struct {
+	Items       map[string]ItemTranslation `json:"items"`
+	Language    string                     `json:"language"`
+	Title       string                     `json:"title"`
+	Description string                     `json:"description,omitempty"`
 }
 
 // defaultJSON is the QuestionnaireDefault schema: the series' canonical url, absent while the role has none.
@@ -216,10 +226,18 @@ func (h *HTTPHandler) write(w http.ResponseWriter, r *http.Request, status int, 
 	if items == nil {
 		items = []Item{}
 	}
+	translations := make([]translationJSON, 0, len(q.Translations))
+	for _, t := range q.Translations {
+		if t.Items == nil {
+			t.Items = map[string]ItemTranslation{}
+		}
+		translations = append(translations, translationJSON(t))
+	}
 	w.Header().Set("ETag", fhir.ETag(strconv.FormatInt(int64(q.VersionID), 10)))
 	httpx.JSON(w, status, questionnaireJSON{
-		ID: q.ID, URL: CanonicalURL(q.SeriesID), Version: q.Version, Status: q.Status, Title: q.Title,
-		Description: q.Description, Items: items, VersionID: q.VersionID, LastUpdated: q.LastUpdated.UTC().Format(time.RFC3339),
+		ID: q.ID, URL: CanonicalURL(q.SeriesID), Version: q.Version, Status: q.Status, Title: q.Title, Language: q.Language,
+		Description: q.Description, Items: items, Translations: translations, VersionID: q.VersionID,
+		LastUpdated: q.LastUpdated.UTC().Format(time.RFC3339),
 	})
 }
 
@@ -243,18 +261,27 @@ func (h *HTTPHandler) writeEmpty(w http.ResponseWriter, r *http.Request, err err
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// decodeContent reads one SaveQuestionnaireRequest: a title and the items, every field known, and false
-// when it cannot.
+// decodeContent reads one SaveQuestionnaireRequest: a title and the items, the language and the translations
+// when given, every field known, and false when it cannot. Translations absent are nil (the draft's kept).
 func decodeContent(w http.ResponseWriter, r *http.Request) (Content, bool) {
 	var req struct {
-		Title       *string `json:"title"`
-		Items       *[]Item `json:"item"`
-		Description string  `json:"description"`
+		Title        *string            `json:"title"`
+		Items        *[]Item            `json:"item"`
+		Translations *[]translationJSON `json:"translations"`
+		Description  string             `json:"description"`
+		Language     string             `json:"language"`
 	}
 	if !decode(w, r, &req) || req.Title == nil || req.Items == nil {
 		return Content{}, false
 	}
-	return Content{Title: *req.Title, Description: req.Description, Items: *req.Items}, true
+	in := Content{Title: *req.Title, Description: req.Description, Items: *req.Items, Language: req.Language}
+	if req.Translations != nil {
+		in.Translations = make([]Translation, 0, len(*req.Translations))
+		for _, t := range *req.Translations {
+			in.Translations = append(in.Translations, Translation(t))
+		}
+	}
+	return in, true
 }
 
 // decode reads exactly one JSON object of known fields, at most maxBody bytes, into v.
@@ -289,6 +316,18 @@ var errorCodes = []struct {
 }
 
 func (h *HTTPHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {
+	if incomplete, ok := errors.AsType[*TranslationIncompleteError](err); ok {
+		ids := incomplete.LinkIDs
+		if ids == nil {
+			ids = []string{}
+		}
+		httpx.JSON(w, http.StatusUnprocessableEntity, struct {
+			Error    string   `json:"error"`
+			Language string   `json:"language"`
+			LinkIDs  []string `json:"linkIds"`
+		}{"translation_incomplete", incomplete.Language, ids})
+		return
+	}
 	if invalid, ok := errors.AsType[*InvalidError](err); ok {
 		ids := invalid.LinkIDs
 		if ids == nil {

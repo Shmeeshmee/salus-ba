@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -35,28 +36,32 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 // fakeRepository holds questionnaires and defaults and, unless leak is set, shows only those of the clinic
 // set, as row-level security does. Calls outside a transaction are recorded in outside.
 type fakeRepository struct {
-	err        error
-	referenced map[string][]string                    // the versions each patient's responses reference
-	translated map[string][]questionnaire.Translation // by version
-	clinic     string
-	patient    string
-	rows       []questionnaire.Questionnaire
-	defaults   []questionnaire.Default
-	outside    []string
-	next       int
-	leak       bool
+	err             error
+	translationsErr error                                  // of Translations alone
+	referenced      map[string][]string                    // the versions each patient's responses reference
+	translated      map[string][]questionnaire.Translation // by version
+	clinic          string
+	patient         string
+	rows            []questionnaire.Questionnaire
+	defaults        []questionnaire.Default
+	outside         []string
+	next            int
+	leak            bool
 }
 
 type fakeState struct {
-	rows     []questionnaire.Questionnaire
-	defaults []questionnaire.Default
+	translated map[string][]questionnaire.Translation
+	rows       []questionnaire.Questionnaire
+	defaults   []questionnaire.Default
 }
 
 func (r *fakeRepository) snapshot() fakeState {
-	return fakeState{rows: slices.Clone(r.rows), defaults: slices.Clone(r.defaults)}
+	return fakeState{rows: slices.Clone(r.rows), defaults: slices.Clone(r.defaults), translated: maps.Clone(r.translated)}
 }
 
-func (r *fakeRepository) restore(s fakeState) { r.rows, r.defaults = s.rows, s.defaults }
+func (r *fakeRepository) restore(s fakeState) {
+	r.rows, r.defaults, r.translated = s.rows, s.defaults, s.translated
+}
 
 func (r *fakeRepository) seen(ctx context.Context, call string) {
 	if ctx.Value(txKey{}) == nil {
@@ -122,6 +127,9 @@ func (r *fakeRepository) newID() string {
 
 func (r *fakeRepository) Create(ctx context.Context, q questionnaire.Questionnaire, at time.Time) (questionnaire.Questionnaire, error) {
 	r.seen(ctx, "Create")
+	if q.Language == "" {
+		q.Language = "bs" // the column's default
+	}
 	q.ID, q.SeriesID, q.Version, q.VersionID, q.Status, q.LastUpdated = r.newID(), r.newID(), 1, 1, questionnaire.StatusDraft, at
 	r.rows = append(r.rows, q)
 	return q, nil
@@ -141,8 +149,12 @@ func (r *fakeRepository) CreateVersion(ctx context.Context, from questionnaire.Q
 	q := questionnaire.Questionnaire{
 		ID: r.newID(), SeriesID: from.SeriesID, OrganizationID: from.OrganizationID, Version: next + 1, VersionID: 1,
 		Status: questionnaire.StatusDraft, Title: from.Title, Description: from.Description, Items: from.Items, LastUpdated: at,
+		Language: from.Language,
 	}
 	r.rows = append(r.rows, q)
+	if ts, ok := r.translated[from.ID]; ok {
+		r.translated[q.ID] = slices.Clone(ts)
+	}
 	return q, nil
 }
 
@@ -154,6 +166,9 @@ func (r *fakeRepository) UpdateDraft(ctx context.Context, q questionnaire.Questi
 	}
 	cur := &r.rows[i]
 	cur.Title, cur.Description, cur.Items, cur.VersionID, cur.LastUpdated = q.Title, q.Description, q.Items, cur.VersionID+1, at
+	if q.Language != "" {
+		cur.Language = q.Language
+	}
 	return *cur, nil
 }
 
@@ -243,6 +258,9 @@ func (r *fakeRepository) ClearDefault(ctx context.Context, roleID string) error 
 
 func (r *fakeRepository) Translations(ctx context.Context, id string) ([]questionnaire.Translation, error) {
 	r.seen(ctx, "Translations")
+	if r.translationsErr != nil {
+		return nil, r.translationsErr
+	}
 	return slices.Clone(r.translated[id]), r.err
 }
 
@@ -253,6 +271,10 @@ func (r *fakeRepository) PutTranslations(ctx context.Context, id string, ts []qu
 	}
 	if r.translated == nil {
 		r.translated = map[string][]questionnaire.Translation{}
+	}
+	if len(ts) == 0 {
+		delete(r.translated, id)
+		return nil
 	}
 	r.translated[id] = slices.Clone(ts)
 	return nil
@@ -290,19 +312,33 @@ func (f fakeRoles) Lookup(_ context.Context, org, id string) (practitionerrole.P
 	return practitionerrole.PractitionerRole{}, practitionerrole.ErrNotFound
 }
 
+// fakeClinics holds each clinic's default language and records the clinics asked for.
+type fakeClinics struct {
+	err   error
+	asked []string
+}
+
+var defaultLanguages = map[string]string{clinicA: "hr", clinicB: "bs"}
+
+func (f *fakeClinics) DefaultLanguage(_ context.Context, org string) (string, error) {
+	f.asked = append(f.asked, org)
+	return defaultLanguages[org], f.err
+}
+
 type fixture struct {
-	svc   *questionnaire.Service
-	repo  *fakeRepository
-	audit *fakeAuditor
+	svc     *questionnaire.Service
+	repo    *fakeRepository
+	audit   *fakeAuditor
+	clinics *fakeClinics
 }
 
 // newFixture gives clinic A series A (active version 1, draft version 2) and clinic B an active series B,
 // and the roles A1 (practitioner 1), A2 (practitioner 2) and B.
 func newFixture() fixture {
 	repo := &fakeRepository{rows: []questionnaire.Questionnaire{
-		{ID: activeA, SeriesID: seriesA, OrganizationID: clinicA, Version: 1, VersionID: 2, Status: questionnaire.StatusActive, Title: placeholderTitle, Items: items(), PublishedAt: now.Add(-time.Hour)},
-		{ID: draftA, SeriesID: seriesA, OrganizationID: clinicA, Version: 2, VersionID: 1, Status: questionnaire.StatusDraft, Title: placeholderTitle, Items: items()},
-		{ID: activeB, SeriesID: seriesB, OrganizationID: clinicB, Version: 1, VersionID: 2, Status: questionnaire.StatusActive, Title: placeholderTitle, Items: items(), PublishedAt: now.Add(-time.Hour)},
+		{ID: activeA, SeriesID: seriesA, OrganizationID: clinicA, Version: 1, VersionID: 2, Status: questionnaire.StatusActive, Title: placeholderTitle, Language: "bs", Items: items(), PublishedAt: now.Add(-time.Hour)},
+		{ID: draftA, SeriesID: seriesA, OrganizationID: clinicA, Version: 2, VersionID: 1, Status: questionnaire.StatusDraft, Title: placeholderTitle, Language: "bs", Items: items()},
+		{ID: activeB, SeriesID: seriesB, OrganizationID: clinicB, Version: 1, VersionID: 2, Status: questionnaire.StatusActive, Title: placeholderTitle, Language: "bs", Items: items(), PublishedAt: now.Add(-time.Hour)},
 	}}
 	audit := &fakeAuditor{}
 	roles := fakeRoles{roles: []practitionerrole.PractitionerRole{
@@ -310,10 +346,11 @@ func newFixture() fixture {
 		{ID: roleA2, OrganizationID: clinicA, PractitionerID: practitioner2},
 		{ID: roleB, OrganizationID: clinicB, PractitionerID: "b3000000-0000-4000-8000-0000000000b1"},
 	}}
+	clinics := &fakeClinics{}
 	svc := questionnaire.NewService(questionnaire.Ports{
-		Repo: repo, Audit: audit, Tx: fakeTransactor{repo: repo}, Clock: clock.Fixed{T: now}, Roles: roles,
+		Repo: repo, Audit: audit, Tx: fakeTransactor{repo: repo}, Clock: clock.Fixed{T: now}, Roles: roles, Clinics: clinics,
 	})
-	return fixture{svc: svc, repo: repo, audit: audit}
+	return fixture{svc: svc, repo: repo, audit: audit, clinics: clinics}
 }
 
 func (f fixture) row(id string) questionnaire.Questionnaire {
