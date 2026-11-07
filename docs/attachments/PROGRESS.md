@@ -11,8 +11,8 @@
 | 1.6 Web: builder options and the file viewer | done, 2026-11-07 (wave 1) | `attachments(1.6)` |
 | 1.7 Mobile: pickers, conversion and upload | done, 2026-11-07 (wave 1) | `attachments(1.7)` |
 | 2.1 internal/binary: service, Postgres, handlers and wiring | done, 2026-11-07 (wave 2) | `attachments(2.1)` |
-| 3.1 Scan, discard and purge | not started | |
-| 3.2 internal/questionnaireresponse: attachment answers | not started | |
+| 3.1 Scan, discard and purge | done, 2026-11-07 (wave 3) | `attachments(3.1)` |
+| 3.2 internal/questionnaireresponse: attachment answers | done, 2026-11-07 (wave 3) | `attachments(3.2)` |
 | 4.1 End-to-end and privacy | not started | |
 
 In a wave, packages write only under their own heading below (package 0.1 adds one per package); this table is
@@ -102,6 +102,9 @@ rows of SPEC §3 marked "decided by the session, owner to review".
 - 2026-11-07, wave 2 integration (2.1 ran alone on `feat/attachments`): lint, archcheck, `go test -count=1`, cover
   (total 94.5%), fhir-validate, gen-clients, web and mobile checks and `make e2e` (its commands with `--no-deps`,
   `up` without `--remove-orphans`) all pass. SPEC §3 O21 to O24 are 2.1's.
+
+- 2026-11-07, wave 3 integration (all checks and e2e pass): 3.1 and 3.2 merged without conflict. SPEC §3 O25 (the signature is logged,
+  not audited) and O26 (`Discard`'s signature) are 3.1's; 3.2 needed no SPEC row.
 
 ## 0.1 Baseline
 
