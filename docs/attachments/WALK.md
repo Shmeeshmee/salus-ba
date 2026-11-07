@@ -239,3 +239,21 @@ kept running.
   `salus-walk-apk` containers removed. The step 6 recreation of the app services.
 - Repository: only this file and `docs/attachments/walk/`. The temporary setup test and Playwright specs were deleted
   before step 6.
+
+## Addendum: the PDF viewer under the O23 CSP in Google Chrome (2026-11-07)
+
+Google Chrome 157.0.8103.38 (installed on this machine, not Playwright's Chromium), headed on the desktop display and
+driven over the DevTools protocol. A synthetic one-page PDF was served from a local server with exactly the headers
+`GET /binaries/{id}/content` sends for `application/pdf` (`internal/binary/handler_http.go`: `Content-Security-Policy:
+default-src 'none'`, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline`, `Cross-Origin-Resource-Policy:
+same-origin`, `Cache-Control: private, no-store`), opened in a tab and inside an `<object type="application/pdf">` as
+`web/src/Files.tsx` does, each against a control served without the CSP.
+
+| Case | Result |
+| --- | --- |
+| PDF in a tab, O23 CSP | Pass: the page renders in Chrome's viewer, as the control does (`walk/4-07-o23-pdf-tab-chrome.png`) |
+| PDF in an `<object>`, O23 CSP | Pass: renders, as the control does (`walk/4-08-o23-pdf-object-chrome.png`) |
+
+A headless Chrome screenshot showed the viewer without a page in both the CSP and the control case, and the first
+headed `<object>` capture after 6 s was blank in both: rendering artefacts of the capture, not of the CSP. The check
+did not go through the api's own route (signing in needs the walk's TOTP), so it proves the header set, not the route.
