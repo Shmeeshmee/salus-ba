@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, dayIn, dayLabel, longDate, startOfDay, timeOf, weekOf } from './time'
+import { addDays, dayIn, longDate, startOfDay, timeOf, weekOf } from './time'
 
 const zone = 'Europe/Sarajevo'
 
@@ -28,9 +28,8 @@ describe('time in the clinic zone', () => {
     expect(startOfDay({ year: 2026, month: 11, day: 9 }, 'America/New_York').toISOString()).toBe('2026-11-09T05:00:00.000Z')
   })
 
-  it('formats times, days and dates for people', () => {
+  it('formats times and dates for people', () => {
     expect(timeOf(new Date('2026-11-09T08:00:00Z'), zone)).toBe('09:00')
-    expect(dayLabel({ year: 2026, month: 11, day: 9 })).toBe('Mon 9 Nov')
     expect(longDate(new Date('2026-11-08T23:30:00Z'), zone)).toBe('Monday 9 November 2026')
   })
 })

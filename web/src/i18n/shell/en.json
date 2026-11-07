@@ -1,1 +1,15 @@
-{}
+{
+  "mainNav": "Main",
+  "calendar": "Calendar",
+  "workingHours": "Working hours",
+  "practitioners": "Practitioners",
+  "questionnaires": "Questionnaires",
+  "clinicSettings": "Clinic settings",
+  "signOut": "Sign out",
+  "signOutFailed": "Signing out failed. Try again.",
+  "patientsUseApp": "The web app is for clinic staff. Patients use the Salus mobile app.",
+  "notFound": "This page does not exist.",
+  "language": "Language",
+  "browserLanguage": "Use the browser's language",
+  "languageSaved": "Language saved."
+}

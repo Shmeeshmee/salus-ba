@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react'
-import { somethingWrong } from './messages'
+import { useT } from './i18n/useT'
 
 // useSubmit runs a form's action once at a time. The action returns the message to show, or nothing. An
 // action that rejects (a network failure) shows the fixed message and never leaves the form disabled.
 export function useSubmit(action: () => Promise<string | undefined>) {
+  const t = useT()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
 
@@ -15,7 +16,7 @@ export function useSubmit(action: () => Promise<string | undefined>) {
     try {
       setError(await action())
     } catch {
-      setError(somethingWrong)
+      setError(t('common.somethingWrong'))
     } finally {
       setBusy(false)
     }

@@ -1,19 +1,24 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AcceptInvite } from './AcceptInvite'
 import { newApiClient } from './api/client'
+import type { Language } from './i18n/languages'
+import { renderInLanguage } from './i18n/renderInLanguage'
 import { apiError, expectCsrfOnWrites, fakeFetch, paths, type Route } from './test/fakeFetch'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  localStorage.clear()
+})
 beforeEach(() => history.replaceState(null, '', '/invite#tok-synthetic'))
 
 const secret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'
 const acceptance = { challenge: 'chal-3', secret, uri: `otpauth://totp/Salus:new%40example.test?secret=${secret}` }
 
-function renderAccept(routes: Record<string, Route>) {
+function renderAccept(routes: Record<string, Route>, language: Language = 'en') {
   const fake = fakeFetch(routes)
   const onDone = vi.fn()
-  render(<AcceptInvite api={newApiClient(fake.fetch)} onDone={onDone} />)
+  renderInLanguage(<AcceptInvite api={newApiClient(fake.fetch)} onDone={onDone} />, language)
   return { ...fake, onDone }
 }
 
@@ -67,7 +72,7 @@ describe('AcceptInvite', () => {
 
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled())
     expect(paths(requests)).toEqual(['POST /invites/accept', 'POST /auth/mfa/confirm'])
-    expect(await requests[0].json()).toEqual({ token: 'tok-synthetic', password: 'a long enough password' })
+    expect(await requests[0].json()).toEqual({ token: 'tok-synthetic', password: 'a long enough password', detectedLanguage: 'en' })
     expect(await requests[1].json()).toEqual({ challenge: 'chal-3', code: '654321' })
     expectCsrfOnWrites(requests)
     expect(document.body.innerHTML).not.toContain(secret)
@@ -117,5 +122,42 @@ describe('AcceptInvite', () => {
     choosePassword('a long enough password')
 
     expect((await screen.findByRole('alert')).textContent).toBe(message)
+  })
+})
+
+describe('AcceptInvite in a language', () => {
+  it('is in the language it opens in', () => {
+    renderAccept({}, 'bs')
+
+    expect(screen.getByRole('heading', { name: 'Prihvatite pozivnicu' })).toBeTruthy()
+    expect(screen.getByLabelText('Nova lozinka')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Prihvati pozivnicu' })).toBeTruthy()
+  })
+
+  it('checks the password in the language', async () => {
+    renderAccept({}, 'sr-Latn')
+
+    fireEvent.change(screen.getByLabelText('Nova lozinka'), { target: { value: 'a long enough password' } })
+    fireEvent.change(screen.getByLabelText('Ponovite lozinku'), { target: { value: 'a different password' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Prihvati pozivnicu' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Lozinke se ne poklapaju.')
+  })
+
+  it('sends the language picked on the invite screen', async () => {
+    const { requests } = renderAccept({ 'POST /invites/accept': () => Response.json(acceptance, { status: 201 }) })
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Language' }), { target: { value: 'sr-Latn' } })
+    fireEvent.change(screen.getByLabelText('Nova lozinka'), { target: { value: 'a long enough password' } })
+    fireEvent.change(screen.getByLabelText('Ponovite lozinku'), { target: { value: 'a long enough password' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Prihvati pozivnicu' }))
+
+    await vi.waitFor(() => expect(requests).toHaveLength(1))
+    expect(await requests[0].json()).toEqual({
+      token: 'tok-synthetic',
+      password: 'a long enough password',
+      language: 'sr-Latn',
+      detectedLanguage: 'en',
+    })
   })
 })

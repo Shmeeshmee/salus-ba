@@ -1,8 +1,11 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Calendar } from './Calendar'
 import type { Account } from './api/client'
 import { newFhirClient } from './api/fhir'
+import { formatDate } from './i18n/format'
+import type { Language } from './i18n/languages'
+import { renderInLanguage } from './i18n/renderInLanguage'
 import { fakeFetch, fhirJSON, outcome, type Route } from './test/fakeFetch'
 import { admin, appointment, clinicRoute, cy, dee, practitioner, searchset, staffRoute } from './test/fixtures'
 
@@ -18,9 +21,9 @@ const week = [
   appointment('e1000000-0000-4000-8000-000000000003', '2026-11-12T09:00:00Z', '2026-11-12T09:30:00Z', { status: 'cancelled' }, 'Bo Sample'),
 ]
 
-function renderCalendar(account: Account, routes: Record<string, Route>, clock = now) {
+function renderCalendar(account: Account, routes: Record<string, Route>, clock = now, language: Language = 'en') {
   const fake = fakeFetch({ ...clinicRoute, ...routes })
-  render(<Calendar fhir={newFhirClient(fake.fetch)} account={account} now={clock} />)
+  renderInLanguage(<Calendar fhir={newFhirClient(fake.fetch)} account={account} now={clock} />, language)
   return fake
 }
 
@@ -160,5 +163,27 @@ describe('Calendar', () => {
         vi.useRealTimers()
       }
     })
+  })
+})
+
+describe('Calendar in a language', () => {
+  it('names the week, its days and the statuses in the language', async () => {
+    renderCalendar(practitioner, { [search]: () => fhirJSON(searchset(week)) }, now, 'hr')
+
+    const monday = formatDate(new Date('2026-11-09T12:00:00Z'), 'Europe/Sarajevo', 'hr', 'short')
+    expect(monday).toMatch(/pon/i)
+    expect(within(await screen.findByRole('region', { name: monday })).getByText('Ada Example')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Kalendar' })).toBeTruthy()
+    expect(screen.getByText('Vremenska zona: Europe/Sarajevo')).toBeTruthy()
+    expect(screen.getByText('Otkazan')).toBeTruthy()
+    expect(screen.getByText('Sada')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sljedeći tjedan' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Pridruži se konzultaciji' })).toBeTruthy()
+  })
+
+  it('writes times in 24 hours', async () => {
+    renderCalendar(practitioner, { [search]: () => fhirJSON(searchset(week)) }, now, 'sr-Cyrl')
+
+    expect(await screen.findByText('14:00–14:30')).toBeTruthy()
   })
 })

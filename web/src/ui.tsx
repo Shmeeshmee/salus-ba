@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, type InputHTMLAttributes, type MouseEvent, type ReactNode } from 'react'
 import { Logo } from './icons'
+import { DeviceLanguagePicker } from './LanguagePicker'
 import { navigate } from './route'
 
+// AuthCard frames the screens before sign-in, with the language picker kept on the device below them.
 export function AuthCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <main className="auth">
@@ -9,6 +11,7 @@ export function AuthCard({ title, children }: { title: string; children: ReactNo
         <Logo />
         <h1>{title}</h1>
         {children}
+        <DeviceLanguagePicker />
       </div>
     </main>
   )

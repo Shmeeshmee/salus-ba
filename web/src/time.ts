@@ -72,13 +72,6 @@ export function timeOf(instant: Date, zone: string): string {
   return new Intl.DateTimeFormat('en-GB', { timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(instant)
 }
 
-// dayLabel is a short day heading: "Mon 9 Nov".
-export function dayLabel(day: Day): string {
-  const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).formatToParts(utc(day))
-  const get = (type: string) => p.find((x) => x.type === type)?.value ?? ''
-  return `${get('weekday')} ${get('day')} ${get('month')}`
-}
-
 // longDate is "Monday 9 November 2026" in zone.
 export function longDate(instant: Date, zone: string): string {
   const p = new Intl.DateTimeFormat('en-GB', { timeZone: zone, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).formatToParts(instant)

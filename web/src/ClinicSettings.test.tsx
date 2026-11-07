@@ -1,7 +1,9 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ClinicSettings } from './ClinicSettings'
-import { listedURL, newFhirClient, timeZoneURL, type Organization } from './api/fhir'
+import { defaultLanguageURL, listedURL, newFhirClient, timeZoneURL, type Organization } from './api/fhir'
+import type { Language } from './i18n/languages'
+import { renderInLanguage } from './i18n/renderInLanguage'
 import { expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, type Route } from './test/fakeFetch'
 
 afterEach(cleanup)
@@ -20,9 +22,9 @@ const org: Organization = {
   ],
 }
 
-function renderSettings(routes: Record<string, Route>) {
+function renderSettings(routes: Record<string, Route>, language: Language = 'en') {
   const fake = fakeFetch(routes)
-  render(<ClinicSettings fhir={newFhirClient(fake.fetch)} organizationId={id} />)
+  renderInLanguage(<ClinicSettings fhir={newFhirClient(fake.fetch)} organizationId={id} />, language)
   return fake
 }
 
@@ -112,7 +114,7 @@ describe('ClinicSettings', () => {
     expect((screen.getByLabelText('Time zone') as HTMLSelectElement).value).toBe('Europe/Sarajevo')
   })
 
-  it('saves listed and the time zone as the Organization extensions with If-Match', async () => {
+  it('saves listed, the time zone and the default language as the Organization extensions with If-Match', async () => {
     const { requests } = renderSettings({
       [`GET ${path}`]: () => fhirJSON(org),
       [`PUT ${path}`]: async (r) => fhirJSON({ ...((await r.json()) as Organization), meta: { ...org.meta, versionId: '4' } }),
@@ -128,6 +130,7 @@ describe('ClinicSettings', () => {
     expect(((await put.json()) as Organization).extension).toEqual([
       { url: listedURL, valueBoolean: true },
       { url: timeZoneURL, valueCode: 'Europe/Berlin' },
+      { url: defaultLanguageURL, valueCode: 'bs' },
     ])
     expectCsrfOnWrites(requests)
     expect((screen.getByLabelText('List the clinic in the patient app') as HTMLInputElement).checked).toBe(true)
@@ -139,5 +142,42 @@ describe('ClinicSettings', () => {
     await rename('Renamed clinic')
 
     expect((await screen.findByRole('alert')).textContent).toBe('Choose a time zone from the list.')
+  })
+})
+
+describe("the clinic's default language", () => {
+  it('shows it among the staff languages, each by its own name', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON({ ...org, extension: [...org.extension!, { url: defaultLanguageURL, valueCode: 'sr-Cyrl' }] }) })
+
+    const select = (await screen.findByLabelText('Default language')) as HTMLSelectElement
+    expect(select.value).toBe('sr-Cyrl')
+    expect([...select.options].map((o) => o.textContent)).toEqual(['Bosanski', 'Hrvatski', 'Srpski (latinica)', 'Српски (ћирилица)', 'English'])
+    expect(
+      screen.getByText('Used for e-mails to staff who have not chosen a language, and as the original language of new questionnaires.'),
+    ).toBeTruthy()
+  })
+
+  it('saves it with the other settings', async () => {
+    const { requests } = renderSettings({
+      [`GET ${path}`]: () => fhirJSON(org),
+      [`PUT ${path}`]: async (r) => fhirJSON({ ...((await r.json()) as Organization), meta: { ...org.meta, versionId: '4' } }),
+    })
+
+    expect(((await screen.findByLabelText('Default language')) as HTMLSelectElement).value).toBe('bs')
+    fireEvent.change(screen.getByLabelText('Default language'), { target: { value: 'en' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect((await screen.findByRole('status')).textContent).toBe('Saved.')
+    const put = (await requests.find((r) => r.method === 'PUT')!.json()) as Organization
+    expect(put.extension).toContainEqual({ url: defaultLanguageURL, valueCode: 'en' })
+  })
+
+  it('is in the language of the admin', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(org) }, 'hr')
+
+    expect(await screen.findByRole('heading', { name: 'Postavke klinike' })).toBeTruthy()
+    expect(screen.getByLabelText('Zadani jezik')).toBeTruthy()
+    expect(screen.getByLabelText('Naziv klinike')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Spremi' })).toBeTruthy()
   })
 })
