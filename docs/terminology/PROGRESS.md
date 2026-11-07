@@ -244,6 +244,71 @@ Dev stack: nothing started, stopped or written; the tests and the benchmark use 
 
 ### 1.2 tools/terminology: the seed
 
+2026-11-08, done. Worktree `salus-term-1.2`, branch `terminology/1.2` from `feat/terminology`.
+
+Built:
+- `tools/terminology` (`package main` in the tools module, standard library only): `sparql.go` (POST to the
+  endpoint, `User-Agent: Salus-terminology-seed/1.0 (https://github.com/Shmeeshmee/salus; medical term list for
+  a telemedicine app)`, no e-mail; one request at a time; on 429, 502, 503, 504 it waits `Retry-After` or a
+  doubling backoff from 5 s, five tries), `fetch.go` (one ranking query per category by sitelinks, then labels,
+  aliases and codes in batches of 100 items), `seed.go` (labels: trim, collapse white space, drop labels without
+  a letter, over 300 characters or repeated in another case; preferred first, synonyms in byte order; the
+  Serbian rule; JSON Lines sorted by category, rank descending, Wikidata id numerically), `main.go` (`-out`,
+  `-endpoint`; writes a temporary file and renames it, so a failed fetch keeps the old seed; logs the counts).
+- Tests against responses recorded from Wikidata on 2026-11-07 (`testdata/rank-<category>.json`,
+  `testdata/details.json`, small limits) with a golden seed (`testdata/seed.golden.jsonl`, `-update`).
+- `assets/terminology/seed.jsonl` (fetched 2026-11-07 23:14 UTC, 76 s) and `assets/terminology/README.md`;
+  the fetch date and the queries in `SOURCES.md` "Used".
+
+Seed counts: anatomy 1,500; diagnosis 2,000; symptom 500; procedure 143 (limit 500); drug 800; total 4,943
+terms, 73,529 labels. Terms with a label per language: en 4,943, fr 4,782, ar 4,729, de 4,123, it 3,995,
+sr-Latn 2,523, tr 2,507, sr-Cyrl 1,963, la 1,601, hr 1,226, bs 1,169.
+
+Test first (failures seen):
+- `sparql_test.go` before `sparql.go`: `undefined: sparql`, `undefined: statusError`, `undefined: sleepCtx`.
+- `seed_test.go` against stubs: `buildLabels = map[]  want map["en":["liver"] "la":["hepar" "a b" "iecur"]]`,
+  `transliterate("Љубљана") = "", want "Ljubljana"`, the seed empty. Then the recorded data had emoji aliases
+  (`"👀"`): new case, `want map["en":["liver"] …]` failed until labels without a letter were dropped.
+- `fetch_test.go` against stubs: `rank queries = [], want [symptom=3 anatomy=6 procedure=8 drug=10
+  diagnosis=13]`, `Q1 codes: icd10 "", pcs ""`, `0 categories, want 5`.
+- `main_test.go`: `undefined: run`.
+
+Checks (all through `docker compose … run --rm --no-deps -T`):
+- `go -C tools test -count=1 -cover ./terminology/`: ok, 86.2% (`main()` itself is the uncovered part).
+- `scripts/lint.sh` (gofmt, vet, golangci-lint both modules, check-migrations): 0 issues, ok.
+- archcheck: exit 0.
+
+Decided while the owner was away:
+- **Symptoms are a direct instance or subclass** (`wdt:P31|wdt:P279` of *symptom* Q169872 or *medical sign*
+  Q1441305), not the transitive closure: `(wdt:P31|wdt:P279)/wdt:P279*` timed out on the query service both
+  times we tried (60 s). The SPEC says "an instance or subclass of"; the direct form gives 1,317 candidates, more than the
+  500 kept.
+- **One category per item, claimed in the order symptom, anatomy, procedure, drug, diagnosis** (`wikidata_id` is
+  unique, so an item can't sit in two). A symptom with an ICD-10 R code (headache, fever, pain) stays a symptom;
+  diagnosis, the widest, takes what is left. Each ranking query asks for its limit plus the items already kept,
+  so a category still fills.
+- **"Medication or active ingredient" is an ATC code at the substance level** (seven characters, e.g. N02BE01):
+  that level names one substance; shorter codes are groups. It is the simplest test Wikidata supports reliably
+  (drug items are typed inconsistently); it lets in medical gases (oxygen, helium), which ATC classifies as
+  medicines. The curator can drop what doesn't belong.
+- **ICD-9-CM (P1692) codes count as procedure codes only in the procedure format** (two digits and an optional
+  decimal part, e.g. 47.0); ICD-9-CM diagnosis codes (three digits) are not taken. They go into `pcs` with the
+  ICD-10-PCS codes, as `term.pcs` is documented ("ICD-10-PCS or ICD-9-CM procedure code").
+- **Procedure has 143 terms, not 500**: that is every item with either code. Not widened beyond the SPEC's
+  selection; the curator or a later plan can add procedures.
+- **Labels without a letter are dropped** (emoji such as "👀", bare numbers), and duplicates that differ only in
+  case: noise for a search and for the curator.
+- **A Latin-script `sr` label goes to `sr-Latn` as it is** and never into `sr-Cyrl` (Latin to Cyrillic is not one
+  to one); `sr-ec` labels add to `sr-Cyrl`; Љ, Њ, Џ become LJ, NJ, DŽ before a capital, else Lj, Nj, Dž.
+- **Codes are kept as Wikidata has them**, odd ones included (e.g. an ICD-10 `B2424.`, an ICD-10-PCS `B?2`): the
+  tool copies, the curator corrects; filtering them would hide data errors from the review.
+- **JSON key order** is `labels` first, then `wikidata`, `category`, codes, `rank` (struct order, which `govet`
+  fieldalignment sets); the 0.1 contract's example order is not significant to a JSON reader.
+
+COPY.md additions (not yet reviewed): none (no user-facing text).
+
+Dev stack: nothing started, stopped or written; the seed reaches the dev database in 2.1.
+
 ### 2.1 salusctl: import, export and curation
 
 ### 2.2 Web: the cheatsheet
