@@ -250,3 +250,21 @@ func TestS3Store_A200MBPutKeepsTheHeapFlat(t *testing.T) {
 		t.Errorf("the last 4 bytes = %v, want %v", got, want)
 	}
 }
+
+// An io.ReadCloser body (the upload's pipe) went out without its length and Garage refused it
+// (InvalidRequest); the put now hides every method of the body but Read.
+func TestS3Store_PutsABodyThatIsAReadCloser(t *testing.T) {
+	s := newStore(t, 1000)
+	key := prefix(t) + "file"
+	t.Cleanup(func() { _ = s.Delete(context.Background(), key) })
+	body := make([]byte, 65552+7)
+	_, _ = rand.Read(body)
+	pr, pw := io.Pipe()
+	go func() { _, _ = pw.Write(body); _ = pw.Close() }()
+	if err := s.Put(t.Context(), key, pr, int64(len(body))); err != nil {
+		t.Fatalf("Put() of a pipe = %v", err)
+	}
+	if got := getRange(t, s, key, 0, int64(len(body)-1)); !bytes.Equal(got, body) {
+		t.Errorf("GetRange() = %d bytes, not the %d put", len(got), len(body))
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse/questionnaireresponsedb"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
@@ -175,6 +176,62 @@ func (r *postgresRepository) Search(ctx context.Context, f Filter) ([]Response, 
 
 func (r *postgresRepository) DeleteUnsubmittedBefore(ctx context.Context, before time.Time) (int64, error) {
 	return r.q(ctx).DeleteUnsubmittedQuestionnaireResponses(ctx, ts(before))
+}
+
+func (r *postgresRepository) AddAttachment(ctx context.Context, id string, a binary.Attachment, at time.Time) error {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return ErrNotFound
+	}
+	b, err := json.Marshal(a)
+	if err != nil {
+		return fmt.Errorf("questionnaireresponse: encode attachment: %w", errors.New("not encodable"))
+	}
+	n, err := r.q(ctx).AddQuestionnaireResponseAttachment(ctx, questionnaireresponsedb.AddQuestionnaireResponseAttachmentParams{Attachment: b, At: ts(at), ID: u})
+	switch {
+	case err != nil:
+		return err
+	case n == 0:
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *postgresRepository) RemoveAttachment(ctx context.Context, id, binaryID string, at time.Time) error {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return nil
+	}
+	_, err := r.q(ctx).RemoveQuestionnaireResponseAttachment(ctx, questionnaireresponsedb.RemoveQuestionnaireResponseAttachmentParams{BinaryID: binaryID, At: ts(at), ID: u})
+	return err
+}
+
+func (r *postgresRepository) ClearAttachment(ctx context.Context, id, binaryID string, at time.Time) error {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return nil
+	}
+	_, err := r.q(ctx).ClearQuestionnaireResponseAttachment(ctx, questionnaireresponsedb.ClearQuestionnaireResponseAttachmentParams{BinaryID: binaryID, At: ts(at), ID: u})
+	return err
+}
+
+func (r *postgresRepository) Attachments(ctx context.Context, id string) ([]binary.Attachment, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return nil, ErrNotFound
+	}
+	b, err := r.q(ctx).QuestionnaireResponseAttachments(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil, ErrNotFound
+	case err != nil:
+		return nil, err
+	}
+	var out []binary.Attachment
+	if err := json.Unmarshal(b, &out); err != nil {
+		return nil, fmt.Errorf("questionnaireresponse: stored attachments: %w", errors.New("not a list of attachments"))
+	}
+	return out, nil
 }
 
 func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }

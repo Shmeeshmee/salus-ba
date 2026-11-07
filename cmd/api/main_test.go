@@ -56,6 +56,7 @@ func TestRun_ServesUntilCancelledThenShutsDown(t *testing.T) {
 	t.Setenv("RATE_LIMIT_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtcmF0ZWxpbWl0LWs=") // synthetic, as in compose
 	t.Setenv("FHIR_BASE_URL", "http://localhost:8080/fhir/R4")
 	setLiveKit(t)
+	setObjectStore(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	logs := &syncBuffer{}
 	done := make(chan error, 1)
@@ -147,5 +148,35 @@ func TestRun_FailsWithoutTheLiveKitSettings(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "LIVEKIT_API_SECRET") {
 		t.Fatalf("run() error = %v, want one naming LIVEKIT_API_SECRET", err)
+	}
+}
+
+// setObjectStore sets the object store settings and the key-encryption key the binary requires, synthetic as
+// in compose (nothing connects to the store at start).
+func setObjectStore(t *testing.T) {
+	t.Helper()
+	for k, v := range map[string]string{
+		"S3_ENDPOINT": "http://objectstore:3900", "S3_REGION": "garage", "S3_BUCKET": "salus-binaries",
+		"S3_ACCESS_KEY_ID": "GK5a1a50000000000000000001", "S3_SECRET_ACCESS_KEY": "synthetic-secret",
+		"BINARY_KEK": "bG9jYWwtb25seS1zeW50aGV0aWMtYmluYXJ5LWtlayE=", "BINARY_KEK_ID": "local-1",
+	} {
+		t.Setenv(k, v)
+	}
+}
+
+// Without the object store settings the binary does not start (docs/attachments/SPEC.md §2 "Configuration").
+func TestRun_FailsWithoutTheObjectStoreSettings(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://unused@localhost/unused")
+	t.Setenv("TOTP_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtdG90cC1rZXktMzI=")
+	t.Setenv("RATE_LIMIT_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtcmF0ZWxpbWl0LWs=")
+	t.Setenv("FHIR_BASE_URL", "http://localhost:8080/fhir/R4")
+	setLiveKit(t)
+	setObjectStore(t)
+	t.Setenv("BINARY_KEK", "")
+
+	err := run(t.Context(), &bytes.Buffer{})
+
+	if err == nil || !strings.Contains(err.Error(), "BINARY_KEK") {
+		t.Fatalf("run() error = %v, want one naming BINARY_KEK", err)
 	}
 }

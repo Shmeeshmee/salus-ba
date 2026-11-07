@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -26,8 +27,23 @@ func testConfig(t *testing.T) config.Config {
 	}
 }
 
+// testObjectStore is the compose object store (TEST_S3_*, as in internal/binary) and a synthetic
+// key-encryption key. Like the databases, the tests fail without it.
+func testObjectStore(t *testing.T) config.ObjectStore {
+	t.Helper()
+	s := config.ObjectStore{
+		Endpoint: os.Getenv("TEST_S3_ENDPOINT"), Region: os.Getenv("TEST_S3_REGION"), Bucket: os.Getenv("TEST_S3_BUCKET"),
+		AccessKeyID: os.Getenv("TEST_S3_ACCESS_KEY_ID"), SecretAccessKey: os.Getenv("TEST_S3_SECRET_ACCESS_KEY"),
+		KEKID: "test-1", KEK: []byte("synthetic 32-byte KEK for tests!"),
+	}
+	if s.Endpoint == "" || s.Region == "" || s.Bucket == "" || s.AccessKeyID == "" || s.SecretAccessKey == "" {
+		t.Fatal("TEST_S3_* are not set; run the tests with `make test`, which points them at the compose object store")
+	}
+	return s
+}
+
 func TestNew_ServesReadinessAgainstTheDatabase(t *testing.T) {
-	app, err := api.New(t.Context(), testConfig(t), testLiveKit(), slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), testConfig(t), testLiveKit(), testObjectStore(t), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -56,19 +72,24 @@ func TestNew_FailsWhenADependencyIsUnreachable(t *testing.T) {
 	relativeFHIRBase := testConfig(t)
 	relativeFHIRBase.FHIRBaseURL = "/fhir/R4"
 
+	shortKEK := testObjectStore(t)
+	shortKEK.KEK = []byte("16 bytes, no more")
+	if _, err := api.New(t.Context(), testConfig(t), testLiveKit(), shortKEK, slog.New(slog.DiscardHandler)); err == nil || strings.Contains(err.Error(), "16 bytes") {
+		t.Errorf("New() with a KEK that is not 32 bytes: error = %v, want one that names no value", err)
+	}
 	for name, cfg := range map[string]config.Config{
 		"postgres unreachable": noDB, "redis unreachable": noRedis,
 		"a TOTP key that is not 32 bytes": shortTOTPKey, "a rate-limit key under 32 bytes": shortRateKey,
 		"no FHIR base URL": noFHIRBase, "a relative FHIR base URL": relativeFHIRBase,
 	} {
-		if _, err := api.New(t.Context(), cfg, testLiveKit(), slog.New(slog.DiscardHandler)); err == nil {
+		if _, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), slog.New(slog.DiscardHandler)); err == nil {
 			t.Errorf("New() with %s: error = nil", name)
 		}
 	}
 }
 
 func TestNew_ServesTheAccountRoutes(t *testing.T) {
-	app, err := api.New(t.Context(), testConfig(t), testLiveKit(), slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), testConfig(t), testLiveKit(), testObjectStore(t), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -90,7 +111,7 @@ func TestNew_ServesTheAccountRoutes(t *testing.T) {
 
 func TestNew_AuditsEveryRegistrationInTheDatabase(t *testing.T) {
 	cfg := testConfig(t)
-	app, err := api.New(t.Context(), cfg, testLiveKit(), slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

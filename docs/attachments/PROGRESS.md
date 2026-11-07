@@ -10,7 +10,7 @@
 | 1.5 internal/questionnaire: attachment items | done, 2026-11-07 (wave 1) | `attachments(1.5)` |
 | 1.6 Web: builder options and the file viewer | done, 2026-11-07 (wave 1) | `attachments(1.6)` |
 | 1.7 Mobile: pickers, conversion and upload | done, 2026-11-07 (wave 1) | `attachments(1.7)` |
-| 2.1 internal/binary: service, Postgres, handlers and wiring | not started | |
+| 2.1 internal/binary: service, Postgres, handlers and wiring | done, 2026-11-07 (wave 2) | `attachments(2.1)` |
 | 3.1 Scan, discard and purge | not started | |
 | 3.2 internal/questionnaireresponse: attachment answers | not started | |
 | 4.1 End-to-end and privacy | not started | |
@@ -802,7 +802,195 @@ session's scratchpad, removed after the run.
 
 ## 2.1 internal/binary: service, Postgres, handlers and wiring
 
-Status: not started
+Status: done, 2026-11-07.
+
+Built:
+- `internal/binary`: `model.go` (`Binary`, `Status`, `Kind` with its `Limit`, the O2 limits in bytes, `Caller`,
+  `Target`, `Grant`, `Attachment` with the JSON of `questionnaire_response.attachments`, `Upload`, `File`, `ScanArgs`
+  on the queue `scan` and `DiscardArgs` with their kinds); `errors.go` (every refusal, `ErrObjectNotFound` moved here
+  from `repository.go`); `service.go` (the ports `Holder`, `Auditor`, `Transactor`; scope, `Status`, `Delete`, the
+  audit); `service_upload.go` (`Upload`, SPEC §2 "Upload pipeline" step by step: the holder's target and the limits
+  by the declared length in a transaction; 4 KiB head and `filetype.Detect`; the rest through
+  `filetype.LimitReader`, SHA-1 and the MP4 `Checker` into `envelope.Writer` and one `Store.Put` of
+  `CiphertextSize` through a pipe, outside any transaction, the last segment sealed only once the checker has seen
+  the whole file; the commit under `pg_advisory_xact_lock` with the target and the limits again, the identical
+  retry, the row, `Holder.Attach` pending, the scan job, the audit; the object deleted after any failure once
+  stored); `service_download.go` (`Download`: the read, `Holder.Readable`, `clean` required, audited and committed,
+  then the data key unwrapped; `Content`: `envelope.OpenRange`, one ranged `GetRange`, decrypted); `repository.go`
+  (the `Repository` and `Jobs` ports beside `Store`); `repository_postgres.go`, `query.sql`, `binarydb/` (an entry
+  in `sqlc.yaml`; `"binary"` quoted); `repository_river.go` (`InsertTx` on the `scan` queue); `handler_http.go`
+  (`Routes`: `GET` and `DELETE /binaries/{id}`; `StreamRoutes`: the upload and `GET /binaries/{id}/content`, with
+  their own read and write deadlines through `http.ResponseController`, 30 minutes and 10 minutes, the `Range`
+  parsing of SPEC §2 "Download", every download header, the title from `Content-Disposition`).
+- `repository_s3.go`: a fix found by the upload, below.
+- `internal/questionnaireresponse`: `service_attachments.go`, the `binary.Holder` (`UploadTarget`, `Editable`,
+  `Readable`, `Attach`, `Detach`, `Cleared`, `Attached`); the repository's `AddAttachment`, `RemoveAttachment`,
+  `ClearAttachment` and `Attachments`, each one SQL statement on the `jsonb` column (append, filter in order,
+  `pending` set false), `updated_at` changed, `version_id` not; `query.sql` selects `attachments` in its other
+  queries too, so the regenerated `questionnaireresponsedb` keeps one row type (0.1 had not regenerated sqlc after
+  its migration; every domain's `models.go` gains the `Binary` model and the column).
+- `internal/api/router`: `Config.Streams`, the streaming routes, mounted on the same mux and served without
+  `http.TimeoutHandler` (a second mux only tells their requests apart, so the access log still names the pattern and
+  a wrong method still gets 405). The 256 KiB limit is each JSON handler's own `MaxBytesReader`; the binary handler
+  has none, `filetype.LimitReader` bounds the upload to its `Content-Length`.
+- `internal/api/app.go`: `New` takes `config.ObjectStore`; the keys are checked before anything connects
+  (`checkKeys`, which now also holds the TOTP, rate-limit and FHIR base checks, so `New` stays under 80 lines);
+  `questionnaireRoutes` builds `questionnaireresponse.Service`, then `binary.Service` with it as the holder, the S3
+  store (`&http.Client{Timeout: binary.UploadDeadline}`, page size 1000), the KEK and the River jobs, and returns
+  the routes and the streams. `cmd/api/main.go` calls `config.LoadObjectStore`.
+- `Makefile`: `bench-binary-http` (`go test -tags loadtest -run TestBinaryHTTPReadings ./internal/api/`).
+
+Failing first (each seen before the code existed):
+- `internal/binary`: the service tests and fakes failed to build (`undefined: binary.NewService`, `binary.Ports`,
+  `binary.Upload` …); with stubs every test failed on its assertions (`Upload()` returned nothing, so every seeded
+  test stopped at its upload). Then, with the code: `s3 put: InvalidRequest` on every upload (below);
+  `row-level security: the patient inserts only for themselves` (the upload's transactions did not scope the
+  repository to the patient: fixed); the two "the response's bytes" and "the item's files" cases read the body
+  (the same missing scope); the commit's refusal audited without the clinic (fixed).
+- `TestS3Store_PutsABodyThatIsAReadCloser`: `Put() of a pipe = binary: s3 put: InvalidRequest`.
+- `repository_postgres_test.go` failed to build (`undefined: binary.NewPostgresRepository`); the concurrency test
+  was then run with the advisory lock taken out of the commit: both subtests "2 stored and 0 refused, 2 rows",
+  three runs out of three; restored.
+- `TestRiverJobs_…` with the queue option removed: "job binary_scan on default … want … on scan"; restored.
+- `handler_http_test.go`: `undefined: binary.NewHTTPHandler`. `router_test.go`: `unknown field Streams`.
+- `internal/questionnaireresponse`: `service_attachments_test.go` failed to build (`f.svc.UploadTarget undefined`
+  …); `TestPostgres_AttachmentsInThePatientsAndTheJobScope` failed on its own assumption (another response's job
+  scope named with the response's clinic sees the response through the clinic's policies, as 0.1 recorded); the
+  test now names another clinic.
+- `internal/api`: the wiring was written before `app_binary_test.go`; that test was seen failing with the file
+  routes taken out of `questionnaireRoutes` (404 on the upload), then restored. `cmd/api`'s
+  `TestRun_ServesUntilCancelledThenShutsDown` failed once `main.go` required the store (`S3_ENDPOINT is
+  required`); it now sets the synthetic settings, and `TestRun_FailsWithoutTheObjectStoreSettings` was added.
+
+Tests:
+- Service (fakes for the repository, the holder, the audit, the jobs and the transaction; the real compose Garage):
+  each type stored, its object opening to the same bytes, the row, the pending attachment, the scan job and the two
+  audit events; every holder refusal without reading the body, audited without the response for `not_found`;
+  411, 413 by header (every kind's limit, the photo's, the document's), `response_full` and `too_many_files` by
+  header; 415 by sniff (text, a PDF to a photo item, a JPEG to a video item, an HEVC MP4 found by the checker
+  during the stream), 413 by kind once the head is read, 400 for a body shorter than its length (at the head and
+  at the end), each refused stream leaving no object; the identical retry returning the first file with 200 and
+  deleting the second object, also on a full item; a different file of the same size on a full item read and then
+  refused; a failure after the put (the holder's attach, a submit meanwhile, the store) deleting the object and
+  leaving no row; a cancelled upload ending without a blocked goroutine. Status and download for the patient and
+  the practitioner with their purposes, refused without disclosing the file (another patient, no profile, no such
+  id, not a UUID, the holder's refusal); `scanning` while quarantined and `not_found` when rejected, audited with
+  the entities; ranges against the real store (the whole file, the first byte, the last, across segments, a
+  suffix; outside the file `ErrRangeNotSatisfiable`); another KEK's key a failure; `Delete` by the patient (row,
+  attachment, object, audit), refused for `submitted`, `withdrawn`, `past_due`, `consent_required` and staff
+  (`forbidden`), keeping the file; backend errors are failures, not refusals, and leave no event.
+- Postgres (`NewAppDatabase`): the patient inserts and reads their file; the clinic and the job scope of the
+  response see it, another patient and another response's job scope do not; an insert for another patient refused;
+  `OfItem` oldest first without the rejected, `ResponseSize`; only the patient deletes in their scope and the job
+  scope in its own; two concurrent uploads that each fit but together pass the item's files or the response's
+  bytes: one stored, one refused, one row.
+- Holder (`questionnaireresponse`, fakes): the target with the item's kinds and maximum and the appointment
+  locked, no event of its own; `UploadTarget` and `Editable` refuse as the answers' changes do (every case of the
+  answers' table but the stale version), mapped to binary's errors; an item that is no attachment (a boolean, a
+  group, none) refused; `Readable` at `Full` only, with `PATRQT` or `TREAT`, D9 allowed, a future appointment
+  after a revocation refused; the attachments added, cleared and removed in step, `version_id` unchanged. On the
+  real database: the four repository calls in the patient's and the job scope, `updated_at` moved and
+  `version_id` kept, another clinic's job scope refused.
+- HTTP (`httptest`, a stub service): the upload's status and JSON, the title from `filename*` (path stripped on both
+  separators, cut to 200 characters, control characters dropped) or `filename`, none on a malformed header; no
+  length sent as -1 (411); every error's status and code on all four routes, 500 fixed, 401; status and
+  deletion; content whole and by one range (first, last, middle, open end, suffix, a suffix past the size, an end
+  past the size), several ranges and malformed ones the whole file, 416 with `Content-Range: bytes */<size>`, every
+  header; the CSP per type and `Content-Disposition: inline` without a title; the log holds no title. On a real
+  server with 300 ms read and write timeouts: a 10 KB upload sent over a second completes on the stream route and
+  is cut on a plain route.
+- Router: a stream route runs past the request timeout with the session and its deadlines, the same handler as an
+  ordinary route gets 503, the access log names the stream's pattern, a wrong method 405.
+- App (`internal/api`, `salus_app`, the compose store): upload 201, identical retry 200, a text file 415, a boolean
+  item 422, the practitioner's upload 403 and deletion 403, another practitioner 404, nobody 401, status 200,
+  `scanning` 409; after a hand-set `clean` the patient's download and a 206 range; the practitioner's download
+  before the submit 404; the deletion 204, then 404; the audit (2 creates, 3 reads, 1 delete, 2 refusals on
+  `Binary/<id>`, each beside its `QuestionnaireResponse/<id>` event); the log holds no title or file bytes.
+
+Checks (all `--no-deps`, `checks.sh` in the session's scratchpad):
+- lint (gofmt, `go vet`, golangci-lint both modules, check-migrations with the main git dir mounted read-only):
+  0 issues, "ok (no migration from main changed)".
+- archcheck: pass (after replacing a test's use of `auditevent.NewPostgresRepository` with the fake audit).
+- test (`go test -count=1 ./...` both modules): pass.
+- cover: pass, total 94.5%; `internal/binary` 91.8%, `internal/questionnaireresponse` 93.8%, `internal/api` 91.8%,
+  `internal/api/router` 100%.
+- fhir-validate: pass (no FHIR output changed). gen-clients: no diff (`api/openapi.yaml` unchanged).
+- Web and mobile: not run (nothing under `web/` or `mobile/` changed).
+- Stack: the api rebuilt from this worktree (`up -d --build --no-deps --wait api`, healthy). A synthetic patient
+  registered and signed in through the api; a patient, consent, appointment (2027-03-03), questionnaire version
+  with an attachment item and in-progress response inserted as the owner. From the `tools` container with `curl`:
+  a 300,049-byte generated PDF uploaded (201, `quarantined`, title from `filename*`), its status read (200,
+  `quarantined`), its download refused (409 `scanning`); no length 411, a text body 415; the attachment listed
+  pending with its base64 SHA-1 and the `binary_scan` job on the `scan` queue; after a hand-set `clean` the
+  download 200 with every header and the same SHA-1, `bytes=-100` 206, past the end 416; the deletion 204, then
+  404. The api's log holds no title. Reverted: the file deleted through the api (row and object), the scan job, the
+  response, questionnaire, appointment, consent, patient, sessions and account deleted; the bucket at 0 objects.
+
+Readings (`make bench-binary-http`, run as its command with `--no-deps`; the api's `http.Server` with
+`cmd/api`'s timeouts in the test process, the compose Postgres and Garage, i7-14700HX):
+- The 200 MB generated MP4 uploaded through the handler: 425 to 563 ms, 356 to 471 MB/s over three runs; the
+  process's heap (`/memory/classes/heap/objects:bytes`, sampled every 10 ms) 3.8 MiB before and 4.4 to 4.5 MiB at
+  its peak, a growth of 0.6 to 0.7 MiB, whatever the file's size: one segment buffer, the pipe and the S3 client's.
+  Far faster than any phone's upload; nothing to fix.
+- 1,000 random 1 MiB ranges of it (each audited in its own transaction, then one ranged `GetObject` of 17
+  segments and the decryption): p50 12.0 to 19.4 ms, p95 24.2 to 35.8 ms, p99 51.6 to 62.6 ms.
+
+### Decided while the owner was away
+
+- 2026-11-07, session (2.1): `binary_scan` carries the response's and the clinic's ids beside the binary id. §2
+  "Scan" runs the job in the response's job scope, which row-level security requires before the job can read the
+  row; with the binary id alone package 3.1 would need a new policy or a bypass. Opaque ids only. SPEC §3 O21 (and
+  the §5 "River jobs" row).
+- 2026-11-07, session (2.1): `audit_event` holds one entity, so each audited call writes one event per entity in
+  its transaction (same request id, outcome and purpose): `Binary/<id>` and `QuestionnaireResponse/<id>`. A
+  migration of the audit table would have been outside the package and the plan's tables. SPEC §3 O22.
+- 2026-11-07, session (2.1): the download's CSP is `default-src 'none'` for PDFs and `default-src 'none'; sandbox`
+  for the other types. Chrome was not available to the session; Chrome's PDF viewer refuses to render a sandboxed
+  document, so the PDF keeps working in 1.6's `<object>` without `sandbox`, and the sandbox still covers what a
+  browser shows natively. 4.1's walk checks it in Chrome. SPEC §3 O23.
+- 2026-11-07, session (2.1): before the bytes are read, `too_many_files` and `response_full` wait when the item
+  already holds a file of exactly the declared size, so the retry of a lost answer on a full item gets its file
+  back (§2 "Retried uploads") instead of a 409; the commit checks both again under the lock. SPEC §3 O24.
+- 2026-11-07, session (2.1): `Holder.Attach(ctx, responseID, Attachment)` without the separate `linkID` of §2
+  "binary.Holder": the `Attachment` carries its `linkId`, as the stored JSON does. Same call, one argument fewer.
+- 2026-11-07, session (2.1): the title is the `filename*` of `Content-Disposition`, or its `filename` when that is
+  all a client sends (RFC 6266 allows both; Go's `mime` decodes `filename*` into the same parameter); control
+  characters are dropped so a title never breaks a header or a log viewer; the response's JSON gives the title
+  stored.
+- 2026-11-07, session (2.1): `UploadTarget` reads the version's items through `questionnaire.Service.Referenced`,
+  which audits that read as the patient's read of the Questionnaire, as `SaveAnswers` does. The holder's own
+  checks stay unaudited; binary audits the upload.
+- 2026-11-07, session (2.1): an event names the file's clinic once the file or the target is known, and the
+  caller's clinic otherwise (none for a patient), as the response's own events do.
+- 2026-11-07, session (2.1): `GET /binaries/{id}` returns a `rejected` file's status while its row lives (24 h, 3.1),
+  so the app can stop polling; its content is 404.
+- 2026-11-07, session (2.1): the content handler cuts the connection (`http.ErrAbortHandler`) when the store or the
+  decryption fails after the status is sent, so a client never takes a short body for the whole file; the log line
+  carries the route and the binary id only.
+- 2026-11-07, session (2.1): the S3 client's `http.Client` has the upload's deadline (30 minutes) as its timeout, as
+  CLAUDE.md asks of every injected client and as 1.4 required (no shorter one).
+- 2026-11-07, session (2.1): `repository_s3.go` (1.4) sends the body to the SDK as a plain `io.Reader`: an
+  `io.ReadCloser` body such as the upload's pipe went out without its length and Garage answered `InvalidRequest`.
+  Tested (`TestS3Store_PutsABodyThatIsAReadCloser`).
+
+Copy added by the session, not yet reviewed: none (the API's codes are developer text; `COPY.md` unchanged).
+
+For later packages:
+- 3.1: `Repository.SetJob(ctx, responseID, org)` is the job scope; `ScanArgs` carries all three ids; `Holder.Cleared`,
+  `Detach` and `Attached` run in binary's transaction with that scope set (the `questionnaire_response_job`
+  policies). A rejected row must keep `binary_key` (wrapped key cleared) and `binary_scanned`. Scan jobs inserted
+  from 2.1 on wait on the `scan` queue, which no worker serves until 3.1.
+- 3.1: in the job scope, `questionnaire_response`'s clinic policies also apply (0.1), so query by response id.
+- 3.2: `StopQuestionnaireResponse` does not clear `attachments` yet, so until 3.2 a withdrawal of a response with
+  files fails the `questionnaire_response_withdrawn_attachments` check (500); 3.2's `Withdraw` clears both and
+  enqueues `binary_discard`. `Repository.Attachments` gives the list for the FHIR `valueAttachment`s
+  (`hash` is base64 in the stored JSON already). `PUT /answers` does not refuse an attachment answer yet (3.2).
+- 4.1: walk the PDF viewer under `Content-Security-Policy: default-src 'none'` in Chrome (O23).
+
+Dev stack: the api container rebuilt from this worktree (the only service touched). On the dev database the stack
+check's rows are deleted; its audit events stay (append-only: the registration, the login, the file's 7 events and
+the response's). The bucket `salus-binaries` holds 0 objects (a 200 MB object left by the first bench run, whose
+cleanup ran on a cancelled context, was deleted; the bench now deletes in a `defer`).
 
 ## 3.1 Scan, discard and purge
 

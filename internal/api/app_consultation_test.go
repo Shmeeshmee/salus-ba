@@ -52,7 +52,7 @@ func livekitSignature(t *testing.T, lk config.LiveKit, body []byte) string {
 func TestNew_ServesTheLiveKitWebhook(t *testing.T) {
 	var log bytes.Buffer
 	lk := testLiveKit()
-	app, err := api.New(t.Context(), testConfig(t), lk, slog.New(slog.NewJSONHandler(&log, nil)))
+	app, err := api.New(t.Context(), testConfig(t), lk, testObjectStore(t), slog.New(slog.NewJSONHandler(&log, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

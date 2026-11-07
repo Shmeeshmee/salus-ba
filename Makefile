@@ -12,7 +12,7 @@ FLUTTER := $(COMPOSE) run --rm -T flutter
 LANDING := $(COMPOSE) run --rm -T -w /src/landing node
 E2E     := $(COMPOSE) run --rm -T playwright
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http lint archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http lint archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
@@ -64,6 +64,12 @@ bench-removal: up tools-image
 bench-questionnaire-http: up tools-image
 	$(COMPOSE) run --rm -e E2E_BASE_URL=http://api:8080 -e E2E_MAILPIT_URL=http://mailpit:8025 -e E2E_SALUSCTL=/tmp/salusctl \
 		tools sh -c 'go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e,loadtest -count=1 -v -run TestQuestionnaireLatency ./test/e2e/'
+
+## bench-binary-http: a 200 MB generated MP4 uploaded through the api's HTTP server on the compose Postgres and
+## object store (MB/s and the peak heap), then 1,000 random 1 MiB ranges of it as p50/p95/p99
+## (docs/attachments/PROGRESS.md, package 2.1). Not part of make test.
+bench-binary-http: tools-image
+	$(GO) go test -tags loadtest -count=1 -v -run TestBinaryHTTPReadings ./internal/api/
 
 ## lint: gofmt, go vet, golangci-lint (both modules) and the migration immutability check
 lint: tools-image

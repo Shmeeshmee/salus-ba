@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/api/router"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/middleware"
 )
 
@@ -185,3 +186,60 @@ func TestRouter_RunsTheSessionMiddlewareInsideTheRequestIDAndTimeout(t *testing.
 		t.Errorf("request id seen %v, deadline seen %v; want both", sawRequestID, sawDeadline)
 	}
 }
+
+// A streaming route (an upload, a download) runs past the request timeout, gets the session and can set its
+// connection's deadlines (http.ResponseController reaches the server's writer); the same handler mounted as an
+// ordinary route is cut at the timeout. The access log names the streaming route's pattern.
+func TestNew_StreamRoutesAreExemptFromTheRequestTimeout(t *testing.T) {
+	slow := func(w http.ResponseWriter, r *http.Request) {
+		deadlineErr := http.NewResponseController(w).SetReadDeadline(clock.System{}.Now().Add(time.Minute))
+		select {
+		case <-time.After(150 * time.Millisecond):
+		case <-r.Context().Done():
+		}
+		if _, ok := r.Context().Value(sessionKey{}).(string); !ok || deadlineErr != nil {
+			w.WriteHeader(http.StatusTeapot)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}
+	var log strings.Builder
+	h := router.New(router.Config{
+		Logger: slog.New(slog.NewJSONHandler(&log, nil)),
+		Session: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), sessionKey{}, "session")))
+			})
+		},
+		Routes:  []func(*http.ServeMux){func(mux *http.ServeMux) { mux.HandleFunc("POST /timed", slow) }},
+		Streams: []func(*http.ServeMux){func(mux *http.ServeMux) { mux.HandleFunc("POST /stream/{id}", slow) }},
+		Timeout: 50 * time.Millisecond,
+	})
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+	for path, want := range map[string]int{"/stream/1": http.StatusOK, "/timed": http.StatusServiceUnavailable} {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := srv.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != want {
+			t.Errorf("POST %s = %d, want %d", path, resp.StatusCode, want)
+		}
+	}
+	if !strings.Contains(log.String(), `"route":"POST /stream/{id}"`) {
+		t.Errorf("the access log does not name the stream's route: %s", log.String())
+	}
+	if rec := httptest.NewRecorder(); true {
+		h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/stream/1", nil))
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("GET /stream/1 = %d, want 405", rec.Code)
+		}
+	}
+}
+
+type sessionKey struct{}

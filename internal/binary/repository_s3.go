@@ -47,8 +47,10 @@ func NewS3Store(hc *http.Client, endpoint, region, bucket, accessKeyID, secretAc
 // Put sends one PutObject of size bytes. The body is read once, so the put is not retried: the caller has
 // the file, the store does not.
 func (s *s3Store) Put(ctx context.Context, key string, r io.Reader, size int64) error {
+	// Only Read: the SDK sends a body that is also an io.Closer (the upload's pipe) without its length, which
+	// the store refuses.
 	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(s.bucket), Key: aws.String(key), Body: r, ContentLength: aws.Int64(size),
+		Bucket: aws.String(s.bucket), Key: aws.String(key), Body: struct{ io.Reader }{r}, ContentLength: aws.Int64(size),
 	}, s3.WithAPIOptions(v4.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware), func(o *s3.Options) {
 		o.RetryMaxAttempts = 1
 	})

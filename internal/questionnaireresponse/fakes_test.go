@@ -9,6 +9,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -95,14 +96,15 @@ func (a *fakeAudit) Record(ctx context.Context, e auditevent.AuditEvent) error {
 // fakeRepository holds the responses and shows them as row-level security does, roughly: the patient's own,
 // or the clinic's. The service must not rest on it alone.
 type fakeRepository struct {
-	err       error
-	responses []questionnaireresponse.Response
-	searched  []questionnaireresponse.Filter
-	patient   string
-	clinic    string
-	consents  map[string]access.Consent // by patient + clinic, the appointments' (the clinic's UPDATE policy)
-	notice    string                    // the appointment set by SetNotice
-	locked    []string
+	err         error
+	consents    map[string]access.Consent      // by patient + clinic, the appointments' (the clinic's UPDATE policy)
+	attachments map[string][]binary.Attachment // the files of each response, by id
+	patient     string
+	clinic      string
+	notice      string // the appointment set by SetNotice
+	responses   []questionnaireresponse.Response
+	searched    []questionnaireresponse.Filter
+	locked      []string
 }
 
 func (r *fakeRepository) visible(x questionnaireresponse.Response) bool {
@@ -517,4 +519,41 @@ func own(events []auditevent.AuditEvent) []auditevent.AuditEvent {
 		}
 	}
 	return out
+}
+
+// The attachments, by response, kept beside the responses (the fake's rollback does not cover them: the
+// holder's tests do not roll back).
+func (r *fakeRepository) AddAttachment(ctx context.Context, id string, a binary.Attachment, at time.Time) error {
+	if err := inTx(ctx); err != nil {
+		return err
+	}
+	if _, err := r.ByID(ctx, id); err != nil {
+		return err
+	}
+	if r.attachments == nil {
+		r.attachments = map[string][]binary.Attachment{}
+	}
+	r.attachments[id] = append(r.attachments[id], a)
+	return nil
+}
+
+func (r *fakeRepository) RemoveAttachment(ctx context.Context, id, binaryID string, at time.Time) error {
+	r.attachments[id] = slices.DeleteFunc(r.attachments[id], func(a binary.Attachment) bool { return a.BinaryID == binaryID })
+	return inTx(ctx)
+}
+
+func (r *fakeRepository) ClearAttachment(ctx context.Context, id, binaryID string, at time.Time) error {
+	for i, a := range r.attachments[id] {
+		if a.BinaryID == binaryID {
+			r.attachments[id][i].Pending = false
+		}
+	}
+	return inTx(ctx)
+}
+
+func (r *fakeRepository) Attachments(ctx context.Context, id string) ([]binary.Attachment, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	return r.attachments[id], nil
 }

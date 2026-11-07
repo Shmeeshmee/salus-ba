@@ -2,13 +2,9 @@ package binary
 
 import (
 	"context"
-	"errors"
 	"io"
 	"time"
 )
-
-// ErrObjectNotFound is a Store's answer for a key that holds no object.
-var ErrObjectNotFound = errors.New("binary: object not found")
 
 // Store holds the files' encrypted bytes in the object store, one object per file, keyed by the binary id
 // (docs/attachments/SPEC.md §2 "Upload pipeline", "Download"). It never sees a plaintext byte, a title or a
@@ -25,4 +21,35 @@ type Store interface {
 	// ListOlderThan calls fn once per page of the listing with the keys of that page's objects last modified
 	// before before (a page with none is skipped), and stops at fn's first error, which it returns.
 	ListOlderThan(ctx context.Context, before time.Time, fn func(keys []string) error) error
+}
+
+// Repository stores the files' rows. Row-level security shows a transaction the files of the patient set by
+// SetPatient; of the clinic set by SetClinic those whose questionnaire response the clinic sees; and of the
+// job scope set by SetJob the files of that one response.
+type Repository interface {
+	// SetPatient scopes the rest of the transaction in ctx to the patient id.
+	SetPatient(ctx context.Context, id string) error
+	// SetClinic scopes the rest of the transaction in ctx to the clinic id.
+	SetClinic(ctx context.Context, id string) error
+	// SetJob scopes the rest of the transaction in ctx to the files of the response responseID of the clinic
+	// org, for binary's jobs.
+	SetJob(ctx context.Context, responseID, org string) error
+	// LockResponse serialises the uploads to the response id until the transaction ends (an advisory lock),
+	// so two uploads cannot together pass a limit.
+	LockResponse(ctx context.Context, id string) error
+	// Insert stores b, quarantined, at at, and returns it.
+	Insert(ctx context.Context, b Binary, at time.Time) (Binary, error)
+	// ByID returns the file, or ErrNotFound (also outside the scope, or for an id that is not a UUID).
+	ByID(ctx context.Context, id string) (Binary, error)
+	// OfItem returns the files of the response's item linkID that are not rejected, oldest first.
+	OfItem(ctx context.Context, responseID, linkID string) ([]Binary, error)
+	// ResponseSize is the plaintext bytes of the response's files that are not rejected.
+	ResponseSize(ctx context.Context, responseID string) (int64, error)
+	// Delete deletes the file id that the scope lets it, and reports whether it did.
+	Delete(ctx context.Context, id string) (bool, error)
+}
+
+// Jobs enqueues binary's jobs in the transaction in the context (River's InsertTx).
+type Jobs interface {
+	EnqueueScan(ctx context.Context, args ScanArgs) error
 }

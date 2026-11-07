@@ -109,6 +109,26 @@ type AuditEvent struct {
 	EntityCount     pgtype.Int8
 }
 
+type Binary struct {
+	ID                      pgtype.UUID
+	CreatedAt               pgtype.Timestamptz
+	UpdatedAt               pgtype.Timestamptz
+	ScannedAt               pgtype.Timestamptz
+	OrganizationID          pgtype.UUID
+	PatientID               pgtype.UUID
+	AppointmentID           pgtype.UUID
+	QuestionnaireResponseID pgtype.UUID
+	Size                    int64
+	SegmentSize             int32
+	LinkID                  string
+	ContentType             string
+	Title                   string
+	Status                  string
+	KekID                   string
+	Sha1                    []byte
+	WrappedKey              []byte
+}
+
 type Consent struct {
 	ID             pgtype.UUID
 	CreatedAt      pgtype.Timestamptz
@@ -235,6 +255,7 @@ type QuestionnaireResponse struct {
 	Source             string
 	Status             string
 	Answers            []byte
+	Attachments        []byte
 }
 
 type RiverJob struct {
