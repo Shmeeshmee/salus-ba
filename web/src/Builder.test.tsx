@@ -1,5 +1,7 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderInLanguage } from './i18n/renderInLanguage'
+import type { Language } from './i18n/languages'
 import { newApiClient } from './api/client'
 import { newFhirClient, type Questionnaire } from './api/fhir'
 import appCSS from './app.css?raw'
@@ -33,9 +35,9 @@ function draft(extra: Partial<Questionnaire> = {}): Questionnaire {
   return { ...questionnaireFHIR(), ...extra }
 }
 
-function renderBuilder(routes: Record<string, Route>, q: Questionnaire = draft()) {
+function renderBuilder(routes: Record<string, Route>, q: Questionnaire = draft(), language: Language = 'en') {
   const fake = fakeFetch({ [read]: () => fhirJSON(q), [series]: () => fhirJSON(searchset([q])), ...routes })
-  render(<Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" />)
+  renderInLanguage(<Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" />, language)
   return fake
 }
 
@@ -88,6 +90,17 @@ function deferred() {
 const saved = (extra = {}) => () => Response.json({ ...questionnaireJSON(), versionId: 4, ...extra })
 
 describe('Builder: a draft', () => {
+  it('is in the UI language, the problems on the items and the screen reader texts included', async () => {
+    renderBuilder({}, draft(), 'hr')
+
+    expect(await screen.findByLabelText('Naslov')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Spremi nacrt' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Kratki odgovor' }))
+    expect(screen.getByText('Dodajte tekst ovoj stavci.')).toBeTruthy()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Pomakni gore' }).at(-1) as HTMLElement)
+    expect(document.querySelector('[role="status"][aria-live="polite"]')?.textContent).toMatch(/^Stavka Kratki odgovor je /)
+  })
+
   it('shows the title, the template hint, the palette and the items, each closed', async () => {
     renderBuilder({})
 
@@ -570,7 +583,7 @@ describe('Builder: publishing and the lifecycle', () => {
       [series]: () => fhirJSON(searchset([v1, v2])),
       'POST /questionnaires/q1/publish': () => Response.json({ ...questionnaireJSON(), version: 2, status: 'active', versionId: 4 }),
     })
-    render(<Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" />)
+    renderInLanguage(<Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" />, 'en')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Publish' }))
     expect(screen.getByText('Version 1 will be retired. Patients who have already been asked keep that version.')).toBeTruthy()
@@ -660,7 +673,7 @@ describe('Builder: publishing and the lifecycle', () => {
       [series]: () => fhirJSON(searchset([active, draft({ id: 'q9', version: '2' })])),
       'POST /questionnaires/q1/revise': () => apiError(409, 'draft_exists'),
     })
-    render(<Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" />)
+    renderInLanguage(<Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" />, 'en')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Edit as new version' }))
     expect((await screen.findByRole('alert')).textContent).toBe('A draft of this questionnaire already exists.')
@@ -739,7 +752,7 @@ describe('Builder: leaving with unsaved changes', () => {
     function Shell() {
       return usePath() === path ? <Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" /> : <p>Elsewhere</p>
     }
-    render(<Shell />)
+    renderInLanguage(<Shell />, 'en')
     fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Placeholder unsaved' } })
 
     act(() => {

@@ -1,5 +1,7 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderInLanguage } from './i18n/renderInLanguage'
+import type { Language } from './i18n/languages'
 import { newApiClient } from './api/client'
 import { newFhirClient, type Questionnaire } from './api/fhir'
 import { Questionnaires } from './Questionnaires'
@@ -28,9 +30,9 @@ const library = [
   version('b1', 'b', 1, 'retired', 'Placeholder follow-up'),
 ]
 
-function renderLibrary(routes: Record<string, Route>) {
+function renderLibrary(routes: Record<string, Route>, language: Language = 'en') {
   const fake = fakeFetch({ ...clinicRoute, ...routes })
-  render(<Questionnaires api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={practitioner} />)
+  renderInLanguage(<Questionnaires api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={practitioner} />, language)
   return fake
 }
 
@@ -39,21 +41,30 @@ function rows() {
 }
 
 describe('Questionnaires', () => {
+  it('is in the UI language, dates included', async () => {
+    renderLibrary({ 'GET /fhir/R4/Questionnaire': () => fhirJSON(searchset(library)) }, 'sr-Cyrl')
+
+    expect(await screen.findByRole('heading', { name: 'Упитници' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Нови упитник' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Нацрти' })).toBeTruthy()
+    expect(screen.getAllByRole('tooltip')[0].textContent).toBe('Верзија 1, посљедња измјена сриједа, 4. новембар 2026.')
+  })
+
   it('lists title and status, with the version and last change in a tooltip', async () => {
     renderLibrary({ 'GET /fhir/R4/Questionnaire': () => fhirJSON(searchset(library)) })
 
     expect(await screen.findByRole('heading', { name: 'Questionnaires' })).toBeTruthy()
     await screen.findByRole('list', { name: 'Questionnaires' })
     expect(rows().map((r) => r.textContent)).toEqual([
-      'Placeholder follow-upRetiredVersion 1, last changed Wednesday 4 November 2026',
-      'Placeholder intakeActiveVersion 1, last changed Wednesday 4 November 2026',
-      'Placeholder intakeDraftVersion 2, last changed Wednesday 4 November 2026',
+      'Placeholder follow-upRetiredVersion 1, last changed Wednesday, 4 November 2026',
+      'Placeholder intakeActiveVersion 1, last changed Wednesday, 4 November 2026',
+      'Placeholder intakeDraftVersion 2, last changed Wednesday, 4 November 2026',
     ])
     const link = within(rows()[2]).getByRole('link', { name: 'Placeholder intake' })
     expect(link.getAttribute('href')).toBe('/questionnaires/a2')
     const status = within(rows()[2]).getByText('Draft')
     expect(document.getElementById(status.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
-      'Version 2, last changed Wednesday 4 November 2026',
+      'Version 2, last changed Wednesday, 4 November 2026',
     )
   })
 

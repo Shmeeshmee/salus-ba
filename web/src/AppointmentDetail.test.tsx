@@ -1,5 +1,6 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { renderInLanguage } from './i18n/renderInLanguage'
 import { AppointmentDetail } from './AppointmentDetail'
 import { newApiClient, type Account } from './api/client'
 import { newFhirClient, type Patient } from './api/fhir'
@@ -41,7 +42,7 @@ function renderDetail(account: Account, routes: Record<string, Route>, now = aft
     [questionnaireSearch]: () => fhirJSON({ resourceType: 'Bundle', type: 'searchset' }),
     ...routes,
   })
-  render(<AppointmentDetail api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} id={id} now={now} />)
+  renderInLanguage(<AppointmentDetail api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} id={id} now={now} />, 'en')
   return fake
 }
 

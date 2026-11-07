@@ -395,6 +395,84 @@ Left for later (not this package's files):
 
 ### 1.6 Web area B: questionnaires, consultation, attachments
 
+Done 2026-11-08, on `i18n/1.6` (unattended run, wave 1).
+
+Built:
+- Catalogs `web/src/i18n/{questionnaire,consultation,attachments}/<language>.json` in the five staff languages:
+  every text of the questionnaire library, builder and appointment requests (questionnaire COPY.md W1 to W42,
+  attachments COPY.md W1 to W6), the call screens (consultation COPY.md W1 to W40) and the file list and viewer
+  (attachments COPY.md W7 to W13). English is the old `messages.ts` text word for word. Plurals as ICU
+  (`attachments.count`, `questionnaire.maxFilesSummary`, `questionnaire.dependents`), three forms in bs, hr and sr.
+- `common` catalog: `somethingWrong`, `loading`, and `specialty.<SNOMED code>` for the owner's twelve specialties
+  (`practitionerrole.Specialties`), for 1.5's practitioner screens.
+- Every component and module of area B reads its text through `useT` (Questionnaires, Builder, ItemCard,
+  builder-dnd, AppointmentQuestionnaires, CallScreen, DeviceCheck, Files); the pure functions take the translator
+  and the language: `at`/`cancelled` (builder.ts), `valueText`/`statusOf` (responses.ts), `sizeText`
+  (attachment.ts), `joinMessage` (consultation.ts); `problems` (builder.ts) returns message ids. Dates and times
+  through `i18n/format.ts` (`useFormat`) in the UI language; answer dates and numbers and file sizes with the
+  language's own month names and decimal sign. call.ts, questionnaire.ts had no user-facing text.
+- `web/src/messages.ts`: the `files` block removed; of `consultation` and `questionnaires` only the entries 1.5's
+  files still import are left (see the decision below).
+- Test helper `web/src/test/translate.ts` (`translator(language)`: what `useT` returns, outside React).
+- Outside the package's files, the smallest edits: `App.test.tsx` and `AppointmentDetail.test.tsx` (1.5's) render
+  with `renderInLanguage(…, 'en')` instead of `render`, since the screens they render now include area B's
+  components, which need the provider. No other line of those files changed.
+
+Test first (the failures seen, before the code):
+- `AssertionError: expected '1.5 MB' to be '1,5 MB'` (sizeText in hr); `expected [ 'Photo, 2 KB', 'Document, 1.5 MB' ]
+  to deeply equal [ 'Fotografija, 2 KB', …(1) ]` (Files in hr).
+- `expected [ 'Add text to this item.' ] to deeply equal [ 'questionnaire.noText' ]` and the like for every problem.
+- joinMessage, valueText, statusOf and at in bs, hr and sr-Cyrl: the English text returned; the new date form
+  (`Submitted Sunday, 8 November 2026, 18:45`) failed against the old one.
+- Questionnaires (sr-Cyrl), Builder (hr), CallScreen (bs), AppointmentQuestionnaires (sr-Latn): `Unable to find
+  role="heading" and name "Упитници"` / `"Provjerite kameru i mikrofon"` and the like.
+- The request title fallback (a response whose version the search did not include is named "Questionnaire"): a
+  new test, seen failing with the fallback removed (`Unable to find an element with the text: Questionnaire`),
+  passing with it.
+
+Checks (each through `docker compose … run --rm --no-deps -T node`, after `npm ci`):
+- Catalogs, `bash ../scripts/i18n-check.sh`: 8 tests pass, "catalogs pass".
+- `npm run lint` (oxlint): 0 warnings, 0 errors.
+- `npm run typecheck`: clean.
+- `npm test`: 29 files, 494 tests passed; run twice, no flake.
+- `npm run build`: built (Vite's existing over-500 kB chunk warning).
+- No Go, mobile or migration file changed: Go lint, archcheck, Go tests and mobile checks not applicable.
+- Literal-string grep over area B's files (JSX text, `aria-label`/`title`/`alt` attributes, capitalised string
+  literals): nothing left but non-text values (`'Escape'`, `'Tab'` key names, FHIR resource type names).
+
+Decided while the owner was away:
+- **`messages.ts` keeps what 1.5's files still import.** Calendar, AppointmentDetail, App and Availability (1.5's)
+  read `consultation` W1, W2, W35 to W38 and `questionnaires` W1, W30, W31 from `messages.ts`; removing them in
+  this package would break this branch's build or need edits in 1.5's components. They stay there, marked to be
+  deleted once nothing imports them; the catalogs hold the same texts (`consultation.join`, `consultation.states.*`,
+  `questionnaire.defaultLabel`, …) for 1.5 to use. The integration step deletes the leftovers with the file.
+- **Pure functions take the translator** (`ReturnType<typeof useT>`) and, where they format dates or numbers, the
+  language, rather than returning message descriptors: the tests read real English through `test/translate.ts`.
+  `problems` returns message ids, since its results are only keys and texts of the item cards.
+- **Dates come from `i18n/format.ts`**, so English long dates gain Intl's comma ("Wednesday, 4 November 2026", as
+  0.2 decided). W34 is "Submitted {date}, {time}" in English and "Predan: {date} u {time}" (sr "Predat: …") in the
+  others, since a weekday after "Predan" reads badly without the colon. Answer dates stay without the weekday, as
+  before; answer numbers keep every digit the patient wrote, with the language's decimal sign and no grouping.
+- **W19 (`dependents`) keeps COPY.md's English word for word** in both plural branches ("1 items are shown …"), since
+  the plan takes existing English verbatim; the other languages have their correct plural forms. The owner may
+  want an English singular (question in the report).
+- **`legal` tags**: the consultation's consent withdrawn (W18a), cancellation (W18b) and consent not active (W32),
+  the request's `consent_required` (W40) and the withdrawal's deletion of saved answers (W36). The camera and
+  microphone instructions (W10, W11) are browser settings, not permission prompts, and are not tagged.
+- **Words chosen**: "Retire" is *arhivirati* (to keep it apart from "Withdraw", *povući*); the practitioner is
+  *doktor* (bs, sr) and *liječnik* (hr); consent is *saglasnost* (bs, sr) and *privola* (hr); consultation is
+  *konsultacija* (bs, sr) and *konzultacija* (hr); sentences with the patient's name avoid gendered past participles
+  ("{name} još nije u konsultaciji.", "{name} ima isključenu kameru"). ENT is *ORL*.
+- **Serbian Cyrillic** was written from the ijekavian Latin text by transliteration when the catalogs were drafted
+  (not at runtime), keeping JPEG, PNG, PDF, MP4, KB, MB, Salus and the Escape key's name in Latin.
+- **A request's title is optional in `responses.ts`**; the row shows "Questionnaire" (W35's word, as before) when
+  the search did not include the version, so `requestsOf` needs no translator.
+- **`common` keys** `somethingWrong` and `loading` are shared words; 1.5 may add the same keys, which the
+  integration step unions.
+
+COPY.md additions (not yet reviewed): none (every English text is an existing COPY.md text or the existing
+"Loading"; the specialty names are booking's `Text` values).
+
 ### 1.7 Mobile: every screen in ten languages
 
 ### 2.1 internal/questionnaireresponse: the language answered in

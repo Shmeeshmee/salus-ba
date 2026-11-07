@@ -1,5 +1,6 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { renderInLanguage } from './i18n/renderInLanguage'
 import App from './App'
 import { newApiClient, type Account } from './api/client'
 import { newFhirClient } from './api/fhir'
@@ -16,7 +17,7 @@ const organization = () =>
 function renderAt(path: string, routes: Record<string, Route>) {
   history.replaceState(null, '', path)
   const fake = fakeFetch(routes)
-  render(<App api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} />)
+  renderInLanguage(<App api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} />, 'en')
   return fake
 }
 

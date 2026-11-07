@@ -1,6 +1,8 @@
 import type { AnswerValue } from './api/fhir'
 import type { FileKind } from './builder'
-import { files as t } from './messages'
+import { intlLocale } from './i18n/format'
+import type { Language } from './i18n/languages'
+import type { useT } from './i18n/useT'
 
 // Attached is a file of a submitted answer as the appointment detail lists it. id is the binary's id,
 // read from the attachment's url; a file whose url names no binary has none and cannot be opened.
@@ -32,7 +34,9 @@ export function filesOf(values: AnswerValue[]): Attached[] {
 
 // sizeText is W8's size: whole kilobytes below a megabyte, else megabytes with one decimal (1 MB = 1,000,000
 // bytes, as the limits of W3 count them).
-export function sizeText(bytes: number): string {
+export function sizeText(bytes: number, t: ReturnType<typeof useT>, language: Language): string {
   const kb = Math.max(1, Math.round(bytes / 1000))
-  return kb < 1000 ? t.kb(kb) : t.mb((bytes / 1_000_000).toFixed(1))
+  if (kb < 1000) return t('attachments.kb', { n: kb })
+  const mb = new Intl.NumberFormat(intlLocale(language), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(bytes / 1_000_000)
+  return t('attachments.mb', { n: mb })
 }

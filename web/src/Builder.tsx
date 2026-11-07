@@ -28,7 +28,7 @@ import { DragArea, ListEnd, PaletteSource, SortableList, SortableRow } from './b
 import { ChevronIcon } from './icons'
 import { FilesSummary, ItemCard, TextField } from './ItemCard'
 import { useLoad } from './load'
-import { questionnaires as t, somethingWrong } from './messages'
+import { useT } from './i18n/useT'
 import { fromFHIR, fromJSON, toRequest, type Version } from './questionnaire'
 import { guardLeaving, navigate } from './route'
 import { Alert, Confirm, Link } from './ui'
@@ -36,22 +36,26 @@ import { Alert, Confirm, Link } from './ui'
 type Loaded = { version: Version; series: Version[] }
 type Props = { api: ApiClient; fhir: FhirClient; id: string }
 
-const label = (it: Item) => it.text.trim() || t.kinds[it.kind]
+type T = ReturnType<typeof useT>
+
+// labelOf names an item by its text, or by its type while it has none.
+const labelOf = (t: T) => (it: Item) => it.text.trim() || t(`questionnaire.kinds.${it.kind}`)
 const newLinkId = () => crypto.randomUUID()
 
 // Builder is the page of one questionnaire version: a draft is edited (the palette, the items, save,
 // publish, discard); an active version offers "Edit as new version" and "Retire"; a retired one is read only.
 export function Builder({ api, fhir, id }: Props) {
+  const t = useT()
   const { state, reload, set } = useLoad(async (): Promise<Loaded> => {
     const q = await fhir.get<Questionnaire>(`Questionnaire/${encodeURIComponent(id)}`)
     const bundle = await fhir.get<Bundle<Questionnaire>>(`Questionnaire?${new URLSearchParams({ url: q.url })}`)
     return { version: fromFHIR(q), series: (bundle.entry ?? []).map((e) => fromFHIR(e.resource)) }
   }, [fhir, id])
 
-  if (state.name === 'loading') return <Page>{<p className="muted">Loading</p>}</Page>
+  if (state.name === 'loading') return <Page>{<p className="muted">{t('common.loading')}</p>}</Page>
   if (state.name === 'failed') {
     const gone = state.error instanceof FhirError && (state.error.status === 404 || state.error.status === 403)
-    return <Page>{<Alert message={gone ? t.notAvailable : somethingWrong} />}</Page>
+    return <Page>{<Alert message={t(gone ? 'questionnaire.notAvailable' : 'common.somethingWrong')} />}</Page>
   }
   const loaded = state.value
   const changed = (version: Version) => set({ ...loaded, version })
@@ -60,53 +64,55 @@ export function Builder({ api, fhir, id }: Props) {
 }
 
 function Page({ children, wide }: { children: ReactNode; wide?: boolean }) {
+  const t = useT()
   return (
     <section className={wide ? 'panel builder-page' : 'panel'}>
       <Link to="/questionnaires" className="back">
         <ChevronIcon direction="left" />
-        {t.title}
+        {t('questionnaire.title')}
       </Link>
       {children}
     </section>
   )
 }
 
-type Failure = { message: string; reload?: boolean; draft?: string }
+type Failure = { message: string; reload?: boolean; draft?: string } // message: a catalog message id
 
-// failure maps an API refusal to its W29 text.
+// failure maps an API refusal to its W29 text's message id.
 function failure(code: ErrorCode | undefined, series: Version[]): Failure {
   switch (code) {
     case 'version_conflict':
-      return { message: t.changed, reload: true }
+      return { message: 'questionnaire.changed', reload: true }
     case 'not_draft':
-      return { message: t.notDraft }
+      return { message: 'questionnaire.notDraft' }
     case 'invalid_questionnaire':
-      return { message: t.needsAttention }
+      return { message: 'questionnaire.needsAttention' }
     case 'not_found':
-      return { message: t.notAvailable }
+      return { message: 'questionnaire.notAvailable' }
     case 'draft_exists':
-      return { message: t.draftExists, draft: series.find((v) => v.status === 'draft')?.id }
+      return { message: 'questionnaire.draftExists', draft: series.find((v) => v.status === 'draft')?.id }
     default:
-      return { message: somethingWrong }
+      return { message: 'common.somethingWrong' }
   }
 }
 
 function FailureAlert({ failure, onReload }: { failure?: Failure; onReload?: () => void }) {
+  const t = useT()
   if (!failure) return null
   return (
     <div className="failure">
-      <Alert message={failure.message} />
+      <Alert message={t(failure.message)} />
       {failure.reload && onReload && (
         <div className="actions">
           <button type="button" onClick={onReload}>
-            {t.reload}
+            {t('questionnaire.reload')}
           </button>
         </div>
       )}
       {failure.draft && (
         <div className="actions">
           <button type="button" onClick={() => navigate(`/questionnaires/${encodeURIComponent(failure.draft ?? '')}`)}>
-            {t.openDraft}
+            {t('questionnaire.openDraft')}
           </button>
         </div>
       )}
@@ -117,6 +123,8 @@ function FailureAlert({ failure, onReload }: { failure?: Failure; onReload?: () 
 type EditorProps = { api: ApiClient; loaded: Loaded; onReload: () => void; onPublished: (v: Version) => void }
 
 function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
+  const t = useT()
+  const label = labelOf(t)
   const [title, setTitle] = useState(loaded.version.title)
   const [description, setDescription] = useState(loaded.version.description)
   const [items, setItems] = useState(loaded.version.items)
@@ -215,7 +223,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
       setConfirm('publish')
       return
     }
-    setFailed({ message: t.needsAttention })
+    setFailed({ message: 'questionnaire.needsAttention' })
     setOpened((o) => [...new Set([...o, ...ids])])
   }
 
@@ -270,7 +278,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
     const res = step(items, linkId, dir)
     if (!res?.ok) return
     edit(res.items)
-    setAnnouncement(at(res.items, linkId, label, true))
+    setAnnouncement(at(res.items, linkId, label, true, t))
   }
 
   const active = loaded.series.find((s) => s.status === 'active' && s.id !== v.id)
@@ -280,15 +288,15 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
   return (
     <Page wide>
       <div className="heading">
-        <h1>{title.trim() || t.untitled}</h1>
-        <span className="tag draft">{t.statuses.draft}</span>
+        <h1>{title.trim() || t('questionnaire.untitled')}</h1>
+        <span className="tag draft">{t('questionnaire.statuses.draft')}</span>
       </div>
       {leavingTo !== undefined && (
         <Confirm
-          question={t.leaveQuestion}
+          question={t('questionnaire.leaveQuestion')}
           lines={[]}
-          confirm={t.leave}
-          cancel={t.stay}
+          confirm={t('questionnaire.leave')}
+          cancel={t('questionnaire.stay')}
           danger
           onConfirm={() => leave(leavingTo)}
           onCancel={() => setLeavingTo(undefined)}
@@ -297,23 +305,23 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
       <p className="sr-only" role="status" aria-live="polite">
         {announcement}
       </p>
-      <DragArea items={items} label={label} newLinkId={newLinkId} onChange={placed} onNested={() => setFailed({ message: t.nestedSection })}>
+      <DragArea items={items} label={label} newLinkId={newLinkId} onChange={placed} onNested={() => setFailed({ message: 'questionnaire.nestedSection' })}>
         {(movingSection) => (
           <div className="builder" inert={publishing}>
             <Palette full={full} count={count(items)} onAdd={add} />
             <div className="sheet">
               <TextField
-                label={t.titleLabel}
+                label={t('questionnaire.titleLabel')}
                 value={title}
                 max={maxTitle}
-                hint={t.templateHint}
+                hint={t('questionnaire.templateHint')}
                 onChange={(x) => {
                   setTitle(x)
                   changed()
                 }}
               />
               <TextField
-                label={t.descriptionLabel}
+                label={t('questionnaire.descriptionLabel')}
                 value={description}
                 max={maxDescription}
                 long
@@ -368,7 +376,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
               <ListEnd>
                 {(ref, over) => (
                   <div ref={ref} className={over ? 'list-end over' : 'list-end'}>
-                    {items.length === 0 && <p className="muted">{t.empty}</p>}
+                    {items.length === 0 && <p className="muted">{t('questionnaire.empty')}</p>}
                   </div>
                 )}
               </ListEnd>
@@ -379,10 +387,10 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
       <FailureAlert failure={failed} onReload={onReload} />
       {confirm === 'publish' && (
         <Confirm
-          question={t.publishQuestion}
-          lines={active ? [t.publishWarning, t.publishRetires(active.version)] : [t.publishWarning]}
-          confirm={t.publish}
-          cancel={t.cancel}
+          question={t('questionnaire.publishQuestion')}
+          lines={active ? [t('questionnaire.publishWarning'), t('questionnaire.publishRetires', { n: active.version })] : [t('questionnaire.publishWarning')]}
+          confirm={t('questionnaire.publish')}
+          cancel={t('questionnaire.cancel')}
           busy={busy || publishing}
           onConfirm={publish}
           onCancel={() => setConfirm(undefined)}
@@ -390,10 +398,10 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
       )}
       {confirm === 'discard' && (
         <Confirm
-          question={t.discardQuestion}
-          lines={[t.discardWarning]}
-          confirm={t.discardConfirm}
-          cancel={t.cancel}
+          question={t('questionnaire.discardQuestion')}
+          lines={[t('questionnaire.discardWarning')]}
+          confirm={t('questionnaire.discardConfirm')}
+          cancel={t('questionnaire.cancel')}
           danger
           busy={busy}
           onConfirm={discard}
@@ -402,17 +410,17 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
       )}
       <div className="actions builder-actions">
         <button type="button" className="primary" disabled={busy} onClick={save}>
-          {busy ? t.saving : t.save}
+          {busy ? t('questionnaire.saving') : t('questionnaire.save')}
         </button>
         <button type="button" disabled={busy} onClick={askPublish}>
-          {t.publish}
+          {t('questionnaire.publish')}
         </button>
         <button type="button" className="quiet danger-text" disabled={busy} onClick={() => setConfirm('discard')}>
-          {t.discard}
+          {t('questionnaire.discard')}
         </button>
         {saved && !dirty && (
           <span className="muted" role="status">
-            {t.saved}
+            {t('questionnaire.saved')}
           </span>
         )}
       </div>
@@ -421,25 +429,26 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
 }
 
 function Palette({ full, count: n, onAdd }: { full: boolean; count: number; onAdd: (k: Kind) => void }) {
+  const t = useT()
   return (
     <aside className="palette">
-      <h2>{t.addItem}</h2>
-      <p className="hint">{t.addItemHint}</p>
+      <h2>{t('questionnaire.addItem')}</h2>
+      <p className="hint">{t('questionnaire.addItemHint')}</p>
       <ul>
         {kinds.map((k) => (
           <li key={k}>
             <PaletteSource kind={k} disabled={full}>
               {(d) => (
                 <button type="button" ref={d.ref} className={d.dragging ? 'kind dragging' : 'kind'} disabled={full} onClick={() => onAdd(k)} {...d.listeners}>
-                  {t.kinds[k]}
+                  {t(`questionnaire.kinds.${k}`)}
                 </button>
               )}
             </PaletteSource>
           </li>
         ))}
       </ul>
-      <p className="hint">{t.itemCount(n)}</p>
-      {full && <p className="hint">{t.tooManyItems}</p>}
+      <p className="hint">{t('questionnaire.itemCount', { n })}</p>
+      {full && <p className="hint">{t('questionnaire.tooManyItems')}</p>}
     </aside>
   )
 }
@@ -448,6 +457,8 @@ type PublishedProps = { api: ApiClient; loaded: Loaded; onChanged: (v: Version) 
 
 // Published is an active or retired version: read only; an active one can be revised or retired.
 function Published({ api, loaded, onChanged }: PublishedProps) {
+  const t = useT()
+  const label = labelOf(t)
   const v = loaded.version
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -477,26 +488,26 @@ function Published({ api, loaded, onChanged }: PublishedProps) {
     <Page>
       <div className="heading">
         <h1>{v.title}</h1>
-        <span className={`tag ${v.status}`}>{t.statuses[v.status]}</span>
+        <span className={`tag ${v.status}`}>{t(`questionnaire.statuses.${v.status}`)}</span>
       </div>
       {v.description && <p className="muted">{v.description}</p>}
       {v.status === 'active' ? (
         <>
-          <p className="notice">{t.published}</p>
+          <p className="notice">{t('questionnaire.published')}</p>
           <div className="actions published-actions">
             <button type="button" className="primary" disabled={busy} onClick={revise}>
-              {t.revise}
+              {t('questionnaire.revise')}
             </button>
             <button type="button" disabled={busy} onClick={() => setConfirming(true)}>
-              {t.retire}
+              {t('questionnaire.retire')}
             </button>
           </div>
           {confirming && (
             <Confirm
-              question={t.retireQuestion}
-              lines={[t.retireWarning]}
-              confirm={t.retire}
-              cancel={t.cancel}
+              question={t('questionnaire.retireQuestion')}
+              lines={[t('questionnaire.retireWarning')]}
+              confirm={t('questionnaire.retire')}
+              cancel={t('questionnaire.cancel')}
               danger
               busy={busy}
               onConfirm={retire}
@@ -505,7 +516,7 @@ function Published({ api, loaded, onChanged }: PublishedProps) {
           )}
         </>
       ) : (
-        <p className="notice">{t.retired}</p>
+        <p className="notice">{t('questionnaire.retired')}</p>
       )}
       <FailureAlert failure={failed} />
       <ul className="items readonly">
@@ -513,9 +524,9 @@ function Published({ api, loaded, onChanged }: PublishedProps) {
           <li key={it.linkId} className={['item', it.kind === 'group' ? 'section' : '', v.items.includes(it) ? '' : 'nested'].filter(Boolean).join(' ')}>
             <div className="item-head">
               <span className="item-text">{label(it)}</span>
-              <span className="tag">{t.kinds[it.kind]}</span>
+              <span className="tag">{t(`questionnaire.kinds.${it.kind}`)}</span>
               <FilesSummary item={it} />
-              {it.required && <span className="tag">{t.required}</span>}
+              {it.required && <span className="tag">{t('questionnaire.required')}</span>}
             </div>
           </li>
         ))}
