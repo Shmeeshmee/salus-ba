@@ -16,6 +16,7 @@ const (
 	maxOptions     = 50
 	maxOption      = 200
 	maxLinkID      = 64
+	maxFiles       = 10 // per attachment item (docs/attachments/SPEC.md §3 O2)
 )
 
 // validate checks a questionnaire's content against SPEC.md §2 "Item model", "Limits" and "linkIds".
@@ -86,11 +87,11 @@ func (v *validator) valid(it Item, top bool) bool {
 	if it.EnableWhen != nil && !v.condition(*it.EnableWhen) {
 		return false
 	}
-	question := it.Type != ItemGroup && it.Type != ItemDisplay
+	question, file := it.Type != ItemGroup && it.Type != ItemDisplay, it.Type == ItemAttachment
 	switch {
 	case it.Required && !question, it.Repeats && it.Type != ItemChoice, len(it.Options) > 0 && it.Type != ItemChoice:
 		return false
-	case len(it.Items) > 0 && it.Type != ItemGroup:
+	case len(it.Items) > 0 && it.Type != ItemGroup, (len(it.Accept) > 0 || it.MaxFiles != 0) && !file:
 		return false
 	}
 	switch it.Type {
@@ -100,10 +101,12 @@ func (v *validator) valid(it Item, top bool) bool {
 		return it.Help == ""
 	case ItemChoice:
 		return options(it.Options)
+	case ItemAttachment:
+		return accept(it.Accept) && it.MaxFiles >= 1 && it.MaxFiles <= maxFiles
 	case ItemString, ItemText, ItemBoolean, ItemInteger, ItemDecimal, ItemDate:
 		return true
 	}
-	return false // ItemAttachment (reserved, D1) and any type not accepted yet
+	return false // any type not accepted yet
 }
 
 // condition tells whether c depends on an earlier boolean item with a boolean answer, or an earlier choice
@@ -123,6 +126,18 @@ func (v *validator) condition(c Condition) bool {
 		}
 	}
 	return false
+}
+
+// accept tells whether kinds is a non-empty set of the known kinds of file.
+func accept(kinds []FileKind) bool {
+	seen := make(map[FileKind]bool, len(kinds))
+	for _, k := range kinds {
+		if (k != FilePhoto && k != FileDocument && k != FileVideo) || seen[k] {
+			return false
+		}
+		seen[k] = true
+	}
+	return len(kinds) > 0
 }
 
 func options(opts []Option) bool {

@@ -203,3 +203,38 @@ func TestRevise_CopiesTheActiveVersionToTheNextDraftWithTheSameLinkIDs(t *testin
 	}
 	assertEvents(t, f.audit, staffEvent(practitionerA1, auditevent.CodeCreate, auditevent.ActionCreate, "Questionnaire/"+got.ID, auditevent.OutcomeSuccess))
 }
+
+// A revise carries an attachment item over with its linkId and settings; the new version may change its
+// settings but not give its linkId another type.
+func TestRevise_KeepsAnAttachmentItemAndRefusesItsLinkIDAsAnotherType(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	if err := f.svc.DeleteDraft(t.Context(), adminA, draftA); err != nil {
+		t.Fatal(err)
+	}
+	files := attachment("files", 10, questionnaire.FilePhoto, questionnaire.FileDocument)
+	f.repo.rows[0].Items = append(items(), files)
+
+	got, err := f.svc.Revise(t.Context(), practitionerA1, activeA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := got.Items[len(got.Items)-1]
+	if last.LinkID != "files" || last.Type != questionnaire.ItemAttachment || last.MaxFiles != 10 ||
+		!slices.Equal(last.Accept, []questionnaire.FileKind{questionnaire.FilePhoto, questionnaire.FileDocument}) {
+		t.Errorf("Revise() carried %+v over, want %+v", last, files)
+	}
+
+	fewer := append(items(), attachment("files", 1, questionnaire.FileVideo))
+	if _, err := f.svc.UpdateDraft(t.Context(), practitionerA1, got.ID, questionnaire.Content{Title: "T", Items: fewer}, 1); err != nil {
+		t.Errorf("UpdateDraft() with the attachment's settings changed = %v, want it stored", err)
+	}
+	f.audit.events = nil
+	other := append(items(), question("files", questionnaire.ItemString))
+	_, err = f.svc.UpdateDraft(t.Context(), practitionerA1, got.ID, questionnaire.Content{Title: "T", Items: other}, 2)
+	var invalid *questionnaire.InvalidError
+	if !errors.As(err, &invalid) || !slices.Equal(invalid.LinkIDs, []string{"files"}) {
+		t.Errorf("UpdateDraft() with the attachment become a string = %v, want an InvalidError naming files", err)
+	}
+	assertEvents(t, f.audit, staffEvent(practitionerA1, auditevent.CodeUpdate, auditevent.ActionUpdate, "Questionnaire/"+got.ID, auditevent.OutcomeMinorFailure))
+}

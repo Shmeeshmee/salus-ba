@@ -121,6 +121,29 @@ var draft = questionnaire.Questionnaire{
 	Items: []questionnaire.Item{{LinkID: "smoker", Text: "Placeholder yes or no question", Type: questionnaire.ItemBoolean}},
 }
 
+// attachments is a synthetic active version with an attachment item for each combination of kinds, of 1 and
+// of 10 files, one of them required, with help text and under a condition.
+var attachments = questionnaire.Questionnaire{
+	ID: activeA, SeriesID: seriesA, OrganizationID: clinicA, Version: 1, Status: questionnaire.StatusActive,
+	Title: placeholderTitle, PublishedAt: now, LastUpdated: now, VersionID: 2,
+	Items: []questionnaire.Item{
+		{LinkID: "has-files", Text: "Placeholder yes or no question", Type: questionnaire.ItemBoolean},
+		with(attachment("p1", 1, questionnaire.FilePhoto), func(i *questionnaire.Item) {
+			i.Required, i.Help = true, "Placeholder help text"
+			i.EnableWhen = &questionnaire.Condition{Question: "has-files", Boolean: yes()}
+		}),
+		attachment("d10", 10, questionnaire.FileDocument),
+		attachment("v1", 1, questionnaire.FileVideo),
+		attachment("pd10", 10, questionnaire.FilePhoto, questionnaire.FileDocument),
+		attachment("pv1", 1, questionnaire.FilePhoto, questionnaire.FileVideo),
+		attachment("dv10", 10, questionnaire.FileDocument, questionnaire.FileVideo),
+		{LinkID: "s", Text: "Placeholder section", Type: questionnaire.ItemGroup, Items: []questionnaire.Item{
+			attachment("pdv1", 1, questionnaire.FilePhoto, questionnaire.FileDocument, questionnaire.FileVideo),
+			attachment("pdv10", 10, questionnaire.FileVideo, questionnaire.FilePhoto, questionnaire.FileDocument),
+		}},
+	},
+}
+
 // The read sends the Questionnaire, its canonical url and version, with its version as the ETag.
 func TestHandlerRead_SendsTheQuestionnaire(t *testing.T) {
 	for _, tt := range []struct {
@@ -129,6 +152,7 @@ func TestHandlerRead_SendsTheQuestionnaire(t *testing.T) {
 	}{
 		{golden: "questionnaire_active.json", etag: `W/"4"`, q: everyType},
 		{golden: "questionnaire_draft.json", etag: `W/"1"`, q: draft},
+		{golden: "questionnaire_attachments.json", etag: `W/"2"`, q: attachments},
 	} {
 		svc := &stubReader{out: []questionnaire.Questionnaire{tt.q}}
 		rec := getFHIR(t, svc, as(practitionerA1), &bytes.Buffer{}, "/fhir/R4/Questionnaire/"+tt.q.ID)

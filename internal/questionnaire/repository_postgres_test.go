@@ -72,6 +72,7 @@ func equal(a, b questionnaire.Questionnaire) bool {
 func equalItem(a, b questionnaire.Item) bool {
 	return a.LinkID == b.LinkID && a.Text == b.Text && a.Type == b.Type && a.Help == b.Help && a.Required == b.Required &&
 		a.Repeats == b.Repeats && slices.Equal(a.Options, b.Options) && slices.EqualFunc(a.Items, b.Items, equalItem) &&
+		slices.Equal(a.Accept, b.Accept) && a.MaxFiles == b.MaxFiles &&
 		((a.EnableWhen == nil) == (b.EnableWhen == nil)) &&
 		(a.EnableWhen == nil || (a.EnableWhen.Question == b.EnableWhen.Question && a.EnableWhen.String == b.EnableWhen.String &&
 			(a.EnableWhen.Boolean == nil) == (b.EnableWhen.Boolean == nil) && (a.EnableWhen.Boolean == nil || *a.EnableWhen.Boolean == *b.EnableWhen.Boolean)))
@@ -148,6 +149,8 @@ func TestPostgres_RunsTheLifecycle(t *testing.T) {
 			EnableWhen: &questionnaire.Condition{Question: "b", Boolean: &no},
 			Items: []questionnaire.Item{{LinkID: "c", Text: "Placeholder", Type: questionnaire.ItemChoice, Repeats: true, Required: true,
 				Options: []questionnaire.Option{{Value: "One"}, {Value: "Two"}}}}},
+		{LinkID: "a", Text: "Placeholder file upload", Type: questionnaire.ItemAttachment, Required: true,
+			Accept: []questionnaire.FileKind{questionnaire.FileDocument, questionnaire.FilePhoto}, MaxFiles: 10},
 	}
 
 	var created, updated, published, revised, retired questionnaire.Questionnaire
