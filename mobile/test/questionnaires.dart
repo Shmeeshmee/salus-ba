@@ -151,3 +151,49 @@ Map<String, Object?> saved(
   'lastUpdated': '2026-11-04T09:00:00Z',
   'versionId': versionId,
 };
+
+const _mimeType = 'http://hl7.org/fhir/StructureDefinition/mimeType';
+const _maxOccurs = 'http://hl7.org/fhir/StructureDefinition/questionnaire-maxOccurs';
+
+/// The content types of each kind, as the API's FHIR handler writes an attachment item's `mimeType` extensions.
+const contentTypes = {
+  'photo': ['image/jpeg', 'image/png'],
+  'document': ['application/pdf'],
+  'video': ['video/mp4'],
+};
+
+/// A file upload item accepting [accept] (`photo`, `document`, `video`), at most [maxFiles] files.
+Map<String, Object?> attachmentItem(
+  String linkId, {
+  List<String> accept = const ['photo', 'document', 'video'],
+  int maxFiles = 1,
+  bool required = false,
+  String text = 'Placeholder file upload',
+}) => {
+  'linkId': linkId,
+  'text': text,
+  'type': 'attachment',
+  if (required) 'required': true,
+  if (maxFiles > 1) 'repeats': true,
+  'extension': [
+    for (final kind in accept)
+      for (final t in contentTypes[kind]!) {'url': _mimeType, 'valueCode': t},
+    {'url': _maxOccurs, 'valueInteger': maxFiles},
+  ],
+};
+
+/// A file answer as the API's FHIR handler writes it: `valueAttachment` with the download URL. Synthetic title.
+Map<String, Object?> fileAnswer(
+  String binaryId, {
+  String contentType = 'image/jpeg',
+  int size = 245000,
+  String? title,
+}) => {
+  'valueAttachment': {
+    'contentType': contentType,
+    'size': size,
+    'title': title ?? 'synthetic-$binaryId.jpg',
+    'hash': 'c3ludGhldGljIGhhc2ggMjA=',
+    'url': 'http://api.test/binaries/$binaryId/content',
+  },
+};

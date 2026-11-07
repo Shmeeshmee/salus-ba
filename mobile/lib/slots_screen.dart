@@ -5,6 +5,7 @@ import 'booking.dart';
 import 'call.dart';
 import 'consent_screen.dart';
 import 'fhir.dart';
+import 'files.dart';
 import 'loading.dart';
 import 'messages.dart';
 import 'profile_screen.dart';
@@ -15,6 +16,10 @@ import 'zones.dart';
 /// How far ahead slots exist: the scheduler generates 28 days (docs/booking/SPEC.md "Slot generation").
 const _days = 28;
 
+/// A time that starts sooner than this is not offered (owner, 2026-11-07): the patient could not book and get
+/// ready for it.
+const _notBefore = Duration(minutes: 5);
+
 /// A practitioner's free times on one day at a time, in the clinic's time zone.
 class SlotsScreen extends StatefulWidget {
   const SlotsScreen({
@@ -22,6 +27,7 @@ class SlotsScreen extends StatefulWidget {
     required this.booking,
     required this.now,
     required this.media,
+    required this.files,
     required this.clinic,
     required this.role,
   });
@@ -29,6 +35,7 @@ class SlotsScreen extends StatefulWidget {
   final Booking booking;
   final DateTime Function() now;
   final Media media;
+  final Files files;
   final Organization clinic;
   final PractitionerRole role;
 
@@ -53,7 +60,12 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
     final schedule = _schedule;
     if (schedule == null) return null;
     final next = DateTime.utc(_day.year, _day.month, _day.day + 1);
-    return widget.booking.fhir.freeSlots(schedule, _zone.startOf(_day), _zone.startOf(next));
+    final earliest = widget.now().add(_notBefore);
+    final slots = await widget.booking.fhir.freeSlots(schedule, _zone.startOf(_day), _zone.startOf(next));
+    return [
+      for (final s in slots)
+        if (!s.start.isBefore(earliest)) s,
+    ];
   }
 
   void _move(int days) {
@@ -68,6 +80,7 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
           booking: widget.booking,
           now: widget.now,
           media: widget.media,
+          files: widget.files,
           clinic: widget.clinic,
           role: widget.role,
           slot: slot,
@@ -123,6 +136,7 @@ class BookScreen extends StatefulWidget {
     required this.booking,
     required this.now,
     required this.media,
+    required this.files,
     required this.clinic,
     required this.role,
     required this.slot,
@@ -131,6 +145,7 @@ class BookScreen extends StatefulWidget {
   final Booking booking;
   final DateTime Function() now;
   final Media media;
+  final Files files;
   final Organization clinic;
   final PractitionerRole role;
   final Slot slot;
@@ -215,6 +230,7 @@ class _BookScreenState extends State<BookScreen> {
           booking: widget.booking,
           now: widget.now,
           media: widget.media,
+          files: widget.files,
           notice: appointmentBooked,
         ),
       ),

@@ -24,6 +24,10 @@ class ApiFailure implements Exception {
     return ApiFailure(status: e.code, code: _errorCode(e.message), linkIds: _linkIds(e.message));
   }
 
+  /// A refused call answered with [status] and the JSON error [body], read outside the generated client.
+  factory ApiFailure.fromBody(int status, String body) =>
+      ApiFailure(status: status, code: _errorCode(body), linkIds: _linkIds(body));
+
   /// A refused login, which also says when to try again (`Retry-After`, in seconds).
   factory ApiFailure.fromLogin(int status, String body, String? retryAfter) {
     final seconds = int.tryParse(retryAfter ?? '');

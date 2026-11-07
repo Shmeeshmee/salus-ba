@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:salus/file_prep.dart' show FileKind;
 import 'package:salus/questionnaire.dart';
 import 'package:salus_api/api.dart' as api;
 
@@ -266,11 +267,85 @@ void main() {
       final v = Version.fromFhir(
         questionnaire(
           items: [
-            {'linkId': 'att', 'text': 'Placeholder upload', 'type': 'attachment'},
+            // Before package 1.7 of docs/attachments this was `attachment`, which the app now knows.
+            {'linkId': 'q', 'text': 'Placeholder quantity', 'type': 'quantity'},
           ],
         ),
       );
       expect(v.items.single.type, ItemType.unsupported);
+    });
+
+    test('a file upload item: the kinds it accepts and how many files', () {
+      final v = Version.fromFhir(
+        questionnaire(
+          items: [
+            attachmentItem('all', maxFiles: 10, required: true),
+            attachmentItem('photo', accept: const ['photo']),
+            attachmentItem('doc', accept: const ['document', 'video'], maxFiles: 3),
+          ],
+        ),
+      );
+      expect(
+        [for (final i in v.items) (i.type, i.maxFiles, i.required, i.isQuestion)],
+        [
+          (ItemType.attachment, 10, true, true),
+          (ItemType.attachment, 1, false, true),
+          (ItemType.attachment, 3, false, true),
+        ],
+      );
+      expect(
+        [for (final i in v.items) i.accept],
+        [
+          {FileKind.photo, FileKind.document, FileKind.video},
+          {FileKind.photo},
+          {FileKind.document, FileKind.video},
+        ],
+      );
+    });
+
+    test("a response's files: each valueAttachment with its id from the download URL", () {
+      final r = Response.fromFhir(
+        response(
+          'r1',
+          items: [
+            {
+              'linkId': 'files',
+              'answer': [
+                fileAnswer('b1', title: 'synthetic-photo.jpg'),
+                fileAnswer('b2', contentType: 'application/pdf', size: 1200000, title: 'synthetic-letter.pdf'),
+              ],
+            },
+          ],
+        ),
+      );
+      final files = r.answers['files']!.cast<Attached>();
+      expect(
+        [for (final f in files) (f.id, f.title, f.kind, f.size)],
+        [
+          ('b1', 'synthetic-photo.jpg', FileKind.photo, 245000),
+          ('b2', 'synthetic-letter.pdf', FileKind.document, 1200000),
+        ],
+      );
+    });
+
+    test('files are never sent with the typed answers, and count as the answer of a required item', () {
+      const items = [
+        Item(linkId: 'name', type: ItemType.string, text: 'Placeholder question'),
+        Item(linkId: 'files', type: ItemType.attachment, text: 'Placeholder upload', required: true),
+      ];
+      const file = Attached(id: 'b1', title: 'synthetic.jpg', contentType: 'image/jpeg', size: 1);
+      final answers = <String, List<Object>>{
+        'name': ['Placeholder answer'],
+        'files': [file],
+      };
+      expect([for (final a in toApi(items, answers)) a.linkId], ['name']);
+      expect(missing(items, answers), isEmpty);
+      expect(
+        missing(items, {
+          'name': ['Placeholder answer'],
+        }),
+        ['files'],
+      );
     });
 
     test("a response: its appointment, version, status and the answers flattened out of the sections", () {

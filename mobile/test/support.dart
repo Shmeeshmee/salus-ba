@@ -11,6 +11,7 @@ import 'package:salus/token_store.dart';
 import 'package:salus_api/api.dart';
 
 import 'fake_call.dart';
+import 'fake_files.dart';
 
 // Synthetic test data only.
 const email = 'patient@example.test';
@@ -44,6 +45,9 @@ class FakeApi {
   final routes = <String, Respond>{};
   final requests = <http.Request>[];
 
+  /// The `Content-Length` each request declared before its body was read, by "METHOD /path", in order.
+  final declared = <(String, int?)>[];
+
   void on(String route, Respond respond) => routes[route] = respond;
 
   void answer(String route, int status, [Object? body, Map<String, String> headers = const {}]) =>
@@ -60,6 +64,20 @@ class FakeApi {
       return Future.value(jsonResponse(404, {'error': 'invalid_request'}));
     }
     return respond(request);
+  }
+}
+
+/// Notes the length a request declares; MockClient's request only has the length of the body it read.
+class _Declaring extends http.BaseClient {
+  _Declaring(this._api, this._inner);
+
+  final FakeApi _api;
+  final http.Client _inner;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    _api.declared.add(('${request.method} ${request.url.path}', request.contentLength));
+    return _inner.send(request);
   }
 }
 
@@ -94,7 +112,8 @@ class Harness {
   /// A signed-in patient with a profile and no questionnaires unless the test answers `GET /me/patient` or
   /// `GET /fhir/R4/QuestionnaireResponse` otherwise.
   Harness({FakeTokenStore? store, DateTime? now}) : store = store ?? FakeTokenStore(), now = now ?? wednesday {
-    client = ApiClient(basePath: 'http://api.test', authentication: bearer)..client = MockClient(api._handle);
+    client = ApiClient(basePath: 'http://api.test', authentication: bearer)
+      ..client = _Declaring(api, MockClient(api._handle));
     session = Session(api: AuthApi(client), bearer: bearer, store: this.store);
     booking = Booking(client);
     api.answer('GET /me/patient', 200, patient());
@@ -112,6 +131,9 @@ class Harness {
   /// The camera, the microphone and LiveKit.
   final media = FakeMedia();
 
+  /// The pickers and the conversion.
+  final files = FakeFiles();
+
   /// The clock the app reads; a test moves it.
   DateTime now;
   late final ApiClient client;
@@ -126,6 +148,7 @@ class Harness {
         booking: booking,
         now: () => now,
         media: media,
+        files: files,
         privacyNoticeUrl: privacyNoticeUrl,
         openUrl: (url) async {
           opened.add(url);

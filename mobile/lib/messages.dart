@@ -261,6 +261,56 @@ String answersMessage(ApiFailure failure) {
     'not_found' => questionnaireNotAvailable,
     // The appointment was cancelled (added on review of PR #24, owner).
     'appointment_closed' => questionnaireNotAvailable,
+    'attachments_pending' => filesBeingChecked, // docs/attachments/COPY.md M10
     _ => somethingWrong,
   };
 }
+
+// Questionnaire attachments: the owner's text, word for word (docs/attachments/COPY.md, with its M numbers). A
+// change goes back to the owner first. M15 to M17 are the iOS purpose strings, in ios/Runner/Info.plist.
+const addFile = 'Add file'; // M1
+const photosUpTo = 'Photos up to 20 MB.'; // M2
+const documentsUpTo = 'Documents (PDF) up to 20 MB.'; // M2
+const videosUpTo = 'Videos up to 200 MB.'; // M2
+const oneFileHint = '1 file.'; // M2
+String upToFilesHint(int n) => 'Up to $n files.'; // M2
+const takePhoto = 'Take a photo'; // M3
+const recordVideo = 'Record a video'; // M3
+const chooseFromPhotos = 'Choose from photos'; // M3
+const chooseDocument = 'Choose a document'; // M3
+const preparing = 'Preparing…'; // M4
+String uploadingPercent(int n) => 'Uploading… $n%'; // M4
+const checkingFile = 'Checking the file…'; // M4
+const added = 'Added'; // M4
+const notUploaded = 'Not uploaded. Check your connection.'; // M5
+const remove = 'Remove'; // M5, M6
+const removeFile = 'Remove file'; // M6
+const removeFileTitle = 'Remove this file?'; // M6
+const removeFileBody = 'It is deleted from your answers.'; // M6
+const fileRejected = 'This file did not pass the safety check and was deleted. Choose another file.'; // M7
+String fileTooLarge(int max) => 'This file is larger than $max MB.'; // M8
+const fileTypeRefused = 'This kind of file cannot be added to this question.'; // M8
+String tooManyFiles(int n) => 'You can add up to $n files to this question.'; // M8
+const filesFull = 'The files in this questionnaire have reached 500 MB. Remove a file to add another.'; // M8
+const fileNotUploaded = 'The file could not be uploaded. Try again.'; // M8
+const cannotPrepareFile = 'This file could not be prepared for upload. Choose another file.'; // M9
+const filesBeingChecked = 'Some files are still being checked. You can submit once they are ready.'; // M10
+const leaveUploading = 'A file is still uploading. Leave anyway? The upload stops.'; // M11
+const oneFile = '1 file'; // M12
+String filesCount(int n) => '$n files'; // M12
+const photoKind = 'Photo'; // M13
+const documentKind = 'Document'; // M13
+const videoKind = 'Video'; // M13
+String kilobytes(int n) => '$n KB'; // M13
+String megabytes(String mb) => '$mb MB'; // M13, one decimal
+String kindAndSize(String kind, String size) => '$kind, $size'; // M12, M13
+String uploadingLabel(String title, int n) => 'Uploading $title, $n percent'; // M14
+String fileLabel(String kind, String title, String status) => '$kind, $title, $status'; // M14
+const allowCamera = 'Allow camera access'; // M18, Android, before the system prompt
+const whyCameraForFiles = 'Salus needs the camera to take the photo or video you add to this questionnaire.'; // M18
+const continueLabel = 'Continue'; // M18
+const notNow = 'Not now'; // M18
+const cameraDeniedForFiles =
+    'Salus does not have access to your camera. You can allow it in your device settings, or choose a file '
+    'instead.'; // M19
+const photosDenied = 'Salus does not have access to your photos. You can allow it in your device settings.'; // M20

@@ -1,14 +1,15 @@
 import 'package:salus_api/api.dart' as api;
 
+import 'file_prep.dart' show FileKind;
 import 'messages.dart';
 
 // The questionnaires the patient fills in (docs/questionnaire/SPEC.md §2 "Item model", "Patient flow"): the FHIR
 // Questionnaire and QuestionnaireResponse as the app reads them, the conditions evaluated as the server evaluates
 // them (internal/questionnaireresponse/enabled.go), and each typed answer checked against the server's limits.
 
-/// The item types of SPEC §2 "Item model". A type the app does not know (the reserved `attachment`) is
-/// [unsupported] and not shown: the list of types is not assumed closed.
-enum ItemType { group, display, string, text, boolean, choice, integer, decimal, date, unsupported }
+/// The item types of SPEC §2 "Item model", with `attachment` (docs/attachments/SPEC.md §2 "Item model"). A type the
+/// app does not know is [unsupported] and not shown: the list of types is not assumed closed.
+enum ItemType { group, display, string, text, boolean, choice, integer, decimal, date, attachment, unsupported }
 
 /// An item's `enableWhen`: shown only when [question] was answered with [boolean], or with the option [string].
 class Condition {
@@ -30,6 +31,8 @@ class Item {
     this.help,
     this.condition,
     this.items = const [],
+    this.accept = const {},
+    this.maxFiles = 1,
   });
 
   final String linkId;
@@ -47,6 +50,10 @@ class Item {
 
   /// A section's questions and instructions.
   final List<Item> items;
+
+  /// A file upload item's kinds of file and its number of files.
+  final Set<FileKind> accept;
+  final int maxFiles;
 
   bool get isQuestion => !const {ItemType.group, ItemType.display, ItemType.unsupported}.contains(type);
 }
@@ -74,8 +81,29 @@ class Version {
 }
 
 /// The answers by linkId. Each value is in its item's type: a String (string, text, choice), bool, int, num
-/// (decimal), or a DateTime at UTC midnight (date).
+/// (decimal), a DateTime at UTC midnight (date), or an [Attached] file (attachment).
 typedef Answers = Map<String, List<Object>>;
+
+/// A file of an attachment answer: a FHIR `Binary`, as the response's `valueAttachment` or the upload names it.
+/// The title is the file's name: personal data, shown and never logged.
+class Attached {
+  const Attached({required this.id, required this.title, required this.contentType, required this.size});
+
+  final String id;
+  final String title;
+  final String contentType;
+  final int size;
+
+  FileKind? get kind => kindOf(contentType);
+}
+
+/// The kind of a content type the server detected.
+FileKind? kindOf(String contentType) => switch (contentType) {
+  'image/jpeg' || 'image/png' => FileKind.photo,
+  'application/pdf' => FileKind.document,
+  'video/mp4' => FileKind.video,
+  _ => null,
+};
 
 enum ResponseStatus { inProgress, completed, stopped }
 
@@ -217,10 +245,11 @@ final _decimal = RegExp(r'^-?(0|[1-9][0-9]*)(\.[0-9]+)?$');
   return (value: n, error: null);
 }
 
-/// The answers as the JSON API takes them, in document order, each value in its item's type.
+/// The answers as the JSON API takes them, in document order, each value in its item's type. Files are added and
+/// removed through their own calls, never with the answers.
 List<api.Answer> toApi(List<Item> items, Answers answers) => [
   for (final it in flatten(items))
-    if (it.isQuestion && (answers[it.linkId] ?? const []).isNotEmpty)
+    if (it.isQuestion && it.type != ItemType.attachment && (answers[it.linkId] ?? const []).isNotEmpty)
       api.Answer(linkId: it.linkId, values: [for (final v in answers[it.linkId]!) _toValue(it.type, v)]),
 ];
 
@@ -252,6 +281,8 @@ Answers fromApi(List<Item> items, List<api.Answer> answers) {
 }
 
 const _helpControl = 'http://hl7.org/fhir/StructureDefinition/questionnaire-itemControl';
+const _mimeType = 'http://hl7.org/fhir/StructureDefinition/mimeType';
+const _maxOccurs = 'http://hl7.org/fhir/StructureDefinition/questionnaire-maxOccurs';
 
 List<Item> _items(Object? raw) => [
   for (final it in (raw as List?) ?? const [])
@@ -278,8 +309,13 @@ Item _item(Map it) {
             string: when['answerString'] as String?,
           ),
     items: _items(children),
+    accept: {for (final e in _extensions(it, _mimeType)) ?kindOf(_string(e['valueCode']))},
+    maxFiles: _extensions(it, _maxOccurs).map((e) => e['valueInteger']).whereType<int>().firstOrNull ?? 1,
   );
 }
+
+Iterable<Map> _extensions(Map it, String url) =>
+    ((it['extension'] as List?) ?? const []).cast<Map>().where((e) => e['url'] == url);
 
 bool _isHelp(Map it) =>
     it['type'] == 'display' &&
@@ -300,7 +336,23 @@ String _appointment(Object? extensions) {
   return '';
 }
 
+/// The binary's id in the download URL `<api base>/binaries/<id>/content`; the app reads the file through its own
+/// base, never through this URL.
+final _binaryUrl = RegExp(r'/binaries/([^/]+)/content$');
+
 Object? _value(Map a) {
+  final file = a['valueAttachment'];
+  if (file is Map) {
+    final id = _binaryUrl.firstMatch(_string(file['url']))?[1];
+    if (id == null) return null;
+    final size = file['size'];
+    return Attached(
+      id: id,
+      title: _string(file['title']),
+      contentType: _string(file['contentType']),
+      size: size is int ? size : 0,
+    );
+  }
   if (a['valueBoolean'] is bool) return a['valueBoolean'];
   if (a['valueInteger'] is int) return a['valueInteger'];
   if (a['valueDecimal'] is num) return a['valueDecimal'];
