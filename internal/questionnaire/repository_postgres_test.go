@@ -334,7 +334,7 @@ func realService(app *pgxpool.Pool) (*questionnaire.Service, *countingAuditor) {
 	audit := &countingAuditor{}
 	return questionnaire.NewService(questionnaire.Ports{
 		Repo: questionnaire.NewPostgresRepository(app), Tx: postgres.NewTransactor(app), Clock: clock.Fixed{T: now},
-		Audit: audit, Roles: fakeRoles{},
+		Audit: audit, Roles: fakeRoles{}, Clinics: &fakeClinics{},
 	}), audit
 }
 

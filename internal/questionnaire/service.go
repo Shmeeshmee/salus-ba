@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
@@ -27,13 +28,20 @@ type Roles interface {
 	Lookup(ctx context.Context, org, id string) (practitionerrole.PractitionerRole, error)
 }
 
+// Clinics reads a clinic's default language, the original language of its new questionnaires
+// (organization.Service).
+type Clinics interface {
+	DefaultLanguage(ctx context.Context, organizationID string) (string, error)
+}
+
 // Ports are the Service's dependencies.
 type Ports struct {
-	Repo  Repository
-	Audit Auditor
-	Tx    Transactor
-	Clock clock.Clock
-	Roles Roles
+	Repo    Repository
+	Audit   Auditor
+	Tx      Transactor
+	Clock   clock.Clock
+	Roles   Roles
+	Clinics Clinics
 }
 
 // Service holds the questionnaire rules (docs/questionnaire/SPEC.md §2): staff of a clinic, practitioners
@@ -159,16 +167,34 @@ func (s *Service) version(ctx context.Context, c Caller, id string, lock bool) (
 	return q, nil, nil
 }
 
-// Create stores in as version 1, a draft, of a new questionnaire of c's clinic. An invalid one gives an
-// *InvalidError.
+// Create stores in as version 1, a draft, of a new questionnaire of c's clinic, in its language or else the
+// clinic's default language, with its translations. An invalid one gives an *InvalidError.
 func (s *Service) Create(ctx context.Context, c Caller, in Content) (Questionnaire, error) {
 	var out Questionnaire
 	err := s.do(ctx, c, opCreate, func(ctx context.Context) ([]string, error, error) {
 		if err := validate(in, nil); err != nil {
 			return nil, err, nil
 		}
+		lang := in.Language
+		if lang == "" {
+			var err error
+			if lang, err = s.Clinics.DefaultLanguage(ctx, c.OrganizationID); err != nil {
+				return nil, nil, err
+			}
+		}
+		ts := freshen(nil, in.Items, nil, in.Translations)
+		if err := validateTranslations(lang, in.Items, ts); err != nil {
+			return nil, err, nil
+		}
 		var err error
-		out, err = s.Repo.Create(ctx, Questionnaire{OrganizationID: c.OrganizationID, Title: in.Title, Description: in.Description, Items: in.Items}, s.Clock.Now())
+		out, err = s.Repo.Create(ctx, Questionnaire{OrganizationID: c.OrganizationID, Title: in.Title, Description: in.Description, Items: in.Items, Language: lang}, s.Clock.Now())
+		if err != nil {
+			return nil, nil, err
+		}
+		out.Translations = ts
+		if len(ts) > 0 {
+			err = s.Repo.PutTranslations(ctx, out.ID, ts, s.Clock.Now())
+		}
 		return []string{out.ID}, nil, err
 	})
 	if err != nil {
@@ -177,9 +203,10 @@ func (s *Service) Create(ctx context.Context, c Caller, in Content) (Questionnai
 	return out, nil
 }
 
-// UpdateDraft sets the content of the draft id at version, the version the caller last read. A published
-// version gives ErrNotDraft, another version ErrConflict, an invalid content an *InvalidError (also a
-// linkId an earlier version of the series gives another type).
+// UpdateDraft sets the content of the draft id at version, the version the caller last read: its language
+// and translations when given, else the draft's (each translated text whose original changed is dropped,
+// freshen). A published version gives ErrNotDraft, another version ErrConflict, an invalid content an
+// *InvalidError (also a linkId an earlier version of the series gives another type).
 func (s *Service) UpdateDraft(ctx context.Context, c Caller, id string, in Content, version int32) (Questionnaire, error) {
 	var out Questionnaire
 	err := s.do(ctx, c, opUpdate, func(ctx context.Context) ([]string, error, error) {
@@ -199,17 +226,58 @@ func (s *Service) UpdateDraft(ctx context.Context, c Caller, id string, in Conte
 		if err := validate(in, earlier); err != nil {
 			return []string{cur.ID}, err, nil
 		}
+		ts, err := s.translations(ctx, cur, in)
+		if err != nil {
+			return nil, nil, err
+		}
+		if in.Language != "" {
+			cur.Language = in.Language
+		}
+		if err := validateTranslations(cur.Language, in.Items, ts); err != nil {
+			return []string{cur.ID}, err, nil
+		}
 		cur.Title, cur.Description, cur.Items = in.Title, in.Description, in.Items
 		out, err = s.Repo.UpdateDraft(ctx, cur, s.Clock.Now())
 		if errors.Is(err, ErrConflict) { // changed since the read
 			return []string{cur.ID}, ErrConflict, nil
 		}
-		return []string{cur.ID}, nil, err
+		if err != nil {
+			return nil, nil, err
+		}
+		out.Translations = ts
+		return []string{cur.ID}, nil, s.Repo.PutTranslations(ctx, cur.ID, ts, s.Clock.Now())
 	})
 	if err != nil {
 		return Questionnaire{}, err
 	}
 	return out, nil
+}
+
+// translations is what the edit in of the draft cur stores as its translations: those sent, or else the
+// stored ones, freshened against the draft's items.
+func (s *Service) translations(ctx context.Context, cur Questionnaire, in Content) ([]Translation, error) {
+	stored, err := s.Repo.Translations(ctx, cur.ID)
+	if err != nil {
+		return nil, err
+	}
+	ts := in.Translations
+	if ts == nil {
+		ts = stored
+	}
+	return freshen(cur.Items, in.Items, stored, ts), nil
+}
+
+// translate sets q's translations; complete keeps only the complete ones, which is all a patient reads.
+func (s *Service) translate(ctx context.Context, q *Questionnaire, complete bool) error {
+	ts, err := s.Repo.Translations(ctx, q.ID)
+	if err != nil {
+		return err
+	}
+	if complete {
+		ts = slices.DeleteFunc(ts, func(t Translation) bool { return !isComplete(*q, t) })
+	}
+	q.Translations = ts
+	return nil
 }
 
 // earlierKinds is the kind of every linkId of the other versions of q's series.
@@ -260,7 +328,7 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (Questionnaire,
 		if err != nil || failed != nil {
 			return nil, failed, err
 		}
-		return []string{out.ID}, nil, nil
+		return []string{out.ID}, nil, s.translate(ctx, &out, false)
 	})
 	if err != nil {
 		return Questionnaire{}, err
@@ -287,6 +355,9 @@ func (s *Service) Referenced(ctx context.Context, c Caller, patientID, id string
 		case errors.Is(err, ErrNotFound):
 			return s.record(ctx, c, opRead, "", auditevent.OutcomeMinorFailure)
 		case err != nil:
+			return err
+		}
+		if err := s.translate(ctx, &q, true); err != nil {
 			return err
 		}
 		out = q
@@ -317,6 +388,9 @@ func (s *Service) Search(ctx context.Context, c Caller, f Filter) ([]Questionnai
 		ids := make([]string, 0, len(all))
 		for _, q := range all {
 			if q.OrganizationID == c.OrganizationID { // not on row-level security alone
+				if err := s.translate(ctx, &q, false); err != nil {
+					return nil, nil, err
+				}
 				out = append(out, q)
 				ids = append(ids, q.ID)
 			}
@@ -346,8 +420,11 @@ func (s *Service) searchReferenced(ctx context.Context, c Caller, f Filter) ([]Q
 		if len(out) == 0 {
 			return s.record(ctx, c, opSearch, "", auditevent.OutcomeSuccess)
 		}
-		for _, q := range out {
-			if err := s.record(ctx, c, opSearch, q.ID, auditevent.OutcomeSuccess); err != nil {
+		for i := range out {
+			if err := s.translate(ctx, &out[i], true); err != nil {
+				return err
+			}
+			if err := s.record(ctx, c, opSearch, out[i].ID, auditevent.OutcomeSuccess); err != nil {
 				return err
 			}
 		}

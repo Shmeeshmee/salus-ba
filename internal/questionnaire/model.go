@@ -29,19 +29,23 @@ type Questionnaire struct {
 	Description    string
 	// Language is Questionnaire.language, the original language: a BCP 47 tag of the enum language
 	// (docs/i18n/SPEC.md §3 "Questionnaires"). Empty on a write keeps the draft's (or, for a new one, bs).
-	Language  string
-	Status    Status
-	Items     []Item
-	Version   int32 // Questionnaire.version: 1, 2, …
-	VersionID int32 // meta.versionId
+	Language string
+	Status   Status
+	Items    []Item
+	// Translations are the version's translations in the enum's order (the service fills them on a read and
+	// a write): to a patient only the complete ones.
+	Translations []Translation
+	Version      int32 // Questionnaire.version: 1, 2, …
+	VersionID    int32 // meta.versionId
 }
 
 // Content is what a draft holds and an edit sets.
 type Content struct {
-	Title        string
-	Description  string
-	Language     string // the original language; empty keeps the draft's
-	Items        []Item
+	Title       string
+	Description string
+	Language    string // the original language; empty keeps the draft's
+	Items       []Item
+	// Translations are all of the draft's translations; nil keeps the draft's, empty removes them.
 	Translations []Translation
 }
 

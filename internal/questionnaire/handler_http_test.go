@@ -114,17 +114,17 @@ var (
 	}}}
 	savedDraft = questionnaire.Questionnaire{
 		ID: draftA, SeriesID: seriesA, OrganizationID: clinicA, Version: 2, Status: questionnaire.StatusDraft, Title: draftContent.Title,
-		Description: draftContent.Description, Items: draftContent.Items, VersionID: 3, LastUpdated: now,
+		Description: draftContent.Description, Items: draftContent.Items, VersionID: 3, LastUpdated: now, Language: "bs",
 	}
 )
 
 const savedDraftJSON = `{"id":"` + draftA + `","url":"https://salus.invalid/fhir/Questionnaire/` + seriesA + `","status":"draft",` +
-	`"title":"` + placeholderTitle + `","description":"Placeholder description","lastUpdated":"2026-11-06T09:30:00Z","item":[` +
+	`"title":"` + placeholderTitle + `","description":"Placeholder description","language":"bs","lastUpdated":"2026-11-06T09:30:00Z","item":[` +
 	`{"linkId":"s1","text":"Placeholder section","type":"group","item":[` +
 	`{"linkId":"q1","text":"` + placeholderText + `","type":"boolean","help":"Placeholder help text","required":true},` +
 	`{"enableWhen":{"answerBoolean":true,"question":"q1"},"linkId":"q2","text":"Placeholder choice","type":"choice",` +
 	`"answerOption":[{"valueString":"Placeholder option A"},{"valueString":"Placeholder option B"}],"repeats":true}]}],` +
-	`"version":2,"versionId":3}` + "\n"
+	`"translations":[],"version":2,"versionId":3}` + "\n"
 
 func sameContent(a, b questionnaire.Content) bool {
 	return a.Title == b.Title && a.Description == b.Description && sameItems(a.Items, b.Items)
