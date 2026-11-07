@@ -218,7 +218,85 @@ Status: not started
 
 ## 1.5 internal/questionnaire: attachment items
 
-Status: not started
+Status: done, 2026-11-07.
+
+Built:
+- `model.go`: `FileKind` (`photo`, `document`, `video`), `Item.Accept` and `Item.MaxFiles`, stored in the `items`
+  JSON and sent by the JSON API as `accept` and `maxFiles` (the OpenAPI shape 0.1 wrote; nothing in the JSON
+  handler changed, it decodes the model's own JSON).
+- `validate.go`: `ItemAttachment` accepted with `accept` a non-empty set of the three kinds (no unknown kind, none
+  twice) and `maxFiles` 1 to 10; `accept` or `maxFiles` on any other type refused; `repeats` and options stay
+  choice only. An attachment item as the `question` of a condition was already refused (neither boolean nor
+  choice) and is now tested. The kind a new version must keep is `attachment`, whatever its settings.
+- `handler_fhir.go`: an attachment item is `type: attachment`, `repeats: true` when `maxFiles` is more than 1, a
+  `mimeType` extension (`valueCode`) per content type of each accepted kind in the stored order (photo:
+  `image/jpeg`, `image/png`; document: `application/pdf`; video: `video/mp4`), then `questionnaire-maxOccurs`
+  (`valueInteger`) when `maxFiles` is more than 1. The item's extension type is generalised (url, then
+  `valueCodeableConcept`, `valueCode`, `valueInteger`) so the help item control's JSON is byte for byte as before
+  (the questionnaire response feature's golden files embed it).
+- Golden file `testdata/questionnaire_attachments.json`: an item for each of the seven combinations of kinds, of 1
+  and of 10 files (all three kinds both ways, in two orders), one required, with help text and under a condition,
+  two in a section. The other golden files are unchanged.
+
+Failing first (each seen before the code existed):
+- Build failed: `undefined: questionnaire.FileKind`, `FilePhoto`, `FileDocument`, `FileVideo`.
+- With the fields only: `TestCreate_ValidatesTheQuestionnaire` failed on every valid attachment case ("invalid
+  questionnaire, want it stored"), on `accept`/`maxFiles` on a string, choice, section and instructions ("= <nil>,
+  want an InvalidError"), and on the two conditions on an attachment (the attachment itself named as well);
+  `TestRevise_KeepsAnAttachmentItemAndRefusesItsLinkIDAsAnotherType` failed (the revised draft's attachment
+  refused on save); `TestHandlerRead_SendsTheQuestionnaire` failed on the missing golden file.
+- `make fhir-validate` then failed on the new golden file, 8 errors: `questionnaire-maxOccurs` "is not allowed to
+  be used at this point (based on context invariant 'repeats=true')" and "integer value is less than permitted
+  minimum value of 2" on each one-file item; after the change below the golden file differed from the response
+  (seen), was rewritten with `-update` and its diff reviewed (only the four one-file items lost the extension).
+
+Tests:
+- Validation table (`attachmentCases`, run by `TestCreate_ValidatesTheQuestionnaire`): each kind alone, every
+  kind with 10 files, required with help text in a section under a condition: valid; no kind, an unknown kind, a
+  kind twice, `maxFiles` 0, -1 and 11, `repeats` or options on an attachment, `accept` on a string or a section,
+  `maxFiles` on a choice or instructions, a condition on an attachment item (boolean and string answers): refused,
+  naming the item. The earlier "reserved attachment type" case is replaced (the SPEC enables the type) by "an
+  attachment without its settings", still refused; `TestUpdateDraft_…` gains "a boolean become an attachment".
+- `TestRevise_KeepsAnAttachmentItemAndRefusesItsLinkIDAsAnotherType`: a revise carries the item over with its
+  `linkId`, `accept` and `maxFiles`; the draft may change its settings; making the `linkId` a string is refused
+  and audited as a minor failure.
+- `TestHTTPHandler_DecodesAndSendsAnAttachmentItemsSettings`: `accept` and `maxFiles` decoded into the service
+  call and encoded in the response.
+- `TestPostgres_ReadsSeeOnlyTheClinicSet`: its tree gains an attachment item and `equalItem` compares `Accept` and
+  `MaxFiles`, so the round trip through `questionnaire.items` (create, update, revise) is checked.
+
+Checks:
+- `go test -count=1 -cover ./internal/questionnaire/...` (`--no-deps`, `GOFLAGS=-p=4`): pass, 95.1%.
+- `make fhir-validate`: pass, 0 errors on every file (`questionnaire_attachments.json`: 0 errors, the usual
+  dom-6 warning, information notes that the `mimeType` codes cannot be checked without a terminology server).
+- Lint (`scripts/lint.sh`, `--no-deps`, the main checkout's git dir mounted read-only): 0 issues on both modules,
+  check-migrations ok.
+- Archcheck (`go -C tools run ./archcheck -root /src`, `--no-deps`): pass.
+
+### Decided while the owner was away
+
+- 2026-11-07, session (1.5): `questionnaire-maxOccurs` is written only when `maxFiles` is more than 1. The R4
+  extensions package the validator loads (`hl7.fhir.uv.extensions` 5.4.0) allows it only on an item with
+  `repeats = true` and with a value of 2 or more, so `make fhir-validate` refuses it on a one-file item; there,
+  `repeats` absent already says at most one file. A FHIR reader takes `maxFiles` as `maxOccurs`, or 1 when the
+  item does not repeat. The JSON API and the stored item always carry `maxFiles`. SPEC row needed (§2 "Item
+  model" says the extension carries `maxFiles`, without the exception).
+- 2026-11-07, session (1.5): an attachment item's kind, which a later version must keep for its `linkId`, is
+  `attachment` whatever its `accept` and `maxFiles`: responses are tied to their version, so a new version may
+  change which files and how many without misreading an earlier answer (unlike single and multiple choice, whose
+  answers change shape). Not touching the SPEC.
+- 2026-11-07, session (1.5): the `mimeType` extensions follow the stored order of `accept`; the service does not
+  reorder or normalise the set. Not touching the SPEC.
+
+For later packages:
+- 2.1: `questionnaire.Item.Accept` (`[]questionnaire.FileKind`) and `Item.MaxFiles` (`int32`, 1 to 10 on every
+  stored attachment item) are what `Holder.UploadTarget` returns as the item's accepted kinds and limit.
+- Integration: `internal/api/app_questionnaire_test.go` names a step "the reserved attachment type"; it still
+  passes (an attachment item without `accept` and `maxFiles` is refused 422 with its `linkId`), only its name is
+  out of date. Outside this package, so not changed here.
+
+Dev stack: nothing changed; only `docker compose run --rm --no-deps` containers (tools, fhir-validator), each
+removed on exit, and `pgtest`'s throwaway databases.
 
 ## 1.6 Web: builder options and the file viewer
 

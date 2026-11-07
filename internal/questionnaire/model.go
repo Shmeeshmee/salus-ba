@@ -56,9 +56,20 @@ const (
 	ItemInteger ItemType = "integer"
 	ItemDecimal ItemType = "decimal"
 	ItemDate    ItemType = "date"
-	// ItemAttachment is reserved for the "questionnaire attachments" feature (D1), answered with
-	// valueAttachment. The service refuses it until that feature enables it.
+	// ItemAttachment is a file upload (docs/attachments/SPEC.md §2 "Item model"), answered with
+	// valueAttachment: the files it accepts are Accept, at most MaxFiles of them.
 	ItemAttachment ItemType = "attachment"
+)
+
+// FileKind is a kind of file an attachment item accepts (docs/attachments/SPEC.md §2 "Item model"); the
+// server detects it from the bytes and holds each kind's size limit.
+type FileKind string
+
+// The kinds of file.
+const (
+	FilePhoto    FileKind = "photo"    // JPEG, PNG
+	FileDocument FileKind = "document" // PDF
+	FileVideo    FileKind = "video"    // MP4
 )
 
 // Item is one Questionnaire.item, stored as the JSON below in questionnaire.items.
@@ -68,11 +79,13 @@ type Item struct {
 	Text       string     `json:"text"`
 	Type       ItemType   `json:"type"`
 	// Help is the help text: in FHIR a child display item with the questionnaire-itemControl "help".
-	Help     string   `json:"help,omitempty"`
-	Options  []Option `json:"answerOption,omitempty"` // choice only
-	Items    []Item   `json:"item,omitempty"`         // a section's questions and instructions
-	Required bool     `json:"required,omitempty"`     // questions only
-	Repeats  bool     `json:"repeats,omitempty"`      // choice only: several answers
+	Help     string     `json:"help,omitempty"`
+	Options  []Option   `json:"answerOption,omitempty"` // choice only
+	Items    []Item     `json:"item,omitempty"`         // a section's questions and instructions
+	Accept   []FileKind `json:"accept,omitempty"`       // attachment only: 1 to 3 different kinds
+	Required bool       `json:"required,omitempty"`     // questions only
+	Repeats  bool       `json:"repeats,omitempty"`      // choice only: several answers
+	MaxFiles int32      `json:"maxFiles,omitempty"`     // attachment only: 1 to 10
 }
 
 // Option is one Questionnaire.item.answerOption: the clinic's own wording (valueString), so no code is

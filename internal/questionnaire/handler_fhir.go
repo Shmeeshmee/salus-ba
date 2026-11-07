@@ -13,11 +13,22 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
 
-// The help text's item control (SPEC.md §2 "Item model"): the R4 core extension and code.
+// The help text's item control (SPEC.md §2 "Item model"): the R4 core extension and code. An attachment
+// item's accepted content types and number of files (docs/attachments/SPEC.md §2 "Item model"): R4 core
+// extensions too.
 const (
 	extensionItemControl = "http://hl7.org/fhir/StructureDefinition/questionnaire-itemControl"
 	systemItemControl    = "http://hl7.org/fhir/questionnaire-item-control"
+	extensionMimeType    = "http://hl7.org/fhir/StructureDefinition/mimeType"
+	extensionMaxOccurs   = "http://hl7.org/fhir/StructureDefinition/questionnaire-maxOccurs"
 )
+
+// mimeTypes are the content types of each kind of file, as the server detects them.
+var mimeTypes = map[FileKind][]string{
+	FilePhoto:    {"image/jpeg", "image/png"},
+	FileDocument: {"application/pdf"},
+	FileVideo:    {"video/mp4"},
+}
 
 // Reader reads and searches a clinic's questionnaires for a caller (Service).
 type Reader interface {
@@ -63,15 +74,15 @@ type Resource struct {
 
 // fhirItem is a Questionnaire.item. Help text is a child display item with the help item control.
 type fhirItem struct {
-	Extension    []itemControl `json:"extension,omitempty"`
-	LinkID       string        `json:"linkId"`
-	Text         string        `json:"text"`
-	Type         string        `json:"type"`
-	EnableWhen   []enableWhen  `json:"enableWhen,omitempty"`
-	AnswerOption []Option      `json:"answerOption,omitempty"`
-	Item         []fhirItem    `json:"item,omitempty"`
-	Required     bool          `json:"required,omitempty"`
-	Repeats      bool          `json:"repeats,omitempty"`
+	Extension    []extension  `json:"extension,omitempty"`
+	LinkID       string       `json:"linkId"`
+	Text         string       `json:"text"`
+	Type         string       `json:"type"`
+	EnableWhen   []enableWhen `json:"enableWhen,omitempty"`
+	AnswerOption []Option     `json:"answerOption,omitempty"`
+	Item         []fhirItem   `json:"item,omitempty"`
+	Required     bool         `json:"required,omitempty"`
+	Repeats      bool         `json:"repeats,omitempty"`
 }
 
 type enableWhen struct {
@@ -81,9 +92,12 @@ type enableWhen struct {
 	AnswerString  string `json:"answerString,omitempty"`
 }
 
-type itemControl struct {
-	URL                  string               `json:"url"`
-	ValueCodeableConcept fhir.CodeableConcept `json:"valueCodeableConcept"`
+// extension is an item's extension: the help item control, an accepted content type or the number of files.
+type extension struct {
+	URL                  string                `json:"url"`
+	ValueCodeableConcept *fhir.CodeableConcept `json:"valueCodeableConcept,omitempty"`
+	ValueCode            string                `json:"valueCode,omitempty"`
+	ValueInteger         int32                 `json:"valueInteger,omitempty"` // maxFiles, 2 to 10
 }
 
 // ToFHIR is the version q as a FHIR Questionnaire; a QuestionnaireResponse search includes it.
@@ -106,17 +120,35 @@ func toFHIRItems(items []Item) []fhirItem {
 			LinkID: it.LinkID, Text: it.Text, Type: string(it.Type), AnswerOption: it.Options, Item: toFHIRItems(it.Items),
 			Required: it.Required, Repeats: it.Repeats,
 		}
+		if it.Type == ItemAttachment {
+			f.Extension, f.Repeats = attachmentExtensions(it), it.MaxFiles > 1
+		}
 		if c := it.EnableWhen; c != nil {
 			f.EnableWhen = []enableWhen{{Question: c.Question, Operator: "=", AnswerBoolean: c.Boolean, AnswerString: c.String}}
 		}
 		if it.Help != "" {
 			// "." is never in a linkId of ours, so the help item's cannot clash with another.
-			f.Item = append(f.Item, fhirItem{LinkID: it.LinkID + ".help", Text: it.Help, Type: string(ItemDisplay), Extension: []itemControl{{
+			f.Item = append(f.Item, fhirItem{LinkID: it.LinkID + ".help", Text: it.Help, Type: string(ItemDisplay), Extension: []extension{{
 				URL:                  extensionItemControl,
-				ValueCodeableConcept: fhir.CodeableConcept{Coding: []fhir.Coding{{System: systemItemControl, Code: "help", Display: "Help-Button"}}},
+				ValueCodeableConcept: &fhir.CodeableConcept{Coding: []fhir.Coding{{System: systemItemControl, Code: "help", Display: "Help-Button"}}},
 			}}})
 		}
 		out = append(out, f)
+	}
+	return out
+}
+
+// attachmentExtensions are a mimeType extension per content type the item accepts, then its maxOccurs. R4
+// allows maxOccurs only on an item that repeats, with 2 or more: one file is said by repeats absent.
+func attachmentExtensions(it Item) []extension {
+	var out []extension
+	for _, k := range it.Accept {
+		for _, m := range mimeTypes[k] {
+			out = append(out, extension{URL: extensionMimeType, ValueCode: m})
+		}
+	}
+	if it.MaxFiles > 1 {
+		out = append(out, extension{URL: extensionMaxOccurs, ValueInteger: it.MaxFiles})
 	}
 	return out
 }
