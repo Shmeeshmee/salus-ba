@@ -179,6 +179,11 @@ the owner was away".
 - **A package records its decisions and new copy in its own PROGRESS.md section**; the integration step copies
   them here, into the SPEC's open points and into COPY.md, so packages running at the same time never edit the
   same lines.
+- **Wave 0 integration: two mobile tests follow the new contract.** The regenerated Dart client writes the
+  optional `language` and `detectedLanguage` of sign-in and registration as `null`, so the exact request bodies
+  in `register_test.dart` and `sign_in_test.dart` now include them as `null` (still asserted exactly). 1.7 makes
+  the app send the matched language; 1.1 makes the server accept both fields, `null` included (the auth handler
+  refuses unknown fields, so until 1.1 lands the app's sign-in on this branch is refused).
 
 ### 0.1 Baseline: database, contract, checks
 
