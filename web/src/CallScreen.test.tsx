@@ -37,6 +37,10 @@ async function inCall(setup: Setup = {}) {
   return call
 }
 
+// levelPolling waits until the microphone level's interval is set. The meter can render before React runs the
+// effect that sets it, so advancing the fake clock at once could pass the 5 seconds with nothing polling.
+const levelPolling = () => vi.waitFor(() => expect(vi.getTimerCount()).toBeGreaterThan(0))
+
 describe('CallScreen: the device check', () => {
   it('previews the camera, measures the microphone and offers both pickers', async () => {
     const { previews } = renderCall()
@@ -72,6 +76,7 @@ describe('CallScreen: the device check', () => {
     try {
       renderCall({ level: 0 })
       await screen.findByRole('meter', { name: 'Microphone' })
+      await levelPolling()
       expect(screen.queryByText('No sound detected. Check that your microphone is on and not muted.')).toBeNull()
 
       act(() => vi.advanceTimersByTime(5_000))
@@ -87,6 +92,7 @@ describe('CallScreen: the device check', () => {
     try {
       renderCall({ level: null })
       await screen.findByRole('meter', { name: 'Microphone' })
+      await levelPolling()
 
       act(() => vi.advanceTimersByTime(10_000))
 
