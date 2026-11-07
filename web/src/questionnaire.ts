@@ -119,7 +119,8 @@ function toJSONItem(it: Item): JSONItem {
   if (isChoice(it.kind)) out.answerOption = it.options.map((valueString) => ({ valueString }))
   if (it.kind === 'attachment') {
     out.accept = ordered(it.accept ?? [])
-    out.maxFiles = it.maxFiles
+    // A blank field is NaN, which JSON writes as null; left out, the API names the item (422) instead of a 400.
+    if (Number.isFinite(it.maxFiles)) out.maxFiles = it.maxFiles
   }
   if (it.condition) {
     const { question, answer } = it.condition

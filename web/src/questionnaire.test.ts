@@ -58,6 +58,14 @@ describe('a file upload item', () => {
       { linkId: 'f', text: 'Placeholder upload', type: 'attachment', required: true, accept: ['photo', 'video'], maxFiles: 3 },
     ])
   })
+
+  // A blank number field gives NaN, which JSON.stringify writes as null: the API would refuse the whole body (400)
+  // instead of naming the item (422 invalid_questionnaire, W6). So a number that is not finite is left out.
+  it('leaves maxFiles out when the field is blank', () => {
+    const [body] = toRequest('T', '', [{ ...expected, accept: ['photo'], maxFiles: Number.NaN }]).item
+    expect(body).not.toHaveProperty('maxFiles')
+    expect(JSON.parse(JSON.stringify(body))).toEqual({ linkId: 'f', text: 'Placeholder upload', type: 'attachment', required: true, accept: ['photo'] })
+  })
 })
 
 describe('toRequest', () => {

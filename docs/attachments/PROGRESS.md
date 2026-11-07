@@ -1361,3 +1361,21 @@ the services run the wave 3 code); clamd was stopped for the failing run and sta
 the first try. The journeys' synthetic clinics, patients, appointments, responses and files stay on the dev database
 and their encrypted objects in the bucket, as every e2e run's data does (the cancelled appointment's file row is
 gone; its object goes with the purger after 24 h). salus-demo-* containers untouched.
+
+## Review of PR #25
+
+- 2026-11-07, Copilot (its note says it could not complete the review at the selected tier; two findings):
+  - `pkg/filetype/limit.go:24`, "an int64 slice index does not compile": not a defect. The Go spec allows an index
+    of any integer type (only a constant index must be representable as `int`); the package builds and its tests
+    pass locally and in CI. Answered on the PR, no change.
+  - `web/src/questionnaire.ts`, a blank "Number of files" field sent `maxFiles: NaN`, which `JSON.stringify` writes
+    as `null`, so the API refused the whole body (400) instead of naming the item (422 `invalid_questionnaire`,
+    W6). Fixed test first: `leaves maxFiles out when the field is blank` failed (`expected … to not have property
+    "maxFiles"`), then `toJSONItem` sends `maxFiles` only when it is a finite number. Web checks: lint, typecheck,
+    433 tests and build pass.
+- 2026-11-07, CI: the first `e2e` run on the PR failed in the existing `TestQuestionnaire_TheBuilderPublishesAQuestionnaire`
+  (the second palette item dragged in by the mouse did not land; the list had A and C only). It passed on every local
+  run and on the CI re-run without any change, so it is recorded as a flaky drag timing in that journey, not caused
+  by this feature: the owner's rule says a flaky e2e test is fixed or deleted the same day, so it is listed under
+  what waits on the owner in the session's report (the drag helper should wait for the new row before measuring the
+  next drop target).
