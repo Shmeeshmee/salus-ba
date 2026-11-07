@@ -1,0 +1,7 @@
+{
+  "@@locale": "en",
+  "tryAgain": "Try again",
+  "@tryAgain": {
+    "description": "Button: try once more after an action failed (M20)."
+  }
+}
