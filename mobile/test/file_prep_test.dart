@@ -176,14 +176,19 @@ final _matrix = [
   ..._u32(0x40000000),
 ];
 
-List<int> _trak(String handler, String entry) => _box('trak', [
+/// A track whose `stsd` declares [count] sample entries and holds [entries] of [entry].
+List<int> _trak(String handler, String entry, {int count = 1, int entries = 1}) => _box('trak', [
   ..._timed('tkhd', [..._u32(1), ..._u32(0), ..._u32(1000), ...List.filled(16, 0), ..._matrix, ..._u32(0), ..._u32(0)]),
   ..._box('mdia', [
     ..._timed('mdhd', [..._u32(1000), ..._u32(1000), 0, 0, 0, 0]),
     ..._box('hdlr', [0, 0, 0, 0, 0, 0, 0, 0, ..._ascii(handler), ...List.filled(12, 0), 0]),
     ..._box('minf', [
       ..._box('stbl', [
-        ..._box('stsd', [0, 0, 0, 0, ..._u32(1), ..._box(entry, List.filled(8, 0))]),
+        ..._box('stsd', [
+          ..._u32(0),
+          ..._u32(count),
+          for (var i = 0; i < entries; i++) ..._box(entry, List.filled(8, 0)),
+        ]),
       ]),
     ]),
   ]),
@@ -192,10 +197,16 @@ List<int> _trak(String handler, String entry) => _box('trak', [
 
 /// A movie with `moov` first or last, H.264 video and AAC audio unless told otherwise, and the metadata a phone
 /// writes: location and device in `udta`, Apple's keys in `meta`, XMP in a `uuid` box, creation times.
-Uint8List _movie({String brand = 'isom', String video = 'avc1', String? audio = 'mp4a', bool moovFirst = true}) {
+Uint8List _movie({
+  String brand = 'isom',
+  String video = 'avc1',
+  String? audio = 'mp4a',
+  bool moovFirst = true,
+  (int, int) videoStsd = (1, 1),
+}) {
   final moov = _box('moov', [
     ..._timed('mvhd', [..._u32(1000), ..._u32(1000), ...List.filled(80, 0)]),
-    ..._trak('vide', video),
+    ..._trak('vide', video, count: videoStsd.$1, entries: videoStsd.$2),
     if (audio != null) ..._trak('soun', audio),
     ..._box('udta', [
       ..._box('©xyz', [0, 18, 0, 0, ..._ascii(_location)]),
@@ -356,6 +367,9 @@ void main() {
       ('a MOV', _movie(brand: 'qt  '), false),
       ('HEVC', _movie(video: 'hvc1'), false),
       ('Opus sound', _movie(audio: 'Opus'), false),
+      // The server takes an stsd only when its payload is exactly the entries it counts (pkg/filetype/mp4.go).
+      ('an stsd counting more entries than it holds', _movie(videoStsd: (2, 1)), false),
+      ('an stsd holding more entries than it counts', _movie(videoStsd: (1, 2)), false),
     ]) {
       test('$name ${plays ? 'plays in Chrome as it is' : 'is converted'}', () async {
         expect((await readMovie(write('m.mp4', movie))).playsInChrome, plays);

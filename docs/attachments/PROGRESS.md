@@ -1413,3 +1413,43 @@ gone; its object goes with the purger after 24 h). salus-demo-* containers untou
     `internal/api/...` (91.8%, router 100%) pass; `scripts/lint.sh` (gofmt, vet, golangci-lint, check-migrations)
     0 issues; archcheck passes; `fhir-validate` 0 errors. Run with `--no-deps` on the shared stack; nothing left on
     it.
+- 2026-11-07, independent review, the mobile findings and the web seek test (one commit; each fix test first, the
+  failing test seen before the change):
+  - `mobile/lib/files.dart`: the picked copy was deleted only when it lay under `Directory.systemTemp`, while on
+    Android image_picker and file_picker copy into the cache directory (`<data>/cache`, `<data>/cache/<uuid>/`,
+    `<data>/cache/file_picker/<stamp>/`, read in the plugins' sources) and `Directory.systemTemp` is often
+    `<data>/code_cache` beside it, so the original with its EXIF and GPS stayed. New `mobile/lib/copies.dart`:
+    a copy is deleted when its upload ends (sent, removed after failing, refused, or the screen left) wherever the
+    picker put it among the app's own directories, the temporary directory and the cache directory beside it
+    (`cache` on Android, `Library/Caches` on iOS), with the folders the picker made for it once empty; a path outside
+    them (the gallery, the patient's documents, a `..` path) is never touched. `DeviceFiles` sweeps what an earlier
+    run left at start (`salus-*`, `image_picker*`, `scaled_*`, `file_picker/`, the UUID-named files and folders) and
+    a pick waits for the sweep. path_provider is only a transitive dependency, not one of the app's, so the
+    directories are derived from `Directory.systemTemp`'s parent (decided, no new dependency). The intermediates
+    (`salus-upload-*`, `salus-converted-*`) were already deleted by `prepareFile`'s discard wherever they lie.
+    `test/copies_test.dart` (14 tests on the Android and iOS layouts in a throwaway directory) failed first (no
+    `copies.dart`); the wiring in `DeviceFiles` reaches the plugins and is not unit-tested, as before.
+  - `mobile/lib/booking.dart`: the streamed upload had no timeout, so a stalled socket showed "Uploading… n%"
+    forever. An upload that goes 60 s (`uploadIdle`) without sending a byte or hearing its answer is aborted and
+    fails as unreachable, which shows M5 "Not uploaded. Check your connection." with Try again and Remove (no new
+    copy). Two widget tests, a body that stalls after its first chunk (still uploading at 59 s, M5 at 60 s, Try again
+    sends it whole and it is added) and an answer that never comes, failed first (M5 not found).
+  - `mobile/lib/metadata.dart`: the client read `count` stsd entries and ignored a mismatch, while the server takes
+    the payload only when it is exactly `count` boxes (`pkg/filetype/mp4.go` `checkTrack`). The client now counts
+    every entry in the payload and judges a mismatch as not playing in Chrome, so the file is converted instead of
+    uploaded and refused. Two cases in `file_prep_test.dart` (more counted than held, more held than counted) failed
+    first (`Expected: <false> Actual: <true>`).
+  - `mobile/lib/uploads.dart`: the local `Attached.contentType` was `image/jpeg` for every photo, a PNG too; it is
+    now the type the server detected (the upload's `Binary`, or the response's attachment). `test/uploads_test.dart`
+    failed first for PNG (`Expected: 'image/png' Actual: 'image/jpeg'`).
+  - `test/e2e/web/attachments.spec.ts`: the Range assertion counted any 206, which Firefox's first `bytes=0-`
+    request already gives. It now records the start of each 206 Range request for the video and asserts, after the
+    seek, that one started past 0. For that to be deterministic the generated video (`test/e2e/attachments_media_test.go`)
+    now puts its 50 MB filler between `moov` and `mdat`, so the frames lie past it and the player has to ask for them
+    with a ranged request (a seek in time within a small, already-buffered `mdat` would make no new request, and
+    read-ahead on localhost would make a later-chunk layout flaky). The Go range checks and the audit counts are
+    unchanged. Not run here (the stack is shared): the spec lists with Playwright (`--list`) and the e2e package
+    passes `gofmt` and `go vet -tags e2e`; the orchestrator runs `make e2e` after merging.
+  - Not fixed here: iPhone MOV timed-metadata tracks need a real iPhone (owner).
+  - Checks: `make mobile-analyze` no issues; `make mobile-test` 314 tests pass; `dart format` clean. Not run: `make
+    e2e` (shared stack, see above).

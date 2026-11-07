@@ -239,6 +239,39 @@ void main() {
       expect(_inItem('Added'), findsOneWidget, reason: 'a retried upload the server already had: 200, clean');
     });
 
+    testWidgets('an upload that stalls stops after 60 s without progress and says so; Try again sends it again', (
+      tester,
+    ) async {
+      final h = await _opened(tester);
+      h.files.gate = [Completer()..complete(), Completer(), Completer()];
+      await _addFrom(tester, 'Choose from photos');
+      await tester.pump();
+      expect(_inItem('Uploading… 33%'), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 59));
+      expect(_inItem('Uploading… 33%'), findsOneWidget, reason: 'slow is not stalled');
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(_inItem('Not uploaded. Check your connection.'), findsOneWidget);
+      expect(find.descendant(of: _item, matching: find.widgetWithText(TextButton, 'Remove')), findsOneWidget);
+      expect(h.files.discarded, 0, reason: 'kept for the retry');
+
+      h.files.gate = null;
+      await tapFound(tester, find.descendant(of: _item, matching: find.widgetWithText(TextButton, 'Try again')));
+      expect(_inItem('Checking the file…'), findsOneWidget);
+      await _settlePolls(tester);
+      expect(_inItem('Added'), findsOneWidget);
+    });
+
+    testWidgets('an upload whose answer does not come stops 60 s after its last byte', (tester) async {
+      final h = await _opened(tester);
+      h.api.on(_upload, (_) => Completer<http.Response>().future);
+      await _addFrom(tester, 'Choose from photos');
+      await tester.pump(const Duration(seconds: 60));
+      await tester.pumpAndSettle();
+      expect(_inItem('Not uploaded. Check your connection.'), findsOneWidget);
+    });
+
     testWidgets('a failed upload can be removed without asking: it is nowhere but here', (tester) async {
       final h = await _opened(tester);
       h.api.answer(_upload, 503, error('unavailable'));

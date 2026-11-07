@@ -57,8 +57,9 @@ const (
 	videoSeconds = videoFrames / videoFPS
 )
 
-// video is the generated MP4 (ftyp, moov, mdat), followed by a top-level free box of a repeating counter that
-// brings it to size bytes, so a misplaced range shows.
+// video is the generated MP4 of size bytes: ftyp, moov, a free box of a repeating counter that brings it to size,
+// so a misplaced range shows, then the mdat with the frames. The frames lie past the filler, so a browser that plays
+// the file has to ask for them with a Range request that starts past 0 (test/e2e/web/attachments.spec.ts).
 func video(size int) []byte {
 	sps, pps := videoSPS(), videoPPS()
 	samples := make([][]byte, videoFrames)
@@ -68,11 +69,8 @@ func video(size int) []byte {
 	}
 	ftyp := mp4Box("ftyp", []byte("isom"), be32(512), []byte("isomiso2avc1mp41"))
 	moov := videoMoov(sps, pps, samples, 0)
-	offset := uint32(len(ftyp) + len(moov) + 8)
-	moov = videoMoov(sps, pps, samples, offset) // the same length: only the chunk offset changes
 	mdat := mp4Box("mdat", samples...)
-	b := bytes.Join([][]byte{ftyp, moov, mdat}, nil)
-	pad := size - len(b) - 8
+	pad := size - len(ftyp) - len(moov) - len(mdat) - 8
 	if pad < 0 {
 		panic("the generated video is larger than the size asked")
 	}
@@ -80,7 +78,10 @@ func video(size int) []byte {
 	for i := range filler {
 		filler[i] = byte(i * 7)
 	}
-	return append(b, mp4Box("free", filler)...)
+	free := mp4Box("free", filler)
+	offset := uint32(len(ftyp) + len(moov) + len(free) + 8)
+	moov = videoMoov(sps, pps, samples, offset) // the same length: only the chunk offset changes
+	return bytes.Join([][]byte{ftyp, moov, free, mdat}, nil)
 }
 
 func videoMoov(sps, pps []byte, samples [][]byte, offset uint32) []byte {

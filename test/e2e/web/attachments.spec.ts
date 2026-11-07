@@ -16,9 +16,14 @@ test('the practitioner opens the submitted answers, the photo in the viewer, and
   const video = required('E2E_VIDEO_TITLE')
   const seconds = Number(required('E2E_VIDEO_SECONDS'))
   const content = `/binaries/${required('E2E_VIDEO_ID')}/content`
-  const partial: number[] = []
-  page.on('response', (r) => {
-    if (new URL(r.url()).pathname === content && r.status() === 206) partial.push(r.status())
+  // The starts of the Range requests for the video that the API answered 206. Firefox's first request is
+  // `bytes=0-`, which proves nothing about ranges; the generated video's frames lie past a 50 MB filler
+  // (test/e2e/attachments_media_test.go), so playing and seeking it needs a request that starts past 0.
+  const ranged: number[] = []
+  page.on('response', async (r) => {
+    if (new URL(r.url()).pathname !== content || r.status() !== 206) return
+    const range = /^bytes=(\d+)-/.exec((await r.request().allHeaders())['range'] ?? '')
+    if (range) ranged.push(Number(range[1]))
   })
   await signIn(page)
 
@@ -38,7 +43,7 @@ test('the practitioner opens the submitted answers, the photo in the viewer, and
   await expect(viewer).toHaveCount(0)
 
   // The video in the browser's player on the content URL: it plays, and a seek lands where it was sent. The
-  // browser asks for the bytes with Range requests, which the API answers 206.
+  // browser asks for the bytes with Range requests, which the API answers 206, one of them past the file's start.
   await page.locator('.files li').filter({ hasText: video }).getByRole('button', { name: 'Open' }).click()
   const player = page.getByLabel(`Video: ${video}`)
   await expect.poll(() => player.evaluate((v: HTMLVideoElement) => v.duration)).toBe(seconds)
@@ -58,5 +63,5 @@ test('the practitioner opens the submitted answers, the photo in the viewer, and
   )
   expect(await player.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThanOrEqual(target)
   await expect.poll(() => player.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(target + 0.5)
-  expect(partial.length).toBeGreaterThan(0)
+  await expect.poll(() => ranged.filter((start) => start > 0).length).toBeGreaterThan(0)
 })

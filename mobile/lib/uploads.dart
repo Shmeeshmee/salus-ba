@@ -19,7 +19,7 @@ import 'session.dart';
 enum FileState { preparing, uploading, checking, added, failed }
 
 class FileEntry {
-  FileEntry._(this.linkId, this.title, this.state, {this.id, this.kind, this.size = 0});
+  FileEntry._(this.linkId, this.title, this.state, {this.id, this.kind, this.size = 0, this.contentType = ''});
 
   final String linkId;
 
@@ -27,6 +27,9 @@ class FileEntry {
   String? id;
   String title;
   FileKind? kind;
+
+  /// The type the server detected, once it has the file.
+  String contentType;
   int size;
   FileState state;
   int percent = 0;
@@ -36,11 +39,8 @@ class FileEntry {
   var _polls = 0;
   Timer? _poll;
 
-  Attached? get attached =>
-      id == null ? null : Attached(id: id!, title: title, contentType: _contentTypes[kind] ?? '', size: size);
+  Attached? get attached => id == null ? null : Attached(id: id!, title: title, contentType: contentType, size: size);
 }
-
-const _contentTypes = {FileKind.photo: 'image/jpeg', FileKind.document: 'application/pdf', FileKind.video: 'video/mp4'};
 
 /// How long before the [n]th status read (from 0): every 2 s for the first 10 s, then 2 s longer each time up to
 /// every 10 s.
@@ -61,7 +61,15 @@ class Uploads extends ChangeNotifier {
   }) {
     for (final MapEntry(key: linkId, value: list) in attached.entries) {
       for (final a in list) {
-        final e = FileEntry._(linkId, a.title, FileState.checking, id: a.id, kind: a.kind, size: a.size);
+        final e = FileEntry._(
+          linkId,
+          a.title,
+          FileState.checking,
+          id: a.id,
+          kind: a.kind,
+          size: a.size,
+          contentType: a.contentType,
+        );
         _entries.add(e);
         unawaited(_read(e));
       }
@@ -163,7 +171,9 @@ class Uploads extends ChangeNotifier {
         abort: _abort!.future,
       );
       if (_disposed) return;
-      e.id = b.id;
+      e
+        ..id = b.id
+        ..contentType = b.contentType.toJson();
       await e._file?.discard();
       e._file = null;
       _status(e, b.status.toJson());
