@@ -99,7 +99,7 @@ type answer struct {
 type attachment struct {
 	ContentType string `json:"contentType"`
 	URL         string `json:"url"`
-	Title       string `json:"title"`
+	Title       string `json:"title,omitempty"` // a file sent without a name has none: R4 has no empty string
 	Hash        []byte `json:"hash"`
 	Size        int64  `json:"size"`
 }

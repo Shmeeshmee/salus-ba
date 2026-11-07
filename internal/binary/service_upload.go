@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/pkg/envelope"
@@ -17,6 +18,10 @@ import (
 
 // headSize is how much of a file is read to detect its type before anything is stored.
 const headSize = 4096
+
+// afterBody bounds what an upload still does once its bytes are read: the refusal's audit, or the commit
+// and the deletion of an object left over.
+const afterBody = 30 * time.Second
 
 // Upload stores one file for the item in.LinkID of the response in.ResponseID, as its patient
 // (Holder.UploadTarget), and returns it with whether this call created it (SPEC.md §2 "Upload pipeline"):
@@ -37,6 +42,10 @@ func (s *Service) Upload(ctx context.Context, c Caller, in Upload) (Binary, bool
 		return Binary{}, false, err
 	}
 	b, err := s.seal(ctx, in, t)
+	// Once the bytes are read, the refusal's audit and the commit run even when the client has gone: net/http
+	// cancels the request's context when its connection fails mid-body (PROGRESS.md, review of PR #25).
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), afterBody)
+	defer cancel()
 	if refusal(err) {
 		return Binary{}, false, s.refuse(ctx, c, in.ResponseID, t.OrganizationID, err)
 	}
@@ -45,7 +54,7 @@ func (s *Service) Upload(ctx context.Context, c Caller, in Upload) (Binary, bool
 	}
 	out, created, err := s.commit(ctx, c, in, b)
 	if err != nil || !created {
-		_ = s.Store.Delete(context.WithoutCancel(ctx), b.ID) // the purger removes an object left behind (SPEC.md §5)
+		_ = s.Store.Delete(ctx, b.ID) // the purger removes an object left behind (SPEC.md §5)
 	}
 	return out, created, err
 }

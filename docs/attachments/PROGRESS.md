@@ -1379,3 +1379,37 @@ gone; its object goes with the purger after 24 h). salus-demo-* containers untou
   by this feature. Fixed the same day (CLAUDE.md "TDD"): each drag-in now waits for the card before it to be closed
   and checks that its row was added before filling it in, so the drop place is measured on a settled list; the
   journey asserts more than before, nothing less. `make e2e` passed twice in a row after the change.
+- 2026-11-07, independent review of PR #25, server findings. Each fixed test first; every new test was run and seen
+  failing for the stated reason before the change:
+  - Interrupted upload left no AuditEvent (real: net/http cancels the request's context when the connection fails
+    mid-body, so the refusal's `WithTx` and the commit ran on a cancelled context and logged a 500). `Upload` now
+    runs everything after the body (the refusal's audit, the commit, the deletion of a left-over object) on
+    `context.WithTimeout(context.WithoutCancel(ctx), 30s)` (`afterBody`). The fake auditor now fails on a cancelled
+    context as a pgx query does. Seen failing: `TestUpload_AClientThatGoesAwayMidBodyIsStillAudited`
+    (`Upload() = binary: upload: context canceled, want ErrShortBody`) and
+    `TestUpload_AClientThatGoesAwayOnceTheFileIsStoredStillGetsItCommitted` (`context canceled; want created`). A
+    client gone after its last byte keeps its file; its retry gets the identical file back (200).
+  - HEAD on `GET /binaries/{id}/content` (Go's mux matches HEAD on a GET route) opened, decrypted and audited the
+    whole file to send none of it. Decision: answer HEAD with 405 `method_not_allowed` and `Allow: GET` before the
+    caller or the file is looked at; simplest, nothing to audit, and no client uses HEAD (not in `api/openapi.yaml`,
+    so no contract change). Seen failing: `TestHTTPHandler_RefusesHEADOnTheContent` (`HEAD = 200`, the file opened).
+    `GET /binaries/{id}` (the status JSON) still answers HEAD as a GET, audited as a read; left as it is.
+  - `Delete` removed the object under the URL's id; Postgres finds the row by an uppercase UUID, the object key is the
+    lowercase canonical id, so the object stayed until the purger. Now the row's `b.ID`. The fake repository reads an
+    id in any case, as Postgres does. Seen failing: `TestDelete_RemovesTheObjectOfTheCanonicalID` (`GetRange = <nil>,
+    want ErrObjectNotFound`).
+  - An untitled file rendered `"title":""` in the FHIR `valueAttachment` (R4 forbids empty strings): `title` is now
+    `omitempty`. Seen failing: `TestHandler_ReadLeavesOutTheTitleOfAnUntitledFile` (`want no title`); new golden
+    `response_attachment_untitled.json`, written with `-update` for that test only; `fhir-validate` passes (0 errors).
+  - A file its response no longer lists (an answer of a hidden item dropped on submit, or a withdrawal) stayed
+    readable until `binary_discard` ran. `Status` and `Download` now check `Holder.Attached(responseID)` in the read's
+    transaction and answer `ErrNotFound` (404), audited like any not-found read: no entity, the caller's org. Seen
+    failing: `TestStatusAndDownload_RefuseAFileTheResponseNoLongerLists` (Status `<nil>`, Download `scanning` / `<nil>`,
+    each audited as a read of the file).
+  - Recorded, no change: a `Range` past the end (416) is audited as a read of the file, because `Download` audits and
+    commits before the handler parses the range. Over-auditing a refused read is the safe side; moving the range
+    check into the service is not worth the change.
+  - Checks: `go test -cover` of `internal/binary/...` (90.6%), `internal/questionnaireresponse/...` (93.6%),
+    `internal/api/...` (91.8%, router 100%) pass; `scripts/lint.sh` (gofmt, vet, golangci-lint, check-migrations)
+    0 issues; archcheck passes; `fhir-validate` 0 errors. Run with `--no-deps` on the shared stack; nothing left on
+    it.

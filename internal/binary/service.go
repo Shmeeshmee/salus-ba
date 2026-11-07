@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -102,7 +103,7 @@ func (s *Service) Status(ctx context.Context, c Caller, id string) (Binary, erro
 }
 
 // read runs a read of the file id by the caller in one transaction: the row in the caller's scope, the
-// holder's grant, then check, whose refusal is audited with the file as entity; the grant's purpose.
+// holder's grant, the file still listed by its response, then check, whose refusal is audited with the file as entity; the grant's purpose.
 func (s *Service) read(ctx context.Context, c Caller, id string, check func(Binary) error) (Binary, Grant, error) {
 	var out Binary
 	var g Grant
@@ -111,6 +112,9 @@ func (s *Service) read(ctx context.Context, c Caller, id string, check func(Bina
 		b, err := s.seen(ctx, c, id)
 		if err == nil {
 			g, err = s.Holder.Readable(ctx, c, b.ResponseID)
+		}
+		if err == nil {
+			err = s.listed(ctx, b)
 		}
 		switch {
 		case errors.Is(err, ErrNotFound):
@@ -136,12 +140,26 @@ func (s *Service) read(ctx context.Context, c Caller, id string, check func(Bina
 	return out, g, nil
 }
 
+// listed is ErrNotFound when b's response no longer lists it (its answer dropped on submit, or the response
+// withdrawn): such a file waits for binary_discard and is read by nobody.
+func (s *Service) listed(ctx context.Context, b Binary) error {
+	ids, err := s.Holder.Attached(ctx, b.ResponseID)
+	switch {
+	case err != nil:
+		return err
+	case !slices.Contains(ids, b.ID):
+		return ErrNotFound
+	}
+	return nil
+}
+
 // Delete deletes the file id, as the patient while they may still change the response's answers
 // (Holder.Editable): its row and its place in the answer in one transaction, audited with the file and its
 // response as entities; the object after the commit (best effort: the purger removes what is left).
 // ErrNotFound to anyone who does not see it, the holder's refusals otherwise; each refusal is audited.
 func (s *Service) Delete(ctx context.Context, c Caller, id string) error {
 	var refused error
+	var deleted string // the row's canonical id, the object's key: id may be in another case
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		b, err := s.seen(ctx, c, id)
 		if err == nil {
@@ -159,16 +177,17 @@ func (s *Service) Delete(ctx context.Context, c Caller, id string) error {
 		case err != nil:
 			return err
 		}
-		deleted, err := s.Repo.Delete(ctx, b.ID)
+		ok, err := s.Repo.Delete(ctx, b.ID)
 		switch {
 		case err != nil:
 			return err
-		case !deleted:
+		case !ok:
 			return errors.New("binary: delete: the row was not deleted")
 		}
 		if err := s.Holder.Detach(ctx, b.ResponseID, b.ID); err != nil {
 			return err
 		}
+		deleted = b.ID
 		e.org, e.binaryID, e.responseID, e.outcome = b.OrganizationID, b.ID, b.ResponseID, auditevent.OutcomeSuccess
 		return s.record(ctx, e)
 	})
@@ -178,7 +197,7 @@ func (s *Service) Delete(ctx context.Context, c Caller, id string) error {
 	case refused != nil:
 		return refused
 	}
-	_ = s.Store.Delete(context.WithoutCancel(ctx), id) // the purger removes an object left behind (SPEC.md §5)
+	_ = s.Store.Delete(context.WithoutCancel(ctx), deleted) // the purger removes an object left behind (SPEC.md §5)
 	return nil
 }
 

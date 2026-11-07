@@ -7,6 +7,7 @@ import (
 	"io"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -83,6 +84,9 @@ func (a *fakeAudit) Record(ctx context.Context, e auditevent.AuditEvent) error {
 	if err := inTx(ctx); err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil { // as a query on pgx fails on a cancelled context
+		return err
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.events = append(a.events, e)
@@ -152,7 +156,7 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (binary.Binary, er
 	if r.err != nil {
 		return binary.Binary{}, r.err
 	}
-	b, ok := r.files[id]
+	b, ok := r.files[strings.ToLower(id)] // as Postgres reads a uuid in any case
 	if !ok || !r.visible(b) {
 		return binary.Binary{}, binary.ErrNotFound
 	}
@@ -351,10 +355,11 @@ func (j *fakeJobs) EnqueueScan(ctx context.Context, a binary.ScanArgs) error {
 // failingStore fails its puts, and counts the deletes, around the real store.
 type failingStore struct {
 	binary.Store
-	putErr  error
-	puts    []string
-	deleted []string
-	mu      sync.Mutex
+	putErr   error
+	afterPut func() // called once a put succeeded
+	puts     []string
+	deleted  []string
+	mu       sync.Mutex
 }
 
 func (s *failingStore) Put(ctx context.Context, key string, r io.Reader, size int64) error {
@@ -364,7 +369,13 @@ func (s *failingStore) Put(ctx context.Context, key string, r io.Reader, size in
 	if s.putErr != nil {
 		return s.putErr
 	}
-	return s.Store.Put(ctx, key, r, size)
+	if err := s.Store.Put(ctx, key, r, size); err != nil {
+		return err
+	}
+	if s.afterPut != nil {
+		s.afterPut()
+	}
+	return nil
 }
 
 func (s *failingStore) Delete(ctx context.Context, key string) error {
