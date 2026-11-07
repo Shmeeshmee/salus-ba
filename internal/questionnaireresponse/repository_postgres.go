@@ -236,8 +236,8 @@ func (r *postgresRepository) Attachments(ctx context.Context, id string) ([]bina
 
 func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
 
-// toResponse maps a row to the model. The answers' JSON is the service's own; an error reading it names no
-// value.
+// toResponse maps a row to the model. The answers' and the attachments' JSON are the service's own; an error
+// reading them names no value.
 func toResponse(row questionnaireresponsedb.QuestionnaireResponse) (Response, error) {
 	var answers []Answer
 	if err := json.Unmarshal(row.Answers, &answers); err != nil {
@@ -246,11 +246,18 @@ func toResponse(row questionnaireresponsedb.QuestionnaireResponse) (Response, er
 	if len(answers) == 0 {
 		answers = nil
 	}
+	var files []binary.Attachment
+	if err := json.Unmarshal(row.Attachments, &files); err != nil {
+		return Response{}, fmt.Errorf("questionnaireresponse: stored attachments: %w", errors.New("not a list of attachments"))
+	}
+	if len(files) == 0 {
+		files = nil
+	}
 	return Response{
 		DueAt: row.DueAt.Time, AuthoredAt: row.AuthoredAt.Time, LastUpdated: row.UpdatedAt.Time,
 		ID: row.ID.String(), OrganizationID: row.OrganizationID.String(), AppointmentID: row.AppointmentID.String(),
 		PatientID: row.PatientID.String(), PractitionerRoleID: row.PractitionerRoleID.String(),
 		QuestionnaireID: row.QuestionnaireID.String(), SeriesID: row.SeriesID.String(),
-		Source: Source(row.Source), Status: Status(row.Status), Answers: answers, VersionID: row.VersionID,
+		Source: Source(row.Source), Status: Status(row.Status), Answers: answers, Attachments: files, VersionID: row.VersionID,
 	}, nil
 }

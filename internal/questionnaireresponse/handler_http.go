@@ -197,6 +197,7 @@ var errorCodes = []struct {
 	{ErrSubmitted, "submitted", http.StatusConflict},
 	{ErrWithdrawn, "withdrawn", http.StatusConflict},
 	{ErrPastDue, "past_due", http.StatusConflict},
+	{ErrAttachmentsPending, "attachments_pending", http.StatusConflict},
 }
 
 func (h *HTTPHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {

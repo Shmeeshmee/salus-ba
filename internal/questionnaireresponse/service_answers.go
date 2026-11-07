@@ -3,10 +3,12 @@ package questionnaireresponse
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 )
 
@@ -32,16 +34,30 @@ func (s *Service) SaveAnswers(ctx context.Context, c appointment.Caller, id stri
 
 // Submit submits the response id with its saved answers, as its patient, and returns it: completed, authored
 // at the clock's time, final. The saved answers are checked in full: each against its item, and every enabled
-// required question answered (an *AnswersError names the rest); the answers of hidden items are removed. The
-// same conditions, transaction, audit and refusals as SaveAnswers.
+// required question answered, a required attachment item with a file (an *AnswersError names the rest); then
+// no file may be pending its scan (ErrAttachmentsPending, docs/attachments/SPEC.md §2 "Submit"). The answers of
+// hidden items are removed, and their files detached with the binary_discard job enqueued in the transaction.
+// The same conditions, transaction, audit and refusals as SaveAnswers.
 func (s *Service) Submit(ctx context.Context, c appointment.Caller, id string, version int32) (Response, error) {
 	return s.answer(ctx, c, id, version, "submit", func(ctx context.Context, r Response, items []questionnaire.Item) (Response, error, error) {
-		kept, refused := submitted(items, r.Answers)
+		kept, hidden, refused := submitted(items, r.Answers, r.Attachments)
+		if refused == nil && slices.ContainsFunc(r.Attachments, func(a binary.Attachment) bool { return a.Pending }) {
+			refused = ErrAttachmentsPending
+		}
 		if refused != nil {
 			return Response{}, refused, nil
 		}
-		out, err := s.Repo.Complete(ctx, r.ID, kept, s.Clock.Now())
-		return out, nil, err
+		now := s.Clock.Now()
+		for _, file := range hidden {
+			if err := s.Repo.RemoveAttachment(ctx, r.ID, file, now); err != nil {
+				return Response{}, nil, err
+			}
+		}
+		out, err := s.Repo.Complete(ctx, r.ID, kept, now)
+		if err != nil || len(hidden) == 0 {
+			return out, nil, err
+		}
+		return out, nil, s.Jobs.EnqueueDiscard(ctx, binary.DiscardArgs{ResponseID: r.ID, OrganizationID: r.OrganizationID})
 	})
 }
 
@@ -119,28 +135,37 @@ func (s *Service) open(ctx context.Context, r Response, att appointment.Attendan
 	return nil, nil
 }
 
-// submitted gives the answers a submit keeps, those of the enabled items, or an *AnswersError naming, in
-// document order, the answers that break their item and the enabled required questions left unanswered.
-func submitted(items []questionnaire.Item, answers []Answer) ([]Answer, error) {
+// submitted gives the answers a submit keeps, those of the enabled items, and the ids of the files of hidden
+// items, or an *AnswersError naming, in document order, the answers that break their item and the enabled
+// required questions left unanswered (an attachment item is answered by its files).
+func submitted(items []questionnaire.Item, answers []Answer, files []binary.Attachment) (kept []Answer, hidden []string, err error) {
 	bad, unknown := invalid(items, answers)
 	given := make(map[string][]Value, len(answers))
 	for _, a := range answers {
 		given[a.LinkID] = a.Values
 	}
+	attached := make(map[string]bool, len(files))
+	for _, f := range files {
+		attached[f.LinkID] = true
+	}
 	on := enabled(items, given)
 	for id, it := range index(items) {
-		if it.Required && on[id] && len(given[id]) == 0 {
+		if it.Required && on[id] && len(given[id]) == 0 && !attached[id] {
 			bad[id] = true
 		}
 	}
 	if len(bad) > 0 || unknown {
-		return nil, &AnswersError{LinkIDs: inOrder(items, bad)}
+		return nil, nil, &AnswersError{LinkIDs: inOrder(items, bad)}
 	}
-	var kept []Answer
 	for _, a := range answers {
 		if on[a.LinkID] {
 			kept = append(kept, a)
 		}
 	}
-	return kept, nil
+	for _, f := range files {
+		if !on[f.LinkID] {
+			hidden = append(hidden, f.BinaryID)
+		}
+	}
+	return kept, hidden, nil
 }

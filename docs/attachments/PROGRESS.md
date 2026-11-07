@@ -1002,7 +1002,114 @@ Status: not started
 
 ## 3.2 internal/questionnaireresponse: attachment answers
 
-Status: not started
+Status: done, 2026-11-07 (wave 3, in parallel with 3.1).
+
+Built:
+- `model.go`: `Response.Attachments` (`[]binary.Attachment`), read from `questionnaire_response.attachments` by every
+  query (`toResponse`); a Name view (`seen`) drops it with the answers.
+- `query.sql`: `StopQuestionnaireResponse` sets `attachments = '[]'` with the answers (`questionnaireresponsedb`
+  regenerated with sqlc; only this domain's `query.sql.go` changed). This fixes 2.1's hand-off: a withdrawal of a
+  response with files no longer fails the `questionnaire_response_withdrawn_attachments` check (500).
+- `repository.go`, `repository_river.go`: the `Jobs` port (`EnqueueDiscard(ctx, binary.DiscardArgs)`) and its River
+  implementation (`InsertTx` in the transaction in the context, `postgres.ErrNoTx` outside one; default queue).
+- `service.go` `Withdraw`: after `Stop`, `binary_discard` enqueued in the same transaction with the response's and
+  the clinic's ids; an enqueue failure rolls the withdrawal back.
+- `service_answers.go` `Submit`: `submitted` counts a file as the answer of an attachment item, so a required,
+  enabled attachment item without a file is named in the `*AnswersError` (422) and a hidden one is not required;
+  then any file still `pending` refuses the submit (`ErrAttachmentsPending`, 409 `attachments_pending`), audited
+  as an update that failed; the files of hidden items are detached (`RemoveAttachment`, one per file), the response
+  completed, and `binary_discard` enqueued in the transaction, only when something was detached.
+- `validate.go`: no change of behaviour; `fitsOne`'s comment now says why an attachment item has no answer in
+  `PUT /answers` (422 `answers_invalid` with its `linkId`, as since the questionnaire feature's D1).
+- `errors.go` `ErrAttachmentsPending`; `handler_http.go` maps it to 409 `attachments_pending`.
+- `handler_fhir.go`: each file is a `valueAttachment` (`contentType`, `url`, `title`, `hash` base64 SHA-1, `size`)
+  under its item, in upload order, beside the typed answers; `url` is exactly `<api base>/binaries/<id>/content`, the
+  api base being the FHIR base without `/fhir/R4` (as `config.Config.APIBaseURL`), so 1.6's and 1.7's id parsing
+  holds. Only a Full view renders items: the patient's own (pending files included) and the practitioner's of a
+  completed response, which by the submit rule holds no pending file.
+- `internal/api/app.go`: one line, `Jobs: questionnaireresponse.NewRiverJobs(p.jobs)` (unavoidable: the api's
+  `Withdraw` and `Submit` need the port). `internal/worker` builds the service without `Jobs`; nothing there calls
+  `Withdraw` or `Submit` (not touched, as the wave rules ask).
+
+Failing first (each seen before the code existed):
+- Every new test failed to build first (`Response has no field Attachments`, `unknown field Jobs`,
+  `undefined: questionnaireresponse.ErrAttachmentsPending`, `undefined: NewRiverJobs`). With the declarations and a
+  no-op `EnqueueDiscard`: `TestPostgres_ReadsTheAttachmentsAndStopClearsThem` — `ByID() attachments = []` and
+  `Stop() of a response with files: ERROR: new row for relation "questionnaire_response" violates check constraint
+  "questionnaire_response_withdrawn_attachments" (SQLSTATE 23514)` (2.1's 500, reproduced);
+  `TestRiverJobs_EnqueuesTheDiscardInTheTransactionWithOnlyIDs` — `no rows in result set`;
+  `TestSubmit_ARequiredAttachmentItemNeedsAFile` — the submit with a clean file `answers invalid`;
+  `TestSubmit_IsRefusedWhileAFileIsPending` (both cases), `TestSubmit_DetachesTheFilesOfHiddenItemsAndEnqueuesTheDiscard`,
+  `TestSubmit_RollsBackTheDetachWhenTheDiscardFails` — `answers invalid`; `TestWithdraw_ClearsTheFilesAndEnqueuesTheDiscard`
+  — `enqueued [], want [...]` and the failing enqueue not failing the withdrawal; `TestRead_ANameViewCarriesNoFiles` — the
+  practitioner's and the admin's Name views with 2 files; `TestHTTPHandler_MapsEachDomainErrorToItsStatusAndCode` — 500
+  for `ErrAttachmentsPending`; `TestHTTPHandler_RefusesAnAttachmentAnswerAndASubmitWhileAFileIsPending` — the submit 422;
+  the two FHIR golden tests — no golden file.
+- Passed on their first run, because the behaviour predates this package: `TestPostgres_DeletingAResponseDeletesItsFilesRows`
+  (the foreign key's `ON DELETE CASCADE` from 0.1, through the cancellation's `DeleteOfAppointment` and the purger on
+  `salus_retention`'s pool) and the `PUT /answers` half of the HTTP test (an attachment item has had no valid answer
+  since the questionnaire feature, `answerCases` "a reserved attachment item"). Kept as the plan's tests of them.
+
+Tests:
+- Service (fakes; the fake transaction now also rolls back the list of files and the jobs): a required attachment item
+  without a file named, with a clean file submitted with it and no job; a pending file on a shown or a hidden item
+  refuses the submit with nothing changed and one failed update event; the files of a hidden item (required, no
+  file needed) detached, the shown item's kept, one `binary_discard` with the two ids, one success event; a failing
+  enqueue rolls the submit back (files listed, in progress, no job, no event); a withdrawal clears the files and
+  enqueues the job with the two ids, a refused one keeps them and enqueues nothing, a failing enqueue rolls it back;
+  Read and Search give the patient the files and the practitioner's and admin's Name views none.
+- Postgres (`NewAppDatabase`, `NewRetentionDatabase`): `ByID` reads the files; `Stop` clears them (the check holds) and
+  leaves the `binary` rows to the job; the cancellation's discard and the purger delete the response's `binary` rows
+  through the foreign key and keep another response's. River (`NewAppDatabase`): rolled back, no job; committed, one
+  `binary_discard` whose args are exactly `{"organization_id", "questionnaire_response_id"}`; outside a
+  transaction `ErrNoTx`.
+- HTTP: `attachments_pending` 409 on every route's mapping; through the handler on the service, `PUT /answers` with an
+  answer to the attachment item 422 `{"error":"answers_invalid","linkIds":["f"]}`, the submit with a pending file 409,
+  the log holding no title.
+- FHIR golden files (new, written with `-update`, reviewed; no existing golden file changed):
+  `response_attachments_in_progress.json` (the patient: a text answer, a pending PDF and a clean photo under the item in
+  a section) and `response_attachments_completed.json` (the practitioner: a photo and a PDF on one item, a video on
+  another); a Name view renders no file.
+
+Checks (all `--no-deps`, as the wave rules give them):
+- tests `go test -count=1 -cover ./internal/questionnaireresponse/... ./internal/api/...`: pass;
+  `internal/questionnaireresponse` 93.6%, `internal/api` 91.8%, `internal/api/router` 100%.
+- lint (`scripts/lint.sh`, the main git dir read-only): 0 issues both modules, check-migrations ok (one fieldalignment
+  finding in a new test struct fixed first).
+- archcheck: pass.
+- fhir-validate: pass, 77 files, 0 errors; the two new files carry warnings only: the validator cannot fetch the
+  synthetic `https://api.example.test/binaries/…/content` URLs and does not know the synthetic Questionnaire canonical,
+  as for the other golden responses.
+- Not run (wave rules): `make test`, `make cover`, `make e2e`; they run in the wave's integration step.
+
+### Decided while the owner was away
+
+- 2026-11-07, session (3.2): a pending file refuses the submit wherever it is, on a hidden item too. SPEC §2 "Submit"
+  says "any attached file"; the scan takes seconds, and the patient never has to act on a file they no longer see.
+  The 422 of the answers comes before the 409, so the patient fixes their answers first.
+- 2026-11-07, session (3.2): `Withdraw` enqueues `binary_discard` every time, files listed or not: a rejected file's
+  row (detached, kept 24 h with its title) then goes at once, and a duplicate discard does nothing. Withdrawals are
+  rare; a submit enqueues only when it detached a file (submits are many).
+- 2026-11-07, session (3.2): the files are a field of the one model, `Response.Attachments`, read with every row,
+  instead of a second read through `Repository.Attachments`: the submit, the withdrawal and the FHIR handler all need
+  them with the response, and a Name view drops them like the answers.
+- 2026-11-07, session (3.2): the FHIR handler takes the api base from the FHIR base it is given (`/fhir/R4` trimmed,
+  the rule of `config.Config.APIBaseURL`), so `NewHandler` and the rest of `app.go` stay as they are.
+- 2026-11-07, session (3.2): `valueAttachment` keys are written `contentType`, `url`, `title`, `hash`, `size` (the
+  struct's order, which the linter's field alignment decides); JSON property order carries no meaning in FHIR.
+- 2026-11-07, session (3.2): `binary_discard` goes on River's default queue (no `InsertOpts`): SPEC §2 names a queue
+  only for the scan; 3.1 registers its worker.
+
+Copy added by the session, not yet reviewed: none.
+
+For later packages:
+- 3.1: `binary_discard` jobs are enqueued from this package on (withdrawals, submits that hide files), on the default
+  queue, args `{"questionnaire_response_id", "organization_id"}`; after a withdrawal `Holder.Attached` lists none.
+- 4.1: the journeys' withdrawal and hidden-item submit now enqueue the discard; `valueAttachment.url` is
+  `<FHIR base without /fhir/R4>/binaries/<id>/content`.
+
+Dev stack: nothing changed. The tests ran on throwaway databases (`pgtest`); no service was rebuilt or restarted,
+the dev database and the bucket were not touched.
 
 ## 4.1 End-to-end and privacy
 

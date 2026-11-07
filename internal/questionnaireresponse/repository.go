@@ -54,3 +54,9 @@ type Repository interface {
 	// Attachments returns the attachments of the response id, or ErrNotFound.
 	Attachments(ctx context.Context, id string) ([]binary.Attachment, error)
 }
+
+// Jobs enqueues the background work a change of the answers causes, in the caller's transaction (River's
+// InsertTx): binary_discard, once the response no longer lists some of its files.
+type Jobs interface {
+	EnqueueDiscard(ctx context.Context, args binary.DiscardArgs) error
+}

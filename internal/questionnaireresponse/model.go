@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
+	"github.com/Shmeeshmee/salus/internal/binary"
 )
 
 // Status is QuestionnaireResponse.status, the three the product uses.
@@ -48,7 +49,10 @@ type Response struct {
 	Source             Source
 	Status             Status
 	Answers            []Answer // a flat list; the FHIR handler nests it under the version's sections
-	VersionID          int32    // meta.versionId
+	// Attachments are the files of the attachment items, in upload order (docs/attachments/SPEC.md §2 "Where
+	// an attachment answer lives"): kept in step by binary through the holder, outside Answers and VersionID.
+	Attachments []binary.Attachment
+	VersionID   int32 // meta.versionId
 }
 
 // Answer is the answer to one item, stored as the JSON below in questionnaire_response.answers.
