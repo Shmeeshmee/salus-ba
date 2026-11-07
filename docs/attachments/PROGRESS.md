@@ -13,7 +13,7 @@
 | 2.1 internal/binary: service, Postgres, handlers and wiring | done, 2026-11-07 (wave 2) | `attachments(2.1)` |
 | 3.1 Scan, discard and purge | done, 2026-11-07 (wave 3) | `attachments(3.1)` |
 | 3.2 internal/questionnaireresponse: attachment answers | done, 2026-11-07 (wave 3) | `attachments(3.2)` |
-| 4.1 End-to-end and privacy | not started | |
+| 4.1 End-to-end and privacy | done, 2026-11-07 (acceptance walk after the PR, `WALK.md`) | `attachments(4.1)` |
 
 In a wave, packages write only under their own heading below (package 0.1 adds one per package); this table is
 updated in the wave's integration step (`IMPLEMENTATION_PLAN.md` "Running a wave").
@@ -1258,4 +1258,106 @@ the dev database and the bucket were not touched.
 
 ## 4.1 End-to-end and privacy
 
-Status: not started
+Status: done, 2026-11-07. The acceptance walk (the builder, the patient app on a device or emulator, the
+practitioner's viewer and player at desktop width and 390 px, the PDF viewer under its CSP in Chrome, O23) is not in
+this package: the orchestrator runs the owner's acceptance walk after the PR, and it is recorded in
+`docs/attachments/WALK.md` then.
+
+Built:
+- `test/e2e/attachments_test.go` (build tag `e2e`, synthetic data fresh per run):
+  `TestAttachments_ThePatientAttachesFilesAndThePractitionerOpensThem`: the practitioner publishes a questionnaire
+  with a photo-and-document item (up to 3 files) and a video item and makes it the role's default; a patient books;
+  uploads a generated JPEG, a generated 50 MB MP4 and a generated PDF carrying the EICAR string, raw with
+  `Content-Disposition` `filename*`, as the app does; the first two become `clean` and the PDF `rejected` (each waited
+  for by polling `GET /binaries/{id}`, as the app does); the rejected file's download is 404 and the patient's
+  response no longer lists it; the patient submits; the practitioner's FHIR search holds both `valueAttachment`s
+  (`contentType`, `title`, `size`, the base64 SHA-1 `hash`, an absolute `url` ending in `/binaries/<id>/content`); the
+  practitioner downloads the photo whole (bytes and the headers `Content-Type`, `Accept-Ranges`, `Cache-Control`,
+  `X-Content-Type-Options`, `Cross-Origin-Resource-Policy`, `ETag` the SHA-1) and the video by three ranges (start,
+  middle, end) whose bytes and `Content-Range` match the original; the audit (as the owner) holds, per file on
+  `Binary/<id>`, one upload by the patient, one read per status or content request the patient made, one scan result
+  by `binary_scan` (`U` clean, `D` rejected) and one read per practitioner download (1 for the photo, 3 for the video
+  ranges). Then it runs the web journey. `TestAttachments_ACancelledAppointmentTakesItsFilesWithIt`: a file uploaded
+  to the questionnaire of an appointment more than 24 h ahead, clean and downloadable (200); the patient cancels;
+  once the `questionnaire_responses_discard` job has deleted the response (waited for), the `"binary"` row is already
+  gone with it (no further wait: the foreign key) and the status and the download are 404.
+- `test/e2e/attachments_media_test.go`: the generated files. The JPEG (64x64, `image/jpeg`), the EICAR PDF (the
+  string assembled in the test, uncompressed in a content stream, as 3.1's tests) and a real H.264 MP4 written in the
+  test: 128x96, 10 frames a second for 6 s, every frame an IDR picture of I_PCM macroblocks (Baseline, CAVLC; the
+  pixels uncoded, so about 200 lines of Go without a codec), a bright bar that moves; `ftyp` `isom`, a `moov` with one
+  `avc1` track and its `avcC`, the `mdat`, then a top-level `free` box of a counter up to 50,000,000 bytes, so a
+  misplaced range shows. It passes `pkg/filetype`'s checker (an `avc1` track, no audio: O18 allows that) and plays and
+  seeks in Firefox and WebKit (checked before it was used).
+- `test/e2e/web/attachments.spec.ts`: the practitioner signs in, opens the appointment, "View answers" (both items
+  "1 file", the rejected document detached), the photo in the viewer ("File 1 of 1", the `<img>` labelled "Photo:
+  [Title]" decoded at 64 px), Close; the video in the viewer's player: its duration is the file's 6 s, it plays
+  (`currentTime` past 0.5 s), a seek to 4 s lands there and playback moves on past 4.5 s, and the API answered the
+  browser's content requests with at least one `206`.
+- `docs/privacy/dpia.md`: the section "Questionnaire attachments (`docs/attachments`)", one subsection each for 0.1,
+  1.7, 2.1, 3.1 and 3.2 from this file (3.1's: the ClamAV signature is logged next to the binary id only and not
+  audited, O25), and one for 4.1.
+- `docs/privacy/processors.md` (SPEC §5): no processor added while the store and ClamAV are self-hosted; the hosting
+  provider's pending entry names the object store for the files and the KMS for `BINARY_KEK`; "Not processors" gains
+  the compose store and ClamAV (its signature download sends no personal data).
+- Folded in (owner): `.github/workflows/mobile.yml` job `apk`, `flutter build apk --debug` in `mobile/` on every
+  change the workflow's filter catches (every path under `mobile/` among them), a separate job beside `mobile`.
+
+Failing first (each seen failing before it passed):
+- Both journeys with clamd stopped (the scan, the piece the journeys depend on, missing; the worker running):
+  "the binary_scan job makes the file clean: not within 30s" in each. (A first try with the worker stopped failed
+  earlier, at the slots, so it proved nothing about files.) clamd started again, healthy.
+- With clamd back, the first journey failed on the test's own count: "the audit of the image/jpeg file: … 1 patient
+  reads …; want … 2" (the practitioner's downloads were counted as the patient's reads); fixed in the test, the
+  product unchanged.
+- The web spec run in Chromium instead of Firefox: the photo step passed, the video step failed, "Expected: 6,
+  Received: NaN" for the duration (Playwright's Chromium cannot open H.264, below). Back on Firefox it passes.
+- The CI job cannot run locally; it is proven on the PR.
+
+Checks (`checks.sh`, every command with `--no-deps`; the e2e's `up -d --build --wait` without `--remove-orphans`):
+- lint (gofmt, `go vet`, golangci-lint both modules, check-migrations): pass; also golangci-lint with `--build-tags
+  e2e` over `test/e2e`: 0 issues, and `go vet -tags e2e`.
+- archcheck: pass. test (`go test -count=1`, both modules): pass. cover: pass, total 94.3%, every package at 80% or
+  more.
+- fhir-validate: pass. gen-clients: no diff. Web: lint, typecheck, test, build pass. Mobile: analyze, test pass.
+- e2e twice in a row: pass both (39 s and 37 s for the whole suite); the LiveKit log check holds none of the run's
+  synthetic values.
+- The `apk` job: YAML parsed and read against `mobile`'s job; the actions pinned by commit like the others:
+  `actions/setup-java` v6.1.0 (`b843ebf9…`, 2026-10-14; v6.2.0 was 3 days old) with Temurin 21, the JDK 1.7 built
+  with; `subosito/flutter-action` v2.23.0 (`1a449444…`, 2026-03-25) with Flutter 3.47.7, the version of
+  `build/package/flutter.Dockerfile`. Not run here; it will be proven on the PR.
+
+Readings: the whole first journey takes about 10 s (three uploads, the 50 MB scan included, the ranges and the
+browser); the second about 2 s.
+
+### Decided while the owner was away
+
+- 2026-11-07, session (4.1): the web spec runs in Playwright's Firefox, not its Chromium. Playwright's Chromium is
+  built without the proprietary codecs (`canPlayType('video/mp4; codecs="avc1…"')` is empty in the image), and the
+  SPEC allows H.264 MP4 only (O1), so no allowed video can play in it; Firefox decodes H.264 with the image's
+  libavcodec, so "plays and seeks" is a real check. Installing Google Chrome into the Playwright image would have
+  changed `build/package/playwright.Dockerfile` (not this package's file) and pulled an unpinned browser. Chrome
+  itself, and its PDF viewer under the CSP (O23), are covered by the owner's acceptance walk after the PR. No SPEC
+  row: the SPEC names no test browser.
+- 2026-11-07, session (4.1): the generated video is a real, decodable H.264 stream written by the test (I_PCM
+  frames), not 2.1's skeleton with zeros for media: a browser has to decode it for `currentTime` to move, and the
+  repository holds no video file (SPEC §5 "Fixtures are synthetic … generated"). Its 50 MB come from a top-level
+  `free` box after the media, so the three ranges still read different parts of a 50 MB object.
+- 2026-11-07, session (4.1): the debug APK job uses the runner's Android SDK with `actions/setup-java` and
+  `subosito/flutter-action` (pinned by commit), not "the pinned Flutter image" of the plan: that image is built with
+  `precache --no-android` and has no Android SDK (1.7), and adding one to it would grow every `make mobile-*` run.
+  Gradle installs the platform 37, NDK and CMake the build asks for, as it did in 1.7's container. The APK is not
+  uploaded as an artifact: nothing installs it. Only the job's steps differ from the rest of the workflow, which
+  keeps running through make.
+- 2026-11-07, session (4.1): "an event per request" is checked per file as counts: the test counts its own status
+  and content requests and the audit must hold exactly that many reads by the patient, and exactly 1 and 3 by the
+  practitioner for the photo and the video. The rejected file's refused download counts as a read (it is audited,
+  2.1).
+- 2026-11-07, session (4.1): the DPIA also gets a short 4.1 subsection (no new processing, what the journeys prove).
+
+Copy added by the session, not yet reviewed: none.
+
+Dev stack: the e2e brought the stack up from this worktree (`up -d --build --wait`; no Go code changed in this package, so
+the services run the wave 3 code); clamd was stopped for the failing run and started again (healthy), the worker was stopped and started for
+the first try. The journeys' synthetic clinics, patients, appointments, responses and files stay on the dev database
+and their encrypted objects in the bucket, as every e2e run's data does (the cancelled appointment's file row is
+gone; its object goes with the purger after 24 h). salus-demo-* containers untouched.
