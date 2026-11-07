@@ -383,3 +383,23 @@ func TestHTTPHandler_RefusesHEADOnTheContent(t *testing.T) {
 		t.Errorf("HEAD opened the file as %v, read %v", stub.caller, stub.ranges)
 	}
 }
+
+func TestHTTPHandler_DownloadNameHasTheTypesExtensionAndNoCharacterWindowsRefuses(t *testing.T) {
+	for _, c := range []struct{ typ, title, want string }{
+		{"image/jpeg", "Photo, Saturday 7 November 2026, 21:24", "Photo%2C%20Saturday%207%20November%202026%2C%2021_24.jpg"},
+		{"image/png", "scan", "scan.png"},
+		{"application/pdf", "Synthetic report", "Synthetic%20report.pdf"},
+		{"video/mp4", "Video, 7 November 2026, 21:24", "Video%2C%207%20November%202026%2C%2021_24.mp4"},
+		{"application/pdf", "Report.PDF", "Report.PDF"}, // has its type's extension already
+		{"image/jpeg", "x-ray.jpeg", "x-ray.jpeg"},      // .jpeg is a JPEG's extension too
+		{"application/pdf", "scan.png", "scan.png.pdf"}, // the detected type wins over the name
+		{"image/png", `a\b/c*d?e"f<g>h|i:j`, "a_b_c_d_e_f_g_h_i_j.png"},
+	} {
+		b, body := cleanPDF()
+		b.ContentType, b.Title = c.typ, c.title
+		rec := getContent(t, &stubFiles{file: b, body: body}, "")
+		if got, want := rec.Header().Get("Content-Disposition"), "inline; filename*=UTF-8''"+c.want; got != want {
+			t.Errorf("%s %q: Content-Disposition %q, want %q", c.typ, c.title, got, want)
+		}
+	}
+}

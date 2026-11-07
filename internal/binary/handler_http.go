@@ -159,7 +159,7 @@ func (h *HTTPHandler) content(w http.ResponseWriter, r *http.Request) {
 	hd.Set("Cache-Control", "private, no-store")
 	hd.Set("X-Content-Type-Options", "nosniff")
 	hd.Set("Cross-Origin-Resource-Policy", "same-origin")
-	hd.Set("Content-Disposition", disposition(f.Title))
+	hd.Set("Content-Disposition", disposition(downloadName(f.Title, f.ContentType)))
 	hd.Set("Content-Security-Policy", contentPolicy(f.ContentType))
 	status := http.StatusOK
 	if partial {
@@ -251,6 +251,35 @@ func titleOf(header string) string {
 	}, name))
 	if r := []rune(name); len(r) > MaxTitle {
 		name = string(r[:MaxTitle])
+	}
+	return name
+}
+
+// extensions are the file name extensions of each detected content type, the one a download gets first.
+var extensions = map[string][]string{
+	"image/jpeg": {".jpg", ".jpeg"}, "image/png": {".png"}, "application/pdf": {".pdf"}, "video/mp4": {".mp4"},
+}
+
+// downloadName is the title as a file name every system saves: the characters Windows refuses in a file name
+// replaced with "_", and the detected type's extension added when the title does not end in one. "" stays "".
+func downloadName(title, contentType string) string {
+	if title == "" {
+		return ""
+	}
+	name := strings.Map(func(r rune) rune {
+		if strings.ContainsRune(`:\/*?"<>|`, r) {
+			return '_'
+		}
+		return r
+	}, title)
+	exts := extensions[contentType]
+	for _, ext := range exts {
+		if strings.HasSuffix(strings.ToLower(name), ext) {
+			return name
+		}
+	}
+	if len(exts) > 0 {
+		name += exts[0]
 	}
 	return name
 }
