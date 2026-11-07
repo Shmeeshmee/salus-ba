@@ -222,7 +222,111 @@ Status: not started
 
 ## 1.6 Web: builder options and the file viewer
 
-Status: not started
+Status: done, 2026-11-07.
+
+Built:
+- Builder: "File upload" (W1) in the palette and in the type dropdown (`attachment` in `builder.ts`'s kinds). The
+  opened card has "Accepted files" (W2, checkboxes Photos, Documents, Videos) with the W3 hint, and "Number of
+  files" (W4, a number input 1 to 10, step 1) with its hint; the closed card and the published version's read-only
+  list show W5 ("1 file", "Up to [n] files") after the type. W6 on the item: no kind ticked, or a number that is
+  not a whole number from 1 to 10 (an emptied field included); the draft is then not offered for publishing, as
+  with every other item problem. `Item` gains `accept` and `maxFiles`, set on file uploads only; a change of type
+  to a file upload gives it the defaults, a change away drops them. Read from FHIR (`mimeType` extensions mapped to
+  the kinds, `questionnaire-maxOccurs`) and from the JSON API (`accept`, `maxFiles`), saved as `accept` (in the
+  order photo, document, video) and `maxFiles`. An attachment item cannot be a condition's question (as before:
+  only yes or no and choice questions can).
+- Appointment detail, answers of a submitted response: a file upload item's answer is W7 ("1 file", "[n] files")
+  and the file list (W8: the title, then "[Kind], [size]"), each with "Open" and "Download" (W9). No file: "Not
+  answered". `Files.tsx`: the viewer, a modal dialog over the page with "File [n] of [total]", "Previous file",
+  "Next file" and "Close" (W10); a photo as an `<img>`, a PDF in an `<object type="application/pdf">` (the
+  browser's own viewer, no PDF library), a video in `<video controls preload="metadata">` on the content URL, so the
+  browser makes the `Range` requests and seeks; each labelled with W11. The focus moves to Close on open, Tab and
+  Shift+Tab stay inside, escape closes, and the focus goes back to what opened it. The fade-in runs only under
+  `prefers-reduced-motion: no-preference`. At 520 px and below the viewer takes the whole screen.
+- Failures: when the image, the PDF or the video fails to load, the viewer asks `GET /binaries/{id}`: 404 (or
+  `rejected`) is W13 "This file is no longer available."; `clean` means the file is there but the browser cannot
+  show it, W12 with "Download"; anything else (an error, no answer, `quarantined`) is W13 "The file could not be
+  loaded." with "Try again", which mounts the media again. W12 is also the `<object>`'s fallback content, which a
+  browser without a PDF viewer shows. An answer about a file the viewer has stepped away from is dropped.
+- The content URL is `binaryContentURL(id)` in `web/src/api/client.ts`: the client's base (the page's origin),
+  `/binaries/<id>/content`, the id encoded; same origin, so the session cookie goes with it. Nothing is ever loaded
+  from `valueAttachment.url` itself (below).
+- `web/vite.config.ts`: the dev server proxies `/binaries` to the api.
+- Folded in (owner): `Availability.tsx` keyed the hours editor and the default questionnaire, two siblings, both by
+  the role id, so React warned about a duplicate key; they are now `hours-<role>` and `default-<role>`. The
+  published version's "Edit as new version" and "Retire" row now has 16 px above and below
+  (`.published-actions`, and `.items.readonly` 16 px above for a retired version, which has no row), as the
+  editor's action row and the failure alert have.
+
+Failing first (each seen before the code existed):
+- `Availability.test.tsx` "renders the hours and the default questionnaire without a duplicate-key warning":
+  received React's "Encountered two children with the same key, … a4000000-…-0000000000a1" from `console.error`.
+- `Builder.test.tsx` "leaves the same space under "Edit as new version" and "Retire" …": `expected +0 to be 16`
+  (`app.css` read into the page; jsdom computes the margins).
+- `builder.test.ts`: the file upload defaults on `newItem` and `changeKind`, and the five W6 cases (no message:
+  the messages and the check did not exist). `questionnaire.test.ts`: the three file upload cases (FHIR read,
+  JSON read, `toRequest`: `accept` and `maxFiles` missing). `attachment.test.ts`: the module did not exist.
+- `Builder.test.tsx` "a file upload item": all eight failed (no "Accepted files" group, no W5 tag, no W6, no
+  `accept` in the saved body). `Files.test.tsx`: the module did not exist. `AppointmentQuestionnaires.test.tsx`
+  "list the files of a file upload item …": "Unable to find an element with the text: 2 files".
+
+Tests (Vitest, synthetic fixtures, placeholder titles): the builder's new fields, their limits (0, 11, 1.5, empty)
+and W6, the closed card's W5 and the toggle's accessible name, the saved payload with `accept` and `maxFiles`, the
+published version's summary; the FHIR and JSON reads; the file list from a fixture `QuestionnaireResponse` with a
+photo, a video and a PDF, and an item with no file; W8's sizes (1 KB at the least, the switch to MB at 999.5 KB);
+the id taken only from a `/binaries/<uuid>/content` path (another origin's path, a path with `..`, no url: no id,
+no actions); the viewer's focus on open and back on Close and on escape, the Tab trap both ways, previous and next
+with the ends marked, none for one file; the `<img>` `src`, the `<object>` `data` and type, the `<video>` `src`,
+`controls` and `preload`; a 404 shows W13 without Try again, a 500 W13 with Try again that remounts the image, a
+`quarantined` status W13, a `clean` status W12 with Download, and a late answer about a file left is ignored.
+
+Checks (run with `docker run --rm` on the image `salus-node:24.22.0`, the worktree mounted at `/src`, `-w
+/src/web -u 1000:1000 -v salus_npm:/cache/npm`, the same npm scripts as the make targets; not through `docker
+compose run node`, so the owner's `salus-demo-web`, which runs as the compose `node` service, was never touched):
+- `npm ci`: done (the worktree had no `node_modules`).
+- web-lint (`npm run lint`, oxlint): 0 warnings, 0 errors.
+- web-typecheck (`npm run typecheck`): pass.
+- web-test (`npm test`): 24 files, 432 tests, pass. Of the first full run one test failed and its name was not
+  kept; 19 full runs after it passed, so it was not found again (the machine ran six other wave packages at the
+  time). Recorded for the integration step to watch.
+- web-build (`npm run build`): pass; the existing chunk-size warning (934 kB, the LiveKit client) unchanged in kind.
+- The browser walk is not in this package (wave 1 integration step for the builder with 1.5 merged; 4.1 for the
+  viewer with real files).
+
+Decided while the owner was away:
+- 2026-11-07, session (1.6): the binary id is read from the path of `valueAttachment.url` (`/binaries/<uuid>/content`,
+  nothing else accepted), and the URL the app loads is built from that id on its own origin. SPEC §2 "FHIR" gives
+  `valueAttachment` no other field that carries the id (`contentType`, `size`, `title`, `hash`, `url`), and the
+  plan says the URL is built from the id, never taken from `url`; taking only a UUID from it means a resource can
+  never point the browser at another origin or path. Package 3.2 writes `url` in exactly that form.
+- 2026-11-07, session (1.6): a new file upload item accepts photos and documents, 1 file. The fewest files and no
+  videos (the largest files) unless the practitioner asks for them: data minimisation, and the practitioner ticks
+  what the question needs.
+- 2026-11-07, session (1.6): the viewer also opens videos (in the `<video>` element of the plan), so previous and
+  next go through every file of the item, whatever its kind, and the practitioner has one way to open a file.
+- 2026-11-07, session (1.6): the viewer does not read `GET /binaries/{id}` before showing a file; it asks only when
+  the browser fails to load one, to tell W12 from the two W13. A completed response holds only clean files (SPEC
+  §2 "Submit"), so the extra audited status read would almost always say what the content read says.
+- 2026-11-07, session (1.6): sizes count 1 MB as 1,000,000 bytes and 1 KB as 1,000 (as the limits of W3 read), a
+  file under 1 KB shows as "1 KB", and the switch to MB comes where whole kilobytes would reach 1000.
+- 2026-11-07, session (1.6): a file with an empty title (the API allows one) is named by its kind ("Photo"), and
+  its W11 label is the kind alone, so no row or label is blank.
+- 2026-11-07, session (1.6): the Vitest config reads `app.css` as text (`test.css.include`), so a test can check a
+  spacing against the real stylesheet in jsdom; nothing else in the tests changes.
+
+Copy added by the session, not yet reviewed: none. Every string is from `COPY.md` word for word.
+
+For later packages:
+- 2.1: the viewer shows a PDF in an `<object>`; with `Content-Security-Policy: sandbox` on the content response,
+  check in Chrome that its PDF viewer still renders inside an `<object>` (SPEC §2 "Download"), and record the
+  header per type.
+- 3.2: the web app needs `valueAttachment.url` to end in `/binaries/<binary id>/content`; anything else is listed
+  without Open or Download.
+- Wave 1 integration and 4.1: walk the builder's file upload card and the viewer at desktop width and 390 px,
+  keyboard only once; check the `<video>` seeks (Range requests in the network panel) and the PDF viewer.
+
+Dev stack: nothing changed. No compose service started, stopped or recreated, no database touched; only the
+worktree's `web/node_modules` (git-ignored) and `web/dist` (git-ignored) were written.
 
 ## 1.7 Mobile: pickers, conversion and upload
 

@@ -100,6 +100,7 @@ export const questionnaires = {
     integer: 'Whole number',
     decimal: 'Decimal number',
     date: 'Date',
+    attachment: 'File upload', // attachments W1 (docs/attachments/COPY.md)
   }, // W11
   empty: 'Drag items here, or select one on the left.', // W12
   question: 'Question', // W13
@@ -163,6 +164,16 @@ export const questionnaires = {
   conditionAnswer: "This condition's answer is no longer one of the options.", // W28
   emptyOption: 'Fill in this option.', // W28 (added on review of PR #24, owner)
   emptySection: 'Add at least one item to this section.', // W28 (added on review of PR #24, owner)
+  // A file upload item in the builder (docs/attachments/COPY.md, approved by the owner, word for word; W2 to W6
+  // of that file).
+  acceptLabel: 'Accepted files', // attachments W2
+  accept: { photo: 'Photos', document: 'Documents', video: 'Videos' }, // attachments W2
+  acceptHint: 'Photos: JPEG or PNG, up to 20 MB. Documents: PDF, up to 20 MB. Videos: MP4, up to 200 MB.', // attachments W3
+  maxFilesLabel: 'Number of files', // attachments W4
+  maxFilesHint: 'From 1 to 10.', // attachments W4
+  maxFilesSummary: (n: number) => (n === 1 ? '1 file' : `Up to ${n} files`), // attachments W5
+  noFileKind: 'Choose at least one kind of file.', // attachments W6
+  fileCount: 'The number of files must be from 1 to 10.', // attachments W6
   draftExists: 'A draft of this questionnaire already exists.', // W29
   openDraft: 'Open draft', // W29
   changed: 'Someone else changed this questionnaire. Reload to see their changes. Your changes since the last save will be lost.', // W29
@@ -204,4 +215,25 @@ export const questionnaires = {
     consent_required: "The patient's consent for this clinic is not active, so a questionnaire cannot be requested.",
     submitted: 'The patient has already submitted this questionnaire.',
   } as Record<string, string | undefined>, // W40
+} as const
+
+// Files attached to a submitted questionnaire, on the appointment detail (docs/attachments/COPY.md, approved by the
+// owner, word for word; the W numbers are that file's). [Title] is the file's name as the patient uploaded it.
+export const files = {
+  count: (n: number) => (n === 1 ? '1 file' : `${n} files`), // W7
+  kinds: { photo: 'Photo', document: 'Document', video: 'Video' }, // W8
+  kb: (n: number) => `${n} KB`, // W8
+  mb: (n: string) => `${n} MB`, // W8
+  details: (kind: string, size: string) => `${kind}, ${size}`, // W8
+  open: 'Open', // W9
+  download: 'Download', // W9, W12
+  close: 'Close', // W10
+  previous: 'Previous file', // W10
+  next: 'Next file', // W10
+  position: (n: number, total: number) => `File ${n} of ${total}`, // W10
+  label: { photo: (title: string) => `Photo: ${title}`, document: (title: string) => `Document: ${title}`, video: (title: string) => `Video: ${title}` }, // W11
+  cannotShow: 'This file cannot be shown here.', // W12
+  gone: 'This file is no longer available.', // W13
+  failed: 'The file could not be loaded.', // W13
+  tryAgain: 'Try again', // W13
 } as const

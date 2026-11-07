@@ -31,6 +31,35 @@ describe('fromJSON', () => {
   })
 })
 
+describe('a file upload item', () => {
+  const mime = (valueCode: string) => ({ url: 'http://hl7.org/fhir/StructureDefinition/mimeType', valueCode })
+  const fhirItem = {
+    linkId: 'f',
+    text: 'Placeholder upload',
+    type: 'attachment',
+    required: true,
+    repeats: true,
+    extension: [mime('image/jpeg'), mime('image/png'), mime('video/mp4'), { url: 'http://hl7.org/fhir/StructureDefinition/questionnaire-maxOccurs', valueInteger: 3 }],
+  }
+  const expected = { ...newItem('attachment', 'f'), text: 'Placeholder upload', required: true, accept: ['photo', 'video'], maxFiles: 3 }
+
+  it('reads its kinds from the mimeType extensions and its number of files from maxOccurs (FHIR)', () => {
+    expect(fromFHIR({ ...questionnaireFHIR(), item: [fhirItem] }).items).toEqual([expected])
+  })
+
+  it('reads accept and maxFiles (JSON)', () => {
+    const json = { ...questionnaireJSON(), item: [{ linkId: 'f', text: 'Placeholder upload', type: 'attachment' as const, required: true, accept: ['photo' as const, 'video' as const], maxFiles: 3 }] }
+    expect(fromJSON(json).items).toEqual([expected])
+  })
+
+  it('sends accept in the order photo, document, video, and maxFiles', () => {
+    const items = [{ ...expected, accept: ['video', 'photo'] as const }].map((it) => ({ ...it, accept: [...it.accept] }))
+    expect(toRequest('T', '', items).item).toEqual([
+      { linkId: 'f', text: 'Placeholder upload', type: 'attachment', required: true, accept: ['photo', 'video'], maxFiles: 3 },
+    ])
+  })
+})
+
 describe('toRequest', () => {
   it('writes the items as the JSON API takes them', () => {
     const v = fromFHIR(questionnaireFHIR())

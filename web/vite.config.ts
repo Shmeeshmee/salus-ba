@@ -18,6 +18,7 @@ export default defineConfig({
       // Only the JSON actions: /appointments/<id> and /appointments/<id>/call are screens of the app.
       '^/appointments/[^/]+/(cancel|status|questionnaires|consultation(/join|/end)?)$': apiUrl,
       '/questionnaire-responses': apiUrl,
+      '/binaries': apiUrl, // the files of questionnaire answers: status and content
       '/specialties': apiUrl,
       // /questionnaires and /questionnaires/<id> are also screens of the app: only their writes go to the API.
       '/questionnaires': { target: apiUrl, bypass: (req) => (req.method === 'GET' ? '/index.html' : undefined) },
@@ -26,5 +27,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // app.css is read as text by the tests that check a spacing against it (Builder.test.tsx).
+    css: { include: [/app\.css/] },
   },
 })

@@ -42,8 +42,10 @@ export function Availability({ api, fhir, account }: { api: ApiClient; fhir: Fhi
         {admin && staff.length > 0 && <PractitionerPicker staff={staff} value={practitionerId ?? ''} onChange={setChosen} />}
         <p className="muted small">Times in {zone}</p>
       </div>
-      {member ? <Editor key={member.roleId} api={api} roleId={member.roleId} /> : <p className="muted">No practitioners yet.</p>}
-      {member && <DefaultQuestionnaire key={member.roleId} api={api} fhir={fhir} roleId={member.roleId} />}
+      {/* Both are keyed by the role, so that picking another practitioner starts them afresh; the prefixes keep
+          the two siblings' keys apart. */}
+      {member ? <Editor key={`hours-${member.roleId}`} api={api} roleId={member.roleId} /> : <p className="muted">No practitioners yet.</p>}
+      {member && <DefaultQuestionnaire key={`default-${member.roleId}`} api={api} fhir={fhir} roleId={member.roleId} />}
     </Panel>
   )
 }

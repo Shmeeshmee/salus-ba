@@ -1,5 +1,19 @@
 import { useId, useState, type CSSProperties } from 'react'
-import { isChoice, isQuestion, kinds, maxHelp, maxOption, maxOptions, maxText, type Condition, type Item, type Kind } from './builder'
+import {
+  fileKinds,
+  isChoice,
+  isQuestion,
+  kinds,
+  maxFilesLimit,
+  maxHelp,
+  maxOption,
+  maxOptions,
+  maxText,
+  type Condition,
+  type FileKind,
+  type Item,
+  type Kind,
+} from './builder'
 import { ArrowIcon, CrossIcon, GripIcon } from './icons'
 import { questionnaires as t } from './messages'
 import { Confirm } from './ui'
@@ -56,6 +70,7 @@ export function ItemCard({ nodeRef, style, handle, dragging, ...p }: CardProps) 
         {/* Named by what it shows; the spaces keep the parts apart when it is read. */}
         <button type="button" className="item-toggle" aria-expanded={p.open} onClick={p.onToggle}>
           <span className="item-text">{name}</span> <span className="tag">{t.kinds[item.kind]}</span>
+          <FilesSummary item={item} />
           {item.required && (
             <>
               {' '}
@@ -138,6 +153,7 @@ function ItemEditor(p: EditProps) {
         </div>
       )}
       {isChoice(item.kind) && <Options options={item.options} onChange={(options) => p.onChange({ options })} />}
+      {item.kind === 'attachment' && <FileOptions item={item} onChange={p.onChange} />}
       <button type="button" className="quiet more-toggle" aria-expanded={more} onClick={() => setMore(!more)}>
         {t.moreOptions}
       </button>
@@ -200,6 +216,58 @@ function Options({ options, onChange }: { options: string[]; onChange: (o: strin
       </div>
       {full && <p className="hint">{t.manyOptions}</p>}
     </fieldset>
+  )
+}
+
+// FilesSummary is W5 on a closed file upload, after its type: how many files it takes.
+export function FilesSummary({ item }: { item: Item }) {
+  if (item.kind !== 'attachment' || item.maxFiles === undefined || Number.isNaN(item.maxFiles)) return null
+  return (
+    <>
+      {' '}
+      <span className="tag">{t.maxFilesSummary(item.maxFiles)}</span>
+    </>
+  )
+}
+
+// FileOptions are a file upload's own settings (W2 to W4): the kinds of file it accepts and how many.
+function FileOptions({ item, onChange }: { item: Item; onChange: (patch: Partial<Item>) => void }) {
+  const id = useId()
+  const accept = item.accept ?? []
+  const toggle = (k: FileKind, on: boolean) => onChange({ accept: fileKinds.filter((x) => (x === k ? on : accept.includes(x))) })
+  const n = item.maxFiles ?? Number.NaN
+  return (
+    <>
+      <fieldset className="choice file-kinds" aria-describedby={`${id}-accept`}>
+        <legend>{t.acceptLabel}</legend>
+        {fileKinds.map((k) => (
+          <div className="check" key={k}>
+            <input id={`${id}-${k}`} type="checkbox" checked={accept.includes(k)} onChange={(e) => toggle(k, e.target.checked)} />
+            <label htmlFor={`${id}-${k}`}>{t.accept[k]}</label>
+          </div>
+        ))}
+        <p className="hint" id={`${id}-accept`}>
+          {t.acceptHint}
+        </p>
+      </fieldset>
+      <div className="field">
+        <label htmlFor={`${id}-n`}>{t.maxFilesLabel}</label>
+        <input
+          id={`${id}-n`}
+          type="number"
+          className="short"
+          min={1}
+          max={maxFilesLimit}
+          step={1}
+          value={Number.isNaN(n) ? '' : String(n)}
+          aria-describedby={`${id}-n-hint`}
+          onChange={(e) => onChange({ maxFiles: e.target.value === '' ? Number.NaN : Number(e.target.value) })}
+        />
+        <p className="hint" id={`${id}-n-hint`}>
+          {t.maxFilesHint}
+        </p>
+      </div>
+    </>
   )
 }
 
