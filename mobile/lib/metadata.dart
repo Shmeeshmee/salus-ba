@@ -309,15 +309,22 @@ void _walk(Uint8List b, int start, int end, int base, String parent, Set<String>
   }
 }
 
+/// What [entries] holds for an `stsd` whose count is not the number of entries in it: no sample entry has this
+/// name, so the movie does not play in Chrome and is converted.
+const _miscounted = 'stsd count';
+
+/// Adds the sample entries of the `stsd` payload from [start] to [end]. The server takes the payload only when it is
+/// exactly the entries it counts (pkg/filetype/mp4.go), so a count that differs makes the movie one to convert.
 void _sampleEntries(Uint8List b, int start, int end, Set<String> entries) {
   if (start + 8 > end) throw const FormatException('broken stsd');
   final count = ByteData.sublistView(b).getUint32(start + 4);
-  var at = start + 8;
-  for (var i = 0; i < count && at < end; i++) {
+  var found = 0;
+  for (var at = start + 8; at < end; found++) {
     final (size, _) = _boxSize(Uint8List.sublistView(b, at, math.min(at + 16, end)), end - at);
     entries.add(String.fromCharCodes(b.sublist(at + 4, at + 8)));
     at += size;
   }
+  if (found != count) entries.add(_miscounted);
 }
 
 /// Copies [src] to [dst] in chunks, with [patches] written over it: the memory used is one chunk.

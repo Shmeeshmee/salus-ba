@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -7,6 +8,9 @@ import 'package:salus_api/api.dart' as api;
 import 'fhir.dart';
 import 'file_prep.dart' show Prepared;
 import 'session.dart';
+
+/// How long an upload may go without sending a byte or hearing its answer before it is stopped (COPY M5).
+const uploadIdle = Duration(seconds: 60);
 
 /// Where an appointment or a consent belongs: the listed clinics by id, and their practitioners by role id.
 class Places {
@@ -118,7 +122,8 @@ class Booking {
   /// pipeline"): the bytes streamed as the body with `Content-Length`, the name in `Content-Disposition` and never in
   /// the URL, through the client's base and bearer token. The generated client would send a multipart form, which
   /// the API does not take. [onSent] hears the bytes sent so far; [abort] stops the upload, which then throws
-  /// [http.RequestAbortedException].
+  /// [http.RequestAbortedException]. An upload that makes no progress for [uploadIdle], its bytes or its answer, is
+  /// stopped and fails as unreachable ([ApiFailure]), as a lost connection does.
   Future<api.Binary> upload(
     String id,
     String linkId,
@@ -128,23 +133,40 @@ class Booking {
   }) async {
     final headers = <String, String>{};
     await _client.authentication?.applyToParams(<api.QueryParam>[], headers);
+    final stalled = Completer<void>();
+    Timer? idle;
+    void waiting() {
+      idle?.cancel();
+      if (!stalled.isCompleted) idle = Timer(uploadIdle, stalled.complete);
+    }
+
     var sent = 0;
     final body = file.read().map((chunk) {
       sent += chunk.length;
-      onSent(sent);
+      if (!stalled.isCompleted) onSent(sent);
+      waiting();
       return chunk;
     });
     final path = '/questionnaire-responses/${Uri.encodeComponent(id)}/items/${Uri.encodeComponent(linkId)}/attachments';
-    final request = _Upload(Uri.parse('${_client.basePath}$path'), body, abort)
+    final request = _Upload(Uri.parse('${_client.basePath}$path'), body, Future.any([?abort, stalled.future]))
       ..contentLength = file.size
       ..headers.addAll({
         ...headers,
         'Content-Type': 'application/octet-stream',
         'Content-Disposition': contentDisposition(file.name),
       });
-    final (status, text) = await _send(request);
-    if (status >= HttpStatus.badRequest) throw ApiFailure.fromBody(status, text);
-    return _binary(text);
+    waiting();
+    unawaited(abort?.then((_) => idle?.cancel()));
+    try {
+      final (status, text) = await Future.any([
+        _send(request),
+        stalled.future.then<(int, String)>((_) => throw const ApiFailure()),
+      ]);
+      if (status >= HttpStatus.badRequest) throw ApiFailure.fromBody(status, text);
+      return _binary(text);
+    } finally {
+      idle?.cancel();
+    }
   }
 
   /// A file's status (`quarantined`, `clean`, `rejected`).

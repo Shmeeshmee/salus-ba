@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'copies.dart';
 import 'file_prep.dart';
 
 // files.dart is the one file that reaches the device's camera, photo library and document picker (image_picker,
@@ -40,15 +41,18 @@ abstract interface class Files {
   Future<Prepared> prepare(Picked picked);
 }
 
-/// [Files] on image_picker, file_picker and the app's own conversion channel.
+/// [Files] on image_picker, file_picker and the app's own conversion channel. Made once, at start, when it sweeps
+/// the copies an earlier run left (copies.dart); a pick waits for the sweep.
 class DeviceFiles implements Files {
   DeviceFiles();
 
   final _images = ImagePicker();
   static const _channel = MethodChannel('ba.salus.salus/files');
+  final Future<void> _swept = sweepCopies(Directory.systemTemp);
 
   @override
   Future<Picked?> pick(Source source, {required bool photos, required bool videos}) async {
+    await _swept;
     try {
       if (source == Source.document) return await _document();
       // requestFullMetadata false: no photo library permission on iOS (the system picker runs outside the app),
@@ -86,13 +90,10 @@ class DeviceFiles implements Files {
   @override
   Future<Prepared> prepare(Picked picked) async {
     final temp = Directory.systemTemp;
-    // The pickers copy what they hand over into the app's temporary directory; that copy is deleted with the
-    // prepared file. A file anywhere else is the patient's own and is never touched.
-    final copied = File(picked.path).absolute.path.startsWith(temp.absolute.path);
-    Future<void> forgetPicked() async {
-      final f = File(picked.path);
-      if (copied && f.existsSync()) await f.delete();
-    }
+    // The pickers copy what they hand over into the app's temporary or cache directory; that copy is deleted with
+    // the prepared file, wherever in those the picker put it. A file anywhere else is the patient's own and is never
+    // touched (copies.dart).
+    Future<void> forgetPicked() => forgetCopy(picked.path, temp);
 
     try {
       final p = await prepareFile(picked.path, picked.name, _convert, temp);
