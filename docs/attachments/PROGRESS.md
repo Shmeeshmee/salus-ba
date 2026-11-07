@@ -370,7 +370,68 @@ No user-facing text was added.
 
 ## 1.4 internal/binary: the object store
 
-Status: not started
+Status: done, 2026-11-07.
+
+Built:
+- `internal/binary/repository.go`: the `Store` port (`Put(ctx, key, r, size)`, `GetRange(ctx, key, from, to)` with
+  both offsets inclusive, `Delete(ctx, key)`, `ListOlderThan(ctx, before, fn)` calling `fn(keys)` once per page with
+  that page's keys last modified before `before`, empty pages skipped, stopping at `fn`'s first error) and
+  `ErrObjectNotFound`.
+- `internal/binary/repository_s3.go`: `NewS3Store(hc, endpoint, region, bucket, accessKeyID, secretAccessKey,
+  pageSize)`, its one export, over `aws-sdk-go-v2/service/s3` as ADR 0010 says: `s3.New(s3.Options{…})` with
+  `BaseEndpoint`, `Region`, an `aws.CredentialsProviderFunc` over the key pair, `UsePathStyle`, the injected
+  `*http.Client`, `RequestChecksumCalculation` and `ResponseChecksumValidation` at `WhenRequired`; each put with
+  `v4.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware` and one attempt only (the body is read once). No
+  `config` or `credentials` module. `*types.NoSuchKey` → `ErrObjectNotFound`; any other S3 answer keeps only its
+  error code, so no vendor error type leaves the file.
+- `go.mod`: `// indirect` dropped for `aws-sdk-go-v2` v1.47.4, `service/s3` v1.114.5 and `smithy-go` v1.28.6 (the
+  three modules the file imports); `go.sum` needed no change.
+
+Failing first: `repository_s3_test.go` written against the port alone; the build failed with `undefined:
+binary.NewS3Store`.
+
+Tests (`repository_s3_test.go`, against the compose Garage through `TEST_S3_*`, every key under
+`test/<t.Name()>-<random>/` and deleted by the test): a put of a body that cannot be seeked (3 × 65,552 + 123
+random bytes) and ranged gets of the whole, the first segment, a middle segment, the end and one byte; a missing
+key is `ErrObjectNotFound`; delete twice, then the key is gone; a body of 1,000 bytes declared as 2,000 fails and
+leaves no object; the listing with a page size of 2 over five objects calls `fn` three times or more and finds the
+five keys with `before` an hour ahead and none of them an hour back; `fn`'s error stops the listing after one
+call; a 200 MB put from a generating reader keeps the heap flat and its last 4 bytes read back.
+
+Checks:
+- `go test -count=1 -cover ./internal/binary/...` (`--no-deps`, `GOFLAGS=-p=4`): pass, coverage 94.1%.
+- `scripts/lint.sh` (gofmt, `go vet`, golangci-lint over both modules, `check-migrations.sh` with the main git
+  dir mounted read-only): 0 issues, "ok (no migration from main changed)".
+- archcheck (`go -C tools run ./archcheck -root /src`): pass (`binary` was already in `config.yaml` from 0.1).
+
+Readings:
+- The 200 MB put, the heap sampled (`runtime.ReadMemStats`, `HeapAlloc`) every 10 ms: 999 KiB before, peak 1,272 KiB
+  during the put, growth 273 KiB; the put took about 0.46 s against the local Garage. The test fails above 16 MiB
+  of growth.
+- The bucket holds 0 objects after the run (`garage bucket info salus-binaries`).
+
+### Decided while the owner was away
+
+- 2026-11-07, session (1.4): `ErrObjectNotFound` is declared in `repository.go` beside the port, not in
+  `errors.go`: in wave 1 this package owns only the repository files, and no `errors.go` exists yet. Package 2.1,
+  which writes the domain's `errors.go`, may move it there. Not a SPEC change.
+- 2026-11-07, session (1.4): the listing's page size is a parameter of `NewS3Store` (the composition root passes
+  1000, S3's maximum), so the test can page over five objects instead of writing a thousand; the only other way
+  would be an export or an internal test. Not a SPEC change.
+- 2026-11-07, session (1.4): `ListOlderThan` hands `fn` the keys of one page at a time (not one key at a time), so
+  the purger (3.1) can look up a page's rows in one query. Not a SPEC change.
+- 2026-11-07, session (1.4): a put is never retried by the SDK (`RetryMaxAttempts` 1): the body is a stream read
+  once; the app retries the whole upload (SPEC §2 "Retried uploads"). Not a SPEC change.
+
+For later packages:
+- 2.1: build the store with `binary.NewS3Store(hc, s.Endpoint, s.Region, s.Bucket, s.AccessKeyID,
+  s.SecretAccessKey, 1000)` from `config.ObjectStore`; `hc` needs no overall `Timeout` shorter than the upload's
+  30-minute deadline (the request context bounds each call). `GetRange` takes inclusive offsets, as a `Range`
+  header does.
+- Integration: `go mod tidy` also moves `github.com/pion/webrtc/v4` from `// indirect` to a direct requirement
+  (something already imports it); that drift predates this package and was left out of its diff.
+
+Dev stack: nothing left; every test key deleted (the bucket at 0 objects); no service restarted or reconfigured.
 
 ## 1.5 internal/questionnaire: attachment items
 
