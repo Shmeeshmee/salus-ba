@@ -3,11 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'booking.dart';
+import 'call.dart' show Media;
+import 'files.dart';
 import 'messages.dart';
 import 'questionnaire.dart';
 import 'questionnaire_fields.dart';
+import 'questionnaire_files.dart';
 import 'session.dart';
 import 'ui.dart' as ui;
+import 'uploads.dart';
 import 'zones.dart';
 
 /// How long typing pauses before the answers are saved (docs/questionnaire/SPEC.md §2 "Patient flow").
@@ -19,11 +23,14 @@ const retryAfter = Duration(seconds: 5);
 enum _Saving { none, saving, saved, failed }
 
 /// One questionnaire on one scrolling page (SPEC §2 "Mobile"): sections as headings, help behind an icon, the
-/// answers saved as the patient goes, "Submit" with a confirmation, and the answers read only once submitted.
+/// answers saved as the patient goes, files uploaded as they are added (docs/attachments/SPEC.md §2 "Mobile"),
+/// "Submit" with a confirmation, and the answers read only once submitted.
 class QuestionnaireScreen extends StatefulWidget {
   const QuestionnaireScreen({
     super.key,
     required this.booking,
+    required this.media,
+    required this.files,
     required this.now,
     required this.version,
     required this.response,
@@ -32,6 +39,10 @@ class QuestionnaireScreen extends StatefulWidget {
   });
 
   final Booking booking;
+
+  /// The camera's permission (M18, M19), and the pickers and conversion.
+  final Media media;
+  final Files files;
   final DateTime Function() now;
   final Version version;
   final Response response;
@@ -69,8 +80,24 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   var _submitted = false;
   var _leaving = false;
 
+  late final Map<String, Item> _byId = {for (final it in flatten(_items)) it.linkId: it};
+  late final Uploads _uploads;
+
   List<Item> get _items => widget.version.items;
   bool get _pending => _edits != _savedEdits;
+
+  /// The typed answers with the files the server has, as submit checks them.
+  Answers get _all => {
+    for (final e in _answers.entries)
+      if (_byId[e.key]?.type != ItemType.attachment) e.key: e.value,
+    ..._uploads.answers,
+  };
+
+  void _filesChanged() => setState(() {
+    for (final id in _uploads.answers.keys) {
+      if (_errors[id] == questionRequired) _errors.remove(id);
+    }
+  });
 
   static bool _isTyped(Item it) =>
       const {ItemType.string, ItemType.text, ItemType.integer, ItemType.decimal}.contains(it.type);
@@ -85,12 +112,29 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           if (!_focus[it.linkId]!.hasFocus) _saveNow();
         });
     }
+    _uploads = Uploads(
+      booking: widget.booking,
+      files: widget.files,
+      responseId: widget.response.id,
+      items: _byId,
+      // A submitted response's files are only listed; an open one's are read for their status.
+      attached: {
+        if (widget.response.status == ResponseStatus.inProgress)
+          for (final it in _byId.values)
+            if (it.type == ItemType.attachment) it.linkId: [...?_answers[it.linkId]?.whereType<Attached>()],
+      },
+      onEnded: (f) => setState(() {
+        _message = answersMessage(f);
+        _closed = true;
+      }),
+    )..addListener(_filesChanged);
   }
 
   @override
   void dispose() {
     _typing?.cancel();
     _retry?.cancel();
+    _uploads.dispose();
     for (final c in _controllers.values) {
       c.dispose();
     }
@@ -208,7 +252,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         return;
       }
       _message = answersMessage(f);
-      _closed = f.status == 404 || f.status == 409;
+      // Files still being checked (docs/attachments COPY M10) end nothing: Submit waits for them.
+      _closed = f.status == 404 || (f.status == 409 && f.code != 'attachments_pending');
     });
   }
 
@@ -235,8 +280,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 
   Future<void> _submit() async {
-    final on = enabled(_items, _answers);
-    final unanswered = missing(_items, _answers);
+    final on = enabled(_items, _all);
+    final unanswered = missing(_items, _all);
     if (unanswered.isNotEmpty || _errors.keys.any((id) => on[id] == true)) {
       setState(() {
         for (final id in unanswered) {
@@ -267,7 +312,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           questionnaire: _response.questionnaire,
           status: ResponseStatus.completed,
           versionId: r.versionId,
-          answers: fromApi(_items, r.answers),
+          answers: {...fromApi(_items, r.answers), ..._uploads.answers},
           authored: r.authored?.toUtc(),
         );
         _submitted = true;
@@ -294,13 +339,14 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     ),
   );
 
-  /// Leaving while a save is pending asks first (M15).
+  /// Leaving while a save is pending asks first (M15), and while a file uploads (docs/attachments COPY M11).
   Future<void> _onPop(bool didPop, Object? _) async {
     if (didPop) return;
+    final uploading = _uploads.uploading;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        content: const Text(leaveUnsaved),
+        content: Text(uploading ? leaveUploading : leaveUnsaved),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text(stay)),
           TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text(leave)),
@@ -316,7 +362,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   Widget build(BuildContext context) {
     final done = _response.status == ResponseStatus.completed;
     return PopScope(
-      canPop: _leaving || done || _closed || !_pending,
+      canPop: _leaving || done || ((_closed || !_pending) && !_uploads.uploading),
       onPopInvokedWithResult: _onPop,
       child: _page(done ? _view() : _form(), footer: done ? const [] : _footer()),
     );
@@ -332,15 +378,23 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     ];
     final all = [...head, ...rows];
     return Scaffold(
+      // A background and a top border, so the list never seems to run on under it (owner, 2026-11-07).
       bottomNavigationBar: footer.isEmpty
           ? null
-          : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: footer,
+          : DecoratedBox(
+              key: const ValueKey('questionnaire-footer'),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: footer,
+                  ),
                 ),
               ),
             ),
@@ -368,25 +422,27 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   ];
 
   List<Widget> _form() {
-    final on = enabled(_items, _answers);
+    final on = enabled(_items, _all);
     return [
       Text(savedAsYouGo(widget.clinic)),
       for (final it in flatten(_items))
         if (on[it.linkId]! && it.type != ItemType.unsupported) _item(it),
-      if (!_closed) ui.SubmitButton(submit, busy: _submitting, onPressed: _submit),
+      // Submit waits for every file to be checked (SPEC §3 O9); the footer says why.
+      if (!_closed) ui.SubmitButton(submit, busy: _submitting || _uploads.pending, onPressed: _submit),
     ];
   }
 
-  /// Under the list, so it stays in view however far the page is scrolled: the saved state (M6) and the last
-  /// refusal (M12, M16).
+  /// Under the list, so it stays in view however far the page is scrolled: the last refusal (M12, M16), files still
+  /// being checked (docs/attachments COPY M10), and the saved state (M6), always shown: with nothing changed yet,
+  /// everything is saved.
   List<Widget> _footer() => [
     if (_message != null) ui.Message(_message!, error: true),
-    if (_saving != _Saving.none)
-      ui.Message(switch (_saving) {
-        _Saving.saving => saving,
-        _Saving.failed => notSaved,
-        _ => saved,
-      }, error: _saving == _Saving.failed),
+    if (_uploads.pending && !_closed && _message != filesBeingChecked) const ui.Message(filesBeingChecked),
+    ui.Message(switch (_saving) {
+      _Saving.saving => saving,
+      _Saving.failed => notSaved,
+      _ => saved,
+    }, error: _saving == _Saving.failed),
   ];
 
   Widget _item(Item it) {
@@ -397,6 +453,19 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           setState(() => _helpOpen.contains(it.linkId) ? _helpOpen.remove(it.linkId) : _helpOpen.add(it.linkId)),
     );
     if (!it.isQuestion) return header;
+    if (it.type == ItemType.attachment) {
+      return FileField(
+        key: ValueKey('answer-${it.linkId}'),
+        item: it,
+        header: header,
+        files: _uploads.of(it.linkId),
+        enabled: !_closed && !_submitting,
+        error: _uploads.error(it.linkId) ?? _errors[it.linkId],
+        onAdd: () => _addFile(it),
+        onRetry: _uploads.retry,
+        onRemove: _removeFile,
+      );
+    }
     return QuestionField(
       key: ValueKey('answer-${it.linkId}'),
       item: it,
@@ -411,4 +480,37 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       onTyped: (text) => _typed(it, text),
     );
   }
+
+  Future<void> _addFile(Item it) async {
+    final picked = await pickFile(context, it, media: widget.media, files: widget.files);
+    if (!mounted || picked == null) return;
+    setState(() => _errors.remove(it.linkId));
+    if (picked.picked != null) {
+      await _uploads.add(it.linkId, picked.picked!);
+    } else {
+      setState(() => _errors[it.linkId] = picked.error!);
+    }
+  }
+
+  /// A file the server has is removed after asking (M6); one that never reached it goes at once.
+  Future<void> _removeFile(FileEntry f) async {
+    if (f.id != null && await _confirmRemove() != true) return;
+    try {
+      await _uploads.remove(f);
+    } on ApiFailure catch (failure) {
+      if (mounted) setState(() => _message = answersMessage(failure));
+    }
+  }
+
+  Future<bool?> _confirmRemove() => showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text(removeFileTitle),
+      content: const Text(removeFileBody),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text(cancel)),
+        TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text(remove)),
+      ],
+    ),
+  );
 }

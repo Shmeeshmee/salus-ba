@@ -3,6 +3,7 @@ import 'package:salus_api/api.dart';
 
 import 'booking.dart';
 import 'call.dart';
+import 'files.dart';
 import 'home_screen.dart';
 import 'messages.dart';
 import 'privacy_notice.dart';
@@ -21,6 +22,7 @@ class SalusApp extends StatefulWidget {
     required this.booking,
     required this.now,
     required this.media,
+    required this.files,
     required this.privacyNoticeUrl,
     required this.openUrl,
   });
@@ -33,6 +35,7 @@ class SalusApp extends StatefulWidget {
 
   /// The camera, the microphone and LiveKit, for the video consultation.
   final Media media;
+  final Files files;
 
   /// The privacy notice (PRIVACY_NOTICE_URL), and how a link is opened outside the app; injected so tests see it.
   final Uri privacyNoticeUrl;
@@ -121,6 +124,7 @@ class _SalusAppState extends State<SalusApp> {
         booking: widget.booking,
         now: widget.now,
         media: widget.media,
+        files: widget.files,
         account: _account!,
         onSignedOut: () => _show(_Screen.signIn),
       ),

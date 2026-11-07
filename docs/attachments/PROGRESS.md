@@ -625,7 +625,158 @@ worktree's `web/node_modules` (git-ignored) and `web/dist` (git-ignored) were wr
 
 ## 1.7 Mobile: pickers, conversion and upload
 
-Status: not started
+Status: done, 2026-11-07.
+
+Built:
+- The `attachment` item in the app (`lib/questionnaire.dart`): `ItemType.attachment`, `Item.accept` (from the
+  `mimeType` extensions) and `Item.maxFiles` (from `questionnaire-maxOccurs`, 1 when absent); a `valueAttachment`
+  answer read as an `Attached` file, its id taken from the download URL's `/binaries/<id>/content` (the URL itself
+  is never fetched); `toApi` never sends a file with the typed answers.
+- The file upload item on the questionnaire screen (`lib/questionnaire_files.dart`): the hint (M2), the files with
+  their status (M4, M5, M13, M14), "Add file" (M1) while the item has room, the source sheet with only the item's
+  sources (M3), the camera's permission (M18 on Android before the system prompt, M19), the photo library refused
+  (M20), the errors on the item (M7, M8, M9), "Remove file" with its confirmation (M6), and the files read only once
+  submitted (M12, M13).
+- `lib/uploads.dart`: each picked file prepared, uploaded one at a time with its progress, then its status read every
+  2 s, slowing by 2 s a read after the first 10 s to every 10 s, until `clean` (Added) or `rejected` (gone, M7); a
+  lost connection or a 5xx is M5 with "Try again" (the whole file again) and "Remove"; `too_large`,
+  `unsupported_type`, `too_many_files`, `response_full` and any other 4xx are M8 on the item; the response's own
+  refusals (`submitted`, `withdrawn`, `past_due`, `consent_required`, `appointment_closed`, 404) end filling in as
+  for the answers. Submit waits while a file is pending, with M10 in the footer; a 409 `attachments_pending` is M10
+  and leaves the form open. Leaving during an upload asks with M11 and stops the upload. The files of an open
+  response are read for their status when it opens.
+- The upload (`Booking.upload`, `lib/booking.dart`): a hand-written streamed request on the generated client's base
+  URL, bearer token and `http.Client` (the generated `uploadAttachment` sends a multipart form): `POST
+  …/items/{linkId}/attachments`, `Content-Length` declared (not chunked), `Content-Type: application/octet-stream`,
+  `Content-Disposition: attachment; filename*=UTF-8''…` (RFC 6266/8187, `'()*!` encoded too), the body read from the
+  file as the connection takes it, abortable. `fileStatus` and `removeFile` go through the generated
+  `AttachmentsApi`.
+- Preparing a file (`lib/file_prep.dart`, `lib/metadata.dart`): the type read from the bytes; HEIC/HEIF converted to
+  JPEG and a MOV or any video that is not H.264/AAC MP4 (brand, `stsd` sample entries) converted to MP4 by the
+  platform, then checked again; then the metadata stripped in Dart: JPEG without every APP segment and comment
+  (Exif, XMP, IPTC, JFIF, maker notes) except the ICC profile and Adobe's colour transform, with a new Exif holding
+  only the orientation, and without anything after its end (appended previews and depth maps with their own Exif);
+  PNG with only the chunks needed to show it and an `eXIf` holding only the orientation; MP4/MOV with `udta`, `meta`
+  and `uuid` (top level, `moov`, `trak`) turned into `free` boxes of zeros and the creation and modification times of
+  `mvhd`, `tkhd` and `mdhd` zeroed, so no offset moves and the track matrix (the orientation) stays; the video is
+  copied in 1 MiB chunks with the patches written over it. PDFs go as they are. A photo past 20 MB is refused before
+  it is read into memory (M8). The copies made, and the pickers' copies in the temporary directory, are deleted once
+  uploaded, removed or left; a file outside the temporary directory is never touched.
+- `lib/files.dart`: the `Files` interface (pick, prepare) the screen sees, faked in the tests
+  (`test/fake_files.dart`), and `DeviceFiles` on image_picker (camera, video camera, library; `requestFullMetadata:
+  false`, so iOS needs no photo library permission), file_picker (PDF) and the channel `ba.salus.salus/files`.
+- Platform conversion: `MainActivity.kt` (HEIF through `ImageDecoder`, which writes the photo upright, to a JPEG with
+  no metadata; video through Media3 Transformer to H.264/AAC), `AppDelegate.swift` (`CGImageDestination` with only
+  the orientation; `AVAssetExportSession` with the 1920x1080 preset, `metadata = []` and `.forSharing()`). Errors carry
+  no message to Dart. `README.md` lists the manual device check.
+- Permission text: M15 and M16 replace the two consultation strings in `Info.plist`, M17 added
+  (`NSPhotoLibraryUsageDescription`); M18 to M20 in the app. Android needs no new permission (the camera is
+  declared for the consultation).
+- Folded in (owner): `compileSdk = 37`; the questionnaire footer with a white background and a top border
+  (`outlineVariant`), the saved state always in it ("Saved" with nothing unsaved); no slot offered that starts
+  within 5 minutes of now (`slots_screen.dart`).
+
+Failing first (each seen before the code existed):
+- `book_test.dart` "a time 299 s away is not offered": the 14:00 button was found. `android_build_test.dart`:
+  `Expected: contains 'compileSdk = 37'`.
+- `questionnaire_screen_test.dart`: the two tests whose "Saved" and "Not saved…" expectations now name the footer
+  (owner's change, below) and the new footer test: 0 widgets under `questionnaire-footer`.
+- `file_prep_test.dart`: compilation failed (`lib/file_prep.dart` missing, `crc32`, `Format` undefined).
+- `questionnaire_test.dart`: compilation failed (`ItemType.attachment`, `Attached`, `Item.accept`, `Item.maxFiles`
+  not found).
+- `copy_test.dart`: the attachments strings missing from `messages.dart` ("Add file" first), the new purpose strings
+  missing from `Info.plist`.
+- `attachments_test.dart`: compilation failed (`questionnaire_files.dart`, `uploads.dart` missing, `fileHint`,
+  `pollDelay`, `fileSize`, `contentDisposition` undefined, `SalusApp` without `files`). With the code, three failed
+  for the test's own reasons (Submit not yet built in the lazy list, "View answers" is not a FilledButton) and one
+  for the code's: the file row and progress labels were merged into the question's node; they are now their own
+  semantics nodes (M14).
+
+Tests: `test/file_prep_test.dart` (30: detection; a generated JPEG with GPS, Make, Model, Orientation 6, XMP, IPTC, a
+comment and an appended picture comes out with one Exif holding Orientation 6 and nothing else, the colour profile
+and the picture bytes untouched; without an orientation or upright, no Exif; PNG text, XMP, time and Exif gone, the
+orientation kept, the checksums valid; MP4 with `moov` first and last: location, device, Apple keys and XMP gone,
+times zeroed, the rotation matrix and `mdat` untouched, the length unchanged; which videos are converted; a box that
+lies; `prepareFile` with a fake conversion: JPEG, HEIC, MOV, H.264 MP4, PDF, the copies deleted and the picked file
+kept, the refusals, a photo past 20 MB). `test/attachments_test.dart` (41: the hint per combination of kinds and
+numbers, the sheet per combination, the library's request, a cancelled pick; the upload's body, declared length,
+headers and empty query, the status sequence and the polls' timing, the progress and its screen-reader labels, a
+failed upload retried with the whole file, a failed one removed locally, each error code's text, a video's limit, M9
+and a photo too large before upload, a response refusal ending the form, a rejected file, one upload at a time,
+nothing printed; remove with its confirmation and the DELETE, a required item on submit, the 409, the read-only list
+after submit, the leave prompt; an open response's files read for their status, a submitted one's listed with kind
+and size; M18 on Android, M19 with the settings, M20 and the picker's camera refusal; the sizes; the
+Content-Disposition). `questionnaire_test.dart` (3 new), `copy_test.dart` (attachments strings, the three plist
+strings), `book_test.dart` (2), `questionnaire_screen_test.dart` (1), `android_build_test.dart` (1). 292 mobile tests
+in all.
+
+Checks:
+- `make mobile-analyze` (`flutter analyze` in the flutter service, `--no-deps`): no issues.
+- `make mobile-test` (`flutter test`, same): 292 passed.
+- `flutter build apk --debug`: built (`app-debug.apk`, 229 s for Gradle). The flutter service has no Android SDK
+  (`precache --no-android`), so it ran once in a throwaway container from the local `salus-demo-android` image (Flutter
+  3.47.7, Android SDK with platform 37, JDK 21) on a copy of `mobile/` in the session's scratchpad: `compileSdk = 37`,
+  `MainActivity.kt` and Media3 1.11.1 compile. Gradle installed the NDK r28c, platform 35 and CMake 3.22.1 into that
+  container only. The iOS code (`AppDelegate.swift`) could not be compiled here (no macOS); it is checked in 4.1.
+- Device check: in 4.1 (the acceptance walk); the manual steps are in `mobile/README.md`.
+
+Dependencies (pinned exact; versions at least two weeks old):
+- `image_picker` 1.2.4 (2026-10-06), BSD-3-Clause, the Flutter team's plugin. The camera (photo, video) and the
+  system photo picker on both platforms, with the camera and photo-library errors as codes. Our own channel would
+  need `UIImagePickerController`/`PHPickerViewController` on iOS and the camera and photo-picker intents with a
+  `FileProvider` and the activity results on Android: several hundred lines of untested platform code. Runtime
+  dependencies: its federated implementations (`image_picker_android` 0.8.13+25, `image_picker_ios` 0.8.13+15,
+  `image_picker_platform_interface` 2.11.2, and the unused desktop and web ones), `cross_file`, `mime` 2.1.0,
+  `flutter_plugin_android_lifecycle` 2.0.35, and on desktop `file_selector_*`.
+- `file_picker` 13.1.0 (2026-09-15; 13.2.0 was 14 days old and 13.3.x newer), MIT. The system document picker for
+  PDFs (`UIDocumentPickerViewController`, the Storage Access Framework) with the file copied to a local path. Our
+  own would be about 80 lines of Swift and Kotlin with activity results and content-URI copying, untested here.
+  Runtime dependencies: `android_file_picker` 2.1.3, `file_picker_darwin` 2.4.2, `file_picker_platform_interface`
+  4.2.0, `cross_file` and the unused desktop and web implementations. The SPEC names both.
+- `http` 1.6.0: already the generated client's dependency (and a dev dependency here); now a direct one, for the
+  streamed upload.
+- Android: `androidx.media3:media3-transformer` and `media3-common` 1.11.1 (2026-09-11), Apache-2.0, Android's own
+  library; it brings `media3-exoplayer`, `media3-effect`, `media3-muxer`, `media3-datasource`, `media3-container`
+  (1.11.1) and AndroidX annotation and concurrent-futures. Transcoding through `MediaCodec` and `MediaMuxer` by hand
+  would be several hundred lines. iOS uses only the system's AVFoundation and ImageIO.
+- Metadata stripping uses no package: the JPEG, PNG and MP4 walkers are about 250 lines of Dart, tested on generated
+  files, where a package (`image`, `exif`) would decode and re-encode the picture or cover only Exif.
+
+Decided while the owner was away:
+- The binary id of a `valueAttachment` is read from its `url` (`…/binaries/<id>/content`); SPEC §2 "FHIR" says the
+  apps build the URL from the id but names no other place the id is carried. No SPEC row needed if 3.2 renders the
+  URL as the SPEC says; if it renders the id elsewhere, the app follows it.
+- The files of an open response are read for their status (`GET /binaries/{id}`, audited) once when the screen opens,
+  since the FHIR answer does not say which are pending. One audited read per file per opening.
+- A file that failed to upload (M5) does not hold Submit back; only files being prepared, sent or checked do (M10).
+  Removing it needs no confirmation: the server never had it.
+- A photo past 20 MB is refused on the device (M8) before it is read into memory to strip it; a video's and a PDF's
+  limits are left to the server, whose 413 comes from `Content-Length` before any byte is sent. Sizes in decimal
+  units (20 MB = 20,000,000 bytes), as shown in M13; should the server count MiB, the app is only the stricter.
+- A status read answering 404 (the file is gone, for example after a withdrawal) removes the row without a message.
+- The JPEG keeps its ICC colour profile (APP2) and Adobe's colour transform (APP14): they say how to show the colours,
+  hold no location, time or person, and a skin photo shown in the wrong colours would mislead. Everything else goes,
+  including JFIF. The PNG likewise keeps its colour chunks and `pHYs`. SPEC row needed (O13 names EXIF, XMP and IPTC
+  only).
+- Metadata is stripped in Dart after the platform conversion, not by the conversion alone, so the same tested code
+  covers every path (a JPEG or MP4 that needs no conversion included). The orientation is kept as the only Exif tag
+  (SPEC §2 allows either way); a converted HEIC on Android is written upright by `ImageDecoder` with no tag.
+- A video conversion uses the 1920x1080 preset on iOS (H.264; HEVC presets are separate), which also brings a 4K
+  video under the 200 MB limit sooner.
+- The footer's "Saved" shows also before the first change: with nothing unsaved, everything is saved ("always
+  visible", owner).
+- The owner's change of the questionnaire tests: "Saved" and "Not saved…" are now expected inside the footer
+  (`questionnaire-footer`), where they were expected anywhere on the page before; the test "an item type the app
+  does not know is kept as unsupported" uses `quantity`, as `attachment` is now known; the iOS purpose-string test
+  reads `docs/attachments/COPY.md` (M15, M16 replace the consultation's strings, M17 added).
+- `files` is passed down the screens next to `media` (`SalusApp` to `QuestionnaireScreen`), as the camera and
+  LiveKit are.
+
+Copy added by the session, not yet reviewed: none. Every new string is in `docs/attachments/COPY.md`.
+
+Dev stack: nothing run against it (no Go, no database, no object store); only the flutter service, and one throwaway
+container from the `salus-demo-android` image (its Android SDK) for the APK build, on a copy of `mobile/` in the
+session's scratchpad, removed after the run.
 
 ## 2.1 internal/binary: service, Postgres, handlers and wiring
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'messages.dart';
 import 'questionnaire.dart';
+import 'questionnaire_files.dart';
 import 'ui.dart' as ui;
 import 'zones.dart';
 
@@ -186,7 +187,7 @@ String answerText(Item item, List<Object> values) => switch (item.type) {
 };
 
 /// A submitted response read only (M14): every shown section and question with its answer, or "Not answered",
-/// one row each for the page's lazy list.
+/// one row each for the page's lazy list; a file upload answer as its files (docs/attachments/COPY.md M12).
 List<Widget> answersRead(
   BuildContext context, {
   required List<Item> items,
@@ -207,7 +208,12 @@ List<Widget> answersRead(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(it.text, style: label),
-            Text((answers[it.linkId] ?? const []).isEmpty ? notAnswered : answerText(it, answers[it.linkId]!)),
+            if ((answers[it.linkId] ?? const []).isEmpty)
+              const Text(notAnswered)
+            else if (it.type == ItemType.attachment)
+              ...filesRead(context, answers[it.linkId]!.cast<Attached>())
+            else
+              Text(answerText(it, answers[it.linkId]!)),
           ],
         ),
   ];
