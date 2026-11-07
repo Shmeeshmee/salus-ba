@@ -6,7 +6,6 @@ import { newApiClient, type Account } from './api/client'
 import { newFhirClient, type Patient } from './api/fhir'
 import { formatDate } from './i18n/format'
 import type { Language } from './i18n/languages'
-import { renderInLanguage } from './i18n/renderInLanguage'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, paths, type Route } from './test/fakeFetch'
 import { admin, appointment, clinicRoute, cy, dee, meta, org, patientId, practitioner } from './test/fixtures'
 

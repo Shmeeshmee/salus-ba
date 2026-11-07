@@ -40,6 +40,6 @@ describe('joinMessage', () => {
 
   it('writes the text in the UI language', () => {
     expect(joinMessage('consultation_ended', translator('bs'))).toBe('Ova konsultacija je završena.')
-    expect(joinMessage(undefined, translator('sr-Cyrl'))).toBe('Дошло је до грешке. Покушајте поново.')
+    expect(joinMessage(undefined, translator('sr-Cyrl'))).toBe('Нешто није у реду. Покушајте поново.')
   })
 })

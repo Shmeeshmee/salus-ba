@@ -189,8 +189,8 @@ the owner was away".
   test advanced a fake clock nothing was listening to. The tests now wait for that interval (a condition), with
   no longer timeout and no retry. Probe: missing once in 120 renders under CPU load before; 120/120 after.
 - **Wave 1 integration: the `common` web catalog is the union of 1.5's and 1.6's keys.** They agreed on every
-  shared key but "Something went wrong. Try again.": 1.6's "Došlo je do greške. Pokušajte ponovo." (hr "Došlo je
-  do pogreške. Pokušajte ponovno.", sr likewise) is kept as the more natural wording for an error.
+  shared key but "Something went wrong. Try again.": 1.5's "Nešto nije u redu. Pokušajte ponovo." (and its hr and sr
+  forms) is kept, the wording two of 1.5's tests assert (one 1.6 test that asserted the other wording follows the catalog); 1.6's "Došlo je do greške." is the alternative for the reviewer.
 - **`web/src/messages.ts` is deleted**, and `timeOf` and `longDate` in `web/src/time.ts` with their one test:
   after wave 1 nothing imports them (CLAUDE.md: delete unused code), and they were English-only formatters.
 - **The questionnaire service gets the organization service as its `Clinics` port** in `internal/api/app.go` and
@@ -200,6 +200,10 @@ the owner was away".
 - **Area A and area B keep separate keys for a few shared English strings** (`calendar.join` and
   `consultation.join`, the consultation states, the default questionnaire texts): folding them is a later
   clean-up, not needed for correctness.
+- **Wave 1 integration: the worker's booking fixture gives its patient the language `en`.** Since 1.3, a patient
+  with no language gets Bosnian e-mails (SPEC §3), and the worker tests assert the English texts; the fixture now
+  states the choice instead of the tests changing what they assert. Two test files had `renderInLanguage`
+  imported twice after the merge of areas A and B; one import each was removed.
 
 ### 0.1 Baseline: database, contract, checks
 

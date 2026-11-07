@@ -4,7 +4,6 @@ import { renderInLanguage } from './i18n/renderInLanguage'
 import App from './App'
 import { newApiClient, type Account } from './api/client'
 import { newFhirClient } from './api/fhir'
-import { renderInLanguage } from './i18n/renderInLanguage'
 import { loadSavedLanguage } from './i18n/saved'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, type Route } from './test/fakeFetch'
 
