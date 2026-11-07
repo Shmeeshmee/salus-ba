@@ -43,6 +43,11 @@ var (
 	ErrInvalidInvite = errors.New("auth: invalid invite")
 	// ErrNotStaff is returned when resetting MFA of a patient account (staff only).
 	ErrNotStaff = errors.New("auth: not a staff account")
+	// ErrInvalidLanguage is returned for a language tag that is not one of the enum language
+	// (docs/i18n/SPEC.md §3 "Tags").
+	ErrInvalidLanguage = errors.New("auth: invalid language")
+	// ErrLanguageUnavailable is returned when a staff account chooses a language the web app does not offer.
+	ErrLanguageUnavailable = errors.New("auth: language unavailable")
 )
 
 // RateLimitedError is returned for a login over its limit; the password was not checked.

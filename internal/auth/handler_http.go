@@ -19,9 +19,10 @@ const maxBody = 4 << 10
 
 // AccountService is what the handlers call (Service).
 type AccountService interface {
-	Register(ctx context.Context, email, password string) (Account, error)
+	Register(ctx context.Context, email, password, language, detected string) (Account, error)
 	Me(ctx context.Context, id string) (Account, error)
-	Login(ctx context.Context, email, password, clientIP string) (LoginResult, error)
+	SetLanguage(ctx context.Context, id, language string) (Account, error)
+	Login(ctx context.Context, email, password, clientIP, language, detected string) (LoginResult, error)
 	Enrol(ctx context.Context, challenge string, sess Session) (Enrolment, error)
 	Confirm(ctx context.Context, challenge string, sess Session, code string) (LoginResult, error)
 	Verify(ctx context.Context, challenge, code string) (LoginResult, error)
@@ -29,7 +30,7 @@ type AccountService interface {
 	Authenticate(ctx context.Context, token string) (Session, error)
 	Invite(ctx context.Context, sess Session, in Invite) (Invite, error)
 	ListInvites(ctx context.Context, sess Session) ([]Invite, error)
-	AcceptInvite(ctx context.Context, token, password string) (Acceptance, error)
+	AcceptInvite(ctx context.Context, token, password, language, detected string) (Acceptance, error)
 }
 
 // Handler serves the auth endpoints of api/openapi.yaml and the session middleware. Errors are
@@ -50,6 +51,7 @@ func NewHandler(svc AccountService, log *slog.Logger, trustedProxies []netip.Pre
 func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/register", h.register)
 	mux.HandleFunc("GET /auth/me", h.me)
+	mux.HandleFunc("PATCH /auth/me", h.updateMe)
 	mux.HandleFunc("POST /auth/login", h.login)
 	mux.HandleFunc("POST /auth/mfa/enrol", h.enrol)
 	mux.HandleFunc("POST /auth/mfa/confirm", h.confirm)
@@ -67,24 +69,58 @@ type accountJSON struct {
 	Role           Role   `json:"role"`
 	OrganizationID string `json:"organizationId,omitempty"`
 	PractitionerID string `json:"practitionerId,omitempty"`
+	Language       string `json:"language,omitempty"` // the choice only: the detected language stays on the server
 	MFAEnrolled    bool   `json:"mfaEnrolled"`
 }
 
 func toJSON(a Account) accountJSON {
 	return accountJSON{
-		ID: a.ID, Email: a.Email, Role: a.Role, OrganizationID: a.OrganizationID, PractitionerID: a.PractitionerID, MFAEnrolled: a.MFAEnrolled(),
+		ID: a.ID, Email: a.Email, Role: a.Role, OrganizationID: a.OrganizationID, PractitionerID: a.PractitionerID,
+		Language: a.Language, MFAEnrolled: a.MFAEnrolled(),
 	}
+}
+
+// languagesJSON are the languages a registration, a sign-in or an invite acceptance carries
+// (docs/i18n/SPEC.md §3 "Picking and saving"): each a tag, JSON null or absent.
+type languagesJSON struct {
+	Language         *string `json:"language"`
+	DetectedLanguage *string `json:"detectedLanguage"`
+}
+
+// decodeSignIn reads a request that carries the languages into v, which embeds l, and returns them, "" for
+// null or absent; or answers 400 invalid_request, also for an empty tag. The service checks the tags.
+func decodeSignIn(w http.ResponseWriter, r *http.Request, v any, l *languagesJSON) (language, detected string, ok bool) {
+	if !decodeJSON(w, r, v) {
+		return "", "", false
+	}
+	language, okLanguage := tagOf(l.Language)
+	detected, okDetected := tagOf(l.DetectedLanguage)
+	if !okLanguage || !okDetected {
+		writeCode(w, http.StatusBadRequest, "invalid_request")
+		return "", "", false
+	}
+	return language, detected, true
+}
+
+// tagOf is the tag p points to, "" for nil, and false for an empty tag.
+func tagOf(p *string) (string, bool) {
+	if p == nil {
+		return "", true
+	}
+	return *p, *p != ""
 }
 
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		languagesJSON
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-	if !decodeJSON(w, r, &req) {
+	language, detected, ok := decodeSignIn(w, r, &req, &req.languagesJSON)
+	if !ok {
 		return
 	}
-	a, err := h.svc.Register(r.Context(), req.Email, req.Password)
+	a, err := h.svc.Register(r.Context(), req.Email, req.Password, language, detected)
 	if err != nil {
 		h.writeError(w, r, err)
 		return
@@ -99,6 +135,36 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a, err := h.svc.Me(r.Context(), id)
+	if err != nil {
+		h.writeError(w, r, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, toJSON(a))
+}
+
+// updateMe saves or clears the account's chosen language. The body must hold language, a tag or null.
+func (h *Handler) updateMe(w http.ResponseWriter, r *http.Request) {
+	id := AccountIDFrom(r.Context())
+	if id == "" {
+		writeCode(w, http.StatusUnauthorized, "unauthenticated")
+		return
+	}
+	var req struct {
+		Language json.RawMessage `json:"language"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	var tag *string
+	language, ok := "", false
+	if req.Language != nil && json.Unmarshal(req.Language, &tag) == nil {
+		language, ok = tagOf(tag)
+	}
+	if !ok {
+		writeCode(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	a, err := h.svc.SetLanguage(r.Context(), id, language)
 	if err != nil {
 		h.writeError(w, r, err)
 		return
@@ -137,6 +203,8 @@ var errorCodes = []struct {
 	{ErrInvalidRole, "invalid_role", http.StatusBadRequest},
 	{ErrInvalidName, "invalid_name", http.StatusBadRequest},
 	{ErrInvalidInvite, "invalid_invite", http.StatusNotFound},
+	{ErrInvalidLanguage, "invalid_request", http.StatusBadRequest}, // a tag outside the contract's enum
+	{ErrLanguageUnavailable, "language_unavailable", http.StatusUnprocessableEntity},
 }
 
 func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, err error) {

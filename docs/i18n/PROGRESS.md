@@ -385,6 +385,57 @@ Left for later (not this package's files):
 
 ### 1.1 internal/auth: the account's language
 
+Done 2026-11-08 on `i18n/1.1`.
+
+Built, all in `internal/auth/` (no file 0.1 owns, and not `service_notice.go`):
+- `service_language.go`: the ten tags and the five staff ones; `SetLanguage` (`PATCH /auth/me`: sets or, for
+  `""`, clears the choice; staff take only a staff language, else `ErrLanguageUnavailable`; audited as an
+  update, refusals and an unknown account as minor failures); `saveLanguages`, used by sign-in.
+- `Register`, `Login` and `AcceptInvite` take the chosen and the detected language (`""` for none). A tag
+  outside the enum is `ErrInvalidLanguage` before anything is hashed, counted, read or audited. Registration
+  stores both on the new patient account; invite acceptance on the new staff account; sign-in, once the
+  password is right and before the TOTP step, writes each that changed and audits one update event after the
+  login event, in the same transaction.
+- `errors.go`: `ErrInvalidLanguage` (400 `invalid_request`, as the contract says for a tag outside the list)
+  and `ErrLanguageUnavailable` (422 `language_unavailable`).
+- Handlers: register, login and invite acceptance accept `language` and `detectedLanguage`, each a tag, JSON
+  `null` or absent (the Dart client's explicit nulls included); an empty string or another type is 400
+  `invalid_request`. `PATCH /auth/me` (route added in `Routes`) requires `language`, a tag or `null`.
+  The `Account` JSON gains `language` (the choice only; the detected language never leaves the server).
+
+Test first (failures seen before the code):
+- `vet: internal/auth/login_bench_test.go:117:92: too many arguments in call to svc.Login` (the service tests
+  in `service_language_test.go` against the new signatures and `SetLanguage`);
+- with the handlers compiling but not yet reading the fields: `handler_http_language_test.go:52: register
+  with ,"language":"de","detectedLanguage":"ar" = 400 {"error":"invalid_request"}` (unknown field),
+  `PATCH /auth/me {} = 405 Method Not Allowed`, `GET /auth/me = 200 {…"mfaEnrolled":false}` without the
+  language.
+- `TestLanguages_AreSavedByRegistrationSignInAndTheChoiceInTheDatabase` (service on Postgres) was written after
+  the code, as a regression check of the whole path; it passed at once.
+
+Checks (each through `docker compose … run --rm --no-deps -T tools`):
+- `go test -count=1 -cover ./internal/auth/...`: ok, 96.0% (`authdb` is generated and excluded).
+- `go build ./...`, `go vet ./internal/... ./cmd/...`: clean.
+- `bash scripts/lint.sh` (with the main checkout's `.git` mounted read-only): 0 issues; check-migrations ok.
+- `go -C tools run ./archcheck -root /src`: passes.
+
+Decided while the owner was away:
+- **Sign-in saves the languages once the password is right, before the TOTP step.** Staff always have a TOTP
+  step and the languages arrive only with `POST /auth/login`; waiting for the code would lose a choice made on
+  the sign-in screen (SPEC §3 "Picking and saving"). A wrong password saves nothing. Only a value that changed
+  is written and audited, so a sign-in that changes nothing adds no update event.
+- **A patient language sent for a staff account at sign-in or invite acceptance is dropped, not refused.** The
+  contract lists no 422 for those endpoints, the web app only offers staff languages, and a preference must
+  not stop a sign-in. `PATCH /auth/me` refuses it with 422 `language_unavailable`, as the plan says.
+- **A tag outside the enum is 400 `invalid_request` everywhere** (the contract's wording for `PATCH /auth/me`),
+  checked in the service before any work; an empty string is refused by the handler.
+- **`SetLanguage` with the same language still writes and audits**: the user asked for it; simpler than a
+  compare, and it happens only on a click.
+- **The tag list is a slice in `service_language.go`**, not read from `authdb`, which only the repository may
+  import; the enum migration is the source and the tests pin every tag.
+
+COPY.md additions (not yet reviewed): none (the server returns codes, not text).
+
 ### 1.2 internal/organization: the clinic's default language
 
 ### 1.3 internal/notification: e-mails in every language

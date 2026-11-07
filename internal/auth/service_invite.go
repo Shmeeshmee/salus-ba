@@ -215,7 +215,12 @@ func (s *Service) IssueInviteToken(ctx context.Context, inviteID, org string) (e
 // account to it. It returns the enrolment and a challenge: POST /auth/mfa/confirm with the first code
 // finishes enrolment and opens the session. An unknown token gives ErrInvalidInvite (not audited: nothing
 // was accessed); an expired or used invite ErrInvalidInvite and a taken e-mail ErrEmailTaken, both audited.
-func (s *Service) AcceptInvite(ctx context.Context, token, password string) (Acceptance, error) {
+// language and detected are the language chosen on the invite screen and the one the app matched
+// (docs/i18n/SPEC.md §3), each "" for none; one that is not a staff language is not saved.
+func (s *Service) AcceptInvite(ctx context.Context, token, password, language, detected string) (Acceptance, error) {
+	if err := checkLanguages(language, detected); err != nil {
+		return Acceptance{}, err
+	}
 	hash, ok := tokenHash(token)
 	if !ok {
 		return Acceptance{}, ErrInvalidInvite
@@ -233,7 +238,7 @@ func (s *Service) AcceptInvite(ctx context.Context, token, password string) (Acc
 	var refused error
 	err = s.tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
-		a, refused, err = s.acceptInvite(ctx, hash, pwHash, secret)
+		a, refused, err = s.acceptInvite(ctx, hash, secret, Account{PasswordHash: pwHash, Language: language, DetectedLanguage: detected})
 		return err
 	})
 	switch {
@@ -250,8 +255,9 @@ func (s *Service) AcceptInvite(ctx context.Context, token, password string) (Acc
 	return Acceptance{Account: a, Challenge: challenge, Enrolment: newEnrolment(a.Email, secret)}, nil
 }
 
-// acceptInvite is AcceptInvite's transaction. refused is a refusal that is audited and commits.
-func (s *Service) acceptInvite(ctx context.Context, hash []byte, pwHash string, secret []byte) (a Account, refused, err error) {
+// acceptInvite is AcceptInvite's transaction: in holds the new account's password hash and languages.
+// refused is a refusal that is audited and commits.
+func (s *Service) acceptInvite(ctx context.Context, hash, secret []byte, in Account) (a Account, refused, err error) {
 	org, err := s.repo.InviteOrganization(ctx, hash)
 	if errors.Is(err, ErrInvalidInvite) {
 		return Account{}, ErrInvalidInvite, nil
@@ -267,7 +273,10 @@ func (s *Service) acceptInvite(ctx context.Context, hash []byte, pwHash string, 
 		return Account{}, nil, err
 	}
 	now := s.clock.Now()
-	a = Account{Email: inv.Email, Role: inv.Role, OrganizationID: inv.OrganizationID, PasswordHash: pwHash}
+	a = Account{
+		Email: inv.Email, Role: inv.Role, OrganizationID: inv.OrganizationID, PasswordHash: in.PasswordHash,
+		Language: forRole(inv.Role, in.Language), DetectedLanguage: forRole(inv.Role, in.DetectedLanguage),
+	}
 	refused = ErrInvalidInvite
 	if inv.open(now) {
 		a.ID, err = s.repo.Create(ctx, a)

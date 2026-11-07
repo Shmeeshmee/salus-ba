@@ -51,7 +51,7 @@ func enrolled(a auth.Account) auth.Account {
 func TestLogin_OpensASessionForAPatientWithoutMFA(t *testing.T) {
 	f := newFixture(patientWithoutMFA())
 
-	got, err := f.svc.Login(t.Context(), " Ana@Example.test", password, clientIP)
+	got, err := f.svc.Login(t.Context(), " Ana@Example.test", password, clientIP, "", "")
 
 	if err != nil || got.Next != auth.NextDone || got.Challenge != "" {
 		t.Fatalf("Login() = %+v, %v; want an open session", got, err)
@@ -74,8 +74,8 @@ func TestLogin_OpensASessionForAPatientWithoutMFA(t *testing.T) {
 
 func TestLogin_GivesEachSessionItsOwnToken(t *testing.T) {
 	f := newFixture(patientWithoutMFA())
-	first, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP)
-	second, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP)
+	first, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "")
+	second, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "")
 	if first.Token == second.Token || len(f.repo.sessions) != 2 {
 		t.Errorf("two logins gave tokens %q and %q, %d sessions", first.Token, second.Token, len(f.repo.sessions))
 	}
@@ -95,7 +95,7 @@ func TestLogin_AsksForMFAAndOpensNoSessionUntilThen(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newFixture(tt.account)
 
-			got, err := f.svc.Login(t.Context(), tt.account.Email, password, clientIP)
+			got, err := f.svc.Login(t.Context(), tt.account.Email, password, clientIP, "", "")
 
 			if err != nil || got.Next != tt.want || got.Token != "" || len(f.repo.sessions) != 0 {
 				t.Fatalf("Login() = %+v, %v with %d sessions; want next %q and no session", got, err, len(f.repo.sessions), tt.want)
@@ -114,7 +114,7 @@ func TestLogin_AsksForMFAAndOpensNoSessionUntilThen(t *testing.T) {
 func TestLogin_RejectsAWrongPasswordCountsItAndAuditsTheFailure(t *testing.T) {
 	f := newFixture(staff())
 
-	_, err := f.svc.Login(t.Context(), "ben@example.test", "not the password", clientIP)
+	_, err := f.svc.Login(t.Context(), "ben@example.test", "not the password", clientIP, "", "")
 
 	if !errors.Is(err, auth.ErrWrongCredentials) {
 		t.Fatalf("Login() error = %v, want ErrWrongCredentials", err)
@@ -144,7 +144,7 @@ func (f fixture) emailFailures() int64 {
 func TestLogin_HashesADummyForAnUnknownEmail(t *testing.T) {
 	f := newFixture(staff())
 
-	_, err := f.svc.Login(t.Context(), "nobody@example.test", password, clientIP)
+	_, err := f.svc.Login(t.Context(), "nobody@example.test", password, clientIP, "", "")
 
 	if !errors.Is(err, auth.ErrWrongCredentials) {
 		t.Fatalf("Login() error = %v, want ErrWrongCredentials (the same as a wrong password)", err)
@@ -164,7 +164,7 @@ func TestLogin_ReHashesAHashWithOlderParameters(t *testing.T) {
 	f := newFixture(patientWithoutMFA())
 	f.hasher.stale = true
 
-	if _, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP); err != nil {
+	if _, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.repo.rehashed[accountID]; got != "hashed:"+strings.ToUpper(password) {
@@ -182,7 +182,7 @@ func TestLogin_HashesOutsideTheTransaction(t *testing.T) {
 	} {
 		f := newFixture(staff())
 		change(&f)
-		_, _ = f.svc.Login(t.Context(), "ben@example.test", password, clientIP)
+		_, _ = f.svc.Login(t.Context(), "ben@example.test", password, clientIP, "", "")
 		if f.hasher.hashes == 0 || f.hasher.inTx != 0 {
 			t.Errorf("%s: %d of %d hashes inside the transaction, want none (it would hold a connection)", name, f.hasher.inTx, f.hasher.hashes)
 		}
@@ -193,7 +193,7 @@ func TestLogin_DecidesOnTheAccountAsReadInTheTransaction(t *testing.T) {
 	t.Run("the account enrolled while hashing", func(t *testing.T) {
 		f := newFixture(patientWithoutMFA())
 		f.repo.inTx = func() { f.repo.accounts[accountID] = enrolled(patientWithoutMFA()) }
-		got, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP)
+		got, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "")
 		if err != nil || got.Next != auth.NextVerify {
 			t.Errorf("Login() = %+v, %v; want the next step of the account as read in the transaction", got, err)
 		}
@@ -201,7 +201,7 @@ func TestLogin_DecidesOnTheAccountAsReadInTheTransaction(t *testing.T) {
 	t.Run("the hash was replaced while hashing", func(t *testing.T) {
 		f := newFixture(staff())
 		f.repo.inTx = func() { f.repo.accounts[accountID] = withHash(staff(), "hashed:NEWER") }
-		_, err := f.svc.Login(t.Context(), "ben@example.test", password, clientIP)
+		_, err := f.svc.Login(t.Context(), "ben@example.test", password, clientIP, "", "")
 		if !errors.Is(err, auth.ErrWrongCredentials) {
 			t.Fatalf("Login() error = %v, want ErrWrongCredentials: the verified hash is no longer the stored one", err)
 		}
@@ -212,7 +212,7 @@ func TestLogin_DecidesOnTheAccountAsReadInTheTransaction(t *testing.T) {
 	t.Run("the account was removed while hashing", func(t *testing.T) {
 		f := newFixture(staff())
 		f.repo.inTx = func() { delete(f.repo.accounts, accountID) }
-		_, err := f.svc.Login(t.Context(), "ben@example.test", password, clientIP)
+		_, err := f.svc.Login(t.Context(), "ben@example.test", password, clientIP, "", "")
 		if !errors.Is(err, auth.ErrWrongCredentials) {
 			t.Fatalf("Login() error = %v, want ErrWrongCredentials", err)
 		}
@@ -226,13 +226,13 @@ func TestLogin_LimitsFailuresPerEmailWithoutCheckingThePassword(t *testing.T) {
 	f := newFixture(patientWithoutMFA())
 	for i := range 5 {
 		ip := "192.0.2." + string(rune('1'+i)) // other addresses: the e-mail's limit holds across them
-		if _, err := f.svc.Login(t.Context(), "ana@example.test", "not the password", ip); !errors.Is(err, auth.ErrWrongCredentials) {
+		if _, err := f.svc.Login(t.Context(), "ana@example.test", "not the password", ip, "", ""); !errors.Is(err, auth.ErrWrongCredentials) {
 			t.Fatalf("failure %d: %v", i+1, err)
 		}
 	}
 	hashes, events := f.hasher.hashes, len(f.audit.events)
 
-	_, err := f.svc.Login(t.Context(), "ANA@example.test", password, "198.51.100.7")
+	_, err := f.svc.Login(t.Context(), "ANA@example.test", password, "198.51.100.7", "", "")
 
 	var limited *auth.RateLimitedError
 	if !errors.As(err, &limited) || limited.RetryAfter != 15*time.Minute {
@@ -246,22 +246,22 @@ func TestLogin_LimitsFailuresPerEmailWithoutCheckingThePassword(t *testing.T) {
 func TestLogin_LimitsAttemptsPerIP(t *testing.T) {
 	f := newFixture(patientWithoutMFA())
 	for i := range 30 { // successful ones count too
-		if _, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP); err != nil {
+		if _, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", ""); err != nil {
 			t.Fatalf("attempt %d: %v", i+1, err)
 		}
 	}
 	var limited *auth.RateLimitedError
-	if _, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP); !errors.As(err, &limited) {
+	if _, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", ""); !errors.As(err, &limited) {
 		t.Fatalf("attempt 31 from one IP: %v, want RateLimitedError", err)
 	}
-	if _, err := f.svc.Login(t.Context(), "ana@example.test", password, "198.51.100.7"); err != nil {
+	if _, err := f.svc.Login(t.Context(), "ana@example.test", password, "198.51.100.7", "", ""); err != nil {
 		t.Errorf("an attempt from another IP: %v, want it to pass", err)
 	}
 }
 
 func TestLogin_KeysTheCountersByHMACNotByEmailOrIP(t *testing.T) {
 	f := newFixture(patientWithoutMFA())
-	_, _ = f.svc.Login(t.Context(), "ana@example.test", "not the password", clientIP)
+	_, _ = f.svc.Login(t.Context(), "ana@example.test", "not the password", clientIP, "", "")
 
 	if len(f.counters.counts) != 2 {
 		t.Fatalf("counters %v, want one for the IP and one for the e-mail", f.counters.counts)
@@ -289,7 +289,7 @@ func TestLogin_PassesFailuresOn(t *testing.T) {
 	} {
 		f := newFixture(patientWithoutMFA())
 		change(&f)
-		_, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP)
+		_, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "")
 		if !errors.Is(err, boom) || strings.Contains(err.Error(), "example.test") {
 			t.Errorf("%s fails: Login() error = %v, want it wrapped without the e-mail", name, err)
 		}
@@ -304,7 +304,7 @@ func TestLogin_PassesAFailureToCountAWrongPasswordOn(t *testing.T) {
 		Repo: f.repo, Hasher: f.hasher, Audit: f.audit, Tx: &fakeTransactor{}, Clock: clock.Fixed{T: now},
 		Counters: failing, RateLimitKey: []byte("k"),
 	})
-	if _, err := svc.Login(t.Context(), "ana@example.test", "not the password", clientIP); !errors.Is(err, boom) {
+	if _, err := svc.Login(t.Context(), "ana@example.test", "not the password", clientIP, "", ""); !errors.Is(err, boom) {
 		t.Errorf("Login() error = %v, want the counter's failure", err)
 	}
 }
@@ -325,7 +325,7 @@ func (c *failingCounters) Incr(ctx context.Context, key string, window time.Dura
 
 func TestAuthenticate_ReturnsAnOpenSessionWithoutAuditing(t *testing.T) {
 	f := newFixture(patientWithoutMFA())
-	res, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP)
+	res, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,12 +343,12 @@ func TestAuthenticate_ReturnsAnOpenSessionWithoutAuditing(t *testing.T) {
 
 func TestAuthenticate_RejectsUnknownMalformedExpiredAndRevokedTokens(t *testing.T) {
 	f := newFixture(patientWithoutMFA())
-	res, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP)
+	res, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "")
 	expired := newFixture(patientWithoutMFA())
-	expiredRes, _ := expired.svc.Login(t.Context(), "ana@example.test", password, clientIP)
+	expiredRes, _ := expired.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "")
 	expired.repo.session(t).ExpiresAt = now
 	revoked := newFixture(patientWithoutMFA())
-	revokedRes, _ := revoked.svc.Login(t.Context(), "ana@example.test", password, clientIP)
+	revokedRes, _ := revoked.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "")
 	if err := revoked.svc.Logout(t.Context(), revokedRes.Session); err != nil {
 		t.Fatal(err)
 	}
@@ -373,7 +373,7 @@ func TestAuthenticate_RejectsUnknownMalformedExpiredAndRevokedTokens(t *testing.
 
 func TestAuthenticate_PassesFailuresOn(t *testing.T) {
 	f := newFixture(patientWithoutMFA())
-	res, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP)
+	res, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "")
 	boom := errors.New("boom")
 	f.repo.sessionErr = boom
 	if _, err := f.svc.Authenticate(t.Context(), res.Token); !errors.Is(err, boom) {
@@ -422,7 +422,7 @@ func TestLogout_PassesFailuresOn(t *testing.T) {
 		"audit":  func(f *fixture) { f.audit.err = boom },
 	} {
 		f := newFixture(patientWithoutMFA())
-		res, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP)
+		res, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "")
 		change(&f)
 		if err := f.svc.Logout(t.Context(), res.Session); !errors.Is(err, boom) {
 			t.Errorf("%s fails: Logout() error = %v, want it wrapped", name, err)

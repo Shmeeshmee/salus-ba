@@ -33,8 +33,8 @@ func (s *stubService) ListInvites(_ context.Context, sess auth.Session) ([]auth.
 	return s.invites, s.err
 }
 
-func (s *stubService) AcceptInvite(_ context.Context, token, password string) (auth.Acceptance, error) {
-	s.acceptWith = [2]string{token, password}
+func (s *stubService) AcceptInvite(_ context.Context, token, password, language, detected string) (auth.Acceptance, error) {
+	s.acceptWith, s.languages = [2]string{token, password}, &[2]string{language, detected}
 	return s.acceptance, s.err
 }
 

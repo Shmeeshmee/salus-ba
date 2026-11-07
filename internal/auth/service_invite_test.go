@@ -246,7 +246,7 @@ func TestIssueInviteToken_StoresOnlyTheHashAndReplacesAnEarlierToken(t *testing.
 		t.Fatalf("a second IssueInviteToken() = %v; want a new token whose hash replaced the first", err)
 	}
 	// A retried job issues a new token, so the link in an earlier e-mail stops working (PROGRESS.md).
-	if _, err := f.svc.AcceptInvite(t.Context(), first, password); !errors.Is(err, auth.ErrInvalidInvite) {
+	if _, err := f.svc.AcceptInvite(t.Context(), first, password, "", ""); !errors.Is(err, auth.ErrInvalidInvite) {
 		t.Errorf("AcceptInvite() with the first token = %v, want ErrInvalidInvite", err)
 	}
 	if len(f.audit.events) != 0 {
@@ -268,7 +268,7 @@ func TestAcceptInvite_CreatesThePractitionersAccountDirectoryEntriesAndPendingTO
 	f := newFixture()
 	inv, token := invited(t, f, auth.Invite{Email: "cy@example.test", Role: auth.RolePractitioner, GivenName: "Cy", FamilyName: "Example"})
 
-	got, err := f.svc.AcceptInvite(t.Context(), token, password)
+	got, err := f.svc.AcceptInvite(t.Context(), token, password, "", "")
 
 	if err != nil {
 		t.Fatalf("AcceptInvite() error = %v", err)
@@ -313,7 +313,7 @@ func TestAcceptInvite_CreatesNoDirectoryEntryForAnAdmin(t *testing.T) {
 	f := newFixture()
 	_, token := invited(t, f, auth.Invite{Email: "cy@example.test", Role: auth.RoleAdmin})
 
-	if _, err := f.svc.AcceptInvite(t.Context(), token, password); err != nil {
+	if _, err := f.svc.AcceptInvite(t.Context(), token, password, "", ""); err != nil {
 		t.Fatalf("AcceptInvite() error = %v", err)
 	}
 	if f.repo.accounts[accountID].Role != auth.RoleAdmin || len(f.practitioners.practitioners) != 0 || len(f.practitioners.roles) != 0 || len(f.repo.links) != 0 {
@@ -332,7 +332,7 @@ func TestAcceptInvite_RejectsAnUnknownTokenOrABadPasswordWithoutAuditing(t *test
 		{auth.ErrInvalidInvite, challenge, password}, // well-formed, unknown
 		{auth.ErrInvalidPassword, token, "too short"},
 	} {
-		if _, err := f.svc.AcceptInvite(t.Context(), tt.token, tt.password); !errors.Is(err, tt.want) {
+		if _, err := f.svc.AcceptInvite(t.Context(), tt.token, tt.password, "", ""); !errors.Is(err, tt.want) {
 			t.Errorf("AcceptInvite(%q) = %v, want %v", tt.token, err, tt.want)
 		}
 	}
@@ -350,7 +350,7 @@ func TestAcceptInvite_RefusesAndAuditsAnExpiredOrAcceptedInvite(t *testing.T) {
 		inv, token := invited(t, f, auth.Invite{Email: "cy@example.test", Role: auth.RoleAdmin})
 		change(f.repo.invites[inv.ID])
 
-		_, err := f.svc.AcceptInvite(t.Context(), token, password)
+		_, err := f.svc.AcceptInvite(t.Context(), token, password, "", "")
 
 		if !errors.Is(err, auth.ErrInvalidInvite) || len(f.repo.accounts) != 0 {
 			t.Errorf("%s: AcceptInvite() = %v with %d accounts, want ErrInvalidInvite and none", name, err, len(f.repo.accounts))
@@ -367,7 +367,7 @@ func TestAcceptInvite_RefusesAndAuditsATakenEmailLeavingTheInviteOpen(t *testing
 	f := newFixture(existing)
 	inv, token := invited(t, f, auth.Invite{Email: "cy@example.test", Role: auth.RolePractitioner, GivenName: "Cy", FamilyName: "Example"})
 
-	_, err := f.svc.AcceptInvite(t.Context(), token, password)
+	_, err := f.svc.AcceptInvite(t.Context(), token, password, "", "")
 
 	if !errors.Is(err, auth.ErrEmailTaken) || !f.repo.invites[inv.ID].AcceptedAt.IsZero() || len(f.practitioners.practitioners) != 0 {
 		t.Errorf("AcceptInvite() = %v; want ErrEmailTaken, the invite still open and no Practitioner", err)
@@ -381,14 +381,14 @@ func TestAcceptInvite_FailsWhenTheDirectoryOrTheChallengeFails(t *testing.T) {
 	f := newFixture()
 	_, token := invited(t, f, auth.Invite{Email: "cy@example.test", Role: auth.RolePractitioner, GivenName: "Cy", FamilyName: "Example"})
 	f.practitioners.err = errors.New("directory down")
-	if _, err := f.svc.AcceptInvite(t.Context(), token, password); err == nil {
+	if _, err := f.svc.AcceptInvite(t.Context(), token, password, "", ""); err == nil {
 		t.Error("AcceptInvite() with a failing directory: error = nil")
 	}
 
 	f = newFixture()
 	_, token = invited(t, f, auth.Invite{Email: "cy@example.test", Role: auth.RoleAdmin})
 	f.challenges.err = errors.New("redis down")
-	if _, err := f.svc.AcceptInvite(t.Context(), token, password); err == nil {
+	if _, err := f.svc.AcceptInvite(t.Context(), token, password, "", ""); err == nil {
 		t.Error("AcceptInvite() with a failing challenge store: error = nil")
 	}
 }
@@ -421,7 +421,7 @@ func TestResetMFA_ClearsEnrolmentRevokesSessionsAndAuditsTheOperator(t *testing.
 		t.Errorf("audit event %+v,\nwant %+v", e, want)
 	}
 	// The next login asks for enrolment again.
-	if res, err := f.svc.Login(t.Context(), a.Email, password, clientIP); err != nil || res.Next != auth.NextEnrol {
+	if res, err := f.svc.Login(t.Context(), a.Email, password, clientIP, "", ""); err != nil || res.Next != auth.NextEnrol {
 		t.Errorf("Login() after the reset = %+v, %v; want next: enrol", res, err)
 	}
 }
