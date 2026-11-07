@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fakeFetch, fhirJSON, outcome } from '../test/fakeFetch'
-import { FhirError, listedURL, newFhirClient, participant, settingsOf, timeZoneURL, withSettings, type Appointment, type Organization } from './fhir'
+import { defaultLanguageURL, FhirError, listedURL, newFhirClient, participant, settingsOf, timeZoneURL, withSettings, type Appointment, type Organization } from './fhir'
 
 const org: Organization = {
   resourceType: 'Organization',
@@ -62,26 +62,28 @@ describe('clinic settings in the Organization', () => {
     extension: [
       { url: listedURL, valueBoolean: true },
       { url: timeZoneURL, valueCode: 'Europe/Berlin' },
+      { url: defaultLanguageURL, valueCode: 'hr' },
       { url: 'https://example.test/other', valueCode: 'kept' },
     ],
   }
 
-  it('reads listed and the time zone from their extensions', () => {
-    expect(settingsOf(withExtensions)).toEqual({ name: 'Synthetic clinic', listed: true, timeZone: 'Europe/Berlin' })
+  it('reads listed, the time zone and the default language from their extensions', () => {
+    expect(settingsOf(withExtensions)).toEqual({ name: 'Synthetic clinic', listed: true, timeZone: 'Europe/Berlin', defaultLanguage: 'hr' })
   })
 
-  it('reads an Organization without them as not listed, in the default zone', () => {
-    expect(settingsOf(org)).toEqual({ name: 'Synthetic clinic', listed: false, timeZone: 'Europe/Sarajevo' })
+  it('reads an Organization without them as not listed, in the default zone, in Bosnian', () => {
+    expect(settingsOf(org)).toEqual({ name: 'Synthetic clinic', listed: false, timeZone: 'Europe/Sarajevo', defaultLanguage: 'bs' })
   })
 
   it('writes the settings into the resource and keeps other extensions', () => {
-    const out = withSettings(withExtensions, { name: 'Renamed', listed: false, timeZone: 'Europe/Sarajevo' })
+    const out = withSettings(withExtensions, { name: 'Renamed', listed: false, timeZone: 'Europe/Sarajevo', defaultLanguage: 'en' })
 
     expect(out.name).toBe('Renamed')
     expect(out.extension).toEqual([
       { url: 'https://example.test/other', valueCode: 'kept' },
       { url: listedURL, valueBoolean: false },
       { url: timeZoneURL, valueCode: 'Europe/Sarajevo' },
+      { url: defaultLanguageURL, valueCode: 'en' },
     ])
   })
 })

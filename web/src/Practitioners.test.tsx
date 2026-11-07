@@ -1,8 +1,10 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Practitioners } from './Practitioners'
 import { newApiClient, type Account } from './api/client'
 import { newFhirClient, type Bundle } from './api/fhir'
+import type { Language } from './i18n/languages'
+import { renderInLanguage } from './i18n/renderInLanguage'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, paths, type Route } from './test/fakeFetch'
 
 afterEach(cleanup)
@@ -61,9 +63,9 @@ const openInvite = {
   expiresAt: '2026-11-07T09:30:00Z',
 }
 
-function renderPractitioners(account: Account, routes: Record<string, Route>) {
+function renderPractitioners(account: Account, routes: Record<string, Route>, language: Language = 'en') {
   const fake = fakeFetch(routes)
-  render(<Practitioners api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} />)
+  renderInLanguage(<Practitioners api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} />, language)
   return fake
 }
 
@@ -253,5 +255,34 @@ describe('Practitioners', () => {
 
     await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toBe(message))
     expect(select.value).toBe(cardiology.code)
+  })
+})
+
+describe('Practitioners in a language', () => {
+  it('names the specialties from the catalog by their SNOMED code', async () => {
+    renderPractitioners(practitioner, { [search]: () => fhirJSON(bundle) }, 'hr')
+
+    expect(await screen.findByRole('heading', { name: 'Liječnici' })).toBeTruthy()
+    expect(screen.getByText('Kardiologija')).toBeTruthy()
+    expect(screen.getByText('Neaktivan')).toBeTruthy()
+  })
+
+  it("offers the specialties and shows the invites in the admin's language", async () => {
+    renderPractitioners(
+      admin,
+      {
+        [search]: () => fhirJSON(bundle),
+        'GET /invites': () => Response.json({ invites: [openInvite] }),
+        'GET /specialties': specialties,
+      },
+      'sr-Latn',
+    )
+
+    const select = (await screen.findByRole('combobox', { name: 'Specijalnost: Cy Example' })) as HTMLSelectElement
+    expect([...select.options].map((o) => o.textContent)).toEqual(['Kardiologija', 'Dermatologija'])
+    const invites = await screen.findByRole('list', { name: 'Otvorene pozivnice' })
+    expect(within(invites).getByText(/^Ljekar, Dana Invented · Ističe /)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Pošalji pozivnicu' })).toBeTruthy()
+    expect(screen.getByLabelText('Prezime')).toBeTruthy()
   })
 })

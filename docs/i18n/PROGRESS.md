@@ -393,6 +393,77 @@ Left for later (not this package's files):
 
 ### 1.5 Web area A: shell, sign-in, calendar, admin
 
+Done 2026-11-08 on `i18n/1.5` (unattended run, wave 1).
+
+Built:
+- Every string of App (header, navigation), SignIn, AcceptInvite, Enrolment, Calendar, Availability,
+  AppointmentDetail (all but the questionnaire and file parts), Practitioners, PractitionerPicker, ClinicSettings
+  and useSubmit goes through the catalogs `shell`, `auth`, `calendar`, `admin` and `common`, in the five staff
+  languages (English word for word from the earlier COPY.md files, as the code had it). Plurals in ICU ("Too many
+  attempts. Try again in # minutes": one, few, other in bs, hr, sr). The cancellation question carries the `legal`
+  tag. Specialty names come from `common` keyed `specialty.<SNOMED code>`, the API's text only for an unknown code.
+- `LanguagePicker.tsx`: the picker (COPY.md L1 to L3); in the header for staff, saving with `PATCH /auth/me` and
+  showing L4 "Language saved." (or the fixed error); `DeviceLanguagePicker` at the foot of the sign-in and invite
+  cards (`AuthCard`), kept on the device. `language.ts`: the L1 names and `signInLanguages`, which adds
+  `detectedLanguage` (matched from the browser) and the device's `language` (when picked) to sign-in and invite
+  acceptance. After `GET /auth/me` the account's language is applied (none: the browser's).
+- Clinic settings: "Default language" (S1, S2) among the staff languages; `api/fhir.ts` maps the extension
+  `organization-default-language` (`valueCode`, `bs` when absent) in `settingsOf` and `withSettings`.
+- Dates, times and numbers through `useFormat` / react-intl in the UI language: calendar day headings, times,
+  the appointment's date, joined-at times, birth date, invite expiry (24-hour). The working-hours fields are text
+  fields typed as HH:MM instead of `<input type="time">`, which showed AM/PM in an en-US browser (the demo issue);
+  a malformed time is refused before saving.
+- `messages.ts`: `wrongCode`, `tooManyAttempts` and `statusLabels` removed; `somethingWrong` stays (area B files
+  import it). `time.ts`: `dayLabel` removed; `timeOf` and `longDate` stay while area B files import them.
+
+Test first (failures seen before the code):
+- `LanguagePicker.test.tsx`: module not found.
+- App: `Unable to find an accessible element with the role "heading" and name "Kalendar"`, and the like for the
+  header picker. SignIn: `expected { email: 'staff@example.test', …(1) } to deeply equal { …(2) }` (no
+  `detectedLanguage`), `Unable to find … "Пријава"`. AcceptInvite: the same for the acceptance body and Bosnian.
+- Calendar, AppointmentDetail, Practitioners, ClinicSettings: `Unable to find …` for each translated name;
+  `api/fhir.test.ts`: `expected { name: 'Synthetic clinic', …(2) } to deeply equal { …(3) }` (no default language).
+- Availability: `expected 'time' to be 'text'`; `expected 'Something went wrong. Try again.' to be 'Enter each time
+  as hours and minutes, …'`. useSubmit: `expected 'Something went wrong. Try again.' to be 'Nešto nije u redu.
+  Pokušajte ponovo.'`.
+- Seen passing from the start (a guard, not a new behaviour): Calendar "writes times in 24 hours" in sr-Cyrl.
+- Existing tests changed on purpose: they render with `renderInLanguage(…, 'en')`; the sign-in and acceptance
+  bodies now carry `detectedLanguage: 'en'`; the appointment date reads "Monday, 9 November 2026, 09:00–09:30"
+  (Intl's punctuation, 0.2's decision); the clinic save sends the default-language extension; `time.test.ts` loses
+  the `dayLabel` line with the function.
+
+Checks (each through `docker compose … run --rm --no-deps -T node`):
+- `npm run lint`: 0 warnings, 0 errors. `npm run typecheck`: clean. `npx vitest run`: 30 files, 511 tests passed.
+  `npm run build`: built (the existing over-500 kB chunk warning).
+- Catalogs: `bash ../scripts/i18n-check.sh`: "catalogs pass".
+- Go lint, archcheck, Go tests: not applicable (no Go file changed). No browser walk (3.1 walks).
+
+Decided while the owner was away:
+- **The picker is in the header and on the sign-in and invite cards**; the web app has no personal settings page,
+  so "header and settings" is the header. Patients (who are told to use the app) get no picker.
+- **Language names (L1) are a constant (`language.ts`), not catalog entries**: each name is the same in every UI
+  language. The one exception to "no literal strings" in these files, besides the logo's "Salus".
+- **The header switches the UI at once and saves after**; a failed save leaves the UI and the device in the chosen
+  language and shows the fixed error. After `GET /auth/me` the account's language (none: the browser's) is
+  applied and kept on the device, so the account wins on every device (SPEC §2).
+- **Sign-in sends `language` only when one was picked on the device**, `detectedLanguage` always (the contract
+  makes both optional).
+- **Working-hours times are text fields (HH:MM, numeric keyboard)**: `<input type="time">` follows the browser's
+  locale, which is the AM/PM issue the plan wants gone. A new message for a malformed time (below).
+- **Area A uses its own catalog keys for strings area B also has** (`calendar.join`, `calendar.joinFrom`, the
+  consultation states, the default questionnaire's W30/W31 texts), so this package needs none of 1.6's catalog
+  files; English is word for word the same. The integration step may fold them into 1.6's ids.
+- **"Practitioner" is translated as the doctor ("Ljekar", "Liječnik", "Љекар")**, as clinics in BiH say it; the
+  twelve specialties are all doctors' specialties. ENT is "ORL"/"ОРЛ", as doctors write it.
+- **"Times in [zone]" is "Vremenska zona: [zone]"** in bs, hr and sr: plainer than a word-for-word "Vremena u".
+- **Small edits outside the area's components**: `web/src/api/fhir.ts` and its test (the default-language
+  extension), `web/src/app.css` (the picker, text time fields).
+
+COPY.md additions (not yet reviewed):
+- A1 (web, Availability, a malformed working-hours time): "Enter each time as hours and minutes, from 00:00 to
+  23:59." (`calendar.invalidTime`)
+
+
 ### 1.6 Web area B: questionnaires, consultation, attachments
 
 ### 1.7 Mobile: every screen in ten languages

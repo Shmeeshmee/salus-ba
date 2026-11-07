@@ -1,18 +1,23 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SignIn } from './SignIn'
 import { newApiClient } from './api/client'
+import type { Language } from './i18n/languages'
+import { renderInLanguage } from './i18n/renderInLanguage'
 import { apiError, expectCsrfOnWrites, fakeFetch, paths, type Route } from './test/fakeFetch'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  localStorage.clear()
+})
 
 const secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
 const uri = `otpauth://totp/Salus:staff%40example.test?secret=${secret}&issuer=Salus`
 
-function renderSignIn(routes: Record<string, Route>) {
+function renderSignIn(routes: Record<string, Route>, language: Language = 'en') {
   const fake = fakeFetch(routes)
   const onSignedIn = vi.fn()
-  render(<SignIn api={newApiClient(fake.fetch)} onSignedIn={onSignedIn} />)
+  renderInLanguage(<SignIn api={newApiClient(fake.fetch)} onSignedIn={onSignedIn} />, language)
   return { ...fake, onSignedIn }
 }
 
@@ -34,7 +39,7 @@ describe('SignIn', () => {
     signInWithPassword()
 
     await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalled())
-    expect(await requests[0].json()).toEqual({ email: 'staff@example.test', password: 'correct horse battery' })
+    expect(await requests[0].json()).toEqual({ email: 'staff@example.test', password: 'correct horse battery', detectedLanguage: 'en' })
     expectCsrfOnWrites(requests)
   })
 
@@ -145,5 +150,42 @@ describe('SignIn', () => {
     signInWithPassword()
 
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Something went wrong. Try again.')
+  })
+})
+
+describe('SignIn in a language', () => {
+  it('is in the language it opens in', () => {
+    renderSignIn({}, 'sr-Cyrl')
+
+    expect(screen.getByRole('heading', { name: 'Пријава' })).toBeTruthy()
+    expect(screen.getByLabelText('Лозинка')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Пријави се' })).toBeTruthy()
+  })
+
+  it('switches to the language picked and sends it with the sign-in', async () => {
+    const { requests } = renderSignIn({ 'POST /auth/login': () => Response.json({ next: 'done' }) })
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Language' }), { target: { value: 'hr' } })
+    fireEvent.change(screen.getByLabelText('E-pošta'), { target: { value: 'staff@example.test' } })
+    fireEvent.change(screen.getByLabelText('Lozinka'), { target: { value: 'correct horse battery' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Prijavi se' }))
+
+    await vi.waitFor(() => expect(requests).toHaveLength(1))
+    expect(await requests[0].json()).toEqual({
+      email: 'staff@example.test',
+      password: 'correct horse battery',
+      language: 'hr',
+      detectedLanguage: 'en',
+    })
+  })
+
+  it('says how long to wait in the plural form of the language', async () => {
+    renderSignIn({ 'POST /auth/login': () => apiError(429, 'rate_limited', { 'Retry-After': '120' }) }, 'hr')
+
+    fireEvent.change(screen.getByLabelText('E-pošta'), { target: { value: 'staff@example.test' } })
+    fireEvent.change(screen.getByLabelText('Lozinka'), { target: { value: 'correct horse battery' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Prijavi se' }))
+
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Previše pokušaja. Pokušajte ponovno za 2 minute.')
   })
 })

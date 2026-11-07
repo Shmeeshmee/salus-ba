@@ -1,8 +1,11 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppointmentDetail } from './AppointmentDetail'
 import { newApiClient, type Account } from './api/client'
 import { newFhirClient, type Patient } from './api/fhir'
+import { formatDate } from './i18n/format'
+import type { Language } from './i18n/languages'
+import { renderInLanguage } from './i18n/renderInLanguage'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, paths, type Route } from './test/fakeFetch'
 import { admin, appointment, clinicRoute, cy, dee, meta, org, patientId, practitioner } from './test/fixtures'
 
@@ -34,14 +37,14 @@ function answer(status: string) {
   return Response.json({ id, organizationId: org, practitionerRoleId: cy.roleId, slotId: id, start: booked.start, end: booked.end, status, versionId: 2 })
 }
 
-function renderDetail(account: Account, routes: Record<string, Route>, now = after) {
+function renderDetail(account: Account, routes: Record<string, Route>, now = after, language: Language = 'en') {
   const fake = fakeFetch({
     ...clinicRoute,
     [statusGet]: () => apiError(404, 'not_found'),
     [questionnaireSearch]: () => fhirJSON({ resourceType: 'Bundle', type: 'searchset' }),
     ...routes,
   })
-  render(<AppointmentDetail api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} id={id} now={now} />)
+  renderInLanguage(<AppointmentDetail api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} id={id} now={now} />, language)
   return fake
 }
 
@@ -49,7 +52,7 @@ describe('AppointmentDetail', () => {
   it('shows the date and times in the clinic zone, and the status', async () => {
     renderDetail(practitioner, { [read]: () => fhirJSON(booked), [patientRead]: () => outcome(404, 'not-found') })
 
-    expect(await screen.findByText('Monday 9 November 2026, 09:00–09:30')).toBeTruthy()
+    expect(await screen.findByText('Monday, 9 November 2026, 09:00–09:30')).toBeTruthy()
     expect(screen.getByText('Booked')).toBeTruthy()
   })
 
@@ -291,5 +294,42 @@ describe('AppointmentDetail', () => {
       await (await section()).findByText('No questionnaires requested.')
       expect(screen.queryByRole('button', { name: 'Add questionnaire' })).toBeNull()
     })
+  })
+})
+
+describe('AppointmentDetail in a language', () => {
+  it('shows the appointment, the profile and the actions in the language', async () => {
+    renderDetail(practitioner, { [read]: () => fhirJSON(booked), [patientRead]: () => fhirJSON(patient) }, after, 'sr-Cyrl')
+
+    const date = formatDate(new Date(booked.start), 'Europe/Sarajevo', 'sr-Cyrl', 'long')
+    expect(date).toMatch(/понедјељак/i)
+    expect(await screen.findByText(`${date}, 09:00–09:30`)).toBeTruthy()
+    expect(screen.getByText('Заказан')).toBeTruthy()
+    expect(screen.getByText('Подаци о пацијенту')).toBeTruthy()
+    expect(screen.getByText(/јануар 1990/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Означи као обављен' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Откажи термин' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Календар' })).toBeTruthy()
+  })
+
+  it('shows the consultation status in the language', async () => {
+    renderDetail(admin, {
+      [read]: () => fhirJSON(booked),
+      [statusGet]: () => Response.json({ state: 'ended', patientJoinedAt: '2026-11-09T08:01:00Z', endedAt: '2026-11-09T09:00:00Z', endReason: 'practitioner_absent' }),
+    }, after, 'hr')
+
+    const s = within(await screen.findByRole('region', { name: 'Konzultacija' }))
+    expect(s.getByText('Završena')).toBeTruthy()
+    expect(s.getByText('Pacijent se pridružio u 09:01')).toBeTruthy()
+    expect(s.getByText('Liječnik se nije pridružio')).toBeTruthy()
+  })
+
+  it('asks before cancelling, in the language', async () => {
+    renderDetail(admin, { [read]: () => fhirJSON(booked) }, after, 'bs')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Otkaži termin' }))
+
+    expect(screen.getByText('Otkazati ovaj termin? Pacijent će biti obaviješten e-mailom, a vrijeme ponovo postaje slobodno.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Da, otkaži' })).toBeTruthy()
   })
 })
