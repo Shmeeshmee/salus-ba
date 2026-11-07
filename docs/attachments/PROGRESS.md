@@ -1453,3 +1453,10 @@ gone; its object goes with the purger after 24 h). salus-demo-* containers untou
   - Not fixed here: iPhone MOV timed-metadata tracks need a real iPhone (owner).
   - Checks: `make mobile-analyze` no issues; `make mobile-test` 314 tests pass; `dart format` clean. Not run: `make
     e2e` (shared stack, see above).
+- 2026-11-07, integration of the two review-fix branches: the first `make e2e` after merging failed
+  (`GET /binaries/<id> = 404, want 200` while waiting for the EICAR file to become `rejected`). The server fix "a
+  file its response no longer lists is read by nobody" also hid a rejected file's status, because the scan detaches
+  a rejected file; the patient's app polls that status to show M7. Fixed test first
+  (`TestStatus_StillAnswersARejectedFileTheResponseNoLongerLists` failed with `not found`): a rejected file's status
+  stays readable (it has no key and no object left, and `Download` still refuses it); a clean or quarantined file
+  that is no longer listed stays refused. Then lint, archcheck, test, cover and `make e2e` twice in a row pass.

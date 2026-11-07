@@ -285,3 +285,18 @@ func TestStatusAndDownload_RefuseAFileTheResponseNoLongerLists(t *testing.T) {
 		}
 	}
 }
+
+// A rejected file is detached by the scan, but the patient's app still reads its status to show M7: only its
+// bytes are gone (no key, no object), so Status answers rejected and Download stays refused.
+func TestStatus_StillAnswersARejectedFileTheResponseNoLongerLists(t *testing.T) {
+	f := newFixture(t)
+	b := f.seed(t, pdf(), binary.StatusRejected)
+	f.holder.attached = nil
+	got, err := f.svc.Status(t.Context(), me, b.ID)
+	if err != nil || got.Status != binary.StatusRejected {
+		t.Fatalf("Status() of a rejected file = %v, %v, want it rejected", got.Status, err)
+	}
+	if _, err := f.svc.Download(t.Context(), me, b.ID); err == nil {
+		t.Error("Download() of a rejected file succeeded")
+	}
+}

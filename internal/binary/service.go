@@ -141,8 +141,13 @@ func (s *Service) read(ctx context.Context, c Caller, id string, check func(Bina
 }
 
 // listed is ErrNotFound when b's response no longer lists it (its answer dropped on submit, or the response
-// withdrawn): such a file waits for binary_discard and is read by nobody.
+// withdrawn): such a file waits for binary_discard and is read by nobody. A rejected file is detached by its scan
+// and has no key or object left: its status stays readable, so the patient's app can show M7, and Download refuses
+// it anyway because it is not clean.
 func (s *Service) listed(ctx context.Context, b Binary) error {
+	if b.Status == StatusRejected {
+		return nil
+	}
 	ids, err := s.Holder.Attached(ctx, b.ResponseID)
 	switch {
 	case err != nil:
