@@ -263,7 +263,59 @@ Dev stack: untouched (only `docker compose run --rm --no-deps tools` containers,
 
 ## 1.2 pkg/filetype
 
-Status: not started
+Status: done, 2026-11-07.
+
+Built (`pkg/filetype/`, standard library only, imports nothing of the repository):
+- `Detect(head []byte) (Type, error)`: PNG and JPEG by their signatures at byte 0, MP4 by an `ftyp` box at byte
+  0, at least 12 bytes long, whose major brand is `isom`, `iso2` to `iso6`, `mp41`, `mp42` or `avc1`, PDF by
+  `%PDF-` wholly inside the first 1,024 bytes; anything else `ErrUnsupported`. `Type` is the content type
+  (`application/pdf`, `image/jpeg`, `image/png`, `video/mp4`), so 2.1 stores it as is.
+- `Checker` (`NewChecker`, `Write`, `Close`): an `io.Writer` fed the whole file from byte 0. It walks the top-level
+  boxes as they arrive (32- and 64-bit sizes, size 0 only for a last box that is not `ftyp` or `moov`), requires
+  `ftyp` first and exactly one `moov`, before or after `mdat`, buffers only `moov` (grown as its bytes arrive,
+  never from the declared size; a declared size past 16 MiB, header included, is refused at the header), checks
+  it as soon as it is complete and frees it: every `trak` → `mdia` → `minf` → `stbl` → `stsd` must hold exactly
+  its entry count of sample entries, each `avc1` or `mp4a`, and at least one track `avc1`. Structure errors are
+  `ErrMalformed`, codecs `ErrUnsupported`; the first error sticks (a `TeeReader` stops the upload there). `Close`
+  refuses a file that ends inside a box (a size that lies) or without `moov`.
+- `LimitReader(r, n)`: exactly `n` bytes; `ErrShort` when `r` ends early, `ErrTooLarge` when a byte follows the
+  `n`th (that byte is never returned); other errors from `r` pass through.
+
+Tests first: the four test files were written before any code and failed to build (`undefined: Type`, `Detect`,
+`NewChecker`, `LimitReader`); with stubs returning zero values, `TestDetect_TheAcceptedTypesFromTheirBytes`,
+`TestDetect_RefusesEverythingElse`, `TestDetect_ARenamedFileIsWhatItsBytesSay`, `TestLimitReader`,
+`TestChecker_RefusesCodecs`, `TestChecker_RefusesMalformedFiles`, `TestChecker_MoovUpToSixteenMegabytes`,
+`TestChecker_RefusesAnOversizedMoovFromItsHeader`, `TestChecker_StaysFailed` and `FuzzDetect` failed on their
+assertions. Fixtures are generated in the tests (`image/png` and `image/jpeg` of a 4x4 picture, a minimal PDF, an
+MP4 box skeleton with zeroed media); every MP4 case is streamed in writes of 1, 7, 4,096 bytes and all at once.
+
+Checks:
+- `go test -count=1 -cover ./pkg/filetype/...`: ok, coverage 97.8%.
+- `FuzzDetect`, 60 s, `-parallel 4`: 10,750,156 executions, no failure. `FuzzChecker` (the file and a write size),
+  60 s, `-parallel 4`: 2,814,126 executions, no failure; it asserts the buffered `moov` never exceeds four times
+  the bytes written plus 64. No crasher, so no corpus file in `testdata/fuzz`.
+- `scripts/lint.sh` (gofmt, `go vet`, golangci-lint, check-migrations): 0 issues, after fixing a fieldalignment
+  in a test table and a tagged switch.
+- archcheck: ok.
+
+### Decided while the owner was away
+
+- 2026-11-07, session (1.2): the MP4 major brands accepted are `isom`, `iso2` to `iso6`, `mp41`, `mp42` and `avc1`
+  (what Android's MediaMuxer and iOS's MPEG-4 export write); the major brand decides, not the compatible list, so
+  a HEIF or MOV that lists `isom` as compatible is still refused. `M4V `, `3gp*`, `dash` major brands are refused.
+  Reason: the narrowest set that the converted uploads of SPEC §3 O1 use; the codec check stays the real gate.
+  SPEC row needed (O1 reading).
+- 2026-11-07, session (1.2): an MP4 needs at least one `avc1` track; an `mp4a`-only file is refused
+  (`ErrUnsupported`), since audio is out of scope (SPEC §6). Any other sample entry in any track (`hvc1`, `hev1`,
+  `Opus`, `encv`, a timed-metadata or `tmcd` track) refuses the file; the app's conversion and metadata stripping
+  (O1, O13) leave none. SPEC row needed (O1 reading).
+- 2026-11-07, session (1.2): the 16 MB `moov` limit is 16 MiB (16,777,216 bytes) of the whole box, header
+  included; a larger one is `ErrMalformed`, which 2.1 can map like `ErrUnsupported` (415). Only the first `mdia`,
+  `minf`, `stbl` and `stsd` of a track are read, as players read them.
+- 2026-11-07, session (1.2): the `Checker` takes the file from its first byte (2.1 tees the 4 KiB head and the
+  rest into it), and requires `ftyp` as the first box.
+
+Deferred: none. No copy added (the package has no user-facing text).
 
 ## 1.3 pkg/clamd
 
