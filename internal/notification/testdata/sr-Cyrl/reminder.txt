@@ -1,0 +1,7 @@
+Subject: Подсјетник на ваш термин
+
+Подсјећамо вас на термин у установи Synthetic clinic.
+Датум и вријеме: понедјељак, 7. јануар 2030. у 10:00 (Europe/Sarajevo)
+
+Да бисте погледали термин, отворите апликацију Salus:
+https://patient.example.test/appointments

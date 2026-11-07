@@ -1,0 +1,7 @@
+Votre rendez-vous est annulé
+
+Votre rendez-vous chez {{.Clinic}} est annulé.
+Date et heure : {{.When}}
+
+Pour réserver un autre créneau, ouvrez l'application Salus :
+{{.Link}}

@@ -1,0 +1,8 @@
+Vaša pozivnica za Salus
+
+Pozvani ste da se pridružite ustanovi {{.Clinic}} na platformi Salus.
+
+Da biste prihvatili poziv, otvorite ovaj link, odaberite lozinku i postavite kod za prijavu:
+{{.Link}}
+
+Link se može iskoristiti samo jednom i ističe 72 sata nakon što je pozivnica napravljena. Ako niste očekivali ovu poruku, možete je zanemariti.

@@ -1,0 +1,12 @@
+Subject: Randevunuz oluşturuldu
+
+Randevunuz oluşturuldu.
+Klinik: Synthetic clinic
+Tarih ve saat: 7 Ocak 2030 Pazartesi, saat 10:00 (Europe/Sarajevo)
+
+Randevunuzdan önce doldurmanız gereken bir anket var. Anketi Salus uygulamasında bulabilirsiniz.
+
+Randevunuzu görmek veya iptal etmek için Salus uygulamasını açın:
+https://patient.example.test/appointments
+
+Randevunuzu, başlamasından en geç 24 saat öncesine kadar iptal edebilirsiniz.

@@ -1,0 +1,11 @@
+Subject: Ihr Termin ist gebucht
+
+Ihr Termin bei Synthetic clinic ist gebucht.
+Datum und Uhrzeit: Montag, 7. Januar 2030, 10:00 Uhr (Europe/Sarajevo)
+
+Vor Ihrem Termin ist ein Fragebogen auszufüllen. Sie finden ihn in der Salus-App.
+
+Um den Termin anzusehen oder abzusagen, öffnen Sie die Salus-App:
+https://patient.example.test/appointments
+
+Sie können ihn bis 24 Stunden vor Beginn absagen.
