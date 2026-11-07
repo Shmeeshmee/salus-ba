@@ -319,7 +319,54 @@ Deferred: none. No copy added (the package has no user-facing text).
 
 ## 1.3 pkg/clamd
 
-Status: not started
+Status: done, 2026-11-07.
+
+Built:
+- `pkg/clamd/clamd.go` (standard library only): `New(addr)`, `Ping`, `Version`, `Scan(ctx, io.Reader) (Result,
+  error)`. Null-terminated commands (`zPING`, `zVERSION`, `zINSTREAM`); `INSTREAM` sends 64 KiB chunks, each
+  with its 4-byte big-endian length, then the zero-length terminator. The reply is read alongside the writes, so
+  clamd's early answer at its size limit is kept even though clamd then closes the connection and the next
+  write fails. The dial uses `DialContext`; the connection takes the context's deadline and, through
+  `context.AfterFunc`, a past deadline once the context is done, so every blocked read or write stops.
+- `Result{Signature, Found}`; `ErrStreamLimit` ("INSTREAM size limit exceeded"), `ErrUnreachable` (the dial
+  failed and the context is not done); a cancelled or expired context returns the context's error, never
+  `ErrUnreachable`; an error from the caller's reader is returned wrapped, never blamed on clamd.
+
+Failing first (each seen before the code existed):
+- The build failed (`undefined: Result`, `ErrStreamLimit`, `parseScanReply`). With empty stubs every test failed
+  for the right reason (Version empty, EICAR not found, no limit error, no cancellation error, no source error,
+  no unreachable error for `Ping`, `Version` and `Scan`, the reply table wrong), except `Ping` against the real
+  clamd, which a stub returning nil passes; the unreachable test covers `Ping`'s failing side.
+
+Tests (`pkg/clamd/clamd_test.go` against the compose clamd at `TEST_CLAMD_ADDR`, failing without it, never
+skipping; `reply_test.go` table over the reply parser, including replies the compose clamd cannot be made to
+send): `PING`; `VERSION` starts with "ClamAV "; the EICAR string, assembled from three parts in the test, is
+found (signature `Eicar-Test-Signature`); 390 kB of synthetic clean bytes (several chunks) and an empty stream
+are clean; an endless stream of zeros returns `ErrStreamLimit`; a context cancelled during the scan stops it with
+`context.Canceled`; an already cancelled context is `context.Canceled` and not `ErrUnreachable`; a failing reader's
+error is returned; a closed local port returns `ErrUnreachable` from all three calls.
+
+Checks:
+- Own tests: `go test -count=1 -cover ./pkg/clamd/...` pass, coverage 87.5%; `-count=5 -race` pass (2.8 s).
+- Lint (`scripts/lint.sh`, `--no-deps`, main git dir mounted read-only): 0 issues, check-migrations ok.
+- Archcheck (`go -C tools run ./archcheck -root /src`): pass.
+
+Readings:
+- The limit test streams until clamd stops: 252.4 MiB sent (the 250 MiB `StreamMaxLength` plus what is in
+  flight in the buffers), 0.25 s on the compose network; that is the smallest a past-the-limit test can be with
+  the configured limit, and it does not hard-code the limit. clamd's resident memory after the runs: 953 MiB
+  (975 MiB idle in 0.1); clamd was not restarted or reconfigured.
+- Version against the compose clamd: `ClamAV 1.5.4/28176/Sat Nov  7 06:24:18 2026`.
+
+Decided in this package (not touching the SPEC):
+- No timeout of the client's own: the caller's context bounds every call (3.1's job timeout).
+- One connection per call, no pool and no `IDSESSION`: the scan queue runs 2 jobs at a time (SPEC §2 "Scan").
+- `ErrUnreachable` only for a failed dial; a connection lost mid-scan is a plain wrapped error. 3.1 retries
+  every error alike, so a finer split buys nothing.
+- An unexpected clamd reply is quoted in the error (clamd's own text, never the scanned bytes); the signature
+  name is only in `Result`, never in an error, so a caller decides where it is logged.
+
+No user-facing text was added.
 
 ## 1.4 internal/binary: the object store
 
