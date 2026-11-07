@@ -7,6 +7,7 @@ import 'files.dart';
 import 'messages.dart';
 import 'questionnaire.dart';
 import 'uploads.dart';
+import 'zones.dart';
 
 // A file upload item on the questionnaire screen (docs/attachments/COPY.md M1 to M14): its hint, its files with
 // their status, "Add file" and the sheet of sources the item accepts, and the files read only once submitted.
@@ -62,13 +63,23 @@ Future<Source?> chooseSource(BuildContext context, Item item) => showModalBottom
   ),
 );
 
+/// The title of a file from the camera (M21, M22): its kind and the patient's local date and time at [taken].
+String cameraTitle(Source source, DateTime taken) {
+  final local = taken.toLocal();
+  final date = Zone.longDate(DateTime.utc(local.year, local.month, local.day));
+  final time = Zone.clock(local);
+  return source == Source.videoCamera ? cameraVideoTitle(date, time) : cameraPhotoTitle(date, time);
+}
+
 /// "Add file": the sheet, the camera's permission when a camera source is chosen, then the picker. Answers the
-/// picked file, or the item's error (M9), or null when the patient stopped.
+/// picked file, a camera's titled by [now] when it came back (M21, M22), or the item's error (M9), or null when the
+/// patient stopped.
 Future<({Picked? picked, String? error})?> pickFile(
   BuildContext context,
   Item item, {
   required Media media,
   required Files files,
+  required DateTime Function() now,
 }) async {
   final source = await chooseSource(context, item);
   if (source == null || !context.mounted) return null;
@@ -80,7 +91,9 @@ Future<({Picked? picked, String? error})?> pickFile(
       photos: item.accept.contains(FileKind.photo),
       videos: item.accept.contains(FileKind.video),
     );
-    return picked == null ? null : (picked: picked, error: null);
+    if (picked == null) return null;
+    final titled = camera ? Picked(path: picked.path, name: picked.name, title: cameraTitle(source, now())) : picked;
+    return (picked: titled, error: null);
   } on AccessRefused catch (r) {
     if (context.mounted) {
       await _refused(context, media, r.refused == Refused.camera ? cameraDeniedForFiles : photosDenied);

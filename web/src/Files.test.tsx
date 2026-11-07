@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import appCSS from './app.css?raw'
 import { newApiClient } from './api/client'
 import type { Attached } from './attachment'
 import { Files } from './Files'
@@ -74,6 +75,27 @@ describe('Files: the viewer (W10, W11)', () => {
     fireEvent.click(within(d).getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.activeElement).toBe(open)
+  })
+
+  it('fits a tall portrait photo whole inside the viewer, never cropped (walk finding 1)', () => {
+    const style = document.createElement('style')
+    style.textContent = appCSS
+    document.head.append(style)
+    try {
+      renderFiles([{ ...photo, title: 'placeholder-portrait.jpg' }])
+      fireEvent.click(screen.getByRole('button', { name: 'Open' }))
+
+      const img = within(viewer()).getByRole('img') as HTMLImageElement
+      const css = getComputedStyle(img)
+      expect([css.maxWidth, css.maxHeight, css.objectFit]).toEqual(['100%', '100%', 'contain'])
+      // The percentages resolve against the space the dialog gives the body, not against the photo's own height:
+      // with an implicit auto row the row grows to the photo and its lower part is cut off.
+      const body = getComputedStyle(img.parentElement as HTMLElement)
+      expect([body.gridTemplateRows, body.gridTemplateColumns]).toEqual(['minmax(0, 1fr)', 'minmax(0, 1fr)'])
+      expect(body.overflow).toBe('hidden')
+    } finally {
+      style.remove()
+    }
   })
 
   it('shows a PDF in the browser\'s own viewer, with Download when it cannot (W12)', () => {

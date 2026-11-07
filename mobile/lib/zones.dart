@@ -48,10 +48,10 @@ class Zone {
   );
 
   /// The local time of [instant], 24-hour "HH:MM".
-  String time(DateTime instant) {
-    final local = tz.TZDateTime.from(instant, _location);
-    return '${_two(local.hour)}:${_two(local.minute)}';
-  }
+  String time(DateTime instant) => clock(tz.TZDateTime.from(instant, _location));
+
+  /// The 24-hour "HH:MM" of a time already in its zone.
+  static String clock(DateTime local) => '${_two(local.hour)}:${_two(local.minute)}';
 
   /// The local date of [instant], "Thursday 5 November 2026".
   String date(DateTime instant) => longDate(day(instant));

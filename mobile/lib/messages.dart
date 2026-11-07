@@ -314,3 +314,6 @@ const cameraDeniedForFiles =
     'Salus does not have access to your camera. You can allow it in your device settings, or choose a file '
     'instead.'; // M19
 const photosDenied = 'Salus does not have access to your photos. You can allow it in your device settings.'; // M20
+// Added by the session on the owner's walk findings, not yet reviewed (COPY.md M21, M22): the title of a camera file.
+String cameraPhotoTitle(String date, String time) => 'Photo, $date, $time'; // M21
+String cameraVideoTitle(String date, String time) => 'Video, $date, $time'; // M22

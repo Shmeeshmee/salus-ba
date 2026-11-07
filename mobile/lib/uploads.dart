@@ -111,11 +111,11 @@ class Uploads extends ChangeNotifier {
 
   /// Prepares and uploads [picked] to the item [linkId].
   Future<void> add(String linkId, Picked picked) async {
-    final e = FileEntry._(linkId, picked.name, FileState.preparing);
+    final e = FileEntry._(linkId, picked.title ?? picked.name, FileState.preparing);
     _entries.add(e);
     _errors.remove(linkId);
     _changed();
-    final Prepared file;
+    Prepared file;
     try {
       file = await files.prepare(picked);
     } on TooLarge catch (t) {
@@ -124,6 +124,9 @@ class Uploads extends ChangeNotifier {
       return _drop(e, cannotPrepareFile);
     }
     if (_disposed) return file.discard();
+    if (picked.title case final title?) {
+      file = Prepared(name: title, size: file.size, kind: file.kind, read: file.read, discard: file.discard);
+    }
     e
       ..title = file.name
       ..kind = file.kind

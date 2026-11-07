@@ -380,6 +380,48 @@ void main() {
     });
   });
 
+  group('the title of a file from the camera', () {
+    // The patient's local time at the moment the camera hands the file over, from the injected clock: a local
+    // DateTime, so the test reads the same in any time zone.
+    final taken = DateTime(2026, 11, 7, 21, 24);
+
+    testWidgets('a camera photo is "Photo, [date], [time]", not the cache file name', (tester) async {
+      final h = await _opened(tester);
+      h.now = taken;
+      h.files.next = const Picked(path: '/synthetic/cache/39f6ccbd-synthetic.jpg', name: '39f6ccbd-synthetic.jpg');
+      await _addFrom(tester, 'Take a photo');
+      await _settlePolls(tester);
+
+      expect(
+        _uploads(h).single.headers['Content-Disposition'],
+        "attachment; filename*=UTF-8''Photo%2C%20Saturday%207%20November%202026%2C%2021%3A24",
+      );
+      expect(_inItem('Photo, Saturday 7 November 2026, 21:24'), findsOneWidget);
+    });
+
+    testWidgets('a camera video is "Video, [date], [time]"', (tester) async {
+      final h = await _opened(tester, version: _version(accept: const ['video']));
+      h.now = taken;
+      h.files
+        ..next = const Picked(path: '/synthetic/cache/REC_0001.mp4', name: 'REC_0001.mp4')
+        ..name = 'REC_0001.mp4'
+        ..kind = FileKind.video;
+      await _addFrom(tester, 'Record a video');
+
+      expect(
+        _uploads(h).single.headers['Content-Disposition'],
+        "attachment; filename*=UTF-8''Video%2C%20Saturday%207%20November%202026%2C%2021%3A24",
+      );
+    });
+
+    testWidgets('a file from the photo library or the documents keeps its own name', (tester) async {
+      final h = await _opened(tester);
+      h.now = taken;
+      await _addFrom(tester, 'Choose a document');
+      expect(_uploads(h).single.headers['Content-Disposition'], "attachment; filename*=UTF-8''synthetic-photo.jpg");
+    });
+  });
+
   group('removing and submitting', () {
     testWidgets('an added file is removed after asking, and deleted on the server', (tester) async {
       final h = await _opened(tester);
@@ -397,6 +439,24 @@ void main() {
       await tapLink(tester, 'Remove');
       expect(h.api.calls.last, 'DELETE /binaries/b1');
       expect(_inItem('synthetic-photo.jpg'), findsNothing);
+    });
+
+    testWidgets('after "Remove" the keyboard stays closed: no text field takes the focus back', (tester) async {
+      final h = await _opened(tester);
+      h.api.answer('DELETE /binaries/b1', 204);
+      final name = find.descendant(of: find.byKey(const ValueKey('answer-name')), matching: find.byType(EditableText));
+      await tapFound(tester, name);
+      expect(tester.state<EditableTextState>(name).widget.focusNode.hasFocus, isTrue);
+      await _addFrom(tester, 'Choose from photos');
+      await _settlePolls(tester);
+
+      await tapFound(tester, find.descendant(of: _item, matching: find.byTooltip('Remove file')));
+      await tapLink(tester, 'Remove');
+      expect(h.api.calls.last, 'DELETE /binaries/b1');
+      for (final e in tester.stateList<EditableTextState>(find.byType(EditableText))) {
+        expect(e.widget.focusNode.hasFocus, isFalse);
+      }
+      expect(tester.testTextInput.isVisible, isFalse);
     });
 
     testWidgets('a required file upload item without a file is required on submit', (tester) async {

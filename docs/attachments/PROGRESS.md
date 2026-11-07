@@ -779,9 +779,14 @@ Decided while the owner was away:
   since the FHIR answer does not say which are pending. One audited read per file per opening.
 - A file that failed to upload (M5) does not hold Submit back; only files being prepared, sent or checked do (M10).
   Removing it needs no confirmation: the server never had it.
-- A photo past 20 MB is refused on the device (M8) before it is read into memory to strip it; a video's and a PDF's
-  limits are left to the server, whose 413 comes from `Content-Length` before any byte is sent. Sizes in decimal
-  units (20 MB = 20,000,000 bytes), as shown in M13; should the server count MiB, the app is only the stricter.
+- Every kind's limit is checked on the device, and the server checks again (corrected 2026-11-07 after the
+  acceptance walk; this note first said a video's and a PDF's limits were left to the server, which the code never
+  did). `file_prep.dart`: a photo past 20 MB is refused before it is read into memory to strip it (the picked file,
+  and a HEIC's converted JPEG); then `ready()` refuses any prepared file larger than its kind allows (photo and PDF
+  20 MB, video 200 MB, the video measured after any conversion), so an over-limit photo, PDF or video shows M8
+  ("This file is larger than [max] MB.") and no request is sent. The server's own 413 `too_large` comes from
+  `Content-Length` before any byte is read. Sizes in decimal units (20 MB = 20,000,000 bytes), as shown in M13;
+  should the server count MiB, the app is only the stricter.
 - A status read answering 404 (the file is gone, for example after a withdrawal) removes the row without a message.
 - The JPEG keeps its ICC colour profile (APP2) and Adobe's colour transform (APP14): they say how to show the colours,
   hold no location, time or person, and a skin photo shown in the wrong colours would mislead. Everything else goes,
@@ -1460,3 +1465,44 @@ gone; its object goes with the purger after 24 h). salus-demo-* containers untou
   (`TestStatus_StillAnswersARejectedFileTheResponseNoLongerLists` failed with `not found`): a rejected file's status
   stays readable (it has no key and no object left, and `Download` still refuses it); a clean or quarantined file
   that is no longer listed stays refused. Then lint, archcheck, test, cover and `make e2e` twice in a row pass.
+- 2026-11-07, the owner's fixes after the acceptance walk (`WALK.md`, points 1 to 4; one commit, each fix test first,
+  every new test seen failing for the stated reason before the change):
+  1. Web viewer, a tall portrait photo cut off at 1440x900. Cause: `.viewer-body` is a grid with an implicit `auto`
+     row, so the row grew to the photo's own height and the image's `max-height: 100%` resolved against that row,
+     not against the dialog; the body then clipped the lower third. `.viewer-body` now has one fixed cell,
+     `grid-template-rows` and `grid-template-columns` `minmax(0, 1fr)`, and `overflow: hidden`; the image keeps
+     `max-width: 100%`, `max-height: 100%` and `object-fit: contain` (never upscaled, never cropped, no scroll).
+     Seen failing: `Files.test.tsx` "fits a tall portrait photo whole inside the viewer, never cropped" against the
+     real `app.css` (`expected [ 'none', 'none' ] to deeply equal [ 'minmax(0, 1fr)', 'minmax(0, 1fr)' ]`). Checked
+     in Chromium (the `salus-playwright:1.55.0` image, a throwaway script in the session scratchpad, not committed):
+     a static page with the viewer's markup from `Files.tsx`, the real `tokens.css` and `app.css`, a synthetic
+     1440x1920 placeholder image and M21's title. Before: the image 1040x1387 in a body 1040x801 (the walk's
+     finding, reproduced). After: 601x801 at 1440x900, centred, whole; at 390x844 390x520 in a body 390x762, as
+     before (width-bound). No page or body scroll at either width. Screenshots
+     `walk/4-05-viewer-portrait-1440.png` and `walk/4-06-viewer-portrait-390.png`; the app itself against the dev
+     stack was not walked again (the CSS rule is the whole change).
+  2. Mobile, a camera photo or video uploaded under the picker's cache file name. It is now titled M21 "Photo,
+     [date], [time]" or M22 "Video, [date], [time]" (added to `COPY.md` under "Added by the session, not yet
+     reviewed", and to `lib/messages.dart`), from the screen's injected clock at the moment the camera hands the file
+     back, in the device's local time; the date as the app writes dates everywhere (`Zone.longDate`, "Saturday 7
+     November 2026") and the time as `Zone.time` writes it ("21:24", now `Zone.clock` for a time already local).
+     `Picked` carries the title; `Uploads.add` shows it from "Preparing…" on and sends it as the prepared file's name
+     (`Content-Disposition`), so an iOS conversion's renamed `.mp4` or `.jpg` does not change it. Files from the
+     photo library or the document picker keep their own name. Seen failing: "a camera photo is "Photo, [date],
+     [time]", not the cache file name" (`Actual: attachment; filename*=UTF-8''synthetic-photo.jpg`) and "a camera
+     video is "Video, [date], [time]"" (`Actual: … REC_0001.mp4`); the library/document case passed before and
+     after, as it should.
+  3. Mobile, the keyboard came back after "Remove" (M6): closing the dialog handed the focus back to the text field
+     that last had it. `_removeFile` now takes the focus off first. Seen failing: "after "Remove" the keyboard stays
+     closed: no text field takes the focus back" (`Expected: false Actual: <true>`).
+  4. PROGRESS 1.7's over-limit note corrected in place (above): `ready()` refuses an over-limit photo, PDF or video
+     on the device before any request, and the server checks again.
+  - Checks (`docker compose … run --rm --no-deps -T`): web `npm run lint` 0 warnings, `typecheck` pass, `npm test`
+    434 tests pass, `build` pass (the existing LiveKit chunk-size warning); mobile `flutter analyze` no issues,
+    `flutter test` 318 tests pass, `dart format` clean. The first web run had one failing test whose name was not
+    kept (it ran beside the Flutter suite); 15 runs after it, 4 of them in parallel, all passed: the same unnamed
+    flake 1.6 recorded. Go untouched.
+  - For the owner: M21 and M22 wait for review. A camera file's title has no extension, and a title is also the
+    download's file name on the web (`download` attribute and the content's `Content-Disposition`); browsers may
+    save it without `.jpg` or `.mp4`, and Windows replaces the colon. Left as the owner asked; adding the extension
+    to the download name only would be a small web change if wanted.

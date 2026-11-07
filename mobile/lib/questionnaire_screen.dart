@@ -482,7 +482,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 
   Future<void> _addFile(Item it) async {
-    final picked = await pickFile(context, it, media: widget.media, files: widget.files);
+    final picked = await pickFile(context, it, media: widget.media, files: widget.files, now: widget.now);
     if (!mounted || picked == null) return;
     setState(() => _errors.remove(it.linkId));
     if (picked.picked != null) {
@@ -492,8 +492,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     }
   }
 
-  /// A file the server has is removed after asking (M6); one that never reached it goes at once.
+  /// A file the server has is removed after asking (M6); one that never reached it goes at once. The text field that
+  /// had the focus loses it first, so closing the dialog does not hand it back and open the keyboard.
   Future<void> _removeFile(FileEntry f) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     if (f.id != null && await _confirmRemove() != true) return;
     try {
       await _uploads.remove(f);

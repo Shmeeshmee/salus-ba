@@ -15,12 +15,14 @@ import 'file_prep.dart';
 /// Where a file comes from (COPY M3): the camera as a photo or a video, the photo library, or the documents.
 enum Source { camera, videoCamera, library, document }
 
-/// A file the patient picked: where the picker put it and its name.
+/// A file the patient picked: where the picker put it and its name. [title], when set, is sent and shown in place
+/// of the prepared file's name: a camera's file is named by when it was taken, not by the picker's cache name.
 class Picked {
-  const Picked({required this.path, required this.name});
+  const Picked({required this.path, required this.name, this.title});
 
   final String path;
   final String name;
+  final String? title;
 }
 
 /// What the patient refused the app: the camera (M19) or the photo library (M20).

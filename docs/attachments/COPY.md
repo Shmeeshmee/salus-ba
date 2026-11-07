@@ -82,3 +82,13 @@ per permission, so the two existing strings are replaced by M15 and M16, which c
   settings." with the buttons "Open settings" (consultation M11) and "Cancel"
 
 Never in any of these: a questionnaire's title, an item's text or a file's name, except where [Title] says so.
+
+## Added by the session, not yet reviewed
+
+Added on the owner's acceptance-walk findings of 2026-11-07 (WALK.md, point 2), in place of the picker's cache file
+name. Files from the photo library or the document picker keep their own name.
+
+- M21 (the title of a photo taken with the camera, shown in M4 rows and M12 and sent as the file's name, so it is
+  W8's [Title] on the web): "Photo, [date], [time]", the date as the app writes dates (Saturday 7 November 2026) and
+  the time in 24 hours (21:24), in the patient's local time when the photo was taken
+- M22 (the title of a video recorded with the camera, as M21): "Video, [date], [time]"
