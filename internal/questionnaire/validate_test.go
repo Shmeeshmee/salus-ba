@@ -70,7 +70,7 @@ var validationCases = []struct {
 	}}},
 	{name: "no items", valid: true, in: questionnaire.Content{Title: "T"}},
 	{name: "an empty section, which a draft keeps", valid: true, in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{section("s")}}},
-	{name: "the reserved attachment type", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{question("a", questionnaire.ItemAttachment)}}, links: []string{"a"}},
+	{name: "an attachment without its settings", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{question("a", questionnaire.ItemAttachment)}}, links: []string{"a"}},
 	{name: "an unknown type", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{question("u", "open-choice")}}, links: []string{"u"}},
 
 	{name: "a title of 200", valid: true, in: questionnaire.Content{Title: r("é", 200)}},
@@ -146,9 +146,53 @@ var validationCases = []struct {
 		question("a", questionnaire.ItemAttachment), section("s", with(question("t", questionnaire.ItemString), func(i *questionnaire.Item) { i.Text = "" }))}}, links: []string{"a", "t"}},
 }
 
+// attachment is a file upload item accepting kinds, up to maxFiles files.
+func attachment(id string, maxFiles int32, kinds ...questionnaire.FileKind) questionnaire.Item {
+	return questionnaire.Item{LinkID: id, Text: "Placeholder file upload", Type: questionnaire.ItemAttachment, Accept: kinds, MaxFiles: maxFiles}
+}
+
+// attachmentCases are the rules of an attachment item (docs/attachments/SPEC.md §2 "Item model").
+var attachmentCases = []struct {
+	name  string
+	links []string
+	in    questionnaire.Content
+	valid bool
+}{
+	{name: "a photo", valid: true, in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{attachment("a", 1, questionnaire.FilePhoto)}}},
+	{name: "a document", valid: true, in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{attachment("a", 1, questionnaire.FileDocument)}}},
+	{name: "a video", valid: true, in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{attachment("a", 1, questionnaire.FileVideo)}}},
+	{name: "every kind, 10 files", valid: true, in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{
+		attachment("a", 10, questionnaire.FileVideo, questionnaire.FilePhoto, questionnaire.FileDocument)}}},
+	{name: "required, with help text, in a section, under a condition", valid: true, in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{
+		boolQ, section("s", onB(with(attachment("a", 3, questionnaire.FilePhoto), func(i *questionnaire.Item) { i.Required = true; i.Help = "Placeholder help" })))}}},
+	{name: "no kind", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{attachment("a", 1)}}, links: []string{"a"}},
+	{name: "an unknown kind", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{attachment("a", 1, questionnaire.FilePhoto, "audio")}}, links: []string{"a"}},
+	{name: "a kind twice", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{attachment("a", 1, questionnaire.FilePhoto, questionnaire.FilePhoto)}}, links: []string{"a"}},
+	{name: "maxFiles 0", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{attachment("a", 0, questionnaire.FilePhoto)}}, links: []string{"a"}},
+	{name: "maxFiles 11", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{attachment("a", 11, questionnaire.FilePhoto)}}, links: []string{"a"}},
+	{name: "maxFiles -1", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{attachment("a", -1, questionnaire.FilePhoto)}}, links: []string{"a"}},
+	{name: "repeats on an attachment", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{
+		with(attachment("a", 2, questionnaire.FilePhoto), func(i *questionnaire.Item) { i.Repeats = true })}}, links: []string{"a"}},
+	{name: "options on an attachment", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{
+		with(attachment("a", 2, questionnaire.FilePhoto), func(i *questionnaire.Item) { i.Options = opts(2) })}}, links: []string{"a"}},
+	{name: "accept on a string", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{
+		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) { i.Accept = []questionnaire.FileKind{questionnaire.FilePhoto} })}}, links: []string{"q"}},
+	{name: "maxFiles on a choice", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{
+		with(choiceQ, func(i *questionnaire.Item) { i.MaxFiles = 1 })}}, links: []string{"c"}},
+	{name: "accept on a section", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{
+		with(section("s"), func(i *questionnaire.Item) { i.Accept = []questionnaire.FileKind{questionnaire.FileVideo} })}}, links: []string{"s"}},
+	{name: "maxFiles on instructions", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{
+		with(question("d", questionnaire.ItemDisplay), func(i *questionnaire.Item) { i.MaxFiles = 10 })}}, links: []string{"d"}},
+	{name: "a condition on an attachment with a boolean", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{
+		attachment("b", 1, questionnaire.FilePhoto), onB(question("q", questionnaire.ItemString))}}, links: []string{"q"}},
+	{name: "a condition on an attachment with a string", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{
+		attachment("a", 1, questionnaire.FilePhoto),
+		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) { i.EnableWhen = &questionnaire.Condition{Question: "a", String: "photo"} })}}, links: []string{"q"}},
+}
+
 func TestCreate_ValidatesTheQuestionnaire(t *testing.T) {
 	t.Parallel()
-	for _, tt := range validationCases {
+	for _, tt := range append(validationCases, attachmentCases...) {
 		f := newFixture()
 		got, err := f.svc.Create(t.Context(), adminA, tt.in)
 		var invalid *questionnaire.InvalidError
@@ -186,6 +230,7 @@ func TestUpdateDraft_ValidatesAndRefusesALinkIDOfAnEarlierVersionWithAnotherType
 		{name: "a single choice become multiple", items: []questionnaire.Item{with(question("q2", questionnaire.ItemChoice), func(i *questionnaire.Item) { i.Repeats = true })}},
 		{name: "a question become a section", items: []questionnaire.Item{section("q1")}},
 		{name: "an invalid item", items: []questionnaire.Item{question("q1", questionnaire.ItemAttachment)}},
+		{name: "a boolean become an attachment", items: []questionnaire.Item{attachment("q1", 1, questionnaire.FilePhoto)}},
 	}
 	for _, tt := range tests {
 		f := newFixture()

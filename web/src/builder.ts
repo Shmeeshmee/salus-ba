@@ -2,9 +2,18 @@ import { questionnaires as t } from './messages'
 
 // The builder's item list as pure functions, so moves, inserts and checks are tested without the DOM.
 // Single and multiple choice are separate kinds here (W11); the API knows them as choice with repeats.
-export type Kind = 'group' | 'display' | 'string' | 'text' | 'boolean' | 'single' | 'multiple' | 'integer' | 'decimal' | 'date'
+export type Kind = 'group' | 'display' | 'string' | 'text' | 'boolean' | 'single' | 'multiple' | 'integer' | 'decimal' | 'date' | 'attachment'
 
-export const kinds: Kind[] = ['group', 'display', 'string', 'text', 'boolean', 'single', 'multiple', 'integer', 'decimal', 'date']
+export const kinds: Kind[] = ['group', 'display', 'string', 'text', 'boolean', 'single', 'multiple', 'integer', 'decimal', 'date', 'attachment']
+
+// FileKind is a kind of file a file upload item accepts (attachments SPEC §2 "Item model"), in the order the
+// builder lists them and the API is sent them.
+export type FileKind = 'photo' | 'document' | 'video'
+
+export const fileKinds: FileKind[] = ['photo', 'document', 'video']
+export const maxFilesLimit = 10
+// A new file upload takes one photo or document: the least a practitioner has to narrow down.
+const defaultAccept: FileKind[] = ['photo', 'document']
 
 export const maxItems = 200
 export const maxTitle = 200
@@ -17,7 +26,8 @@ export const maxOption = 200
 // Condition shows an item only when the earlier yes or no or choice question is answered answer.
 export type Condition = { question: string; answer: boolean | string }
 
-// Item is one item of the questionnaire; items is a section's content, empty for every other kind.
+// Item is one item of the questionnaire; items is a section's content, empty for every other kind. accept and
+// maxFiles are a file upload's only.
 export type Item = {
   linkId: string
   kind: Kind
@@ -27,6 +37,8 @@ export type Item = {
   options: string[]
   condition?: Condition
   items: Item[]
+  accept?: FileKind[]
+  maxFiles?: number
 }
 
 // Row is one line of the list as it is shown and dragged: an item, or the end of a section (where an item is
@@ -44,7 +56,8 @@ export function endId(section: Item): string {
 }
 
 export function newItem(kind: Kind, linkId: string): Item {
-  return { linkId, kind, text: '', required: false, help: '', options: isChoice(kind) ? ['', ''] : [], items: [] }
+  const it: Item = { linkId, kind, text: '', required: false, help: '', options: isChoice(kind) ? ['', ''] : [], items: [] }
+  return kind === 'attachment' ? { ...it, accept: defaultAccept, maxFiles: 1 } : it
 }
 
 // rowsOf flattens the list in document order. While a section is moved, only the top level is listed: a
@@ -184,7 +197,9 @@ export function changeKind(items: Item[], linkId: string, kind: Kind, newLinkId:
   return map(items, (it) => {
     if (it.linkId === linkId) {
       const options = isChoice(kind) ? (isChoice(it.kind) ? it.options : ['', '']) : []
-      return { ...it, linkId: newLinkId, kind, options, required: isQuestion(kind) && it.required, help: kind === 'display' ? '' : it.help }
+      const { accept: _a, maxFiles: _m, ...rest } = it
+      const files = kind === 'attachment' ? { accept: defaultAccept, maxFiles: 1 } : {}
+      return { ...rest, ...files, linkId: newLinkId, kind, options, required: isQuestion(kind) && it.required, help: kind === 'display' ? '' : it.help }
     }
     if (it.condition?.question === linkId) return { ...it, condition: { ...it.condition, question: newLinkId } }
     return it
@@ -205,7 +220,7 @@ export function problems(items: Item[]): Map<string, string[]> {
   const found = new Map<string, string[]>()
   const seen = new Map<string, Item>()
   for (const it of all(items)) {
-    const messages = [...textProblems(it), ...optionProblems(it), ...conditionProblems(it, seen)]
+    const messages = [...textProblems(it), ...optionProblems(it), ...fileProblems(it), ...conditionProblems(it, seen)]
     if (messages.length > 0) found.set(it.linkId, messages)
     seen.set(it.linkId, it)
   }
@@ -226,6 +241,12 @@ function optionProblems(it: Item): string[] {
   if (it.options.length > maxOptions) return [t.manyOptions]
   const filled = it.options.filter((o) => !blank(o))
   return new Set(filled).size < filled.length ? [t.sameOptions] : []
+}
+
+function fileProblems(it: Item): string[] {
+  if (it.kind !== 'attachment') return []
+  const n = it.maxFiles ?? 0
+  return [...((it.accept ?? []).length === 0 ? [t.noFileKind] : []), ...(Number.isInteger(n) && n >= 1 && n <= maxFilesLimit ? [] : [t.fileCount])]
 }
 
 function conditionProblems(it: Item, seen: Map<string, Item>): string[] {

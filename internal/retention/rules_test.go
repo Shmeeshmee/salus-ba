@@ -174,3 +174,18 @@ func TestRules_DeleteQuestionnaireResponsesOnceDue(t *testing.T) {
 	}
 	t.Fatal("no rule for questionnaire_response")
 }
+
+// A file's row lives as long as its questionnaire response and goes with it through the foreign key; a
+// rejected row, and an object without a row, are deleted 24 h on by binary's purger (docs/attachments/SPEC.md
+// §5 "Retention").
+func TestRules_DeleteRejectedBinariesAfterTwentyFourHours(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "binary" {
+			if r.Then != retention.ThenDelete || r.Keep != 24*time.Hour {
+				t.Errorf("binary then %q after %v, want %q after 24 h", r.Then, r.Keep, retention.ThenDelete)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for binary")
+}

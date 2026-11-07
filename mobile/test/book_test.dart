@@ -25,8 +25,8 @@ const consentRevoke =
     'It keeps your name and the details of appointments that have already taken place, as part of its care '
     'records. Your future appointments there are cancelled.';
 
-Future<Harness> atSlots(WidgetTester tester) async {
-  final h = Harness(store: FakeTokenStore(token));
+Future<Harness> atSlots(WidgetTester tester, {DateTime? now}) async {
+  final h = Harness(store: FakeTokenStore(token), now: now);
   h.api.answer('GET /auth/me', 200, account());
   answerDirectory(h.api);
   h.api.on('GET /fhir/R4/Schedule', (_) async => fhirResponse(200, bundle([schedule()])));
@@ -111,6 +111,20 @@ void main() {
     expect(find.text('Tuesday 1 December 2026'), findsOneWidget);
     expect(tester.widget<TextButton>(find.widgetWithText(TextButton, 'Next day')).onPressed, isNull);
   });
+
+  // Owner, 2026-11-07 (docs/attachments/IMPLEMENTATION_PLAN.md, package 1.7): a slot that starts within 5 minutes
+  // is not offered.
+  for (final (before, shown) in [
+    (const Duration(minutes: 4, seconds: 59), false),
+    (const Duration(minutes: 5), true),
+  ]) {
+    testWidgets('a time ${before.inSeconds} s away is ${shown ? '' : 'not '}offered', (tester) async {
+      await atSlots(tester, now: DateTime.utc(2026, 11, 4, 13).subtract(before));
+
+      expect(find.widgetWithText(OutlinedButton, '14:00'), shown ? findsOneWidget : findsNothing);
+      expect(find.text('No free times on this day.'), shown ? findsNothing : findsOneWidget);
+    });
+  }
 
   testWidgets('a practitioner without a schedule has no open times', (tester) async {
     final h = Harness(store: FakeTokenStore(token));

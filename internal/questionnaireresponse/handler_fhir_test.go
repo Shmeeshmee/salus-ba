@@ -15,6 +15,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 )
@@ -64,10 +65,11 @@ func (s *stubReader) Search(_ context.Context, c appointment.Caller, f questionn
 	return s.out, s.err
 }
 
-// stubVersions gives the version hQuestionnaire and counts the reads of each id.
+// stubVersions gives the version hQuestionnaire (version(), or v when set) and counts the reads of each id.
 type stubVersions struct {
 	err    error
 	reads  map[string]int
+	v      *questionnaire.Questionnaire
 	caller questionnaire.Caller
 }
 
@@ -79,6 +81,9 @@ func (s *stubVersions) Read(_ context.Context, c questionnaire.Caller, id string
 	s.reads[id]++
 	if s.err != nil {
 		return questionnaire.Questionnaire{}, s.err
+	}
+	if s.v != nil {
+		return *s.v, nil
 	}
 	return version(), nil
 }
@@ -318,4 +323,90 @@ func TestHandler_SearchReadsEachParameterOnce(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("a search whose version read fails = %d, want 500", rec.Code)
 	}
+}
+
+// filesVersion is a synthetic version with a section holding a text question and a photo-and-document item of
+// up to three files, and a video item of one at the top level. Placeholder wording.
+func filesVersion() *questionnaire.Questionnaire {
+	v := version()
+	v.Items = []questionnaire.Item{
+		{LinkID: "s1", Text: "Placeholder section", Type: questionnaire.ItemGroup, Items: []questionnaire.Item{
+			{LinkID: "q1", Text: "Placeholder question", Type: questionnaire.ItemString},
+			{LinkID: "f1", Text: "Placeholder file upload", Type: questionnaire.ItemAttachment, Required: true,
+				Accept: []questionnaire.FileKind{questionnaire.FilePhoto, questionnaire.FileDocument}, MaxFiles: 3},
+		}},
+		{LinkID: "v1", Text: "Placeholder video upload", Type: questionnaire.ItemAttachment,
+			Accept: []questionnaire.FileKind{questionnaire.FileVideo}, MaxFiles: 1},
+	}
+	return &v
+}
+
+// The synthetic files of the golden responses: a photo, a PDF and a video (their SHA-1 is of no real file).
+func goldenFile(linkID, id, contentType, title string, size int64, pending bool) binary.Attachment {
+	return binary.Attachment{LinkID: linkID, BinaryID: id, ContentType: contentType, Title: title,
+		Hash: []byte("0123456789abcdefghij"), Size: size, Pending: pending}
+}
+
+var (
+	gPhoto = goldenFile("f1", "cc000000-0000-4000-8000-0000000000c1", "image/jpeg", "Placeholder photo.jpg", 245760, false)
+	gPDF   = goldenFile("f1", "cc000000-0000-4000-8000-0000000000c2", "application/pdf", "Placeholder document.pdf", 102400, true)
+	gVideo = goldenFile("v1", "cc000000-0000-4000-8000-0000000000c3", "video/mp4", "Placeholder video.mp4", 52428800, false)
+)
+
+// The patient's in-progress response lists their files under the item as valueAttachment, a pending one too
+// (the app shows its status), each with the download URL on the api's base, never the bucket.
+func TestHandler_ReadGivesThePatientTheirFilesPendingOnesIncluded(t *testing.T) {
+	t.Parallel()
+	r := inProgress()
+	r.Answers = []questionnaireresponse.Answer{{LinkID: "q1", Values: []questionnaireresponse.Value{{String: placeholderAnswer}}}}
+	r.Attachments = []binary.Attachment{gPDF, gPhoto}
+	var log bytes.Buffer
+	rec := getFHIR(t, &stubReader{out: []questionnaireresponse.Seen{{Response: r, Level: access.Full}}}, &stubVersions{v: filesVersion()}, asCaller(me), &log,
+		"/fhir/R4/QuestionnaireResponse/"+hResponse)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("read = %d %s", rec.Code, rec.Body)
+	}
+	assertGolden(t, "response_attachments_in_progress.json", rec.Body.Bytes())
+	if strings.Contains(log.String(), "Placeholder") {
+		t.Errorf("the log %q holds a title or an answer", log.String())
+	}
+}
+
+// The practitioner reads a submitted response with a photo and a PDF on one item and a video on another.
+func TestHandler_ReadGivesThePractitionerTheFilesOfASubmittedResponse(t *testing.T) {
+	t.Parallel()
+	r := completed()
+	r.Answers = nil
+	pdf := gPDF
+	pdf.Pending = false
+	r.Attachments = []binary.Attachment{gPhoto, gVideo, pdf}
+	rec := getFHIR(t, &stubReader{out: []questionnaireresponse.Seen{{Response: r, Level: access.Full}}}, &stubVersions{v: filesVersion()}, asCaller(pract), &bytes.Buffer{},
+		"/fhir/R4/QuestionnaireResponse/"+hResponse)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("read = %d %s", rec.Code, rec.Body)
+	}
+	assertGolden(t, "response_attachments_completed.json", rec.Body.Bytes())
+
+	r.Attachments = []binary.Attachment{gPhoto}
+	rec = getFHIR(t, &stubReader{out: []questionnaireresponse.Seen{{Response: r, Level: access.Name}}}, &stubVersions{v: filesVersion()}, asCaller(admin), &bytes.Buffer{},
+		"/fhir/R4/QuestionnaireResponse/"+hResponse)
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "valueAttachment") || strings.Contains(rec.Body.String(), "Placeholder photo") {
+		t.Errorf("a Name view = %d %s, want no file", rec.Code, rec.Body)
+	}
+}
+
+// A file uploaded without a name has no title: R4 forbids an empty string, so the element is left out.
+func TestHandler_ReadLeavesOutTheTitleOfAnUntitledFile(t *testing.T) {
+	t.Parallel()
+	r := completed()
+	r.Answers = nil
+	untitled := gPhoto
+	untitled.Title = ""
+	r.Attachments = []binary.Attachment{untitled}
+	rec := getFHIR(t, &stubReader{out: []questionnaireresponse.Seen{{Response: r, Level: access.Full}}}, &stubVersions{v: filesVersion()}, asCaller(pract), &bytes.Buffer{},
+		"/fhir/R4/QuestionnaireResponse/"+hResponse)
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), `"title"`) {
+		t.Fatalf("read = %d %s, want no title", rec.Code, rec.Body)
+	}
+	assertGolden(t, "response_attachment_untitled.json", rec.Body.Bytes())
 }

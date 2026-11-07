@@ -68,7 +68,7 @@ func decode(t *testing.T, rec *httptest.ResponseRecorder, v any) {
 func newApp(t *testing.T) (*api.App, config.Config) {
 	t.Helper()
 	cfg := testConfig(t)
-	app, err := api.New(t.Context(), cfg, testLiveKit(), slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

@@ -201,6 +201,23 @@ describe('changeKind', () => {
   it('starts a new choice with two empty options', () => {
     expect(changeKind(sample(), 'b', 'single', 'b2')[2].options).toEqual(['', ''])
   })
+
+  it('gives a new file upload the default kinds and one file, and drops them from another type', () => {
+    const upload = changeKind(sample(), 'b', 'attachment', 'b2')[2]
+    expect(upload).toMatchObject({ kind: 'attachment', accept: ['photo', 'document'], maxFiles: 1, options: [] })
+    const back = changeKind([{ ...upload, accept: ['video'], maxFiles: 4 }], 'b2', 'string', 'b3')[0]
+    expect(back.accept).toBeUndefined()
+    expect(back.maxFiles).toBeUndefined()
+  })
+})
+
+describe('newItem: a file upload', () => {
+  it('accepts photos and documents, one file, and is a question no condition may depend on', () => {
+    const upload = { ...newItem('attachment', 'f'), text: 'Placeholder upload' }
+    expect(upload).toMatchObject({ kind: 'attachment', accept: ['photo', 'document'], maxFiles: 1 })
+    expect(newItem('string', 's').accept).toBeUndefined()
+    expect(earlierQuestions([upload, newItem('string', 'n')], 'n')).toEqual([])
+  })
 })
 
 describe('count and earlierQuestions', () => {
@@ -234,6 +251,18 @@ describe('problems', () => {
     ['a text answer to a yes or no', (i: Item[]) => update(i, 'b', { condition: { question: 'a', answer: 'P' } }), 'b', t.conditionAnswer],
   ])('names %s on its item', (_, change, id, message) => {
     expect(problems(change(sample())).get(id)).toEqual([message])
+  })
+
+  it.each([
+    ['no kind of file', { accept: [] }, [t.noFileKind]],
+    ['no file', { maxFiles: 0 }, [t.fileCount]],
+    ['11 files', { maxFiles: 11 }, [t.fileCount]],
+    ['a part of a file', { maxFiles: 1.5 }, [t.fileCount]],
+    ['an empty number', { maxFiles: Number.NaN }, [t.fileCount]],
+    ['10 files of every kind', { maxFiles: 10, accept: ['photo', 'document', 'video'] }, undefined],
+  ] as [string, Partial<Item>, string[] | undefined][])('names a file upload with %s (W6)', (_, patch, messages) => {
+    const items = [{ ...newItem('attachment', 'f'), text: 'Placeholder upload', ...patch }]
+    expect(problems(items).get('f')).toEqual(messages)
   })
 
   it('finds a condition moved above its question', () => {

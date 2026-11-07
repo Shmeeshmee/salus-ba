@@ -6,6 +6,7 @@ import 'booking.dart';
 import 'call.dart';
 import 'call_screen.dart';
 import 'fhir.dart';
+import 'files.dart';
 import 'loading.dart';
 import 'messages.dart';
 import 'questionnaire.dart';
@@ -26,11 +27,19 @@ const _none = (responses: <Response>[], versions: <String, Version>{});
 /// The patient's appointments, upcoming and past, in each clinic's time zone; a booked one can be cancelled until
 /// 24 hours before its start, and joined as a video consultation in its join window.
 class AppointmentsScreen extends StatefulWidget {
-  const AppointmentsScreen({super.key, required this.booking, required this.now, required this.media, this.notice});
+  const AppointmentsScreen({
+    super.key,
+    required this.booking,
+    required this.now,
+    required this.media,
+    required this.files,
+    this.notice,
+  });
 
   final Booking booking;
   final DateTime Function() now;
   final Media media;
+  final Files files;
 
   /// What the previous screen did, such as a booking.
   final String? notice;
@@ -99,6 +108,8 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
       MaterialPageRoute<void>(
         builder: (_) => QuestionnaireScreen(
           booking: widget.booking,
+          media: widget.media,
+          files: widget.files,
           now: widget.now,
           version: v,
           response: r,

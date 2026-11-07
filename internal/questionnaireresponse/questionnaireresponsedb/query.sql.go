@@ -11,12 +11,58 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addQuestionnaireResponseAttachment = `-- name: AddQuestionnaireResponseAttachment :execrows
+UPDATE questionnaire_response
+SET attachments = attachments || jsonb_build_array($1::jsonb), updated_at = $2
+WHERE id = $3
+`
+
+type AddQuestionnaireResponseAttachmentParams struct {
+	Attachment []byte
+	At         pgtype.Timestamptz
+	ID         pgtype.UUID
+}
+
+// binary's upload, in its transaction and the patient's scope: the file appended to the answer's files. Not
+// version_id, which guards the typed answers only (docs/attachments/SPEC.md §2 "Where an attachment answer
+// lives").
+func (q *Queries) AddQuestionnaireResponseAttachment(ctx context.Context, arg AddQuestionnaireResponseAttachmentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, addQuestionnaireResponseAttachment, arg.Attachment, arg.At, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const clearQuestionnaireResponseAttachment = `-- name: ClearQuestionnaireResponseAttachment :execrows
+UPDATE questionnaire_response
+SET attachments = (SELECT jsonb_agg(CASE WHEN a.e->>'binaryId' = $1::text THEN a.e || '{"pending": false}' ELSE a.e END ORDER BY a.n)
+                   FROM jsonb_array_elements(attachments) WITH ORDINALITY AS a(e, n)),
+    updated_at = $2
+WHERE id = $3 AND attachments @> jsonb_build_array(jsonb_build_object('binaryId', $1::text, 'pending', true))
+`
+
+type ClearQuestionnaireResponseAttachmentParams struct {
+	BinaryID string
+	At       pgtype.Timestamptz
+	ID       pgtype.UUID
+}
+
+// binary's scan of a clean file: the file no longer pending.
+func (q *Queries) ClearQuestionnaireResponseAttachment(ctx context.Context, arg ClearQuestionnaireResponseAttachmentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearQuestionnaireResponseAttachment, arg.BinaryID, arg.At, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const completeQuestionnaireResponse = `-- name: CompleteQuestionnaireResponse :one
 UPDATE questionnaire_response
 SET status = 'completed', answers = $1, authored_at = $2, updated_at = $2, version_id = version_id + 1
 WHERE id = $3 AND status = 'in-progress'
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-          series_id, version_id, source, status, answers
+          series_id, version_id, source, status, answers, attachments
 `
 
 type CompleteQuestionnaireResponseParams struct {
@@ -45,6 +91,7 @@ func (q *Queries) CompleteQuestionnaireResponse(ctx context.Context, arg Complet
 		&i.Source,
 		&i.Status,
 		&i.Answers,
+		&i.Attachments,
 	)
 	return i, err
 }
@@ -98,7 +145,7 @@ VALUES ($1, $2, $3, $4, $5, $6,
         $7, 'in-progress', $8, $9, $9)
 ON CONFLICT (appointment_id, series_id) WHERE status <> 'stopped' DO NOTHING
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-          series_id, version_id, source, status, answers
+          series_id, version_id, source, status, answers, attachments
 `
 
 type InsertQuestionnaireResponseParams struct {
@@ -144,13 +191,14 @@ func (q *Queries) InsertQuestionnaireResponse(ctx context.Context, arg InsertQue
 		&i.Source,
 		&i.Status,
 		&i.Answers,
+		&i.Attachments,
 	)
 	return i, err
 }
 
 const lockQuestionnaireResponse = `-- name: LockQuestionnaireResponse :one
 SELECT id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-       series_id, version_id, source, status, answers
+       series_id, version_id, source, status, answers, attachments
 FROM questionnaire_response
 WHERE id = $1
 FOR NO KEY UPDATE
@@ -176,13 +224,25 @@ func (q *Queries) LockQuestionnaireResponse(ctx context.Context, id pgtype.UUID)
 		&i.Source,
 		&i.Status,
 		&i.Answers,
+		&i.Attachments,
 	)
 	return i, err
 }
 
+const questionnaireResponseAttachments = `-- name: QuestionnaireResponseAttachments :one
+SELECT attachments FROM questionnaire_response WHERE id = $1
+`
+
+func (q *Queries) QuestionnaireResponseAttachments(ctx context.Context, id pgtype.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, questionnaireResponseAttachments, id)
+	var attachments []byte
+	err := row.Scan(&attachments)
+	return attachments, err
+}
+
 const questionnaireResponseByID = `-- name: QuestionnaireResponseByID :one
 SELECT id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-       series_id, version_id, source, status, answers
+       series_id, version_id, source, status, answers, attachments
 FROM questionnaire_response
 WHERE id = $1
 `
@@ -206,8 +266,32 @@ func (q *Queries) QuestionnaireResponseByID(ctx context.Context, id pgtype.UUID)
 		&i.Source,
 		&i.Status,
 		&i.Answers,
+		&i.Attachments,
 	)
 	return i, err
+}
+
+const removeQuestionnaireResponseAttachment = `-- name: RemoveQuestionnaireResponseAttachment :execrows
+UPDATE questionnaire_response
+SET attachments = coalesce((SELECT jsonb_agg(a.e ORDER BY a.n) FROM jsonb_array_elements(attachments) WITH ORDINALITY AS a(e, n)
+                            WHERE a.e->>'binaryId' <> $1::text), '[]'),
+    updated_at = $2
+WHERE id = $3 AND attachments @> jsonb_build_array(jsonb_build_object('binaryId', $1::text))
+`
+
+type RemoveQuestionnaireResponseAttachmentParams struct {
+	BinaryID string
+	At       pgtype.Timestamptz
+	ID       pgtype.UUID
+}
+
+// binary's deletion and rejection: the file taken out of the answer's files, the others kept in order.
+func (q *Queries) RemoveQuestionnaireResponseAttachment(ctx context.Context, arg RemoveQuestionnaireResponseAttachmentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeQuestionnaireResponseAttachment, arg.BinaryID, arg.At, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const saveQuestionnaireResponseAnswers = `-- name: SaveQuestionnaireResponseAnswers :one
@@ -215,7 +299,7 @@ UPDATE questionnaire_response
 SET answers = $1, updated_at = $2, version_id = version_id + 1
 WHERE id = $3 AND status = 'in-progress'
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-          series_id, version_id, source, status, answers
+          series_id, version_id, source, status, answers, attachments
 `
 
 type SaveQuestionnaireResponseAnswersParams struct {
@@ -244,13 +328,14 @@ func (q *Queries) SaveQuestionnaireResponseAnswers(ctx context.Context, arg Save
 		&i.Source,
 		&i.Status,
 		&i.Answers,
+		&i.Attachments,
 	)
 	return i, err
 }
 
 const searchQuestionnaireResponses = `-- name: SearchQuestionnaireResponses :many
 SELECT id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-       series_id, version_id, source, status, answers
+       series_id, version_id, source, status, answers, attachments
 FROM questionnaire_response
 WHERE ($1::uuid IS NULL OR appointment_id = $1::uuid)
   AND ($2::uuid IS NULL OR patient_id = $2::uuid)
@@ -291,6 +376,7 @@ func (q *Queries) SearchQuestionnaireResponses(ctx context.Context, arg SearchQu
 			&i.Source,
 			&i.Status,
 			&i.Answers,
+			&i.Attachments,
 		); err != nil {
 			return nil, err
 		}
@@ -304,10 +390,10 @@ func (q *Queries) SearchQuestionnaireResponses(ctx context.Context, arg SearchQu
 
 const stopQuestionnaireResponse = `-- name: StopQuestionnaireResponse :one
 UPDATE questionnaire_response
-SET status = 'stopped', answers = '[]', updated_at = $1, version_id = version_id + 1
+SET status = 'stopped', answers = '[]', attachments = '[]', updated_at = $1, version_id = version_id + 1
 WHERE id = $2
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-          series_id, version_id, source, status, answers
+          series_id, version_id, source, status, answers, attachments
 `
 
 type StopQuestionnaireResponseParams struct {
@@ -315,7 +401,8 @@ type StopQuestionnaireResponseParams struct {
 	ID pgtype.UUID
 }
 
-// A withdrawal: stopped, the answers cleared at once.
+// A withdrawal: stopped, the answers and the list of files cleared at once (the binary_discard job, enqueued in
+// the same transaction, deletes the files).
 func (q *Queries) StopQuestionnaireResponse(ctx context.Context, arg StopQuestionnaireResponseParams) (QuestionnaireResponse, error) {
 	row := q.db.QueryRow(ctx, stopQuestionnaireResponse, arg.At, arg.ID)
 	var i QuestionnaireResponse
@@ -335,6 +422,7 @@ func (q *Queries) StopQuestionnaireResponse(ctx context.Context, arg StopQuestio
 		&i.Source,
 		&i.Status,
 		&i.Answers,
+		&i.Attachments,
 	)
 	return i, err
 }

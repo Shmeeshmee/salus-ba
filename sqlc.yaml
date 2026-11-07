@@ -53,6 +53,14 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
+    queries: internal/binary/query.sql
+    gen:
+      go:
+        package: binarydb
+        out: internal/binary/binarydb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/consent/query.sql
     gen:
       go:

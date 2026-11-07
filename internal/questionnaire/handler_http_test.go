@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -164,6 +165,26 @@ func TestHTTPHandler_CreatesADraftAndSendsItWithItsVersion(t *testing.T) {
 	}
 	if rec := serveHTTP(t, &stubLibrary{out: savedDraft}, true, &bytes.Buffer{}, request{http.MethodPost, "/questionnaires", "", `{"title":"x","item":[]}`}); rec.Code != http.StatusCreated {
 		t.Errorf("POST without a description = %d %s, want 201", rec.Code, rec.Body)
+	}
+}
+
+// An attachment item's accept and maxFiles travel in both directions.
+func TestHTTPHandler_DecodesAndSendsAnAttachmentItemsSettings(t *testing.T) {
+	item := `{"linkId":"a1","text":"Placeholder file upload","type":"attachment","required":true,"accept":["photo","video"],"maxFiles":10}`
+	files := questionnaire.Item{LinkID: "a1", Text: "Placeholder file upload", Type: questionnaire.ItemAttachment, Required: true,
+		Accept: []questionnaire.FileKind{questionnaire.FilePhoto, questionnaire.FileVideo}, MaxFiles: 10}
+	saved := savedDraft
+	saved.Items = []questionnaire.Item{files}
+	svc := &stubLibrary{out: saved}
+	rec := serveHTTP(t, svc, true, &bytes.Buffer{}, request{http.MethodPut, "/questionnaires/" + draftA, `W/"3"`,
+		`{"title":"` + placeholderTitle + `","item":[` + item + `]}`})
+
+	want := `"item":[{"linkId":"a1","text":"Placeholder file upload","type":"attachment","accept":["photo","video"],"required":true,"maxFiles":10}]`
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), want) {
+		t.Errorf("PUT = %d %s, want 200 with %s", rec.Code, rec.Body, want)
+	}
+	if len(svc.in.Items) != 1 || svc.in.Items[0].MaxFiles != 10 || !slices.Equal(svc.in.Items[0].Accept, files.Accept) || svc.in.Items[0].Type != files.Type {
+		t.Errorf("UpdateDraft(%+v), want the attachment item %+v", svc.in.Items, files)
 	}
 }
 

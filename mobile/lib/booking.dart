@@ -1,9 +1,16 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:http/http.dart' as http;
 import 'package:salus_api/api.dart' as api;
 
 import 'fhir.dart';
+import 'file_prep.dart' show Prepared;
 import 'session.dart';
+
+/// How long an upload may go without sending a byte or hearing its answer before it is stopped (COPY M5).
+const uploadIdle = Duration(seconds: 60);
 
 /// Where an appointment or a consent belongs: the listed clinics by id, and their practitioners by role id.
 class Places {
@@ -17,13 +24,15 @@ class Places {
 /// and the FHIR reads in [fhir]. Every failure is an [ApiFailure].
 class Booking {
   Booking(api.ApiClient client)
-    : fhir = Fhir(client),
+    : _client = client,
+      fhir = Fhir(client),
       _patient = api.PatientApi(client),
       _consents = api.ConsentsApi(client),
       _appointments = api.AppointmentsApi(client),
       _consultation = api.ConsultationApi(client),
       _questionnaires = api.QuestionnairesApi(client);
 
+  final api.ApiClient _client;
   final Fhir fhir;
   final api.PatientApi _patient;
   final api.ConsentsApi _consents;
@@ -109,6 +118,90 @@ class Booking {
     return r;
   }
 
+  /// Attaches [file] to the attachment item [linkId] of the response [id] (docs/attachments/SPEC.md §2 "Upload
+  /// pipeline"): the bytes streamed as the body with `Content-Length`, the name in `Content-Disposition` and never in
+  /// the URL, through the client's base and bearer token. The generated client would send a multipart form, which
+  /// the API does not take. [onSent] hears the bytes sent so far; [abort] stops the upload, which then throws
+  /// [http.RequestAbortedException]. An upload that makes no progress for [uploadIdle], its bytes or its answer, is
+  /// stopped and fails as unreachable ([ApiFailure]), as a lost connection does.
+  Future<api.Binary> upload(
+    String id,
+    String linkId,
+    Prepared file, {
+    required void Function(int sent) onSent,
+    Future<void>? abort,
+  }) async {
+    final headers = <String, String>{};
+    await _client.authentication?.applyToParams(<api.QueryParam>[], headers);
+    final stalled = Completer<void>();
+    Timer? idle;
+    void waiting() {
+      idle?.cancel();
+      if (!stalled.isCompleted) idle = Timer(uploadIdle, stalled.complete);
+    }
+
+    var sent = 0;
+    final body = file.read().map((chunk) {
+      sent += chunk.length;
+      if (!stalled.isCompleted) onSent(sent);
+      waiting();
+      return chunk;
+    });
+    final path = '/questionnaire-responses/${Uri.encodeComponent(id)}/items/${Uri.encodeComponent(linkId)}/attachments';
+    final request = _Upload(Uri.parse('${_client.basePath}$path'), body, Future.any([?abort, stalled.future]))
+      ..contentLength = file.size
+      ..headers.addAll({
+        ...headers,
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': contentDisposition(file.name),
+      });
+    waiting();
+    unawaited(abort?.then((_) => idle?.cancel()));
+    try {
+      final (status, text) = await Future.any([
+        _send(request),
+        stalled.future.then<(int, String)>((_) => throw const ApiFailure()),
+      ]);
+      if (status >= HttpStatus.badRequest) throw ApiFailure.fromBody(status, text);
+      return _binary(text);
+    } finally {
+      idle?.cancel();
+    }
+  }
+
+  /// A file's status (`quarantined`, `clean`, `rejected`).
+  Future<api.Binary> fileStatus(String binaryId) async {
+    final b = await apiCall(() => _attachments.getBinary(binaryId));
+    if (b == null) throw const ApiFailure(status: HttpStatus.badGateway);
+    return b;
+  }
+
+  /// Removes a file from the patient's answers; the server deletes it.
+  Future<void> removeFile(String binaryId) => apiCall(() => _attachments.deleteBinary(binaryId));
+
+  api.AttachmentsApi get _attachments => api.AttachmentsApi(_client);
+
+  Future<(int, String)> _send(http.BaseRequest request) async {
+    try {
+      final response = await _client.client.send(request);
+      return (response.statusCode, await response.stream.bytesToString());
+    } on http.RequestAbortedException {
+      rethrow;
+    } on Exception {
+      throw const ApiFailure();
+    }
+  }
+
+  static api.Binary _binary(String text) {
+    try {
+      final b = api.Binary.fromJson(jsonDecode(text));
+      if (b != null) return b;
+    } on FormatException {
+      // Not the API's JSON.
+    }
+    throw const ApiFailure(status: HttpStatus.badGateway);
+  }
+
   /// The listed clinics, with the practitioners of those among [clinicIds]. A clinic that is no longer listed
   /// is in neither map.
   Future<Places> places(Iterable<String> clinicIds) async {
@@ -123,4 +216,29 @@ class Booking {
     }
     return Places(clinics, roles);
   }
+}
+
+/// A streamed body of known length: read from the file as the connection takes it, so the memory used is a chunk
+/// whatever the file's size.
+final class _Upload extends http.BaseRequest implements http.Abortable {
+  _Upload(Uri url, this._body, this.abortTrigger) : super('POST', url);
+
+  final Stream<List<int>> _body;
+
+  @override
+  final Future<void>? abortTrigger;
+
+  @override
+  http.ByteStream finalize() {
+    super.finalize();
+    return http.ByteStream(_body);
+  }
+}
+
+/// `attachment; filename*=UTF-8''<name>` (RFC 6266, RFC 8187): the name percent-encoded, with the characters
+/// RFC 8187 does not allow bare (`'`, `(`, `)`, `*`, `!`) encoded too.
+String contentDisposition(String name) {
+  final encoded = Uri.encodeComponent(name)
+      .replaceAllMapped(RegExp(r"[!'()*]"), (m) => '%${m[0]!.codeUnitAt(0).toRadixString(16).toUpperCase()}');
+  return "attachment; filename*=UTF-8''$encoded";
 }

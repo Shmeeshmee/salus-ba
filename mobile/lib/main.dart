@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'app.dart';
 import 'booking.dart';
 import 'call.dart';
+import 'files.dart';
 import 'session.dart';
 import 'token_store.dart';
 
@@ -28,6 +29,7 @@ void main() {
       booking: Booking(client),
       now: DateTime.now,
       media: LiveKitMedia(),
+      files: DeviceFiles(),
       privacyNoticeUrl: Uri.parse(privacyNoticeUrl),
       openUrl: (url) => launchUrl(url, mode: LaunchMode.externalApplication),
     ),

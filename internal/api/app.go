@@ -19,6 +19,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
+	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
@@ -33,6 +34,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/envelope"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/redis"
 )
@@ -50,19 +52,14 @@ type App struct {
 // minRateLimitKey is the shortest RATE_LIMIT_KEY accepted: as long as the HMAC-SHA256 output.
 const minRateLimitKey = 32
 
-// New connects to the dependencies and builds the handler; lk is the video server (config.LoadLiveKit).
-func New(ctx context.Context, cfg config.Config, lk config.LiveKit, log *slog.Logger) (*App, error) {
-	box, err := auth.NewAESSecretBox(cfg.TOTPKey)
+// New connects to the dependencies and builds the handler; lk is the video server (config.LoadLiveKit), files
+// the object store and the key-encryption key of the questionnaire attachments (config.LoadObjectStore).
+func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config.ObjectStore, log *slog.Logger) (*App, error) {
+	k, err := checkKeys(cfg, files)
 	if err != nil {
 		return nil, err
 	}
-	if len(cfg.RateLimitKey) < minRateLimitKey {
-		return nil, errors.New("api: RATE_LIMIT_KEY must be at least 32 bytes")
-	}
-	fhirBase, err := absoluteURL(cfg.FHIRBaseURL)
-	if err != nil {
-		return nil, err
-	}
+	box, kek, fhirBase := k.box, k.kek, k.fhirBase
 	pool, err := postgres.Open(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return nil, err
@@ -108,6 +105,11 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, log *slog.Lo
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies)
 	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners)
+	questionnaireAPI, streams := questionnaireRoutes(questionnairePorts{
+		pool: pool, audit: audit, tx: tx, jobs: jobs, roles: roles, accounts: accounts, appointments: appointments, patients: patients,
+		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
+		kek:   kek,
+	}, fhirBase, log)
 
 	h := router.New(router.Config{
 		Logger: log,
@@ -133,10 +135,38 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, log *slog.Lo
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, questionnaireRoutes(pool, audit, tx, roles, accounts, appointments, patients, fhirBase, log)...),
+		}, questionnaireAPI...),
+		Streams: streams,
 		Timeout: RequestTimeout,
 	})
 	return &App{Handler: h, pool: pool, redis: rdb}, nil
+}
+
+// keys are the settings New checks before it connects to anything.
+type keys struct {
+	box      *auth.AESSecretBox
+	kek      *envelope.KEK
+	fhirBase string
+}
+
+// checkKeys checks the keys and the FHIR base of cfg and files; an error names the variable, never a value.
+func checkKeys(cfg config.Config, files config.ObjectStore) (keys, error) {
+	box, err := auth.NewAESSecretBox(cfg.TOTPKey)
+	if err != nil {
+		return keys{}, err
+	}
+	kek, err := envelope.NewKEK(files.KEKID, files.KEK)
+	if err != nil {
+		return keys{}, errors.New("api: BINARY_KEK must be 32 bytes")
+	}
+	if len(cfg.RateLimitKey) < minRateLimitKey {
+		return keys{}, errors.New("api: RATE_LIMIT_KEY must be at least 32 bytes")
+	}
+	fhirBase, err := absoluteURL(cfg.FHIRBaseURL)
+	if err != nil {
+		return keys{}, err
+	}
+	return keys{box: box, kek: kek, fhirBase: fhirBase}, nil
 }
 
 // newConsultation builds the consultation's Encounter and its video sessions on LiveKit (lk), which start
@@ -154,24 +184,56 @@ func newConsultation(pool *pgxpool.Pool, lk config.LiveKit, jobs *river.Client[p
 	})
 }
 
-// questionnaireRoutes builds the clinic's questionnaire library and the patients' responses, and their JSON and
-// FHIR routes.
-func questionnaireRoutes(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, roles *practitionerrole.Service,
-	accounts *auth.Service, appointments *appointment.Service, patients *patient.Service, fhirBase string, log *slog.Logger,
-) []func(*http.ServeMux) {
+// s3PageSize is the object store listing's page, S3's largest.
+const s3PageSize = 1000
+
+// questionnairePorts are what the questionnaires, their responses and the responses' files are built on.
+type questionnairePorts struct {
+	pool         *pgxpool.Pool
+	audit        *auditevent.Service
+	tx           *postgres.Transactor
+	jobs         *river.Client[pgx.Tx]
+	roles        *practitionerrole.Service
+	accounts     *auth.Service
+	appointments *appointment.Service
+	patients     *patient.Service
+	store        binary.Store
+	kek          *envelope.KEK
+}
+
+// questionnaireRoutes builds the clinic's questionnaire library, the patients' responses and the files
+// attached to them, and returns their JSON and FHIR routes, and the files' streaming routes. The responses are
+// built first: they are the files' holder (docs/attachments/SPEC.md §2 "Dependency direction").
+func questionnaireRoutes(p questionnairePorts, fhirBase string, log *slog.Logger) (routes, streams []func(*http.ServeMux)) {
 	questionnaires := questionnaire.NewService(questionnaire.Ports{
-		Repo: questionnaire.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Roles: roles,
+		Repo: questionnaire.NewPostgresRepository(p.pool), Audit: p.audit, Tx: p.tx, Clock: clock.System{}, Roles: p.roles,
 	})
 	responses := questionnaireresponse.NewService(questionnaireresponse.Ports{
-		Repo: questionnaireresponse.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
-		Appointments: appointments, Questionnaires: questionnaires,
+		Repo: questionnaireresponse.NewPostgresRepository(p.pool), Audit: p.audit, Tx: p.tx, Clock: clock.System{},
+		Appointments: p.appointments, Questionnaires: questionnaires,
+		Jobs: questionnaireresponse.NewRiverJobs(p.jobs), // a withdrawal or a submit enqueues its files' discard in its transaction
 	})
-	caller, responseCaller := questionnaireCaller(accounts, patients), appointmentCaller(accounts, patients)
+	files := binary.NewService(binary.Ports{
+		Repo: binary.NewPostgresRepository(p.pool), Store: p.store, Holder: responses, Audit: p.audit, Tx: p.tx,
+		Jobs: binary.NewRiverJobs(p.jobs), Clock: clock.System{}, KEK: p.kek, // an upload enqueues its scan in its transaction
+	})
+	caller, responseCaller := questionnaireCaller(p.accounts, p.patients), appointmentCaller(p.accounts, p.patients)
+	filesHandler := binary.NewHTTPHandler(files, binaryCaller(responseCaller), clock.System{}, log)
 	return []func(*http.ServeMux){
 		questionnaire.NewHTTPHandler(questionnaires, caller, log).Routes,
 		questionnaire.NewHandler(questionnaires, caller, fhirBase, log).Routes,
 		questionnaireresponse.NewHTTPHandler(responses, responseCaller, log).Routes,
 		questionnaireresponse.NewHandler(responses, questionnaires, responseCaller, fhirBase, log).Routes,
+		filesHandler.Routes,
+	}, []func(*http.ServeMux){filesHandler.StreamRoutes}
+}
+
+// binaryCaller is the files' view of the signed-in session: the appointment's (who is staff of which clinic
+// and which practitioner, or which patient).
+func binaryCaller(of func(ctx context.Context) (appointment.Caller, bool, error)) func(ctx context.Context) (binary.Caller, bool, error) {
+	return func(ctx context.Context) (binary.Caller, bool, error) {
+		c, ok, err := of(ctx)
+		return binary.Caller{AccountID: c.AccountID, OrganizationID: c.OrganizationID, PractitionerID: c.PractitionerID, PatientID: c.PatientID, Admin: c.Admin}, ok, err
 	}
 }
 

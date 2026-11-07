@@ -12,6 +12,7 @@ tables:
   account: {owner: auth, personal_data: true}
   appointment: {owner: appointment, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
+  binary: {owner: binary, personal_data: true}
   consent: {owner: consent, personal_data: true}
   encounter: {owner: encounter, personal_data: true}
   invite: {owner: auth, personal_data: true}

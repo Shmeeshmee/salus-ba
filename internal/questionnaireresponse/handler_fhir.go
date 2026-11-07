@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
@@ -45,12 +46,14 @@ type Handler struct {
 	caller func(ctx context.Context) (appointment.Caller, bool, error)
 	log    *slog.Logger
 	base   string // the FHIR API's absolute base URL (FHIR_BASE_URL)
+	api    string // the api's public base: base without /fhir/R4, for the files' download URLs
 }
 
 // NewHandler returns the handler on svc, reading the versions from versions. base is the FHIR API's absolute
-// base URL (https://…/fhir/R4).
+// base URL (https://…/fhir/R4); the api's own base, for the download URL of a valueAttachment, is base without
+// /fhir/R4 (config.Config.APIBaseURL).
 func NewHandler(svc Reader, versions Versions, caller func(ctx context.Context) (appointment.Caller, bool, error), base string, log *slog.Logger) *Handler {
-	return &Handler{svc: svc, versions: versions, caller: caller, base: base, log: log}
+	return &Handler{svc: svc, versions: versions, caller: caller, base: base, api: strings.TrimSuffix(base, "/fhir/R4"), log: log}
 }
 
 // Routes declares the QuestionnaireResponse routes on mux.
@@ -78,15 +81,30 @@ type extension struct {
 	ValueReference fhir.Reference `json:"valueReference"`
 }
 
-// item is a QuestionnaireResponse.item: a section with its answered items, or a question with its answers
-// (each Value is an answer: its JSON is FHIR's value[x]).
+// item is a QuestionnaireResponse.item: a section with its answered items, or a question with its answers.
 type item struct {
-	LinkID string  `json:"linkId"`
-	Answer []Value `json:"answer,omitempty"`
-	Item   []item  `json:"item,omitempty"`
+	LinkID string   `json:"linkId"`
+	Answer []answer `json:"answer,omitempty"`
+	Item   []item   `json:"item,omitempty"`
 }
 
-func toFHIR(s Seen, v questionnaire.Questionnaire) resource {
+// answer is one QuestionnaireResponse.item.answer: a Value (its JSON is FHIR's value[x]) or a file.
+type answer struct {
+	Attachment *attachment `json:"valueAttachment,omitempty"`
+	Value
+}
+
+// attachment is an R4 Attachment (docs/attachments/SPEC.md §2 "FHIR"): url is the api's download endpoint,
+// never the bucket; hash the SHA-1, base64.
+type attachment struct {
+	ContentType string `json:"contentType"`
+	URL         string `json:"url"`
+	Title       string `json:"title,omitempty"` // a file sent without a name has none: R4 has no empty string
+	Hash        []byte `json:"hash"`
+	Size        int64  `json:"size"`
+}
+
+func (h *Handler) toFHIR(s Seen, v questionnaire.Questionnaire) resource {
 	r := s.Response
 	patient := fhir.Reference{Reference: "Patient/" + r.PatientID}
 	res := resource{
@@ -96,9 +114,16 @@ func toFHIR(s Seen, v questionnaire.Questionnaire) resource {
 		Status:        r.Status, Subject: patient, Author: patient, Authored: instant(r.AuthoredAt),
 	}
 	if s.Level == access.Full {
-		given := make(map[string][]Value, len(r.Answers))
+		given := make(map[string][]answer, len(r.Answers)+len(r.Attachments))
 		for _, a := range r.Answers {
-			given[a.LinkID] = a.Values
+			for _, value := range a.Values {
+				given[a.LinkID] = append(given[a.LinkID], answer{Value: value})
+			}
+		}
+		for _, f := range r.Attachments { // in upload order, a pending one too: only the patient sees one
+			given[f.LinkID] = append(given[f.LinkID], answer{Attachment: &attachment{
+				ContentType: f.ContentType, URL: h.api + "/binaries/" + f.BinaryID + "/content", Size: f.Size, Hash: f.Hash, Title: f.Title,
+			}})
 		}
 		res.Item = nest(v.Items, given)
 	}
@@ -107,7 +132,7 @@ func toFHIR(s Seen, v questionnaire.Questionnaire) resource {
 
 // nest gives the answered items of items in document order, a section with its answered items; a section with
 // none, an instruction and an unanswered question are left out.
-func nest(items []questionnaire.Item, given map[string][]Value) []item {
+func nest(items []questionnaire.Item, given map[string][]answer) []item {
 	var out []item
 	for _, it := range items {
 		switch {
@@ -143,7 +168,7 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("ETag", fhir.ETag(strconv.FormatInt(int64(s.Response.VersionID), 10)))
-	fhir.Write(w, http.StatusOK, toFHIR(s, known[s.Response.QuestionnaireID]))
+	fhir.Write(w, http.StatusOK, h.toFHIR(s, known[s.Response.QuestionnaireID]))
 }
 
 // search answers QuestionnaireResponse?[appointment=…][&patient=…][&status=…]
@@ -173,7 +198,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	once := map[string]bool{}
 	for _, s := range all {
 		v := known[s.Response.QuestionnaireID]
-		matches = append(matches, fhir.BundleEntry{FullURL: h.base + "/QuestionnaireResponse/" + s.Response.ID, Resource: toFHIR(s, v)})
+		matches = append(matches, fhir.BundleEntry{FullURL: h.base + "/QuestionnaireResponse/" + s.Response.ID, Resource: h.toFHIR(s, v)})
 		if include && !once[v.ID] {
 			once[v.ID] = true
 			included = append(included, fhir.BundleEntry{FullURL: h.base + "/Questionnaire/" + v.ID, Resource: questionnaire.ToFHIR(v)})

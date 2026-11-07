@@ -701,7 +701,7 @@ export interface paths {
         put?: never;
         /**
          * Submit the answers
-         * @description The patient submits the saved answers, as they were read (If-Match): every shown required question must be answered; the answers of hidden questions are removed. Final: no later change. The appointment's practitioner reads the answers from then on. Not cached. Audited, also when refused.
+         * @description The patient submits the saved answers, as they were read (If-Match): every shown required question must be answered (a shown required attachment item needs a file); the answers and files of hidden questions are removed. Final: no later change. The appointment's practitioner reads the answers from then on. Not cached. Audited, also when refused.
          */
         post: operations["submitQuestionnaireAnswers"];
         delete?: never;
@@ -727,6 +727,81 @@ export interface paths {
          * @description The appointment's practitioner withdraws a request the patient has not submitted: it is stopped and its answers are cleared at once. Not cached. Audited, also when refused.
          */
         post: operations["withdrawQuestionnaire"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questionnaire-responses/{id}/items/{linkId}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The response's id (FHIR QuestionnaireResponse.id). */
+                id: components["parameters"]["QuestionnaireResponseID"];
+                /** @description The attachment item's linkId. */
+                linkId: components["parameters"]["LinkID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Attach a file to an answer
+         * @description The patient attaches one file to an attachment item of their questionnaire while it is in progress, while the appointment is booked and before it starts, with an active consent (FHIR Binary; the answer is a valueAttachment). The body is the file's bytes, streamed; `Content-Length` is required. The type is detected from the bytes, never from `Content-Type` or the name: PDF, JPEG, PNG or MP4 (H.264 video, AAC audio), as the item accepts. Limits: 20 MB per photo or document, 200 MB per video, the item's `maxFiles`, 500 MB per response. The title is the `filename*` of `Content-Disposition` (RFC 6266), cut to 200 characters, the path removed; never put it in the query string. The file is encrypted, stored and `quarantined` until the malware scan says it is `clean` (`GET /binaries/{id}`). An upload identical to a file already on the item (same SHA-1 and size) returns that file with 200 and stores nothing new, so the app may retry the whole file. Not cached. Audited, also when refused.
+         */
+        post: operations["uploadAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/binaries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The file's id (FHIR Binary.id). */
+                id: components["parameters"]["BinaryID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read a file's status
+         * @description A file's type, size, title and scan status, for whoever may read its questionnaire response in full: the patient, and the appointment's practitioner once the response is submitted. The app polls it until the file is `clean` or `rejected`. Not cached. Audited.
+         */
+        get: operations["getBinary"];
+        put?: never;
+        post?: never;
+        /**
+         * Remove a file from an answer
+         * @description The patient removes a file from their questionnaire while they may still change its answers; the file is deleted. Audited, also when refused.
+         */
+        delete: operations["deleteBinary"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/binaries/{id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The file's id (FHIR Binary.id). */
+                id: components["parameters"]["BinaryID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Download a file
+         * @description The file's bytes, decrypted, once the scan says it is `clean`, for whoever may read its questionnaire response in full. One `Range` (`bytes=a-b`, `a-` or `-n`) gives 206 with that part, so a video seeks; a request with several ranges gets the whole file. Shown inline, never sniffed, never cached. Every request is audited, ranges included.
+         */
+        get: operations["getBinaryContent"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1036,11 +1111,18 @@ export interface components {
             /** @description Not blank. */
             text: string;
             /** @enum {string} */
-            type: "group" | "display" | "string" | "text" | "boolean" | "choice" | "integer" | "decimal" | "date";
+            type: "group" | "display" | "string" | "text" | "boolean" | "choice" | "integer" | "decimal" | "date" | "attachment";
             /** @description Questions only. */
             required?: boolean;
             /** @description Choice only, several answers. */
             repeats?: boolean;
+            /** @description Attachment only, required: the kinds of file it accepts, `photo` (JPEG, PNG), `document` (PDF), `video` (MP4). */
+            accept?: ("photo" | "document" | "video")[];
+            /**
+             * Format: int32
+             * @description Attachment only, required, the number of files it takes.
+             */
+            maxFiles?: number;
             /** @description Help text, on questions and sections. */
             help?: string;
             /** @description Choice only, each value different. */
@@ -1167,10 +1249,32 @@ export interface components {
              */
             versionId: number;
         };
+        /** @description A file attached to a questionnaire answer (FHIR Binary; its bytes at `/binaries/{id}/content`). */
+        Binary: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description Detected from the bytes on upload.
+             * @enum {string}
+             */
+            contentType: "application/pdf" | "image/jpeg" | "image/png" | "video/mp4";
+            /**
+             * Format: int64
+             * @description Bytes.
+             */
+            size: number;
+            /** @description The file's name as uploaded; may be empty. */
+            title: string;
+            /**
+             * @description `quarantined` until the malware scan is done; `clean` may be opened; `rejected` was found to hold malware and is removed from the answer.
+             * @enum {string}
+             */
+            status: "quarantined" | "clean" | "rejected";
+        };
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "internal error" | "timeout";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "internal error" | "timeout";
             /** @description With `invalid_questionnaire` and `answers_invalid` only, the offending items' linkIds in document order. */
             linkIds?: string[];
         };
@@ -1351,13 +1455,61 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description `answers_invalid`: an answer does not fit its item's type or limits (docs/questionnaire/SPEC.md §2 "Limits"), or, on submit, a shown required question is unanswered; `linkIds` names them in document order (an answer to no item of the questionnaire is refused without being named). */
+        /** @description `answers_invalid`: an answer does not fit its item's type or limits (docs/questionnaire/SPEC.md §2 "Limits"), an answer is given to an attachment item (files go through `/questionnaire-responses/{id}/items/{linkId}/attachments`), or, on submit, a shown required question is unanswered; `linkIds` names them in document order (an answer to no item of the questionnaire is refused without being named). */
         AnswersInvalid: {
             headers: {
                 [name: string]: unknown;
             };
             content: {
                 "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The file, as stored. */
+        Binary: {
+            headers: {
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Binary"];
+            };
+        };
+        /** @description An identical file the item already holds; nothing new was stored. */
+        BinaryRetried: {
+            headers: {
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Binary"];
+            };
+        };
+        /** @description `not_found`: no such file, or the caller may not see it. */
+        BinaryNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The whole file (200) or the requested range (206), in the type detected on upload. Served with `X-Content-Type-Options: nosniff`, `Cross-Origin-Resource-Policy: same-origin`, `Content-Disposition: inline` with the title as `filename*`, and `Content-Security-Policy: default-src 'none'`. */
+        BinaryContent: {
+            headers: {
+                "Content-Length"?: number;
+                /** @description 206 only: `bytes <first>-<last>/<size>`. */
+                "Content-Range"?: string;
+                "Accept-Ranges"?: "bytes";
+                /** @description The file's SHA-1, a strong ETag. */
+                ETag?: string;
+                "Cache-Control"?: "private, no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/pdf": string;
+                "image/jpeg": string;
+                "image/png": string;
+                "video/mp4": string;
             };
         };
         /** @description The next step (`verify` or `enrol`, with the challenge), or `done` with the session: in the `salus_session` cookie (HttpOnly, Secure, SameSite=Strict) when `X-Salus-CSRF: 1` was sent, else as `token`. Not cached. */
@@ -1409,6 +1561,10 @@ export interface components {
         QuestionnaireID: string;
         /** @description The response's id (FHIR QuestionnaireResponse.id). */
         QuestionnaireResponseID: string;
+        /** @description The attachment item's linkId. */
+        LinkID: string;
+        /** @description The file's id (FHIR Binary.id). */
+        BinaryID: string;
         /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
         IfMatch: string;
         AppointmentID: string;
@@ -3279,7 +3435,15 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["AnswersForbidden"];
             404: components["responses"]["QuestionnaireResponseNotFound"];
-            409: components["responses"]["AnswersClosed"];
+            /** @description `submitted`, `withdrawn`, `appointment_closed`, `past_due`, `consent_required` as for the answers; `attachments_pending`: a file is still being checked for malware; submit once every file is clean. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             412: components["responses"]["QuestionnaireResponseChanged"];
             422: components["responses"]["AnswersInvalid"];
             500: components["responses"]["InternalError"];
@@ -3315,6 +3479,190 @@ export interface operations {
             /** @description `submitted`: the patient has submitted it; `withdrawn`: it is already withdrawn. */
             409: {
                 headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    uploadAttachment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The file's size in bytes. */
+                "Content-Length": number;
+                /** @description `attachment; filename*=UTF-8''<percent-encoded name>`, the file's name as its title. */
+                "Content-Disposition"?: string;
+            };
+            path: {
+                /** @description The response's id (FHIR QuestionnaireResponse.id). */
+                id: components["parameters"]["QuestionnaireResponseID"];
+                /** @description The attachment item's linkId. */
+                linkId: components["parameters"]["LinkID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            200: components["responses"]["BinaryRetried"];
+            201: components["responses"]["Binary"];
+            /** @description `invalid_request`: the body ended before `Content-Length` bytes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AnswersForbidden"];
+            404: components["responses"]["QuestionnaireResponseNotFound"];
+            /** @description `submitted`, `withdrawn`, `appointment_closed`, `past_due`, `consent_required` as for the answers; `too_many_files`: the item already holds `maxFiles` files. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `length_required`: no `Content-Length`. */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `too_large`: larger than the limit of the file's kind (or, before the bytes are read, of every kind the item accepts); `response_full`: the response's files would pass 500 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unsupported_type`: the bytes are no type the item accepts, or an MP4 whose video is not H.264 or whose audio is not AAC. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_attachment_item`: `linkId` is no attachment item of the response's questionnaire. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getBinary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The file's id (FHIR Binary.id). */
+                id: components["parameters"]["BinaryID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Binary"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["BinaryNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    deleteBinary: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The file's id (FHIR Binary.id). */
+                id: components["parameters"]["BinaryID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file is removed and deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AnswersForbidden"];
+            404: components["responses"]["BinaryNotFound"];
+            409: components["responses"]["AnswersClosed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getBinaryContent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description One byte range, `bytes=<first>-<last>`, `bytes=<first>-` or `bytes=-<suffix length>`. */
+                Range?: string;
+            };
+            path: {
+                /** @description The file's id (FHIR Binary.id). */
+                id: components["parameters"]["BinaryID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["BinaryContent"];
+            206: components["responses"]["BinaryContent"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such file, a rejected one, or the caller may not read it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `scanning`: the file is still being checked; try again later. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `range_not_satisfiable`: the range starts past the end of the file. */
+            416: {
+                headers: {
+                    /** @description `bytes *\/<size>`. */
+                    "Content-Range"?: string;
                     [name: string]: unknown;
                 };
                 content: {

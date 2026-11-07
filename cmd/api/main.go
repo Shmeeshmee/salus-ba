@@ -45,7 +45,13 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if err != nil {
 		return err
 	}
-	app, err := api.New(ctx, cfg, lk, log)
+	// The questionnaire attachments' object store and key-encryption key (docs/attachments/SPEC.md §2
+	// "Configuration").
+	files, err := config.LoadObjectStore()
+	if err != nil {
+		return err
+	}
+	app, err := api.New(ctx, cfg, lk, files, log)
 	if err != nil {
 		return err
 	}

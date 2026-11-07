@@ -1028,3 +1028,166 @@ secure storage as before.
 | An answer lost without the patient knowing | The saved state is always in view (M6); a failed save is shown and tried again every 5 seconds; leaving with an answer not saved asks first (M15) (tested) |
 | A save after the consent was revoked or the appointment started | The server refuses it (409); the app shows M16 and stops saving (tested) |
 | Answers shown to someone else on a shared device | The app's session rules apply as for appointments; the read-only view shows only the patient's own submitted answers |
+
+## Questionnaire attachments (`docs/attachments`)
+
+### Package 0.1: the `binary` table, the object store and the scanner
+
+**Processing added.** Files the patient attaches to questionnaire answers (photos, PDF documents, short videos)
+are FHIR `Binary` resources of the new domain `binary`. Their bytes are stored encrypted in an S3-compatible
+object store (Garage in compose, the hosting provider's EU store in production, not chosen); the `binary` table
+holds, per file, the response, item, clinic, patient and appointment it belongs to, the detected content type,
+the size, the title (the file's name, which can say anything), the SHA-1, the scan status and time, and the
+wrapped data key with its key id. `questionnaire_response.attachments` lists the files of each answer. The SPEC's
+§5 says why each field is needed. ClamAV (clamd) runs in our own stack to scan the files. No processor is added.
+
+**Purpose and lawful basis.** As the questionnaire's answers: preparing the appointment and, once submitted, the
+care record (Art. 9(2)(h)), with the consent for sharing before care; malware scanning is security of
+processing (Art. 32). Files are used for the patient's care only: no analysis, thumbnails, AI processing or
+training on them. **Needs legal confirmation before production** (SPEC §4, §8).
+
+**Access.** Row-level security on `"binary"`: the patient sees and deletes their own files and inserts files only
+for themselves on their own response, with that response's clinic and appointment; a clinic sees a file only
+when it can see its response (an `EXISTS` on `questionnaire_response`, so consent and the after-revocation rule
+D9 apply unchanged); the scan and discard jobs see the files of one response of one clinic. `salus_app` may update
+only the status, scan time, wrapped key and `updated_at`. A response's deletion, by any path, deletes its files'
+rows through the foreign key, the wrapped keys with them (tested for `salus_retention`, which holds no privilege
+on `binary` for that).
+
+**Retention.** At 0.1 `keep` with the response; made `delete` in package 3.1 (below).
+
+### Package 1.7: the mobile app's pickers, conversion and upload
+
+**Processing added.** The patient picks or records a file (camera, video camera, photo library, document
+picker), the app converts HEIC/HEIF to JPEG and other videos to H.264/AAC MP4 on the device, strips the metadata
+and uploads the file to the API, one at a time, then polls its status until it is clean or rejected.
+
+**Data minimisation (owner, SPEC §2 "Image and video metadata", O13 and O20).** Before upload the app removes
+from photos EXIF (keeping only the orientation), XMP, IPTC, comments, JFIF and anything after the end of the
+image (appended previews and depth maps); from PNG every text, time and Exif chunk; from MP4/MOV the `udta`,
+`meta` and `uuid` boxes and the creation and modification times. It keeps the JPEG ICC profile and Adobe colour
+transform and the PNG colour chunks and `pHYs`, which say how to show the colours and hold no location, device,
+time or person. Tested on generated files with location, device and time planted in them. iOS's photo picker
+runs without full metadata (`requestFullMetadata: false`). The server does not alter the bytes it receives.
+
+**Storage on the device.** The picker's and the conversion's copies sit in the app's temporary directory and are
+deleted once the file is uploaded, removed or left; a file outside that directory (the patient's own) is never
+touched. Nothing is written to shared preferences or a cache. The app prints nothing about files.
+
+**Third parties.** `image_picker` and `file_picker` (pinned) and Android's Media3 run on the device and send
+nothing anywhere; no processor.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A photo or video reveals where or when it was taken, or the device | Metadata stripped on the device before upload, the orientation alone kept (tested on generated files) |
+| A file left in the app's storage | Copies deleted after upload, removal or leaving the screen (tested) |
+| A file's name in the device's log | Nothing printed while picking, preparing, uploading or polling (tested) |
+| A file uploaded after the consent was revoked or the appointment started | The server refuses it; the app ends filling in as for the answers (tested) |
+
+### Package 2.1: upload, download, status and deletion
+
+**Processing added.** `POST /questionnaire-responses/{id}/items/{linkId}/attachments`, `GET /binaries/{id}`,
+`GET /binaries/{id}/content` (with `Range`) and `DELETE /binaries/{id}`. The upload checks the type from the
+bytes (never from the declared type or the name), streams the file through SHA-1, the MP4 codec check and the
+envelope encryption into one object, and only then records the row, the pending attachment, the scan job and the
+audit in one transaction. A file is quarantined until its scan says it is clean. The title comes from the
+request's `Content-Disposition`, never from the URL, which access logs may hold.
+
+**Encryption.** Each file has its own random 256-bit data key; the bytes are sealed in 64 KiB AES-256-GCM
+segments bound to the file's id, the segment's index and the final flag, so segments cannot be moved, swapped or
+truncated undetected. The data key is wrapped by the key-encryption key (`BINARY_KEK` from configuration locally
+and in CI, read only in `internal/config`; from the KMS in production, SPEC §8). Deleting the row deletes the
+wrapped key, after which the stored bytes can no longer be read (crypto-shredding). The store's own encryption at
+rest comes on top in production.
+
+**Access.** Through the questionnaire response's rule and consent (`binary.Holder`, implemented by
+`questionnaireresponse`): only the patient uploads and deletes, on their own response while it is in progress, the
+appointment booked and not started, with the active consent; reads at `Full` only (the patient on their own
+response, the appointment's practitioner on a completed one, D9 included); anyone else gets 404 without the file
+being disclosed. The download is refused until `clean` (409 `scanning`) and is 404 once rejected. Download
+headers: `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`, `Cross-Origin-Resource-Policy:
+same-origin`, `Content-Disposition: inline`, and `Content-Security-Policy: default-src 'none'` (with `sandbox`
+for images and video, O23).
+
+**Audit.** Every upload (`C`, `PATRQT`), status read and download (`R`; `PATRQT` for the patient, `TREAT` for
+staff), each range request included (a seek in a video is a read), and every deletion (`D`) writes an
+`AuditEvent` in the same transaction, refusals included: one event per entity, `Binary/<id>` and
+`QuestionnaireResponse/<id>` (O22). The download's audit commits before a byte is sent.
+
+**Logs.** The request id, route, status, duration and opaque ids only; never the title, a byte of the file, or the
+content type next to a patient id (tested on the handler's log).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A file read before it was scanned | Download refused while `quarantined`; nobody, the patient included, opens it before `clean` (tested) |
+| A practitioner reads a file the patient has not submitted | `Holder.Readable` gives staff only completed responses (tested); a completed response holds only clean files (3.2) |
+| The stored object read outside the API | Encrypted per file; the key lives only wrapped in the row; the store has no host port |
+| A malicious file served to a practitioner's browser | Type from the bytes, MP4 codecs checked, `nosniff`, the CSP per type, same-origin only |
+| A file twice from a retried upload | An identical retry (same item, SHA-1 and size) returns the first file and deletes the new object (tested) |
+| A file's name or bytes in a log | Never logged (tested) |
+
+### Package 3.1: scan, discard and purge
+
+**Processing added.** The `binary_scan` job (queue `scan`, 2 at a time) decrypts the stored file and streams it to
+clamd's `INSTREAM`: clean marks the file clean and the answer no longer pending; a signature found rejects it,
+clears its wrapped key at once, detaches it from the answer and deletes the object after the commit. The
+`binary_discard` job deletes the files a response no longer lists (after a withdrawal, or a submit that hid an
+item). The daily retention purger deletes rejected rows 24 h after their scan and every object older than 24 h
+with no row. The jobs' arguments are opaque ids only (the binary, the response, the clinic; O21).
+
+**Scanning on our own infrastructure.** clamd runs in our stack beside the worker; the file never leaves it. Its
+signature updates (freshclam) download from ClamAV's CDN and send no personal data. A scan that fails or cannot
+reach clamd leaves the file quarantined and River retries; nobody opens it meanwhile.
+
+**Audit.** A clean result is an `update` and a rejection a `delete`, each by `binary_scan` as agent for `HOPERAT`;
+a discard a `delete` by `binary_discard`; one event per entity. **The ClamAV signature name is not audited** (O25):
+`audit_event` has no field for it, and the rejection is recorded without it. The signature appears only on the
+job's log line, next to the binary id and nothing else, never next to a patient id; it is a ClamAV name, not
+personal data.
+
+**Retention.** `"binary"`: `delete`, 24 h: a rejected row once 24 h have passed since its scan; every other row
+lives exactly as long as its response or its answer. Objects: deleted after the commit that removes their row,
+and by the purger after 24 h when no row names them. `salus_retention` gains `SELECT, DELETE` on `"binary"` (and
+nothing else on it). **Needs a legal decision before production** (SPEC §5, §8).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Malware reaches a practitioner | Every file scanned before anyone can open it; a rejected file's key cleared at once and its object deleted (tested with the EICAR string in a generated PDF) |
+| A rejected file's name kept | The row (with its title) goes after 24 h; its key and bytes at once |
+| A deleted file's bytes left in the store | Unreadable once the row goes (the key goes with it); the purger deletes ciphertext without a row after 24 h (tested) |
+| The signature linked to a patient in logs | Logged with the binary id only (tested) |
+| A job reaching another clinic's files | The job scope is one response of one clinic (row-level security, tested) |
+
+### Package 3.2: attachment answers in questionnaire responses
+
+**Processing added.** A `QuestionnaireResponse` carries each file as a `valueAttachment` (`contentType`, `size`,
+`title`, `hash` the base64 SHA-1, and `url`, the API's download endpoint, never the bucket). A required file
+upload item needs a file; a submit is refused while any file is still being checked (409 `attachments_pending`), so
+a completed response holds only clean files. On submit the files of items hidden by a condition are detached and
+discarded; a withdrawal clears the files with the answers and enqueues the discard. No new table or field.
+
+**Access.** As the response: the patient's own view lists their pending files too; the practitioner sees files
+only on a completed response; a `Name` view (the admin's, or the practitioner's before the submit) carries no
+file (tested).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A practitioner sees a file still being checked or rejected | The submit is refused while a file is pending; a rejected one is detached (tested) |
+| Files kept for an answer the patient no longer gives | Hidden items' files detached on submit and discarded by the job (tested) |
+| Files kept after a withdrawal or a cancellation | The withdrawal clears them and discards; a cancellation deletes the response and its files' rows with it (tested, and end to end in 4.1) |
+
+### Package 4.1: the end-to-end journeys
+
+No new processing. The journeys (`test/e2e/attachments_test.go`, `test/e2e/web/attachments.spec.ts`) use only
+generated files (a JPEG, an H.264 MP4 made in the test, a PDF with the EICAR string assembled in the test) and
+synthetic accounts, and check end to end that a rejected file is detached and unreadable, that the practitioner
+reads only the clean files of the submitted response, that every upload, status read, download and range request
+is audited, and that a cancellation takes the file's row with the response.

@@ -3,6 +3,8 @@ package questionnaireresponse
 import (
 	"context"
 	"time"
+
+	"github.com/Shmeeshmee/salus/internal/binary"
 )
 
 // Repository stores the responses. Row-level security shows a transaction the responses of the patient set
@@ -40,4 +42,21 @@ type Repository interface {
 	// DeleteUnsubmittedBefore deletes, in every clinic, the responses not completed whose due time is
 	// before before, and returns how many (the retention purger, on salus_retention's pool).
 	DeleteUnsubmittedBefore(ctx context.Context, before time.Time) (int64, error)
+	// AddAttachment appends a to the attachments of the response id at at (updated_at, not version_id), or
+	// returns ErrNotFound when the scope shows no such response.
+	AddAttachment(ctx context.Context, id string, a binary.Attachment, at time.Time) error
+	// RemoveAttachment removes the file binaryID from the attachments of the response id at at; none to remove
+	// changes nothing.
+	RemoveAttachment(ctx context.Context, id, binaryID string, at time.Time) error
+	// ClearAttachment marks the file binaryID of the response id no longer pending at at; a file not pending
+	// changes nothing.
+	ClearAttachment(ctx context.Context, id, binaryID string, at time.Time) error
+	// Attachments returns the attachments of the response id, or ErrNotFound.
+	Attachments(ctx context.Context, id string) ([]binary.Attachment, error)
+}
+
+// Jobs enqueues the background work a change of the answers causes, in the caller's transaction (River's
+// InsertTx): binary_discard, once the response no longer lists some of its files.
+type Jobs interface {
+	EnqueueDiscard(ctx context.Context, args binary.DiscardArgs) error
 }

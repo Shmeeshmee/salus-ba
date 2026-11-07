@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "ba.salus.salus"
-    compileSdk = flutter.compileSdkVersion
+    // Owner, 2026-11-07 (docs/attachments, package 1.7).
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -46,4 +47,12 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // The on-device conversion of a video that is not H.264/AAC MP4 (docs/attachments/SPEC.md §2 "Mobile",
+    // MainActivity.kt). Media3 Transformer is Android's own (AndroidX, Apache-2.0); MediaCodec and MediaMuxer by hand
+    // would be several hundred lines. Pinned exact (docs/attachments/PROGRESS.md, package 1.7).
+    implementation("androidx.media3:media3-transformer:1.11.1")
+    implementation("androidx.media3:media3-common:1.11.1")
 }

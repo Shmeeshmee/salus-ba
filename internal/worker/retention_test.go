@@ -101,8 +101,15 @@ func runWorkerJob(t *testing.T, db logins, args river.JobArgs) (river.EventKind,
 // runWorkerJobWith is runWorkerJob with the worker on the video provider p; a snooze ends the run too.
 func runWorkerJobWith(t *testing.T, db logins, p videosession.Provider, args river.JobArgs) (river.EventKind, string) {
 	t.Helper()
+	return runJobOn(t, db, p, testFiles(t), args, nil)
+}
+
+// runJobOn starts the worker on db with the video provider p and the files' dependencies, enqueues args with
+// opts, and returns how the job's first attempt ended (completed, failed, cancelled or snoozed) and the log.
+func runJobOn(t *testing.T, db logins, p videosession.Provider, files worker.Files, args river.JobArgs, opts *river.InsertOpts) (river.EventKind, string) {
+	t.Helper()
 	logs := &syncBuffer{}
-	client, err := worker.New(db.app, db.retention, p, slog.New(slog.NewJSONHandler(logs, nil)))
+	client, err := worker.New(db.app, db.retention, p, files, slog.New(slog.NewJSONHandler(logs, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -112,7 +119,7 @@ func runWorkerJobWith(t *testing.T, db logins, p videosession.Provider, args riv
 		t.Fatal(err)
 	}
 	defer func() { _ = client.Stop(context.WithoutCancel(t.Context())) }()
-	inserted, err := client.Insert(t.Context(), args, nil)
+	inserted, err := client.Insert(t.Context(), args, opts)
 	if err != nil {
 		t.Fatalf("Insert() error = %v", err)
 	}
@@ -159,6 +166,7 @@ func TestRetentionApply_DeletesEndedSessionsAndInvitesAndLogsOnlyTablesAndCounts
 		`"msg":"retention applied","table":"slot","deleted":0,"overdue":0`,
 		`"msg":"retention applied","table":"video_session","deleted":0,"overdue":0`,
 		`"msg":"retention applied","table":"questionnaire_response","deleted":0,"overdue":0`,
+		`"msg":"retention applied","table":"binary","deleted":0,"overdue":0`,
 	} {
 		if !strings.Contains(logs, line) {
 			t.Errorf("log lacks %s:\n%s", line, logs)
@@ -181,7 +189,7 @@ func TestRetentionApply_DeletesEndedSessionsAndInvitesAndLogsOnlyTablesAndCounts
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"invite 1", "questionnaire_response 0", "session 1", "slot 0", "video_session 0"}; !slices.Equal(audited, want) {
+	if want := []string{"binary 0", "invite 1", "questionnaire_response 0", "session 1", "slot 0", "video_session 0"}; !slices.Equal(audited, want) {
 		t.Errorf("audited %v, want one event per table with its row count", audited)
 	}
 }
@@ -224,7 +232,7 @@ func assertNoPersonalData(t *testing.T, logs string) {
 func TestNew_RefusesToStartWithoutTheRetentionPool(t *testing.T) {
 	_, app := pgtest.NewAppDatabase(t)
 
-	if _, err := worker.New(app, nil, liveKit(t), slog.New(slog.DiscardHandler)); err == nil {
+	if _, err := worker.New(app, nil, liveKit(t), testFiles(t), slog.New(slog.DiscardHandler)); err == nil {
 		t.Fatal("New() error = nil without the retention pool")
 	}
 }
@@ -290,7 +298,7 @@ func TestNew_HandsTheRetentionPoolToTheRetentionPurgersOnly(t *testing.T) {
 		})
 	}
 	slices.Sort(uses)
-	if want := []string{"auth.NewPostgresRepository", "newRetention", "questionnaireresponse.NewPostgresRepository", "slot.NewPostgresRepository",
+	if want := []string{"auth.NewPostgresRepository", "binary.NewPostgresRepository", "newRetention", "questionnaireresponse.NewPostgresRepository", "slot.NewPostgresRepository",
 		"videosession.NewPostgresRepository"}; !slices.Equal(uses, want) {
 		t.Errorf("retentionPool is passed to %v, want only %v", uses, want)
 	}

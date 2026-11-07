@@ -89,7 +89,7 @@ export interface QuestionnaireItem {
   repeats?: boolean
   answerOption?: { valueString: string }[]
   enableWhen?: { question: string; operator: string; answerBoolean?: boolean; answerString?: string }[]
-  extension?: { url: string; valueCodeableConcept?: CodeableConcept }[]
+  extension?: { url: string; valueCodeableConcept?: CodeableConcept; valueCode?: string; valueInteger?: number }[]
   item?: QuestionnaireItem[]
 }
 
@@ -105,7 +105,18 @@ export interface Questionnaire {
   item?: QuestionnaireItem[]
 }
 
+// Attachment is a file attached to an answer (attachments SPEC §2 "FHIR"): its bytes at url, which ends in
+// /binaries/<id>/content.
+export interface Attachment {
+  contentType: string
+  size: number
+  title?: string
+  hash?: string
+  url?: string
+}
+
 export interface AnswerValue {
+  valueAttachment?: Attachment
   valueString?: string
   valueBoolean?: boolean
   valueInteger?: number

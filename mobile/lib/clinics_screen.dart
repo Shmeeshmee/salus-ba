@@ -3,17 +3,19 @@ import 'package:flutter/material.dart';
 import 'booking.dart';
 import 'call.dart';
 import 'fhir.dart';
+import 'files.dart';
 import 'loading.dart';
 import 'slots_screen.dart';
 import 'ui.dart' as ui;
 
 /// The clinics that chose to be listed.
 class ClinicsScreen extends StatefulWidget {
-  const ClinicsScreen({super.key, required this.booking, required this.now, required this.media});
+  const ClinicsScreen({super.key, required this.booking, required this.now, required this.media, required this.files});
 
   final Booking booking;
   final DateTime Function() now;
   final Media media;
+  final Files files;
 
   @override
   State<ClinicsScreen> createState() => _ClinicsScreenState();
@@ -34,8 +36,13 @@ class _ClinicsScreenState extends LoadingState<ClinicsScreen, List<Organization>
             clinic.name,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) =>
-                    PractitionersScreen(booking: widget.booking, now: widget.now, media: widget.media, clinic: clinic),
+                builder: (_) => PractitionersScreen(
+                  booking: widget.booking,
+                  now: widget.now,
+                  media: widget.media,
+                  files: widget.files,
+                  clinic: clinic,
+                ),
               ),
             ),
           ),
@@ -51,12 +58,14 @@ class PractitionersScreen extends StatefulWidget {
     required this.booking,
     required this.now,
     required this.media,
+    required this.files,
     required this.clinic,
   });
 
   final Booking booking;
   final DateTime Function() now;
   final Media media;
+  final Files files;
   final Organization clinic;
 
   @override
@@ -83,6 +92,7 @@ class _PractitionersScreenState extends LoadingState<PractitionersScreen, List<P
                   booking: widget.booking,
                   now: widget.now,
                   media: widget.media,
+                  files: widget.files,
                   clinic: widget.clinic,
                   role: role,
                 ),

@@ -32,12 +32,17 @@ type Config struct {
 	Checks  []Check
 	// Routes are the domains' registration functions (such as auth.Handler.Routes), each declaring its
 	// routes on the mux.
-	Routes  []func(mux *http.ServeMux)
+	Routes []func(mux *http.ServeMux)
+	// Streams are the registration functions of the routes that stream a request or a response body (an
+	// upload, a download, such as binary.HTTPHandler.StreamRoutes): they are served without the request
+	// timeout, whose buffered writer would hold the whole body and cut a long transfer, and set their own
+	// deadlines through http.ResponseController.
+	Streams []func(mux *http.ServeMux)
 	Timeout time.Duration // per request
 }
 
-// New returns the API's handler: request id, access log, recover, timeout and the session check around the
-// routes.
+// New returns the API's handler: request id, access log, recover, timeout (but for the streams) and the
+// session check around the routes.
 func New(cfg Config) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthz)
@@ -47,12 +52,25 @@ func New(cfg Config) http.Handler {
 	for _, routes := range cfg.Routes {
 		routes(mux)
 	}
+	streams := http.NewServeMux() // only to tell a streaming route's request; mux serves it
+	for _, routes := range cfg.Streams {
+		routes(mux)
+		routes(streams)
+	}
 
 	var h http.Handler = mux
 	if cfg.Session != nil {
 		h = cfg.Session(h)
 	}
-	h = http.TimeoutHandler(h, cfg.Timeout, `{"error":"timeout"}`)
+	timed := http.TimeoutHandler(h, cfg.Timeout, `{"error":"timeout"}`)
+	untimed := h
+	h = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, pattern := streams.Handler(r); pattern != "" {
+			untimed.ServeHTTP(w, r)
+			return
+		}
+		timed.ServeHTTP(w, r)
+	})
 	h = middleware.Recover(cfg.Logger)(h)
 	h = middleware.AccessLog(cfg.Logger, mux)(h)
 	return middleware.RequestID(h)

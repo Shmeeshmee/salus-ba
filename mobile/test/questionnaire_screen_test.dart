@@ -42,6 +42,11 @@ Future<Harness> _opened(WidgetTester tester, {Map<String, Object?>? r}) async {
 
 Finder _field(String linkId) => find.byKey(ValueKey('answer-$linkId'));
 
+/// The saved state (M6) and the last refusal sit in the footer under the list, so they stay in view.
+final _footer = find.byKey(const ValueKey('questionnaire-footer'));
+
+Finder _inFooter(String text) => find.descendant(of: _footer, matching: find.text(text));
+
 /// The page is a lazy list: a row is built once it is scrolled to. Scrolls down to [finder], from the top when
 /// it is not built.
 Future<void> _reveal(WidgetTester tester, Finder finder) async {
@@ -299,7 +304,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(_saves(h), hasLength(3));
       expect((_saves(h).last['answers'] as List).last['linkId'], 'name');
-      expect(find.text('Saved'), findsOneWidget);
+      // In the footer (owner, 2026-11-07: there, with a background and a top border, always visible).
+      expect(_inFooter('Saved'), findsOneWidget);
       expectNoCsrfHeader(h.api);
     });
 
@@ -372,7 +378,11 @@ void main() {
       expect(find.text('Choose a date'), findsWidgets, reason: "the picker's title");
       final picker = find.byType(DatePickerDialog);
       expect(tester.widget<DatePickerDialog>(picker).initialEntryMode, DatePickerEntryMode.calendarOnly);
-      expect(find.descendant(of: picker, matching: find.byType(TextField)), findsNothing, reason: 'no typed entry');
+      expect(
+        find.descendant(of: picker, matching: find.byType(TextField)),
+        findsNothing,
+        reason: 'no typed entry',
+      );
       expect(find.descendant(of: picker, matching: find.byIcon(Icons.edit_outlined)), findsNothing);
       expect(find.descendant(of: picker, matching: find.text('OK')), findsNothing);
       expect(find.descendant(of: picker, matching: find.text('Cancel')), findsOneWidget);
@@ -430,7 +440,7 @@ void main() {
       h.api.on(_route, (_) async => throw http.ClientException('network'));
 
       await _tapIn(tester, 'smoker', 'Yes');
-      expect(find.text('Not saved. Check your connection. Saving will try again.'), findsOneWidget);
+      expect(_inFooter('Not saved. Check your connection. Saving will try again.'), findsOneWidget);
       final tries = _saves(h).length;
 
       _answerSaves(h);
@@ -438,8 +448,25 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_saves(h).length, tries + 1);
-      expect(find.text('Saved'), findsOneWidget);
+      expect(_inFooter('Saved'), findsOneWidget);
       expect(find.text('Not saved. Check your connection. Saving will try again.'), findsNothing);
+    });
+
+    testWidgets('the saved state is always in the footer, which has a background and a top border', (tester) async {
+      final h = await _opened(tester);
+
+      expect(_inFooter('Saved'), findsOneWidget, reason: 'visible before the first change: nothing is unsaved');
+      final box = tester.widget<DecoratedBox>(_footer).decoration as BoxDecoration;
+      expect(box.color, Colors.white);
+      expect((box.border! as Border).top.width, greaterThan(0));
+      expect((box.border! as Border).bottom, BorderSide.none);
+
+      _answerSaves(h);
+      await _reveal(tester, find.text('Placeholder instructions'));
+      final list = find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first;
+      tester.state<ScrollableState>(list).position.jumpTo(tester.state<ScrollableState>(list).position.maxScrollExtent);
+      await tester.pump();
+      expect(_inFooter('Saved'), findsOneWidget, reason: 'still in view at the end of the list');
     });
 
     for (final (code, status, text) in [

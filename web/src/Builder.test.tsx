@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { newApiClient } from './api/client'
 import { newFhirClient, type Questionnaire } from './api/fhir'
+import appCSS from './app.css?raw'
 import { Builder } from './Builder'
 import type { SaveRequest } from './questionnaire'
 import { navigate, usePath } from './route'
@@ -201,6 +202,96 @@ describe('Builder: a draft', () => {
     expect(changed).toMatchObject({ type: 'choice', repeats: true, text: 'Placeholder single' })
     expect(changed?.linkId).not.toBe('one')
     expect(changed?.linkId).toMatch(/^[A-Za-z0-9-]{1,64}$/)
+  })
+})
+
+describe('Builder: a file upload item', () => {
+  const upload = (extra = {}) =>
+    draft({
+      item: [
+        {
+          linkId: 'f',
+          text: 'Placeholder upload',
+          type: 'attachment',
+          repeats: true,
+          extension: [
+            { url: 'http://hl7.org/fhir/StructureDefinition/mimeType', valueCode: 'application/pdf' },
+            { url: 'http://hl7.org/fhir/StructureDefinition/questionnaire-maxOccurs', valueInteger: 3 },
+          ],
+          ...extra,
+        },
+      ],
+    })
+
+  it('is offered in the palette as "File upload" (W1), and opens with the accepted kinds and the number of files (W2 to W4)', async () => {
+    renderBuilder({})
+    fireEvent.click(await screen.findByRole('button', { name: 'File upload' }))
+
+    const c = card('File upload')
+    expect((within(c).getByLabelText('Type') as HTMLSelectElement).value).toBe('attachment')
+    const kinds = within(c).getByRole('group', { name: 'Accepted files' })
+    expect(within(kinds).getAllByRole('checkbox').map((b) => [b.closest('div')?.textContent, (b as HTMLInputElement).checked])).toEqual([
+      ['Photos', true],
+      ['Documents', true],
+      ['Videos', false],
+    ])
+    expect(description(kinds)).toBe('Photos: JPEG or PNG, up to 20 MB. Documents: PDF, up to 20 MB. Videos: MP4, up to 200 MB.')
+    const n = within(c).getByLabelText('Number of files') as HTMLInputElement
+    expect(n.value).toBe('1')
+    expect([n.min, n.max, n.step]).toEqual(['1', '10', '1'])
+    expect(description(n)).toBe('From 1 to 10.')
+    expect(within(c).getByLabelText('Required')).toBeTruthy()
+    expect(within(card('File upload')).getAllByText('1 file')).toHaveLength(1)
+  })
+
+  it('reads the item and sums it up on the closed card after the type (W5)', async () => {
+    renderBuilder({}, upload())
+    await screen.findByLabelText('Title')
+    expect(screen.getByRole('button', { name: 'Placeholder upload File upload Up to 3 files' })).toBeTruthy()
+
+    fireEvent.click(toggle('Placeholder upload'))
+    const c = card('Placeholder upload')
+    expect(within(c).getAllByRole('checkbox', { checked: true }).map((b) => b.closest('div')?.textContent)).toEqual(['Documents'])
+    expect((within(c).getByLabelText('Number of files') as HTMLInputElement).value).toBe('3')
+  })
+
+  it.each([
+    ['no kind of file', (c: HTMLElement) => fireEvent.click(within(c).getByLabelText('Documents')), 'Choose at least one kind of file.'],
+    ['11 files', (c: HTMLElement) => fireEvent.change(within(c).getByLabelText('Number of files'), { target: { value: '11' } }), 'The number of files must be from 1 to 10.'],
+    ['0 files', (c: HTMLElement) => fireEvent.change(within(c).getByLabelText('Number of files'), { target: { value: '0' } }), 'The number of files must be from 1 to 10.'],
+    ['an empty number', (c: HTMLElement) => fireEvent.change(within(c).getByLabelText('Number of files'), { target: { value: '' } }), 'The number of files must be from 1 to 10.'],
+  ])('says so on the item with %s (W6), and does not offer to publish', async (_, change, message) => {
+    const { requests } = renderBuilder({}, upload())
+    await screen.findByLabelText('Title')
+    fireEvent.click(toggle('Placeholder upload'))
+    change(card('Placeholder upload'))
+
+    expect(within(card('Placeholder upload')).getByText(message)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(requests.some((r) => r.method !== 'GET')).toBe(false)
+  })
+
+  it('saves accept and maxFiles as chosen', async () => {
+    const { requests } = renderBuilder({ 'PUT /questionnaires/q1': saved() }, upload())
+    await screen.findByLabelText('Title')
+    fireEvent.click(toggle('Placeholder upload'))
+    const c = card('Placeholder upload')
+    fireEvent.click(within(c).getByLabelText('Videos'))
+    fireEvent.click(within(c).getByLabelText('Photos'))
+    fireEvent.change(within(c).getByLabelText('Number of files'), { target: { value: '10' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
+
+    await vi.waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true))
+    expect((await saveBody(requests)).item).toEqual([
+      { linkId: 'f', text: 'Placeholder upload', type: 'attachment', accept: ['photo', 'document', 'video'], maxFiles: 10 },
+    ])
+  })
+
+  it('shows the summary on a published version too', async () => {
+    renderBuilder({}, { ...upload(), status: 'active' })
+    expect(await screen.findByText('Up to 3 files')).toBeTruthy()
+    expect(screen.getByText('File upload')).toBeTruthy()
   })
 })
 
@@ -542,6 +633,24 @@ describe('Builder: publishing and the lifecycle', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit as new version' }))
     await vi.waitFor(() => expect(location.pathname).toBe('/questionnaires/q2'))
+  })
+
+  it('leaves the same space under "Edit as new version" and "Retire" as under the other action rows (W23)', async () => {
+    const style = document.createElement('style')
+    style.textContent = appCSS
+    document.head.append(style)
+    try {
+      renderBuilder({}, draft({ status: 'active' }))
+      const row = (await screen.findByRole('button', { name: 'Edit as new version' })).closest('.actions') as HTMLElement
+      const items = document.querySelector('ul.items') as HTMLElement
+      expect(row.nextElementSibling).toBe(items)
+      // Block margins collapse: the space between the row and the list is the larger of the two.
+      const space = Math.max(parseFloat(getComputedStyle(row).marginBottom) || 0, parseFloat(getComputedStyle(items).marginTop) || 0)
+      expect(space).toBe(16)
+      expect(getComputedStyle(row).marginTop).toBe('16px')
+    } finally {
+      style.remove()
+    }
   })
 
   it('offers the existing draft on 409 draft_exists', async () => {

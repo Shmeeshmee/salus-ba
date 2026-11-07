@@ -52,18 +52,18 @@ func (a *fakeAudit) CountRecordedBefore(_ context.Context, before time.Time) (in
 }
 
 type appliers struct {
-	sessions, invites, slots, videoSessions, responses *fakePurger
-	audit                                              *fakeAudit
+	sessions, invites, slots, videoSessions, responses, binaries *fakePurger
+	audit                                                        *fakeAudit
 }
 
 func newAppliers() appliers {
 	return appliers{sessions: &fakePurger{rows: 4}, invites: &fakePurger{rows: 1}, slots: &fakePurger{rows: 9}, videoSessions: &fakePurger{rows: 2},
-		responses: &fakePurger{rows: 3}, audit: &fakeAudit{}}
+		responses: &fakePurger{rows: 3}, binaries: &fakePurger{rows: 5}, audit: &fakeAudit{}}
 }
 
 func (a appliers) purgers() map[string]retention.Purger {
 	return map[string]retention.Purger{"session": a.sessions, "invite": a.invites, "slot": a.slots, "video_session": a.videoSessions,
-		"questionnaire_response": a.responses}
+		"questionnaire_response": a.responses, "binary": a.binaries}
 }
 
 func (a appliers) service(t *testing.T) *retention.Service {
@@ -91,13 +91,16 @@ func TestApply_CallsEachApplierOnceWithItsRulesCutOffAndCountsTheRows(t *testing
 	if want := []time.Time{now}; !slices.Equal(a.responses.before, want) {
 		t.Errorf("purged questionnaire responses before %v, want once before %v", a.responses.before, want)
 	}
+	if want := []time.Time{now.Add(-day)}; !slices.Equal(a.binaries.before, want) {
+		t.Errorf("purged binaries before %v, want once before %v", a.binaries.before, want)
+	}
 	if want := []time.Time{now.Add(-3653 * day)}; !slices.Equal(a.audit.before, want) {
 		t.Errorf("counted audit events before %v, want once before %v", a.audit.before, want)
 	}
 	// keep and restrict apply nothing: account, practitioner, practitioner_role, patient, consent and schedule
 	// have no result.
 	want := []retention.Result{{Table: "audit_event"}, {Table: "session", Deleted: 4}, {Table: "invite", Deleted: 1}, {Table: "slot", Deleted: 9}, {Table: "video_session", Deleted: 2},
-		{Table: "questionnaire_response", Deleted: 3}}
+		{Table: "questionnaire_response", Deleted: 3}, {Table: "binary", Deleted: 5}}
 	if !slices.Equal(results, want) {
 		t.Errorf("results %+v, want %+v", results, want)
 	}
@@ -124,7 +127,7 @@ func TestApply_AuditsEachDeleteRuleOnceWithItsTableAndRowCount(t *testing.T) {
 			Outcome:     auditevent.OutcomeSuccess,
 		}
 	}
-	want := []auditevent.AuditEvent{event("session", 4), event("invite", 1), event("slot", 0), event("video_session", 2), event("questionnaire_response", 3)}
+	want := []auditevent.AuditEvent{event("session", 4), event("invite", 1), event("slot", 0), event("video_session", 2), event("questionnaire_response", 3), event("binary", 5)}
 	if !slices.Equal(a.audit.events, want) {
 		t.Errorf("recorded %+v,\nwant %+v", a.audit.events, want)
 	}
@@ -171,7 +174,7 @@ func TestApply_StopsAtAnApplierThatFails(t *testing.T) {
 // purgersBut is p for every table whose rule is delete but the table without, and for each extra table.
 func purgersBut(p retention.Purger, without string, extra ...string) map[string]retention.Purger {
 	out := map[string]retention.Purger{}
-	for _, table := range append([]string{"session", "invite", "slot", "video_session", "questionnaire_response"}, extra...) {
+	for _, table := range append([]string{"session", "invite", "slot", "video_session", "questionnaire_response", "binary"}, extra...) {
 		if table != without {
 			out[table] = p
 		}
@@ -194,6 +197,7 @@ func TestNewService_RefusesRulesWithoutAnApplierAndAppliersWithoutARule(t *testi
 		{name: "no slot purger", purgers: purgersBut(purger, "slot"), audit: &fakeAudit{}, table: "slot"},
 		{name: "no video_session purger", purgers: purgersBut(purger, "video_session"), audit: &fakeAudit{}, table: "video_session"},
 		{name: "no questionnaire_response purger", purgers: purgersBut(purger, "questionnaire_response"), audit: &fakeAudit{}, table: "questionnaire_response"},
+		{name: "no binary purger", purgers: purgersBut(purger, "binary"), audit: &fakeAudit{}, table: "binary"},
 		{name: "no audit check", purgers: purgersBut(purger, ""), table: "audit_event"},
 		{name: "a purger for a kept table", purgers: purgersBut(purger, "", "account"), audit: &fakeAudit{}, table: "account"},
 		{name: "a purger for a restricted table", purgers: purgersBut(purger, "", "schedule"), audit: &fakeAudit{}, table: "schedule"},

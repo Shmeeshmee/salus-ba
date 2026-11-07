@@ -2,7 +2,7 @@
 # ("Go architecture") names the planned domains; a domain is listed here in the same commit that adds its
 # package. archcheck fails on a package under internal/ that is in no list.
 contexts:
-  clinical: [questionnaire, questionnaireresponse]
+  clinical: [binary, questionnaire, questionnaireresponse]
   consultation: [encounter, videosession]
   directory: [organization, practitioner, practitionerrole]
   identity: [auth]

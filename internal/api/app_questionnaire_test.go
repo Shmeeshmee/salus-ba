@@ -43,7 +43,7 @@ func run(t *testing.T, steps []step) {
 func TestNew_ServesTheQuestionnaireLibraryToStaffOfTheClinicAndAuditsIt(t *testing.T) {
 	cfg := testConfig(t)
 	var log syncBuffer
-	app, err := api.New(t.Context(), cfg, testLiveKit(), slog.New(slog.NewTextHandler(&log, nil)))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), slog.New(slog.NewTextHandler(&log, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -86,7 +86,7 @@ func TestNew_ServesTheQuestionnaireLibraryToStaffOfTheClinicAndAuditsIt(t *testi
 	run(t, []step{
 		{d.admin, "the admin edits the draft", http.MethodPut, q, `W/"1"`, qDraft, `"versionId":2`, http.StatusOK},
 		{d.practitioner, "an edit at a stale version", http.MethodPut, q, `W/"1"`, qDraft, `"version_conflict"`, http.StatusPreconditionFailed},
-		{d.practitioner, "the reserved attachment type", http.MethodPut, q, `W/"2"`,
+		{d.practitioner, "an attachment item without its settings", http.MethodPut, q, `W/"2"`,
 			`{"title":"x","item":[{"linkId":"a1","text":"x","type":"attachment"}]}`, `"linkIds":["a1"]`, http.StatusUnprocessableEntity},
 		{d.practitioner, "a publish without If-Match", http.MethodPost, q + "/publish", "", "", `"invalid_request"`, http.StatusBadRequest},
 		{d.practitioner, "a revise of a draft", http.MethodPost, q + "/revise", "", "", `"not_active"`, http.StatusConflict},

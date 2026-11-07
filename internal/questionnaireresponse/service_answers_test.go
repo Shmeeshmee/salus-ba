@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 )
@@ -513,5 +515,124 @@ func TestAnswers_FailWithTheBackendAndKeepNothing(t *testing.T) {
 				t.Errorf("%s, %s: kept %+v and %d events, want nothing changed (rolled back)", call, name, f.repo.responses[0], len(f.audit.events))
 			}
 		}
+	}
+}
+
+// photo is a synthetic file of the attachment item linkID.
+func photo(linkID, id string, pending bool) binary.Attachment {
+	return binary.Attachment{LinkID: linkID, BinaryID: id, ContentType: "image/jpeg", Title: "Placeholder photo.jpg",
+		Hash: []byte("0123456789abcdefghij"), Size: 2048, Pending: pending}
+}
+
+// withAttachments is a version with a boolean b, a required attachment item f, and a required attachment
+// item h shown only when b is true (docs/attachments/SPEC.md §2 "Submit"). Synthetic.
+func withAttachments() []questionnaire.Item {
+	yes := true
+	f := question("f", questionnaire.ItemAttachment)
+	f.Required, f.Accept, f.MaxFiles = true, []questionnaire.FileKind{questionnaire.FilePhoto}, 3
+	h := f
+	h.LinkID, h.EnableWhen = "h", &questionnaire.Condition{Question: "b", Boolean: &yes}
+	return []questionnaire.Item{question("b", questionnaire.ItemBoolean), f, h}
+}
+
+const (
+	binA = "b1000000-0000-4000-8000-0000000000a1"
+	binB = "b1000000-0000-4000-8000-0000000000b2"
+	binC = "b1000000-0000-4000-8000-0000000000c3"
+)
+
+// A required attachment item needs a file: none is named like an unanswered question; with a clean file the
+// response is submitted with it, and nothing is discarded.
+func TestSubmit_ARequiredAttachmentItemNeedsAFile(t *testing.T) {
+	f := newFixture(now)
+	f.withItems(withAttachments()...)
+	id := f.seed(apptA, questionnaireresponse.StatusInProgress)
+	f.answered(id, []questionnaireresponse.Answer{answer("b", boolean(false))})
+
+	_, err := f.svc.Submit(t.Context(), me, id, 3)
+
+	var invalid *questionnaireresponse.AnswersError
+	if !errors.As(err, &invalid) || !slices.Equal(invalid.LinkIDs, []string{"f"}) {
+		t.Fatalf("Submit() without a file = %v, want f named", err)
+	}
+
+	f.withFiles(id, photo("f", binA, false))
+	got, err := f.svc.Submit(t.Context(), me, id, 3)
+
+	if err != nil || got.Status != questionnaireresponse.StatusCompleted || !reflect.DeepEqual(got.Attachments, []binary.Attachment{photo("f", binA, false)}) {
+		t.Fatalf("Submit() with a clean file = %+v, %v; want it completed with the file", got, err)
+	}
+	if len(f.jobs.discards) != 0 {
+		t.Errorf("enqueued %+v, want no discard", f.jobs.discards)
+	}
+}
+
+// While any file is pending its scan the submit is refused (attachments_pending), audited, and nothing
+// changes; a hidden item's pending file counts too.
+func TestSubmit_IsRefusedWhileAFileIsPending(t *testing.T) {
+	for name, files := range map[string][]binary.Attachment{
+		"on a shown item":  {photo("f", binA, false), photo("f", binB, true)},
+		"on a hidden item": {photo("f", binA, false), photo("h", binB, true)},
+	} {
+		f := newFixture(now)
+		f.withItems(withAttachments()...)
+		id := f.seed(apptA, questionnaireresponse.StatusInProgress)
+		f.answered(id, []questionnaireresponse.Answer{answer("b", boolean(false))})
+		f.withFiles(id, files...)
+		before := f.repo.responses[0]
+
+		_, err := f.svc.Submit(t.Context(), me, id, 3)
+
+		if !errors.Is(err, questionnaireresponse.ErrAttachmentsPending) {
+			t.Errorf("%s: Submit() = %v, want ErrAttachmentsPending", name, err)
+		}
+		if !equal(f.repo.responses[0], before) || !reflect.DeepEqual(f.repo.attachments[id], files) || len(f.jobs.discards) != 0 {
+			t.Errorf("%s: stored %+v with %+v, jobs %+v; want nothing changed", name, f.repo.responses[0], f.repo.attachments[id], f.jobs.discards)
+		}
+		if got, want := own(f.audit.events), []auditevent.AuditEvent{event(me, auditevent.CodeUpdate, id, auditevent.OutcomeMinorFailure)}; !slices.Equal(got, want) {
+			t.Errorf("%s: audited %+v,\nwant %+v", name, got, want)
+		}
+	}
+}
+
+// A required attachment item hidden by its condition submits without a file; the files of hidden items are
+// detached and the binary_discard job enqueued in the transaction, with the response's and the clinic's ids.
+func TestSubmit_DetachesTheFilesOfHiddenItemsAndEnqueuesTheDiscard(t *testing.T) {
+	f := newFixture(now)
+	f.withItems(withAttachments()...)
+	id := f.seed(apptA, questionnaireresponse.StatusInProgress)
+	f.answered(id, []questionnaireresponse.Answer{answer("b", boolean(false))})
+	f.withFiles(id, photo("h", binA, false), photo("f", binB, false), photo("h", binC, false))
+
+	got, err := f.svc.Submit(t.Context(), me, id, 3)
+
+	if want := []binary.Attachment{photo("f", binB, false)}; err != nil || !reflect.DeepEqual(got.Attachments, want) || !reflect.DeepEqual(f.repo.attachments[id], want) {
+		t.Fatalf("Submit() = %+v, %v, stored %+v; want only the shown item's file %+v", got.Attachments, err, f.repo.attachments[id], want)
+	}
+	if want := []binary.DiscardArgs{{ResponseID: id, OrganizationID: clinicA}}; !slices.Equal(f.jobs.discards, want) {
+		t.Errorf("enqueued %+v, want %+v", f.jobs.discards, want)
+	}
+	if got, want := own(f.audit.events), []auditevent.AuditEvent{event(me, auditevent.CodeUpdate, id, auditevent.OutcomeSuccess)}; !slices.Equal(got, want) {
+		t.Errorf("audited %+v,\nwant %+v", got, want)
+	}
+}
+
+// When the job cannot be enqueued the submit fails and rolls back: the files stay listed, the response in
+// progress, no job and no event.
+func TestSubmit_RollsBackTheDetachWhenTheDiscardFails(t *testing.T) {
+	f := newFixture(now)
+	f.withItems(withAttachments()...)
+	id := f.seed(apptA, questionnaireresponse.StatusInProgress)
+	f.answered(id, []questionnaireresponse.Answer{answer("b", boolean(false))})
+	files := []binary.Attachment{photo("h", binA, false), photo("f", binB, false)}
+	f.withFiles(id, files...)
+	before := f.repo.responses[0]
+	f.jobs.err = errBackend
+
+	if _, err := f.svc.Submit(t.Context(), me, id, 3); !errors.Is(err, errBackend) {
+		t.Fatalf("Submit() = %v, want the backend's error", err)
+	}
+	if !equal(f.repo.responses[0], before) || !reflect.DeepEqual(f.repo.attachments[id], files) || len(f.jobs.discards) != 0 || len(f.audit.events) != 0 {
+		t.Errorf("stored %+v with %+v, jobs %+v, %d events; want nothing changed", f.repo.responses[0], f.repo.attachments[id], f.jobs.discards, len(f.audit.events))
 	}
 }

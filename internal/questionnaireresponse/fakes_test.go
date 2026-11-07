@@ -9,6 +9,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -66,11 +67,12 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 	if ctx.Value(txKey{}) != nil {
 		return fn(ctx)
 	}
-	events, responses := len(t.f.audit.events), slices.Clone(t.f.repo.responses)
+	events, responses, files, discards := len(t.f.audit.events), slices.Clone(t.f.repo.responses), cloneFiles(t.f.repo.attachments), len(t.f.jobs.discards)
 	t.f.repo.patient, t.f.repo.clinic, t.f.repo.notice = "", "", ""
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
-		t.f.audit.events, t.f.repo.responses = t.f.audit.events[:events], responses
+		t.f.audit.events, t.f.repo.responses, t.f.repo.attachments = t.f.audit.events[:events], responses, files
+		t.f.jobs.discards = t.f.jobs.discards[:discards]
 	}
 	return err
 }
@@ -95,14 +97,15 @@ func (a *fakeAudit) Record(ctx context.Context, e auditevent.AuditEvent) error {
 // fakeRepository holds the responses and shows them as row-level security does, roughly: the patient's own,
 // or the clinic's. The service must not rest on it alone.
 type fakeRepository struct {
-	err       error
-	responses []questionnaireresponse.Response
-	searched  []questionnaireresponse.Filter
-	patient   string
-	clinic    string
-	consents  map[string]access.Consent // by patient + clinic, the appointments' (the clinic's UPDATE policy)
-	notice    string                    // the appointment set by SetNotice
-	locked    []string
+	err         error
+	consents    map[string]access.Consent      // by patient + clinic, the appointments' (the clinic's UPDATE policy)
+	attachments map[string][]binary.Attachment // the files of each response, by id
+	patient     string
+	clinic      string
+	notice      string // the appointment set by SetNotice
+	responses   []questionnaireresponse.Response
+	searched    []questionnaireresponse.Filter
+	locked      []string
 }
 
 func (r *fakeRepository) visible(x questionnaireresponse.Response) bool {
@@ -174,10 +177,16 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (questionnaireresp
 	}
 	for _, x := range r.responses {
 		if x.ID == id && r.visible(x) {
-			return x, nil
+			return r.withFiles(x), nil
 		}
 	}
 	return questionnaireresponse.Response{}, questionnaireresponse.ErrNotFound
+}
+
+// withFiles is x with its attachments, as the row carries them.
+func (r *fakeRepository) withFiles(x questionnaireresponse.Response) questionnaireresponse.Response {
+	x.Attachments = slices.Clone(r.attachments[x.ID])
+	return x
 }
 
 // Lock is ByID in a scope whose UPDATE policies let it lock the row: the patient's own, or the clinic's with
@@ -200,6 +209,7 @@ func (r *fakeRepository) Stop(ctx context.Context, id string, at time.Time) (que
 			x.Status, x.Answers, x.LastUpdated = questionnaireresponse.StatusStopped, nil, at
 			x.VersionID++
 			r.responses[i] = x
+			delete(r.attachments, id)
 			return x, nil
 		}
 	}
@@ -230,7 +240,7 @@ func (r *fakeRepository) update(ctx context.Context, id string, set func(*questi
 			x.LastUpdated = at
 			x.VersionID++
 			r.responses[i] = x
-			return x, nil
+			return r.withFiles(x), nil
 		}
 	}
 	return questionnaireresponse.Response{}, questionnaireresponse.ErrNotFound
@@ -248,7 +258,7 @@ func (r *fakeRepository) Search(ctx context.Context, f questionnaireresponse.Fil
 	for _, x := range r.responses {
 		if r.visible(x) && (f.AppointmentID == "" || x.AppointmentID == f.AppointmentID) &&
 			(f.PatientID == "" || x.PatientID == f.PatientID) && (f.Status == "" || x.Status == f.Status) {
-			out = append(out, x)
+			out = append(out, r.withFiles(x))
 		}
 	}
 	return out, nil
@@ -420,12 +430,13 @@ type fixture struct {
 	svc            *questionnaireresponse.Service
 	repo           *fakeRepository
 	audit          *fakeAudit
+	jobs           *fakeJobs
 	appts          *fakeAppointments
 	questionnaires *fakeQuestionnaires
 }
 
 func newFixture(at time.Time) *fixture {
-	f := &fixture{repo: &fakeRepository{}, audit: &fakeAudit{}}
+	f := &fixture{repo: &fakeRepository{}, audit: &fakeAudit{}, jobs: &fakeJobs{}}
 	f.appts = &fakeAppointments{
 		appts: map[string]appointment.Appointment{
 			apptA: {ID: apptA, PatientID: patientA, PractitionerRoleID: roleA1, OrganizationID: clinicA, Status: appointment.StatusBooked,
@@ -450,7 +461,7 @@ func newFixture(at time.Time) *fixture {
 	}}
 	f.svc = questionnaireresponse.NewService(questionnaireresponse.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: at},
-		Appointments: f.appts, Questionnaires: f.questionnaires,
+		Appointments: f.appts, Questionnaires: f.questionnaires, Jobs: f.jobs,
 	})
 	return f
 }
@@ -515,6 +526,80 @@ func own(events []auditevent.AuditEvent) []auditevent.AuditEvent {
 		if e.AgentName != "questionnaire read" {
 			out = append(out, e)
 		}
+	}
+	return out
+}
+
+// The attachments, by response, kept beside the responses (the fake's rollback does not cover them: the
+// holder's tests do not roll back).
+func (r *fakeRepository) AddAttachment(ctx context.Context, id string, a binary.Attachment, at time.Time) error {
+	if err := inTx(ctx); err != nil {
+		return err
+	}
+	if _, err := r.ByID(ctx, id); err != nil {
+		return err
+	}
+	if r.attachments == nil {
+		r.attachments = map[string][]binary.Attachment{}
+	}
+	r.attachments[id] = append(r.attachments[id], a)
+	return nil
+}
+
+func (r *fakeRepository) RemoveAttachment(ctx context.Context, id, binaryID string, at time.Time) error {
+	r.attachments[id] = slices.DeleteFunc(r.attachments[id], func(a binary.Attachment) bool { return a.BinaryID == binaryID })
+	return inTx(ctx)
+}
+
+func (r *fakeRepository) ClearAttachment(ctx context.Context, id, binaryID string, at time.Time) error {
+	for i, a := range r.attachments[id] {
+		if a.BinaryID == binaryID {
+			r.attachments[id][i].Pending = false
+		}
+	}
+	return inTx(ctx)
+}
+
+func (r *fakeRepository) Attachments(ctx context.Context, id string) ([]binary.Attachment, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	return r.attachments[id], nil
+}
+
+// fakeJobs keeps the binary_discard jobs enqueued, in the transaction (the fake's rollback drops them).
+type fakeJobs struct {
+	err      error
+	discards []binary.DiscardArgs
+}
+
+func (j *fakeJobs) EnqueueDiscard(ctx context.Context, args binary.DiscardArgs) error {
+	if err := inTx(ctx); err != nil {
+		return err
+	}
+	if j.err != nil {
+		return j.err
+	}
+	j.discards = append(j.discards, args)
+	return nil
+}
+
+// withFiles lists the files on the response id, as binary's upload does.
+func (f *fixture) withFiles(id string, files ...binary.Attachment) {
+	if f.repo.attachments == nil {
+		f.repo.attachments = map[string][]binary.Attachment{}
+	}
+	f.repo.attachments[id] = append(f.repo.attachments[id], files...)
+}
+
+// cloneFiles copies the attachments of each response, so a rollback restores them.
+func cloneFiles(in map[string][]binary.Attachment) map[string][]binary.Attachment {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string][]binary.Attachment, len(in))
+	for id, files := range in {
+		out[id] = slices.Clone(files)
 	}
 	return out
 }
