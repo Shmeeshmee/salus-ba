@@ -109,6 +109,57 @@ func (r *postgresRepository) Delete(ctx context.Context, id string) (bool, error
 	return n == 1, err
 }
 
+func (r *postgresRepository) MarkScanned(ctx context.Context, id string, status Status, at time.Time) (bool, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return false, nil
+	}
+	n, err := r.q(ctx).MarkBinaryScanned(ctx, binarydb.MarkBinaryScannedParams{Status: string(status), At: pgtype.Timestamptz{Time: at, Valid: true}, ID: u})
+	return n == 1, err
+}
+
+func (r *postgresRepository) OfResponse(ctx context.Context, responseID string) ([]Binary, error) {
+	var u pgtype.UUID
+	if u.Scan(responseID) != nil {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).BinariesOfResponse(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	var out []Binary
+	for _, row := range rows {
+		out = append(out, toBinary(row))
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) DeleteRejectedBefore(ctx context.Context, before time.Time) (int64, error) {
+	return r.q(ctx).DeleteRejectedBinariesBefore(ctx, pgtype.Timestamptz{Time: before, Valid: true})
+}
+
+func (r *postgresRepository) Existing(ctx context.Context, ids []string) ([]string, error) {
+	uuids := make([]pgtype.UUID, 0, len(ids))
+	for _, id := range ids {
+		var u pgtype.UUID
+		if u.Scan(id) == nil {
+			uuids = append(uuids, u)
+		}
+	}
+	if len(uuids) == 0 {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).ExistingBinaries(ctx, uuids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rows))
+	for _, u := range rows {
+		out = append(out, u.String())
+	}
+	return out, nil
+}
+
 // toBinary maps a row to the model.
 func toBinary(row binarydb.Binary) Binary {
 	return Binary{

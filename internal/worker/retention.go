@@ -9,6 +9,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
+	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/slot"
@@ -41,9 +42,9 @@ func (w *retentionWorker) Work(ctx context.Context, _ *river.Job[RetentionApplyA
 }
 
 // newRetention builds the retention service: the purgers of the delete rules on retentionPool (salus_retention
-// may delete those tables' rows, past row-level security), and the audit check on pool (salus_app may read
-// audit_event; salus_retention may not). It fails when a rule has no applier.
-func newRetention(pool, retentionPool *pgxpool.Pool) (*retention.Service, error) {
+// may delete those tables' rows, past row-level security), binary's also on the object store, and the audit
+// check on pool (salus_app may read audit_event; salus_retention may not). It fails when a rule has no applier.
+func newRetention(pool, retentionPool *pgxpool.Pool, store binary.Store) (*retention.Service, error) {
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), postgres.NewTransactor(pool), clock.System{})
 	accounts := auth.NewPostgresRepository(retentionPool)
 	return retention.NewService(map[string]retention.Purger{
@@ -52,5 +53,6 @@ func newRetention(pool, retentionPool *pgxpool.Pool) (*retention.Service, error)
 		"slot":                   slot.NewPurger(slot.NewPostgresRepository(retentionPool)),
 		"video_session":          videosession.NewPurger(videosession.NewPostgresRepository(retentionPool)),
 		"questionnaire_response": questionnaireresponse.NewPurger(questionnaireresponse.NewPostgresRepository(retentionPool)),
+		"binary":                 binary.NewPurger(binary.NewPostgresRepository(retentionPool), store),
 	}, audit, clock.System{})
 }

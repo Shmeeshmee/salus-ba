@@ -19,6 +19,7 @@ func TestRun_StartsRiverAndStopsCleanly(t *testing.T) {
 	t.Setenv("DATABASE_URL", pgtest.AppURL(t, dbURL))
 	t.Setenv("RETENTION_DATABASE_URL", pgtest.RetentionURL(t, dbURL))
 	setLiveKit(t)
+	setFiles(t)
 	logs, err := runUntilStarted(t)
 	if err != nil {
 		t.Fatalf("run() error = %v, want nil after the context ends", err)
@@ -35,6 +36,7 @@ func TestRun_FailsWithoutTheRetentionDatabaseURL(t *testing.T) {
 	t.Setenv("DATABASE_URL", pgtest.AppURL(t, pgtest.NewDatabaseURL(t)))
 	t.Setenv("RETENTION_DATABASE_URL", "")
 	setLiveKit(t)
+	setFiles(t)
 
 	err := run(t.Context(), &bytes.Buffer{})
 
@@ -115,5 +117,39 @@ func TestRun_FailsWithoutTheLiveKitSettings(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "LIVEKIT_API_SECRET") {
 		t.Fatalf("run() error = %v, want one naming LIVEKIT_API_SECRET", err)
+	}
+}
+
+// setFiles sets the object store's and clamd's settings the binary jobs require, synthetic as in compose
+// (nothing connects to either at start).
+func setFiles(t *testing.T) {
+	t.Helper()
+	for k, v := range map[string]string{
+		"S3_ENDPOINT": "http://objectstore:3900", "S3_REGION": "garage", "S3_BUCKET": "salus-binaries",
+		"S3_ACCESS_KEY_ID": "GK5a1a50000000000000000001", "S3_SECRET_ACCESS_KEY": "synthetic-secret",
+		"BINARY_KEK": "bG9jYWwtb25seS1zeW50aGV0aWMtYmluYXJ5LWtlayE=", "BINARY_KEK_ID": "local-1",
+		"CLAMD_ADDR": "clamd:3310",
+	} {
+		t.Setenv(k, v)
+	}
+}
+
+// Without the object store's or clamd's settings the binary does not start: the scan and discard jobs and
+// binary's purger need them (docs/attachments/SPEC.md §2 "Configuration").
+func TestRun_FailsWithoutTheFilesSettings(t *testing.T) {
+	for _, name := range []string{"S3_ENDPOINT", "BINARY_KEK", "CLAMD_ADDR"} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("DATABASE_URL", "postgres://unused@localhost/unused")
+			t.Setenv("RETENTION_DATABASE_URL", "postgres://unused@localhost/unused")
+			setLiveKit(t)
+			setFiles(t)
+			t.Setenv(name, "")
+
+			err := run(t.Context(), &bytes.Buffer{})
+
+			if err == nil || !strings.Contains(err.Error(), name) {
+				t.Fatalf("run() error = %v, want one naming %s", err, name)
+			}
+		})
 	}
 }

@@ -47,6 +47,17 @@ type Repository interface {
 	ResponseSize(ctx context.Context, responseID string) (int64, error)
 	// Delete deletes the file id that the scope lets it, and reports whether it did.
 	Delete(ctx context.Context, id string) (bool, error)
+	// MarkScanned sets the scan's result on the file id while it is quarantined, at at: clean, or rejected with
+	// its wrapped key cleared; it reports whether it did (the job scope only).
+	MarkScanned(ctx context.Context, id string, status Status, at time.Time) (bool, error)
+	// OfResponse returns every file of the response, whatever its status, oldest first.
+	OfResponse(ctx context.Context, responseID string) ([]Binary, error)
+	// DeleteRejectedBefore deletes the rejected files scanned before before, in every clinic, and counts them
+	// (the retention role's purger).
+	DeleteRejectedBefore(ctx context.Context, before time.Time) (int64, error)
+	// Existing returns the ids among ids that have a row (the retention role's purger); an id that is no UUID
+	// has none.
+	Existing(ctx context.Context, ids []string) ([]string, error)
 }
 
 // Jobs enqueues binary's jobs in the transaction in the context (River's InsertTx).
