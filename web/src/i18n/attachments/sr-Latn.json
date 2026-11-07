@@ -1,1 +1,22 @@
-{}
+{
+  "count": "{n, plural, one {# datoteka} few {# datoteke} other {# datoteka}}",
+  "kinds.photo": "Fotografija",
+  "kinds.document": "Dokument",
+  "kinds.video": "Video-snimak",
+  "kb": "{n} KB",
+  "mb": "{n} MB",
+  "details": "{kind}, {size}",
+  "open": "Otvori",
+  "download": "Preuzmi",
+  "close": "Zatvori",
+  "previous": "Prethodna datoteka",
+  "next": "Sljedeća datoteka",
+  "position": "Datoteka {n} od {total}",
+  "label.photo": "Fotografija: {title}",
+  "label.document": "Dokument: {title}",
+  "label.video": "Video-snimak: {title}",
+  "cannotShow": "Ova datoteka ne može da se prikaže ovdje.",
+  "gone": "Ova datoteka više nije dostupna.",
+  "failed": "Datoteka nije mogla da se učita.",
+  "tryAgain": "Pokušaj ponovo"
+}

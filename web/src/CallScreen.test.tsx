@@ -1,5 +1,7 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { renderInLanguage } from './i18n/renderInLanguage'
+import type { Language } from './i18n/languages'
 import { CallScreen } from './CallScreen'
 import { newApiClient } from './api/client'
 import type { Opened } from './call'
@@ -17,12 +19,19 @@ const statusGet = `GET /appointments/${id}/consultation`
 const joined = { url: 'ws://livekit.example.test', token: 'synthetic-token', expiresAt: '2026-11-09T08:06:00Z', peerName: 'Ada Example', role: 'practitioner' }
 const open = { state: 'open', practitionerJoinedAt: '2026-11-09T08:01:00Z' }
 
-type Setup = { routes?: Record<string, Route>; camera?: Opened['problem']; microphone?: Opened['problem']; level?: number | null; connectFails?: boolean }
+type Setup = {
+  routes?: Record<string, Route>
+  camera?: Opened['problem']
+  microphone?: Opened['problem']
+  level?: number | null
+  connectFails?: boolean
+  language?: Language
+}
 
-function renderCall({ routes = {}, ...options }: Setup = {}) {
+function renderCall({ routes = {}, language = 'en', ...options }: Setup = {}) {
   const fake = fakeFetch({ [joinPost]: () => Response.json(joined), [statusGet]: () => Response.json(open), ...routes })
   const media = fakeMedia(options)
-  render(<CallScreen api={newApiClient(fake.fetch)} id={id} media={media.media} />)
+  renderInLanguage(<CallScreen api={newApiClient(fake.fetch)} id={id} media={media.media} />, language)
   return { ...fake, ...media }
 }
 
@@ -40,6 +49,20 @@ async function inCall(setup: Setup = {}) {
 // levelPolling waits until the microphone level's interval is set. The meter can render before React runs the
 // effect that sets it, so advancing the fake clock at once could pass the 5 seconds with nothing polling.
 const levelPolling = () => vi.waitFor(() => expect(vi.getTimerCount()).toBeGreaterThan(0))
+
+describe('CallScreen: in the UI language', () => {
+  it('checks the devices, waits for the patient and controls the call in the language', async () => {
+    const { last } = renderCall({ language: 'bs' })
+
+    expect(await screen.findByRole('heading', { name: 'Provjerite kameru i mikrofon' })).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Pridruži se' }))
+    expect(await screen.findByRole('heading', { name: 'Čeka se pacijent' })).toBeTruthy()
+    expect(screen.getByText('Ada Example još nije u konsultaciji.')).toBeTruthy()
+    act(() => last().emit(peer(true, false, false)))
+    expect(screen.getByText('Ada Example ima isključenu kameru')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Završi konsultaciju' })).toBeTruthy()
+  })
+})
 
 describe('CallScreen: the device check', () => {
   it('previews the camera, measures the microphone and offers both pickers', async () => {
@@ -478,7 +501,7 @@ describe('CallScreen: unmounting', () => {
     const { media, rooms } = fakeMedia()
     let release: (() => void) | undefined
     const held = { ...media, connect: (...args: Parameters<typeof media.connect>) => new Promise<Awaited<ReturnType<typeof media.connect>>>((r) => (release = () => r(media.connect(...args)))) }
-    const { unmount } = render(<CallScreen api={newApiClient(fake.fetch)} id={id} media={held} />)
+    const { unmount } = renderInLanguage(<CallScreen api={newApiClient(fake.fetch)} id={id} media={held} />, 'en')
     fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
     await vi.waitFor(() => expect(release).toBeDefined())
 

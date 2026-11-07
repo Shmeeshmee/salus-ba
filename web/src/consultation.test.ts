@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { joinMessage, joinWindow } from './consultation'
 import { appointment } from './test/fixtures'
+import { translator } from './test/translate'
 
 const id = 'e1000000-0000-4000-8000-000000000001'
 // 09:00 to 09:30 UTC: the window opens at 08:50 and closes at 10:00.
@@ -34,6 +35,11 @@ describe('joinMessage', () => {
     [undefined, 'Something went wrong. Try again.'],
     ['internal error', 'Something went wrong. Try again.'],
   ] as const)('maps %s to its approved text', (code, want) => {
-    expect(joinMessage(code)).toBe(want)
+    expect(joinMessage(code, translator('en'))).toBe(want)
+  })
+
+  it('writes the text in the UI language', () => {
+    expect(joinMessage('consultation_ended', translator('bs'))).toBe('Ova konsultacija je završena.')
+    expect(joinMessage(undefined, translator('sr-Cyrl'))).toBe('Дошло је до грешке. Покушајте поново.')
   })
 })

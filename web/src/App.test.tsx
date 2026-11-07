@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { renderInLanguage } from './i18n/renderInLanguage'
 import App from './App'
 import { newApiClient, type Account } from './api/client'
 import { newFhirClient } from './api/fhir'

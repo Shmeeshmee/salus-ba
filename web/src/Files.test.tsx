@@ -1,5 +1,7 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { renderInLanguage } from './i18n/renderInLanguage'
+import type { Language } from './i18n/languages'
 import appCSS from './app.css?raw'
 import { newApiClient } from './api/client'
 import type { Attached } from './attachment'
@@ -15,13 +17,14 @@ const video: Attached = { id: 'b0000000-0000-4000-8000-0000000000b3', kind: 'vid
 const content = (f: Attached) => `${location.origin}/binaries/${f.id}/content`
 const status = (f: Attached) => `GET /binaries/${f.id}`
 
-function renderFiles(files: Attached[], routes: Record<string, Route> = {}) {
+function renderFiles(files: Attached[], routes: Record<string, Route> = {}, language: Language = 'en') {
   const fake = fakeFetch(routes)
-  render(
+  renderInLanguage(
     <>
       <button type="button">Before</button>
       <Files api={newApiClient(fake.fetch)} files={files} />
     </>,
+    language,
   )
   return fake
 }
@@ -55,6 +58,17 @@ describe('Files: the list (W8, W9)', () => {
   it('names a file without a title by its kind', () => {
     renderFiles([{ ...photo, title: '' }])
     expect(screen.getByText('Photo', { selector: '.file-title' })).toBeTruthy()
+  })
+})
+
+describe('Files: in the UI language', () => {
+  it('writes the kinds, sizes and actions in the language', () => {
+    renderFiles([photo, pdf], {}, 'hr')
+
+    expect(screen.getAllByRole('listitem').map((li) => li.querySelector('.file-details')?.textContent)).toEqual(['Fotografija, 2 KB', 'Dokument, 1,5 MB'])
+    expect(rowOf('placeholder.pdf').getByRole('link', { name: 'Preuzmi' })).toBeTruthy()
+    fireEvent.click(rowOf('placeholder.pdf').getByRole('button', { name: 'Otvori' }))
+    expect(within(screen.getByRole('dialog')).getByText('Datoteka 2 od 2')).toBeTruthy()
   })
 })
 

@@ -1,4 +1,4 @@
-import { questionnaires as t } from './messages'
+import type { useT } from './i18n/useT'
 
 // The builder's item list as pure functions, so moves, inserts and checks are tested without the DOM.
 // Single and multiple choice are separate kinds here (W11); the API knows them as choice with repeats.
@@ -215,7 +215,8 @@ export function earlierQuestions(items: Item[], linkId: string): Item[] {
 
 const blank = (s: string) => s.trim() === ''
 
-// problems are the messages to show on each item (W27, W28), by linkId, checked as the API checks them.
+// problems are the messages to show on each item (W27, W28), as catalog message ids, by linkId, checked as the
+// API checks them.
 export function problems(items: Item[]): Map<string, string[]> {
   const found = new Map<string, string[]>()
   const seen = new Map<string, Item>()
@@ -229,49 +230,50 @@ export function problems(items: Item[]): Map<string, string[]> {
 
 function textProblems(it: Item): string[] {
   return [
-    ...(blank(it.text) ? [t.noText] : []),
-    ...(isChoice(it.kind) && it.options.some(blank) ? [t.emptyOption] : []),
-    ...(it.kind === 'group' && it.items.length === 0 ? [t.emptySection] : []),
+    ...(blank(it.text) ? ['questionnaire.noText'] : []),
+    ...(isChoice(it.kind) && it.options.some(blank) ? ['questionnaire.emptyOption'] : []),
+    ...(it.kind === 'group' && it.items.length === 0 ? ['questionnaire.emptySection'] : []),
   ]
 }
 
 function optionProblems(it: Item): string[] {
   if (!isChoice(it.kind)) return []
-  if (it.options.length < 2) return [t.fewOptions]
-  if (it.options.length > maxOptions) return [t.manyOptions]
+  if (it.options.length < 2) return ['questionnaire.fewOptions']
+  if (it.options.length > maxOptions) return ['questionnaire.manyOptions']
   const filled = it.options.filter((o) => !blank(o))
-  return new Set(filled).size < filled.length ? [t.sameOptions] : []
+  return new Set(filled).size < filled.length ? ['questionnaire.sameOptions'] : []
 }
 
 function fileProblems(it: Item): string[] {
   if (it.kind !== 'attachment') return []
   const n = it.maxFiles ?? 0
-  return [...((it.accept ?? []).length === 0 ? [t.noFileKind] : []), ...(Number.isInteger(n) && n >= 1 && n <= maxFilesLimit ? [] : [t.fileCount])]
+  return [...((it.accept ?? []).length === 0 ? ['questionnaire.noFileKind'] : []), ...(Number.isInteger(n) && n >= 1 && n <= maxFilesLimit ? [] : ['questionnaire.fileCount'])]
 }
 
 function conditionProblems(it: Item, seen: Map<string, Item>): string[] {
   if (!it.condition) return []
   const on = seen.get(it.condition.question)
-  if (!on || !conditional(on.kind)) return [t.conditionOrder]
+  if (!on || !conditional(on.kind)) return ['questionnaire.conditionOrder']
   const answer = it.condition.answer
   const fits = on.kind === 'boolean' ? typeof answer === 'boolean' : typeof answer === 'string' && on.options.includes(answer)
-  return fits ? [] : [t.conditionAnswer]
+  return fits ? [] : ['questionnaire.conditionAnswer']
 }
 
 // at is where the item is, said as W42 says it: in a section with the section's title, else at (or, after a
 // move, moved to) its position. label is the item's text, or its type while it has none.
-export function at(items: Item[], id: string, label: (it: Item) => string, moved: boolean): string {
+export function at(items: Item[], id: string, label: (it: Item) => string, moved: boolean, t: ReturnType<typeof useT>): string {
   const it = find(items, id)
   if (!it) return ''
   const p = placement(items, id)
-  if (p.section) return t.inSection(label(it), label(p.section), p.n, p.total)
-  return moved ? t.moved(label(it), p.n, p.total) : t.at(label(it), p.n, p.total)
+  const values = { item: label(it), n: p.n, total: p.total }
+  if (p.section) return t('questionnaire.inSection', { ...values, section: label(p.section) })
+  return t(moved ? 'questionnaire.moved' : 'questionnaire.at', values)
 }
 
 // cancelled is W42's cancelled move: the item back where it was.
-export function cancelled(items: Item[], id: string, label: (it: Item) => string): string {
+export function cancelled(items: Item[], id: string, label: (it: Item) => string, t: ReturnType<typeof useT>): string {
   const it = find(items, id)
   if (!it) return ''
   const p = placement(items, id)
-  return t.cancelled(label(it), p.n, p.total)
+  return t('questionnaire.cancelled', { item: label(it), n: p.n, total: p.total })
 }

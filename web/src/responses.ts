@@ -1,8 +1,11 @@
 import type { AnswerValue, Bundle, Questionnaire, QuestionnaireResponse, QuestionnaireResponseItem } from './api/fhir'
 import { isQuestion, type Condition, type Item, type Kind } from './builder'
-import { questionnaires as t } from './messages'
+import { formatDate, formatTime, intlLocale } from './i18n/format'
+import type { Language } from './i18n/languages'
+import type { useT } from './i18n/useT'
 import { fromFHIR, type Version } from './questionnaire'
-import { longDate, timeOf } from './time'
+
+type T = ReturnType<typeof useT>
 
 // An appointment's questionnaire requests as the appointment detail shows them, read from the
 // QuestionnaireResponse search with the versions included (SPEC §2 "What the practitioner sees").
@@ -18,7 +21,7 @@ export type Block = { section?: string; questions: Question[] }
 export type Request = {
   id: string
   url?: string // the series' canonical url
-  title: string
+  title?: string // the version's title; none when the search did not include the version
   status: ResponseStatus
   authored?: string
   answers: Block[] // only for a submitted response
@@ -70,20 +73,24 @@ export function answered(items: Item[], response: QuestionnaireResponseItem[] = 
   return blocks
 }
 
-const calendarDate = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' })
-
-// valueText is one answer as the practitioner reads it.
-export function valueText(v: AnswerValue): string {
-  if (v.valueBoolean !== undefined) return v.valueBoolean ? t.yes : t.no
-  if (v.valueDate !== undefined) return calendarDate.format(new Date(`${v.valueDate}T00:00:00Z`))
-  return String(v.valueString ?? v.valueInteger ?? v.valueDecimal ?? '')
+// valueText is one answer as the practitioner reads it, in the UI language: a date on the calendar (no time
+// zone), a number as written but with the language's decimal sign.
+export function valueText(v: AnswerValue, t: T, language: Language): string {
+  if (v.valueBoolean !== undefined) return t(v.valueBoolean ? 'questionnaire.yes' : 'questionnaire.no')
+  const locale = intlLocale(language)
+  if (v.valueDate !== undefined) {
+    return new Intl.DateTimeFormat(locale, { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${v.valueDate}T00:00:00Z`))
+  }
+  const n = v.valueInteger ?? v.valueDecimal
+  if (n !== undefined) return new Intl.NumberFormat(locale, { maximumFractionDigits: 20, useGrouping: false }).format(n)
+  return v.valueString ?? ''
 }
 
 function requestOf(r: QuestionnaireResponse, v?: Version): Request {
   return {
     id: r.id,
     url: v?.url,
-    title: v?.title ?? t.picker,
+    title: v?.title,
     status: r.status,
     authored: r.authored,
     answers: v && r.status === 'completed' ? answered(v.items, r.item) : [],
@@ -106,11 +113,11 @@ export function requestOfVersion(id: string, v: Version): Request {
 }
 
 // statusOf is W34: unsubmitted ones are closed once the appointment has started.
-export function statusOf(r: Pick<Request, 'status' | 'authored'>, start: Date, now: Date, zone: string): string {
-  if (r.status === 'stopped') return t.withdrawn
+export function statusOf(r: Pick<Request, 'status' | 'authored'>, start: Date, now: Date, zone: string, t: T, language: Language): string {
+  if (r.status === 'stopped') return t('questionnaire.withdrawn')
   if (r.status === 'completed') {
     const at = new Date(r.authored ?? '')
-    return t.submitted(`${longDate(at, zone)}, ${timeOf(at, zone)}`)
+    return t('questionnaire.submitted', { date: formatDate(at, zone, language, 'long'), time: formatTime(at, zone, language) })
   }
-  return now >= start ? t.notSubmittedBefore : t.notSubmitted
+  return t(now >= start ? 'questionnaire.notSubmittedBefore' : 'questionnaire.notSubmitted')
 }
