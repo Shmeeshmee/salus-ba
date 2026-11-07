@@ -1,6 +1,7 @@
 import 'package:salus_api/api.dart' as api;
 
 import 'file_prep.dart' show FileKind;
+import 'l10n/app_localizations.dart';
 import 'messages.dart';
 
 // The questionnaires the patient fills in (docs/questionnaire/SPEC.md §2 "Item model", "Patient flow"): the FHIR
@@ -216,32 +217,32 @@ final _integer = RegExp(r'^-?\d+$');
 final _decimal = RegExp(r'^-?(0|[1-9][0-9]*)(\.[0-9]+)?$');
 
 /// The answer typed into a field of [type]: its value, or the M10 error; neither when the field is empty.
-({Object? value, String? error}) readTyped(ItemType type, String typed) {
+({Object? value, String? error}) readTyped(AppLocalizations t, ItemType type, String typed) {
   if (type == ItemType.string || type == ItemType.text) {
     final limit = type == ItemType.string ? maxString : maxText;
     if (typed.trim().isEmpty) return (value: null, error: null);
-    return typed.runes.length > limit ? (value: null, error: upToCharacters(limit)) : (value: typed, error: null);
+    return typed.runes.length > limit ? (value: null, error: t.upToCharacters(limit)) : (value: typed, error: null);
   }
   final s = typed.trim();
   if (s.isEmpty) return (value: null, error: null);
   if (type == ItemType.integer) {
-    if (!_integer.hasMatch(s)) return (value: null, error: enterWholeNumber);
+    if (!_integer.hasMatch(s)) return (value: null, error: t.enterWholeNumber);
     final n = int.tryParse(s);
-    return n == null || n < _minInt || n > _maxInt ? (value: null, error: numberTooLarge) : (value: n, error: null);
+    return n == null || n < _minInt || n > _maxInt ? (value: null, error: t.numberTooLarge) : (value: n, error: null);
   }
-  return _readDecimal(s);
+  return _readDecimal(t, s);
 }
 
 /// A plainly written decimal of at most 15 significant digits, as the server takes it. The API client writes a
 /// decimal as a Dart number, which has an exponent below 0.000001, which the server refuses: such a number is
 /// refused here.
-({Object? value, String? error}) _readDecimal(String s) {
-  if (!_decimal.hasMatch(s)) return (value: null, error: enterNumber);
+({Object? value, String? error}) _readDecimal(AppLocalizations t, String s) {
+  if (!_decimal.hasMatch(s)) return (value: null, error: t.enterNumber);
   final whole = s.replaceFirst('-', '').split('.').first;
-  if (whole.length > _maxDecimals) return (value: null, error: numberTooLarge);
+  if (whole.length > _maxDecimals) return (value: null, error: t.numberTooLarge);
   final digits = s.replaceFirst('-', '').replaceFirst('.', '').replaceFirst(RegExp('^0+'), '');
   final n = num.parse(s);
-  if (digits.length > _maxDecimals || n.toString().contains('e')) return (value: null, error: enterNumber);
+  if (digits.length > _maxDecimals || n.toString().contains('e')) return (value: null, error: t.enterNumber);
   return (value: n, error: null);
 }
 

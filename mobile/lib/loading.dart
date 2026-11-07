@@ -26,7 +26,7 @@ abstract class LoadingState<W extends StatefulWidget, T> extends State<W> {
       final loaded = await load();
       if (mounted) setState(() => data = loaded);
     } on ApiFailure catch (failure) {
-      if (mounted) setState(() => error = bookingMessage(failure));
+      if (mounted) setState(() => error = bookingMessage(context.t, failure));
     }
   }
 

@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Salus usa la fotocamera per consentire al medico di vederLa durante una videovisita e per scattare le foto e registrare i video da aggiungere a un questionario. La visita non viene registrata.";
+"NSMicrophoneUsageDescription" = "Salus usa il microfono per consentire al medico di sentirLa durante una videovisita e per registrare l'audio dei video da aggiungere a un questionario. La visita non viene registrata.";
+"NSPhotoLibraryUsageDescription" = "Salus apre la libreria foto solo per aggiungere a un questionario le foto e i video che sceglie.";

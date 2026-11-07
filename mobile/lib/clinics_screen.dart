@@ -5,6 +5,7 @@ import 'call.dart';
 import 'fhir.dart';
 import 'files.dart';
 import 'loading.dart';
+import 'messages.dart';
 import 'slots_screen.dart';
 import 'ui.dart' as ui;
 
@@ -27,10 +28,10 @@ class _ClinicsScreenState extends LoadingState<ClinicsScreen, List<Organization>
 
   @override
   Widget build(BuildContext context) => ui.Page(
-    title: 'Choose a clinic',
+    title: context.t.chooseClinic,
     children: body(
       (clinics) => [
-        if (clinics.isEmpty) const Text('No clinics are listed yet.'),
+        if (clinics.isEmpty) Text(context.t.noClinics),
         for (final clinic in clinics)
           ui.Choice(
             clinic.name,
@@ -81,11 +82,11 @@ class _PractitionersScreenState extends LoadingState<PractitionersScreen, List<P
     title: widget.clinic.name,
     children: body(
       (roles) => [
-        Text(roles.isEmpty ? 'This clinic has no practitioners listed yet.' : 'Choose a practitioner.'),
+        Text(roles.isEmpty ? context.t.noPractitioners : context.t.choosePractitioner),
         for (final role in roles)
           ui.Choice(
             role.name,
-            subtitle: role.specialty,
+            subtitle: specialtyName(context.t, role),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => SlotsScreen(

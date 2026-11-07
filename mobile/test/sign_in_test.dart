@@ -36,9 +36,13 @@ void main() {
 
     expect(find.text('Signed in as $email'), findsOneWidget);
     expect(h.store.token, token);
-    // The generated client writes the contract's optional language fields as null until 1.7 sends them.
-    expect(jsonDecode(h.api.last('POST /auth/login').body),
-        {'email': email, 'password': password, 'language': null, 'detectedLanguage': null});
+    // Nothing chosen on the device: no language, and the device's matched language (docs/i18n/SPEC.md §3).
+    expect(jsonDecode(h.api.last('POST /auth/login').body), {
+      'email': email,
+      'password': password,
+      'language': null,
+      'detectedLanguage': 'en',
+    });
     expect(h.api.last('GET /auth/me').headers['Authorization'], 'Bearer $token');
     expectNoCsrfHeader(h.api);
   });
