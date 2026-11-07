@@ -2,9 +2,9 @@
 
 | Package | Status | Commit |
 | --- | --- | --- |
-| 0.1 Baseline: database, contract, checks | not started | |
-| 0.2 Web: i18n foundation | not started | |
-| 0.3 Mobile: i18n foundation | not started | |
+| 0.1 Baseline: database, contract, checks | done (integrated 2026-11-07) | 2929f27 |
+| 0.2 Web: i18n foundation | done (integrated 2026-11-07) | 7e306fa |
+| 0.3 Mobile: i18n foundation | done (integrated 2026-11-07) | 506f3cb |
 | 1.1 internal/auth: the account's language | not started | |
 | 1.2 internal/organization: the clinic's default language | not started | |
 | 1.3 internal/notification: e-mails in every language | not started | |
@@ -29,7 +29,99 @@
 
 ## Decided while the owner was away
 
-(none yet)
+#### The orchestrator
+
+- **The stack is started with `docker compose up -d --build --wait`, not `make up`.** `make up` passes
+  `--remove-orphans`, which can remove the owner's `salus-demo-web` and `salus-demo-emu` containers (they carry
+  the compose project's labels). It is stopped with `docker compose down`, never `make down`.
+- **Host ports moved for this run.** Another local project (NOMOS) holds 8025, 8080 and 8090, so the git-ignored
+  `deployments/.env` of every worktree sets `SALUS_MAILPIT_PORT=8026`, `SALUS_API_PORT=8180` and
+  `SALUS_LANDING_PORT=8190`. Nothing committed changes; the checks reach the services on the compose network.
+- **Integration runs in its own worktree** (`../salus-int`), which starts and stops the shared stack, because the
+  main checkout holds the owner's uncommitted CLAUDE.md edit and cannot switch branches.
+- **A package records its decisions and new copy in its own PROGRESS.md section**; the integration step copies
+  them here, into the SPEC's open points and into COPY.md, so packages running at the same time never edit the
+  same lines.
+
+#### 0.1 Baseline: database, contract, checks
+
+- **Clinic settings are FHIR, so `defaultLanguage` is not in `openapi.yaml`.** The clinic settings screen
+  reads and updates `Organization` through FHIR (`PUT /fhir/R4/Organization/{id}` with `If-Match`), like the
+  listing and the time zone, which are the extensions `organization-listed` and `organization-timezone`. The
+  default language follows them as the extension
+  `https://salus.invalid/fhir/StructureDefinition/organization-default-language` (`valueCode`, a staff tag),
+  for package 1.2 to map in its `handler_fhir.go`. Not `Organization.language`: that is the language the
+  resource is written in, not the clinic's choice.
+- **The patient's questionnaire and the response are read through FHIR**, so `languages` on the patient's
+  read is not a JSON field: the app derives them from `Questionnaire.language` and the `translation`
+  extensions (package 1.4), and the response read carries `QuestionnaireResponse.language` (2.1). The JSON
+  `Questionnaire` (what the builder's writes return) and `QuestionnaireResponse` (what the answer writes
+  return) gain `language`, and the questionnaire `translations`.
+- **Starting a response is a new endpoint, `POST /questionnaire-responses/{id}/start`** `{language}`: no
+  endpoint started a response before. It may be repeated with another language until the first answer or
+  file is saved; after that it answers 409 `language_locked`, a third new error code the plan did not list,
+  added so 2.1 needs no contract change. The query enforces it too (no change once `answers` or
+  `attachments` is not empty), and it moves the response to its next version.
+- **Invite acceptance takes `language` and `detectedLanguage` too**, as registration and sign-in do: it
+  creates the staff account (SPEC §3 "Picking and saving" names the invite screens).
+- **`questionnaire.language` has the column default `bs`**, and the create query falls back to it when no
+  language is given, so the existing service and every seeded test keep working until 1.4 passes the
+  clinic's default; `UpdateDraft` with no language keeps the draft's. The backfill from the clinic's default
+  runs in the migration (every clinic is `bs` at that point).
+- **No database check on `account.language`**: the SPEC puts the staff-language rule in the service (422
+  `language_unavailable`); the clinic's default language has the check the plan asks for.
+- **`questionnaire_translation` writes go through `questionnaire`'s own policies** (an EXISTS on a draft), so
+  a published version's translations never change and another clinic's are invisible; a deleted draft's go
+  by the cascade.
+- **Translations are read with their own repository call**, not with every questionnaire read, so searches
+  stay one query.
+- **The catalog check accepts French and Italian plurals without `many`**: CLDR gives them `many` only for
+  millions in compact or exponent form, which the apps never format; a message may still have it. Every other
+  category CLDR lists for a language is required, and one the language doesn't use is refused.
+- **The legal tag is compared across languages only in the web catalogs**; ARB metadata lives in the template
+  (`app_en.arb`) alone.
+- **The checker loads the ICU parser from `web/node_modules`** (react-intl brings it, 0.2), only when there is
+  a message to check; `make i18n-check` installs web first. This branch alone has no react-intl, so the
+  parser was installed with `npm install --no-save` to run the checker's tests (git-ignored
+  `web/node_modules`; nothing committed).
+
+#### 0.2 Web: i18n foundation
+
+- Message ids are `<area>.<key>`: the provider prefixes each key with its area folder, so two areas can use
+  the same key and a catalog file holds plain keys. Simplest way to merge eight areas into one react-intl map.
+- A catalog value is an ICU string, or `{ "defaultMessage": "…", "description": "legal" }` when it carries the
+  `legal` tag (SPEC §3 "Who translates": "a `description` in the web JSON"). Both shapes are read; 0.1's check
+  should accept both (it runs on empty files in wave 0).
+- Formatting locales: `en` is formatted as `en-GB` (day before month, as the app wrote dates before), Serbian as
+  `sr-Latn-BA` / `sr-Cyrl-BA` so dates are ijekavian (SPEC §3 "Serbian is ijekavian"; plain `sr` is ekavian
+  in CLDR). Intl's own punctuation is kept ("Monday, 9 November 2026"), not post-processed.
+- Signed-in saving (`PATCH /auth/me`) and applying the account's `language` after `/auth/me` belong to 1.5
+  (the picker); `useLanguage().choose` switches the UI and keeps the choice on the device, and 1.5 calls the
+  API beside it. No generated API client is used in 0.2.
+- `<html lang>` is set from the provider at runtime; `web/index.html` (not this package's file) keeps
+  `lang="en"` until the script runs.
+
+#### 0.3 Mobile: i18n foundation
+
+- **`app_sr.arb` beside `app_sr_Cyrl.arb` and `app_sr_Latn.arb`.** gen-l10n refuses script-coded catalogs without a
+  base one ("Arb file for a fallback, sr, does not exist … Please create a {fileName}_sr.arb file"). The base is
+  Serbian Cyrillic, CLDR's default script for `sr`, word for word the Cyrillic catalog (a test fails if the two
+  differ, `@@locale` aside), so SPEC §3's ten files stay as they are and the fallback is never reached (the app always
+  asks for a script). For 0.1's `i18n-check.sh` and every later package: `app_sr.arb` is an eleventh catalog, checked
+  like `sr-Cyrl` (same plural categories), and every Cyrillic string is written into both files.
+- **The generated `lib/l10n/app_localizations*.dart` are committed**, as gen-l10n writes them (not reformatted): the
+  mobile CI job fails on any changed or untracked file after the tests, and `flutter pub get`, `analyze` and `test`
+  regenerate them. A package that changes an `.arb` commits the regenerated files with it.
+- **Noto Sans Arabic is a fallback family in every language**, not only in `ar`: only Arabic letters ever reach it,
+  so the result is the same and the theme stays one. Three weights (400, 500, 700): the ones Material's text styles
+  and bold text use; the unhinted fonts, since hinting does nothing on phone screens and they are half the size.
+- **Latin digits**: `app.dart` sets `DateFormat.useNativeDigitsByDefaultFor('ar', false)` once when the app starts
+  (process-wide intl setting), since intl writes Arabic-Indic digits in `ar` dates otherwise.
+- **The saved choice** is the key `language` in secure storage (the same storage as the session token; nothing else
+  on the device holds it). A value that is not one of the ten, or storage that cannot be read, leaves the device's
+  language. `LanguageStore.write` and `delete` exist for 1.7's picker and are tested on the secure store.
+- **`sr-Cyrl-ME`** (an explicit Cyrillic script on a Montenegrin device) is Cyrillic: the explicit script wins over
+  the "`sr-ME` → `sr-Latn`" rule, which reads as Montenegro without a script.
 
 ## Waiting on people
 
