@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -13,6 +14,9 @@ import (
 )
 
 const maxName = 200 // characters
+
+// staffLanguages are the languages a clinic's default language may be (docs/i18n/SPEC.md §3 "Tags").
+var staffLanguages = []string{"bs", "hr", "sr-Latn", "sr-Cyrl", "en"}
 
 // Transactor runs fn in a transaction carried by the context, joining one already there
 // (postgres.Transactor).
@@ -26,7 +30,7 @@ type Auditor interface {
 }
 
 // Service holds the clinic rules: only staff of a clinic see it, only its admin changes it (its name, whether
-// it is listed, its time zone), only the operator command creates one, and anyone may list the listed clinics.
+// it is listed, its time zone, its default language), only the operator command creates one, and anyone may list the listed clinics.
 // Reads are not audited (nothing in a clinic is personal data); every write is, also when it is refused.
 type Service struct {
 	repo  Repository
@@ -87,6 +91,32 @@ func (s *Service) Create(ctx context.Context, name string) (Organization, error)
 	return o, nil
 }
 
+// DefaultLanguage returns the clinic's default language (a staff language): for a new questionnaire's
+// original language and for e-mails to staff with no language of their own (docs/i18n/SPEC.md §3). It sets the
+// clinic's scope on the transaction in ctx, joining one already there. A clinic that does not exist gives
+// ErrNotFound. Not audited: nothing in a clinic is personal data.
+func (s *Service) DefaultLanguage(ctx context.Context, organizationID string) (string, error) {
+	if organizationID == "" {
+		return "", ErrNotFound
+	}
+	var o Organization
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetOrganization(ctx, organizationID); err != nil {
+			return err
+		}
+		var err error
+		o, err = s.repo.ByID(ctx, organizationID)
+		return err
+	})
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return "", ErrNotFound
+	case err != nil:
+		return "", fmt.Errorf("organization: default language: %w", err)
+	}
+	return o.DefaultLanguage, nil
+}
+
 // ListListed returns the listed clinics, by name: the public directory, for anyone, signed in or not. Not
 // audited: it holds only what the clinics chose to publish (docs/booking/SPEC.md "Public browse").
 func (s *Service) ListListed(ctx context.Context) ([]Organization, error) {
@@ -111,8 +141,8 @@ func (s *Service) ListListed(ctx context.Context) ([]Organization, error) {
 
 // Update changes the clinic id as ch says, at the version the caller last read, and returns it at its new
 // version. Only the clinic's admin may: a member who is not gets ErrForbidden, anyone else ErrNotFound. A
-// blank or overlong name gives ErrInvalidName and a time zone that is not an IANA name ErrInvalidTimeZone,
-// before anything is accessed; a version that is not the current one ErrConflict.
+// blank or overlong name gives ErrInvalidName, a time zone that is not an IANA name ErrInvalidTimeZone and a
+// default language that is not a staff language ErrInvalidDefaultLanguage, before anything is accessed; a version that is not the current one ErrConflict.
 func (s *Service) Update(ctx context.Context, c Caller, id string, ch Changes, version int32) (Organization, error) {
 	ch.Name = strings.TrimSpace(ch.Name)
 	if ch.Name == "" || utf8.RuneCountInString(ch.Name) > maxName {
@@ -120,6 +150,9 @@ func (s *Service) Update(ctx context.Context, c Caller, id string, ch Changes, v
 	}
 	if ch.TimeZone != nil && !validTimeZone(*ch.TimeZone) {
 		return Organization{}, ErrInvalidTimeZone
+	}
+	if ch.DefaultLanguage != nil && !slices.Contains(staffLanguages, *ch.DefaultLanguage) {
+		return Organization{}, ErrInvalidDefaultLanguage
 	}
 	if refused := refusal(c, id); refused != nil {
 		// Nothing was accessed: the event names no entity.
@@ -177,6 +210,9 @@ func (s *Service) update(ctx context.Context, id string, ch Changes, version int
 	}
 	if ch.TimeZone != nil {
 		next.TimeZone = *ch.TimeZone
+	}
+	if ch.DefaultLanguage != nil {
+		next.DefaultLanguage = *ch.DefaultLanguage
 	}
 	o, err = s.repo.Update(ctx, next, s.clock.Now())
 	if errors.Is(err, ErrConflict) { // changed since the read

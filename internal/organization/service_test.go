@@ -41,8 +41,8 @@ type fakeRepository struct {
 
 func newFakeRepository() *fakeRepository {
 	return &fakeRepository{orgs: map[string]organization.Organization{
-		clinicA: {ID: clinicA, Name: "Synthetic clinic A", TimeZone: "Europe/Sarajevo", VersionID: 2, Active: true, LastUpdated: now.Add(-time.Hour)},
-		clinicB: {ID: clinicB, Name: "Synthetic clinic B", TimeZone: "Europe/Sarajevo", VersionID: 1, Active: true, Listed: true, LastUpdated: now.Add(-time.Hour)},
+		clinicA: {ID: clinicA, Name: "Synthetic clinic A", TimeZone: "Europe/Sarajevo", DefaultLanguage: "bs", VersionID: 2, Active: true, LastUpdated: now.Add(-time.Hour)},
+		clinicB: {ID: clinicB, Name: "Synthetic clinic B", TimeZone: "Europe/Sarajevo", DefaultLanguage: "bs", VersionID: 1, Active: true, Listed: true, LastUpdated: now.Add(-time.Hour)},
 	}}
 }
 
@@ -144,7 +144,7 @@ func TestRead_FailsOnARepositoryError(t *testing.T) {
 func TestUpdate_RenamesTheClinicAndAuditsIt(t *testing.T) {
 	repo, audit := newFakeRepository(), &fakeAuditor{}
 	got, err := newService(repo, audit).Update(t.Context(), admin, clinicA, organization.Changes{Name: "  Synthetic clinic renamed "}, 2)
-	want := organization.Organization{ID: clinicA, Name: "Synthetic clinic renamed", TimeZone: "Europe/Sarajevo", VersionID: 3, Active: true, LastUpdated: now}
+	want := organization.Organization{ID: clinicA, Name: "Synthetic clinic renamed", TimeZone: "Europe/Sarajevo", DefaultLanguage: "bs", VersionID: 3, Active: true, LastUpdated: now}
 	if err != nil || got != want {
 		t.Fatalf("Update() = %+v, %v;\nwant %+v", got, err, want)
 	}

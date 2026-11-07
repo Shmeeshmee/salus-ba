@@ -14,11 +14,13 @@ import (
 
 const maxBody = 64 << 10 // bytes of an update's body
 
-// The extensions of an Organization: whether it is listed in the public directory and its IANA time zone
-// (api/fhir/StructureDefinition-organization-listed.json, -organization-timezone.json).
+// The extensions of an Organization: whether it is listed in the public directory, its IANA time zone and its
+// default language (api/fhir/StructureDefinition-organization-listed.json, -organization-timezone.json,
+// -organization-default-language.json).
 const (
-	extensionListed   = "https://salus.invalid/fhir/StructureDefinition/organization-listed"
-	extensionTimeZone = "https://salus.invalid/fhir/StructureDefinition/organization-timezone"
+	extensionListed          = "https://salus.invalid/fhir/StructureDefinition/organization-listed"
+	extensionTimeZone        = "https://salus.invalid/fhir/StructureDefinition/organization-timezone"
+	extensionDefaultLanguage = "https://salus.invalid/fhir/StructureDefinition/organization-default-language"
 )
 
 // Clinics reads and changes a clinic for a caller, and lists the listed ones for anyone (Service).
@@ -69,6 +71,7 @@ func toFHIR(o Organization) resource {
 		Extension: []fhir.Extension{
 			{URL: extensionListed, ValueBoolean: &o.Listed},
 			{URL: extensionTimeZone, ValueCode: o.TimeZone},
+			{URL: extensionDefaultLanguage, ValueCode: o.DefaultLanguage},
 		},
 	}
 }
@@ -101,8 +104,8 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 	h.write(w, r, o, err)
 }
 
-// update changes the clinic: the body is the Organization with its name and, when given, the listed and
-// time-zone extensions; If-Match the version it was read at. An extension left out keeps its value; the
+// update changes the clinic: the body is the Organization with its name and, when given, the listed,
+// time-zone and default-language extensions; If-Match the version it was read at. An extension left out keeps its value; the
 // other elements of the body are ignored.
 func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.signedIn(w, r)
@@ -145,13 +148,20 @@ func (b updateBody) changes() (Changes, bool) {
 		switch {
 		case e.URL == extensionListed && ch.Listed == nil && e.ValueBoolean != nil && e.ValueCode == nil:
 			ch.Listed = e.ValueBoolean
-		case e.URL == extensionTimeZone && ch.TimeZone == nil && e.ValueCode != nil && *e.ValueCode != "" && e.ValueBoolean == nil:
+		case e.URL == extensionTimeZone && ch.TimeZone == nil && code(e.ValueCode, e.ValueBoolean):
 			ch.TimeZone = e.ValueCode
-		case e.URL == extensionListed || e.URL == extensionTimeZone:
+		case e.URL == extensionDefaultLanguage && ch.DefaultLanguage == nil && code(e.ValueCode, e.ValueBoolean):
+			ch.DefaultLanguage = e.ValueCode
+		case e.URL == extensionListed || e.URL == extensionTimeZone || e.URL == extensionDefaultLanguage:
 			return Changes{}, false
 		}
 	}
 	return ch, true
+}
+
+// code reports whether an extension's value is a code that is not empty, and nothing else.
+func code(valueCode *string, valueBoolean *bool) bool {
+	return valueCode != nil && *valueCode != "" && valueBoolean == nil
 }
 
 // ifMatch is the version the If-Match header names, and false for none.
@@ -189,6 +199,8 @@ func (h *Handler) write(w http.ResponseWriter, r *http.Request, o Organization, 
 		fhir.WriteError(w, http.StatusUnprocessableEntity, "business-rule", "The name must be 1 to 200 characters.")
 	case errors.Is(err, ErrInvalidTimeZone):
 		fhir.WriteError(w, http.StatusBadRequest, "value", "The time zone must be an IANA time zone name.")
+	case errors.Is(err, ErrInvalidDefaultLanguage):
+		fhir.WriteError(w, http.StatusBadRequest, "value", "The default language must be bs, hr, sr-Latn, sr-Cyrl or en.")
 	case err != nil:
 		fhir.InternalError(w, r, h.log, err)
 	default:

@@ -35,7 +35,7 @@ func TestUpdate_ListsTheClinicAndSetsItsTimeZone(t *testing.T) {
 	repo, audit := newFakeRepository(), &fakeAuditor{}
 	got, err := newService(repo, audit).Update(t.Context(), admin, clinicA,
 		organization.Changes{Name: "Synthetic clinic A", Listed: ptr(true), TimeZone: ptr("Europe/Vienna")}, 2)
-	want := organization.Organization{ID: clinicA, Name: "Synthetic clinic A", TimeZone: "Europe/Vienna", VersionID: 3, Active: true,
+	want := organization.Organization{ID: clinicA, Name: "Synthetic clinic A", TimeZone: "Europe/Vienna", DefaultLanguage: "bs", VersionID: 3, Active: true,
 		Listed: true, LastUpdated: now}
 	if err != nil || got != want {
 		t.Fatalf("Update() = %+v, %v;\nwant %+v", got, err, want)
