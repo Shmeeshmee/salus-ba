@@ -213,3 +213,30 @@ func TestSearch_FailsWithTheBackendAndAuditsNothing(t *testing.T) {
 		}
 	}
 }
+
+// The files are part of the answers: the patient's Full view carries them, pending ones included; a Name
+// view (the clinic's admin, the practitioner before the submit) carries none.
+func TestRead_ANameViewCarriesNoFiles(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		caller appointment.Caller
+		files  int
+	}{
+		{name: "the patient", caller: me, files: 2},
+		{name: "the practitioner", caller: pract},
+		{name: "the admin", caller: admin},
+	} {
+		f := newFixture(now)
+		id := f.seed(apptA, questionnaireresponse.StatusInProgress)
+		f.withFiles(id, photo("f", binA, false), photo("f", binB, true))
+
+		got, err := f.svc.Read(t.Context(), tt.caller, id)
+		if err != nil || len(got.Response.Attachments) != tt.files {
+			t.Errorf("%s: Read() = %d files, %v; want %d", tt.name, len(got.Response.Attachments), err, tt.files)
+		}
+		all, err := f.svc.Search(t.Context(), tt.caller, questionnaireresponse.Filter{})
+		if err != nil || len(all) != 1 || len(all[0].Response.Attachments) != tt.files {
+			t.Errorf("%s: Search() = %+v, %v; want one with %d files", tt.name, all, err, tt.files)
+		}
+	}
+}

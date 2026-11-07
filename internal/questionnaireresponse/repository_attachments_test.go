@@ -2,6 +2,7 @@ package questionnaireresponse_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"testing"
@@ -114,4 +115,130 @@ func TestPostgres_AttachmentsInThePatientsAndTheJobScope(t *testing.T) {
 
 func r(app postgres.Querier) questionnaireresponse.Repository {
 	return questionnaireresponse.NewPostgresRepository(app)
+}
+
+// withFile stores, as the owner, a binary row for the response id and lists it in the response's attachments,
+// as binary's upload does. Synthetic.
+func withFile(t *testing.T, owner postgres.Querier, id, binaryID string, pending bool) {
+	t.Helper()
+	_, err := owner.Exec(t.Context(), `INSERT INTO "binary" (id, organization_id, patient_id, appointment_id, questionnaire_response_id,
+			size, segment_size, link_id, content_type, title, kek_id, sha1, wrapped_key)
+		SELECT $2, organization_id, patient_id, appointment_id, id, 1234, 65536, 'files', 'application/pdf', 'Placeholder document.pdf',
+			'synthetic', '0123456789abcdefghij'::bytea, '\x00'::bytea
+		FROM questionnaire_response WHERE id = $1`, id, binaryID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := json.Marshal(file(binaryID, pending))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(t.Context(), `UPDATE questionnaire_response SET attachments = attachments || jsonb_build_array($2::jsonb) WHERE id = $1`, id, b); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// files counts the binary rows of the response id.
+func files(t *testing.T, owner postgres.Querier, id string) int {
+	t.Helper()
+	var n int
+	if err := owner.QueryRow(t.Context(), `SELECT count(*) FROM "binary" WHERE questionnaire_response_id = $1`, id).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// A response is read with its files; a withdrawal clears them with the answers (docs/attachments/SPEC.md §2
+// "Discard": the binary_discard job then deletes the rows), which the withdrawn-attachments check requires.
+func TestPostgres_ReadsTheAttachmentsAndStopClearsThem(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seedDB(t, owner, dbStart)
+	id := insert(t, app, s, 0, 0)
+	withFile(t, owner, id, fileA, false)
+	withFile(t, owner, id, fileB, true)
+
+	err := inScope(t, app, "", s.patient, func(ctx context.Context, r questionnaireresponse.Repository) error {
+		got, err := r.ByID(ctx, id)
+		if want := []binary.Attachment{file(fileA, false), file(fileB, true)}; err != nil || !reflect.DeepEqual(got.Attachments, want) {
+			t.Errorf("ByID() attachments = %+v, %v;\nwant %+v", got.Attachments, err, want)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = inScope(t, app, s.clinic, "", func(ctx context.Context, r questionnaireresponse.Repository) error {
+		got, err := r.Stop(ctx, id, dbStart.Add(-time.Hour))
+		if err != nil {
+			return err
+		}
+		if len(got.Attachments) != 0 {
+			t.Errorf("Stop() attachments = %+v, want none", got.Attachments)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Stop() of a response with files: %v", err)
+	}
+	var stored string
+	if err := owner.QueryRow(t.Context(), `SELECT attachments::text FROM questionnaire_response WHERE id = $1`, id).Scan(&stored); err != nil || stored != "[]" {
+		t.Errorf("stored attachments %s (%v), want []", stored, err)
+	}
+	if n := files(t, owner, id); n != 2 {
+		t.Errorf("%d binary rows after the withdrawal, want both until the discard job", n)
+	}
+}
+
+// Deleting a response by the cancellation's discard or by the retention purger deletes its files' rows in the
+// same statement, through the foreign key (docs/attachments/SPEC.md §2 "Tables").
+func TestPostgres_DeletingAResponseDeletesItsFilesRows(t *testing.T) {
+	t.Parallel()
+	t.Run("the cancellation's discard", func(t *testing.T) {
+		t.Parallel()
+		owner, app := pgtest.NewAppDatabase(t)
+		s := seedDB(t, owner, dbStart)
+		id, kept := insert(t, app, s, 0, 0), insert(t, app, s, 1, 0)
+		withFile(t, owner, id, fileA, false)
+		withFile(t, owner, kept, fileB, false)
+		if _, err := owner.Exec(t.Context(), `UPDATE appointment SET status = 'cancelled', cancelled_at = now(), cancellation_reason = 'pat' WHERE id = $1`, s.appts[0]); err != nil {
+			t.Fatal(err)
+		}
+		err := inScope(t, app, s.clinic, "", func(ctx context.Context, r questionnaireresponse.Repository) error {
+			if err := r.SetNotice(ctx, s.appts[0]); err != nil {
+				return err
+			}
+			ids, err := r.DeleteOfAppointment(ctx, s.appts[0])
+			if len(ids) != 1 {
+				t.Errorf("deleted %v, want the response", ids)
+			}
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n, m := files(t, owner, id), files(t, owner, kept); n != 0 || m != 1 {
+			t.Errorf("%d rows of the deleted response and %d of the other, want 0 and 1", n, m)
+		}
+	})
+	t.Run("the retention purger", func(t *testing.T) {
+		t.Parallel()
+		owner, ret := pgtest.NewRetentionDatabase(t)
+		s := seedDB(t, owner, dbStart)
+		var id string
+		if err := owner.QueryRow(t.Context(), `INSERT INTO questionnaire_response (organization_id, appointment_id, patient_id,
+				practitioner_role_id, questionnaire_id, series_id, source, status, due_at)
+			SELECT a.organization_id, a.id, a.patient_id, a.practitioner_role_id, q.id, q.series_id, 'added', 'in-progress', lower(a.period)
+			FROM appointment a, questionnaire q WHERE a.id = $1 AND q.id = $2 RETURNING id::text`, s.appts[0], s.versions[0]).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		withFile(t, owner, id, fileA, true)
+		n, err := questionnaireresponse.NewPurger(questionnaireresponse.NewPostgresRepository(ret)).Purge(t.Context(), dbStart.Add(time.Second))
+		if err != nil || n != 1 {
+			t.Fatalf("Purge() = %d, %v; want the response", n, err)
+		}
+		if n := files(t, owner, id); n != 0 {
+			t.Errorf("%d binary rows of the purged response, want 0", n)
+		}
+	})
 }

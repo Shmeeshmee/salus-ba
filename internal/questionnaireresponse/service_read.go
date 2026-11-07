@@ -98,10 +98,10 @@ func (s *Service) search(ctx context.Context, c appointment.Caller, f Filter) ([
 	return out, nil
 }
 
-// seen is r at level: a Name view without its answers.
+// seen is r at level: a Name view without its answers and files.
 func seen(r Response, level access.Level) Seen {
 	if level != access.Full {
-		r.Answers = nil
+		r.Answers, r.Attachments = nil, nil
 	}
 	return Seen{Response: r, Level: level}
 }

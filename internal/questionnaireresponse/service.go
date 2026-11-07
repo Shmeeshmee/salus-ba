@@ -8,6 +8,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -50,6 +51,7 @@ type Ports struct {
 	Clock          clock.Clock
 	Appointments   Appointments
 	Questionnaires Questionnaires
+	Jobs           Jobs
 }
 
 // Service holds the questionnaire response rules (SPEC.md §2 "Requests", "Access rule", "Audit").
@@ -157,8 +159,8 @@ func (s *Service) booked(ctx context.Context, id string) (a appointment.Appointm
 }
 
 // Withdraw withdraws the response id, as the practitioner of its appointment (access.RequestsQuestionnaire),
-// while it is not submitted, and returns it: stopped, its answers cleared at once. In one transaction,
-// audited as an update. ErrNotFound to anyone who may not see it, ErrForbidden to anyone else who sees it
+// while it is not submitted, and returns it: stopped, its answers and its list of files cleared at once, and
+// the binary_discard job enqueued to delete the files. In one transaction, audited as an update. ErrNotFound to anyone who may not see it, ErrForbidden to anyone else who sees it
 // (the patient, the clinic's admin), ErrSubmitted and ErrWithdrawn; each refusal is audited.
 func (s *Service) Withdraw(ctx context.Context, c appointment.Caller, id string) (Response, error) {
 	var out Response
@@ -210,8 +212,11 @@ func (s *Service) withdraw(ctx context.Context, c appointment.Caller, id string)
 	case r.Status == StatusStopped:
 		return r, true, ErrWithdrawn, nil
 	}
-	out, err = s.Repo.Stop(ctx, r.ID, s.Clock.Now())
-	return out, true, nil, err
+	if out, err = s.Repo.Stop(ctx, r.ID, s.Clock.Now()); err != nil {
+		return Response{}, false, nil, err
+	}
+	// The files went with the answers; the job deletes them (docs/attachments/SPEC.md §2 "Discard").
+	return out, true, nil, s.Jobs.EnqueueDiscard(ctx, binary.DiscardArgs{ResponseID: out.ID, OrganizationID: out.OrganizationID})
 }
 
 // view reads the response id with read in the caller's scope, the patient's own or the staff caller's

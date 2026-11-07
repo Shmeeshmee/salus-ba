@@ -9,6 +9,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 )
@@ -251,5 +252,45 @@ func TestWithdraw_FailsWithTheBackend(t *testing.T) {
 	}
 	if len(f.audit.events) != 0 || f.repo.responses[0].Status != questionnaireresponse.StatusInProgress {
 		t.Errorf("events %v, response %+v; want nothing changed", f.audit.events, f.repo.responses[0])
+	}
+}
+
+// A withdrawal clears the files with the answers and enqueues the binary_discard job in its transaction, with
+// the response's and the clinic's ids only (docs/attachments/SPEC.md §2 "Discard"); a refused one enqueues
+// nothing and keeps the files.
+func TestWithdraw_ClearsTheFilesAndEnqueuesTheDiscard(t *testing.T) {
+	f := newFixture(now)
+	id := f.seed(apptA, questionnaireresponse.StatusInProgress)
+	f.withFiles(id, photo("f", binA, false), photo("f", binB, true))
+
+	got, err := f.svc.Withdraw(t.Context(), pract, id)
+
+	if err != nil || len(got.Attachments) != 0 || len(f.repo.attachments[id]) != 0 {
+		t.Fatalf("Withdraw() = %+v, %v, stored %+v; want it stopped without files", got, err, f.repo.attachments[id])
+	}
+	if want := []binary.DiscardArgs{{ResponseID: id, OrganizationID: clinicA}}; !slices.Equal(f.jobs.discards, want) {
+		t.Errorf("enqueued %+v, want %+v", f.jobs.discards, want)
+	}
+
+	f = newFixture(now)
+	id = f.seed(apptA, questionnaireresponse.StatusInProgress)
+	files := []binary.Attachment{photo("f", binA, false)}
+	f.withFiles(id, files...)
+	if _, err := f.svc.Withdraw(t.Context(), pract2, id); !errors.Is(err, questionnaireresponse.ErrNotFound) {
+		t.Fatalf("Withdraw() by another practitioner = %v, want ErrNotFound", err)
+	}
+	if !reflect.DeepEqual(f.repo.attachments[id], files) || len(f.jobs.discards) != 0 {
+		t.Errorf("after a refusal: files %+v, jobs %+v; want the files kept and no job", f.repo.attachments[id], f.jobs.discards)
+	}
+
+	f = newFixture(now)
+	id = f.seed(apptA, questionnaireresponse.StatusInProgress)
+	f.withFiles(id, files...)
+	f.jobs.err = errBackend
+	if _, err := f.svc.Withdraw(t.Context(), pract, id); !errors.Is(err, errBackend) {
+		t.Fatalf("Withdraw() with the job failing = %v, want the backend's error", err)
+	}
+	if f.repo.responses[0].Status != questionnaireresponse.StatusInProgress || !reflect.DeepEqual(f.repo.attachments[id], files) || len(f.audit.events) != 0 {
+		t.Errorf("after a failed enqueue: %+v with %+v and %d events; want it rolled back", f.repo.responses[0], f.repo.attachments[id], len(f.audit.events))
 	}
 }

@@ -241,6 +241,7 @@ func TestHTTPHandler_MapsEachDomainErrorToItsStatusAndCode(t *testing.T) {
 		{questionnaireresponse.ErrSubmitted, "submitted", http.StatusConflict},
 		{questionnaireresponse.ErrWithdrawn, "withdrawn", http.StatusConflict},
 		{questionnaireresponse.ErrPastDue, "past_due", http.StatusConflict},
+		{questionnaireresponse.ErrAttachmentsPending, "attachments_pending", http.StatusConflict},
 		{questionnaireresponse.ErrConflict, "version_conflict", http.StatusPreconditionFailed},
 	} {
 		for _, r := range []call{
@@ -306,5 +307,39 @@ func TestHTTPHandler_AnInternalErrorIs500AndTheLogHoldsNoAnswer(t *testing.T) {
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/questionnaire-responses/"+hResponse+"/withdraw", nil))
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("a failing caller = %d, want 500", rec.Code)
+	}
+}
+
+// Through HTTP on the service: an answer to an attachment item is refused naming the item (files go through
+// the binary endpoints), and a submit while a file is pending is 409 attachments_pending; the log holds no
+// file title.
+func TestHTTPHandler_RefusesAnAttachmentAnswerAndASubmitWhileAFileIsPending(t *testing.T) {
+	f := newFixture(now)
+	f.withItems(withAttachments()...)
+	id := f.seed(apptA, questionnaireresponse.StatusInProgress)
+	f.answered(id, []questionnaireresponse.Answer{answer("b", boolean(false))})
+	f.withFiles(id, photo("f", binA, true))
+	var log bytes.Buffer
+	mux := http.NewServeMux()
+	questionnaireresponse.NewHTTPHandler(f.svc, func(context.Context) (appointment.Caller, bool, error) { return me, true, nil },
+		slog.New(slog.NewTextHandler(&log, nil))).Routes(mux)
+	send := func(method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
+		req.Header.Set("If-Match", `W/"3"`)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return rec
+	}
+
+	rec := send(http.MethodPut, "/questionnaire-responses/"+id+"/answers", `{"answers":[{"linkId":"f","values":[{"valueString":"Placeholder"}]}]}`)
+	if want := `{"error":"answers_invalid","linkIds":["f"]}` + "\n"; rec.Code != http.StatusUnprocessableEntity || rec.Body.String() != want {
+		t.Errorf("PUT an answer to the attachment item = %d %s, want 422 %s", rec.Code, rec.Body, want)
+	}
+	rec = send(http.MethodPost, "/questionnaire-responses/"+id+"/submit", "")
+	if want := `{"error":"attachments_pending"}` + "\n"; rec.Code != http.StatusConflict || rec.Body.String() != want {
+		t.Errorf("submit while a file is pending = %d %s, want 409 %s", rec.Code, rec.Body, want)
+	}
+	if strings.Contains(log.String(), "Placeholder photo") {
+		t.Errorf("the log %q holds a file title", log.String())
 	}
 }

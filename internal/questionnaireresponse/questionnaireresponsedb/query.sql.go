@@ -390,7 +390,7 @@ func (q *Queries) SearchQuestionnaireResponses(ctx context.Context, arg SearchQu
 
 const stopQuestionnaireResponse = `-- name: StopQuestionnaireResponse :one
 UPDATE questionnaire_response
-SET status = 'stopped', answers = '[]', updated_at = $1, version_id = version_id + 1
+SET status = 'stopped', answers = '[]', attachments = '[]', updated_at = $1, version_id = version_id + 1
 WHERE id = $2
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
           series_id, version_id, source, status, answers, attachments
@@ -401,7 +401,8 @@ type StopQuestionnaireResponseParams struct {
 	ID pgtype.UUID
 }
 
-// A withdrawal: stopped, the answers cleared at once.
+// A withdrawal: stopped, the answers and the list of files cleared at once (the binary_discard job, enqueued in
+// the same transaction, deletes the files).
 func (q *Queries) StopQuestionnaireResponse(ctx context.Context, arg StopQuestionnaireResponseParams) (QuestionnaireResponse, error) {
 	row := q.db.QueryRow(ctx, stopQuestionnaireResponse, arg.At, arg.ID)
 	var i QuestionnaireResponse

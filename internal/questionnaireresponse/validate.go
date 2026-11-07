@@ -96,8 +96,9 @@ func fits(it questionnaire.Item, values []Value) bool {
 	return true
 }
 
-// fitsOne tells whether v, exactly one value[x], is of the item's type and within its limits. A type not
-// accepted yet (the reserved attachment, D1) has no valid answer.
+// fitsOne tells whether v, exactly one value[x], is of the item's type and within its limits. An attachment
+// item has no valid answer here: its files are added and removed only through binary's endpoints
+// (docs/attachments/SPEC.md §2 "Where an attachment answer lives").
 func fitsOne(it questionnaire.Item, v Value) bool {
 	switch it.Type {
 	case questionnaire.ItemBoolean:

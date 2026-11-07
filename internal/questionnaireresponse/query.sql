@@ -24,9 +24,10 @@ WHERE id = @id
 FOR NO KEY UPDATE;
 
 -- name: StopQuestionnaireResponse :one
--- A withdrawal: stopped, the answers cleared at once.
+-- A withdrawal: stopped, the answers and the list of files cleared at once (the binary_discard job, enqueued in
+-- the same transaction, deletes the files).
 UPDATE questionnaire_response
-SET status = 'stopped', answers = '[]', updated_at = @at, version_id = version_id + 1
+SET status = 'stopped', answers = '[]', attachments = '[]', updated_at = @at, version_id = version_id + 1
 WHERE id = @id
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
           series_id, version_id, source, status, answers, attachments;

@@ -211,6 +211,7 @@ func questionnaireRoutes(p questionnairePorts, fhirBase string, log *slog.Logger
 	responses := questionnaireresponse.NewService(questionnaireresponse.Ports{
 		Repo: questionnaireresponse.NewPostgresRepository(p.pool), Audit: p.audit, Tx: p.tx, Clock: clock.System{},
 		Appointments: p.appointments, Questionnaires: questionnaires,
+		Jobs: questionnaireresponse.NewRiverJobs(p.jobs), // a withdrawal or a submit enqueues its files' discard in its transaction
 	})
 	files := binary.NewService(binary.Ports{
 		Repo: binary.NewPostgresRepository(p.pool), Store: p.store, Holder: responses, Audit: p.audit, Tx: p.tx,

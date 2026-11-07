@@ -33,6 +33,9 @@ var (
 	// ErrConflict is returned for a change made on a version of the response that is not the current one
 	// (412, version_conflict).
 	ErrConflict = errors.New("questionnaireresponse: version conflict")
+	// ErrAttachmentsPending is returned for a submit while a file of the response is still being checked for
+	// malware (attachments_pending, docs/attachments/SPEC.md §2 "Submit").
+	ErrAttachmentsPending = errors.New("questionnaireresponse: attachments pending")
 	// ErrAnswersInvalid is what every *AnswersError is (answers_invalid).
 	ErrAnswersInvalid = errors.New("questionnaireresponse: answers invalid")
 )
