@@ -30,7 +30,7 @@ var (
 func TestRegister_CreatesAPatientWithTheNormalisedEmailAndOnlyTheHash(t *testing.T) {
 	f := newFixture()
 
-	got, err := f.svc.Register(t.Context(), "  Ana.Example@Example.TEST ", password)
+	got, err := f.svc.Register(t.Context(), "  Ana.Example@Example.TEST ", password, "", "")
 	if err != nil {
 		t.Fatalf("Register() error = %v", err)
 	}
@@ -51,7 +51,7 @@ func TestRegister_CreatesAPatientWithTheNormalisedEmailAndOnlyTheHash(t *testing
 
 func TestRegister_AuditsTheCreatedAccount(t *testing.T) {
 	f := newFixture()
-	if _, err := f.svc.Register(t.Context(), "ana@example.test", password); err != nil {
+	if _, err := f.svc.Register(t.Context(), "ana@example.test", password, "", ""); err != nil {
 		t.Fatal(err)
 	}
 	want := auditevent.AuditEvent{
@@ -66,7 +66,7 @@ func TestRegister_AuditsTheCreatedAccount(t *testing.T) {
 func TestRegister_RejectsATakenEmailAndAuditsTheFailure(t *testing.T) {
 	f := newFixture(auth.Account{ID: "existing", Email: "ana@example.test", Role: auth.RolePatient})
 
-	_, err := f.svc.Register(t.Context(), "ANA@example.test", password)
+	_, err := f.svc.Register(t.Context(), "ANA@example.test", password, "", "")
 
 	if !errors.Is(err, auth.ErrEmailTaken) {
 		t.Fatalf("Register() error = %v, want ErrEmailTaken", err)
@@ -96,7 +96,7 @@ func TestRegister_RejectsAnInvalidEmailOrPasswordBeforeTouchingAnything(t *testi
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newFixture()
-			if _, err := f.svc.Register(t.Context(), tt.email, tt.password); !errors.Is(err, tt.want) {
+			if _, err := f.svc.Register(t.Context(), tt.email, tt.password, "", ""); !errors.Is(err, tt.want) {
 				t.Errorf("Register() error = %v, want %v", err, tt.want)
 			}
 			if f.hasher.hashes != 0 || len(f.repo.accounts) != 0 {
@@ -109,7 +109,7 @@ func TestRegister_RejectsAnInvalidEmailOrPasswordBeforeTouchingAnything(t *testi
 func TestRegister_AcceptsTheLengthLimits(t *testing.T) {
 	for _, pw := range []string{strings.Repeat("ü", 12), strings.Repeat("p", 128)} {
 		f := newFixture()
-		if _, err := f.svc.Register(t.Context(), "ana@example.test", pw); err != nil {
+		if _, err := f.svc.Register(t.Context(), "ana@example.test", pw, "", ""); err != nil {
 			t.Errorf("Register() with %d characters: error = %v", len([]rune(pw)), err)
 		}
 	}
@@ -124,7 +124,7 @@ func TestRegister_PassesFailuresOnWithoutTheirDetails(t *testing.T) {
 	} {
 		f := newFixture()
 		change(&f)
-		_, err := f.svc.Register(t.Context(), "ana@example.test", password)
+		_, err := f.svc.Register(t.Context(), "ana@example.test", password, "", "")
 		if !errors.Is(err, boom) || strings.Contains(err.Error(), "example.test") {
 			t.Errorf("%s fails: Register() error = %v, want it wrapped without the e-mail", name, err)
 		}
@@ -149,14 +149,14 @@ func TestService_ReadsAndWritesAccountsInTheAuditedTransaction(t *testing.T) {
 		wantOutside []string
 	}{
 		{name: "Register", call: func(f fixture) error {
-			_, err := f.svc.Register(t.Context(), "cleo@example.test", password)
+			_, err := f.svc.Register(t.Context(), "cleo@example.test", password, "", "")
 			return err
 		}},
 		{name: "Me", call: func(f fixture) error { _, err := f.svc.Me(t.Context(), accountID); return err }},
 		// The account is read once before the transaction, only to verify the password without holding a
 		// connection; the decision rests on the read inside it.
 		{name: "Login", call: func(f fixture) error {
-			_, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP)
+			_, err := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "")
 			return err
 		}, wantOutside: []string{"ByEmail"}},
 	}

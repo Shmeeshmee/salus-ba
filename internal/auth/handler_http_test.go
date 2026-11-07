@@ -27,12 +27,14 @@ type stubService struct {
 	token                  string       // passed to Authenticate
 	session                auth.Session // returned by Authenticate
 	gotSession             auth.Session // passed to Enrol, Confirm or Logout
+	languages              *[2]string   // chosen and detected, passed to Register, Login or AcceptInvite
+	setLanguage            *string      // passed to SetLanguage
 	stubInvites
 	authenticated int // Authenticate calls
 }
 
-func (s *stubService) Login(_ context.Context, email, password, clientIP string) (auth.LoginResult, error) {
-	s.email, s.password, s.ip = email, password, clientIP
+func (s *stubService) Login(_ context.Context, email, password, clientIP, language, detected string) (auth.LoginResult, error) {
+	s.email, s.password, s.ip, s.languages = email, password, clientIP, &[2]string{language, detected}
 	return s.result, s.err
 }
 
@@ -62,13 +64,18 @@ func (s *stubService) Authenticate(_ context.Context, token string) (auth.Sessio
 	return s.session, s.authErr
 }
 
-func (s *stubService) Register(_ context.Context, email, password string) (auth.Account, error) {
-	s.email, s.password = email, password
+func (s *stubService) Register(_ context.Context, email, password, language, detected string) (auth.Account, error) {
+	s.email, s.password, s.languages = email, password, &[2]string{language, detected}
 	return s.account, s.err
 }
 
 func (s *stubService) Me(_ context.Context, id string) (auth.Account, error) {
 	s.meFor = id
+	return s.account, s.err
+}
+
+func (s *stubService) SetLanguage(_ context.Context, id, language string) (auth.Account, error) {
+	s.meFor, s.setLanguage = id, &language
 	return s.account, s.err
 }
 

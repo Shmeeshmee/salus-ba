@@ -24,7 +24,7 @@ func updateEvent(a auth.Account, outcome auditevent.Outcome) auditevent.AuditEve
 // challenged logs a in and returns the challenge, with the login's audit event cleared.
 func (f fixture) challenged(t *testing.T, a auth.Account) string {
 	t.Helper()
-	res, err := f.svc.Login(t.Context(), a.Email, password, clientIP)
+	res, err := f.svc.Login(t.Context(), a.Email, password, clientIP, "", "")
 	if err != nil || res.Challenge == "" {
 		t.Fatalf("Login() = %+v, %v; want a challenge", res, err)
 	}
@@ -74,7 +74,7 @@ func TestEnrol_StoresANewSealedSecretAndReturnsIt(t *testing.T) {
 
 func TestEnrol_WorksFromAPatientsSession(t *testing.T) {
 	f := newFixture(patientWithoutMFA())
-	res, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP)
+	res, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "")
 
 	if _, err := f.svc.Enrol(t.Context(), "", res.Session); err != nil {
 		t.Fatalf("Enrol() error = %v", err)
@@ -150,7 +150,7 @@ func TestConfirm_EnrolsAndFromAChallengeOpensAStaffSession(t *testing.T) {
 
 func TestConfirm_FromASessionEnrolsWithoutANewSession(t *testing.T) {
 	f := newFixture(patientWithoutMFA())
-	res, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP)
+	res, _ := f.svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "")
 	f.withSecret(totpSecret)
 
 	got, err := f.svc.Confirm(t.Context(), "", res.Session, auth.TOTPCode(totpSecret, now))

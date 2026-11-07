@@ -28,8 +28,13 @@ const (
 
 // Login checks the password and either opens a session (a patient without MFA) or returns a challenge for
 // the TOTP step: verify for an enrolled account, enrol for staff who have not set up MFA. Over the rate
-// limit it returns a RateLimitedError without checking the password. Every checked attempt is audited.
-func (s *Service) Login(ctx context.Context, email, password, clientIP string) (LoginResult, error) {
+// limit it returns a RateLimitedError without checking the password. Every checked attempt is audited. With
+// the right password, the language chosen and the language detected (docs/i18n/SPEC.md §3, each "" for none)
+// are saved on the account, before the TOTP step.
+func (s *Service) Login(ctx context.Context, email, password, clientIP, language, detected string) (LoginResult, error) {
+	if err := checkLanguages(language, detected); err != nil {
+		return LoginResult{}, err
+	}
 	email = normaliseEmail(email)
 	if err := s.checkLoginRate(ctx, email, clientIP); err != nil {
 		return LoginResult{}, err
@@ -47,6 +52,9 @@ func (s *Service) Login(ctx context.Context, email, password, clientIP string) (
 		var err error
 		a, ok, err = s.passwordLogin(ctx, pre, verified, rehash)
 		if err != nil || !ok {
+			return err
+		}
+		if err := s.saveLanguages(ctx, a, language, detected); err != nil {
 			return err
 		}
 		if res.Next = nextStep(a); res.Next == NextDone {
