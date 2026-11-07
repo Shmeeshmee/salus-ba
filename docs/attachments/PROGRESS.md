@@ -3,13 +3,13 @@
 | Package | Status | Commit |
 | --- | --- | --- |
 | 0.1 Baseline | done, 2026-11-07 | `attachments(0.1)` |
-| 1.1 pkg/envelope | not started | |
-| 1.2 pkg/filetype | not started | |
-| 1.3 pkg/clamd | not started | |
-| 1.4 internal/binary: the object store | not started | |
-| 1.5 internal/questionnaire: attachment items | not started | |
-| 1.6 Web: builder options and the file viewer | not started | |
-| 1.7 Mobile: pickers, conversion and upload | not started | |
+| 1.1 pkg/envelope | done, 2026-11-07 (wave 1) | `attachments(1.1)` |
+| 1.2 pkg/filetype | done, 2026-11-07 (wave 1) | `attachments(1.2)` |
+| 1.3 pkg/clamd | done, 2026-11-07 (wave 1) | `attachments(1.3)` |
+| 1.4 internal/binary: the object store | done, 2026-11-07 (wave 1) | `attachments(1.4)` |
+| 1.5 internal/questionnaire: attachment items | done, 2026-11-07 (wave 1) | `attachments(1.5)` |
+| 1.6 Web: builder options and the file viewer | done, 2026-11-07 (wave 1) | `attachments(1.6)` |
+| 1.7 Mobile: pickers, conversion and upload | done, 2026-11-07 (wave 1) | `attachments(1.7)` |
 | 2.1 internal/binary: service, Postgres, handlers and wiring | not started | |
 | 3.1 Scan, discard and purge | not started | |
 | 3.2 internal/questionnaireresponse: attachment answers | not started | |
@@ -76,6 +76,28 @@ rows of SPEC §3 marked "decided by the session, owner to review".
 - 2026-11-07, session (0.1): versions pinned no newer than about two weeks: Garage v2.4.1 (2026-09-08; v2.5.0 was
   14 days old), `clamav/clamav:1.5.4` (the current patch release), `aws-sdk-go-v2/service/s3` v1.114.5
   (2026-10-22; v1.114.9 was a day old).
+
+- 2026-11-07, wave 1 integration: the packages' own decisions are in their sections (1.1 to 1.7, "Decided while
+  the owner was away"); the three that touch the SPEC are SPEC §3 O18 (which MP4 files, 1.2), O19 (no
+  `questionnaire-maxOccurs` on a one-file item, 1.5) and O20 (the colour metadata kept, 1.7). Wave packages ran
+  their own tests with `--no-deps` and the lint script with the main `.git` mounted read-only, because
+  `scripts/check-migrations.sh` cannot read git from a worktree inside the container; 1.6 ran npm through `docker
+  run` on the node image so the owner's `salus-demo-web` (the compose `node` service) was never touched; 1.7
+  compiled the debug APK once in a throwaway container from the local `salus-demo-android` image, because the
+  `flutter` service has no Android SDK.
+
+- 2026-11-07, wave 1 integration: the Stop hook of this session runs `make arch-gate` from the main checkout (on
+  `main`), and `make`'s `docker compose run` there recreated LiveKit with that checkout's `livekit.yaml` path while
+  the integration checks ran from `../salus-attachments`, failing both. From then on every integration check runs
+  the make targets' own commands with `--no-deps` (`checks.sh` in the session's scratchpad), so no check recreates
+  a shared service; `make e2e`'s `up` runs without `--remove-orphans`, so the owner's `salus-demo-*` containers are
+  never removed. The 1.6 builder walk planned for this step moves into the acceptance walk after the PR, which
+  walks the builder in Chromium against the stack anyway; running it here would have meant a second Vite server
+  beside the owner's demo.
+- 2026-11-07, wave 1 integration checks (all `--no-deps`, on the merged branch): lint 0 issues, check-migrations
+  ok; archcheck ok; `go test -count=1` both modules ok; cover ok (total 94.8%, every package at 80% or more); `make
+  fhir-validate` ok; gen-clients no diff; web lint, typecheck, 432 tests and build ok; mobile analyze ok and 292
+  tests ok.
 
 ## 0.1 Baseline
 
