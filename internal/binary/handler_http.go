@@ -118,9 +118,14 @@ func (h *HTTPHandler) delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// content sends the file, or the one range asked for. The read is audited and committed before the first
+// content sends the file, or the one range asked for; HEAD is refused (405). The read is audited and committed before the first
 // byte; a failure after it cuts the connection, so the client sees a short body, never a wrong one.
 func (h *HTTPHandler) content(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodHead { // the GET route matches HEAD: it would decrypt and audit the file for no byte
+		w.Header().Set("Allow", http.MethodGet)
+		writeCode(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
 	deadlines(w, h.clock.Now().Add(ContentDeadline))
 	c, ok := h.signedIn(w, r)
 	if !ok {

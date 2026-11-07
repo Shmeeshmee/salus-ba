@@ -394,3 +394,19 @@ func TestHandler_ReadGivesThePractitionerTheFilesOfASubmittedResponse(t *testing
 		t.Errorf("a Name view = %d %s, want no file", rec.Code, rec.Body)
 	}
 }
+
+// A file uploaded without a name has no title: R4 forbids an empty string, so the element is left out.
+func TestHandler_ReadLeavesOutTheTitleOfAnUntitledFile(t *testing.T) {
+	t.Parallel()
+	r := completed()
+	r.Answers = nil
+	untitled := gPhoto
+	untitled.Title = ""
+	r.Attachments = []binary.Attachment{untitled}
+	rec := getFHIR(t, &stubReader{out: []questionnaireresponse.Seen{{Response: r, Level: access.Full}}}, &stubVersions{v: filesVersion()}, asCaller(pract), &bytes.Buffer{},
+		"/fhir/R4/QuestionnaireResponse/"+hResponse)
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), `"title"`) {
+		t.Fatalf("read = %d %s, want no title", rec.Code, rec.Body)
+	}
+	assertGolden(t, "response_attachment_untitled.json", rec.Body.Bytes())
+}

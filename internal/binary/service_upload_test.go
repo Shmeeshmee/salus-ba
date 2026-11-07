@@ -329,3 +329,59 @@ func TestUpload_AStoppedPutLeavesTheSealingGoroutineNothingToBlockOn(t *testing.
 		t.Fatal("Upload() with a cancelled context = nil")
 	}
 }
+
+// goneClient is the body of a client that goes away after n bytes: net/http's read error, and the request's
+// context cancelled, as net/http cancels it when the connection fails.
+type goneClient struct {
+	r      io.Reader
+	cancel context.CancelFunc
+	n      int
+}
+
+func (g *goneClient) Read(p []byte) (int, error) {
+	if g.n <= 0 {
+		g.cancel()
+		return 0, io.ErrUnexpectedEOF
+	}
+	if len(p) > g.n {
+		p = p[:g.n]
+	}
+	k, err := g.r.Read(p)
+	g.n -= k
+	return k, err
+}
+
+func TestUpload_AClientThatGoesAwayMidBodyIsStillAudited(t *testing.T) {
+	f := newFixture(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	body := mp4(3 * envelope.SegmentSize)
+	in := binary.Upload{Body: &goneClient{r: bytes.NewReader(body), cancel: cancel, n: 10_000}, ResponseID: responseA, LinkID: "files", Title: title, Size: int64(len(body))}
+	if _, _, err := f.svc.Upload(ctx, me, in); !errors.Is(err, binary.ErrShortBody) {
+		t.Fatalf("Upload() = %v, want ErrShortBody", err)
+	}
+	if !reflect.DeepEqual(f.audit.events, refusedEvent()) {
+		t.Errorf("audited %+v,\nwant the refusal %+v", f.audit.events, refusedEvent())
+	}
+	if len(f.repo.files) != 0 {
+		t.Errorf("an interrupted upload left rows %v", f.repo.files)
+	}
+}
+
+func TestUpload_AClientThatGoesAwayOnceTheFileIsStoredStillGetsItCommitted(t *testing.T) {
+	f := newFixture(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	f.store.afterPut = cancel
+	body := pdf()
+	b, created, err := f.svc.Upload(ctx, me, binary.Upload{Body: bytes.NewReader(body), ResponseID: responseA, LinkID: "files", Title: title, Size: int64(len(body))})
+	if err != nil || !created {
+		t.Fatalf("Upload() = %v, %v; want created", created, err)
+	}
+	if _, ok := f.repo.files[b.ID]; !ok || len(f.store.deleted) != 0 {
+		t.Errorf("row stored %v, objects deleted %v; want the file kept", ok, f.store.deleted)
+	}
+	if want := events(me, auditevent.CodeCreate, auditevent.CodePATRQT, b.ID, auditevent.OutcomeSuccess); !reflect.DeepEqual(f.audit.events, want) {
+		t.Errorf("audited %+v,\nwant %+v", f.audit.events, want)
+	}
+}

@@ -370,3 +370,16 @@ func TestHTTPHandler_AnUploadSlowerThanTheServersReadTimeoutCompletes(t *testing
 		t.Error("the same body on a route without its own deadlines completed; the test proves nothing")
 	}
 }
+
+// HEAD matches a GET route: it would open, decrypt and audit the whole file to send no byte of it.
+func TestHTTPHandler_RefusesHEADOnTheContent(t *testing.T) {
+	b, body := cleanPDF()
+	stub := &stubFiles{file: b, body: body}
+	rec := serve(newHandler(stub, true, &bytes.Buffer{}), httptest.NewRequestWithContext(t.Context(), http.MethodHead, "/binaries/"+fileID+"/content", nil))
+	if rec.Code != http.StatusMethodNotAllowed || rec.Header().Get("Allow") != http.MethodGet {
+		t.Errorf("HEAD = %d, Allow %q; want 405 with Allow: GET", rec.Code, rec.Header().Get("Allow"))
+	}
+	if stub.caller != (binary.Caller{}) || len(stub.ranges) != 0 {
+		t.Errorf("HEAD opened the file as %v, read %v", stub.caller, stub.ranges)
+	}
+}

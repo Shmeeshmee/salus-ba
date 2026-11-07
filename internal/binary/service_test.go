@@ -6,6 +6,7 @@ import (
 	"io"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
@@ -247,6 +248,40 @@ func TestJobKinds(t *testing.T) {
 	for k, want := range map[binary.Kind]int64{binary.KindPhoto: 20_000_000, binary.KindDocument: 20_000_000, binary.KindVideo: 200_000_000, "": 0} {
 		if got := k.Limit(); got != want {
 			t.Errorf("%q.Limit() = %d, want %d", k, got, want)
+		}
+	}
+}
+
+func TestDelete_RemovesTheObjectOfTheCanonicalID(t *testing.T) {
+	f := newFixture(t)
+	b := f.seed(t, pdf(), binary.StatusClean)
+	if err := f.svc.Delete(t.Context(), me, strings.ToUpper(b.ID)); err != nil {
+		t.Fatalf("Delete() by the uppercase id = %v", err)
+	}
+	if _, ok := f.repo.files[b.ID]; ok {
+		t.Error("the row was kept")
+	}
+	gone(t, f, b.ID)
+}
+
+// A file its response no longer lists (detached when a hidden item's answer was dropped on submit, or by a
+// withdrawal) is not read before binary_discard removes it.
+func TestStatusAndDownload_RefuseAFileTheResponseNoLongerLists(t *testing.T) {
+	for name, read := range map[string]func(*fixture, string) error{
+		"Status":   func(f *fixture, id string) error { _, err := f.svc.Status(t.Context(), me, id); return err },
+		"Download": func(f *fixture, id string) error { _, err := f.svc.Download(t.Context(), me, id); return err },
+	} {
+		for _, status := range []binary.Status{binary.StatusQuarantined, binary.StatusClean} {
+			f := newFixture(t)
+			b := f.seed(t, pdf(), status)
+			f.holder.attached = nil
+			if err := read(f, b.ID); !errors.Is(err, binary.ErrNotFound) {
+				t.Errorf("%s() of a %s file no longer listed = %v, want ErrNotFound", name, status, err)
+			}
+			want := []auditevent.AuditEvent{eventIn(me, "", auditevent.CodeRead, auditevent.CodePATRQT, "", auditevent.OutcomeMinorFailure)}
+			if !reflect.DeepEqual(f.audit.events, want) {
+				t.Errorf("%s() audited %+v,\nwant %+v", name, f.audit.events, want)
+			}
 		}
 	}
 }
