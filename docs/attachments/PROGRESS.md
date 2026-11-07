@@ -99,6 +99,10 @@ rows of SPEC §3 marked "decided by the session, owner to review".
   fhir-validate` ok; gen-clients no diff; web lint, typecheck, 432 tests and build ok; mobile analyze ok and 292
   tests ok.
 
+- 2026-11-07, wave 2 integration (2.1 ran alone on `feat/attachments`): lint, archcheck, `go test -count=1`, cover
+  (total 94.5%), fhir-validate, gen-clients, web and mobile checks and `make e2e` (its commands with `--no-deps`,
+  `up` without `--remove-orphans`) all pass. SPEC §3 O21 to O24 are 2.1's.
+
 ## 0.1 Baseline
 
 Status: done, 2026-11-07.
