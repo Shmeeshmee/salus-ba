@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/riverqueue/river"
+
+	"github.com/Shmeeshmee/salus/internal/binary"
 )
 
 // River's reindexer runs REINDEX INDEX CONCURRENTLY, which only a table's owner may run; the worker logs in
@@ -28,5 +30,15 @@ func TestWorkConfig_NeverLeads(t *testing.T) {
 	}
 	if _, ok := cfg.Queues[emailQueue]; !ok || len(cfg.Queues) != 1 {
 		t.Errorf("Queues = %v, want only %s", cfg.Queues, emailQueue)
+	}
+}
+
+// cmd/worker works the default queue and the scan queue, which runs 2 files at a time: clamd holds each stream
+// it scans (docs/attachments/SPEC.md §2 "Scan").
+func TestWorkerQueues_ScanTwoFilesAtATime(t *testing.T) {
+	q := workerQueues()
+
+	if len(q) != 2 || q[river.QueueDefault].MaxWorkers != maxWorkers || q[binary.QueueScan].MaxWorkers != 2 {
+		t.Errorf("queues %+v, want the default with %d workers and %s with 2", q, maxWorkers, binary.QueueScan)
 	}
 }

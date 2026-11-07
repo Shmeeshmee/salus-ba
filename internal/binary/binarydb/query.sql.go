@@ -61,6 +61,49 @@ func (q *Queries) BinariesOfItem(ctx context.Context, arg BinariesOfItemParams) 
 	return items, nil
 }
 
+const binariesOfResponse = `-- name: BinariesOfResponse :many
+SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key FROM "binary" WHERE questionnaire_response_id = $1 ORDER BY created_at, id
+`
+
+// Every file of a response, for the discard job.
+func (q *Queries) BinariesOfResponse(ctx context.Context, questionnaireResponseID pgtype.UUID) ([]Binary, error) {
+	rows, err := q.db.Query(ctx, binariesOfResponse, questionnaireResponseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Binary
+	for rows.Next() {
+		var i Binary
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ScannedAt,
+			&i.OrganizationID,
+			&i.PatientID,
+			&i.AppointmentID,
+			&i.QuestionnaireResponseID,
+			&i.Size,
+			&i.SegmentSize,
+			&i.LinkID,
+			&i.ContentType,
+			&i.Title,
+			&i.Status,
+			&i.KekID,
+			&i.Sha1,
+			&i.WrappedKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const binaryByID = `-- name: BinaryByID :one
 SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key FROM "binary" WHERE id = $1
 `
@@ -100,6 +143,44 @@ func (q *Queries) DeleteBinary(ctx context.Context, id pgtype.UUID) (int64, erro
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteRejectedBinariesBefore = `-- name: DeleteRejectedBinariesBefore :execrows
+DELETE FROM "binary" WHERE status = 'rejected' AND scanned_at < $1
+`
+
+// The purger, as salus_retention: rejected files 24 h after their scan (binary_rejected_scanned).
+func (q *Queries) DeleteRejectedBinariesBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteRejectedBinariesBefore, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const existingBinaries = `-- name: ExistingBinaries :many
+SELECT id FROM "binary" WHERE id = ANY($1::uuid[])
+`
+
+// The purger, as salus_retention: which of the stored objects' keys still have a row.
+func (q *Queries) ExistingBinaries(ctx context.Context, ids []pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, existingBinaries, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertBinary = `-- name: InsertBinary :one
@@ -179,6 +260,29 @@ SELECT pg_advisory_xact_lock(hashtextextended('binary:' || $1::text, 0))
 func (q *Queries) LockResponseBinaries(ctx context.Context, questionnaireResponseID string) error {
 	_, err := q.db.Exec(ctx, lockResponseBinaries, questionnaireResponseID)
 	return err
+}
+
+const markBinaryScanned = `-- name: MarkBinaryScanned :execrows
+UPDATE "binary"
+SET status = $1::text, scanned_at = $2, updated_at = $2,
+    wrapped_key = CASE WHEN $1::text = 'rejected' THEN NULL ELSE wrapped_key END
+WHERE id = $3 AND status = 'quarantined'
+`
+
+type MarkBinaryScannedParams struct {
+	Status string
+	At     pgtype.Timestamptz
+	ID     pgtype.UUID
+}
+
+// The scan job's result, in the job scope, once: clean, or rejected with the wrapped key cleared (the bytes can
+// no longer be read by anyone).
+func (q *Queries) MarkBinaryScanned(ctx context.Context, arg MarkBinaryScannedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markBinaryScanned, arg.Status, arg.At, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const responseBinarySize = `-- name: ResponseBinarySize :one

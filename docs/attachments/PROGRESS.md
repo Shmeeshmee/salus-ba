@@ -998,7 +998,149 @@ cleanup ran on a cancelled context, was deleted; the bench now deletes in a `def
 
 ## 3.1 Scan, discard and purge
 
-Status: not started
+Status: done, 2026-11-07 (wave 3).
+
+Built:
+- `internal/binary/service_scan.go`: the `Scanner` port (`pkg/clamd.Client`) and `Scan(ctx, ScanArgs) (ScanResult,
+  error)`, SPEC §2 "Scan": in the job scope of the file's response, the quarantined row read in one transaction; then,
+  outside any transaction, the whole object read with one `GetRange`, opened with `envelope.Open` and streamed into
+  clamd's `INSTREAM`; then one transaction: `MarkScanned` (only while quarantined), `Holder.Cleared` (clean) or
+  `Holder.Detach` (rejected, wrapped key cleared), the audit; the rejected object deleted after the commit. Any error
+  leaves the file quarantined and River retries. A file that is gone or no longer quarantined is left as it is.
+- `internal/binary/service_discard.go`: `Discard(ctx, DiscardArgs) (int, error)`, SPEC §2 "Discard": in the job
+  scope, every file of the response that `Holder.Attached` no longer lists is deleted (row, audit, then the object
+  after the commit); a response without files asks the holder nothing.
+- `internal/binary/service_retention.go`: `Purger` (`NewPurger(repo, store)`): the rejected rows scanned before the
+  cut-off, then every object written before it whose key has no row (checked page by page with one query); it counts
+  both.
+- `repository.go`, `repository_postgres.go`, `query.sql`, `binarydb/`: `MarkScanned`, `OfResponse`,
+  `DeleteRejectedBefore`, `Existing` (an id that is no UUID has no row).
+- `service.go`: `Ports.Scanner`, and an audit entry may name a job as its agent (`AgentName`, purpose `HOPERAT`,
+  `update` mapped to `U`).
+- `migrations/00028_binary_retention.sql`: `GRANT SELECT, DELETE ON "binary" TO salus_retention` and the partial index
+  `binary_rejected_scanned` (`scanned_at` where `rejected`), for the purger.
+- `internal/retention/rules.go`: `binary` is `delete`, 24 h, with its basis.
+- `internal/worker/binary.go`: `Files` (store, KEK, scanner), the binary service on the app pool with the
+  questionnaire response as holder, `binary_scan` (timeout 10 minutes) and `binary_discard` workers and their log
+  lines. `worker.go`: `New` takes `Files` and refuses to start without them; the worker works the default queue (10)
+  and `scan` (2); both kinds registered for the scheduler too. `retention.go`: binary's purger on the retention pool
+  and the store.
+- `cmd/worker/main.go`: `config.LoadObjectStore`, `config.LoadClamd`, the S3 store (HTTP client timeout
+  `binary.UploadDeadline`, page 1000), the KEK, `clamd.New`.
+
+Failing first (each seen before the code existed):
+- `migrations`: `TestBinary_TheRetentionRoleReads…` "permission denied for table binary (42501)" for the read and the
+  purge; `TestBinary_RejectedFilesAreIndexedByTheirScanTime` "no index binary_rejected_scanned".
+- `internal/retention`: `TestRules_DeleteRejectedBinariesAfterTwentyFourHours` "binary then keep after 0s"; every
+  `Apply` test "no applier … binary" once the appliers named binary's purger; `no binary purger` accepted while the
+  rule was keep.
+- `internal/binary`: the repository tests failed to build (`missing method DeleteRejectedBefore`), the service tests
+  (`undefined: binary.Scanner`, `Scan`, `Discard`, `NewPurger`). With the code, the EICAR test failed on its expected
+  name (`Eicar-Signature`, not the bare string's `Eicar-Test-Signature`; the test now takes any `Eicar` name).
+  Mutations seen failing: the rejected object's deletion taken out (the object still there), the `quarantined`
+  guard of `MarkBinaryScanned` taken out (the repeated mark succeeds and changes the rejected row).
+- `internal/worker`: the build failed (`undefined: workerQueues`, `worker.Files`); with the scan queue taken out of
+  `workerQueues` the queue test failed and the scan job "did not finish within 15s".
+- `cmd/worker`: the build failed until `main.go` passed `Files`; `TestRun_FailsWithoutTheFilesSettings` covers each.
+
+Tests:
+- Service (fakes for the repository, holder, audit and transaction; the real compose Garage and clamd): a clean
+  generated MP4 becomes `clean` at the clock's time with its key, its attachment no longer pending, two `update`
+  events (`Binary/<id>`, `QuestionnaireResponse/<id>`) by `binary_scan` for `HOPERAT`, the object unchanged; a
+  generated PDF carrying the EICAR string becomes `rejected`, key cleared, detached, two `delete` events, the object
+  gone; clamd unreachable (`127.0.0.1:1`) returns `ErrUnreachable` and changes nothing; a repeated scan, a gone file
+  and another clinic's job scope do nothing; a commit that fails (the holder's detach) keeps the file quarantined,
+  unaudited, with its object. `Discard`: a clean, a quarantined and a rejected file of which the holder lists one:
+  the two others deleted with their objects and two events each by `binary_discard`, the listed one kept; repeated,
+  nothing; another response or clinic's scope, nothing; a database error keeps every file.
+- Postgres: the job scope marks its response's quarantined file once (clean; rejected with the key cleared),
+  another response's job scope, the patient and a non-UUID never; `OfResponse` lists every status of its response
+  only. As `salus_retention`: `DeleteRejectedBefore` deletes the old rejected row and keeps a fresh rejected, an old
+  clean and a quarantined one; `Existing` names the rows among keys with an unknown id and a non-UUID key. The app
+  role purges nothing.
+- Purger (`salus_retention` and the real store, pages of 2): keeps a fresh rejected row and deletes an old one, then
+  deletes the old rejected file's object and an old object without a row, keeps a young object without a row and an
+  old one with a row; 3 counted. The store is seen through a key prefix of the test's own, so a test's purger never
+  lists or deletes another test's or the dev stack's objects. A closed pool fails the purge.
+- Migrations: `salus_retention` reads every clinic's files, deletes the rejected row past 24 h, cannot update, insert
+  or truncate; the partial index. 0.1's cascade test revokes the new grant in its own database first, so it still
+  proves the cascade needs no privilege of the role's.
+- Worker (real database, store under a prefix, clamd): `binary_scan` on the `scan` queue marks a clean file clean
+  (two `U` events) and rejects an EICAR PDF (key cleared, detached, two `D` events, object gone); clamd unreachable
+  fails the attempt (River retries) and leaves it quarantined and pending; `binary_discard` deletes the file the
+  response no longer lists (two `D` events) and keeps the other. Every job log holds the ids and the result and no
+  title, patient id, e-mail or name; the signature only on the rejected line beside the binary id. `retention_apply`
+  logs and audits `binary 0`; the retention pool reaches `binary.NewPostgresRepository` too; the scheduler knows both
+  kinds; `New` refuses to start without the store, the key or clamd; the queues are default 10 and scan 2.
+- `cmd/worker`: starts and stops with the synthetic settings; fails naming `S3_ENDPOINT`, `BINARY_KEK` and
+  `CLAMD_ADDR` without each.
+
+Checks (all `--no-deps`):
+- Tests: `go test -count=1 -cover ./internal/binary/... ./internal/worker/... ./internal/retention/... ./migrations/...`
+  pass: `internal/binary` 90.5%, `internal/worker` 93.6%, `internal/retention` 100%. Also `./cmd/worker/...` (Postgres
+  only, no Redis) and `./internal/config/` (no stack) pass; `go vet ./...` passes.
+- Lint (`scripts/lint.sh`, main git dir mounted read-only): 0 issues both modules, check-migrations ok.
+- Archcheck (`go -C tools run ./archcheck -root /src`): pass.
+
+Readings (`go test -tags loadtest -run TestScanReadings -v ./internal/binary/`, the compose Garage and clamd 1.5.4,
+i7-14700HX; clamd's `VmRSS` sampled every 0.2 s from `/proc` in its container):
+- The scan of a 200 MB generated MP4 (199,999,606 bytes, read from the store, decrypted and streamed to clamd): 6.05 s
+  and 5.85 s (33 and 34 MB/s) on two files clamd had not seen; 0.57 s for one it had seen clean before (clamd caches
+  the hashes of clean files).
+- clamd's resident memory: 941 MiB idle, 969 MiB at its peak during the scans (+27 MiB): clamd spools an `INSTREAM`
+  to a temporary file, so two scans at a time stay far inside its memory. The job's timeout (10 minutes) is a hundred
+  times the measured scan; River's default minute would have been close for a slow production store.
+
+### Decided while the owner was away
+
+- 2026-11-07, session (3.1): the rejection's `AuditEvent` does not carry the signature name. `audit_event` has no
+  column for it, and adding one means changing `internal/auditevent` and migrating the audit table, outside this
+  package's files and against O22's "no migration of the audit table". The rejection is audited (a `delete` by
+  `binary_scan`, since the key and the bytes are gone), and the signature goes on the job's log line beside the binary
+  id only, which §5 allows (never beside a patient id). SPEC row needed (§2 "Scan" says "audited with the signature
+  name").
+- 2026-11-07, session (3.1): the scan's audit codes: a clean result is an `update` (`U`), a rejection a `delete` (`D`),
+  each by the job (`AgentName` `binary_scan`, no account) for `HOPERAT`; the discard is a `delete` by `binary_discard`.
+  One event per entity (O22). A scan that finds its file gone or already scanned writes nothing: it changed and
+  disclosed nothing.
+- 2026-11-07, session (3.1): `Discard(ctx, DiscardArgs)` instead of §2's `Discard(ctx, agent, org, responseID)`: the
+  agent is always the job's kind, and the job's arguments are the response and the clinic, as `Scan(ctx, ScanArgs)`.
+  Same behaviour, no unused parameter. It deletes every file the holder no longer lists, a rejected row included. SPEC
+  row needed (the signature in §2 "Discard").
+- 2026-11-07, session (3.1): the purger deletes every object older than 24 h whose key has no row, including a key
+  that is no UUID (it can never have one). In production the bucket is binary's alone. In the shared dev bucket that
+  also removes test objects left behind for more than a day; it never removes an object of a dev file with a row.
+  The tests see the store through a key prefix of their own (`prefixStore` in the test files of `internal/binary` and
+  `internal/worker`), so no test's purger lists or deletes the dev stack's or another test's objects.
+- 2026-11-07, session (3.1): migration 00028 also adds the partial index `binary_rejected_scanned`, so the daily purge
+  does not read every file to find the few rejected ones.
+- 2026-11-07, session (3.1): files outside the narrowest reading of the package's list were edited because the rule
+  change forces them, each within the package's own concern: `internal/binary/service.go` (the `Scanner` port field,
+  the job agent in the audit entry), `fakes_test.go` (the job scope and the holder's `Cleared` and `Attached`),
+  `internal/retention/service_test.go` (binary's purger among the appliers, and the refusal without it),
+  `migrations/binary_test.go` (0.1's cascade subtest revokes the new grant in its own database first, keeping what it
+  proves), and the worker's existing tests (`New`'s new argument, `binary 0` in the retention log and audit,
+  `binary.NewPostgresRepository` on the retention pool, the two kinds in the scheduler). No test was weakened.
+- 2026-11-07, session (3.1): the binary jobs need the store, the KEK and clamd, so `worker.New` refuses to start without
+  them and `cmd/worker` requires the settings, as it requires LiveKit's. Compose already gave the worker every
+  variable (0.1); no compose change.
+- 2026-11-07, session (3.1): `internal/config`'s test still accepts a subset of the callers of `LoadObjectStore` and
+  `LoadClamd`; both calls now exist (api and worker; worker), so the integration step may tighten it to the exact list
+  (not this package's file).
+
+Copy added by the session, not yet reviewed: none.
+
+For later packages:
+- 3.2: `binary_discard` is served on the default queue from this package on; enqueue `binary.DiscardArgs` (response
+  and clinic ids) with `InsertTx` in the withdrawal's and the submit's transaction.
+- 4.1: the dev worker must be rebuilt to serve the `scan` queue (it was not rebuilt here, by the wave rules); scan jobs
+  inserted by 2.1's stack check were deleted then, so none wait. The DPIA's 3.1 subsection: the signature is logged
+  with the binary id only, never audited (decision above); the purger's 24 h rule; clamd runs on our own
+  infrastructure. The rejected-file e2e can use the same uncompressed PDF content stream (`Eicar-Signature`).
+
+Dev stack: nothing changed. No service was rebuilt or restarted; the dev database was not touched (migration 28 is
+applied by the integration step's `make migrate`); the tests' objects were deleted (the bucket `salus-binaries` at
+0 objects after the runs); clamd keeps the hashes of the readings' clean files in its cache.
 
 ## 3.2 internal/questionnaireresponse: attachment answers
 

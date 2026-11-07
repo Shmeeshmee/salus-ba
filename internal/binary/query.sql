@@ -29,3 +29,23 @@ SELECT pg_advisory_xact_lock(hashtextextended('binary:' || @questionnaire_respon
 
 -- name: DeleteBinary :execrows
 DELETE FROM "binary" WHERE id = @id;
+
+-- name: MarkBinaryScanned :execrows
+-- The scan job's result, in the job scope, once: clean, or rejected with the wrapped key cleared (the bytes can
+-- no longer be read by anyone).
+UPDATE "binary"
+SET status = @status::text, scanned_at = @at, updated_at = @at,
+    wrapped_key = CASE WHEN @status::text = 'rejected' THEN NULL ELSE wrapped_key END
+WHERE id = @id AND status = 'quarantined';
+
+-- name: BinariesOfResponse :many
+-- Every file of a response, for the discard job.
+SELECT * FROM "binary" WHERE questionnaire_response_id = @questionnaire_response_id ORDER BY created_at, id;
+
+-- name: DeleteRejectedBinariesBefore :execrows
+-- The purger, as salus_retention: rejected files 24 h after their scan (binary_rejected_scanned).
+DELETE FROM "binary" WHERE status = 'rejected' AND scanned_at < @before;
+
+-- name: ExistingBinaries :many
+-- The purger, as salus_retention: which of the stored objects' keys still have a row.
+SELECT id FROM "binary" WHERE id = ANY(@ids::uuid[]);

@@ -65,7 +65,7 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	events, files, attached, jobs := len(f.audit.events), maps.Clone(f.repo.files), slices.Clone(f.holder.attached), len(f.jobs.scans)
-	f.repo.patient, f.repo.clinic = "", ""
+	f.repo.patient, f.repo.clinic, f.repo.job = "", "", ""
 	f.txs++
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
@@ -96,12 +96,16 @@ type fakeRepository struct {
 	files   map[string]binary.Binary
 	patient string
 	clinic  string
+	job     string // the job scope's response; clinic is its clinic
 	locked  []string
 }
 
 func (r *fakeRepository) visible(b binary.Binary) bool {
-	if r.patient != "" {
+	switch {
+	case r.patient != "":
 		return b.PatientID == r.patient
+	case r.job != "":
+		return b.ResponseID == r.job && b.OrganizationID == r.clinic
 	}
 	return r.clinic != "" && b.OrganizationID == r.clinic
 }
@@ -116,8 +120,9 @@ func (r *fakeRepository) SetClinic(ctx context.Context, id string) error {
 	return inTx(ctx)
 }
 
-func (r *fakeRepository) SetJob(context.Context, string, string) error {
-	return errors.New("no job scope in the service tests")
+func (r *fakeRepository) SetJob(ctx context.Context, responseID, org string) error {
+	r.job, r.clinic = responseID, org
+	return inTx(ctx)
 }
 
 func (r *fakeRepository) LockResponse(ctx context.Context, id string) error {
@@ -180,11 +185,55 @@ func (r *fakeRepository) Delete(ctx context.Context, id string) (bool, error) {
 		return false, err
 	}
 	b, ok := r.files[id]
-	if !ok || r.patient == "" || b.PatientID != r.patient {
+	if !ok || (r.patient == "" && r.job == "") || !r.visible(b) {
 		return false, nil
 	}
 	delete(r.files, id)
 	return true, nil
+}
+
+func (r *fakeRepository) MarkScanned(ctx context.Context, id string, status binary.Status, at time.Time) (bool, error) {
+	if err := inTx(ctx); err != nil {
+		return false, err
+	}
+	if r.err != nil {
+		return false, r.err
+	}
+	b, ok := r.files[id]
+	if !ok || r.job == "" || !r.visible(b) || b.Status != binary.StatusQuarantined {
+		return false, nil
+	}
+	b.Status, b.ScannedAt, b.UpdatedAt = status, at, at
+	if status == binary.StatusRejected {
+		b.WrappedKey = nil
+	}
+	r.files[id] = b
+	return true, nil
+}
+
+func (r *fakeRepository) OfResponse(ctx context.Context, responseID string) ([]binary.Binary, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []binary.Binary
+	for _, b := range r.files {
+		if r.visible(b) && b.ResponseID == responseID {
+			out = append(out, b)
+		}
+	}
+	slices.SortFunc(out, func(a, b binary.Binary) int { return a.CreatedAt.Compare(b.CreatedAt) })
+	return out, nil
+}
+
+func (r *fakeRepository) DeleteRejectedBefore(context.Context, time.Time) (int64, error) {
+	return 0, errors.New("the purger is tested on the real database")
+}
+
+func (r *fakeRepository) Existing(context.Context, []string) ([]string, error) {
+	return nil, errors.New("the purger is tested on the real database")
 }
 
 // fakeHolder is the questionnaire response: each check answers what it is set to, and the attachment list is
@@ -201,6 +250,7 @@ type fakeHolder struct {
 	editCallers    []binary.Caller
 	uploadCallers  []binary.Caller
 	detached       []string
+	cleared        []string
 	target         binary.Target
 	uploadTargets  int
 }
@@ -264,12 +314,28 @@ func (h *fakeHolder) Detach(ctx context.Context, responseID, binaryID string) er
 	return nil
 }
 
-func (h *fakeHolder) Cleared(context.Context, string, string) error {
-	return errors.New("not used by 2.1's calls")
+func (h *fakeHolder) Cleared(ctx context.Context, responseID, binaryID string) error {
+	if err := inTx(ctx); err != nil {
+		return err
+	}
+	h.cleared = append(h.cleared, binaryID)
+	for i, a := range h.attached {
+		if a.BinaryID == binaryID {
+			h.attached[i].Pending = false
+		}
+	}
+	return nil
 }
 
-func (h *fakeHolder) Attached(context.Context, string) ([]string, error) {
-	return nil, errors.New("not used by 2.1's calls")
+func (h *fakeHolder) Attached(ctx context.Context, responseID string) ([]string, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, a := range h.attached {
+		out = append(out, a.BinaryID)
+	}
+	return out, nil
 }
 
 type fakeJobs struct{ scans []binary.ScanArgs }

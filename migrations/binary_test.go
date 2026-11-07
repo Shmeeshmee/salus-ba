@@ -250,7 +250,9 @@ func TestBinary_HoldsAConsistentState(t *testing.T) {
 }
 
 // Deleting a response deletes its files' rows in the same statement, by every path: the discard job's scope
-// for a cancelled appointment, and salus_retention, which holds no privilege of its own on "binary".
+// for a cancelled appointment, and salus_retention without any privilege of its own on "binary": the referential
+// action runs as the table's owner. 00028 grants the role SELECT and DELETE there for binary's purger, so this
+// test revokes them in its own database first.
 func TestBinary_DeletingAResponseDeletesItsFiles(t *testing.T) {
 	t.Parallel()
 	t.Run("the discard scope", func(t *testing.T) {
@@ -272,6 +274,9 @@ func TestBinary_DeletingAResponseDeletesItsFiles(t *testing.T) {
 		t.Parallel()
 		owner, ret := pgtest.NewRetentionDatabase(t)
 		_, a, r, _ := seedFiles(t, owner)
+		if _, err := owner.Exec(t.Context(), `REVOKE SELECT, DELETE ON "binary" FROM `+pgtest.RetentionRole); err != nil {
+			t.Fatal(err)
+		}
 		if _, err := ret.Exec(t.Context(), `SELECT count(*) FROM "binary"`); sqlState(err) != "42501" {
 			t.Errorf("%s reads binary: %v, want insufficient_privilege", pgtest.RetentionRole, err)
 		}

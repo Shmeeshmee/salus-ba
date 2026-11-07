@@ -86,8 +86,9 @@ func Rules() []Rule {
 		},
 		{
 			Table: "binary",
-			Basis: "The patient's files attached to a questionnaire answer (GDPR Art. 9(2)(h), with the consent for sharing before care): each row lives exactly as long as its questionnaire response and is deleted with it (foreign key) or with its answer; rejected rows and objects without a row go after 24 h once package 3.1's purger exists; needs a legal decision before production (docs/attachments/SPEC.md sections 4 and 5)",
-			Then:  ThenKeep, // package 3.1 makes it ThenDelete, 24 h, with its purger
+			Basis: "The patient's files attached to a questionnaire answer (GDPR Art. 9(2)(h), with the consent for sharing before care): each row lives exactly as long as its questionnaire response and is deleted with it (foreign key) or with its answer; a rejected row is deleted 24 h after its scan, and a stored object without a row (a deleted file's ciphertext, an upload that never reached its answer) 24 h after it was written; needs a legal decision before production (docs/attachments/SPEC.md sections 4 and 5)",
+			Keep:  day, // after scanned_at of a rejected row; after an object's last write
+			Then:  ThenDelete,
 		},
 	}
 }

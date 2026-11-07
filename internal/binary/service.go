@@ -46,14 +46,15 @@ type Holder interface {
 
 // Ports are the Service's dependencies.
 type Ports struct {
-	Repo   Repository
-	Store  Store
-	Holder Holder
-	Audit  Auditor
-	Tx     Transactor
-	Jobs   Jobs
-	Clock  clock.Clock
-	KEK    *envelope.KEK // wraps each file's data key
+	Repo    Repository
+	Store   Store
+	Holder  Holder
+	Audit   Auditor
+	Tx      Transactor
+	Jobs    Jobs
+	Scanner Scanner // the scan job's; nil in the api, which scans nothing
+	Clock   clock.Clock
+	KEK     *envelope.KEK // wraps each file's data key
 }
 
 // Service holds the files' rules (docs/attachments/SPEC.md §2).
@@ -181,10 +182,11 @@ func (s *Service) Delete(ctx context.Context, c Caller, id string) error {
 	return nil
 }
 
-// entry is one audited call: interaction by c with outcome, on the file and its response when they are
-// disclosed, in the clinic org. The purpose is the grant's, or else the caller's: the patient's own request
-// for a patient, treatment for staff.
+// entry is one audited call: interaction by c, or by the job agent, with outcome, on the file and its
+// response when they are disclosed, in the clinic org. The purpose is the grant's, or else the caller's: the
+// patient's own request for a patient, treatment for staff, operations for a job.
 type entry struct {
+	agent       string // a job's kind; empty for a caller
 	org         string
 	interaction string
 	purpose     string
@@ -200,6 +202,8 @@ func (s *Service) record(ctx context.Context, e entry) error {
 	purpose := e.purpose
 	switch {
 	case purpose != "":
+	case e.agent != "":
+		purpose = auditevent.CodeHOPERAT
 	case e.c.OrganizationID != "":
 		purpose = auditevent.CodeTREAT
 	default:
@@ -207,6 +211,7 @@ func (s *Service) record(ctx context.Context, e entry) error {
 	}
 	action := map[string]auditevent.Action{
 		auditevent.CodeCreate: auditevent.ActionCreate, auditevent.CodeDelete: auditevent.ActionDelete,
+		auditevent.CodeUpdate: auditevent.ActionUpdate,
 	}[e.interaction]
 	if action == "" {
 		action = auditevent.ActionRead
@@ -229,6 +234,7 @@ func (s *Service) record(ctx context.Context, e entry) error {
 			Action:          action,
 			Outcome:         e.outcome,
 			AgentAccountID:  e.c.AccountID,
+			AgentName:       e.agent,
 			OrganizationID:  e.org,
 			EntityReference: entity,
 		})
