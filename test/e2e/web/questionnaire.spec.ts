@@ -21,10 +21,15 @@ test('the practitioner builds a questionnaire by drag and drop, publishes it and
     ['Short answer', 'Placeholder question B'],
     ['Date', 'Placeholder question C'],
   ]) {
+    // The drop lands only when the drop place was measured on a settled list: each drag waits for the card before it
+    // to be closed, and is checked to have added its row before the row is filled in (CI flake, PR #25).
+    const before = await rows(page).count()
     await drag(page, page.getByRole('button', { name: kind, exact: true }), page.locator('.list-end'))
+    await expect(rows(page)).toHaveCount(before + 1)
     const fresh = rows(page).last()
     await fresh.getByLabel('Question', { exact: true }).fill(text) // W13
     await toggle(fresh, text).click()
+    await expect(fresh.getByLabel('Question', { exact: true })).toBeHidden()
   }
   await expect(texts(page)).toHaveText(['Placeholder question A', 'Placeholder question B', 'Placeholder question C'])
 

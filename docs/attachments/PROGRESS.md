@@ -1376,6 +1376,6 @@ gone; its object goes with the purger after 24 h). salus-demo-* containers untou
 - 2026-11-07, CI: the first `e2e` run on the PR failed in the existing `TestQuestionnaire_TheBuilderPublishesAQuestionnaire`
   (the second palette item dragged in by the mouse did not land; the list had A and C only). It passed on every local
   run and on the CI re-run without any change, so it is recorded as a flaky drag timing in that journey, not caused
-  by this feature: the owner's rule says a flaky e2e test is fixed or deleted the same day, so it is listed under
-  what waits on the owner in the session's report (the drag helper should wait for the new row before measuring the
-  next drop target).
+  by this feature. Fixed the same day (CLAUDE.md "TDD"): each drag-in now waits for the card before it to be closed
+  and checks that its row was added before filling it in, so the drop place is measured on a settled list; the
+  journey asserts more than before, nothing less. `make e2e` passed twice in a row after the change.
