@@ -1,9 +1,9 @@
 # Questionnaire attachments: text for review
 
-Status: draft, not approved. Packages 1.6 and 1.7 put these strings into `web/src/messages.ts`,
-`mobile/lib/messages.dart`, `mobile/ios/Runner/Info.plist` and the Android rationale exactly as approved here;
-1.6 is held in `RUN.tsv` until the owner approves this file, and 1.7 does not start before then either. A change
-to any string after approval goes back to the owner first. W is the web app (practitioners and admins), M the
+Status: approved by the owner as written, 2026-11-07. Packages 1.6 and 1.7 put these strings into
+`web/src/messages.ts`, `mobile/lib/messages.dart`, `mobile/ios/Runner/Info.plist` and the Android rationale
+exactly as approved here. A change to any string goes back to the owner first; a line marked "added by the
+session, not yet reviewed" was added while the owner was away and waits for that review. W is the web app (practitioners and admins), M the
 mobile app (patients). [Brackets] are filled in by the app. Existing strings that are reused are named, not
 repeated (`docs/questionnaire/COPY.md`, `docs/consultation/COPY.md`).
 

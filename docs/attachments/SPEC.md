@@ -1,7 +1,10 @@
 # Questionnaire attachments
 
-Status: draft. The settled decisions (§2) are the owner's, 2026-11-07; the open points (§3) carry the defaults
-this plan builds to until the owner answers them. `COPY.md` is a draft, not approved.
+Status: approved, 2026-11-07. The settled decisions (§2) are the owner's; the plan's own decisions in §2 (the
+`Holder` port, the separate `attachments` column, `DELETE /binaries/{id}`, the `keep` → `delete` retention rule,
+the route deadlines) and every default of §3 (O1 to O12) were approved by the owner the same day, with the EXIF
+answer (§2 "Mobile", O13). `COPY.md` is approved as written. Rows of §3 marked "decided by the session, owner to
+review" were added while the owner was away.
 Branch `feat/attachments` from `main`, one commit per package (`attachments(<n>): <summary>`), packages of a wave
 built in parallel worktrees and merged back in the wave's integration step, one PR at the end.
 
@@ -192,6 +195,10 @@ Decisions taken in this plan (reopen only with the owner):
   list per item (title, kind, size); a photo or PDF opens in a viewer overlay with previous and next, a video in
   the browser's `<video>` element pointed at the content URL, so the browser makes the `Range` requests and seeks.
   PDFs are shown by the browser's own viewer, no PDF library. No new npm dependency.
+- **Image and video metadata** (owner, 2026-11-07). The mobile app strips location and every other metadata
+  from photos (EXIF, XMP, IPTC) and videos (the container's metadata atoms: location, device, creation time) before
+  upload, and keeps the orientation: a photo is written upright with no orientation tag left to need, or keeps
+  only its orientation tag. The server does not alter the bytes it receives.
 - **Mobile.** On an `attachment` item: "Add file" opens a sheet with only the sources the item accepts (take a
   photo, record a video, choose from photos, choose a document). Before upload the app converts HEIC and HEIF to
   JPEG and a MOV or a non-H.264/AAC video to H.264/AAC MP4, on the device, so everything plays in Chrome; then
@@ -210,8 +217,9 @@ Decisions taken in this plan (reopen only with the owner):
 
 ## 3. Open points
 
-Each is written with its default applied, and the plan builds to the default. The owner may change any of them
-before the package that builds it runs; a change after that is a new package.
+Each is written with its default applied, and the plan builds to the default. O1 to O12 were approved by the
+owner on 2026-11-07. Rows marked "decided by the session, owner to review" were decided while the owner was away
+(`PROGRESS.md` "Decided while the owner was away" gives the reasons).
 
 | # | Question | Default applied | Built in |
 | --- | --- | --- | --- |
@@ -227,6 +235,7 @@ before the package that builds it runs; a change after that is a new package.
 | O10 | Which local object store and which Go S3 client? | Garage (single binary, small, S3 operations we need), pinned, SeaweedFS the fallback if 0.1's check of the four operations fails on Garage; `github.com/aws/aws-sdk-go-v2/service/s3`, pinned, over a hand-written SigV4 client (well over 50 lines with streaming and signing) and `minio-go` (its maintenance after MinIO's change of course is to be checked in 0.1). ADR 0010 records the comparison | 0.1, 1.4 |
 | O11 | Keep the file name? | Yes, as `title`, cut to 200 characters, so the practitioner can tell files apart. It is personal data (a name can say anything), never logged, deleted with the file | 2.1 |
 | O12 | Can the patient open their own files on mobile? | Not in this feature: the read-only view lists title, kind and size. They have the original on their device | 1.7 |
+| O13 | Image and video metadata? | Decided by the owner, 2026-11-07: the app strips location and all other metadata, keeps orientation (§2 "Image and video metadata") | 1.7 |
 
 ## 4. Lawful basis
 
@@ -239,8 +248,9 @@ before the package that builds it runs; a change after that is a new package.
   reports or training on them without a separate basis, SPEC and DPA.
 - Malware scanning is security of processing (Art. 32) and the clinic's legitimate interest in not opening
   malicious files; it runs on our own infrastructure, and the file never leaves it.
-- Image metadata (EXIF location, device) stays in the bytes as uploaded: the server does not alter a file the
-  patient chose to send. Whether the app strips location before upload is a decision for the owner (§8).
+- Data minimisation: the mobile app strips location and all other metadata from photos and videos before upload,
+  keeping only the orientation (owner, 2026-11-07, §2 "Image and video metadata"); the server does not alter the
+  bytes it receives.
 - Audit and retention: as in accounts (Art. 5(2), 32).
 
 ## 5. Personal data
@@ -305,7 +315,6 @@ the server, and localisation (before production, with the rest of the app).
   its memory sized from 3.1's reading.
 - Legal decision on the retention of `binary` with `questionnaire_response`, and legal confirmation of the lawful
   basis (§4).
-- Whether the mobile app strips EXIF location from photos before upload (owner, §4).
 - The new web and mobile text, and the iOS and Android permission text, localised (bs/hr/sr).
 - The camera, photo library, document picker and conversion checked on a real Android device and an iOS build,
   with a screen reader; a 200 MB video uploaded over a mobile network.

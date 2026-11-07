@@ -1,7 +1,7 @@
 # Questionnaire attachments implementation plan
 
-Read `SPEC.md` first (draft, 2026-11-07: the owner's settled decisions in §2, the open points with their
-defaults in §3). Each package is one commit `attachments(<n>): <summary>`, made with `/run-package
+Read `SPEC.md` first (approved 2026-11-07: the owner's settled decisions in §2, the open points with their
+approved defaults in §3). Each package is one commit `attachments(<n>): <summary>`, made with `/run-package
 docs/attachments <n>`. Packages run in waves (below): wave 0 and wave 2 alone on `feat/attachments`, the
 packages of waves 1 and 3 at the same time, each in its own worktree and branch, merged back into
 `feat/attachments` in the wave's integration step. One PR into `main` at the end.
@@ -260,7 +260,11 @@ Reads: SPEC §2 "Item model", "Download", "FHIR", "Web"; `COPY.md` (approved); C
 
 Owns: `web/` (no change to the generated client).
 
-Depends on: 0.1; `COPY.md` approved (`RUN.tsv` holds this package).
+Depends on: 0.1; `COPY.md` approved (2026-11-07).
+
+Also (owner, 2026-11-07, folded in): the React duplicate-key warning in `web/src/Availability.tsx` fixed, with a
+test that fails on the warning; the spacing under "Edit as new version" and "Retire" (questionnaire W23) in the
+builder made the same as under the other action rows.
 
 Builds: "File upload" in the palette (W1); the opened card's accepted kinds and number of files with the hint and
 the errors (W2 to W6), the closed card's summary; in the submitted answers, each attachment item's file list
@@ -284,7 +288,14 @@ Reads: SPEC §2 "Mobile", §3 O1, O3, O9, O12; `COPY.md` (approved); `mobile/lib
 
 Owns: `mobile/` (no change to the generated client).
 
-Depends on: 0.1; `COPY.md` approved.
+Depends on: 0.1; `COPY.md` approved (2026-11-07).
+
+Also (owner, 2026-11-07, folded in): the metadata of photos and videos stripped before upload, orientation kept
+(SPEC §2 "Image and video metadata"), tested on generated files carrying GPS, device and orientation tags;
+`compileSdk = 37` in `mobile/android/app/build.gradle.kts`; the questionnaire screen's saved state (questionnaire
+M6) in the footer, with a background and a top border, always visible, and the test that expects it elsewhere
+changed to the footer; the slot list no longer offers a slot that starts within 5 minutes of now (a test with
+the clock at 4 min 59 s and 5 min 0 s before a slot).
 
 Builds: the file upload item (M1, M2), the source sheet (M3) with only the accepted sources; camera and library
 through `image_picker`, documents through `file_picker` (each justified in `PROGRESS.md`: what the platform
@@ -398,7 +409,10 @@ Done when: checks Go (in a wave), FHIR.
 Reads: SPEC entire; `test/e2e/questionnaire_test.go`; `docs/privacy/`.
 
 Owns: `test/e2e/attachments_test.go`, `test/e2e/web/attachments.spec.ts`; `docs/privacy/dpia.md`,
-`processors.md`.
+`processors.md`; the mobile CI workflow in `.github/workflows/`.
+
+Also (owner, 2026-11-07, folded in): a CI job that builds the debug APK (`flutter build apk --debug` in the
+pinned Flutter image) on every change under `mobile/`.
 
 Depends on: 3.1, 3.2.
 
