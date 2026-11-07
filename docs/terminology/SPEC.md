@@ -124,4 +124,30 @@ None. The search text is not stored or logged.
 Points decided while the owner was away, each with its reason; the same list is in `PROGRESS.md` "Decided while
 the owner was away".
 
-(none yet)
+### The orchestrator
+
+- **The shared stack and the integration steps run as in the languages plan** (`docs/i18n/PROGRESS.md`, "Decided
+  while the owner was away", the orchestrator): started with `docker compose up -d --build --wait` from the
+  integration worktree, host ports moved off those another local project holds, and each package's decisions
+  and new copy copied here from its own log section at integration.
+
+### 0.1 Baseline
+
+- **`rank` holds the sitelinks count**, not a position: comparable across categories in a search without a
+  category, and the export shows something a curator can read. Higher ranks first.
+- **`review_status` is `text` with a check**, not a third enum, as `binary.status`; `term_reviewed_has_date`
+  makes a reviewed term carry its date. Turning a term back to draft keeps its last `reviewed_at`.
+- **No `version_id` on `term`**: it is not a FHIR resource and the app never writes it; the import is the
+  only writer.
+- **Word similarity (`<%`), not plain similarity (`%`)**, for the trigram tier: a multi-word label such as
+  "ulcus ventriculi" is found by "ventricul", which whole-label similarity misses.
+- **ATC codes**: the WHOCC's ATC/DDD index forbids commercial copying. Not one of the SPEC's stop points
+  (Wikidata's licence and the ICD point both came out as the SPEC says), so the plan continues: the ATC code is
+  taken only from Wikidata (CC0) as an identifier, nothing from the index, and the point is listed in
+  `SOURCES.md` "For the lawyer" before production (SPEC §7). Safest without blocking: nothing reaches
+  production before that check.
+- **ICD**: WHO's classifications are CC BY-ND 3.0 IGO (commercial use allowed without adaptation; translations
+  and mappings need WHO's agreement), not plainly "copyrighted": what we take is unchanged (no WHO text, the
+  code only as an identifier from Wikidata). Recorded in `SOURCES.md`.
+- **`term_label.label` at most 300 characters**: a bound for the index and the CSV round trip; Wikidata labels
+  are limited to 250.
