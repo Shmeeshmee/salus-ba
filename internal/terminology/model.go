@@ -36,3 +36,25 @@ type Search struct {
 	Languages []string
 	Limit     int32
 }
+
+// Caller is who searches: their account, and whether they are staff of a clinic (its admin or one of its
+// practitioners); a patient is not.
+type Caller struct {
+	AccountID string
+	Staff     bool
+}
+
+// Match is a term as a search returns it: Term without its Labels, which Labels holds grouped per requested
+// language.
+type Match struct {
+	Labels []Names
+	Term   Term
+}
+
+// Names are a term's labels in one language: the preferred one (the marked label, else the first
+// alphabetically) and the others alphabetically.
+type Names struct {
+	Language  string
+	Preferred string
+	Synonyms  []string
+}

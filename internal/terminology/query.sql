@@ -1,28 +1,43 @@
 -- name: SearchTerms :many
--- The terms with a label in any language that matches the folded text: 3 exact, 2 prefix (LIKE on the
--- escaped text, which the trigram index serves), 1 word similarity (<%, also from the index). A term counts
--- by its best label.
-WITH hits AS (
-    SELECT l.term_id,
-           max(CASE WHEN term_fold(l.label) = term_fold(@text::text) THEN 3
-                    WHEN term_fold(l.label) LIKE term_fold(@prefix::text) || '%' THEN 2
-                    ELSE 1 END)::integer AS tier,
-           max(word_similarity(term_fold(@text::text), term_fold(l.label)))::real AS similarity
+-- The terms with a label in any language that matches the folded text: 3 exact, 2 prefix, 1 word similarity
+-- (<%, served by the trigram index). A term counts by its best label. A label that starts with a text of two
+-- characters or more is also within word similarity (n of its n+1 trigrams, at least 0.67 against pg_trgm's 0.6),
+-- so only a one-character text needs the LIKE in the filter: one index scan, not two. Each candidate label is
+-- folded once (folded is materialized). Each term comes with its labels in the languages, as three parallel
+-- arrays by language in the enum's order, preferred first, then alphabetically: one round trip per search.
+-- Measured in docs/terminology/PROGRESS.md, 1.1.
+WITH folded AS MATERIALIZED (
+    SELECT l.term_id, term_fold(l.label) AS label
     FROM term_label l
-    WHERE term_fold(l.label) LIKE term_fold(@prefix::text) || '%'
-       OR term_fold(@text::text) <% term_fold(l.label)
-    GROUP BY l.term_id
+    WHERE term_fold(@text::text) <% term_fold(l.label)
+       OR (char_length(@text::text) < 2 AND term_fold(l.label) LIKE term_fold(@prefix::text) || '%')
+), hits AS (
+    SELECT f.term_id,
+           max(CASE WHEN f.label = term_fold(@text::text) THEN 3
+                    WHEN f.label LIKE term_fold(@prefix::text) || '%' THEN 2
+                    ELSE 1 END)::integer AS tier,
+           max(word_similarity(term_fold(@text::text), f.label))::real AS similarity
+    FROM folded f
+    GROUP BY f.term_id
+), best AS (
+    SELECT t.id, t.reviewed_at, t.rank, t.category, t.review_status, t.wikidata_id, t.icd10, t.ta98, t.atc, t.pcs,
+           h.tier, h.similarity
+    FROM hits h
+    JOIN term t ON t.id = h.term_id
+    WHERE sqlc.narg(category)::term_category IS NULL OR t.category = sqlc.narg(category)::term_category
+    ORDER BY h.tier DESC, h.similarity DESC, t.rank DESC, t.id
+    LIMIT @max_terms
 )
-SELECT t.id, t.reviewed_at, t.rank, t.category, t.review_status, t.wikidata_id, t.icd10, t.ta98, t.atc, t.pcs
-FROM hits h
-JOIN term t ON t.id = h.term_id
-WHERE sqlc.narg(category)::term_category IS NULL OR t.category = sqlc.narg(category)::term_category
-ORDER BY h.tier DESC, h.similarity DESC, t.rank DESC, t.id
-LIMIT @max_terms;
-
--- name: TermLabels :many
--- The labels of the terms in the languages, by language in the enum's order, preferred first.
-SELECT term_id, language, preferred, label
-FROM term_label
-WHERE term_id = ANY(@term_ids::uuid[]) AND language::text = ANY(@languages::text[])
-ORDER BY term_id, language, preferred DESC, label;
+SELECT b.id, b.reviewed_at, b.rank, b.category, b.review_status, b.wikidata_id, b.icd10, b.ta98, b.atc, b.pcs,
+       coalesce(l.languages, '{}')::text[] AS label_languages,
+       coalesce(l.labels, '{}')::text[] AS labels,
+       coalesce(l.preferred, '{}')::boolean[] AS label_preferred
+FROM best b
+CROSS JOIN LATERAL (
+    SELECT array_agg(language::text ORDER BY language, preferred DESC, label) AS languages,
+           array_agg(label ORDER BY language, preferred DESC, label) AS labels,
+           array_agg(preferred ORDER BY language, preferred DESC, label) AS preferred
+    FROM term_label
+    WHERE term_id = b.id AND language::text = ANY(@languages::text[])
+) l
+ORDER BY b.tier DESC, b.similarity DESC, b.rank DESC, b.id;

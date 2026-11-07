@@ -31,6 +31,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot"
+	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -112,11 +113,8 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	}, fhirBase, log)
 
 	h := router.New(router.Config{
-		Logger: log,
-		Checks: []router.Check{
-			{Name: "postgres", Ping: pool.Ping},
-			{Name: "redis", Ping: func(ctx context.Context) error { return rdb.Ping(ctx).Err() }},
-		},
+		Logger:  log,
+		Checks:  readiness(pool, rdb),
 		Session: authHandler.Session,
 		Routes: append([]func(*http.ServeMux){
 			authHandler.Routes,
@@ -135,11 +133,20 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
+			terminology.NewHTTPHandler(terminology.NewService(terminology.NewPostgresRepository(pool), uiLanguage(accounts)), terminologyCaller(accounts), log).Routes,
 		}, questionnaireAPI...),
 		Streams: streams,
 		Timeout: RequestTimeout,
 	})
 	return &App{Handler: h, pool: pool, redis: rdb}, nil
+}
+
+// readiness are the dependencies /readyz pings.
+func readiness(pool *pgxpool.Pool, rdb *goredis.Client) []router.Check {
+	return []router.Check{
+		{Name: "postgres", Ping: pool.Ping},
+		{Name: "redis", Ping: func(ctx context.Context) error { return rdb.Ping(ctx).Err() }},
+	}
 }
 
 // keys are the settings New checks before it connects to anything.
@@ -429,6 +436,43 @@ func appointmentCaller(accounts *auth.Service, patients *patient.Service) func(c
 		}
 		c.PatientID = p.ID
 		return c, true, nil
+	}
+}
+
+// terminologyCaller is the terminology's view of the signed-in session: whether the account is staff of the
+// session's clinic (its admin or a practitioner), as read from the database. A patient's session has no clinic
+// and needs no read.
+func terminologyCaller(accounts *auth.Service) func(ctx context.Context) (terminology.Caller, bool, error) {
+	return func(ctx context.Context) (terminology.Caller, bool, error) {
+		s, ok := auth.SessionFrom(ctx)
+		if !ok {
+			return terminology.Caller{}, false, nil
+		}
+		c := terminology.Caller{AccountID: s.AccountID}
+		if s.OrganizationID == "" {
+			return c, true, nil
+		}
+		m, err := accounts.ClinicMember(ctx, s)
+		if err != nil {
+			return terminology.Caller{}, false, err
+		}
+		c.Staff = m.Admin || m.PractitionerID != ""
+		return c, true, nil
+	}
+}
+
+// uiLanguage is an account's UI language for the terminology's default languages: its own choice, else the one
+// its client detected, else none. Read (and audited) through the account service.
+func uiLanguage(accounts *auth.Service) func(ctx context.Context, accountID string) (string, error) {
+	return func(ctx context.Context, accountID string) (string, error) {
+		a, err := accounts.Me(ctx, accountID)
+		if err != nil {
+			return "", err
+		}
+		if a.Language != "" {
+			return a.Language, nil
+		}
+		return a.DetectedLanguage, nil
 	}
 }
 

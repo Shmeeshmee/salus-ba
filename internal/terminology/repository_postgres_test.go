@@ -79,6 +79,8 @@ func TestSearch_Ranking(t *testing.T) {
 		{"a word inside a label", "ventricul", "", []string{ulcer}},
 		{"another category's match filtered out", "liver", "anatomy", []string{liver}},
 		{"the category filter", "hep", "diagnosis", []string{fattyLvr, hepatitis}},
+		{"one letter: the labels that start with it, by rank", "u", "", []string{hepatitis, ulcer}},
+		{"two letters: a prefix, found by word similarity", "ul", "", []string{ulcer}},
 		{"LIKE wildcards are plain characters", "%", "", []string{}},
 		{"no match", "zzzz", "", []string{}},
 	} {

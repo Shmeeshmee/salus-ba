@@ -4,8 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"github.com/Shmeeshmee/salus/internal/terminology/terminologydb"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
@@ -28,33 +26,24 @@ func (r *postgresRepository) q(ctx context.Context) *terminologydb.Queries {
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
 func (r *postgresRepository) Search(ctx context.Context, s Search) ([]Term, error) {
-	params := terminologydb.SearchTermsParams{Text: s.Text, Prefix: likeEscaper.Replace(s.Text), MaxTerms: s.Limit}
+	params := terminologydb.SearchTermsParams{Text: s.Text, Prefix: likeEscaper.Replace(s.Text), MaxTerms: s.Limit, Languages: s.Languages}
 	if s.Category != "" {
 		params.Category = terminologydb.NullTermCategory{TermCategory: terminologydb.TermCategory(s.Category), Valid: true}
 	}
 	rows, err := r.q(ctx).SearchTerms(ctx, params)
-	if err != nil || len(rows) == 0 {
-		return []Term{}, err
+	if err != nil {
+		return nil, err
 	}
 	terms := make([]Term, len(rows))
-	index := make(map[[16]byte]int, len(rows))
-	ids := make([]pgtype.UUID, len(rows))
 	for i, row := range rows {
 		terms[i] = Term{
 			ReviewedAt: row.ReviewedAt.Time, ID: row.ID.String(), Category: string(row.Category),
 			WikidataID: row.WikidataID.String, ICD10: row.Icd10.String, TA98: row.Ta98.String, ATC: row.Atc.String,
 			PCS: row.Pcs.String, ReviewStatus: row.ReviewStatus, Rank: row.Rank,
 		}
-		index[row.ID.Bytes] = i
-		ids[i] = row.ID
-	}
-	labels, err := r.q(ctx).TermLabels(ctx, terminologydb.TermLabelsParams{TermIds: ids, Languages: s.Languages})
-	if err != nil {
-		return nil, err
-	}
-	for _, l := range labels {
-		t := &terms[index[l.TermID.Bytes]]
-		t.Labels = append(t.Labels, Label{Language: string(l.Language), Text: l.Label, Preferred: l.Preferred})
+		for j, text := range row.Labels {
+			terms[i].Labels = append(terms[i].Labels, Label{Language: row.LabelLanguages[j], Text: text, Preferred: row.LabelPreferred[j]})
+		}
 	}
 	return terms, nil
 }
