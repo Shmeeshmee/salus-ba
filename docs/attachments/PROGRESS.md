@@ -1,0 +1,39 @@
+# Questionnaire attachments progress
+
+| Package | Status | Commit |
+| --- | --- | --- |
+| 0.1 Baseline | not started | |
+| 1.1 pkg/envelope | not started | |
+| 1.2 pkg/filetype | not started | |
+| 1.3 pkg/clamd | not started | |
+| 1.4 internal/binary: the object store | not started | |
+| 1.5 internal/questionnaire: attachment items | not started | |
+| 1.6 Web: builder options and the file viewer | held until `COPY.md` is approved | |
+| 1.7 Mobile: pickers, conversion and upload | waits for `COPY.md` approval | |
+| 2.1 internal/binary: service, Postgres, handlers and wiring | not started | |
+| 3.1 Scan, discard and purge | not started | |
+| 3.2 internal/questionnaireresponse: attachment answers | not started | |
+| 4.1 End-to-end and privacy | not started | |
+
+In a wave, packages write only under their own heading below (package 0.1 adds one per package); this table is
+updated in the wave's integration step (`IMPLEMENTATION_PLAN.md` "Running a wave").
+
+## Decisions
+
+- 2026-11-07, owner (recorded in `SPEC.md` §2): photos, documents and short videos attached to questionnaire
+  answers in the mobile app and viewed in the web app, the reserved `attachment` type and `valueAttachment`
+  enabled; bytes in an S3-compatible object store (a pinned compose container locally, the hosting provider's EU
+  store in production, not chosen); no MinIO image, ADR 0010 picks the local store (SeaweedFS and Garage compared
+  at least) and the Go S3 client; a new domain `binary` (FHIR `Binary`) in `clinical`, owning the store, the
+  `binary` table and the files' lifecycle.
+- 2026-11-07, plan: the open points O1 to O12 (`SPEC.md` §3) are built to their defaults until the owner
+  answers them. O8 (compute the R4 SHA-1 `hash`), O9 (submit refused while a file is pending), O10 (Garage and
+  `aws-sdk-go-v2`, checked in 0.1), O11 (keep the file name as `title`) and O12 (no viewer of one's own files on
+  mobile) were added by the plan to the owner's list.
+- 2026-11-07, plan: `questionnaireresponse` → `binary`, not the reverse; `binary.Holder` is implemented by
+  `questionnaireresponse`, as `retention.Purger` is by the domains, and `questionnaireresponse` reaches files only
+  through the `binary_discard` job (`SPEC.md` §2 "Dependency direction"). Attachment answers live in their own
+  column, outside `version_id`, so an upload never makes the patient's next save stale.
+- 2026-11-07, plan: `COPY.md` is a draft. `RUN.tsv` holds 1.6 until the owner approves it; 1.7 needs the same
+  approval (its permission text replaces the two iOS strings of the consultation feature) and does not start
+  before it either.
