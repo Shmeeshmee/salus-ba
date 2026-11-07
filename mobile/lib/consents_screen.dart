@@ -37,15 +37,11 @@ class _ConsentsScreenState extends LoadingState<ConsentsScreen, _Consents> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Revoke your consent?'),
-        content: Text(
-          '$clinic will no longer see your profile. It keeps your name and the details of appointments that have '
-          'already taken place, as part of its care records. Your future appointments with $clinic will be '
-          'cancelled.',
-        ),
+        title: Text(context.t.revokeTitle),
+        content: Text(context.t.revokeBody(clinic)),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Keep consent')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Revoke consent')),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(context.t.keepConsent)),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: Text(context.t.revokeConsent)),
         ],
       ),
     );
@@ -57,26 +53,22 @@ class _ConsentsScreenState extends LoadingState<ConsentsScreen, _Consents> {
     try {
       await widget.booking.revoke(consent.id);
       if (!mounted) return;
-      setState(() => _message = consentRevoked);
+      setState(() => _message = context.t.consentRevoked);
       await reload();
     } on ApiFailure catch (failure) {
-      if (mounted) setState(() => _error = bookingMessage(failure));
+      if (mounted) setState(() => _error = bookingMessage(context.t, failure));
     }
   }
 
   @override
   Widget build(BuildContext context) => ui.Page(
-    title: 'My consents',
+    title: context.t.myConsents,
     children: [
       if (_message != null) ui.Message(_message!),
       if (_error != null) ui.Message(_error!, error: true),
       ...body(
         (data) => [
-          Text(
-            data.all.isEmpty
-                ? 'You have not given any consents yet.'
-                : 'You share your profile and appointments with these clinics for your care.',
-          ),
+          Text(data.all.isEmpty ? context.t.noConsents : context.t.consentsIntro),
           for (final consent in data.all) _card(consent, data.clinics[consent.organizationId]),
         ],
       ),
@@ -85,7 +77,8 @@ class _ConsentsScreenState extends LoadingState<ConsentsScreen, _Consents> {
 
   Widget _card(Consent consent, Organization? clinic) {
     final zone = Zone(clinic?.timeZone ?? 'UTC');
-    final name = clinic?.name ?? unlistedClinic;
+    final t = context.t;
+    final name = clinic?.name ?? t.unlistedClinic;
     final revokedAt = consent.revokedAt;
     final active = consent.status == ConsentStatusEnum.active;
     return Card(
@@ -95,11 +88,11 @@ class _ConsentsScreenState extends LoadingState<ConsentsScreen, _Consents> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ui.Heading(name),
-            Text('Given on ${zone.date(consent.dateTime)}'),
-            Text(active || revokedAt == null ? 'Active' : 'Revoked on ${zone.date(revokedAt)}'),
+            Text(t.givenOn(zone.date(consent.dateTime, t.localeName))),
+            Text(active || revokedAt == null ? t.consentActive : t.revokedOn(zone.date(revokedAt, t.localeName))),
             if (active) ...[
               const SizedBox(height: 8),
-              OutlinedButton(onPressed: () => _revoke(consent, name), child: const Text('Revoke consent')),
+              OutlinedButton(onPressed: () => _revoke(consent, name), child: Text(t.revokeConsent)),
             ],
           ],
         ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'l10n/app_localizations.dart';
 import 'messages.dart';
 import 'questionnaire.dart';
 import 'questionnaire_files.dart';
@@ -29,13 +30,14 @@ class ItemHeader extends StatelessWidget {
             if (item.help != null)
               IconButton(
                 icon: const Icon(Icons.info_outline),
-                tooltip: moreInformation,
+                tooltip: context.t.moreInformation,
                 isSelected: helpOpen,
                 onPressed: onHelp,
               ),
           ],
         ),
-        if (item.required && item.isQuestion) Text(requiredQuestion, style: Theme.of(context).textTheme.bodySmall),
+        if (item.required && item.isQuestion)
+          Text(context.t.requiredQuestion, style: Theme.of(context).textTheme.bodySmall),
         if (helpOpen && item.help != null) Text(item.help!, style: Theme.of(context).textTheme.bodySmall),
       ],
     );
@@ -79,7 +81,7 @@ class QuestionField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         header,
-        if (item.type == ItemType.choice) Text(item.repeats ? selectAll : selectOne),
+        if (item.type == ItemType.choice) Text(item.repeats ? context.t.selectAll : context.t.selectOne),
         _input(context),
         if (!typed && error != null) Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
       ],
@@ -92,8 +94,8 @@ class QuestionField extends StatelessWidget {
       onChanged: (v) => onChosen([?v]),
       child: Column(
         children: [
-          RadioListTile<bool>(value: true, title: const Text(yes), enabled: enabled),
-          RadioListTile<bool>(value: false, title: const Text(no), enabled: enabled),
+          RadioListTile<bool>(value: true, title: Text(context.t.yes), enabled: enabled),
+          RadioListTile<bool>(value: false, title: Text(context.t.no), enabled: enabled),
         ],
       ),
     ),
@@ -122,7 +124,9 @@ class QuestionField extends StatelessWidget {
         label: item.text,
         child: OutlinedButton(
           onPressed: enabled ? () => _pick(context) : null,
-          child: Text(values.isEmpty ? chooseDate : Zone.longDate(values.first as DateTime)),
+          child: Text(
+            values.isEmpty ? context.t.chooseDate : Zone.longDate(values.first as DateTime, context.t.localeName),
+          ),
         ),
       ),
     ),
@@ -139,7 +143,7 @@ class QuestionField extends StatelessWidget {
       },
       minLines: item.type == ItemType.text ? 3 : 1,
       maxLines: item.type == ItemType.text ? null : 1,
-      decoration: InputDecoration(hintText: yourAnswer, errorText: error, errorMaxLines: 3),
+      decoration: InputDecoration(hintText: context.t.yourAnswer, errorText: error, errorMaxLines: 3),
     ),
   };
 
@@ -150,6 +154,7 @@ class QuestionField extends StatelessWidget {
   ];
 
   Future<void> _pick(BuildContext context) async {
+    final t = context.t;
     final picked = await showDatePicker(
       context: context,
       initialDate: values.firstOrNull as DateTime? ?? today,
@@ -158,31 +163,31 @@ class QuestionField extends StatelessWidget {
       lastDate: DateTime(2100, 12, 31),
       // Calendar only: typed entry would ask for the US mm/dd/yyyy.
       initialEntryMode: DatePickerEntryMode.calendarOnly,
-      helpText: chooseDate,
-      cancelText: cancel,
-      confirmText: done,
-      errorFormatText: enterValidDate,
-      errorInvalidText: enterValidDate,
+      helpText: t.chooseDate,
+      cancelText: t.cancel,
+      confirmText: t.done,
+      errorFormatText: t.enterValidDate,
+      errorInvalidText: t.enterValidDate,
     );
     if (picked != null) onChosen([DateTime.utc(picked.year, picked.month, picked.day)]);
   }
 }
 
 /// The message for a question the API named as invalid in a save (a 422): the check of its type.
-String invalidAnswer(Item item) => switch (item.type) {
-  ItemType.string => upToCharacters(maxString),
-  ItemType.text => upToCharacters(maxText),
-  ItemType.integer => enterWholeNumber,
-  ItemType.decimal => enterNumber,
-  ItemType.date => enterValidDate,
-  ItemType.choice when item.repeats => selectAll,
-  _ => selectOne,
+String invalidAnswer(AppLocalizations t, Item item) => switch (item.type) {
+  ItemType.string => t.upToCharacters(maxString),
+  ItemType.text => t.upToCharacters(maxText),
+  ItemType.integer => t.enterWholeNumber,
+  ItemType.decimal => t.enterNumber,
+  ItemType.date => t.enterValidDate,
+  ItemType.choice when item.repeats => t.selectAll,
+  _ => t.selectOne,
 };
 
 /// How an answer of [item] is written: in a text field, and read only.
-String answerText(Item item, List<Object> values) => switch (item.type) {
-  ItemType.boolean => values.first == true ? yes : no,
-  ItemType.date => Zone.longDate(values.first as DateTime),
+String answerText(AppLocalizations t, Item item, List<Object> values) => switch (item.type) {
+  ItemType.boolean => values.first == true ? t.yes : t.no,
+  ItemType.date => Zone.longDate(values.first as DateTime, t.localeName),
   _ => values.join(', '),
 };
 
@@ -197,9 +202,10 @@ List<Widget> answersRead(
 }) {
   final on = enabled(items, answers);
   final label = Theme.of(context).textTheme.labelLarge;
+  final t = context.t;
   return [
-    const ui.Heading(yourAnswers),
-    if (authored != null) Text(submittedAt('${zone.date(authored)}, ${zone.time(authored)}')),
+    ui.Heading(t.yourAnswers),
+    if (authored != null) Text(t.submittedAt(t.dateAndTime(zone.date(authored, t.localeName), zone.time(authored)))),
     for (final it in flatten(items))
       if (on[it.linkId]! && it.type == ItemType.group)
         ui.Heading(it.text)
@@ -209,11 +215,11 @@ List<Widget> answersRead(
           children: [
             Text(it.text, style: label),
             if ((answers[it.linkId] ?? const []).isEmpty)
-              const Text(notAnswered)
+              Text(t.notAnswered)
             else if (it.type == ItemType.attachment)
               ...filesRead(context, answers[it.linkId]!.cast<Attached>())
             else
-              Text(answerText(it, answers[it.linkId]!)),
+              Text(answerText(t, it, answers[it.linkId]!)),
           ],
         ),
   ];

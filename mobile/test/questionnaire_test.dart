@@ -1,5 +1,7 @@
+import 'package:flutter/widgets.dart' show Locale;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:salus/file_prep.dart' show FileKind;
+import 'package:salus/l10n/app_localizations.dart';
 import 'package:salus/questionnaire.dart';
 import 'package:salus_api/api.dart' as api;
 
@@ -231,7 +233,7 @@ void main() {
     for (final c in cases) {
       final shown = c.typed.length > 20 ? '${c.typed.substring(0, 12)}… (${c.typed.length})' : c.typed;
       test('${c.type.name} "$shown"', () {
-        final read = readTyped(c.type, c.typed);
+        final read = readTyped(lookupAppLocalizations(const Locale('en')), c.type, c.typed);
         expect(read.error, c.error);
         expect(read.value, c.value);
       });

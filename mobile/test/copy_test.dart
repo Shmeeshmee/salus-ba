@@ -1,9 +1,28 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
 // The mobile text of the video consultation is the owner's, word for word (docs/consultation/COPY.md): every M
-// string is in lib/messages.dart, and the iOS permission text is in Info.plist.
+// string is in the English catalog (lib/l10n/app_en.arb, the template of every language), and the iOS permission
+// text is in Info.plist.
+
+/// The English catalog's texts, each plural's branches as texts of their own, placeholders as `{name}`.
+final _english = () {
+  final arb = jsonDecode(File('lib/l10n/app_en.arb').readAsStringSync()) as Map<String, dynamic>;
+  final branch = RegExp(r'(?:zero|one|two|few|many|other|=\d+)\{((?:[^{}]|\{\w+\})*)\}');
+  return {
+    for (final MapEntry(:key, :value) in arb.entries)
+      if (!key.startsWith('@')) ...[value as String, for (final m in branch.allMatches(value)) m[1]!],
+  };
+}();
+
+/// Whether the catalog has [s] word for word, each of its `[placeholder]`s as any `{name}`.
+bool _inCatalog(String s) {
+  final pattern = RegExp('^${RegExp.escape(s).replaceAll(RegExp(r'\\\[[^\]]+\\\]'), r'\{\w+\}')}\$');
+  return _english.any(pattern.hasMatch);
+}
+
 final _copy = File('../docs/consultation/COPY.md').readAsLinesSync();
 
 /// docs/attachments/COPY.md one bullet per line: its strings run on over the indented lines after the dash.
@@ -12,27 +31,25 @@ final _attachments = [
     line.replaceAll(RegExp(r'\n  +'), ' '),
 ];
 
-/// The quoted strings of the lines that name an M string ("- M1: …", "- W1 / M1: …"), placeholders as `$name`.
+/// The quoted strings of the lines that name an M string ("- M1: …", "- W1 / M1: …"), placeholders as `[name]`.
 List<String> _mobileStrings() => [
   for (final line in _copy)
     if (RegExp(r'^- (W\d+[a-z]? / )?M\d+[ :]').hasMatch(line) || line.contains('(M35)'))
       for (final m in RegExp(r'"([^"]+)"').allMatches(line))
-        if (!RegExp(r'^[A-Z]\d+').hasMatch(m[1]!)) m[1]!.replaceAll(RegExp(r'\[[^\]]+\]'), r'$name'),
+        if (!RegExp(r'^[A-Z]\d+').hasMatch(m[1]!)) m[1]!,
 ];
 
 void main() {
-  test('every mobile string of COPY.md is in messages.dart', () {
-    final messages = File('lib/messages.dart').readAsStringSync().replaceAll("'\n    '", '');
+  test('every mobile string of COPY.md is in the English catalog', () {
     final strings = _mobileStrings();
 
     expect(strings, hasLength(greaterThan(35)), reason: 'COPY.md parsed');
     for (final s in strings) {
-      expect(messages, anyOf(contains("'${s.replaceAll("'", r"\'")}'"), contains('"$s"')), reason: s);
+      expect(_inCatalog(s), isTrue, reason: s);
     }
   });
 
-  test('every mobile string of the questionnaire COPY.md is in messages.dart, placeholders as parameters', () {
-    final messages = File('lib/messages.dart').readAsStringSync().replaceAll("'\n    '", '');
+  test('every mobile string of the questionnaire COPY.md is in the English catalog, placeholders as parameters', () {
     final strings = [
       for (final line in File('../docs/questionnaire/COPY.md').readAsLinesSync())
         if (RegExp(r'^- M\d+[ :]').hasMatch(line))
@@ -43,13 +60,11 @@ void main() {
 
     expect(strings, hasLength(greaterThan(45)), reason: 'COPY.md parsed');
     for (final s in strings) {
-      final pattern = RegExp.escape("'${s.replaceAll("'", r"\'")}'").replaceAll(RegExp(r'\\\[[^\]]+\\\]'), r'\$\w+');
-      expect(messages, matches(RegExp(pattern)), reason: s);
+      expect(_inCatalog(s), isTrue, reason: s);
     }
   });
 
-  test('every mobile string of the attachments COPY.md is in messages.dart, placeholders as parameters', () {
-    final messages = File('lib/messages.dart').readAsStringSync().replaceAll("'\n    '", '');
+  test('every mobile string of the attachments COPY.md is in the English catalog, placeholders as parameters', () {
     final strings = [
       for (final line in _attachments)
         // M15 to M17 are iOS purpose strings, in Info.plist.
@@ -61,8 +76,7 @@ void main() {
 
     expect(strings, hasLength(greaterThan(45)), reason: 'COPY.md parsed');
     for (final s in strings) {
-      final pattern = RegExp.escape("'${s.replaceAll("'", r"\'")}'").replaceAll(RegExp(r'\\\[[^\]]+\\\]'), r'\$\w+');
-      expect(messages, matches(RegExp(pattern)), reason: s);
+      expect(_inCatalog(s), isTrue, reason: s);
     }
   });
 

@@ -802,6 +802,94 @@ COPY.md additions (not yet reviewed): none (every English text is an existing CO
 
 ### 1.7 Mobile: every screen in ten languages
 
+2026-11-08, branch `i18n/1.7` (wave 1). Done.
+
+Built:
+- Every string of `mobile/lib` through `AppLocalizations`: 255 keys in `app_en.arb` (the English of the booking,
+  consultation, questionnaire and attachments COPY.md files word for word, `tryAgain` kept), drafted in all ten
+  languages (`app_sr.arb` word for word `app_sr_Cyrl.arb`), the generated `app_localizations*.dart` committed.
+  `messages.dart` keeps only the error-code mappings and validators, each taking the `AppLocalizations`, and the
+  `context.t` extension. Specialties are named from the catalog by SNOMED CT code (`specialty<code>`, the twelve
+  of `internal/practitionerrole`); the API's text only for a code the catalog lacks.
+- The language picker (`lib/language_picker.dart`, COPY.md L1 to L4): a globe button with the shown language's own
+  name on sign-in, registration and the signed-in home screen; the device's language first, then the ten
+  endonyms. Before sign-in the choice is kept on the device (`SecureLanguageStore`) and sent with sign-in and
+  registration as `language`, with the matched device language as `detectedLanguage`. Signed in it is saved at
+  once (`PATCH /auth/me`) and "Language saved." (or the failure) is shown in the new language. The account's
+  `language` wins once signed in (null: the device's) and is copied to the device for the next sign-in screen.
+- Dates through intl in the UI language (`Zone.date`/`longDate` take gen-l10n's `localeName`), Latin digits;
+  Serbian weekday names made ijekavian; MB sizes with the language's decimal mark.
+- Right to left: back buttons, the call's badges and the local video placed by start/end, not left/right; e-mail,
+  code, date of birth and phone fields typed left to right; the phone example isolated as a left-to-right run in
+  Arabic.
+- iOS: `CFBundleLocalizations` lists the ten languages (Serbian Cyrillic is iOS's `sr`), `InfoPlist.strings` per
+  language with the three permission texts (M15 to M17), in the Xcode project as a variant group.
+- Golden screenshots in `ar` and `sr-Cyrl` of sign-in, My appointments, booking (the slots), the consent screen and
+  the call (`test/golden_test.dart`, `test/goldens/`), with Roboto and the Material icons from the Flutter SDK and
+  Noto Sans Arabic loaded by `FontLoader`.
+
+Test first:
+- Red (`language_picker_test.dart`, `golden_test.dart`): `Error: The getter 'signInTitle' isn't defined for the type
+  'AppLocalizations'` (and every other new key); `strings_test.dart` and `zones_test.dart` did not compile
+  (`languageNames`, `Zone.date(start, 'en')`).
+- Red (`sign_in_test.dart`, `register_test.dart`): the body sent `'detectedLanguage': null`, expected `'en'`.
+- Red (`copy_test.dart`, now against `app_en.arb`): `Expected: true Actual: <false>` for every COPY string.
+- Red on the way: `Expected: 'Thursday 5 November 2026' Actual: 'Thursday, 5 November 2026'` (intl's `en_GB`
+  pattern; English keeps the app's own); `dependOnInheritedWidgetOfExactType<_LocalizationsScope>() … was called
+  before _QuestionnaireScreenState.initState() completed` (a typed answer's field text needs no catalog).
+
+Checks (from the worktree, `docker compose -f deployments/docker-compose.yml run --rm --no-deps -T flutter …`):
+- `flutter analyze`: no issues.
+- `flutter test`: 403 passed (358 before).
+- `dart format -l 120` on the hand-written files: clean.
+- Catalogs (`node` service, `bash ../scripts/i18n-check.sh`): pass.
+- Debug APK: not run; the flutter image has no Android SDK (CI's `apk` job builds it).
+- Go lint, archcheck, Go tests: not applicable (no Go file changed).
+
+Decided while the owner was away:
+- **The picker sits at the top of sign-in, registration and the home screen**: the patient app has no settings
+  screen, and the home screen is the signed-in menu. A globe icon with the current language's own name, so a
+  patient who cannot read the current language still finds it.
+- **Signed in, the account's language wins entirely**: an account without one follows the device and clears the
+  device's saved choice, so a "Use the device's language" on one phone holds on every phone (SPEC §2). A failed
+  `PATCH /auth/me` keeps the choice on this device and says why; the next sign-in sends it again.
+- **`app.dart` and `l10n/language.dart` are 0.3's scaffolding**: 1.7 edited `app.dart` (the account's language,
+  the picker's state, the snack bar), as the wave notes ask; the endonyms live in `lib/language_picker.dart`.
+- **The `legal` tag in ARB is a description starting with `[legal]`** in `app_en.arb` (consent, revocation,
+  cancellation effects, permission explanations: 30 keys); ARB metadata lives in the template only.
+- **English long dates keep "Thursday 5 November 2026"** (an explicit `EEEE d MMMM y` pattern) rather than intl's
+  `en_GB` "Thursday, 5 November 2026", so the existing English copy and tests are unchanged.
+- **Serbian dates are ijekavian by replacing intl's three ekavian weekday names** (ponedeljak, sreda, nedelja and
+  their Cyrillic forms): Dart's intl has no `sr_BA` data.
+- **The phone example became the placeholder `{example}`** in `phoneHint` and `invalidPhone`, isolated with
+  U+2066/U+2069 in Arabic only: written into the catalog, the isolates reached the generated Dart literals, which
+  the analyzer refuses.
+- **Merged messages**: "1 file" and "[n] files" (M12) are one plural `fileCount`; "Submitted [date and time]" takes
+  `dateAndTime` ("{date}, {time}") so each language orders them; an appointment's times are `timeRange`.
+- **A message already shown stays in its language** after a language change until the next action (sign-in
+  notices, errors): only the file problems of an upload, kept by `Uploads`, are written when shown.
+- **Arabic "General practice" is طب الأسرة** (the draft had two terms with a slash).
+
+COPY.md additions (not yet reviewed):
+- 1.7-1 `timeRange`: "[start] to [end] ([zone])" (appointment and booking times; was built from pieces).
+- 1.7-2 `dateAndTime`: "[date], [time]" (inside questionnaire M14 "Submitted [date and time]").
+- 1.7-3 `specialty<SNOMED code>`: the twelve specialty names of `internal/practitionerrole` ("General practice",
+  "Internal medicine", "Cardiology", "Dermatology", "Gynaecology", "Paediatrics", "Psychiatry", "Neurology", "ENT",
+  "Ophthalmology", "Orthopaedics", "Endocrinology"), on the practitioner list and the booking screens.
+- 1.7-4 `tooManyAttempts`: one plural for "Too many attempts. Try again in [n] minute(s)." (was built in code).
+- The other English strings are those of the screens before this package, word for word.
+
+Translation notes for the native-speaker review (drafted by Claude):
+- "Practitioner": bs/sr "ljekar", hr "liječnik", it "medico", ar "طبيب" (narrower than the English), de "Behandler",
+  tr "sağlık uzmanı", fr "praticien".
+- Consent: bs "saglasnost", hr "privola", sr "сагласност"/"saglasnost", tr "onay" (a lawyer may prefer "rıza");
+  it "titolare del trattamento" and de "verantwortlich" for "responsible" in the consent text (legal review).
+- E-mail: bs "e-mail", hr and sr "e-pošta".
+
+Left for later:
+- Android 13's per-app language list (`android:localeConfig`) is optional and not added.
+- The questionnaire's own language (choose it, COPY.md M1 to M4) is 2.3.
+
 ### 2.1 internal/questionnaireresponse: the language answered in
 
 ### 2.2 Web: the translation editor

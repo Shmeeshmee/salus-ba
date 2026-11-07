@@ -93,25 +93,26 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
   @override
   Widget build(BuildContext context) {
     final last = DateTime.utc(_today.year, _today.month, _today.day + _days - 1);
+    final t = context.t;
     return ui.Page(
       title: widget.role.name,
       children: [
-        Text([widget.role.specialty, widget.clinic.name].whereType<String>().join(', ')),
+        Text([specialtyName(t, widget.role), widget.clinic.name].whereType<String>().join(', ')),
         if (_scheduleRead && _schedule == null)
-          const Text('This practitioner has no open times yet.')
+          Text(t.noOpenTimes)
         else ...[
-          Text('Times are in ${_zone.name}.'),
+          Text(t.timesIn(_zone.name)),
           Row(
             children: [
-              TextButton(onPressed: _day.isAfter(_today) ? () => _move(-1) : null, child: const Text('Previous day')),
+              TextButton(onPressed: _day.isAfter(_today) ? () => _move(-1) : null, child: Text(t.previousDay)),
               const Spacer(),
-              TextButton(onPressed: _day.isBefore(last) ? () => _move(1) : null, child: const Text('Next day')),
+              TextButton(onPressed: _day.isBefore(last) ? () => _move(1) : null, child: Text(t.nextDay)),
             ],
           ),
-          ui.Heading(Zone.longDate(_day)),
+          ui.Heading(Zone.longDate(_day, t.localeName)),
           ...body(
             (slots) => [
-              if (slots == null || slots.isEmpty) const Text('No free times on this day.'),
+              if (slots == null || slots.isEmpty) Text(t.noFreeTimes),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -170,7 +171,7 @@ class _BookScreenState extends State<BookScreen> {
     } on ApiFailure catch (failure) {
       if (!mounted) return;
       setState(() {
-        _error = bookingMessage(failure);
+        _error = bookingMessage(context.t, failure);
         _taken = failure.code == 'slot_unavailable';
       });
     } finally {
@@ -210,7 +211,7 @@ class _BookScreenState extends State<BookScreen> {
     final agreed = await Navigator.of(context)
         .push(MaterialPageRoute<bool>(builder: (_) => ConsentScreen(clinicName: widget.clinic.name)));
     if (agreed != true) {
-      if (mounted) setState(() => _error = consentNeeded);
+      if (mounted) setState(() => _error = context.t.consentNeeded);
       return false;
     }
     try {
@@ -223,6 +224,7 @@ class _BookScreenState extends State<BookScreen> {
 
   void _booked() {
     final navigator = Navigator.of(context);
+    final booked = context.t.appointmentBooked;
     navigator.popUntil((route) => route.isFirst);
     navigator.push(
       MaterialPageRoute<void>(
@@ -231,7 +233,7 @@ class _BookScreenState extends State<BookScreen> {
           now: widget.now,
           media: widget.media,
           files: widget.files,
-          notice: appointmentBooked,
+          notice: booked,
         ),
       ),
     );
@@ -240,18 +242,20 @@ class _BookScreenState extends State<BookScreen> {
   @override
   Widget build(BuildContext context) {
     final slot = widget.slot;
+    final t = context.t;
+    final specialty = specialtyName(t, widget.role);
     return ui.Page(
-      title: 'Book this time',
+      title: t.bookThisTime,
       children: [
-        ui.Heading(_zone.date(slot.start)),
-        Text('${_zone.time(slot.start)} to ${_zone.time(slot.end)} (${_zone.name})'),
+        ui.Heading(_zone.date(slot.start, t.localeName)),
+        Text(t.timeRange(_zone.time(slot.start), _zone.time(slot.end), _zone.name)),
         Text(widget.role.name),
-        if (widget.role.specialty != null) Text(widget.role.specialty!),
+        if (specialty != null) Text(specialty),
         Text(widget.clinic.name),
         if (_taken)
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Choose another time'))
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(t.chooseAnotherTime))
         else
-          ui.SubmitButton('Book', busy: _busy, onPressed: _book),
+          ui.SubmitButton(t.book, busy: _busy, onPressed: _book),
         if (_error != null) ui.Message(_error!, error: true),
       ],
     );

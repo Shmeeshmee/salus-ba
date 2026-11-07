@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'messages.dart';
 import 'privacy_notice.dart';
 import 'ui.dart' as ui;
 
@@ -20,45 +21,37 @@ class _ConsentScreenState extends State<ConsentScreen> {
 
   Future<void> _openNotice() async {
     final notice = PrivacyNotice.of(context);
+    final failed = context.t.privacyNoticeFailed;
     final opened = await notice.open(notice.url);
     if (!mounted) return;
-    setState(() => _error = opened ? null : 'The privacy notice could not be opened.');
+    setState(() => _error = opened ? null : failed);
   }
 
   @override
   Widget build(BuildContext context) {
     final clinicName = widget.clinicName;
+    final t = context.t;
     return ui.Page(
-      title: 'Share your details with $clinicName',
+      title: t.consentTitle(clinicName),
       children: [
-        Text('Before your first booking with $clinicName, we need your consent to share your details with it.'),
-        const ui.Heading('What is shared'),
-        const Text(
-          'Your profile (your name, date of birth and, if you gave one, your phone number) and your appointments '
-          'with this clinic.',
-        ),
-        const ui.Heading('Who sees it'),
-        Text(
-          '$clinicName. The practitioner you book with sees your profile; the clinic\'s administrators see your '
-          'name and appointment times.',
-        ),
-        const ui.Heading('What for'),
-        const Text('Only for your care at this clinic: to prepare for and hold your appointments.'),
-        const ui.Heading('Who is responsible'),
-        Text("$clinicName is responsible for your data. Salus processes it on the clinic's behalf."),
+        Text(t.consentIntro(clinicName)),
+        ui.Heading(t.whatIsShared),
+        Text(t.whatIsSharedBody),
+        ui.Heading(t.whoSeesIt),
+        Text(t.whoSeesItBody(clinicName)),
+        ui.Heading(t.whatFor),
+        Text(t.whatForBody),
+        ui.Heading(t.whoIsResponsible),
+        Text(t.whoIsResponsibleBody(clinicName)),
         Align(
           alignment: AlignmentDirectional.centerStart,
-          child: TextButton(onPressed: _openNotice, child: const Text('Read the privacy notice')),
+          child: TextButton(onPressed: _openNotice, child: Text(t.readPrivacyNotice)),
         ),
         if (_error != null) ui.Message(_error!, error: true),
-        const ui.Heading('How to revoke'),
-        const Text(
-          'You can revoke this consent at any time under My consents. The clinic then no longer sees your profile. '
-          'It keeps your name and the details of appointments that have already taken place, as part of its care '
-          'records. Your future appointments there are cancelled.',
-        ),
-        FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Agree and book')),
-        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Not now')),
+        ui.Heading(t.howToRevoke),
+        Text(t.howToRevokeBody),
+        FilledButton(onPressed: () => Navigator.of(context).pop(true), child: Text(t.agreeAndBook)),
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(t.notNow)),
       ],
     );
   }

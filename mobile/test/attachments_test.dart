@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:salus/call.dart' show Access, Kind;
 import 'package:salus/file_prep.dart';
 import 'package:salus/files.dart';
+import 'package:salus/l10n/app_localizations.dart';
 import 'package:salus/questionnaire.dart';
 import 'package:salus/booking.dart' show contentDisposition;
 import 'package:salus/questionnaire_files.dart';
@@ -113,7 +114,7 @@ void main() {
     ]) {
       test(hint, () {
         final item = Item(linkId: 'f', type: ItemType.attachment, accept: accept.toSet(), maxFiles: maxFiles);
-        expect(fileHint(item), hint);
+        expect(fileHint(lookupAppLocalizations(const Locale('en')), item), hint);
       });
     }
   });
@@ -626,10 +627,18 @@ void main() {
   test('sizes are written in KB under 1 MB, in MB with one decimal from there', () {
     expect(
       [
-        for (final n in [1, 999, 245000, 999499, 1000000, 1250000, 200000000]) fileSize(n),
+        for (final n in [1, 999, 245000, 999499, 1000000, 1250000, 200000000])
+          fileSize(lookupAppLocalizations(const Locale('en')), n),
       ],
       ['1 KB', '1 KB', '245 KB', '999 KB', '1.0 MB', '1.3 MB', '200.0 MB'],
     );
+  });
+
+  test("an MB size has the language's decimal mark and Latin digits", () {
+    String size(Locale locale) => fileSize(lookupAppLocalizations(locale), 1250000);
+    expect(size(const Locale('bs')), '1,3 MB');
+    expect(size(const Locale('de')), '1,3 MB');
+    expect(size(const Locale('ar')), isNot(contains('١')));
   });
 
   test('a content disposition names the file in RFC 6266 form', () {

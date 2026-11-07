@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:salus_api/api.dart';
@@ -8,6 +10,7 @@ import 'files.dart';
 import 'home_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'l10n/language.dart';
+import 'language_picker.dart';
 import 'messages.dart';
 import 'privacy_notice.dart';
 import 'register_screen.dart';
@@ -63,8 +66,11 @@ class _SalusAppState extends State<SalusApp> {
   Account? _account;
   String? _message;
 
-  /// The language chosen on this device, one of [languages]; null follows the device's languages.
+  /// The language chosen, one of [languages]; null follows the device's languages. Signed in, the account's.
   String? _language;
+
+  /// Says that a language was saved, or why not, over whichever screen is open.
+  final _messenger = GlobalKey<ScaffoldMessengerState>();
 
   @override
   void initState() {
@@ -72,9 +78,17 @@ class _SalusAppState extends State<SalusApp> {
     // Latin digits in every language, Arabic included, so times, codes and phone numbers look the same everywhere
     // (SPEC §3 "Formatting"); intl writes Arabic-Indic digits for `ar` otherwise.
     DateFormat.useNativeDigitsByDefaultFor('ar', false);
-    _readLanguage();
-    _restore();
+    _start();
   }
+
+  /// The device's choice first, so the account's language read by [_restore] wins over it.
+  Future<void> _start() async {
+    await _readLanguage();
+    if (mounted) await _restore();
+  }
+
+  /// The first of the device's languages the app has.
+  String get _detected => matchLanguage(WidgetsBinding.instance.platformDispatcher.locales);
 
   Future<void> _readLanguage() async {
     final String? saved;
@@ -84,6 +98,32 @@ class _SalusAppState extends State<SalusApp> {
       return; // Storage that cannot be read leaves the device's language.
     }
     if (mounted && languages.contains(saved)) setState(() => _language = saved);
+  }
+
+  /// Keeps [tag] on the device, or clears it; a store that cannot be written leaves the choice for this run.
+  Future<void> _keep(String? tag) async {
+    try {
+      tag == null ? await widget.languages.delete() : await widget.languages.write(tag);
+    } on Exception {
+      return;
+    }
+  }
+
+  /// The picker's choice: shown at once and kept on the device; signed in, saved on the account too and said so
+  /// in the new language (COPY.md L4).
+  Future<void> _choose(String? tag) async {
+    setState(() => _language = tag);
+    await _keep(tag);
+    if (_account == null) return;
+    final t = lookupAppLocalizations(localeOf(tag ?? _detected));
+    String said;
+    try {
+      await widget.session.setLanguage(tag);
+      said = t.languageSaved;
+    } on ApiFailure catch (failure) {
+      said = failureMessage(t, failure);
+    }
+    _messenger.currentState?.showSnackBar(SnackBar(content: Text(said)));
   }
 
   Future<void> _restore() async {
@@ -97,7 +137,7 @@ class _SalusAppState extends State<SalusApp> {
         _signedIn(account);
       }
     } on ApiFailure catch (failure) {
-      _show(_Screen.startFailed, failureMessage(failure));
+      if (mounted) _show(_Screen.startFailed, failureMessage(_words, failure));
     }
   }
 
@@ -110,23 +150,39 @@ class _SalusAppState extends State<SalusApp> {
     });
   }
 
-  void _signedIn(Account account) => setState(() {
-    _screen = _Screen.home;
-    _message = null;
-    _account = account;
-  });
+  /// The account's language wins over the device's from now on, and is kept on the device for the screens before
+  /// the next sign-in (docs/i18n/SPEC.md §3 "Choosing the language").
+  void _signedIn(Account account) {
+    final language = account.language?.toJson();
+    setState(() {
+      _screen = _Screen.home;
+      _message = null;
+      _account = account;
+      _language = languages.contains(language) ? language : null;
+    });
+    unawaited(_keep(_language));
+  }
+
+  /// The text of the language the app is about to show, for a message kept across a rebuild.
+  AppLocalizations get _words => lookupAppLocalizations(localeOf(_language ?? _detected));
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Salus',
       theme: _theme,
+      scaffoldMessengerKey: _messenger,
       // Material lays Arabic out right to left from the locale (SPEC §3 "Right to left").
       locale: _language == null ? null : localeOf(_language!),
       localeListResolutionCallback: (device, _) => localeOf(matchLanguage(device ?? const [])),
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
-      builder: (context, child) => PrivacyNotice(url: widget.privacyNoticeUrl, open: widget.openUrl, child: child!),
+      builder: (context, child) => LanguageChoice(
+        chosen: _language,
+        detected: _detected,
+        choose: _choose,
+        child: PrivacyNotice(url: widget.privacyNoticeUrl, open: widget.openUrl, child: child!),
+      ),
       home: _current(),
     );
   }
@@ -139,8 +195,8 @@ class _SalusAppState extends State<SalusApp> {
         builder: (context) => ui.Page(
           title: 'Salus',
           children: [
-            ui.Message(_message ?? somethingWrong, error: true),
-            ui.SubmitButton(AppLocalizations.of(context).tryAgain, busy: false, onPressed: _restore),
+            ui.Message(_message ?? context.t.somethingWrong, error: true),
+            ui.SubmitButton(context.t.tryAgain, busy: false, onPressed: _restore),
           ],
         ),
       ),
@@ -153,7 +209,7 @@ class _SalusAppState extends State<SalusApp> {
       _Screen.register => RegisterScreen(
         session: session,
         onSignedIn: _signedIn,
-        onRegistered: () => _show(_Screen.signIn, accountReady),
+        onRegistered: () => _show(_Screen.signIn, _words.accountReady),
         onSignIn: () => _show(_Screen.signIn),
       ),
       _Screen.home => HomeScreen(

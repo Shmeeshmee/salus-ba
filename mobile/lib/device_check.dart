@@ -153,28 +153,31 @@ class _DeviceCheckState extends State<DeviceCheck> with WidgetsBindingObserver {
     final settled = camera != null && microphone != null;
     final denied = camera?.problem == Problem.denied || microphone?.problem == Problem.denied;
     return ui.Page(
-      title: checkTitle,
+      title: context.t.checkTitle,
       children: [
-        const Text(checkIntro),
-        if (_explain) const ui.Message(whyCameraAndMicrophone),
+        Text(context.t.checkIntro),
+        if (_explain) ui.Message(context.t.whyCameraAndMicrophone),
         if (camera?.preview case final preview?)
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: SizedBox(height: 240, child: widget.busy ? null : preview.view()),
           ),
         if (camera?.problem case final problem?)
-          ui.Message(problem == Problem.denied ? cameraDenied : noCamera, error: true),
+          ui.Message(problem == Problem.denied ? context.t.cameraDenied : context.t.noCamera, error: true),
         if (microphone?.preview != null) ...[
           LinearProgressIndicator(value: _level, minHeight: 8, borderRadius: BorderRadius.circular(4)),
-          if (_silent) const ui.Message(noSound),
+          if (_silent) ui.Message(context.t.noSound),
         ],
         if (microphone?.problem case final problem?)
-          ui.Message(problem == Problem.denied ? microphoneDenied : noMicrophone, error: true),
-        if (denied) OutlinedButton(onPressed: widget.media.openSettings, child: const Text(openSettings)),
-        _option(joinCameraOff, Kind.camera, _cameraOff, (off) => _cameraOff = off),
-        _option(joinMicrophoneOff, Kind.microphone, _microphoneOff, (off) => _microphoneOff = off),
+          ui.Message(problem == Problem.denied ? context.t.microphoneDenied : context.t.noMicrophone, error: true),
+        if (denied) OutlinedButton(onPressed: widget.media.openSettings, child: Text(context.t.openSettings)),
+        _option(context.t.joinCameraOff, Kind.camera, _cameraOff, (off) => _cameraOff = off),
+        _option(context.t.joinMicrophoneOff, Kind.microphone, _microphoneOff, (off) => _microphoneOff = off),
         if (widget.error != null) ui.Message(widget.error!, error: true),
-        FilledButton(onPressed: widget.busy || !settled ? null : _join, child: Text(widget.busy ? joining : joinNow)),
+        FilledButton(
+          onPressed: widget.busy || !settled ? null : _join,
+          child: Text(widget.busy ? context.t.joining : context.t.joinNow),
+        ),
       ],
     );
   }
