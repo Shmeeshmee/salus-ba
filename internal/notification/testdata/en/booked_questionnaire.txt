@@ -1,3 +1,5 @@
+Subject: Your appointment is booked
+
 Your appointment at Synthetic clinic is booked for Monday 7 January 2030, 10:00 (Europe/Sarajevo).
 
 There is a questionnaire to fill in before your appointment. You can find it in the Salus app.

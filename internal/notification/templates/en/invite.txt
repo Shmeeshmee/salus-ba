@@ -1,0 +1,8 @@
+Your invitation to Salus
+
+You are invited to join {{.Clinic}} on Salus.
+
+To accept, open this link, choose a password and set up a sign-in code:
+{{.Link}}
+
+The link works once and expires 72 hours after the invitation was made. If you did not expect this e-mail, you can ignore it.

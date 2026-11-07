@@ -1,0 +1,7 @@
+Subject: Rappel de votre rendez-vous
+
+Nous vous rappelons votre rendez-vous chez Synthetic clinic.
+Date et heure : lundi 7 janvier 2030 à 10:00 (Europe/Sarajevo)
+
+Pour consulter votre rendez-vous, ouvrez l'application Salus :
+https://patient.example.test/appointments

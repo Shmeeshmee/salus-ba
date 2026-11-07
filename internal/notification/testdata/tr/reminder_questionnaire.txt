@@ -1,0 +1,10 @@
+Subject: Randevu hatırlatması
+
+Randevunuzu hatırlatmak isteriz.
+Klinik: Synthetic clinic
+Tarih ve saat: 7 Ocak 2030 Pazartesi, saat 10:00 (Europe/Sarajevo)
+
+Randevunuzdan önce doldurmanız gereken bir anket var. Anketi Salus uygulamasında bulabilirsiniz.
+
+Randevunuzu görmek için Salus uygulamasını açın:
+https://patient.example.test/appointments

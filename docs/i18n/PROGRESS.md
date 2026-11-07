@@ -502,6 +502,67 @@ developer-facing English like the existing ones).
 
 ### 1.3 internal/notification: e-mails in every language
 
+Done 2026-11-08 on `i18n/1.3` (unattended run, wave 1).
+
+Built:
+- `internal/notification/templates/<language>/` for the ten languages: `invite.txt`, `booked.txt`,
+  `cancelled.txt`, `reminder.txt` (first line the subject, a blank line, the body; `text/template`), with COPY E1
+  inside `booked` and `reminder` as `{{if .Questionnaire}}…{{end}}`; `date.txt` (how the start is written) and
+  `names.txt` (weekdays from Sunday, then months, in the form the date uses: genitive in Croatian). Embedded in
+  the binary and parsed once in `NewService` (`service_language.go`). Revocation cancellations use the
+  cancellation e-mail (the same job), so they are covered; the attachments feature added no e-mail.
+- The language: appointment e-mails (to patients) use the account's `language`, else `detected_language`, else
+  `bs`; the invite (no account yet) uses the clinic's `default_language`, else `bs`. An unknown tag falls back
+  to `bs`. Times are 24-hour with Latin digits in every language; the zone's name stays as before.
+- `auth.Service.AccountEmail` now also returns the language to write in (the chosen one, else the detected
+  one, else ""): read through the auth service, audited as before.
+- `repository_smtp.go`: the subject is RFC 2047 encoded when it is not ASCII (Cyrillic, Arabic, accents).
+- Golden files per kind and language: `testdata/<language>/{invite,booked,booked_questionnaire,cancelled,
+  reminder,reminder_questionnaire}.txt` (subject line, blank line, body; 60 files). The English ones are the
+  earlier goldens moved into `testdata/en/` with their subject line added, unchanged otherwise.
+
+Test first (the failures seen):
+- auth: `service_notice_test.go:15:17: assignment mismatch: 3 variables but f.svc.AccountEmail returns 2 values`.
+- notification: with hand-written `bs/booked.txt`, `bs/invite.txt` and `hr/invite.txt`: `body of bs/booked.txt:
+  Subject: Your appointment is booked …` (English sent to a Bosnian reader), the same for both invites. The
+  other goldens were then written with `-update` and read one by one.
+- SMTP: `the subject header "Subject: Подсјетник на ваш термин" is not ASCII`.
+
+Checks:
+- `go test -count=1 -cover ./internal/notification/ ./internal/auth/`: pass; coverage notification 86.0%, auth
+  95.7%. `go build ./...` and `go vet ./...`: pass.
+- lint (`scripts/lint.sh`, `--no-deps`, the main checkout's `.git` mounted): 0 issues, check-migrations ok.
+  archcheck: pass.
+- Catalogs: `bash ../scripts/i18n-check.sh` in the node service after `npm ci`: "catalogs pass"; a field
+  renamed on purpose in `de/booked.txt` was reported, then restored.
+
+Decided while the owner was away:
+- **The account's e-mail language is read by widening `auth.Service.AccountEmail`** to return `(email,
+  language, err)`: the read the job already makes, audited with the job as agent, so no second audited read
+  and no read of `account` outside auth. Auth gives the account's chosen language, else the detected one; the
+  fallback (`bs`, or the clinic's default) stays in notification. The edit is in `internal/auth/
+  service_notice.go` and its test only, files 1.1 does not change.
+- **No staff-account branch of the fallback.** Every e-mail with an account goes to a patient (booking,
+  cancellation, reminder); the only staff e-mail is the invite, which has no account and uses the clinic's
+  default language. A staff e-mail to an existing account would add the clinic's default as its fallback.
+- **The date is written by a per-language template and a names file**, not by a date library (none in the
+  standard library, and the SPEC adds no dependency). Bosnian and Serbian write the month in the nominative
+  ("7. januar 2030."), Croatian in the genitive ("7. siječnja 2030."), as each standard writes a date alone.
+- **In every language but English the start is a line of its own** ("Datum i vrijeme: …", "Datum und
+  Uhrzeit: …"), and the clinic follows a noun ("u ustanovi X", "Klinik: X" in Turkish), so neither the
+  weekday nor the clinic's name ever has to be declined or take a suffix. English keeps its approved wording.
+- **Patients and invitees are addressed formally** (vi/Vi, Sie, vous, Lei in Italian); Arabic uses the usual
+  masculine imperatives of UI text and a passive for "you are invited".
+- **"Salus" stays in Latin letters in the Cyrillic and Arabic e-mails**: it is the product's name.
+- **The e-mail subject is RFC 2047 encoded** (`mime.QEncoding`, standard library) when it is not ASCII; an
+  ASCII subject is sent as before.
+- **No `legal` tag in the e-mail templates**: the catalog check has no metadata for them. The sentence with
+  legal weight is the cancellation window ("You can cancel it up to 24 hours before it starts.", in `booked`):
+  listed here for the lawyer's review per language (SPEC §8).
+
+COPY.md additions (not yet reviewed): none (the English text is the earlier features' approved e-mails, word
+for word; the date's English form is unchanged).
+
 ### 1.4 internal/questionnaire: original language and translations
 
 ### 1.5 Web area A: shell, sign-in, calendar, admin

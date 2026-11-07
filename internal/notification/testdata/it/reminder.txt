@@ -1,0 +1,7 @@
+Subject: Promemoria del suo appuntamento
+
+Le ricordiamo il suo appuntamento presso Synthetic clinic.
+Data e ora: lunedì 7 gennaio 2030, ore 10:00 (Europe/Sarajevo)
+
+Per vedere l'appuntamento, apra l'app Salus:
+https://patient.example.test/appointments

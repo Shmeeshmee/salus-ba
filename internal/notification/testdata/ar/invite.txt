@@ -1,0 +1,8 @@
+Subject: دعوتك إلى Salus
+
+تمت دعوتك للانضمام إلى Synthetic clinic على Salus.
+
+لقبول الدعوة، افتح هذا الرابط واختر كلمة مرور وأعدّ رمز تسجيل الدخول:
+https://app.example.test/invite#c2Vzc2lvbiB0b2tlbiBvZiAzMiBzeW50aGV0aWMgYnl0ZXM
+
+يعمل الرابط مرة واحدة فقط، وتنتهي صلاحيته بعد 72 ساعة من إنشاء الدعوة. إذا لم تكن تتوقع هذه الرسالة، يمكنك تجاهلها.

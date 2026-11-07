@@ -1,0 +1,7 @@
+Subject: Vaš je termin otkazan
+
+Vaš je termin u ustanovi Synthetic clinic otkazan.
+Datum i vrijeme: ponedjeljak, 7. siječnja 2030. u 10:00 (Europe/Sarajevo)
+
+Za rezervaciju drugog termina otvorite aplikaciju Salus:
+https://patient.example.test/appointments

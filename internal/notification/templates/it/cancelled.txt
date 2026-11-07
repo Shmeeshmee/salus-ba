@@ -1,0 +1,7 @@
+Il suo appuntamento è stato annullato
+
+Il suo appuntamento presso {{.Clinic}} è stato annullato.
+Data e ora: {{.When}}
+
+Per prenotare un altro orario, apra l'app Salus:
+{{.Link}}

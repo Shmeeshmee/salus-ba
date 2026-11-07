@@ -1,0 +1,8 @@
+Votre invitation à Salus
+
+Vous avez reçu une invitation à rejoindre {{.Clinic}} sur Salus.
+
+Pour l'accepter, ouvrez ce lien, choisissez un mot de passe et configurez un code de connexion :
+{{.Link}}
+
+Le lien ne fonctionne qu'une fois et expire 72 heures après la création de l'invitation. Si vous n'attendiez pas cet e-mail, vous pouvez l'ignorer.
