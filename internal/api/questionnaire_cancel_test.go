@@ -10,6 +10,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -95,6 +96,7 @@ func newResponses(app *pgxpool.Pool, appointments *appointment.Service, question
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(app), tx, clock.System{})
 	questionnaires.Service = questionnaire.NewService(questionnaire.Ports{
 		Repo: questionnaire.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: clock.System{},
+		Clinics: organization.NewService(organization.NewPostgresRepository(app), audit, tx, clock.System{}),
 	})
 	return questionnaireresponse.NewService(questionnaireresponse.Ports{
 		Repo: questionnaireresponse.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: clock.System{},

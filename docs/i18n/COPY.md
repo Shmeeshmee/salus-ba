@@ -54,4 +54,19 @@ Inside a sentence ([language] in B and M strings) the name is the one of L1, unc
 
 ## Added by a package, not yet reviewed
 
-(empty)
+Written by a package during the unattended run of 2026-11-07; each waits for the owner's review.
+
+### 1.5 Web area A: shell, sign-in, calendar, admin
+
+- A1 (web, Availability, a malformed working-hours time): "Enter each time as hours and minutes, from 00:00 to
+  23:59." (`calendar.invalidTime`)
+
+### 1.7 Mobile: every screen in ten languages
+
+- 1.7-1 `timeRange`: "[start] to [end] ([zone])" (appointment and booking times; was built from pieces).
+- 1.7-2 `dateAndTime`: "[date], [time]" (inside questionnaire M14 "Submitted [date and time]").
+- 1.7-3 `specialty<SNOMED code>`: the twelve specialty names of `internal/practitionerrole` ("General practice",
+  "Internal medicine", "Cardiology", "Dermatology", "Gynaecology", "Paediatrics", "Psychiatry", "Neurology", "ENT",
+  "Ophthalmology", "Orthopaedics", "Endocrinology"), on the practitioner list and the booking screens.
+- 1.7-4 `tooManyAttempts`: one plural for "Too many attempts. Try again in [n] minute(s)." (was built in code).
+- The other English strings are those of the screens before this package, word for word.

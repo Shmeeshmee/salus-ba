@@ -106,7 +106,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies)
 	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners)
 	questionnaireAPI, streams := questionnaireRoutes(questionnairePorts{
-		pool: pool, audit: audit, tx: tx, jobs: jobs, roles: roles, accounts: accounts, appointments: appointments, patients: patients,
+		pool: pool, audit: audit, tx: tx, jobs: jobs, roles: roles, clinics: clinics, accounts: accounts, appointments: appointments, patients: patients,
 		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
 		kek:   kek,
 	}, fhirBase, log)
@@ -194,6 +194,7 @@ type questionnairePorts struct {
 	tx           *postgres.Transactor
 	jobs         *river.Client[pgx.Tx]
 	roles        *practitionerrole.Service
+	clinics      *organization.Service
 	accounts     *auth.Service
 	appointments *appointment.Service
 	patients     *patient.Service
@@ -207,6 +208,7 @@ type questionnairePorts struct {
 func questionnaireRoutes(p questionnairePorts, fhirBase string, log *slog.Logger) (routes, streams []func(*http.ServeMux)) {
 	questionnaires := questionnaire.NewService(questionnaire.Ports{
 		Repo: questionnaire.NewPostgresRepository(p.pool), Audit: p.audit, Tx: p.tx, Clock: clock.System{}, Roles: p.roles,
+		Clinics: p.clinics,
 	})
 	responses := questionnaireresponse.NewService(questionnaireresponse.Ports{
 		Repo: questionnaireresponse.NewPostgresRepository(p.pool), Audit: p.audit, Tx: p.tx, Clock: clock.System{},

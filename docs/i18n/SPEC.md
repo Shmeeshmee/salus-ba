@@ -184,6 +184,22 @@ the owner was away".
   in `register_test.dart` and `sign_in_test.dart` now include them as `null` (still asserted exactly). 1.7 makes
   the app send the matched language; 1.1 makes the server accept both fields, `null` included (the auth handler
   refuses unknown fields, so until 1.1 lands the app's sign-in on this branch is refused).
+- **The flaky CallScreen silence test is fixed at its cause** (commit "web: the silence tests wait for the
+  level's interval…"): the meter can render before React runs the effect that sets the polling interval, so the
+  test advanced a fake clock nothing was listening to. The tests now wait for that interval (a condition), with
+  no longer timeout and no retry. Probe: missing once in 120 renders under CPU load before; 120/120 after.
+- **Wave 1 integration: the `common` web catalog is the union of 1.5's and 1.6's keys.** They agreed on every
+  shared key but "Something went wrong. Try again.": 1.6's "Došlo je do greške. Pokušajte ponovo." (hr "Došlo je
+  do pogreške. Pokušajte ponovno.", sr likewise) is kept as the more natural wording for an error.
+- **`web/src/messages.ts` is deleted**, and `timeOf` and `longDate` in `web/src/time.ts` with their one test:
+  after wave 1 nothing imports them (CLAUDE.md: delete unused code), and they were English-only formatters.
+- **The questionnaire service gets the organization service as its `Clinics` port** in `internal/api/app.go` and
+  the test composition in `questionnaire_cancel_test.go`; the three `internal/api` tests 1.4 left red pass.
+- **The CapabilityStatement's Organization sentence names the default-language extension** (and its golden
+  `metadata.json`); no interaction changed.
+- **Area A and area B keep separate keys for a few shared English strings** (`calendar.join` and
+  `consultation.join`, the consultation states, the default questionnaire texts): folding them is a later
+  clean-up, not needed for correctness.
 
 ### 0.1 Baseline: database, contract, checks
 
@@ -264,3 +280,165 @@ the owner was away".
   language. `LanguageStore.write` and `delete` exist for 1.7's picker and are tested on the secure store.
 - **`sr-Cyrl-ME`** (an explicit Cyrillic script on a Montenegrin device) is Cyrillic: the explicit script wins over
   the "`sr-ME` → `sr-Latn`" rule, which reads as Montenegro without a script.
+
+### 1.1 internal/auth: the account's language
+
+- **Sign-in saves the languages once the password is right, before the TOTP step.** Staff always have a TOTP
+  step and the languages arrive only with `POST /auth/login`; waiting for the code would lose a choice made on
+  the sign-in screen (SPEC §3 "Picking and saving"). A wrong password saves nothing. Only a value that changed
+  is written and audited, so a sign-in that changes nothing adds no update event.
+- **A patient language sent for a staff account at sign-in or invite acceptance is dropped, not refused.** The
+  contract lists no 422 for those endpoints, the web app only offers staff languages, and a preference must
+  not stop a sign-in. `PATCH /auth/me` refuses it with 422 `language_unavailable`, as the plan says.
+- **A tag outside the enum is 400 `invalid_request` everywhere** (the contract's wording for `PATCH /auth/me`),
+  checked in the service before any work; an empty string is refused by the handler.
+- **`SetLanguage` with the same language still writes and audits**: the user asked for it; simpler than a
+  compare, and it happens only on a click.
+- **The tag list is a slice in `service_language.go`**, not read from `authdb`, which only the repository may
+  import; the enum migration is the source and the tests pin every tag.
+
+### 1.2 internal/organization: the clinic's default language
+
+- **An invalid default language is 400 `value`**, as an invalid time zone is (both a coded value of the
+  clinic outside what is allowed), not the 422 `language_unavailable` of an account's language: that code is
+  the JSON API's, and this is the FHIR update. The web screen offers only the five staff languages, so it is
+  not reached from the UI.
+- **A StructureDefinition for the extension** (`api/fhir/`, outside the package's listed files): the other two
+  Organization extensions have one and `make fhir-validate` loads them; a new file, so no other package's
+  lines are touched. Its value has no binding (no R4 value set holds exactly the five tags, and there is no
+  terminology server); the service enforces the five.
+- **The CapabilityStatement's Organization documentation is not changed** (it names the listed and time-zone
+  extensions): no interaction changes, and its golden copy `internal/api/router/testdata/metadata.json` is in
+  `internal/api/router`, which terminology 1.1 owns in this wave. The integration step may add
+  "organization-default-language" to that sentence and regenerate the golden.
+- **The default language is in every Organization the API writes, the public directory search included**: it
+  is no personal data, and one mapping keeps the resource the same everywhere.
+- **`DefaultLanguage` sets the clinic's scope on the caller's transaction** (as `Read` does): callers in
+  another scope on the same transaction (a worker) should call it before setting their own, or outside it.
+
+### 1.3 internal/notification: e-mails in every language
+
+- **The account's e-mail language is read by widening `auth.Service.AccountEmail`** to return `(email,
+  language, err)`: the read the job already makes, audited with the job as agent, so no second audited read
+  and no read of `account` outside auth. Auth gives the account's chosen language, else the detected one; the
+  fallback (`bs`, or the clinic's default) stays in notification. The edit is in `internal/auth/
+  service_notice.go` and its test only, files 1.1 does not change.
+- **No staff-account branch of the fallback.** Every e-mail with an account goes to a patient (booking,
+  cancellation, reminder); the only staff e-mail is the invite, which has no account and uses the clinic's
+  default language. A staff e-mail to an existing account would add the clinic's default as its fallback.
+- **The date is written by a per-language template and a names file**, not by a date library (none in the
+  standard library, and the SPEC adds no dependency). Bosnian and Serbian write the month in the nominative
+  ("7. januar 2030."), Croatian in the genitive ("7. siječnja 2030."), as each standard writes a date alone.
+- **In every language but English the start is a line of its own** ("Datum i vrijeme: …", "Datum und
+  Uhrzeit: …"), and the clinic follows a noun ("u ustanovi X", "Klinik: X" in Turkish), so neither the
+  weekday nor the clinic's name ever has to be declined or take a suffix. English keeps its approved wording.
+- **Patients and invitees are addressed formally** (vi/Vi, Sie, vous, Lei in Italian); Arabic uses the usual
+  masculine imperatives of UI text and a passive for "you are invited".
+- **"Salus" stays in Latin letters in the Cyrillic and Arabic e-mails**: it is the product's name.
+- **The e-mail subject is RFC 2047 encoded** (`mime.QEncoding`, standard library) when it is not ASCII; an
+  ASCII subject is sent as before.
+- **No `legal` tag in the e-mail templates**: the catalog check has no metadata for them. The sentence with
+  legal weight is the cancellation window ("You can cancel it up to 24 hours before it starts.", in `booked`):
+  listed here for the lawyer's review per language (SPEC §8).
+
+### 1.4 internal/questionnaire: original language and translations
+
+- **`Questionnaire` carries its `Translations`** (`model.go`): the reads, the writes' answers and `ToFHIR` (also
+  used by the QuestionnaireResponse `_include`) need them; filled by the service with one repository call per
+  version, as 0.1 decided, so a staff search costs one query per version returned (no new sqlc query: the
+  queries are 0.1's).
+- **An absent `translations` keeps the draft's, an empty list removes them** (the contract's "Absent keeps the
+  draft's").
+- **A save drops a translated text whose original wording changed, unless the same save changes that
+  translation too**, and the entries of items no longer in the draft, instead of refusing them: the builder
+  sends back what it read, and a patient must never read the translation of an older wording (SPEC §3 "texts
+  of items that changed … are missing until translated"). Text, help and options are judged separately.
+- **An unknown language tag is 422 `invalid_questionnaire` without linkIds**, as the other content rules, not
+  400; a translation in the original language (also after changing the original) is refused the same way.
+- **The original language may be any of the ten tags**, like the translations (a clinic may write a
+  questionnaire for German patients); only accounts and the clinic's default are limited to staff languages.
+- **Complete means**: a title; a description when the original has one; for every item its text, its help text
+  when the original has one, and every option. While a draft, an option may be blank (not yet translated)
+  and a translation may hold no options yet.
+- **Publish names the first incomplete translation in the enum's order** (the error carries one language).
+- **A patient reads only complete translations** (`Referenced` and the patient's search filter them), staff
+  every one: the builder reads drafts through the FHIR search, and a published version's are complete anyway.
+- **No CapabilityStatement or profile change**: the translation extension is R4 core.
+
+### 1.5 Web area A: shell, sign-in, calendar, admin
+
+- **The picker is in the header and on the sign-in and invite cards**; the web app has no personal settings page,
+  so "header and settings" is the header. Patients (who are told to use the app) get no picker.
+- **Language names (L1) are a constant (`language.ts`), not catalog entries**: each name is the same in every UI
+  language. The one exception to "no literal strings" in these files, besides the logo's "Salus".
+- **The header switches the UI at once and saves after**; a failed save leaves the UI and the device in the chosen
+  language and shows the fixed error. After `GET /auth/me` the account's language (none: the browser's) is
+  applied and kept on the device, so the account wins on every device (SPEC §2).
+- **Sign-in sends `language` only when one was picked on the device**, `detectedLanguage` always (the contract
+  makes both optional).
+- **Working-hours times are text fields (HH:MM, numeric keyboard)**: `<input type="time">` follows the browser's
+  locale, which is the AM/PM issue the plan wants gone. A new message for a malformed time (below).
+- **Area A uses its own catalog keys for strings area B also has** (`calendar.join`, `calendar.joinFrom`, the
+  consultation states, the default questionnaire's W30/W31 texts), so this package needs none of 1.6's catalog
+  files; English is word for word the same. The integration step may fold them into 1.6's ids.
+- **"Practitioner" is translated as the doctor ("Ljekar", "Liječnik", "Љекар")**, as clinics in BiH say it; the
+  twelve specialties are all doctors' specialties. ENT is "ORL"/"ОРЛ", as doctors write it.
+- **"Times in [zone]" is "Vremenska zona: [zone]"** in bs, hr and sr: plainer than a word-for-word "Vremena u".
+- **Small edits outside the area's components**: `web/src/api/fhir.ts` and its test (the default-language
+  extension), `web/src/app.css` (the picker, text time fields).
+
+### 1.6 Web area B: questionnaires, consultation, attachments
+
+- **`messages.ts` keeps what 1.5's files still import.** Calendar, AppointmentDetail, App and Availability (1.5's)
+  read `consultation` W1, W2, W35 to W38 and `questionnaires` W1, W30, W31 from `messages.ts`; removing them in
+  this package would break this branch's build or need edits in 1.5's components. They stay there, marked to be
+  deleted once nothing imports them; the catalogs hold the same texts (`consultation.join`, `consultation.states.*`,
+  `questionnaire.defaultLabel`, …) for 1.5 to use. The integration step deletes the leftovers with the file.
+- **Pure functions take the translator** (`ReturnType<typeof useT>`) and, where they format dates or numbers, the
+  language, rather than returning message descriptors: the tests read real English through `test/translate.ts`.
+  `problems` returns message ids, since its results are only keys and texts of the item cards.
+- **Dates come from `i18n/format.ts`**, so English long dates gain Intl's comma ("Wednesday, 4 November 2026", as
+  0.2 decided). W34 is "Submitted {date}, {time}" in English and "Predan: {date} u {time}" (sr "Predat: …") in the
+  others, since a weekday after "Predan" reads badly without the colon. Answer dates stay without the weekday, as
+  before; answer numbers keep every digit the patient wrote, with the language's decimal sign and no grouping.
+- **W19 (`dependents`) keeps COPY.md's English word for word** in both plural branches ("1 items are shown …"), since
+  the plan takes existing English verbatim; the other languages have their correct plural forms. The owner may
+  want an English singular (question in the report).
+- **`legal` tags**: the consultation's consent withdrawn (W18a), cancellation (W18b) and consent not active (W32),
+  the request's `consent_required` (W40) and the withdrawal's deletion of saved answers (W36). The camera and
+  microphone instructions (W10, W11) are browser settings, not permission prompts, and are not tagged.
+- **Words chosen**: "Retire" is *arhivirati* (to keep it apart from "Withdraw", *povući*); the practitioner is
+  *doktor* (bs, sr) and *liječnik* (hr); consent is *saglasnost* (bs, sr) and *privola* (hr); consultation is
+  *konsultacija* (bs, sr) and *konzultacija* (hr); sentences with the patient's name avoid gendered past participles
+  ("{name} još nije u konsultaciji.", "{name} ima isključenu kameru"). ENT is *ORL*.
+- **Serbian Cyrillic** was written from the ijekavian Latin text by transliteration when the catalogs were drafted
+  (not at runtime), keeping JPEG, PNG, PDF, MP4, KB, MB, Salus and the Escape key's name in Latin.
+- **A request's title is optional in `responses.ts`**; the row shows "Questionnaire" (W35's word, as before) when
+  the search did not include the version, so `requestsOf` needs no translator.
+- **`common` keys** `somethingWrong` and `loading` are shared words; 1.5 may add the same keys, which the
+  integration step unions.
+
+### 1.7 Mobile: every screen in ten languages
+
+- **The picker sits at the top of sign-in, registration and the home screen**: the patient app has no settings
+  screen, and the home screen is the signed-in menu. A globe icon with the current language's own name, so a
+  patient who cannot read the current language still finds it.
+- **Signed in, the account's language wins entirely**: an account without one follows the device and clears the
+  device's saved choice, so a "Use the device's language" on one phone holds on every phone (SPEC §2). A failed
+  `PATCH /auth/me` keeps the choice on this device and says why; the next sign-in sends it again.
+- **`app.dart` and `l10n/language.dart` are 0.3's scaffolding**: 1.7 edited `app.dart` (the account's language,
+  the picker's state, the snack bar), as the wave notes ask; the endonyms live in `lib/language_picker.dart`.
+- **The `legal` tag in ARB is a description starting with `[legal]`** in `app_en.arb` (consent, revocation,
+  cancellation effects, permission explanations: 30 keys); ARB metadata lives in the template only.
+- **English long dates keep "Thursday 5 November 2026"** (an explicit `EEEE d MMMM y` pattern) rather than intl's
+  `en_GB` "Thursday, 5 November 2026", so the existing English copy and tests are unchanged.
+- **Serbian dates are ijekavian by replacing intl's three ekavian weekday names** (ponedeljak, sreda, nedelja and
+  their Cyrillic forms): Dart's intl has no `sr_BA` data.
+- **The phone example became the placeholder `{example}`** in `phoneHint` and `invalidPhone`, isolated with
+  U+2066/U+2069 in Arabic only: written into the catalog, the isolates reached the generated Dart literals, which
+  the analyzer refuses.
+- **Merged messages**: "1 file" and "[n] files" (M12) are one plural `fileCount`; "Submitted [date and time]" takes
+  `dateAndTime` ("{date}, {time}") so each language orders them; an appointment's times are `timeRange`.
+- **A message already shown stays in its language** after a language change until the next action (sign-in
+  notices, errors): only the file problems of an upload, kept by `Uploads`, are written when shown.
+- **Arabic "General practice" is طب الأسرة** (the draft had two terms with a slash).
