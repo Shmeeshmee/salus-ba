@@ -80,7 +80,7 @@ func (r *fakeRepository) Update(ctx context.Context, in organization.Organizatio
 	if in.ID != r.clinic || o.VersionID != in.VersionID {
 		return organization.Organization{}, organization.ErrConflict
 	}
-	o.Name, o.Listed, o.TimeZone, o.VersionID, o.LastUpdated = in.Name, in.Listed, in.TimeZone, in.VersionID+1, at
+	o.Name, o.Listed, o.TimeZone, o.DefaultLanguage, o.VersionID, o.LastUpdated = in.Name, in.Listed, in.TimeZone, in.DefaultLanguage, in.VersionID+1, at
 	r.orgs[in.ID] = o
 	return o, nil
 }

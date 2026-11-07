@@ -12,16 +12,20 @@ type Organization struct {
 	ID          string
 	Name        string
 	TimeZone    string // IANA, e.g. Europe/Sarajevo: appointment times are shown in it
-	VersionID   int32  // meta.versionId; an update names the version it changes
-	Active      bool
-	Listed      bool // anyone may find the clinic and its practitioners
+	// DefaultLanguage is a staff language (docs/i18n/SPEC.md §3 "The clinic's default language"), bs unless
+	// an admin changes it: for e-mails to staff with no language of their own, and new questionnaires.
+	DefaultLanguage string
+	VersionID       int32 // meta.versionId; an update names the version it changes
+	Active          bool
+	Listed          bool // anyone may find the clinic and its practitioners
 }
 
 // Changes are what an update sets: the name, and the listing and the time zone when given (nil keeps them).
 type Changes struct {
-	Listed   *bool
-	TimeZone *string
-	Name     string
+	Listed          *bool
+	TimeZone        *string
+	DefaultLanguage *string
+	Name            string
 }
 
 // Caller is who asks: the signed-in account and, for staff, its clinic.

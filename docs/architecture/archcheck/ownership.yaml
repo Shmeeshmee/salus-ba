@@ -23,6 +23,7 @@ tables:
   questionnaire: {owner: questionnaire, personal_data: false}
   questionnaire_default: {owner: questionnaire, personal_data: false}
   questionnaire_response: {owner: questionnaireresponse, personal_data: true}
+  questionnaire_translation: {owner: questionnaire, personal_data: false}
   schedule: {owner: schedule, personal_data: true}
   session: {owner: auth, personal_data: true}
   slot: {owner: slot, personal_data: true}

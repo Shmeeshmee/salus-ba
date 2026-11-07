@@ -116,6 +116,28 @@ func (r *fakeRepository) SetPasswordHash(ctx context.Context, id, hash string) e
 	return r.rehashErr
 }
 
+func (r *fakeRepository) SetLanguage(ctx context.Context, id, language string) error {
+	r.seen(ctx, "SetLanguage")
+	a, ok := r.accounts[id]
+	if !ok {
+		return auth.ErrNotFound
+	}
+	a.Language = language
+	r.accounts[id] = a
+	return r.err
+}
+
+func (r *fakeRepository) SetDetectedLanguage(ctx context.Context, id, language string) error {
+	r.seen(ctx, "SetDetectedLanguage")
+	a, ok := r.accounts[id]
+	if !ok {
+		return auth.ErrNotFound
+	}
+	a.DetectedLanguage = language
+	r.accounts[id] = a
+	return r.err
+}
+
 func (r *fakeRepository) TOTPSecret(ctx context.Context, id string) ([]byte, error) {
 	r.seen(ctx, "TOTPSecret")
 	return r.secrets[id], r.err

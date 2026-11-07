@@ -226,6 +226,16 @@ func (r *fakeRepository) Complete(ctx context.Context, id string, answers []ques
 	}, at)
 }
 
+// SetLanguage sets the language of the in-progress response id while nothing is answered, as the query does.
+func (r *fakeRepository) SetLanguage(ctx context.Context, id, language string, at time.Time) (questionnaireresponse.Response, error) {
+	for _, x := range r.responses {
+		if x.ID == id && (len(x.Answers) > 0 || len(r.attachments[id]) > 0) {
+			return questionnaireresponse.Response{}, questionnaireresponse.ErrNotFound
+		}
+	}
+	return r.update(ctx, id, func(x *questionnaireresponse.Response) { x.Language = language }, at)
+}
+
 // update changes the in-progress response id with set at at, as the patient's update does.
 func (r *fakeRepository) update(ctx context.Context, id string, set func(*questionnaireresponse.Response), at time.Time) (questionnaireresponse.Response, error) {
 	if err := inTx(ctx); err != nil {

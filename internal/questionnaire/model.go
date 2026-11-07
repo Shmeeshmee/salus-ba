@@ -27,17 +27,39 @@ type Questionnaire struct {
 	OrganizationID string
 	Title          string
 	Description    string
-	Status         Status
-	Items          []Item
-	Version        int32 // Questionnaire.version: 1, 2, …
-	VersionID      int32 // meta.versionId
+	// Language is Questionnaire.language, the original language: a BCP 47 tag of the enum language
+	// (docs/i18n/SPEC.md §3 "Questionnaires"). Empty on a write keeps the draft's (or, for a new one, bs).
+	Language  string
+	Status    Status
+	Items     []Item
+	Version   int32 // Questionnaire.version: 1, 2, …
+	VersionID int32 // meta.versionId
 }
 
 // Content is what a draft holds and an edit sets.
 type Content struct {
-	Title       string
-	Description string
-	Items       []Item
+	Title        string
+	Description  string
+	Language     string // the original language; empty keeps the draft's
+	Items        []Item
+	Translations []Translation
+}
+
+// Translation is a version's texts in one other language (docs/i18n/SPEC.md §3 "Questionnaires"), stored as
+// the JSON below in questionnaire_translation.texts: the title, the description, and each item's texts by
+// linkId. A translation belongs to one version and changes only while it is a draft.
+type Translation struct {
+	Items       map[string]ItemTranslation `json:"items"`
+	Language    string                     `json:"-"` // a tag of the enum language, not the original's
+	Title       string                     `json:"title"`
+	Description string                     `json:"description,omitempty"`
+}
+
+// ItemTranslation is one item's translated text, help text and option texts (by the options' position).
+type ItemTranslation struct {
+	Text    string   `json:"text,omitempty"`
+	Help    string   `json:"help,omitempty"`
+	Options []string `json:"options,omitempty"`
 }
 
 // ItemType is Questionnaire.item.type. The list is not closed: a type the service does not accept yet is

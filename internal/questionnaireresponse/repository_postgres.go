@@ -127,6 +127,23 @@ func (r *postgresRepository) Complete(ctx context.Context, id string, answers []
 	})
 }
 
+func (r *postgresRepository) SetLanguage(ctx context.Context, id, language string, at time.Time) (Response, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Response{}, ErrNotFound
+	}
+	row, err := r.q(ctx).SetQuestionnaireResponseLanguage(ctx, questionnaireresponsedb.SetQuestionnaireResponseLanguageParams{
+		ID: u, Language: questionnaireresponsedb.NullLanguage{Language: questionnaireresponsedb.Language(language), Valid: true}, At: ts(at),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Response{}, ErrNotFound
+	}
+	if err != nil {
+		return Response{}, err
+	}
+	return toResponse(row)
+}
+
 // update writes answers to the response id with write; ErrNotFound when no response in progress has that id.
 func (r *postgresRepository) update(ctx context.Context, id string, answers []Answer,
 	write func(pgtype.UUID, []byte) (questionnaireresponsedb.QuestionnaireResponse, error)) (Response, error) {
@@ -258,6 +275,7 @@ func toResponse(row questionnaireresponsedb.QuestionnaireResponse) (Response, er
 		ID: row.ID.String(), OrganizationID: row.OrganizationID.String(), AppointmentID: row.AppointmentID.String(),
 		PatientID: row.PatientID.String(), PractitionerRoleID: row.PractitionerRoleID.String(),
 		QuestionnaireID: row.QuestionnaireID.String(), SeriesID: row.SeriesID.String(),
-		Source: Source(row.Source), Status: Status(row.Status), Answers: answers, Attachments: files, VersionID: row.VersionID,
+		Source: Source(row.Source), Status: Status(row.Status), Language: string(row.Language.Language), Answers: answers, Attachments: files,
+		VersionID: row.VersionID,
 	}, nil
 }

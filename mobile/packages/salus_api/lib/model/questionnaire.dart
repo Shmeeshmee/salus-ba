@@ -19,6 +19,8 @@ class Questionnaire {
     required this.title,
     this.description,
     this.item = const [],
+    this.language,
+    this.translations = const [],
     required this.lastUpdated,
     required this.version,
     required this.versionId,
@@ -43,6 +45,18 @@ class Questionnaire {
 
   List<QuestionnaireItem> item;
 
+  /// The original language (Questionnaire.language).
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  Language? language;
+
+  /// Its translations, in the language list's order. A patient reads them through FHIR, as the translation extension on each translated element.
+  List<QuestionnaireTranslation> translations;
+
   DateTime lastUpdated;
 
   /// 1, 2, … within the questionnaire.
@@ -61,6 +75,8 @@ class Questionnaire {
           other.title == title &&
           other.description == description &&
           _deepEquality.equals(other.item, item) &&
+          other.language == language &&
+          _deepEquality.equals(other.translations, translations) &&
           other.lastUpdated == lastUpdated &&
           other.version == version &&
           other.versionId == versionId;
@@ -74,13 +90,15 @@ class Questionnaire {
       (title.hashCode) +
       (description == null ? 0 : description!.hashCode) +
       (item.hashCode) +
+      (language == null ? 0 : language!.hashCode) +
+      (translations.hashCode) +
       (lastUpdated.hashCode) +
       (version.hashCode) +
       (versionId.hashCode);
 
   @override
   String toString() =>
-      'Questionnaire[id=$id, url=$url, status=$status, title=$title, description=$description, item=$item, lastUpdated=$lastUpdated, version=$version, versionId=$versionId]';
+      'Questionnaire[id=$id, url=$url, status=$status, title=$title, description=$description, item=$item, language=$language, translations=$translations, lastUpdated=$lastUpdated, version=$version, versionId=$versionId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -94,6 +112,12 @@ class Questionnaire {
       json[r'description'] = null;
     }
     json[r'item'] = this.item;
+    if (this.language != null) {
+      json[r'language'] = this.language;
+    } else {
+      json[r'language'] = null;
+    }
+    json[r'translations'] = this.translations;
     json[r'lastUpdated'] = this.lastUpdated.toUtc().toIso8601String();
     json[r'version'] = this.version;
     json[r'versionId'] = this.versionId;
@@ -153,6 +177,9 @@ class Questionnaire {
         title: mapValueOfType<String>(json, r'title')!,
         description: mapValueOfType<String>(json, r'description'),
         item: QuestionnaireItem.listFromJson(json[r'item']),
+        language: Language.fromJson(json[r'language']),
+        translations:
+            QuestionnaireTranslation.listFromJson(json[r'translations']),
         lastUpdated: mapDateTime(json, r'lastUpdated', r'')!,
         version: mapValueOfType<int>(json, r'version')!,
         versionId: mapValueOfType<int>(json, r'versionId')!,

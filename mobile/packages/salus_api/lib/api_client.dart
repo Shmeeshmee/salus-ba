@@ -248,6 +248,8 @@ class ApiClient {
           return InviteList.fromJson(value);
         case 'InviteRequest':
           return InviteRequest.fromJson(value);
+        case 'Language':
+          return LanguageTypeTransformer().decode(value);
         case 'LiveKitWebhookEvent':
           return LiveKitWebhookEvent.fromJson(value);
         case 'LoginRequest':
@@ -266,8 +268,12 @@ class ApiClient {
           return QuestionnaireItemAnswerOptionInner.fromJson(value);
         case 'QuestionnaireItemEnableWhen':
           return QuestionnaireItemEnableWhen.fromJson(value);
+        case 'QuestionnaireItemTranslation':
+          return QuestionnaireItemTranslation.fromJson(value);
         case 'QuestionnaireResponse':
           return QuestionnaireResponse.fromJson(value);
+        case 'QuestionnaireTranslation':
+          return QuestionnaireTranslation.fromJson(value);
         case 'RegisterRequest':
           return RegisterRequest.fromJson(value);
         case 'RequestQuestionnaireRequest':
@@ -292,10 +298,14 @@ class ApiClient {
           return Specialty.fromJson(value);
         case 'SpecialtyList':
           return SpecialtyList.fromJson(value);
+        case 'StartQuestionnaireRequest':
+          return StartQuestionnaireRequest.fromJson(value);
         case 'Status':
           return Status.fromJson(value);
         case 'Unavailable':
           return Unavailable.fromJson(value);
+        case 'UpdateMeRequest':
+          return UpdateMeRequest.fromJson(value);
         case 'VerifyRequest':
           return VerifyRequest.fromJson(value);
         default:
