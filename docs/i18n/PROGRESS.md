@@ -387,6 +387,68 @@ Left for later (not this package's files):
 
 ### 1.2 internal/organization: the clinic's default language
 
+Done 2026-11-08, on `i18n/1.2` (unattended run, wave 1). Two commits: the code (e454d94) and this log, which
+the first commit missed (no amend allowed).
+
+Built:
+- `organization.Service.Update` sets `Changes.DefaultLanguage` when given; one that is not a staff language
+  (`bs`, `hr`, `sr-Latn`, `sr-Cyrl`, `en`, exact tags) gives `ErrInvalidDefaultLanguage` before anything is
+  accessed, like an invalid time zone. Admins only, `If-Match`, audited: the existing update path, unchanged.
+- `organization.Service.DefaultLanguage(ctx, organizationID) (string, error)`, the port shape 1.4 declares (and
+  1.3 may use): sets the clinic's scope on the transaction in ctx (joining an outer one), reads the clinic,
+  `ErrNotFound` for an empty or unknown id; not audited (no personal data in a clinic).
+- `handler_fhir.go`: the extension `https://salus.invalid/fhir/StructureDefinition/organization-default-language`
+  (`valueCode`) on every Organization written (read, update, the listed search), read on update like the time
+  zone (left out keeps the value; without a code, with another value type, or twice: 400 `invalid`).
+  `ErrInvalidDefaultLanguage` is 400 `value`, "The default language must be bs, hr, sr-Latn, sr-Cyrl or en."
+- `api/fhir/StructureDefinition-organization-default-language.json` (an Organization extension, `valueCode`),
+  and its name in `api/fhir/embed_test.go`'s loop over the Organization extensions.
+- Golden files: `organization_default_language.json`, `organization_default_language_updated.json`,
+  `invalid_default_language.json`; `organization.json`, `organization_updated.json`, `organization_listed.json`
+  and `search_listed.json` gain the extension (`bs`), reviewed.
+
+Test first (the failures seen):
+- Build: `undefined: organization.ErrInvalidDefaultLanguage`, `….DefaultLanguage undefined (type
+  *organization.Service has no field or method DefaultLanguage)`.
+- With the error declared and `DefaultLanguage` a stub: `Update(hr) = {… DefaultLanguage:bs …}; want the
+  language stored`; `Update("de") = <nil>, calls [SetOrganization ByID Update], events 1; want
+  ErrInvalidDefaultLanguage before any access`; `extension [{"url":"…organization-default-language"}]: status =
+  200 after 1 service calls, want 400 and none`; `status = 500, want 400` for the error's mapping; the golden
+  files missing.
+- `api/fhir`: `StructureDefinition-organization-default-language.json: open …: no such file or directory`.
+- After the fakes' clinics got `DefaultLanguage: "bs"` (as the database gives them), two existing tests'
+  expected clinics gained the same field (`TestUpdate_RenamesTheClinicAndAuditsIt`,
+  `TestUpdate_ListsTheClinicAndSetsItsTimeZone`); nothing else in them changed.
+
+Checks:
+- `go test -count=1 -cover ./internal/organization/... ./api/fhir/...`: pass; organization 95.9%, api/fhir
+  100%.
+- lint (`scripts/lint.sh`, `--no-deps`, the main checkout's `.git` mounted): 0 issues, check-migrations ok.
+  archcheck: pass.
+- FHIR: `scripts/fhir-validate.sh` in the `fhir-validator` service with `--no-deps`: 82 files, 0 errors (the
+  new StructureDefinition and golden files included; warnings are the usual dom-6 narrative ones).
+
+Decided while the owner was away:
+- **An invalid default language is 400 `value`**, as an invalid time zone is (both a coded value of the
+  clinic outside what is allowed), not the 422 `language_unavailable` of an account's language: that code is
+  the JSON API's, and this is the FHIR update. The web screen offers only the five staff languages, so it is
+  not reached from the UI.
+- **A StructureDefinition for the extension** (`api/fhir/`, outside the package's listed files): the other two
+  Organization extensions have one and `make fhir-validate` loads them; a new file, so no other package's
+  lines are touched. Its value has no binding (no R4 value set holds exactly the five tags, and there is no
+  terminology server); the service enforces the five.
+- **The CapabilityStatement's Organization documentation is not changed** (it names the listed and time-zone
+  extensions): no interaction changes, and its golden copy `internal/api/router/testdata/metadata.json` is in
+  `internal/api/router`, which terminology 1.1 owns in this wave. The integration step may add
+  "organization-default-language" to that sentence and regenerate the golden.
+- **The default language is in every Organization the API writes, the public directory search included**: it
+  is no personal data, and one mapping keeps the resource the same everywhere.
+- **`DefaultLanguage` sets the clinic's scope on the caller's transaction** (as `Read` does): callers in
+  another scope on the same transaction (a worker) should call it before setting their own, or outside it.
+
+COPY.md additions (not yet reviewed): none (no user-facing text; the OperationOutcome diagnostics are
+developer-facing English like the existing ones).
+
 ### 1.3 internal/notification: e-mails in every language
 
 ### 1.4 internal/questionnaire: original language and translations
