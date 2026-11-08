@@ -70,3 +70,8 @@ Written by a package during the unattended run of 2026-11-07; each waits for the
   "Ophthalmology", "Orthopaedics", "Endocrinology"), on the practitioner list and the booking screens.
 - 1.7-4 `tooManyAttempts`: one plural for "Too many attempts. Try again in [n] minute(s)." (was built in code).
 - The other English strings are those of the screens before this package, word for word.
+
+### The integration steps
+
+- `specialtyAtClinic` (mobile, the free times screen): "[specialty], [clinic]", one message so each language
+  writes its own separator (Arabic "،"); replaces a line joined in code (found by 3.1's walk).

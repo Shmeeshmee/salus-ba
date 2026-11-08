@@ -258,5 +258,6 @@
   "questionnaireNotInLanguage": "Questo questionario non è disponibile in {language}.",
   "questionnaireLanguages": "È disponibile in: {languages}. Scelga la lingua che comprende meglio.",
   "continueInLanguage": "Continua in {language}",
-  "languageUnavailable": "Questa lingua non è più disponibile per questo questionario. Ne scelga un’altra."
+  "languageUnavailable": "Questa lingua non è più disponibile per questo questionario. Ne scelga un’altra.",
+  "specialtyAtClinic": "{specialty}, {clinic}"
 }

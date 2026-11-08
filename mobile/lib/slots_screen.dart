@@ -97,7 +97,7 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
     return ui.Page(
       title: widget.role.name,
       children: [
-        Text([specialtyName(t, widget.role), widget.clinic.name].whereType<String>().join(', ')),
+        Text(specialtyAtClinic(t, specialtyName(t, widget.role), widget.clinic.name)),
         if (_scheduleRead && _schedule == null)
           Text(t.noOpenTimes)
         else ...[

@@ -942,6 +942,11 @@ class AppLocalizationsSr extends AppLocalizations {
   @override
   String get languageUnavailable =>
       'Овај језик више није доступан за овај упитник. Изаберите други.';
+
+  @override
+  String specialtyAtClinic(String specialty, String clinic) {
+    return '$specialty, $clinic';
+  }
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -1881,6 +1886,11 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   @override
   String get languageUnavailable =>
       'Овај језик више није доступан за овај упитник. Изаберите други.';
+
+  @override
+  String specialtyAtClinic(String specialty, String clinic) {
+    return '$specialty, $clinic';
+  }
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -2820,4 +2830,9 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   @override
   String get languageUnavailable =>
       'Ovaj jezik više nije dostupan za ovaj upitnik. Izaberite drugi.';
+
+  @override
+  String specialtyAtClinic(String specialty, String clinic) {
+    return '$specialty, $clinic';
+  }
 }

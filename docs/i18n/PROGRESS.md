@@ -15,7 +15,7 @@
 | 2.1 internal/questionnaireresponse: the language answered in | done (integrated 2026-11-08) | 9fcb474 |
 | 2.2 Web: the translation editor | done (integrated 2026-11-08) | 2c19147 |
 | 2.3 Mobile: choosing the questionnaire's language | done (integrated 2026-11-08) | 7d04ee5 |
-| 3.1 End-to-end, walk and privacy | not started | |
+| 3.1 End-to-end, walk and privacy | done (integrated 2026-11-08) | 73803db |
 
 ## Facts
 
@@ -83,6 +83,10 @@
 - **A second CallScreen race fixed at its cause**: the join test asserted the room was shown the moment Leave
   rendered, but the stage shows it from an effect. It now waits for that condition (no timeout, no retry);
   under CPU load the probe failed 1 in 123 before, 0 in 164 after.
+- **3.1 integration: the practitioner's line on the mobile free times screen is one catalog message**
+  (`specialtyAtClinic`, all ten languages, Arabic with "،") instead of a `join(', ')` in code, which SPEC §3
+  forbids and which put a Latin comma in Arabic. Test first; the Arabic booking golden was updated on purpose
+  for the comma and looked at.
 
 #### 0.1 Baseline: database, contract, checks
 
@@ -398,6 +402,21 @@
   exactly (no start call) and new tests pass `language: null` for a response not started.
 - **`lib/questionnaire.dart` is about 460 lines** (364 before): the translation reading sits with the FHIR reading
   it extends; splitting one parser over two files would not make it simpler.
+
+#### 3.1 End-to-end, walk and privacy
+
+- **The walk's drivers are not committed.** The Go driver and Playwright script that took the web screenshots, and
+  the Flutter test that rendered the mobile ones, served one walk; the behaviour they show is checked on every
+  `make e2e` by `language_test.go` and `language.spec.ts`, and by 1.7's and 2.3's widget tests. Keeping them would
+  add code nothing runs (CLAUDE.md).
+- **The staff journey signs in through the API with a fresh client**, as another browser would, rather than in a
+  second web journey: the web journey already covers the browser side; the API journey adds the refusal of a
+  patient language and the clinic's default language for the invite.
+- **The `legal` count of the e-mails is 0** (1.3: the templates carry no metadata); the one e-mail sentence with
+  legal weight, the cancellation window, is named in `TRANSLATIONS.md` for the lawyer.
+- **The web `legal` column says "–" for the five patient-only languages**: the web app does not have them.
+- **The DPIA section names 3.1 as its package** and describes the fields 0.1, 1.1 and 2.1 added, since 3.1 owns
+  `docs/privacy/`.
 
 ## Waiting on people
 

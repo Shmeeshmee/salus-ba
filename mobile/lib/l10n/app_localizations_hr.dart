@@ -943,4 +943,9 @@ class AppLocalizationsHr extends AppLocalizations {
   @override
   String get languageUnavailable =>
       'Ovaj jezik više nije dostupan za ovaj upitnik. Odaberite drugi.';
+
+  @override
+  String specialtyAtClinic(String specialty, String clinic) {
+    return '$specialty, $clinic';
+  }
 }

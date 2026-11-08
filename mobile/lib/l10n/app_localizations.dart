@@ -1667,6 +1667,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This language is no longer available for this questionnaire. Choose another one.'**
   String get languageUnavailable;
+
+  /// A practitioner's specialty and clinic on the free times screen.
+  ///
+  /// In en, this message translates to:
+  /// **'{specialty}, {clinic}'**
+  String specialtyAtClinic(String specialty, String clinic);
 }
 
 class _AppLocalizationsDelegate

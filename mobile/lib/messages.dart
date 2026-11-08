@@ -162,3 +162,8 @@ String? specialtyName(AppLocalizations t, PractitionerRole role) => switch (role
   '394583002' => t.specialty394583002,
   _ => role.specialty,
 };
+
+/// A practitioner's specialty and clinic as one line (docs/i18n/SPEC.md §3: no string built by joining pieces); the
+/// clinic alone when the role has no specialty.
+String specialtyAtClinic(AppLocalizations t, String? specialty, String clinic) =>
+    specialty == null ? clinic : t.specialtyAtClinic(specialty, clinic);

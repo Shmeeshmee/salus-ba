@@ -258,5 +258,6 @@
   "questionnaireNotInLanguage": "Bu soru formu şu dilde mevcut değil: {language}.",
   "questionnaireLanguages": "Şu dillerde mevcut: {languages}. En iyi anladığınız dili seçin.",
   "continueInLanguage": "Şu dilde devam et: {language}",
-  "languageUnavailable": "Bu dil artık bu soru formu için mevcut değil. Başka bir dil seçin."
+  "languageUnavailable": "Bu dil artık bu soru formu için mevcut değil. Başka bir dil seçin.",
+  "specialtyAtClinic": "{specialty}, {clinic}"
 }

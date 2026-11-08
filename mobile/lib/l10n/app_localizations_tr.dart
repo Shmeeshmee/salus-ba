@@ -934,4 +934,9 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get languageUnavailable =>
       'Bu dil artık bu soru formu için mevcut değil. Başka bir dil seçin.';
+
+  @override
+  String specialtyAtClinic(String specialty, String clinic) {
+    return '$specialty, $clinic';
+  }
 }

@@ -950,4 +950,9 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get languageUnavailable =>
       'لم تعد هذه اللغة متاحة لهذا الاستبيان. اختر لغة أخرى.';
+
+  @override
+  String specialtyAtClinic(String specialty, String clinic) {
+    return '$specialty، $clinic';
+  }
 }

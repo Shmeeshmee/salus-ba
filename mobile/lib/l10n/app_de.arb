@@ -258,5 +258,6 @@
   "questionnaireNotInLanguage": "Dieser Fragebogen ist nicht auf {language} verfügbar.",
   "questionnaireLanguages": "Er ist in diesen Sprachen verfügbar: {languages}. Wählen Sie die Sprache, die Sie am besten verstehen.",
   "continueInLanguage": "Weiter auf {language}",
-  "languageUnavailable": "Diese Sprache ist für diesen Fragebogen nicht mehr verfügbar. Wählen Sie eine andere."
+  "languageUnavailable": "Diese Sprache ist für diesen Fragebogen nicht mehr verfügbar. Wählen Sie eine andere.",
+  "specialtyAtClinic": "{specialty}, {clinic}"
 }

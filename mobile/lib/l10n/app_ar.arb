@@ -258,5 +258,6 @@
   "questionnaireNotInLanguage": "هذا الاستبيان غير متاح باللغة: {language}.",
   "questionnaireLanguages": "هذا الاستبيان متاح باللغات التالية: {languages}. اختر اللغة التي تفهمها أكثر من غيرها.",
   "continueInLanguage": "المتابعة باللغة: {language}",
-  "languageUnavailable": "لم تعد هذه اللغة متاحة لهذا الاستبيان. اختر لغة أخرى."
+  "languageUnavailable": "لم تعد هذه اللغة متاحة لهذا الاستبيان. اختر لغة أخرى.",
+  "specialtyAtClinic": "{specialty}، {clinic}"
 }

@@ -258,5 +258,6 @@
   "questionnaireNotInLanguage": "Овај упитник није доступан на језику: {language}.",
   "questionnaireLanguages": "Доступан је на овим језицима: {languages}. Изаберите онај који најбоље разумијете.",
   "continueInLanguage": "Наставите на језику: {language}",
-  "languageUnavailable": "Овај језик више није доступан за овај упитник. Изаберите други."
+  "languageUnavailable": "Овај језик више није доступан за овај упитник. Изаберите други.",
+  "specialtyAtClinic": "{specialty}, {clinic}"
 }

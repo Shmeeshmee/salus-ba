@@ -954,4 +954,9 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get languageUnavailable =>
       'Diese Sprache ist für diesen Fragebogen nicht mehr verfügbar. Wählen Sie eine andere.';
+
+  @override
+  String specialtyAtClinic(String specialty, String clinic) {
+    return '$specialty, $clinic';
+  }
 }

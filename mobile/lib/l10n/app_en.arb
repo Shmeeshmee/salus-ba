@@ -1255,5 +1255,17 @@
   "languageUnavailable": "This language is no longer available for this questionnaire. Choose another one.",
   "@languageUnavailable": {
     "description": "docs/i18n COPY.md M4: the API refused the language (language_unavailable)."
+  },
+  "specialtyAtClinic": "{specialty}, {clinic}",
+  "@specialtyAtClinic": {
+    "description": "A practitioner's specialty and clinic on the free times screen.",
+    "placeholders": {
+      "specialty": {
+        "type": "String"
+      },
+      "clinic": {
+        "type": "String"
+      }
+    }
   }
 }
