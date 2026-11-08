@@ -72,6 +72,7 @@ export const consultation = {
   practitionerJoinedAt: (time: string) => `Practitioner joined at ${time}`, // W38
   practitionerDidNotJoin: 'Practitioner did not join', // W38
   timePassed: 'The time to join this consultation has passed.', // W39
+  transcriptionOn: 'Transcription is on', // W41, proposed: waiting for the owner (COPY.md)
 } as const
 
 // Questionnaires: the library, the builder, the role's default and the appointment's requests (docs/questionnaire/COPY.md, approved by the owner, word for

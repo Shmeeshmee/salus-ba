@@ -58,6 +58,13 @@ final class PeerChanged extends CallEvent {
   final Peer peer;
 }
 
+/// Whether the transcription agent is in the room (SPEC.md "Changed for SAL-3"): a participant of kind agent that
+/// only listens, never the other person.
+final class AgentChanged extends CallEvent {
+  const AgentChanged({required this.present});
+  final bool present;
+}
+
 final class Reconnecting extends CallEvent {
   const Reconnecting();
 }
@@ -151,10 +158,16 @@ class LiveKitMedia implements Media {
     final room = lk.Room(roomOptions: const lk.RoomOptions(adaptiveStream: true, dynacast: true));
     final listener = room.createListener();
     var connected = false;
-    void peer() => onEvent(PeerChanged(peerOf(room)));
+    List<Remote> remotes() => room.remoteParticipants.values.map(remoteOf).toList();
+    void peer() => onEvent(PeerChanged(peerOf(remotes())));
+    void participants() {
+      peer();
+      onEvent(AgentChanged(present: agentIn(remotes())));
+    }
+
     listener
-      ..on<lk.ParticipantConnectedEvent>((_) => peer())
-      ..on<lk.ParticipantDisconnectedEvent>((_) => peer())
+      ..on<lk.ParticipantConnectedEvent>((_) => participants())
+      ..on<lk.ParticipantDisconnectedEvent>((_) => participants())
       ..on<lk.TrackSubscribedEvent>((_) => peer())
       ..on<lk.TrackUnsubscribedEvent>((_) => peer())
       ..on<lk.TrackMutedEvent>((_) => peer())
@@ -178,7 +191,7 @@ class LiveKitMedia implements Media {
     // A device that fails now stays off; the call goes on with what remains.
     if (settings.microphone) await _quietly(() => room.localParticipant?.setMicrophoneEnabled(true));
     if (settings.camera) await _quietly(() => room.localParticipant?.setCameraEnabled(true));
-    peer();
+    participants();
     return _LiveKitRoom(room);
   }
 }
@@ -189,7 +202,7 @@ class _LiveKitRoom implements Room {
   final lk.Room _room;
 
   @override
-  Widget remoteView() => _view(_room.remoteParticipants.values.firstOrNull);
+  Widget remoteView() => _view(_room.remoteParticipants.values.where((p) => !remoteOf(p).agent).firstOrNull);
 
   @override
   Widget localView() => _view(_room.localParticipant);
@@ -270,17 +283,39 @@ Future<void> _quietly(Future<Object?>? Function() call) async {
   }
 }
 
-/// The other participant: the room holds at most two (SPEC §2 "Rooms").
-Peer peerOf(lk.Room room) {
-  final p = room.remoteParticipants.values.firstOrNull;
-  if (p == null) return const Peer(present: false, camera: false, microphone: false);
+/// A remote participant as the screens need it: the agent or a person, and whether its camera and microphone
+/// are on.
+class Remote {
+  const Remote({required this.agent, required this.camera, required this.microphone});
+
+  final bool agent;
+  final bool camera;
+  final bool microphone;
+}
+
+/// What the screens need of LiveKit's participant.
+Remote remoteOf(lk.Participant p) {
   bool on(lk.TrackSource source) {
     final publication = p.getTrackPublicationBySource(source);
     return publication != null && !publication.muted;
   }
 
-  return Peer(present: true, camera: on(lk.TrackSource.camera), microphone: on(lk.TrackSource.microphone));
+  return Remote(
+    agent: p.kind == lk.ParticipantKind.AGENT,
+    camera: on(lk.TrackSource.camera),
+    microphone: on(lk.TrackSource.microphone),
+  );
 }
+
+/// The other person: the room holds at most two people (SPEC §2 "Rooms"), and the agent, which is not one.
+Peer peerOf(Iterable<Remote> remotes) {
+  final p = remotes.where((r) => !r.agent).firstOrNull;
+  if (p == null) return const Peer(present: false, camera: false, microphone: false);
+  return Peer(present: true, camera: p.camera, microphone: p.microphone);
+}
+
+/// Whether the transcription agent is in the room.
+bool agentIn(Iterable<Remote> remotes) => remotes.any((r) => r.agent);
 
 /// What the app may do with a device, from the system's answer. On Android a single refusal can still be asked
 /// again, so it is [Access.unasked]; on iOS a refusal is final.

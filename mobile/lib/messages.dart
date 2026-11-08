@@ -183,6 +183,7 @@ const cannotConnect = 'The video connection could not be started. Check your con
 const whyCameraAndMicrophone =
     'To join the video consultation, Salus needs your camera and microphone. The consultation is not '
     'recorded.'; // M35, Android, before the system prompt
+const transcriptionOn = 'Transcription is on'; // M36, proposed: waiting for the owner (COPY.md)
 
 /// The approved sentence for a refused join (M29, M30, M32, M33); `practitioner_did_not_join` is its own screen
 /// (M31: M25 and M26).

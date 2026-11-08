@@ -410,6 +410,27 @@ void main() {
       expect(h.media.room.left, isTrue);
     });
 
+    testWidgets('says transcription is on while the agent is in the room, and not before or after', (tester) async {
+      final h = await inCall(tester);
+      await emit(tester, h, const PeerChanged(practitioner));
+      expect(find.text('Transcription is on'), findsNothing);
+
+      await emit(tester, h, const AgentChanged(present: true));
+      expect(find.text('Transcription is on'), findsOneWidget);
+
+      await emit(tester, h, const AgentChanged(present: false));
+      expect(find.text('Transcription is on'), findsNothing);
+    });
+
+    testWidgets('stops saying transcription is on once the connection is lost', (tester) async {
+      final h = await inCall(tester);
+      await emit(tester, h, const AgentChanged(present: true));
+
+      await emit(tester, h, const Disconnected(Ending.lost));
+
+      expect(find.text('Transcription is on'), findsNothing);
+    });
+
     testWidgets('shows reconnecting, then reconnected for a few seconds', (tester) async {
       final h = await inCall(tester);
       await emit(tester, h, const PeerChanged(practitioner));

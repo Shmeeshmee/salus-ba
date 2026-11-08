@@ -52,4 +52,32 @@ void main() {
     expect(levelOf(const [1.5]), 1);
     expect(levelOf(const [-0.3, 'x', null]), 0);
   });
+
+  // The other person is never the agent, whatever the order LiveKit lists them in (SPEC.md "Changed for SAL-3").
+  test('the peer is the other person, never the agent', () {
+    const agent = Remote(agent: true, camera: false, microphone: true);
+    const practitioner = Remote(agent: false, camera: true, microphone: false);
+
+    for (final remotes in [
+      [agent, practitioner],
+      [practitioner, agent],
+    ]) {
+      final peer = peerOf(remotes);
+      expect((peer.present, peer.camera, peer.microphone), (true, true, false));
+    }
+    expect(peerOf([agent]).present, isFalse);
+    expect(peerOf(<Remote>[]).present, isFalse);
+  });
+
+  test('whether the agent is in the room', () {
+    expect(
+      agentIn([
+        const Remote(agent: false, camera: true, microphone: true),
+        const Remote(agent: true, camera: false, microphone: false),
+      ]),
+      isTrue,
+    );
+    expect(agentIn([const Remote(agent: false, camera: true, microphone: true)]), isFalse);
+    expect(agentIn(<Remote>[]), isFalse);
+  });
 }

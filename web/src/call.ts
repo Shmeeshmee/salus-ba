@@ -9,6 +9,7 @@ import {
   Track,
   type LocalAudioTrack,
   type LocalVideoTrack,
+  type RemoteParticipant,
   type RemoteTrack,
 } from 'livekit-client'
 
@@ -46,8 +47,11 @@ export type Peer = { present: boolean; camera: boolean; microphone: boolean }
 // removed from it), the same person joined from somewhere else, or the network.
 export type Ending = 'left' | 'ended' | 'replaced' | 'lost'
 
+// An agent event says whether the transcription agent is in the room (SPEC §2 "Changed for SAL-3"). It is a
+// participant of kind agent that only listens, never the other person.
 export type CallEvent =
   | { type: 'peer'; peer: Peer }
+  | { type: 'agent'; present: boolean }
   | { type: 'reconnecting' }
   | { type: 'reconnected' }
   | { type: 'disconnected'; ending: Ending }
@@ -97,9 +101,15 @@ async function connectLiveKit(url: string, token: string, settings: Settings, on
   let views: { remote: HTMLVideoElement | null; local: HTMLVideoElement | null } = { remote: null, local: null }
   let connected = false
   const audio = new Set<HTMLMediaElement>()
-  const peer = () => onEvent({ type: 'peer', peer: peerOf(room) })
+  const remotes = () => [...room.remoteParticipants.values()]
+  const peer = () => onEvent({ type: 'peer', peer: peerOf(remotes()) })
+  const agent = () => onEvent({ type: 'agent', present: agentIn(remotes()) })
+  const participants = () => {
+    peer()
+    agent()
+  }
   const showRemote = () => {
-    const track = [...room.remoteParticipants.values()][0]?.getTrackPublication(Track.Source.Camera)?.track
+    const track = personIn(remotes())?.getTrackPublication(Track.Source.Camera)?.track
     if (track && views.remote) track.attach(views.remote)
   }
   const showLocal = () => {
@@ -117,8 +127,8 @@ async function connectLiveKit(url: string, token: string, settings: Settings, on
   }
 
   room
-    .on(RoomEvent.ParticipantConnected, peer)
-    .on(RoomEvent.ParticipantDisconnected, peer)
+    .on(RoomEvent.ParticipantConnected, participants)
+    .on(RoomEvent.ParticipantDisconnected, participants)
     .on(RoomEvent.TrackSubscribed, subscribed)
     .on(RoomEvent.TrackUnsubscribed, unsubscribed)
     .on(RoomEvent.TrackMuted, peer)
@@ -142,7 +152,7 @@ async function connectLiveKit(url: string, token: string, settings: Settings, on
   // A device that fails now leaves that side off; the call goes on with what remains.
   if (settings.microphone) await room.localParticipant.setMicrophoneEnabled(true).catch(() => undefined)
   if (settings.camera) await room.localParticipant.setCameraEnabled(true).catch(() => undefined)
-  peer()
+  participants()
 
   return {
     show(remote, local) {
@@ -162,9 +172,20 @@ async function connectLiveKit(url: string, token: string, settings: Settings, on
   }
 }
 
-// peerOf is the other participant: the room holds at most two (SPEC §2 "Rooms").
-function peerOf(room: LiveKitRoom): Peer {
-  const p = [...room.remoteParticipants.values()][0]
+// personIn is the other person among the remote participants: the room holds at most two people (SPEC §2
+// "Rooms"), and the agent, which is not one.
+function personIn(participants: RemoteParticipant[]): RemoteParticipant | undefined {
+  return participants.find((p) => !p.isAgent)
+}
+
+// agentIn says whether the transcription agent is among the remote participants.
+export function agentIn(participants: RemoteParticipant[]): boolean {
+  return participants.some((p) => p.isAgent)
+}
+
+// peerOf is the other person, as the screen shows them.
+export function peerOf(participants: RemoteParticipant[]): Peer {
+  const p = personIn(participants)
   if (!p) return { present: false, camera: false, microphone: false }
   const on = (source: Track.Source) => {
     const publication = p.getTrackPublication(source)
