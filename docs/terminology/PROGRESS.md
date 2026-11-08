@@ -5,8 +5,8 @@
 | 0.1 Baseline | done (integrated 2026-11-07) | 9b906c3 |
 | 1.1 internal/terminology: service and API | done (integrated 2026-11-08) | 8f9f6ff |
 | 1.2 tools/terminology: the seed | done (integrated 2026-11-08) | cd5ded5 |
-| 2.1 salusctl: import, export and curation | not started | |
-| 2.2 Web: the cheatsheet | not started | |
+| 2.1 salusctl: import, export and curation | done (integrated 2026-11-08) | 7a25651 |
+| 2.2 Web: the cheatsheet | done (integrated 2026-11-08) | 60a129d |
 | 3.1 End-to-end, walk and the partner's file | not started | |
 
 ## Facts
@@ -27,6 +27,11 @@
   while the owner was away", the orchestrator): started with `docker compose up -d --build --wait` from the
   integration worktree, host ports moved off those another local project holds, and each package's decisions
   and new copy copied here from its own log section at integration.
+- **Wave 2 integration: the web dev server proxies `/terminology` to the API** (`web/vite.config.ts`, one line),
+  as 2.2 found the cheatsheet otherwise gets `index.html` on `make web-dev`.
+- **The seed is in the dev database**, loaded at wave 2's integration with `make terminology-import` after the
+  stack was rebuilt from `feat/terminology` (which applied 00030): created 4,943, refused 0; anatomy 1,500,
+  diagnosis 2,000, symptom 500, procedure 143, drug 800.
 
 #### 0.1 Baseline
 
@@ -98,6 +103,65 @@
   tool copies, the curator corrects; filtering them would hide data errors from the review.
 - **JSON key order** is `labels` first, then `wikidata`, `category`, codes, `rank` (struct order, which `govet`
   fieldalignment sets); the 0.1 contract's example order is not significant to a JSON reader.
+
+#### 2.1 salusctl: import, export and curation
+
+- **The seed import adds only terms that are not there** (by Wikidata id) and never changes an existing one, its
+  rank and codes included: a later fetch must not overwrite the partner's labels or review. New seed data for an
+  existing term reaches it through the CSV.
+- **A CSV row without an id is refused** ("new terms come from the seed"): the SPEC's import is an upsert by id
+  with unknown ids refused, and inserting id-less rows would add a duplicate on every re-import (not idempotent).
+  Clinic- or curator-added terms are out of this feature (SPEC §3).
+- **A CSV header with an unknown, missing or repeated column refuses the whole file** before any write: a column
+  renamed in a spreadsheet would otherwise empty that language's labels on every row. A row with another number
+  of cells, or a rank that is not a whole number, is refused for that row. The SPEC's "an unknown column … is
+  refused for that row" read this way: a header column is not a row's.
+- **A row equal to its stored term is not written** (labels compared in any order), so re-importing a file
+  leaves `updated_at` alone: idempotent in effect, and the report's `unchanged` tells the curator what they
+  touched.
+- **A repeated id in one file is refused after its first row**, so the result never depends on row order.
+- **Synonyms are joined with ` | `** in one cell: labels in the seed contain `;` and `,` but never `|`; a label
+  with `|` is refused at import so the round trip stays exact.
+- **A cell starting with `=`, `+`, `-`, `@`, a tab or a carriage return gets a leading `'`** on export and loses it
+  on import: Wikidata text is open to anyone's edits and must not run as a spreadsheet formula on the partner's
+  machine (e.g. `-(+)-biotin`).
+- **A byte order mark starts the export** (Excel reads UTF-8 CSV without it as the local code page, breaking
+  Cyrillic and Arabic); the import skips it when present.
+- **Not audited**: the terms are reference data without personal data (SPEC §4), as the search is not.
+- **The `reviewed_at` set on the transition is salusctl's clock**, not the file's: the CSV has no date column, so
+  a curator can't backdate a review.
+- **The dev database was not migrated or loaded.** It is at migration 00028 (the wave notes said 00030):
+  `term` does not exist there. Migrating it would apply the languages plan's 00029, which rewrites questionnaire
+  rows, beyond the one write wave 2 is allowed; that belongs to the integration step. The load was verified on a
+  throwaway database instead (above). The integration step runs `make migrate`, then `make terminology-import`,
+  and should see the same counts.
+
+#### 2.2 Web: the cheatsheet
+
+- **"More languages" adds the other staff languages** (Bosnian, Croatian, Serbian in both scripts, whichever are
+  not shown already), not German, Arabic, Turkish, Italian or French: SPEC §1 and T2 name Latin and the local
+  languages and English, and the web app has names only for its own languages.
+- **One request carries all six languages** (Latin, UI, English, then the others, `languages` comma separated as
+  the contract's `explode: false`), so "More languages" shows at once without a second search and the API
+  never reads the account's language (1.1's audited fallback).
+- **Language names in the cells are translated per UI language** (e.g. "Engleski" in the Croatian UI), from the
+  terminology catalog, not the endonyms of `web/src/language.ts`: T3 has "Latin" and "English" translated, and
+  mixing endonyms with translated names in one row reads oddly.
+- **Each language cell carries its own small language caption** instead of a table header row, so the same
+  markup reads at 390 px with the cells stacked.
+- **A Copy button per shown preferred label**; synonyms are shown but not copied by a button (SPEC: "a copy
+  button on each label"; one per cell keeps the row calm). "Copied" stays on that button until the next copy or
+  answer; no timer.
+- **A refused clipboard write shows nothing** (no "Copied"); no new error text.
+- **Enter on a term without a UI-language label copies nothing.** The cell shows "No term in … yet".
+- **Ctrl+K and ⌘K both open it on every platform**; only the name in the tooltip follows the platform
+  (`navigator.platform` matching Mac, iPhone, iPad).
+- **ICD-10 is "MKB-10" in Bosnian, Croatian and Serbian** (МКБ-10 in Cyrillic), as doctors in BiH write it; TA98,
+  ATC and ICD-10-PCS stay as they are.
+- **Bosnian and Serbian "Procedura", Croatian "Postupak"** for Procedure; "izraz" rather than "pojam" in T11
+  (`{language}: još nema izraza`), because "nema pojma" reads as "no idea".
+- **The palette's styles are in `web/src/terminology/cheatsheet.css`**, imported by the component, so `app.css`
+  (not this package's) is untouched.
 
 ## Waiting on people
 

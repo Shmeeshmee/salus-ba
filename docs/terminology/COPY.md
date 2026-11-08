@@ -17,4 +17,12 @@ Status: draft, 2026-11-07. The owner approves it by starting the run (the run pr
 
 ## Added by a package, not yet reviewed
 
-(empty)
+Written by a package during the unattended run of 2026-11-07; each waits for the owner's review.
+
+### 2.2 Web: the cheatsheet
+
+- T13 `terminology.title` (the palette's and the result list's accessible name): "Medical terms".
+- T14 `terminology.close` (the palette's close button, needed where there is no Escape key, e.g. on a phone):
+  "Close".
+- T15 `terminology.language.bs`, `.hr`, `.srLatn`, `.srCyrl` (cell captions and T11's `{language}`, beside T3's
+  "Latin" and "English"): "Bosnian", "Croatian", "Serbian (Latin)", "Serbian (Cyrillic)".
