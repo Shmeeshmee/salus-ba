@@ -15,6 +15,7 @@ E2E     := $(COMPOSE) run --rm -T playwright
 # The services the Go tests reach (the tools service's depends_on), and the tests themselves.
 TEST_SERVICES := postgres redis mailpit livekit objectstore clamd
 GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...
+GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
 .PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	terminology-fetch terminology-import terminology-export \
@@ -102,9 +103,9 @@ archcheck: tools-image
 ## removed.
 arch-gate: tools-image
 	$(COMPOSE) up -d --no-recreate --wait $(TEST_SERVICES)
-	$(COMPOSE) run --rm --no-deps tools go -C tools run ./archcheck -root /src
-	$(COMPOSE) run --rm --no-deps tools go vet ./...
-	$(COMPOSE) run --rm --no-deps tools sh -c '$(GO_TEST)'
+	$(GO_NODEPS) go -C tools run ./archcheck -root /src
+	$(GO_NODEPS) go vet ./...
+	$(GO_NODEPS) sh -c '$(GO_TEST)'
 
 ## e2e: start the stack and run the end-to-end tests against it in the playwright service, on the compose network:
 ## the Go journeys (the API, Mailpit's API, salusctl built here on the owner's DATABASE_URL, LiveKit), the web
