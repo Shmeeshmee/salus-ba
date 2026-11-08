@@ -142,5 +142,22 @@
     "defaultMessage": "The patient's consent for this clinic is not active, so a questionnaire cannot be requested.",
     "description": "legal"
   },
-  "requestErrors.submitted": "The patient has already submitted this questionnaire."
+  "requestErrors.submitted": "The patient has already submitted this questionnaire.",
+  "languages": "Languages",
+  "originalLanguage": "Original language",
+  "addTranslation": "Add translation",
+  "translationProgress": "{language}: {n} of {total, plural, one {# text} other {# texts}} translated",
+  "translationComplete": "{language}: complete",
+  "removeTranslation": "Remove translation",
+  "removeTranslationQuestion": "Remove the {language} translation?",
+  "removeTranslationWarning": "Its texts are deleted from this draft.",
+  "removeConfirm": "Remove",
+  "translateQuestion": "Add a translation before publishing?",
+  "translateWarning": "Patients who use Salus in another language will be asked to choose one of this questionnaire's languages.",
+  "publishWithout": "Publish without",
+  "translationIncomplete": "The {language} translation is not complete. Finish it or remove it to publish.",
+  "missingIn": "Missing in {language}",
+  "originalColumn": "Original ({language})",
+  "filledIn": "Filled in in {language}",
+  "showOriginal": "Show the original questions"
 }

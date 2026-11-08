@@ -1076,6 +1076,106 @@ Left for later:
 
 ### 2.2 Web: the translation editor
 
+Done 2026-11-08, on `i18n/2.2` (unattended run, wave 2).
+
+Built:
+- `questionnaire.ts`: a `Version` carries its original `language` and its `translations`, read from the FHIR
+  `Questionnaire.language` and the R4 `translation` extensions (`_title`, `_description`, `item._text`, the help
+  item's `_text`, `answerOption._valueString`, options by position) and from the JSON answer; `toRequest` sends
+  `language` and every translation, held to what the original has (blanks, removed items, help the original lacks
+  and a description the original lacks left out; a choice's options as many as the item has). The ten content
+  languages and their own names (COPY.md L1) are a constant there.
+- `translation.ts`: `progress` (n of total texts, the items that lack one, by 1.4's "Complete means"),
+  `firstIncomplete` (the API's rule: first in the enum's order), `unused`, `withItem`.
+- `Translations.tsx` and `translation.css`: the languages panel above the builder (B1 "Languages", B2 the
+  original-language select, B4 per translation a quiet button with "[language]: n of total texts translated" or
+  "[language]: complete" that opens it, and "Remove translation" with its confirmation, B3 "Add translation"
+  offering the enum's unused languages by their own names); the translation editor (B8): per text the original
+  on the left (its kind and its text) and the translation's field on the right, named by the kind and the
+  language, described by the original, `lang` and `dir="auto"` on the field (Arabic is written right to left);
+  stacked on a narrow screen. The palette and the item cards give way to it while a translation is open;
+  "Original ([language])" goes back.
+- `Builder.tsx`: the draft's language and translations are saved with it; a save takes the answer's
+  translations (the API drops a text whose original changed). Publishing: problems first as before; then an
+  incomplete translation is not offered (B6 alert, B7 "Missing in [language]" and the attention border on its
+  items); with no translation, B5 asks first ("Add translation" opens the language choice, "Publish without"
+  goes on to the usual confirmation); a 422 `translation_incomplete` shows B6 and B7 the same way.
+- `responses.ts` and `AppointmentQuestionnaires.tsx`: a response's `language` (FHIR
+  `QuestionnaireResponse.language`, 2.1); answered in a translation, the answers show the questions, section
+  titles and choice answers as the patient read them (the original's text where the translation lacks one), with
+  "Filled in in [language]" and the switch "Show the original questions" (B9). Answered in the original, only the
+  "Filled in in" line. Free-text answers are shown as written.
+- Catalog keys in `web/src/i18n/questionnaire/<language>.json`, five languages: `languages`,
+  `originalLanguage`, `addTranslation`, `translationProgress` (plural on the total), `translationComplete`,
+  `removeTranslation`, `removeTranslationQuestion`, `removeTranslationWarning`, `removeConfirm`,
+  `translateQuestion`, `translateWarning`, `publishWithout`, `translationIncomplete`, `missingIn`,
+  `originalColumn`, `filledIn`, `showOriginal`. None has legal weight.
+- `textLabel` moved from `ItemCard.tsx` to `builder.ts` (the item card and the translation editor share it, and
+  a component file exports components only); `all` in `builder.ts` exported.
+
+Test first (the failures seen, before the code):
+- `questionnaire.test.ts`: `expected undefined to deeply equal [ { language: 'en', …(3) } ]` (toRequest without
+  translations), and `v.translations` undefined on the FHIR and JSON reads.
+- `translation.test.ts`: `Failed to resolve import "./translation"`.
+- `Translations.test.tsx`: all nine red (`Unable to find a label with the text of: Original language`).
+- `Builder.test.tsx` with the publish checks taken out of `Builder.tsx` for the run: the five B5 to B7 tests red
+  (`Unable to find role="alertdialog" and name "Add a translation before publishing?"`, `expected 'Some items need
+  attention.' to be 'The English translation is not comple…'`), as were the six existing publish tests once they
+  answer B5. Two guards (marks gone after removing the translation, a complete translation goes straight to the
+  confirmation) pass either way. One first run red after the code was the test's own: a change to the same title
+  value is no change in React, so nothing was saved; the test now renames.
+- `responses.test.ts`: `expected undefined to be 'en'`; `AppointmentQuestionnaires.test.tsx`: `Unable to find an
+  element with the text: Filled in in English` (and the Bosanski and hr cases).
+
+Checks (each through `docker compose -f deployments/docker-compose.yml run --rm --no-deps -T node`, after `npm ci`):
+- Catalogs, `bash ../scripts/i18n-check.sh`: "catalogs pass".
+- `npm run lint` (oxlint): 0 warnings, 0 errors.
+- `npm run typecheck`: clean.
+- `npm test`: 32 files, 556 tests passed; run twice in a row, no flake.
+- `npm run build`: built (Vite's existing over-500 kB chunk warning).
+- No Go, mobile, migration or contract file changed: Go lint, archcheck, Go tests, FHIR validation and mobile
+  checks not applicable.
+- Literal-string grep over the package's files: no user-facing literal but the ten language names (L1), as in
+  `language.ts`.
+- No browser walk (3.1 walks; this session has no browser tool).
+
+Decided while the owner was away:
+- **The translation editor replaces the item list while a translation is open**, instead of a second column on
+  every item card: the cards keep their drag handles, types and options, and the translator needs only the
+  texts. The panel's buttons switch between the original and each translation, so the builder stays one column
+  with nothing new on the cards but B7.
+- **B5 comes before the usual publish confirmation**, not instead of it: "Publish without" goes on to "Publish this
+  questionnaire?", which keeps its warning that a published version cannot be changed. The six existing publish
+  tests answer B5 first (`withoutTranslation()`); nothing they assert changed.
+- **The builder checks completeness before it asks**, as it already checks the items: an incomplete translation
+  shows B6 and B7 without a request. On a 422 `translation_incomplete` the language comes from the same rule on
+  the translations the API holds (the save's answer), because `attempt` (`web/src/api/result.ts`, not this
+  package's file) passes on `linkIds` but not `language`; when the rule finds none, the alert is "Some items need
+  attention." on the items named.
+- **B7 is shown on the item cards** (the original view, where the doctor publishes) for the items the refused
+  translation lacks, and goes away as they are translated or when the translation is removed; the empty fields of
+  the translation editor say the rest.
+- **A translation with no text at all is not kept across a reload**: the builder reads drafts through FHIR, where
+  only translated texts carry the extension. Saved and reloaded before its title is written, it is gone, which
+  loses nothing.
+- **The ten language names live in `questionnaire.ts`** (the staff five from `language.ts`, plus Deutsch,
+  العربية, Türkçe, Italiano, Français), not in `language.ts`, which is 1.5's file; the FHIR translation fields are
+  typed there too (`FHIRQuestionnaire`), not in `api/fhir.ts`, for the same reason. The integration step may move
+  them.
+- **The response's language is read from FHIR `QuestionnaireResponse.language`**, which 2.1 adds; before 2.1 is
+  merged no response carries one and the answers view is as before.
+- **Choice answers are shown in the patient's language** in the translated view (the option at the same position),
+  since the patient read them so; the switch shows the original options with the original questions.
+- **The styles are in `web/src/translation.css`**, imported by the two components, not in `app.css`, which the
+  terminology package edits in the same wave.
+- **Words**: translation is *prijevod* (bs, hr) and *prevod* (sr, ijekavian Serbian uses it); "Original
+  ([language])" is *Izvornik* (bs, hr) and *Original* (sr); "complete" is "sve prevedeno"; "Filled in in" is
+  "Popunjeno na jeziku:" (bs, sr) and "Ispunjeno na jeziku:" (hr). The language name stays in the nominative in
+  parentheses or after a colon, so no case ending is built onto an endonym.
+
+COPY.md additions (not yet reviewed): none. Every English text is COPY.md B1 to B9 word for word; B4's count is
+written with a plural on the total, so a questionnaire of one text reads "1 of 1 text translated".
+
 ### 2.3 Mobile: choosing the questionnaire's language
 
 ### 3.1 End-to-end, walk and privacy

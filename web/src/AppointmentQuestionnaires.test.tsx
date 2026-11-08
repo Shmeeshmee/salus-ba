@@ -7,7 +7,7 @@ import { newApiClient } from './api/client'
 import { newFhirClient, type Questionnaire, type QuestionnaireResponse } from './api/fhir'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, paths, type Route } from './test/fakeFetch'
 import { appointment } from './test/fixtures'
-import { questionnaireFHIR } from './test/questionnaires'
+import { questionnaireFHIR, translatedFHIR } from './test/questionnaires'
 import { responseFHIR, responsesBundle } from './test/responses'
 
 afterEach(cleanup)
@@ -181,6 +181,55 @@ describe('AppointmentQuestionnaires', () => {
 
       fireEvent.click(row.getByRole('button', { name: 'Hide answers' }))
       expect(row.queryByText('Placeholder short answer')).toBeNull()
+    })
+
+    describe('answered in a translation (B9)', () => {
+      const translated: Questionnaire = { ...translatedFHIR(), status: 'active' }
+      const inLanguage = (language?: string) =>
+        ({
+          ...responseFHIR('r1', 'completed', {
+            authored: '2026-11-08T17:45:00Z',
+            item: [{ linkId: 'smoker', answer: [{ valueBoolean: true }] }, { linkId: 'sec', item: [{ linkId: 'one', answer: [{ valueString: 'B' }] }] }],
+          }),
+          language,
+        }) as QuestionnaireResponse
+
+      it('say the language, show the questions as the patient read them, and the original on the switch', async () => {
+        renderSection('own', [inLanguage('en')], [translated])
+        const row = await rowOf('Placeholder intake')
+        fireEvent.click(row.getByRole('button', { name: 'View answers' }))
+
+        expect(row.getByText('Filled in in English')).toBeTruthy()
+        const answers = (q: string) => row.getByText(q).closest('div')!.querySelector('dd')!
+        expect(answers('Placeholder single in English').textContent).toBe('B in English')
+        expect(row.getByRole('heading', { name: 'Placeholder section in English' })).toBeTruthy()
+        const original = row.getByRole('switch', { name: 'Show the original questions' }) as HTMLInputElement
+        expect(original.checked).toBe(false)
+
+        fireEvent.click(original)
+        expect(answers('Placeholder single').textContent).toBe('B')
+        expect(row.getByRole('heading', { name: 'Placeholder section' })).toBeTruthy()
+        expect(row.queryByText('Placeholder single in English')).toBeNull()
+      })
+
+      it('say the language without a switch when the patient answered in the original', async () => {
+        renderSection('own', [inLanguage('bs')], [translated])
+        const row = await rowOf('Placeholder intake')
+        fireEvent.click(row.getByRole('button', { name: 'View answers' }))
+
+        expect(row.getByText('Filled in in Bosanski')).toBeTruthy()
+        expect(row.queryByRole('switch')).toBeNull()
+        expect(row.getByText('Placeholder single')).toBeTruthy()
+      })
+
+      it('are in the UI language', async () => {
+        renderSection('own', [inLanguage('en')], [translated], {}, { language: 'hr' })
+        const row = within((await screen.findByText('Placeholder intake')).closest('li')!)
+        fireEvent.click(row.getByRole('button', { name: 'Prikaži odgovore' }))
+
+        expect(row.getByText('Ispunjeno na jeziku: English')).toBeTruthy()
+        expect(row.getByRole('switch', { name: 'Prikaži izvorna pitanja' })).toBeTruthy()
+      })
     })
 
     it('list the files of a file upload item, each to open, and say Not answered without one (W7, W8)', async () => {

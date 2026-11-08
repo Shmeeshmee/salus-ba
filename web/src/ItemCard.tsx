@@ -9,6 +9,7 @@ import {
   maxOption,
   maxOptions,
   maxText,
+  textLabel,
   type Condition,
   type FileKind,
   type Item,
@@ -33,6 +34,7 @@ type EditProps = {
   label: (it: Item) => string
   open: boolean
   problems: string[]
+  missingIn?: string // B7, on an item a translation lacks a text of
   attention: boolean
   canUp: boolean
   canDown: boolean
@@ -90,11 +92,12 @@ export function ItemCard({ nodeRef, style, handle, dragging, ...p }: CardProps) 
           <CrossIcon />
         </button>
       </div>
-      {p.problems.length > 0 && (
+      {(p.problems.length > 0 || p.missingIn) && (
         <ul className="problems">
           {p.problems.map((m) => (
             <li key={m}>{t(m)}</li>
           ))}
+          {p.missingIn && <li>{p.missingIn}</li>}
         </ul>
       )}
       {confirming && (
@@ -111,13 +114,6 @@ export function ItemCard({ nodeRef, style, handle, dragging, ...p }: CardProps) 
       {p.open && <ItemEditor {...p} />}
     </li>
   )
-}
-
-// textLabel is the message id of the label of the item's text: a section's title, instructions, or a question.
-function textLabel(kind: Kind): string {
-  if (kind === 'group') return 'questionnaire.sectionTitle'
-  if (kind === 'display') return 'questionnaire.instructions'
-  return 'questionnaire.question'
 }
 
 function ItemEditor(p: EditProps) {

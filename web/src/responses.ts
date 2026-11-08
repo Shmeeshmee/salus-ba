@@ -1,9 +1,9 @@
 import type { AnswerValue, Bundle, Questionnaire, QuestionnaireResponse, QuestionnaireResponseItem } from './api/fhir'
-import { isQuestion, type Condition, type Item, type Kind } from './builder'
+import { find, isChoice, isQuestion, type Condition, type Item, type Kind } from './builder'
 import { formatDate, formatTime, intlLocale } from './i18n/format'
 import type { Language } from './i18n/languages'
 import type { useT } from './i18n/useT'
-import { fromFHIR, type Version } from './questionnaire'
+import { fromFHIR, isContentLanguage, type ContentLanguage, type Translation, type Version } from './questionnaire'
 
 type T = ReturnType<typeof useT>
 
@@ -25,7 +25,12 @@ export type Request = {
   status: ResponseStatus
   authored?: string
   answers: Block[] // only for a submitted response
+  language?: ContentLanguage // the language the patient answered in (B9); none before they started
+  translated?: Block[] // the answers with the questions in that language, when it is not the original
 }
+
+// The FHIR response carries the language answered in (QuestionnaireResponse.language).
+type FHIRResponse = QuestionnaireResponse & { language?: string }
 
 function flatten(items: QuestionnaireResponseItem[], out: Map<string, AnswerValue[]>): Map<string, AnswerValue[]> {
   for (const it of items) {
@@ -86,14 +91,48 @@ export function valueText(v: AnswerValue, t: T, language: Language): string {
   return v.valueString ?? ''
 }
 
-function requestOf(r: QuestionnaireResponse, v?: Version): Request {
+const filled = (s?: string): s is string => s !== undefined && s.trim() !== ''
+
+// inTranslation is the items with their texts in the translation, the original's where it lacks one. The
+// options stay the original's: the answers and the conditions are written in them.
+function inTranslation(items: Item[], t: Translation): Item[] {
+  return items.map((it) => {
+    const text = t.items[it.linkId]?.text
+    return { ...it, text: filled(text) ? text : it.text, items: inTranslation(it.items, t) }
+  })
+}
+
+// translatedValues gives a choice answer as the patient read it: the option at the same position in the translation.
+function translatedValues(q: Question, items: Item[], t: Translation): Question {
+  const item = find(items, q.linkId)
+  if (!item || !isChoice(item.kind)) return q
+  const options = t.items[q.linkId]?.options ?? []
+  const values = q.values.map((v) => {
+    const option = options[item.options.indexOf(v.valueString ?? '')]
+    return filled(option) ? { valueString: option } : v
+  })
+  return { ...q, values }
+}
+
+// translatedAnswers is the answers as the patient read the questions (B9), when they answered in a translation.
+function translatedAnswers(v: Version, language: ContentLanguage | undefined, r: QuestionnaireResponse): Block[] | undefined {
+  const t = v.translations.find((x) => x.language === language)
+  if (!t || language === v.language) return undefined
+  return answered(inTranslation(v.items, t), r.item).map((b) => ({ ...b, questions: b.questions.map((q) => translatedValues(q, v.items, t)) }))
+}
+
+function requestOf(r: FHIRResponse, v?: Version): Request {
+  const language = isContentLanguage(r.language) ? r.language : undefined
+  const submitted = v && r.status === 'completed'
   return {
     id: r.id,
     url: v?.url,
     title: v?.title,
     status: r.status,
     authored: r.authored,
-    answers: v && r.status === 'completed' ? answered(v.items, r.item) : [],
+    answers: submitted ? answered(v.items, r.item) : [],
+    language,
+    translated: submitted ? translatedAnswers(v, language, r) : undefined,
   }
 }
 

@@ -51,6 +51,13 @@ export const isChoice = (k: Kind) => k === 'single' || k === 'multiple'
 export const isQuestion = (k: Kind) => k !== 'group' && k !== 'display'
 const conditional = (k: Kind) => k === 'boolean' || isChoice(k)
 
+// textLabel is the message id of the label of the item's text: a section's title, instructions, or a question.
+export function textLabel(kind: Kind): string {
+  if (kind === 'group') return 'questionnaire.sectionTitle'
+  if (kind === 'display') return 'questionnaire.instructions'
+  return 'questionnaire.question'
+}
+
 export function endId(section: Item): string {
   return `end-${section.linkId}`
 }
@@ -138,7 +145,7 @@ export function step(items: Item[], linkId: string, dir: -1 | 1): Result | undef
 }
 
 // all is every item in document order.
-function all(items: Item[]): Item[] {
+export function all(items: Item[]): Item[] {
   return items.flatMap((it) => [it, ...it.items])
 }
 

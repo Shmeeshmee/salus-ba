@@ -7,9 +7,10 @@ import { Files } from './Files'
 import type { Language } from './i18n/languages'
 import { useLanguage, useT } from './i18n/useT'
 import { useLoad } from './load'
-import { fromFHIR, type Version } from './questionnaire'
-import { requestOfVersion, requestsOf, statusOf, valueText, type Block, type Question, type Request } from './responses'
+import { contentLanguageNames, fromFHIR, type Version } from './questionnaire'
+import { requestOfVersion, requestsOf, statusOf, valueText, type Question, type Request } from './responses'
 import { Alert, Confirm, TipTag } from './ui'
+import './translation.css'
 
 type Props = { api: ApiClient; fhir: FhirClient; appt: Appointment; zone: string; own: boolean; admin: boolean; now: Date }
 
@@ -120,16 +121,32 @@ function RequestRow({ api, request, status, own, admin, onChanged }: RowProps) {
           }}
         />
       )}
-      {open && <Answers api={api} blocks={request.answers} />}
+      {open && <Answers api={api} request={request} />}
     </li>
   )
 }
 
-function Answers({ api, blocks }: { api: ApiClient; blocks: Block[] }) {
+// Answers is a submitted response's answers. Answered in a translation, the questions are shown as the patient
+// read them, with a switch to the original (B9); free-text answers are shown as written.
+function Answers({ api, request }: { api: ApiClient; request: Request }) {
   const t = useT()
+  const id = useId()
   const { language } = useLanguage()
+  const [original, setOriginal] = useState(false)
+  const blocks = request.translated && !original ? request.translated : request.answers
   return (
     <div className="answers">
+      {request.language && (
+        <div className="answered-in">
+          <p className="muted">{t('questionnaire.filledIn', { language: contentLanguageNames[request.language] })}</p>
+          {request.translated && (
+            <div className="check">
+              <input id={`${id}-original`} type="checkbox" role="switch" checked={original} onChange={(e) => setOriginal(e.target.checked)} />
+              <label htmlFor={`${id}-original`}>{t('questionnaire.showOriginal')}</label>
+            </div>
+          )}
+        </div>
+      )}
       {blocks.map((b) => (
         <Fragment key={b.questions[0].linkId}>
           {b.section !== undefined && <h3>{b.section}</h3>}

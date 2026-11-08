@@ -142,5 +142,22 @@
     "defaultMessage": "Privola pacijenta za ovu kliniku nije aktivna pa se upitnik ne može zatražiti.",
     "description": "legal"
   },
-  "requestErrors.submitted": "Pacijent je već predao ovaj upitnik."
+  "requestErrors.submitted": "Pacijent je već predao ovaj upitnik.",
+  "languages": "Jezici",
+  "originalLanguage": "Izvorni jezik",
+  "addTranslation": "Dodaj prijevod",
+  "translationProgress": "{language}: prevedeno {n} od {total, plural, one {# teksta} few {# teksta} other {# tekstova}}",
+  "translationComplete": "{language}: sve prevedeno",
+  "removeTranslation": "Ukloni prijevod",
+  "removeTranslationQuestion": "Ukloniti prijevod ({language})?",
+  "removeTranslationWarning": "Njegovi tekstovi bit će izbrisani iz ovog nacrta.",
+  "removeConfirm": "Ukloni",
+  "translateQuestion": "Dodati prijevod prije objave?",
+  "translateWarning": "Od pacijenata koji Salus koriste na drugom jeziku tražit će se da odaberu jedan od jezika ovog upitnika.",
+  "publishWithout": "Objavi bez prijevoda",
+  "translationIncomplete": "Prijevod ({language}) nije dovršen. Dovršite ga ili ga uklonite kako biste objavili upitnik.",
+  "missingIn": "Nedostaje prijevod ({language})",
+  "originalColumn": "Izvornik ({language})",
+  "filledIn": "Ispunjeno na jeziku: {language}",
+  "showOriginal": "Prikaži izvorna pitanja"
 }

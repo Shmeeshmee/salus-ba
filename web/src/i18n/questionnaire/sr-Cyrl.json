@@ -142,5 +142,22 @@
     "defaultMessage": "Сагласност пацијента за ову клинику није активна, па се упитник не може затражити.",
     "description": "legal"
   },
-  "requestErrors.submitted": "Пацијент је већ предао овај упитник."
+  "requestErrors.submitted": "Пацијент је већ предао овај упитник.",
+  "languages": "Језици",
+  "originalLanguage": "Изворни језик",
+  "addTranslation": "Додај превод",
+  "translationProgress": "{language}: преведено {n} од {total, plural, one {# текста} few {# текста} other {# текстова}}",
+  "translationComplete": "{language}: све преведено",
+  "removeTranslation": "Уклони превод",
+  "removeTranslationQuestion": "Уклонити превод ({language})?",
+  "removeTranslationWarning": "Његови текстови биће избрисани из овог нацрта.",
+  "removeConfirm": "Уклони",
+  "translateQuestion": "Додати превод прије објављивања?",
+  "translateWarning": "Пацијенти који користе Salus на другом језику биће упитани да изаберу један од језика овог упитника.",
+  "publishWithout": "Објави без превода",
+  "translationIncomplete": "Превод ({language}) није завршен. Завршите га или га уклоните да бисте објавили упитник.",
+  "missingIn": "Недостаје превод ({language})",
+  "originalColumn": "Оригинал ({language})",
+  "filledIn": "Попуњено на језику: {language}",
+  "showOriginal": "Прикажи изворна питања"
 }
