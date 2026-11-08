@@ -835,6 +835,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/terminology/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search the medical terminology
+         * @description The cheatsheet's search (docs/terminology/SPEC.md §3 "API and UI"). Matches q against every label of every term in every language, case and accents aside: an exact label first, then a label that starts with q, then a word within trigram distance (later words of a label, misspellings), then the more common term. Each match carries its labels in the requested languages. Staff only (practitioners and admins). Not audited: it reads no patient data. The search text is never logged or stored, and no error repeats it.
+         */
+        get: operations["searchTerminology"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhooks/livekit": {
         parameters: {
             query?: never;
@@ -980,6 +1000,47 @@ export interface components {
          * @enum {string}
          */
         Language: "bs" | "hr" | "sr-Latn" | "sr-Cyrl" | "en" | "de" | "ar" | "tr" | "it" | "fr";
+        /**
+         * @description A label's language (docs/terminology/SPEC.md §3 "Database"), Latin then the ten app languages.
+         * @enum {string}
+         */
+        TermLanguage: "la" | "bs" | "hr" | "sr-Latn" | "sr-Cyrl" | "en" | "de" | "ar" | "tr" | "it" | "fr";
+        /** @enum {string} */
+        TermCategory: "anatomy" | "diagnosis" | "symptom" | "procedure" | "drug";
+        /** @description The codes that identify the term, each absent when it has none; several codes of one kind are joined with ", ". Identifiers only, from Wikidata (docs/terminology/SOURCES.md). */
+        TermCodes: {
+            /** @description The Wikidata item, e.g. Q9368. */
+            wikidata?: string;
+            icd10?: string;
+            /** @description Terminologia Anatomica 98. */
+            ta98?: string;
+            atc?: string;
+            /** @description An ICD-10-PCS or ICD-9-CM procedure code. */
+            pcs?: string;
+        };
+        TermLabels: {
+            language: components["schemas"]["TermLanguage"];
+            /** @description The preferred label in this language; the first alphabetically when none is marked. */
+            preferred: string;
+            /** @description The other labels in this language, alphabetically; empty when there are none. */
+            synonyms: string[];
+        };
+        Term: {
+            /** Format: uuid */
+            id: string;
+            category: components["schemas"]["TermCategory"];
+            /**
+             * @description `draft` until the curator has reviewed the term (the UI marks it "Not reviewed yet").
+             * @enum {string}
+             */
+            reviewStatus: "draft" | "reviewed";
+            codes: components["schemas"]["TermCodes"];
+            /** @description One entry per requested language that has a label, in the order requested. A language with no label is absent: gaps are never filled by machine translation. */
+            labels: components["schemas"]["TermLabels"][];
+        };
+        TermList: {
+            terms: components["schemas"]["Term"][];
+        };
         /** @description The patient's profile (docs/booking/SPEC.md "Profile"). Health data. */
         Patient: {
             /** Format: uuid */
@@ -3857,6 +3918,63 @@ export interface operations {
                 headers: {
                     /** @description `bytes *\/<size>`. */
                     "Content-Range"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    searchTerminology: {
+        parameters: {
+            query: {
+                /** @description The search text, 1 to 100 characters. */
+                q: string;
+                /** @description The languages whose labels come back, in the order the client shows them. Default: la, the caller's UI language, en. */
+                languages?: components["schemas"]["TermLanguage"][];
+                /** @description Only terms of this category; any when absent. */
+                category?: components["schemas"]["TermCategory"];
+                /** @description How many terms at most. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The matching terms, best first; an empty list when none match. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermList"];
+                };
+            };
+            /** @description `invalid_request`: q missing, blank or longer than 100 characters, or an unknown language, category or limit. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: the caller is not staff of a clinic (a patient). */
+            403: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {

@@ -27,6 +27,8 @@ tables:
   schedule: {owner: schedule, personal_data: true}
   session: {owner: auth, personal_data: true}
   slot: {owner: slot, personal_data: true}
+  term: {owner: terminology, personal_data: false}
+  term_label: {owner: terminology, personal_data: false}
   video_session: {owner: videosession, personal_data: true}
   river_job: {owner: river}
   river_leader: {owner: river}

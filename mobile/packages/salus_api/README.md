@@ -117,6 +117,7 @@ Class | Method | HTTP request | Description
 *QuestionnairesApi* | [**withdrawQuestionnaire**](doc//QuestionnairesApi.md#withdrawquestionnaire) | **POST** /questionnaire-responses/{id}/withdraw | Withdraw a questionnaire request
 *SchedulingApi* | [**getAvailability**](doc//SchedulingApi.md#getavailability) | **GET** /practitioner-roles/{id}/availability | Read a practitioner role's weekly availability
 *SchedulingApi* | [**saveAvailability**](doc//SchedulingApi.md#saveavailability) | **PUT** /practitioner-roles/{id}/availability | Set a practitioner role's weekly availability
+*TerminologyApi* | [**searchTerminology**](doc//TerminologyApi.md#searchterminology) | **GET** /terminology/search | Search the medical terminology
 
 
 ## Documentation For Models
@@ -170,6 +171,12 @@ Class | Method | HTTP request | Description
  - [SpecialtyList](doc//SpecialtyList.md)
  - [StartQuestionnaireRequest](doc//StartQuestionnaireRequest.md)
  - [Status](doc//Status.md)
+ - [Term](doc//Term.md)
+ - [TermCategory](doc//TermCategory.md)
+ - [TermCodes](doc//TermCodes.md)
+ - [TermLabels](doc//TermLabels.md)
+ - [TermLanguage](doc//TermLanguage.md)
+ - [TermList](doc//TermList.md)
  - [Unavailable](doc//Unavailable.md)
  - [UpdateMeRequest](doc//UpdateMeRequest.md)
  - [VerifyRequest](doc//VerifyRequest.md)

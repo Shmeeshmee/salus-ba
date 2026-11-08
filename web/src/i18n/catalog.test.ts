@@ -9,7 +9,7 @@ describe('the catalogs', () => {
   })
 
   it('has the areas of the plan', () => {
-    expect([...areas].sort()).toEqual(['admin', 'attachments', 'auth', 'calendar', 'common', 'consultation', 'questionnaire', 'shell'])
+    expect([...areas].sort()).toEqual(['admin', 'attachments', 'auth', 'calendar', 'common', 'consultation', 'questionnaire', 'shell', 'terminology'])
   })
 })
 
@@ -44,5 +44,18 @@ describe('questionnaire.dependents', () => {
     const t = translator(language)
     expect(t('questionnaire.dependents', { n: 1 })).toMatch(/^1 /)
     expect(t('questionnaire.dependents', { n: 1 })).not.toBe(t('questionnaire.dependents', { n: 5 }).replace(/^5 /, '1 '))
+  })
+})
+
+// T12 (docs/terminology/COPY.md, owner's answer of 2026-11-08): the palette's footer says not every term is reviewed.
+describe('terminology.source', () => {
+  it.each([
+    ['bs', 'Pojmovi su preuzeti iz Wikidata. Nisu još svi pojmovi provjereni.'],
+    ['hr', 'Pojmovi su preuzeti iz Wikidata. Nisu još svi pojmovi provjereni.'],
+    ['sr-Latn', 'Pojmovi su preuzeti iz Wikidata. Nisu još svi pojmovi provjereni.'],
+    ['sr-Cyrl', 'Појмови су преузети из Wikidata. Нису још сви појмови провјерени.'],
+    ['en', 'Terms from Wikidata. Not every term has been reviewed yet.'],
+  ] as const)('is the approved text in %s', (language, text) => {
+    expect(messagesFor(language)['terminology.source']).toBe(text)
   })
 })

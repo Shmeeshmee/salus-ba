@@ -82,6 +82,7 @@ clinical      binary, questionnaire, questionnaireresponse, observation, conditi
 privacy       consent, auditevent, datarequest (GDPR subject requests), retention
               and the pure rule package access (who may see what)
 notification  notification
+reference     terminology (the medical term list: reference data, no personal data, read-only for the app)
 ```
 
 Start with the fewest domains a feature needs. Add a domain when a SPEC asks for it, and add it to the lists

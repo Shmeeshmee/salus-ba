@@ -12,7 +12,8 @@ FLUTTER := $(COMPOSE) run --rm -T flutter
 LANDING := $(COMPOSE) run --rm -T -w /src/landing node
 E2E     := $(COMPOSE) run --rm -T playwright
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+	terminology-fetch terminology-import terminology-export \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
@@ -71,6 +72,11 @@ bench-questionnaire-http: up tools-image
 bench-binary-http: tools-image
 	$(GO) go test -tags loadtest -count=1 -v -run TestBinaryHTTPReadings ./internal/api/
 
+## bench-terminology: the terminology search through the service on a database loaded with the seed, 50 searches at
+## a time, with its p95 (docs/terminology/SPEC.md §3 "Search": under 15 ms; PROGRESS.md, package 1.1)
+bench-terminology: tools-image
+	$(GO) go test -run '^$$' -bench 'BenchmarkSearch' -benchtime=2000x -count=3 ./internal/terminology
+
 ## lint: gofmt, go vet, golangci-lint (both modules), the migration immutability check, and the catalog check
 ## (the e-mail templates)
 lint: tools-image i18n-check
@@ -128,6 +134,22 @@ migrate-create: tools-image
 ## command against the compose Postgres, connected as the owner (docs/accounts/SPEC.md "Operator commands")
 salusctl: tools-image
 	$(GO) go run ./cmd/salusctl $(args)
+
+## terminology-fetch: fetch the seed from Wikidata's SPARQL endpoint (network) and write
+## assets/terminology/seed.jsonl (tools/terminology; docs/terminology/SPEC.md §3 "Data"). Never part of a build.
+terminology-fetch: tools-image
+	$(GO) go -C tools run ./terminology -out ../assets/terminology/seed.jsonl
+
+## terminology-import [file=<path>]: load the seed (the default) or a curated CSV into the compose Postgres as the
+## owner (salusctl terminology import; docs/terminology/SPEC.md §3 "Curation")
+terminology-import: tools-image
+	$(GO) go run ./cmd/salusctl terminology import $(or $(file),assets/terminology/seed.jsonl)
+
+## terminology-export out=<path> [status=draft]: write the terms as the curator's CSV (salusctl terminology export),
+## to a path under the repository
+terminology-export: tools-image
+	$(if $(out),,$(error terminology-export: out=<path> is required, e.g. make terminology-export out=terms.csv))
+	$(GO) go run ./cmd/salusctl terminology export -o $(out) $(if $(status),-status $(status))
 
 ## sqlc: generate the domains' query packages (sqlc.yaml arrives with the first domain)
 sqlc: tools-image

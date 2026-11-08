@@ -109,6 +109,102 @@ func (ns NullRiverJobState) Value() (driver.Value, error) {
 	return string(ns.RiverJobState), nil
 }
 
+type TermCategory string
+
+const (
+	TermCategoryAnatomy   TermCategory = "anatomy"
+	TermCategoryDiagnosis TermCategory = "diagnosis"
+	TermCategorySymptom   TermCategory = "symptom"
+	TermCategoryProcedure TermCategory = "procedure"
+	TermCategoryDrug      TermCategory = "drug"
+)
+
+func (e *TermCategory) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TermCategory(s)
+	case string:
+		*e = TermCategory(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TermCategory: %T", src)
+	}
+	return nil
+}
+
+type NullTermCategory struct {
+	TermCategory TermCategory
+	Valid        bool // Valid is true if TermCategory is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTermCategory) Scan(value interface{}) error {
+	if value == nil {
+		ns.TermCategory, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TermCategory.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTermCategory) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TermCategory), nil
+}
+
+type TermLanguage string
+
+const (
+	TermLanguageLa     TermLanguage = "la"
+	TermLanguageBs     TermLanguage = "bs"
+	TermLanguageHr     TermLanguage = "hr"
+	TermLanguageSrLatn TermLanguage = "sr-Latn"
+	TermLanguageSrCyrl TermLanguage = "sr-Cyrl"
+	TermLanguageEn     TermLanguage = "en"
+	TermLanguageDe     TermLanguage = "de"
+	TermLanguageAr     TermLanguage = "ar"
+	TermLanguageTr     TermLanguage = "tr"
+	TermLanguageIt     TermLanguage = "it"
+	TermLanguageFr     TermLanguage = "fr"
+)
+
+func (e *TermLanguage) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TermLanguage(s)
+	case string:
+		*e = TermLanguage(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TermLanguage: %T", src)
+	}
+	return nil
+}
+
+type NullTermLanguage struct {
+	TermLanguage TermLanguage
+	Valid        bool // Valid is true if TermLanguage is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTermLanguage) Scan(value interface{}) error {
+	if value == nil {
+		ns.TermLanguage, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TermLanguage.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTermLanguage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TermLanguage), nil
+}
+
 type Account struct {
 	ID               pgtype.UUID
 	CreatedAt        pgtype.Timestamptz
@@ -395,6 +491,30 @@ type Slot struct {
 	VersionID      int32
 	Status         string
 	Period         pgtype.Range[pgtype.Timestamptz]
+}
+
+type Term struct {
+	ID           pgtype.UUID
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+	ReviewedAt   pgtype.Timestamptz
+	Rank         int32
+	Category     TermCategory
+	ReviewStatus string
+	WikidataID   pgtype.Text
+	Icd10        pgtype.Text
+	Ta98         pgtype.Text
+	Atc          pgtype.Text
+	Pcs          pgtype.Text
+	Note         pgtype.Text
+}
+
+type TermLabel struct {
+	CreatedAt pgtype.Timestamptz
+	TermID    pgtype.UUID
+	Language  TermLanguage
+	Preferred bool
+	Label     string
 }
 
 type VideoSession struct {
