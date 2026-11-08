@@ -93,3 +93,12 @@ API.
 - Browsers show their own prompt; nothing is added before it beyond W3 and W4.
 
 "The consultation is not recorded" must change if recording is ever added (ADR 0006).
+
+## Transcription (SAL-3): proposed, waiting for the owner
+
+Not approved yet. Shown while the transcription agent is in the room (SPEC §2 "Changed for SAL-3"), in the top
+right corner of the call, with a mint dot. Nothing calls the agent yet, so neither string is seen in use.
+- W41 / M36: "Transcription is on"
+
+For the owner, with SAL-1: once a transcript is kept, "The consultation is not recorded" in the permission text
+above (iOS, Android M35) is no longer the whole truth and needs new wording, with the bs/hr/sr localisation.
