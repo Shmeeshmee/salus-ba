@@ -12,6 +12,11 @@ FLUTTER := $(COMPOSE) run --rm -T flutter
 LANDING := $(COMPOSE) run --rm -T -w /src/landing node
 E2E     := $(COMPOSE) run --rm -T playwright
 
+# The services the Go tests reach (the tools service's depends_on), and the tests themselves.
+TEST_SERVICES := postgres redis mailpit livekit objectstore clamd
+GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...
+GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
+
 .PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	terminology-fetch terminology-import terminology-export \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
@@ -19,7 +24,7 @@ E2E     := $(COMPOSE) run --rm -T playwright
 
 ## test: Go tests of both modules against the compose Postgres and Redis (TESTFLAGS="-run X -count=1")
 test: tools-image
-	$(GO) sh -c 'go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...'
+	$(GO) sh -c '$(GO_TEST)'
 
 ## cover: tests with coverage, failing when any package is below 80% (cmd/*/main.go excluded)
 cover: tools-image
@@ -92,10 +97,15 @@ i18n-check: web-install
 archcheck: tools-image
 	$(GO) go -C tools run ./archcheck -root /src
 
-## arch-gate: archcheck, go vet and the tests; the Claude Code Stop hook runs it
-arch-gate: archcheck tools-image
-	$(GO) go vet ./...
-	$(MAKE) test
+## arch-gate: archcheck, go vet and the tests; the Claude Code Stop hook runs it. It starts only the test services
+## that are not running and recreates none: `run` alone recreates a running service whose config differs, and
+## LiveKit's and Mailpit's do from another worktree (their bind-mount paths are in the config hash). No orphan is
+## removed.
+arch-gate: tools-image
+	$(COMPOSE) up -d --no-recreate --wait $(TEST_SERVICES)
+	$(GO_NODEPS) go -C tools run ./archcheck -root /src
+	$(GO_NODEPS) go vet ./...
+	$(GO_NODEPS) sh -c '$(GO_TEST)'
 
 ## e2e: start the stack and run the end-to-end tests against it in the playwright service, on the compose network:
 ## the Go journeys (the API, Mailpit's API, salusctl built here on the owner's DATABASE_URL, LiveKit), the web

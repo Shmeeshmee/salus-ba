@@ -44,7 +44,8 @@ jobs:
   # Kotlin of MainActivity, Media3) on every change under mobile/. Not through make: the flutter image is built with
   # `precache --no-android` and has no Android SDK, so this job uses the runner's Android SDK with Java and Flutter
   # pinned by the two actions (by commit, as every action here) and the version of build/package/flutter.Dockerfile.
-  # Gradle installs the SDK platform, NDK and CMake the build asks for. The APK is not uploaded: nothing installs it.
+  # Gradle installs the SDK platform, NDK and CMake the build asks for. The APK is uploaded as the `app-debug`
+  # artifact, kept 14 days, for the owner's phone walks (owner, 2026-11-08): `gh run download <run> -n app-debug`.
   apk:
     needs: changes
     if: needs.changes.outputs.changed == 'true'
@@ -65,3 +66,9 @@ jobs:
         run: |
           flutter config --no-analytics
           flutter build apk --debug
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app-debug
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
