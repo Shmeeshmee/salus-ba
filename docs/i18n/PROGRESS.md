@@ -25,7 +25,12 @@
 
 ## Decisions
 
-(none yet)
+Owner's answers, 2026-11-08 (follow-ups to PR #27):
+- **Every COPY.md line the run added is approved** as written: A1 (`calendar.invalidTime`), `timeRange`,
+  `dateAndTime`, the twelve specialty names, `tooManyAttempts` and `specialtyAtClinic` (COPY.md "Added by the run,
+  approved").
+- **W19 is an ICU plural in every web language, singular for 1**: English "1 item is shown only after an answer to
+  it. Its condition will be removed." (SPEC §9, `docs/questionnaire/COPY.md` W19).
 
 ## Decided while the owner was away
 
@@ -1502,3 +1507,13 @@ COPY.md additions (not yet reviewed): none.
 Noticed outside this package (in WALK.md, not changed here): `mobile/lib/slots_screen.dart` joins the specialty
 and the clinic's name with `', '` in code (a Latin comma in Arabic too), against SPEC §3 "No string is built by
 joining pieces"; hr "Nema termina ovaj tjedan." would read better as "ovog tjedna".
+
+### Owner's follow-ups of 2026-11-08
+
+Done 2026-11-08, on `feat/i18n`.
+
+- W19: test first (`web/src/i18n/catalog.test.ts` checks the singular in all five web languages and the exact
+  English; `Builder.test.tsx` expects the English singular), red only for English, then `en.json` gained the
+  singular branch.
+- COPY.md: the lines added by the run moved to "Added by the run, approved".
+

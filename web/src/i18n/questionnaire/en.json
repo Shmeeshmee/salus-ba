@@ -54,7 +54,7 @@
   "delete": "Delete",
   "drag": "Drag to reorder",
   "deleteQuestion": "Delete this question?",
-  "dependents": "{n, plural, one {# items are shown only after an answer to it. Their conditions will be removed.} other {# items are shown only after an answer to it. Their conditions will be removed.}}",
+  "dependents": "{n, plural, one {# item is shown only after an answer to it. Its condition will be removed.} other {# items are shown only after an answer to it. Their conditions will be removed.}}",
   "cancel": "Cancel",
   "save": "Save draft",
   "saving": "Saving…",

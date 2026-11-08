@@ -429,9 +429,9 @@ the owner was away".
   0.2 decided). W34 is "Submitted {date}, {time}" in English and "Predan: {date} u {time}" (sr "Predat: …") in the
   others, since a weekday after "Predan" reads badly without the colon. Answer dates stay without the weekday, as
   before; answer numbers keep every digit the patient wrote, with the language's decimal sign and no grouping.
-- **W19 (`dependents`) keeps COPY.md's English word for word** in both plural branches ("1 items are shown …"), since
-  the plan takes existing English verbatim; the other languages have their correct plural forms. The owner may
-  want an English singular (question in the report).
+- **W19 (`dependents`) is an ICU plural in every web language, singular for 1** (owner's answer, 2026-11-08): English
+  "1 item is shown only after an answer to it. Its condition will be removed." beside "[n] items are shown …"; the
+  other languages keep their plural forms. A test in `web/src/i18n/catalog.test.ts` holds it for all five.
 - **`legal` tags**: the consultation's consent withdrawn (W18a), cancellation (W18b) and consent not active (W32),
   the request's `consent_required` (W40) and the withdrawal's deletion of saved answers (W36). The camera and
   microphone instructions (W10, W11) are browser settings, not permission prompts, and are not tagged.

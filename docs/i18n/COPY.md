@@ -1,6 +1,6 @@
 # Languages: new text (English source)
 
-Status: draft, 2026-11-07. The owner approves it by starting the run (the run prompt records the approval in PROGRESS.md). These are the English source strings the feature adds; each is
+Status: approved by the owner, 2026-11-07 (by starting the run); the lines the run added approved 2026-11-08. These are the English source strings the feature adds; each is
 translated into every language of its app by the package that adds it. Existing strings keep the wording of
 their feature's COPY.md. [Brackets] are filled in by the app; [language] is always the language's own name
 (L1).
@@ -52,9 +52,10 @@ Inside a sentence ([language] in B and M strings) the name is the one of L1, unc
 - M3: "Continue in [language]"
 - M4 (`language_unavailable`): "This language is no longer available for this questionnaire. Choose another one."
 
-## Added by a package, not yet reviewed
+## Added by the run, approved
 
-Written by a package during the unattended run of 2026-11-07; each waits for the owner's review.
+Written by a package during the unattended run of 2026-11-07; every line below approved by the owner as written,
+2026-11-08.
 
 ### 1.5 Web area A: shell, sign-in, calendar, admin
 

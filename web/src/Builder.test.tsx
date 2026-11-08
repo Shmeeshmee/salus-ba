@@ -431,7 +431,7 @@ describe('Builder: deleting', () => {
 
     fireEvent.click(within(card('Placeholder single')).getByRole('button', { name: 'Delete' }))
     const confirm = within(card('Placeholder single')).getByRole('alertdialog', { name: 'Delete this question?' })
-    expect(description(confirm)).toBe('1 items are shown only after an answer to it. Their conditions will be removed.')
+    expect(description(confirm)).toBe('1 item is shown only after an answer to it. Its condition will be removed.')
     expect(confirm.contains(document.activeElement)).toBe(true)
     fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
     expect(cards()).toContain('Placeholder single')
