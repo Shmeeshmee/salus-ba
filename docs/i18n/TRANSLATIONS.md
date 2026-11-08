@@ -4,18 +4,26 @@ The status of every language's catalogs (docs/i18n/SPEC.md §3 "Catalogs", "Who 
 every language; a native speaker reviews it; a lawyer reviews every string tagged `legal` in each language
 before production (SPEC §8).
 
-| Tag | Language | Apps | Status | Reviewed by | Reviewed on | `legal` strings reviewed by a lawyer |
-| --- | --- | --- | --- | --- | --- | --- |
-| `bs` | Bosanski | web, mobile, e-mail | drafted | | | no |
-| `hr` | Hrvatski | web, mobile, e-mail | drafted | | | no |
-| `sr-Latn` | Srpski (latinica) | web, mobile, e-mail | drafted | | | no |
-| `sr-Cyrl` | Српски (ћирилица) | web, mobile, e-mail | drafted | | | no |
-| `en` | English | web, mobile, e-mail | source | | | no |
-| `de` | Deutsch | mobile, e-mail | drafted | | | no |
-| `ar` | العربية | mobile, e-mail | drafted | | | no |
-| `tr` | Türkçe | mobile, e-mail | drafted | | | no |
-| `it` | Italiano | mobile, e-mail | drafted | | | no |
-| `fr` | Français | mobile, e-mail | drafted | | | no |
+| Tag | Language | Apps | Status | `legal` strings (web + mobile + e-mail) | Reviewed by | Reviewed on | `legal` strings reviewed by a lawyer |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `bs` | Bosanski | web, mobile, e-mail | drafted | 36 (6 + 30 + 0) | | | no |
+| `hr` | Hrvatski | web, mobile, e-mail | drafted | 36 (6 + 30 + 0) | | | no |
+| `sr-Latn` | Srpski (latinica) | web, mobile, e-mail | drafted | 36 (6 + 30 + 0) | | | no |
+| `sr-Cyrl` | Српски (ћирилица) | web, mobile, e-mail | drafted | 36 (6 + 30 + 0) | | | no |
+| `en` | English | web, mobile, e-mail | source | 36 (6 + 30 + 0) | | | no |
+| `de` | Deutsch | mobile, e-mail | drafted | 30 (– + 30 + 0) | | | no |
+| `ar` | العربية | mobile, e-mail | drafted | 30 (– + 30 + 0) | | | no |
+| `tr` | Türkçe | mobile, e-mail | drafted | 30 (– + 30 + 0) | | | no |
+| `it` | Italiano | mobile, e-mail | drafted | 30 (– + 30 + 0) | | | no |
+| `fr` | Français | mobile, e-mail | drafted | 30 (– + 30 + 0) | | | no |
+
+Every language but the English source is `drafted` (2026-11-08, package 3.1); none is reviewed yet. The `legal` strings were counted with a
+script on 2026-11-08 (docs/i18n/PROGRESS.md, 3.1): web, the catalog entries of `web/src/i18n/*/<tag>.json` whose
+`description` is `legal` (the web app has only the five staff languages, so "–" for the others); mobile, the keys
+whose description in `app_en.arb` starts with `[legal]`, which hold for every language (ARB metadata lives in the
+template only); e-mail, none, since the templates carry no metadata (package 1.3). The one e-mail sentence with legal
+weight, the cancellation window in `booked.txt` ("You can cancel it up to 24 hours before it starts."), goes to the
+lawyer with the tagged strings in each of the ten languages.
 
 English is the source: its text is the features' COPY.md files word for word, approved by the owner.
 `mobile/lib/l10n/app_sr.arb` is a copy of `app_sr_Cyrl.arb` that Flutter needs as the base of the two Serbian

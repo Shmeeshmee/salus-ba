@@ -1396,3 +1396,86 @@ Left for later:
 - Changing the language after starting and before the first answer (the API allows it; the app has no control).
 
 ### 3.1 End-to-end, walk and privacy
+
+2026-11-08, branch `i18n/3.1` (wave 3, alone). Done.
+
+Built:
+- `test/e2e/language_test.go`, five journeys: a German phone registers (`detectedLanguage` `de`) and gets the
+  booking confirmation in German; the admin sets the clinic's default language to English and the invite e-mail is
+  English, then chooses Croatian (a patient language is refused, 422 `language_unavailable`), signs in again from an
+  English browser and keeps Croatian, and clears it; a Bosnian questionnaire whose half-done English translation
+  publishing refuses (422 `translation_incomplete`, `en`, `t-choice`) is finished, published and made the role's
+  default, a German patient sees Bosnian and English (German refused), answers in English, cannot change the
+  language after the first answer (409 `language_locked`), and the practitioner reads `language` `en`; an Italian
+  patient on a Bosnian-only questionnaire is refused Italian and English and answers in Bosnian; and the web
+  journey below. `newPatientIn(t, language)` beside `newPatientWithProfile` (which stays English), and the
+  journeys' `response` reads `language`.
+- `test/e2e/web/language.spec.ts`: the sign-in screen of a browser in `sr-Cyrl` is in Serbian Cyrillic; the admin
+  picks Hrvatski, signs out, signs in from another English browser and the app is Croatian; "Use the browser's
+  language" brings English back. `signin.ts` remembers the last TOTP step it used, so one spec can sign in twice.
+- The acceptance walk (SPEC §6) in `docs/i18n/WALK.md`, screenshots and e-mail texts in `docs/i18n/walk/`.
+- `TRANSLATIONS.md`: every language but the English source `drafted`, and the count of `legal` strings per
+  language.
+- `docs/privacy/dpia.md`: "Languages", the three fields of SPEC §5 with purpose, basis, access, logs and retention.
+
+Test first:
+- The journeys test behaviour packages 1.1 to 2.3 built, so they passed on their first run against the stack. Each
+  was then seen failing for the right reason by breaking its input, not its assertion: the German patient
+  registered with `en` instead of `de` — `no e-mail "Ihr Termin ist gebucht" to the address in Mailpit within 30s`;
+  the second sign-in sending `language` `en` — `GET /auth/me after signing in from an English browser = …, want the
+  chosen hr`; the web journey's first browser in `en` instead of `sr-Cyrl` — `expect(locator).toBeVisible() failed
+  … Received: <element(s) not found>` (the heading "Пријава"). The inputs were restored.
+- Lint found a struct out of field order in the new file (`fieldalignment`); fixed.
+
+Checks (from the worktree, each `docker compose -f deployments/docker-compose.yml run --rm --no-deps -T …`):
+- Catalogs (`bash ../scripts/i18n-check.sh` in `node`): pass.
+- Lint (`scripts/lint.sh`): 0 issues after the field-order fix; migrations unchanged.
+- Archcheck: pass. `go vet -tags e2e ./test/e2e/`: clean.
+- `scripts/cover.sh` (`go test ./...` with coverage, both modules' app tests): pass, total 94.2%, every package at
+  80% or more (some packages' results came from the build cache: their code is unchanged). `go -C tools test ./...`:
+  pass.
+- FHIR validation (`scripts/fhir-validate.sh`): 84 resources, no errors.
+- Clients: `npm run gen:api` left no diff (no contract change; the Dart client not regenerated for the same reason).
+- Web: lint, typecheck, 556 tests, build: pass. Mobile: `flutter analyze` no issues, 420 tests pass. Debug APK not
+  built (the flutter image has no Android SDK, as in 2.3; CI's `apk` job builds it).
+- E2E twice in a row (the `make e2e` steps with `--no-deps`): run 1 ok in 70.4 s, run 2 ok in 56.6 s; the LiveKit
+  log check passed both times (none of the 22 synthetic values, each of the 2 rooms).
+
+The walk: no browser pane, so the web steps ran as a Playwright script in Chromium in the `playwright` service,
+driven by a Go test that made the synthetic data through the API (both files run from the worktree, not committed:
+a one-off, and the committed journeys cover the same behaviour). The owner's emulator was down, so the mobile
+steps are widget-rendered screenshots with the real fonts, as 1.7's goldens (a test file run with
+`--update-goldens`, not committed); no mobile step was walked on a device. The e-mails came from Mailpit's API.
+
+The `legal` counts, by this script (Python, run on the host over the repository; not committed):
+
+```python
+import glob, json, os
+web = {}
+for f in glob.glob('web/src/i18n/*/*.json'):
+    lang = os.path.basename(f)[:-5]
+    web[lang] = web.get(lang, 0) + sum(1 for v in json.load(open(f)).values() if isinstance(v, dict) and v.get('description') == 'legal')
+arb = json.load(open('mobile/lib/l10n/app_en.arb'))
+mobile = sum(1 for k, v in arb.items() if k.startswith('@') and not k.startswith('@@') and isinstance(v, dict) and str(v.get('description', '')).startswith('[legal]'))
+print(web, mobile)  # {bs, hr, sr-Latn, sr-Cyrl, en: 6 each} 30
+```
+
+Decided while the owner was away:
+- **The walk's drivers are not committed.** The Go driver and Playwright script that took the web screenshots, and
+  the Flutter test that rendered the mobile ones, served one walk; the behaviour they show is checked on every
+  `make e2e` by `language_test.go` and `language.spec.ts`, and by 1.7's and 2.3's widget tests. Keeping them would
+  add code nothing runs (CLAUDE.md).
+- **The staff journey signs in through the API with a fresh client**, as another browser would, rather than in a
+  second web journey: the web journey already covers the browser side; the API journey adds the refusal of a
+  patient language and the clinic's default language for the invite.
+- **The `legal` count of the e-mails is 0** (1.3: the templates carry no metadata); the one e-mail sentence with
+  legal weight, the cancellation window, is named in `TRANSLATIONS.md` for the lawyer.
+- **The web `legal` column says "–" for the five patient-only languages**: the web app does not have them.
+- **The DPIA section names 3.1 as its package** and describes the fields 0.1, 1.1 and 2.1 added, since 3.1 owns
+  `docs/privacy/`.
+
+COPY.md additions (not yet reviewed): none.
+
+Noticed outside this package (in WALK.md, not changed here): `mobile/lib/slots_screen.dart` joins the specialty
+and the clinic's name with `', '` in code (a Latin comma in Arabic too), against SPEC §3 "No string is built by
+joining pieces"; hr "Nema termina ovaj tjedan." would read better as "ovog tjedna".

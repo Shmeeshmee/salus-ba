@@ -200,6 +200,7 @@ type response struct {
 	Questionnaire string
 	Status        string
 	Authored      string
+	Language      string
 	Item          []responseItem
 }
 
