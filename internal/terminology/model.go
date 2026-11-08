@@ -17,6 +17,7 @@ type Term struct {
 	ATC          string
 	PCS          string // ICD-10-PCS or ICD-9-CM procedure code
 	ReviewStatus string
+	Note         string // the curator's
 	Labels       []Label
 	Rank         int32 // the Wikidata item's sitelinks: higher is more common
 }
@@ -57,4 +58,31 @@ type Names struct {
 	Language  string
 	Preferred string
 	Synonyms  []string
+}
+
+// ImportRow is one term of an import file and the line it starts on.
+type ImportRow struct {
+	Term Term
+	Line int
+}
+
+// RowError is a row of an import file that was refused, and why. The reason names a column, never a value.
+type RowError struct {
+	ID     string // the row's term id, when it has one
+	Reason string
+	Line   int
+}
+
+// ImportReport is what an import did: rows that created a term, changed one, changed nothing, and those refused.
+type ImportReport struct {
+	Refused   []RowError
+	Created   int
+	Updated   int
+	Unchanged int
+}
+
+// CategoryCount is how many terms a category holds.
+type CategoryCount struct {
+	Category string
+	Terms    int
 }

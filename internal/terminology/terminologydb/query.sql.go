@@ -11,6 +11,179 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countTermsByCategory = `-- name: CountTermsByCategory :many
+SELECT category, count(*)::integer AS terms FROM term GROUP BY category ORDER BY category
+`
+
+type CountTermsByCategoryRow struct {
+	Category TermCategory
+	Terms    int32
+}
+
+func (q *Queries) CountTermsByCategory(ctx context.Context) ([]CountTermsByCategoryRow, error) {
+	rows, err := q.db.Query(ctx, countTermsByCategory)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountTermsByCategoryRow
+	for rows.Next() {
+		var i CountTermsByCategoryRow
+		if err := rows.Scan(&i.Category, &i.Terms); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const createSeedTerm = `-- name: CreateSeedTerm :one
+
+INSERT INTO term (category, rank, wikidata_id, icd10, ta98, atc, pcs)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (wikidata_id) DO NOTHING
+RETURNING id
+`
+
+type CreateSeedTermParams struct {
+	Category   TermCategory
+	Rank       int32
+	WikidataID pgtype.Text
+	Icd10      pgtype.Text
+	Ta98       pgtype.Text
+	Atc        pgtype.Text
+	Pcs        pgtype.Text
+}
+
+// The curation (salusctl, as the owner; salus_app may only read): docs/terminology/SPEC.md §3 "Curation".
+// A new term from the seed, a draft; nothing when a term already has the Wikidata id (no row back).
+func (q *Queries) CreateSeedTerm(ctx context.Context, arg CreateSeedTermParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, createSeedTerm,
+		arg.Category,
+		arg.Rank,
+		arg.WikidataID,
+		arg.Icd10,
+		arg.Ta98,
+		arg.Atc,
+		arg.Pcs,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const deleteLabels = `-- name: DeleteLabels :exec
+DELETE FROM term_label WHERE term_id = $1
+`
+
+func (q *Queries) DeleteLabels(ctx context.Context, termID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteLabels, termID)
+	return err
+}
+
+const insertLabels = `-- name: InsertLabels :exec
+INSERT INTO term_label (term_id, language, label, preferred)
+SELECT $1::uuid, unnest($2::text[])::term_language, unnest($3::text[]), unnest($4::boolean[])
+`
+
+type InsertLabelsParams struct {
+	TermID    pgtype.UUID
+	Languages []string
+	Labels    []string
+	Preferred []bool
+}
+
+// A term's labels, as three parallel arrays of one length (unnest in the select list zips them).
+func (q *Queries) InsertLabels(ctx context.Context, arg InsertLabelsParams) error {
+	_, err := q.db.Exec(ctx, insertLabels,
+		arg.TermID,
+		arg.Languages,
+		arg.Labels,
+		arg.Preferred,
+	)
+	return err
+}
+
+const listTerms = `-- name: ListTerms :many
+SELECT t.id, t.reviewed_at, t.rank, t.category, t.review_status, t.wikidata_id, t.icd10, t.ta98, t.atc, t.pcs, t.note,
+       coalesce(l.languages, '{}')::text[] AS label_languages,
+       coalesce(l.labels, '{}')::text[] AS labels,
+       coalesce(l.preferred, '{}')::boolean[] AS label_preferred
+FROM term t
+CROSS JOIN LATERAL (
+    SELECT array_agg(language::text ORDER BY language, preferred DESC, label) AS languages,
+           array_agg(label ORDER BY language, preferred DESC, label) AS labels,
+           array_agg(preferred ORDER BY language, preferred DESC, label) AS preferred
+    FROM term_label
+    WHERE term_id = t.id
+) l
+WHERE ($1::uuid IS NULL OR t.id = $1::uuid)
+  AND ($2::text IS NULL OR t.review_status = $2::text)
+ORDER BY t.category, t.rank DESC, t.id
+`
+
+type ListTermsParams struct {
+	ID           pgtype.UUID
+	ReviewStatus pgtype.Text
+}
+
+type ListTermsRow struct {
+	ID             pgtype.UUID
+	ReviewedAt     pgtype.Timestamptz
+	Rank           int32
+	Category       TermCategory
+	ReviewStatus   string
+	WikidataID     pgtype.Text
+	Icd10          pgtype.Text
+	Ta98           pgtype.Text
+	Atc            pgtype.Text
+	Pcs            pgtype.Text
+	Note           pgtype.Text
+	LabelLanguages []string
+	Labels         []string
+	LabelPreferred []bool
+}
+
+// One term (id) or every term of a review status (any when null), each with its labels in every language as three
+// parallel arrays, by language in the enum's order, preferred first, then alphabetically.
+func (q *Queries) ListTerms(ctx context.Context, arg ListTermsParams) ([]ListTermsRow, error) {
+	rows, err := q.db.Query(ctx, listTerms, arg.ID, arg.ReviewStatus)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTermsRow
+	for rows.Next() {
+		var i ListTermsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReviewedAt,
+			&i.Rank,
+			&i.Category,
+			&i.ReviewStatus,
+			&i.WikidataID,
+			&i.Icd10,
+			&i.Ta98,
+			&i.Atc,
+			&i.Pcs,
+			&i.Note,
+			&i.LabelLanguages,
+			&i.Labels,
+			&i.LabelPreferred,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchTerms = `-- name: SearchTerms :many
 WITH folded AS MATERIALIZED (
     SELECT l.term_id, term_fold(l.label) AS label
@@ -118,4 +291,48 @@ func (q *Queries) SearchTerms(ctx context.Context, arg SearchTermsParams) ([]Sea
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateTerm = `-- name: UpdateTerm :execrows
+UPDATE term
+SET category = $1, rank = $2, wikidata_id = $3, icd10 = $4,
+    ta98 = $5, atc = $6, pcs = $7, review_status = $8,
+    reviewed_at = $9, note = $10, updated_at = $11
+WHERE id = $12
+`
+
+type UpdateTermParams struct {
+	Category     TermCategory
+	Rank         int32
+	WikidataID   pgtype.Text
+	Icd10        pgtype.Text
+	Ta98         pgtype.Text
+	Atc          pgtype.Text
+	Pcs          pgtype.Text
+	ReviewStatus string
+	ReviewedAt   pgtype.Timestamptz
+	Note         pgtype.Text
+	UpdatedAt    pgtype.Timestamptz
+	ID           pgtype.UUID
+}
+
+func (q *Queries) UpdateTerm(ctx context.Context, arg UpdateTermParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTerm,
+		arg.Category,
+		arg.Rank,
+		arg.WikidataID,
+		arg.Icd10,
+		arg.Ta98,
+		arg.Atc,
+		arg.Pcs,
+		arg.ReviewStatus,
+		arg.ReviewedAt,
+		arg.Note,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

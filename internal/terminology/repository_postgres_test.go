@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/migrations"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
@@ -23,7 +25,14 @@ const (
 func seedTerms(t *testing.T) terminology.Repository {
 	t.Helper()
 	owner, app := pgtest.NewAppDatabase(t)
-	_, err := owner.Exec(t.Context(), `
+	insertTerms(t, owner)
+	return terminology.NewPostgresRepository(app)
+}
+
+// insertTerms writes the synthetic terms on db.
+func insertTerms(t *testing.T, db *pgxpool.Pool) {
+	t.Helper()
+	_, err := db.Exec(t.Context(), `
 		INSERT INTO term (id, category, rank, wikidata_id, ta98, icd10, review_status, reviewed_at) VALUES
 			('`+liver+`', 'anatomy', 100, 'Q9368', 'A05.8.01.001', NULL, 'reviewed', '2026-11-05T10:00:00Z'),
 			('`+hepatitis+`', 'diagnosis', 200, 'Q131742', NULL, 'K75.9', 'draft', NULL),
@@ -42,7 +51,6 @@ func seedTerms(t *testing.T) terminology.Repository {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return terminology.NewPostgresRepository(app)
 }
 
 func search(t *testing.T, repo terminology.Repository, s terminology.Search) []string {

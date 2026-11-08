@@ -361,6 +361,95 @@ Dev stack: nothing started, stopped or written; the seed reaches the dev databas
 
 ### 2.1 salusctl: import, export and curation
 
+2026-11-08, done. Worktree `salus-term-2.1`, branch `terminology/2.1` from `feat/terminology` after wave 1 and the
+languages plan's wave 1.
+
+Built:
+- `internal/terminology/service_curation.go`: `Curator` (salusctl's, on the owner's connection; the app never
+  builds one), `ImportSeed`, `ImportCurated`, `Export`, `Counts`. Every row is checked (category, Wikidata id
+  form, rank not negative, review status, known languages, labels with white space collapsed, empty ones and
+  repeats dropped, at most 300 characters, no `|`, one preferred label per language) and runs in its own
+  transaction: an invalid row is refused with a reason naming the column (never a value) and the rest applied; a
+  database error stops the import (the rows before it stay applied; rerunning is safe).
+- `internal/terminology/handler_file.go`: `DecodeSeed` (the 0.1 JSON Lines contract, unknown keys refused per
+  line), `EncodeCSV` and `DecodeCSV` (the curator's file, below).
+- `internal/terminology/repository_postgres.go` and `query.sql`: `NewPostgresCurationRepository` with
+  `CreateFromSeed` (`ON CONFLICT (wikidata_id) DO NOTHING`), `Term`, `UpdateTerm` (columns, then labels deleted
+  and inserted from three parallel arrays), `Terms` (one query with every label), `CountByCategory`; the
+  `CurationRepository` port in `repository.go`; `Note` on `Term`; `ErrTermNotFound`, `ErrDuplicateWikidata`,
+  `ErrInvalidStatus`.
+- `cmd/salusctl/terminology.go`: `salusctl terminology import <seed.jsonl | terms.csv>` (by extension) prints
+  `created, updated, unchanged, refused`, a line per refused row (`line N (id …): reason`) and the terms per
+  category, and exits non-zero when a row was refused (after applying the rest); `salusctl terminology export -o
+  <path> [-status draft|reviewed]`. Both as the 0.1 Makefile targets call them (`make terminology-import
+  [file=…]`, `make terminology-export out=… [status=…]`).
+
+The curator's CSV: UTF-8 with a byte order mark; columns `id, category, wikidata, icd10, ta98, atc, pcs, rank`,
+the preferred label per language (`la, bs, hr, sr-Latn, sr-Cyrl, en, de, ar, tr, it, fr`), the synonyms per
+language (`la synonyms` … `fr synonyms`, joined with ` | `), `review_status, note`. One row per term, by category,
+rank descending, id. An import takes the columns in any order.
+
+Loaded (the real seed, on a throwaway database migrated to 00030 on the compose Postgres, then dropped; see "Dev
+stack"): `created 4943, updated 0, unchanged 0, refused 0`; terms: anatomy 1,500, diagnosis 2,000, symptom 500,
+procedure 143, drug 800 (the seed's counts in 1.2); 73,529 labels; all draft. A second seed import: `unchanged
+4943` in 0.7 s. The full export imported back: `unchanged 4943` in 1.1 s (the round trip is exact on the real
+data). First load 35 s (4,943 transactions, one per row as the SPEC's per-row refusal needs; a one-off operator
+command, so not optimised).
+
+Test first (failures seen):
+- repository: `undefined: terminology.NewPostgresCurationRepository`; then sqlc: `function unnest(unknown,
+  unknown, unknown) does not exist` (multi-argument unnest in FROM; the select-list form zips the arrays).
+- service, against a stub `Curator`: `ImportSeed = {Refused:[] Created:0 …}; want one created, one unchanged`,
+  `ImportSeed with the database gone: error = nil`, `Export(done) = <nil>, want ErrInvalidStatus`, `ImportCurated
+  = {…}; want 3 updated, 1 unchanged, refused map[…]`. Then `want … 9:en: a label with |` before the `|` rule.
+- files, against stubs: `EncodeCSV = (empty) want …`, `DecodeCSV = 0 rows …; want 2 rows`, `DecodeCSV with a header
+  with a column unknown: error = nil`; then a refused row's id taken from cell 0 instead of the id column.
+- salusctl: `import = unknown command "terminology"; …`, `0 draft terms, want 2`.
+
+Checks (all through `docker compose … run --rm --no-deps -T`):
+- `go test -count=1 -cover ./internal/terminology/... ./cmd/salusctl/ ./internal/api/`: ok; terminology 94.5%,
+  salusctl 85.7%, api 91.6% (unchanged; run because it builds the terminology service).
+- `scripts/lint.sh` (gofmt, vet, golangci-lint both modules, check-migrations): 0 issues, ok.
+- archcheck: exit 0.
+- sqlc: regenerated (`terminologydb` only); a second run leaves no diff.
+- Clients, catalogs, web, mobile: not run; 2.1 changes no contract, catalog or client code.
+
+Decided while the owner was away:
+- **The seed import adds only terms that are not there** (by Wikidata id) and never changes an existing one, its
+  rank and codes included: a later fetch must not overwrite the partner's labels or review. New seed data for an
+  existing term reaches it through the CSV.
+- **A CSV row without an id is refused** ("new terms come from the seed"): the SPEC's import is an upsert by id
+  with unknown ids refused, and inserting id-less rows would add a duplicate on every re-import (not idempotent).
+  Clinic- or curator-added terms are out of this feature (SPEC §3).
+- **A CSV header with an unknown, missing or repeated column refuses the whole file** before any write: a column
+  renamed in a spreadsheet would otherwise empty that language's labels on every row. A row with another number
+  of cells, or a rank that is not a whole number, is refused for that row. The SPEC's "an unknown column … is
+  refused for that row" read this way: a header column is not a row's.
+- **A row equal to its stored term is not written** (labels compared in any order), so re-importing a file
+  leaves `updated_at` alone: idempotent in effect, and the report's `unchanged` tells the curator what they
+  touched.
+- **A repeated id in one file is refused after its first row**, so the result never depends on row order.
+- **Synonyms are joined with ` | `** in one cell: labels in the seed contain `;` and `,` but never `|`; a label
+  with `|` is refused at import so the round trip stays exact.
+- **A cell starting with `=`, `+`, `-`, `@`, a tab or a carriage return gets a leading `'`** on export and loses it
+  on import: Wikidata text is open to anyone's edits and must not run as a spreadsheet formula on the partner's
+  machine (e.g. `-(+)-biotin`).
+- **A byte order mark starts the export** (Excel reads UTF-8 CSV without it as the local code page, breaking
+  Cyrillic and Arabic); the import skips it when present.
+- **Not audited**: the terms are reference data without personal data (SPEC §4), as the search is not.
+- **The `reviewed_at` set on the transition is salusctl's clock**, not the file's: the CSV has no date column, so
+  a curator can't backdate a review.
+- **The dev database was not migrated or loaded.** It is at migration 00028 (the wave notes said 00030):
+  `term` does not exist there. Migrating it would apply the languages plan's 00029, which rewrites questionnaire
+  rows, beyond the one write wave 2 is allowed; that belongs to the integration step. The load was verified on a
+  throwaway database instead (above). The integration step runs `make migrate`, then `make terminology-import`,
+  and should see the same counts.
+
+COPY.md additions (not yet reviewed): none (operator output only, no product text).
+
+Dev stack: nothing started, stopped or written in the dev database `salus`. A throwaway database
+`salus_term21_load` was created on the compose Postgres for the load, then dropped.
+
 ### 2.2 Web: the cheatsheet
 
 ### 3.1 End-to-end, walk and the partner's file
