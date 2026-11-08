@@ -140,6 +140,7 @@ String answersMessage(AppLocalizations t, ApiFailure failure) {
     // The appointment was cancelled (added on review of PR #24, owner).
     'appointment_closed' => t.questionnaireNotAvailable,
     'attachments_pending' => t.filesBeingChecked, // docs/attachments/COPY.md M10
+    'language_unavailable' => t.languageUnavailable, // docs/i18n/COPY.md M4
     _ => t.somethingWrong,
   };
 }

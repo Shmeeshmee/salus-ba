@@ -30,11 +30,13 @@ Map<String, Object?> questionnaire({
   String series = seriesId,
   String version = '1',
   String title = 'Placeholder intake questionnaire',
+  String language = 'en',
   required List<Map<String, Object?>> items,
 }) => {
   'resourceType': 'Questionnaire',
   'id': id,
   'meta': {'lastUpdated': '2026-11-01T09:30:00Z', 'versionId': '4'},
+  'language': language,
   'url': 'https://salus.invalid/fhir/Questionnaire/$series',
   'version': version,
   'title': title,
@@ -104,9 +106,48 @@ Map<String, Object?> everyType({String title = 'Placeholder intake questionnaire
   ],
 );
 
-/// A QuestionnaireResponse of the patient's, answering version 1 of the series for [appointment].
+const _translationUrl = 'http://hl7.org/fhir/StructureDefinition/translation';
+
+/// [q] written in [language] and translated into [into], as the API's FHIR handler writes a patient's read
+/// (internal/questionnaire/testdata/questionnaire_translated.json): the R4 `translation` extension on the title,
+/// every item's text (help included) and every option. Each translated text is `<tag>: <original>`.
+Map<String, Object?> translated(Map<String, Object?> q, {String language = 'bs', List<String> into = const ['en']}) {
+  Map<String, Object?> ext(Object? text) => {
+    'extension': [
+      for (final l in into)
+        {
+          'url': _translationUrl,
+          'extension': [
+            {'url': 'lang', 'valueCode': l},
+            {'url': 'content', 'valueString': '$l: $text'},
+          ],
+        },
+    ],
+  };
+  Map<String, Object?> item(Map<String, Object?> it) => {
+    ...it,
+    if (it['text'] != null) '_text': ext(it['text']),
+    if (it['answerOption'] != null)
+      'answerOption': [
+        for (final o in (it['answerOption'] as List).cast<Map<String, Object?>>())
+          {...o, '_valueString': ext(o['valueString'])},
+      ],
+    if (it['item'] != null) 'item': [for (final c in (it['item'] as List).cast<Map<String, Object?>>()) item(c)],
+  };
+  if (into.isEmpty) return {...q, 'language': language};
+  return {
+    ...q,
+    'language': language,
+    '_title': ext(q['title']),
+    'item': [for (final it in (q['item'] as List).cast<Map<String, Object?>>()) item(it)],
+  };
+}
+
+/// A QuestionnaireResponse of the patient's, answering version 1 of the series for [appointment], started in
+/// [language] (null: not started yet).
 Map<String, Object?> response(
   String id, {
+  String? language = 'en',
   String appointment = appointmentId,
   String status = 'in-progress',
   String version = '1',
@@ -124,6 +165,7 @@ Map<String, Object?> response(
       'valueReference': {'reference': 'Appointment/$appointment'},
     },
   ],
+  'language': ?language,
   'questionnaire': 'https://salus.invalid/fhir/Questionnaire/$series|$version',
   'status': status,
   'subject': {'reference': 'Patient/$patientId'},
@@ -132,9 +174,10 @@ Map<String, Object?> response(
   if (items.isNotEmpty) 'item': items,
 };
 
-/// The JSON API's answer to a save or a submit.
+/// The JSON API's answer to a start, a save or a submit.
 Map<String, Object?> saved(
   String id, {
+  String? language,
   String status = 'in-progress',
   int versionId = 3,
   List<Map<String, Object?>> answers = const [],
@@ -148,6 +191,7 @@ Map<String, Object?> saved(
   'answers': answers,
   'dueAt': '2026-11-05T08:00:00Z',
   'authored': ?authored,
+  'language': ?language,
   'lastUpdated': '2026-11-04T09:00:00Z',
   'versionId': versionId,
 };

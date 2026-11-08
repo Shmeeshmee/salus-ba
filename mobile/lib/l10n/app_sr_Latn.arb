@@ -254,5 +254,9 @@
   "specialty418960008": "Otorinolaringologija (ORL)",
   "specialty394594003": "Oftalmologija",
   "specialty394801008": "Ortopedija",
-  "specialty394583002": "Endokrinologija"
+  "specialty394583002": "Endokrinologija",
+  "questionnaireNotInLanguage": "Ovaj upitnik nije dostupan na jeziku: {language}.",
+  "questionnaireLanguages": "Dostupan je na ovim jezicima: {languages}. Izaberite onaj koji najbolje razumijete.",
+  "continueInLanguage": "Nastavite na jeziku: {language}",
+  "languageUnavailable": "Ovaj jezik više nije dostupan za ovaj upitnik. Izaberite drugi."
 }

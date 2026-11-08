@@ -814,7 +814,7 @@ class AppLocalizationsEn extends AppLocalizations {
       n,
       locale: localeName,
       other: '$n files',
-      one: '$n file',
+      one: '1 file',
     );
     return '$_temp0';
   }
@@ -916,4 +916,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get specialty394583002 => 'Endocrinology';
+
+  @override
+  String questionnaireNotInLanguage(String language) {
+    return 'This questionnaire is not available in $language.';
+  }
+
+  @override
+  String questionnaireLanguages(String languages) {
+    return 'It is available in: $languages. Choose the one you understand best.';
+  }
+
+  @override
+  String continueInLanguage(String language) {
+    return 'Continue in $language';
+  }
+
+  @override
+  String get languageUnavailable =>
+      'This language is no longer available for this questionnaire. Choose another one.';
 }

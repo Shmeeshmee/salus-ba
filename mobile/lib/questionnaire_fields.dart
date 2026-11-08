@@ -103,7 +103,9 @@ class QuestionField extends StatelessWidget {
       groupValue: values.firstOrNull as String?,
       onChanged: (v) => onChosen([?v]),
       child: Column(
-        children: [for (final o in item.options) RadioListTile<String>(value: o, title: Text(o), enabled: enabled)],
+        children: [
+          for (final o in item.options) RadioListTile<String>(value: o, title: Text(item.label(o)), enabled: enabled),
+        ],
       ),
     ),
     ItemType.choice => Column(
@@ -111,7 +113,7 @@ class QuestionField extends StatelessWidget {
         for (final o in item.options)
           CheckboxListTile(
             value: values.contains(o),
-            title: Text(o),
+            title: Text(item.label(o)),
             controlAffinity: ListTileControlAffinity.leading,
             onChanged: enabled ? (on) => onChosen(_toggled(o, on == true)) : null,
           ),
@@ -188,6 +190,7 @@ String invalidAnswer(AppLocalizations t, Item item) => switch (item.type) {
 String answerText(AppLocalizations t, Item item, List<Object> values) => switch (item.type) {
   ItemType.boolean => values.first == true ? t.yes : t.no,
   ItemType.date => Zone.longDate(values.first as DateTime, t.localeName),
+  ItemType.choice => values.map((v) => item.label('$v')).join(', '),
   _ => values.join(', '),
 };
 

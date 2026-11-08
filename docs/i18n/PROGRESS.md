@@ -1078,4 +1078,74 @@ Left for later:
 
 ### 2.3 Mobile: choosing the questionnaire's language
 
+2026-11-08, branch `i18n/2.3` (wave 2). Done.
+
+Built:
+- `Version` (`lib/questionnaire.dart`) reads `Questionnaire.language` and its `languages` (the original first, then
+  every language a `translation` extension names, in the order met, only the app's ten), and `inLanguage(tag)`
+  reads the same resource in a translation: title, item texts, help texts and option labels. Option values stay as
+  written (`Item.options`), since answers and `enableWhen` name them; `Item.label` shows them, in the fields and in
+  the submitted answers. `Response.language` reads `QuestionnaireResponse.language` (2.1).
+- `lib/questionnaire_language.dart` (`QuestionnaireLanguage`), between the appointment card and the questionnaire
+  screen: a response already started (or submitted) opens in its language; otherwise, when the questionnaire has
+  the app's language, the response is started in it at once (`POST /questionnaire-responses/{id}/start`,
+  `Booking.start`); otherwise COPY.md M1 and M2 with the languages by their own names, English preselected when it
+  is one of them, else the original, and M3 starts it. The questionnaire screen then gets the version in that
+  language and the response at the version the start answered (its next `If-Match`).
+- Refusals: 422 `language_unavailable` says M4 and takes that language out of the choice; 409 `language_locked`
+  reads the response again and opens in the language it has; anything else says the answers' message and keeps the
+  choice to try again (a 404 or another 409 hides the button).
+- The appointment card names the questionnaire in the language it opens in.
+- ARB: `questionnaireNotInLanguage`, `questionnaireLanguages`, `continueInLanguage`, `languageUnavailable` (COPY.md M1
+  to M4, word for word) in all ten languages and `app_sr.arb`; generated `app_localizations*.dart` committed.
+  `answersMessage` maps `language_unavailable` to M4. `copy_test.dart` checks M1 to M4 against the catalog.
+
+Test first:
+- Red (`copy_test.dart`): `Expected: true Actual: <false>` for "This questionnaire is not available in [language]."
+- Red (`questionnaire_test.dart`): did not compile (`languages`, `inLanguage`, `label`, `Response.language`
+  undefined); then `Expected: (bs, [bs, en, de]) Actual: (bs, [bs, en, de])` (a record compares lists by identity;
+  the assertion was split, the code was right).
+- Red (`questionnaire_language_test.dart`): `Error: The method 'questionnaireNotInLanguage' isn't defined for the
+  type 'AppLocalizations'` (and M2 to M4); then `Expected: 'W/"3"' Actual: 'W/"4"'` (the test read the second save;
+  it now reads the first).
+
+Checks (from the worktree, `docker compose -f deployments/docker-compose.yml run --rm --no-deps -T flutter …`):
+- `flutter analyze`: no issues.
+- `flutter test`: 420 passed (403 before; 12 widget, 4 unit and 1 copy test added).
+- `dart format -l 120` on the changed hand-written files: clean.
+- Catalogs (`node` service, `npm ci` then `bash ../scripts/i18n-check.sh`): pass.
+- Debug APK: not run; the flutter image has no Android SDK (`flutter doctor`: "Unable to locate Android SDK"); CI's
+  `apk` job builds it.
+- Go lint, archcheck, Go tests: not applicable (no Go file changed).
+
+Decided while the owner was away:
+- **The response is started when the questionnaire opens**, not before its first save: a file upload saves without
+  the answers' call, and a response must have its language before anything is saved, or it would be locked with
+  none. The app's language starts it at once; a choice starts it with M3.
+- **A response already started opens in its language**, even when the app's language has changed since and the
+  questionnaire has it: the patient chose it, and switching silently would show other questions than the ones they
+  began with. The start endpoint allows choosing again before the first answer, but the app offers no "change
+  language" control (no COPY for one); the patient keeps what they started.
+- **A questionnaire that names no language opens as written and is not started** (FHIR `language` is optional in
+  R4; since 1.4 the API always sends it). Nothing is sent that the app would have to invent.
+- **The language list in M2 is joined with ", "** in every language, Arabic included, since the names are each
+  language's own name (L1) and mostly Latin script.
+- **The choice page's title is the questionnaire's original title**: no language is chosen yet.
+- **The test fixtures say the language**: `questionnaire()` is written in `en` and `response()` is started in `en`
+  unless a test says otherwise, so the existing questionnaire, attachment and upload tests keep their requests
+  exactly (no start call) and new tests pass `language: null` for a response not started.
+- **`lib/questionnaire.dart` is about 460 lines** (364 before): the translation reading sits with the FHIR reading
+  it extends; splitting one parser over two files would not make it simpler.
+
+COPY.md additions (not yet reviewed): none (M1 to M4 are in COPY.md).
+
+Translation notes for the native-speaker review (drafted by Claude):
+- The language's own name is never declined: bs/hr/sr "na jeziku: {language}", tr "şu dilde: {language}", ar
+  "باللغة: {language}"; de "auf {language}", it "in {language}", fr "en {language}" read naturally with the names a
+  German, Italian or French patient sees (Deutsch, English, Bosanski).
+- Imperatives follow each catalog: bs and hr "Odaberite", sr "Izaberite"/"Изаберите", it the formal "Scelga".
+
+Left for later:
+- Changing the language after starting and before the first answer (the API allows it; the app has no control).
+
 ### 3.1 End-to-end, walk and privacy

@@ -254,5 +254,9 @@
   "specialty418960008": "Kulak Burun Boğaz (KBB)",
   "specialty394594003": "Göz hastalıkları",
   "specialty394801008": "Ortopedi",
-  "specialty394583002": "Endokrinoloji"
+  "specialty394583002": "Endokrinoloji",
+  "questionnaireNotInLanguage": "Bu soru formu şu dilde mevcut değil: {language}.",
+  "questionnaireLanguages": "Şu dillerde mevcut: {languages}. En iyi anladığınız dili seçin.",
+  "continueInLanguage": "Şu dilde devam et: {language}",
+  "languageUnavailable": "Bu dil artık bu soru formu için mevcut değil. Başka bir dil seçin."
 }

@@ -935,4 +935,23 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get specialty394583002 => 'Endokrinologie';
+
+  @override
+  String questionnaireNotInLanguage(String language) {
+    return 'Dieser Fragebogen ist nicht auf $language verfügbar.';
+  }
+
+  @override
+  String questionnaireLanguages(String languages) {
+    return 'Er ist in diesen Sprachen verfügbar: $languages. Wählen Sie die Sprache, die Sie am besten verstehen.';
+  }
+
+  @override
+  String continueInLanguage(String language) {
+    return 'Weiter auf $language';
+  }
+
+  @override
+  String get languageUnavailable =>
+      'Diese Sprache ist für diesen Fragebogen nicht mehr verfügbar. Wählen Sie eine andere.';
 }
