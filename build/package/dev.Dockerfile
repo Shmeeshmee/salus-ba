@@ -14,4 +14,7 @@ ENV GOMODCACHE=/cache/gomod \
     GOTOOLCHAIN=local \
     GOFLAGS=-buildvcs=false
 
+# iptables for `make turn-check`, which blocks UDP in its own container to prove TURN (scripts/turn-check.sh).
+RUN apt-get update && apt-get install -y --no-install-recommends iptables && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /src

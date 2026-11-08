@@ -12,7 +12,7 @@ FLUTTER := $(COMPOSE) run --rm -T flutter
 LANDING := $(COMPOSE) run --rm -T -w /src/landing node
 E2E     := $(COMPOSE) run --rm -T playwright
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http lint archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http turn-check livekit-turn-cert lint archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
@@ -70,6 +70,15 @@ bench-questionnaire-http: up tools-image
 ## (docs/attachments/PROGRESS.md, package 2.1). Not part of make test.
 bench-binary-http: tools-image
 	$(GO) go test -tags loadtest -count=1 -v -run TestBinaryHTTPReadings ./internal/api/
+
+## turn-check: a call through the compose LiveKit with UDP and its ICE/TCP port blocked: it does not connect
+## without TURN, and does through TURN over TLS on 443 (docs/consultation/PROGRESS.md, package 10). Not part of make test.
+turn-check: tools-image
+	$(COMPOSE) run --rm -T turn-check
+
+## livekit-turn-cert: write a new local TURN/TLS certificate for the compose LiveKit into deployments/livekit-turn/
+livekit-turn-cert: tools-image
+	$(GO) bash scripts/livekit-turn-cert.sh
 
 ## lint: gofmt, go vet, golangci-lint (both modules) and the migration immutability check
 lint: tools-image
