@@ -2,8 +2,10 @@ package terminology_test
 
 import (
 	"fmt"
+	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"math/rand/v2"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -154,7 +156,7 @@ func BenchmarkSearch(b *testing.B) {
 }
 
 func benchmarkSearch(b *testing.B, concurrent int) {
-	owner, app := pgtest.NewAppDatabase(b)
+	owner, app := benchDatabase(b, concurrent)
 	texts := queries(loadTerms(b, owner), b.N)
 	svc := terminology.NewService(terminology.NewPostgresRepository(app), nil)
 	staff := terminology.Caller{AccountID: "bench", Staff: true}
@@ -189,4 +191,20 @@ func benchmarkSearch(b *testing.B, concurrent int) {
 	}
 	b.ReportMetric(ms(0.5), "p50-ms")
 	b.ReportMetric(ms(0.95), "p95-ms")
+}
+
+// benchDatabase is pgtest.NewAppDatabase with an app pool wide enough for concurrent searches: pgtest caps its
+// pools at pgtest.PoolMaxConns, which would queue the 50 searches and measure the pool, not the query.
+func benchDatabase(b *testing.B, concurrent int) (owner, app *pgxpool.Pool) {
+	b.Helper()
+	dbURL := pgtest.NewDatabaseURL(b)
+	open := func(u string, conns int) *pgxpool.Pool {
+		pool, err := postgres.Open(b.Context(), u+"&pool_max_conns="+strconv.Itoa(conns))
+		if err != nil {
+			b.Fatal(err)
+		}
+		b.Cleanup(pool.Close)
+		return pool
+	}
+	return open(dbURL, pgtest.PoolMaxConns), open(pgtest.AppURL(b, dbURL), max(concurrent, pgtest.PoolMaxConns))
 }
