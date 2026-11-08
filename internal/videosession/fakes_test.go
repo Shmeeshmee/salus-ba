@@ -364,20 +364,21 @@ func (r *fakeRepository) DeleteEndedBefore(context.Context, time.Time) (int64, e
 // fakeProvider records the rooms created and deleted and the grants signed; its token is
 // "token:<identity>"; the participants of every room are in.
 type fakeProvider struct {
-	err       error
-	tokenErr  error
-	deleteErr error
-	listErr   error
-	removeErr error
-	parseErr  error
-	event     videosession.Event // what ParseWebhook reads
-	rooms     []videosession.Room
-	grants    []videosession.Grant
-	deleted   []string
-	listed    []string
-	in        []string
-	removed   []string
-	inTx      bool // a call was made inside a transaction
+	err           error
+	tokenErr      error
+	deleteErr     error
+	listErr       error
+	removeErr     error
+	parseErr      error
+	event         videosession.Event // what ParseWebhook reads
+	rooms         []videosession.Room
+	grants        []videosession.Grant
+	deleted       []string
+	listed        []string
+	in            []string
+	removed       []string
+	removedAgents []string // the agents' removals, apart from the people's
+	inTx          bool     // a call was made inside a transaction
 }
 
 func (p *fakeProvider) CreateRoom(ctx context.Context, r videosession.Room) error {
@@ -394,6 +395,10 @@ func (p *fakeProvider) Token(g videosession.Grant) (string, error) {
 // RemoveParticipant records the removal and, unless it fails, takes the identity out of the room.
 func (p *fakeProvider) RemoveParticipant(ctx context.Context, room, identity string) error {
 	p.inTx = p.inTx || ctx.Value(txKey{}) != nil
+	if strings.HasPrefix(identity, "a_") {
+		p.removedAgents = append(p.removedAgents, room+" "+identity)
+		return p.removeErr
+	}
 	p.removed = append(p.removed, room+" "+identity)
 	if p.removeErr == nil {
 		p.in = slices.DeleteFunc(p.in, func(id string) bool { return id == identity })

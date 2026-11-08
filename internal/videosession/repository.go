@@ -54,7 +54,7 @@ type Provider interface {
 	RemoveParticipant(ctx context.Context, room, identity string) error
 	// DeleteRoom closes the room and disconnects everyone in it; nothing when it does not exist.
 	DeleteRoom(ctx context.Context, room string) error
-	// Participants returns the identities in the room; none when it does not exist.
+	// Participants returns the identities of the people in the room, not an agent's; none when it does not exist.
 	Participants(ctx context.Context, room string) ([]string, error)
 	// ParseWebhook verifies the webhook's authorization (a JWT of our key pair carrying the body's SHA-256)
 	// before it reads the body, and returns its event; ErrInvalidSignature when LiveKit did not sign it.

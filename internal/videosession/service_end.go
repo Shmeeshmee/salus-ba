@@ -130,14 +130,24 @@ func (s *Service) ending(ctx context.Context, agent string, session Session, rea
 // recordSystem audits the agent's operation on the session (its end, a join, the patient's removal) as an
 // operation on its appointment, for operations.
 func (s *Service) recordSystem(ctx context.Context, agent string, session Session) error {
+	return s.recordSystemOutcome(ctx, agent, session, auditevent.OutcomeSuccess)
+}
+
+// recordSystemOutcome is recordSystem with the outcome; a session with no appointment (none was disclosed)
+// names no entity.
+func (s *Service) recordSystemOutcome(ctx context.Context, agent string, session Session, outcome auditevent.Outcome) error {
+	entity := ""
+	if session.AppointmentID != "" {
+		entity = "Appointment/" + session.AppointmentID
+	}
 	return s.Audit.Record(ctx, auditevent.AuditEvent{
 		Type:            auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
 		Subtype:         auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: auditevent.CodeOperation},
 		Purpose:         auditevent.Coding{System: auditevent.SystemActReason, Code: auditevent.CodeHOPERAT},
 		Action:          auditevent.ActionExecute,
-		Outcome:         auditevent.OutcomeSuccess,
+		Outcome:         outcome,
 		AgentName:       agent,
 		OrganizationID:  session.OrganizationID,
-		EntityReference: "Appointment/" + session.AppointmentID,
+		EntityReference: entity,
 	})
 }

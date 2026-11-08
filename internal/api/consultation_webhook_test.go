@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -195,8 +196,10 @@ func TestHandleWebhook_RemovesAPatientJoiningAfterARevocation(t *testing.T) {
 	if err := deliverEvent(t, svc, videosession.Event{Kind: videosession.EventParticipantJoined, Room: n.room, Identity: n.patient, At: at.Add(-4 * time.Minute)}); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{n.room + " " + n.patient}; !slices.Equal(p.removed, want) {
-		t.Errorf("removed %v, want the patient", p.removed)
+	// The agent is removed with the patient (docs/consultation/SPEC.md §2 "Changed for SAL-3"): a_ and the room's
+	// random part.
+	if want := []string{n.room + " " + n.patient, n.room + " a_" + strings.TrimPrefix(n.room, "r_")}; !slices.Equal(p.removed, want) {
+		t.Errorf("removed %v, want the patient and the agent", p.removed)
 	}
 	var joined bool
 	if err := owner.QueryRow(t.Context(), `SELECT patient_joined_at IS NOT NULL FROM video_session`).Scan(&joined); err != nil || !joined {

@@ -475,3 +475,88 @@ func TestEndPatientAccess_OnLiveKitDisconnectsOnlyThePatient(t *testing.T) {
 	}
 	checkEvents(t, "EndPatientAccess", f.audit, removalEvent(revocationAgent))
 }
+
+// The agent's token (SPEC.md §2 "Changed for SAL-3") joins the one room as a participant of kind agent that
+// subscribes and publishes nothing: no track, no data, no metadata, no name. It is not hidden, so both clients
+// can show that it is there.
+func TestToken_TheAgentGrantSubscribesOnly(t *testing.T) {
+	t.Parallel()
+	lk := newLiveKitServer(t)
+	token, err := lk.provider().Token(videosession.Grant{Room: "r_grant", Identity: "a_grant", ValidFor: 5 * time.Minute, Agent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := auth.ParseAPIToken(token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, grants, err := v.Verify(lk.secret)
+	if err != nil {
+		t.Fatalf("Verify() = %v", err)
+	}
+	if ttl := claims.ExpiresAt.Sub(claims.NotBefore.Time); ttl != 5*time.Minute {
+		t.Errorf("valid for %v, want 5 minutes", ttl)
+	}
+	if grants.Identity != "a_grant" || grants.Kind != "agent" || grants.Name != "" || grants.Metadata != "" || len(grants.Attributes) != 0 ||
+		grants.RoomConfig != nil || grants.SIP != nil || grants.Agent != nil {
+		t.Errorf("claims %+v; want the identity and the kind agent only", grants)
+	}
+	g := grants.Video
+	if g == nil || !g.RoomJoin || g.Room != "r_grant" || g.RoomCreate || g.RoomList || g.RoomRecord || g.RoomAdmin || g.Recorder ||
+		g.Hidden || g.Agent || g.IngressAdmin || g.DestinationRoom != "" {
+		t.Fatalf("video grant %+v; want roomJoin for r_grant only, not hidden", g)
+	}
+	if !g.GetCanSubscribe() || g.GetCanPublish() || len(g.GetCanPublishSources()) != 0 || g.GetCanPublishData() || g.GetCanUpdateOwnMetadata() {
+		t.Errorf("video grant %+v; want subscribing only: no publishing, no data, no metadata", g)
+	}
+}
+
+// Real LiveKit: in a room for two, the agent joins beside the patient and the practitioner, and a third person
+// still cannot. Participants names the people only, so the agent never keeps a room "occupied" when the window
+// closes.
+func TestToken_TheAgentJoinsARoomForTwoAndIsNoParticipant(t *testing.T) {
+	t.Parallel()
+	lk := newLiveKitServer(t)
+	name := lk.room(t)
+	p := lk.provider()
+	join := func(identity string, agent bool) bool {
+		token, err := p.Token(videosession.Grant{Room: name, Identity: identity, ValidFor: time.Minute, Agent: agent})
+		if err != nil {
+			t.Fatal(err)
+		}
+		room, _ := lk.connect(t, token)
+		return room != nil
+	}
+	if !join("p_patient", false) || !join("p_practitioner", false) {
+		t.Fatal("the two people did not join")
+	}
+	if !join("a_agent", true) {
+		t.Fatal("the agent did not join the room for two")
+	}
+	if join("p_third", false) {
+		t.Error("a third person joined the room for two")
+	}
+	waitFor(t, "the two people listed", func() bool {
+		in, err := p.Participants(t.Context(), name)
+		slices.Sort(in)
+		return err == nil && slices.Equal(in, []string{"p_patient", "p_practitioner"})
+	})
+}
+
+// An agent's join or leave is no participant's: the webhook reads it as EventOther, so it records no join and
+// ends nothing.
+func TestParseWebhook_ReadsAnAgentsEventsAsOther(t *testing.T) {
+	t.Parallel()
+	lk := newLiveKitServer(t)
+	p := lk.provider()
+	created := time.Date(2030, 1, 7, 8, 55, 3, 0, time.UTC)
+	for _, kind := range []string{"participant_joined", "participant_left"} {
+		body := webhookBody(t, &livekit.WebhookEvent{Event: kind, CreatedAt: created.Unix(), Room: &livekit.Room{Name: "r_a"},
+			Participant: &livekit.ParticipantInfo{Identity: "a_a", Kind: livekit.ParticipantInfo_AGENT, JoinedAtMs: created.UnixMilli()}})
+		got, err := p.ParseWebhook(body, sign(t, lk.key, lk.secret, body, 5*time.Minute))
+		want := videosession.Event{Kind: videosession.EventOther, Room: "r_a", Identity: "a_a", At: created}
+		if err != nil || got != want {
+			t.Errorf("ParseWebhook(%s of an agent) = %+v, %v; want %+v", kind, got, err, want)
+		}
+	}
+}

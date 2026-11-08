@@ -47,15 +47,22 @@ func (p *livekitProvider) CreateRoom(ctx context.Context, r Room) error {
 }
 
 // Token signs a token that joins g.Room as g.Identity for g.ValidFor: publishing the camera and the
-// microphone, subscribing, no data, no own metadata, and no name, metadata or attributes.
+// microphone, subscribing, no data, no own metadata, and no name, metadata or attributes. An agent's token
+// has the kind agent and subscribes only; it is not hidden, so the clients see it is there.
 func (p *livekitProvider) Token(g Grant) (string, error) {
 	grant := &auth.VideoGrant{RoomJoin: true, Room: g.Room}
 	grant.SetCanSubscribe(true)
-	grant.SetCanPublish(true)
-	grant.SetCanPublishSources(publishSources)
+	grant.SetCanPublish(!g.Agent)
+	if !g.Agent {
+		grant.SetCanPublishSources(publishSources)
+	}
 	grant.SetCanPublishData(false)
 	grant.SetCanUpdateOwnMetadata(false)
-	token, err := auth.NewAccessToken(p.key, p.secret).SetIdentity(g.Identity).SetValidFor(g.ValidFor).SetVideoGrant(grant).ToJWT()
+	at := auth.NewAccessToken(p.key, p.secret).SetIdentity(g.Identity).SetValidFor(g.ValidFor).SetVideoGrant(grant)
+	if g.Agent {
+		at.SetKind(livekit.ParticipantInfo_AGENT)
+	}
+	token, err := at.ToJWT()
 	if err != nil {
 		return "", errors.New("videosession: livekit token: signing failed")
 	}
@@ -76,6 +83,7 @@ func (p *livekitProvider) DeleteRoom(ctx context.Context, room string) error {
 	return failed("delete room", gone(err))
 }
 
+// Participants returns the people in the room: an agent is not listed.
 func (p *livekitProvider) Participants(ctx context.Context, room string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
@@ -85,7 +93,9 @@ func (p *livekitProvider) Participants(ctx context.Context, room string) ([]stri
 	}
 	out := make([]string, 0, len(res.Participants))
 	for _, pi := range res.Participants {
-		out = append(out, pi.Identity)
+		if pi.GetKind() != livekit.ParticipantInfo_AGENT {
+			out = append(out, pi.Identity)
+		}
 	}
 	return out, nil
 }
@@ -114,9 +124,13 @@ func (p *livekitProvider) ParseWebhook(body []byte, authorization string) (Event
 }
 
 // toEvent is the domain's view of e: the kinds the consultation acts on, the room, the participant, and the
-// time (the participant's join for a join, in milliseconds when LiveKit gives them).
+// time (the participant's join for a join, in milliseconds when LiveKit gives them). An agent's events are
+// EventOther: the agent is no participant of the consultation.
 func toEvent(e *livekit.WebhookEvent) Event {
 	out := Event{Kind: EventOther, Room: e.GetRoom().GetName(), Identity: e.GetParticipant().GetIdentity(), At: time.Unix(e.GetCreatedAt(), 0).UTC()}
+	if e.GetParticipant().GetKind() == livekit.ParticipantInfo_AGENT {
+		return out
+	}
 	switch e.GetEvent() {
 	case "participant_joined":
 		out.Kind = EventParticipantJoined
