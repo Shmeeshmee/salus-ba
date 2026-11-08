@@ -22,6 +22,7 @@ type stubResponses struct {
 	caller  appointment.Caller
 	id      string
 	other   string // the questionnaire of Request
+	lang    string // the language of Start
 	answers []questionnaireresponse.Answer
 	out     questionnaireresponse.Response
 	version int32
@@ -39,6 +40,11 @@ func (s *stubResponses) SaveAnswers(_ context.Context, c appointment.Caller, id 
 
 func (s *stubResponses) Submit(_ context.Context, c appointment.Caller, id string, version int32) (questionnaireresponse.Response, error) {
 	s.called, s.caller, s.id, s.version = "Submit", c, id, version
+	return s.out, s.err
+}
+
+func (s *stubResponses) Start(_ context.Context, c appointment.Caller, id, language string) (questionnaireresponse.Response, error) {
+	s.called, s.caller, s.id, s.lang = "Start", c, id, language
 	return s.out, s.err
 }
 
@@ -136,6 +142,11 @@ func TestHTTPHandler_EachRouteCallsTheServiceAndAnswersTheResponse(t *testing.T)
 			check: func(s *stubResponses) bool { return s.called == "Submit" && s.id == hResponse && s.version == 3 },
 		},
 		{
+			name: "start", status: http.StatusOK,
+			call:  call{method: http.MethodPost, path: "/questionnaire-responses/" + hResponse + "/start", body: `{"language":"sr-Latn"}`},
+			check: func(s *stubResponses) bool { return s.called == "Start" && s.id == hResponse && s.lang == "sr-Latn" },
+		},
+		{
 			name: "withdraw", status: http.StatusOK,
 			call:  call{method: http.MethodPost, path: "/questionnaire-responses/" + hResponse + "/withdraw"},
 			check: func(s *stubResponses) bool { return s.called == "Withdraw" && s.id == hResponse },
@@ -169,11 +180,24 @@ func TestHTTPHandler_WritesAuthoredOnceSubmittedAndAnEmptyListOfAnswers(t *testi
 	}
 }
 
+// The language answered in is written once the patient has started (docs/i18n/SPEC.md §3), and absent before.
+func TestHTTPHandler_WritesTheLanguageOnceStarted(t *testing.T) {
+	t.Parallel()
+	started := saved
+	started.Language, started.Answers = "sr-Cyrl", nil
+	rec := serveJSON(t, &stubResponses{out: started}, true, &bytes.Buffer{}, call{method: http.MethodPost, path: "/questionnaire-responses/" + hResponse + "/start", body: `{"language":"sr-Cyrl"}`})
+	want := `"lastUpdated":"2026-11-06T09:30:00Z","language":"sr-Cyrl","answers":[],"versionId":3}`
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), want) || rec.Header().Get("Cache-Control") != "no-store" {
+		t.Errorf("start = %d %s, want it to hold %s", rec.Code, rec.Body, want)
+	}
+}
+
 func TestHTTPHandler_RefusesNobodyAndAMalformedRequestWithoutCallingTheService(t *testing.T) {
 	t.Parallel()
 	answers := "/questionnaire-responses/" + hResponse + "/answers"
 	request := "/appointments/" + hAppointment + "/questionnaires"
 	submit := "/questionnaire-responses/" + hResponse + "/submit"
+	start := "/questionnaire-responses/" + hResponse + "/start"
 	for _, c := range []struct {
 		call     call
 		name     string
@@ -192,6 +216,13 @@ func TestHTTPHandler_RefusesNobodyAndAMalformedRequestWithoutCallingTheService(t
 		{call{method: http.MethodPut, path: answers, ifMatch: `W/"3"`, body: `{"answers":[{"linkId":"q1","values":[{"valueInteger":2147483648}]}]}`}, "save with an integer outside 32 bits", "invalid_request", http.StatusBadRequest, true},
 		{call{method: http.MethodPut, path: answers, ifMatch: `W/"3"`, body: `{"answers":[]}{}`}, "save with two objects", "invalid_request", http.StatusBadRequest, true},
 		{call{method: http.MethodPost, path: submit}, "submit without If-Match", "invalid_request", http.StatusBadRequest, true},
+		{call{method: http.MethodPost, path: start, body: `{"language":"en"}`}, "nobody signed in, start", "unauthenticated", http.StatusUnauthorized, false},
+		{call{method: http.MethodPost, path: start, body: `{}`}, "start without a language", "invalid_request", http.StatusBadRequest, true},
+		{call{method: http.MethodPost, path: start, body: `{"language":null}`}, "start with a null language", "invalid_request", http.StatusBadRequest, true},
+		{call{method: http.MethodPost, path: start, body: `{"language":""}`}, "start with an empty language", "invalid_request", http.StatusBadRequest, true},
+		{call{method: http.MethodPost, path: start, body: `{"language":"sr"}`}, "start with a tag outside the list", "invalid_request", http.StatusBadRequest, true},
+		{call{method: http.MethodPost, path: start, body: `{"language":"EN"}`}, "start with a tag in another case", "invalid_request", http.StatusBadRequest, true},
+		{call{method: http.MethodPost, path: start, body: `{"language":"en","note":"y"}`}, "start with an unknown field", "invalid_request", http.StatusBadRequest, true},
 	} {
 		svc := &stubResponses{}
 		rec := serveJSON(t, svc, c.signedIn, &bytes.Buffer{}, c.call)
@@ -243,12 +274,15 @@ func TestHTTPHandler_MapsEachDomainErrorToItsStatusAndCode(t *testing.T) {
 		{questionnaireresponse.ErrPastDue, "past_due", http.StatusConflict},
 		{questionnaireresponse.ErrAttachmentsPending, "attachments_pending", http.StatusConflict},
 		{questionnaireresponse.ErrConflict, "version_conflict", http.StatusPreconditionFailed},
+		{questionnaireresponse.ErrLanguageLocked, "language_locked", http.StatusConflict},
+		{questionnaireresponse.ErrLanguageUnavailable, "language_unavailable", http.StatusUnprocessableEntity},
 	} {
 		for _, r := range []call{
 			{method: http.MethodPost, path: "/appointments/" + hAppointment + "/questionnaires", body: `{"questionnaireId":"` + hQuestionnaire + `"}`},
 			{method: http.MethodPut, path: "/questionnaire-responses/" + hResponse + "/answers", ifMatch: `W/"3"`, body: answersBody},
 			{method: http.MethodPost, path: "/questionnaire-responses/" + hResponse + "/submit", ifMatch: `W/"3"`},
 			{method: http.MethodPost, path: "/questionnaire-responses/" + hResponse + "/withdraw"},
+			{method: http.MethodPost, path: "/questionnaire-responses/" + hResponse + "/start", body: `{"language":"en"}`},
 		} {
 			var log bytes.Buffer
 			rec := serveJSON(t, &stubResponses{err: c.err}, true, &log, r)

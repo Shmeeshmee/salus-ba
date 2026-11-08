@@ -1074,6 +1074,64 @@ Left for later:
 
 ### 2.1 internal/questionnaireresponse: the language answered in
 
+Done 2026-11-08 on `i18n/2.1` (unattended run, wave 2).
+
+Built:
+- `Service.Start(ctx, caller, id, language)` (`service_language.go`): the patient chooses the language they answer
+  in. It runs through the same helper as saving the answers (`answer`), so the same checks and refusals hold: the
+  patient only (403 to staff who see it, 404 to anyone else), in progress, the appointment booked (locked against a
+  cancellation) and not started, an active consent; in one transaction in the patient's scope, audited as an update,
+  refusals included. Then 409 `language_locked` once an answer or a file is saved, and 422 `language_unavailable`
+  for a language that is neither the version's original nor a translation the questionnaire service gives the
+  patient (`Referenced`, complete translations only, 1.4): the language comes from that service, never from a
+  table of this domain. Stored with 0.1's `SetLanguage` (next version); it may be chosen again until the first
+  answer or file.
+- `answer` takes the If-Match version as `*int32`: nil (start) skips the version check, as the attachment changes
+  already do by passing the response's own version; its `change` callback gets the whole questionnaire version
+  instead of its items.
+- HTTP: `POST /questionnaire-responses/{id}/start` `{"language"}` (the contract 0.1 wrote): a tag outside the enum,
+  an empty or null one, or an unknown field is 400 `invalid_request` without calling the service; the JSON
+  `QuestionnaireResponse` carries `language` once started. Routes are declared in the domain's `Routes`, so
+  `internal/api` needed no edit.
+- FHIR: `QuestionnaireResponse.language` (after `meta`) on a Full view, so the practitioner's read of a submitted
+  response and the patient's own read carry it; golden `response_language.json` (a submitted response answered in
+  `sr-Cyrl`). The existing goldens are unchanged (their responses have no language).
+
+Test first (the failures seen):
+- Service: first `f.svc.Start undefined (type *questionnaireresponse.Service has no field or method Start)`; with a
+  stub `Start` and the two errors: `Start(en) = {…Language: …VersionID:0}, <nil>; want English at version 4`,
+  `Start("de") = <nil>, want ErrLanguageUnavailable`, `an answer, Start(en) = <nil>, want ErrLanguageLocked`,
+  `submitted: = <nil>, want questionnaireresponse: submitted` (and every other refusal unaudited).
+- HTTP: `start = 404 404 page not found` for every start case (route, refusals, error codes).
+- FHIR: `testdata/response_language.json differs from the response` (no `language` in the body), then written with
+  `-update`; diff reviewed (only the new file).
+
+Checks:
+- `go test -count=1 -cover ./internal/questionnaireresponse/...`: pass, 93.7% (`questionnaireresponsedb` is
+  generated, excluded).
+- lint (`scripts/lint.sh`, `--no-deps`, main `.git` mounted): 0 issues, check-migrations ok. archcheck: pass.
+- FHIR: the HL7 validator (`fhir-validator`, `--no-deps`) over the package's 11 golden files: 0 errors (warnings:
+  dom-6 narrative, the questionnaire canonical not resolvable, attachment URLs not fetchable, as before).
+
+Decided while the owner was away:
+- **Starting shares every check of saving the answers but If-Match**: the contract gives the start no If-Match and
+  no 412, and a repeated start is harmless; the language query itself refuses a change once anything is saved.
+- **The order of the refusals**: the answers' refusals first (forbidden, submitted, withdrawn, appointment closed,
+  past due, consent required), then `language_locked`, then `language_unavailable`. The version is read (and that
+  read audited, as for every save) before the last two, since one helper serves all the patient's changes.
+- **A tag outside the enum is refused in the handler** with 400 `invalid_request` (the contract's "a tag outside
+  the list included"), from a slice of the ten tags in `handler_http.go`, as auth and questionnaire keep theirs; the
+  service refuses any other unknown language as `language_unavailable` anyway.
+- **Choosing the same language again moves the response to its next version** like any other choice: simpler than
+  comparing, and it only happens on a tap.
+- **The language is in a Full view only**: the FHIR read without the answers (the clinic's admin, the practitioner
+  before the submit) does not carry it, since it says which translation the patient answered and goes with the
+  answers (data minimisation). The JSON writes, which only the patient receives, always carry it once set.
+- **No test through the real questionnaire service in this package**: that a patient is given only complete
+  translations is 1.4's rule, tested there; the end-to-end journey is 3.1's.
+
+COPY.md additions (not yet reviewed): none (the server returns codes only).
+
 ### 2.2 Web: the translation editor
 
 ### 2.3 Mobile: choosing the questionnaire's language
