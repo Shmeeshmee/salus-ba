@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Questionnaire } from './api/fhir'
 import { newItem } from './builder'
 import { fromFHIR, fromJSON, libraryOf, toRequest } from './questionnaire'
-import { questionnaireFHIR, questionnaireJSON } from './test/questionnaires'
+import { questionnaireFHIR, questionnaireJSON, translatedFHIR, translatedJSON } from './test/questionnaires'
 
 describe('fromFHIR', () => {
   it('reads a version: help text from its help item, single and multiple choice apart, the condition', () => {
@@ -107,5 +107,47 @@ describe('libraryOf', () => {
       version('c1', 'c', 1, 'draft', 'Gamma'),
     ])
     expect(list.map((v) => v.id)).toEqual(['a2', 'b2', 'b3', 'c1'])
+  })
+})
+
+describe('a translated questionnaire', () => {
+  const english = translatedJSON().translations?.[0]
+  const german = translatedJSON().translations?.[1]
+
+  it('reads the original language and the translations from the FHIR translation extensions, in the language list order', () => {
+    const v = fromFHIR(translatedFHIR())
+    expect(v.language).toBe('bs')
+    expect(v.translations).toEqual([english, german])
+  })
+
+  it('reads the original language and the translations from the JSON API answer', () => {
+    expect(fromJSON(translatedJSON())).toEqual(fromFHIR(translatedFHIR()))
+  })
+
+  it('takes Bosnian and no translations when the read has none', () => {
+    expect(fromFHIR(questionnaireFHIR())).toMatchObject({ language: 'bs', translations: [] })
+  })
+
+  it('sends the original language and every translation, held to what the original has', () => {
+    const v = fromFHIR(translatedFHIR())
+    const [en, de] = v.translations
+    const items = v.items.map((it) => (it.linkId === 'smoker' ? { ...it, help: '' } : it))
+    const draftDE = {
+      ...de,
+      description: 'Placeholder description in German',
+      items: { one: { text: '  ', options: ['A in German'] }, gone: { text: 'Placeholder removed item in German' } },
+    }
+    const body = toRequest(v.title, '', items, v.language, [en, draftDE])
+
+    expect(body.language).toBe('bs')
+    expect(body.translations).toEqual([
+      { ...english, items: { ...english?.items, smoker: { text: 'Placeholder yes or no in English' } } },
+      { language: 'de', title: 'Placeholder intake in German', items: { one: { options: ['A in German', ''] } } },
+    ])
+  })
+
+  it('sends a translated description only when the original has one', () => {
+    const t = { language: 'en' as const, title: 'T in English', description: 'Placeholder description in English', items: {} }
+    expect(toRequest('T', 'Placeholder description', [], 'bs', [t]).translations).toEqual([t])
   })
 })

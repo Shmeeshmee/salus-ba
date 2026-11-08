@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ApiClient, ErrorCode } from './api/client'
-import { FhirError, type Bundle, type FhirClient, type Questionnaire } from './api/fhir'
+import { FhirError, type Bundle, type FhirClient } from './api/fhir'
 import { attempt, type Outcome } from './api/result'
 import {
   at,
@@ -29,8 +29,10 @@ import { ChevronIcon } from './icons'
 import { FilesSummary, ItemCard, TextField } from './ItemCard'
 import { useLoad } from './load'
 import { useT } from './i18n/useT'
-import { fromFHIR, fromJSON, toRequest, type Version } from './questionnaire'
+import { contentLanguageNames, fromFHIR, fromJSON, toRequest, type ContentLanguage, type FHIRQuestionnaire, type Translation, type Version } from './questionnaire'
 import { guardLeaving, navigate } from './route'
+import { firstIncomplete, progress } from './translation'
+import { Languages, TranslationEditor } from './Translations'
 import { Alert, Confirm, Link } from './ui'
 
 type Loaded = { version: Version; series: Version[] }
@@ -47,8 +49,8 @@ const newLinkId = () => crypto.randomUUID()
 export function Builder({ api, fhir, id }: Props) {
   const t = useT()
   const { state, reload, set } = useLoad(async (): Promise<Loaded> => {
-    const q = await fhir.get<Questionnaire>(`Questionnaire/${encodeURIComponent(id)}`)
-    const bundle = await fhir.get<Bundle<Questionnaire>>(`Questionnaire?${new URLSearchParams({ url: q.url })}`)
+    const q = await fhir.get<FHIRQuestionnaire>(`Questionnaire/${encodeURIComponent(id)}`)
+    const bundle = await fhir.get<Bundle<FHIRQuestionnaire>>(`Questionnaire?${new URLSearchParams({ url: q.url })}`)
     return { version: fromFHIR(q), series: (bundle.entry ?? []).map((e) => fromFHIR(e.resource)) }
   }, [fhir, id])
 
@@ -76,7 +78,7 @@ function Page({ children, wide }: { children: ReactNode; wide?: boolean }) {
   )
 }
 
-type Failure = { message: string; reload?: boolean; draft?: string } // message: a catalog message id
+type Failure = { message: string; values?: Record<string, string>; reload?: boolean; draft?: string } // message: a catalog message id
 
 // failure maps an API refusal to its W29 text's message id.
 function failure(code: ErrorCode | undefined, series: Version[]): Failure {
@@ -101,7 +103,7 @@ function FailureAlert({ failure, onReload }: { failure?: Failure; onReload?: () 
   if (!failure) return null
   return (
     <div className="failure">
-      <Alert message={t(failure.message)} />
+      <Alert message={t(failure.message, failure.values)} />
       {failure.reload && onReload && (
         <div className="actions">
           <button type="button" onClick={onReload}>
@@ -128,6 +130,11 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
   const [title, setTitle] = useState(loaded.version.title)
   const [description, setDescription] = useState(loaded.version.description)
   const [items, setItems] = useState(loaded.version.items)
+  const [language, setLanguage] = useState(loaded.version.language)
+  const [translations, setTranslations] = useState(loaded.version.translations)
+  const [editing, setEditing] = useState<ContentLanguage>() // the translation open beside the original
+  const [adding, setAdding] = useState(false)
+  const [incomplete, setIncomplete] = useState<ContentLanguage>() // the translation a publish was refused for
   const [versionId, setVersionId] = useState(loaded.version.versionId)
   const [dirty, setDirty] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -136,7 +143,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
   const [opened, setOpened] = useState<string[]>([])
   const [flagged, setFlagged] = useState<string[]>([])
   const [failed, setFailed] = useState<Failure>()
-  const [confirm, setConfirm] = useState<'publish' | 'discard'>()
+  const [confirm, setConfirm] = useState<'translate' | 'publish' | 'discard'>()
   const [leavingTo, setLeavingTo] = useState<string>()
   const [announcement, setAnnouncement] = useState('')
   const [fresh, setFresh] = useState<string>() // the item just added, whose text takes the focus
@@ -181,7 +188,8 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
     navigate(to)
   }
 
-  async function save(): Promise<number | undefined> {
+  // save answers the saved version, or nothing when the save was refused.
+  async function save(): Promise<Version | undefined> {
     setBusy(true)
     setFailed(undefined)
     setSaved(false)
@@ -189,7 +197,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
     const res = await attempt(
       api.PUT('/questionnaires/{id}', {
         params: { path: { id: v.id }, header: { 'If-Match': `W/"${versionId}"` } },
-        body: toRequest(title, description, items),
+        body: toRequest(title, description, items, language, translations),
       }),
     )
     setBusy(false)
@@ -197,41 +205,85 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
       refused(res)
       return undefined
     }
-    setVersionId(res.data.versionId)
+    const saved = fromJSON(res.data)
+    setVersionId(saved.versionId)
     setFlagged([])
     if (edits.current === sent) {
+      // The answer's translations lack the texts whose original changed (docs/i18n/PROGRESS.md 1.4).
+      setTranslations(saved.translations)
       setDirty(false)
       dirtyRef.current = false
       setSaved(true)
     }
-    return res.data.versionId
+    return saved
   }
 
-  function refused(res: Outcome<unknown>) {
+  // refused shows a refusal; now is the translations as the API holds them (after a save, its answer's).
+  function refused(res: Outcome<unknown>, now = translations) {
     if (res.ok) return
     setFailed(failure(res.code, loaded.series))
+    if (res.code === 'translation_incomplete') refusedTranslation(res.linkIds ?? [], now)
     if (res.code !== 'invalid_questionnaire') return
     const ids = res.linkIds ?? []
     setFlagged(ids)
     setOpened((o) => [...new Set([...o, ...ids])])
   }
 
-  // askPublish checks the items as the API will before it asks: a draft with problems is shown, not offered.
+  // refusedTranslation shows B6 and the items the API named. The error's language is not passed on by
+  // attempt; it is the translation the same rule finds incomplete here, which the API checks first too.
+  function refusedTranslation(linkIds: string[], now: Translation[]) {
+    setFlagged(linkIds)
+    const first = firstIncomplete(now, description, items)
+    if (first) showIncomplete(first.language)
+    else setFailed({ message: 'questionnaire.needsAttention' })
+  }
+
+  // showIncomplete is B6, and B7 on the items the translation lacks a text of.
+  function showIncomplete(l: ContentLanguage) {
+    setIncomplete(l)
+    setFailed({ message: 'questionnaire.translationIncomplete', values: { language: contentLanguageNames[l] } })
+  }
+
+  // askPublish checks the draft as the API will before it asks: a draft with problems or an incomplete
+  // translation is shown, not offered; one with no translation is asked about first (B5).
   function askPublish() {
     const ids = [...found.keys()]
-    if (ids.length === 0) {
-      setConfirm('publish')
+    if (ids.length > 0) {
+      setFailed({ message: 'questionnaire.needsAttention' })
+      setOpened((o) => [...new Set([...o, ...ids])])
       return
     }
-    setFailed({ message: 'questionnaire.needsAttention' })
-    setOpened((o) => [...new Set([...o, ...ids])])
+    const first = firstIncomplete(translations, description, items)
+    if (first) return showIncomplete(first.language)
+    setFailed(undefined)
+    setConfirm(translations.length === 0 ? 'translate' : 'publish')
+  }
+
+  function editTranslations(next: Translation[]) {
+    setTranslations(next)
+    changed()
+  }
+
+  function addTranslation(l: ContentLanguage) {
+    editTranslations([...translations, { language: l, title: '', items: {} }])
+    setAdding(false)
+    setEditing(l)
+  }
+
+  function removeTranslation(l: ContentLanguage) {
+    editTranslations(translations.filter((x) => x.language !== l))
+    if (editing === l) setEditing(undefined)
+    if (incomplete === l) {
+      setIncomplete(undefined)
+      setFailed(undefined)
+    }
   }
 
   // publish saves what is unsaved, then publishes that version. The items are out of reach meanwhile (inert), so
   // no edit can come after the save and be lost to the published version.
   async function publish() {
     setPublishing(true)
-    const current = dirty ? await save() : versionId
+    const current = dirty ? await save() : { versionId, translations }
     if (current === undefined) {
       setPublishing(false)
       setConfirm(undefined)
@@ -239,13 +291,13 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
     }
     setBusy(true)
     const res = await attempt(
-      api.POST('/questionnaires/{id}/publish', { params: { path: { id: v.id }, header: { 'If-Match': `W/"${current}"` } } }),
+      api.POST('/questionnaires/{id}/publish', { params: { path: { id: v.id }, header: { 'If-Match': `W/"${current.versionId}"` } } }),
     )
     setBusy(false)
     setPublishing(false)
     setConfirm(undefined)
     if (res.ok) onPublished(fromJSON(res.data))
-    else refused(res)
+    else refused(res, current.translations)
   }
 
   async function discard() {
@@ -284,6 +336,10 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
   const active = loaded.series.find((s) => s.status === 'active' && s.id !== v.id)
   const full = count(items) >= maxItems
   const found = problems(items)
+  const open = translations.find((x) => x.language === editing)
+  const refusedFor = translations.find((x) => x.language === incomplete)
+  const missing = refusedFor ? progress(refusedFor, description, items).missing : []
+  const missingIn = refusedFor ? t('questionnaire.missingIn', { language: contentLanguageNames[refusedFor.language] }) : undefined
 
   return (
     <Page wide>
@@ -305,86 +361,124 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
       <p className="sr-only" role="status" aria-live="polite">
         {announcement}
       </p>
-      <DragArea items={items} label={label} newLinkId={newLinkId} onChange={placed} onNested={() => setFailed({ message: 'questionnaire.nestedSection' })}>
-        {(movingSection) => (
-          <div className="builder" inert={publishing}>
-            <Palette full={full} count={count(items)} onAdd={add} />
-            <div className="sheet">
-              <TextField
-                label={t('questionnaire.titleLabel')}
-                value={title}
-                max={maxTitle}
-                hint={t('questionnaire.templateHint')}
-                onChange={(x) => {
-                  setTitle(x)
-                  changed()
-                }}
-              />
-              <TextField
-                label={t('questionnaire.descriptionLabel')}
-                value={description}
-                max={maxDescription}
-                long
-                onChange={(x) => {
-                  setDescription(x)
-                  changed()
-                }}
-              />
-              <SortableList rows={rowsOf(items, movingSection)}>
-                <ul className="items">
-                  {rowsOf(items, movingSection).map((r) => (
-                    <SortableRow key={r.id} id={r.id} end={'end' in r}>
-                      {(row) =>
-                        'end' in r ? (
-                          <li ref={row.ref} style={row.style} className="section-end" aria-hidden="true" />
-                        ) : (
-                          <ItemCard
-                            item={r.item}
-                            depth={r.depth}
-                            fresh={fresh === r.item.linkId}
-                            nodeRef={row.ref}
-                            style={row.style}
-                            handle={row.handle}
-                            dragging={row.dragging}
-                            label={label}
-                            open={opened.includes(r.item.linkId)}
-                            problems={found.get(r.item.linkId) ?? []}
-                            attention={flagged.includes(r.item.linkId) || found.has(r.item.linkId)}
-                            canUp={canStep(items, r.item.linkId, -1)}
-                            canDown={canStep(items, r.item.linkId, 1)}
-                            dependents={dependents(items, r.item.linkId)}
-                            earlier={earlierQuestions(items, r.item.linkId)}
-                            questionOf={(id) => find(items, id)}
-                            onToggle={() =>
-                              setOpened((o) => (o.includes(r.item.linkId) ? o.filter((x) => x !== r.item.linkId) : [...o, r.item.linkId]))
-                            }
-                            onStep={(dir) => stepItem(r.item.linkId, dir)}
-                            onDelete={() => edit(remove(items, r.item.linkId))}
-                            onChange={(patch) => edit(update(items, r.item.linkId, patch))}
-                            onKind={(kind) => {
-                              const next = newLinkId()
-                              edit(changeKind(items, r.item.linkId, kind, next))
-                              setOpened((o) => o.map((x) => (x === r.item.linkId ? next : x)))
-                            }}
-                          />
-                        )
-                      }
-                    </SortableRow>
-                  ))}
-                </ul>
-              </SortableList>
-              <ListEnd>
-                {(ref, over) => (
-                  <div ref={ref} className={over ? 'list-end over' : 'list-end'}>
-                    {items.length === 0 && <p className="muted">{t('questionnaire.empty')}</p>}
-                  </div>
-                )}
-              </ListEnd>
+      <div inert={publishing}>
+        <Languages
+          language={language}
+          translations={translations}
+          description={description}
+          items={items}
+          editing={open?.language}
+          adding={adding}
+          onLanguage={(l) => {
+            setLanguage(l)
+            changed()
+          }}
+          onEdit={setEditing}
+          onAdding={setAdding}
+          onAdd={addTranslation}
+          onRemove={removeTranslation}
+        />
+      </div>
+      {open ? (
+        <div inert={publishing}>
+          <TranslationEditor language={language} translation={open} title={title} description={description} items={items} onChange={(x) => editTranslations(translations.map((y) => (y.language === x.language ? x : y)))} />
+        </div>
+      ) : (
+        <DragArea items={items} label={label} newLinkId={newLinkId} onChange={placed} onNested={() => setFailed({ message: 'questionnaire.nestedSection' })}>
+          {(movingSection) => (
+            <div className="builder" inert={publishing}>
+              <Palette full={full} count={count(items)} onAdd={add} />
+              <div className="sheet">
+                <TextField
+                  label={t('questionnaire.titleLabel')}
+                  value={title}
+                  max={maxTitle}
+                  hint={t('questionnaire.templateHint')}
+                  onChange={(x) => {
+                    setTitle(x)
+                    changed()
+                  }}
+                />
+                <TextField
+                  label={t('questionnaire.descriptionLabel')}
+                  value={description}
+                  max={maxDescription}
+                  long
+                  onChange={(x) => {
+                    setDescription(x)
+                    changed()
+                  }}
+                />
+                <SortableList rows={rowsOf(items, movingSection)}>
+                  <ul className="items">
+                    {rowsOf(items, movingSection).map((r) => (
+                      <SortableRow key={r.id} id={r.id} end={'end' in r}>
+                        {(row) =>
+                          'end' in r ? (
+                            <li ref={row.ref} style={row.style} className="section-end" aria-hidden="true" />
+                          ) : (
+                            <ItemCard
+                              item={r.item}
+                              depth={r.depth}
+                              fresh={fresh === r.item.linkId}
+                              nodeRef={row.ref}
+                              style={row.style}
+                              handle={row.handle}
+                              dragging={row.dragging}
+                              label={label}
+                              open={opened.includes(r.item.linkId)}
+                              problems={found.get(r.item.linkId) ?? []}
+                              missingIn={missing.includes(r.item.linkId) ? missingIn : undefined}
+                              attention={flagged.includes(r.item.linkId) || found.has(r.item.linkId) || missing.includes(r.item.linkId)}
+                              canUp={canStep(items, r.item.linkId, -1)}
+                              canDown={canStep(items, r.item.linkId, 1)}
+                              dependents={dependents(items, r.item.linkId)}
+                              earlier={earlierQuestions(items, r.item.linkId)}
+                              questionOf={(id) => find(items, id)}
+                              onToggle={() =>
+                                setOpened((o) => (o.includes(r.item.linkId) ? o.filter((x) => x !== r.item.linkId) : [...o, r.item.linkId]))
+                              }
+                              onStep={(dir) => stepItem(r.item.linkId, dir)}
+                              onDelete={() => edit(remove(items, r.item.linkId))}
+                              onChange={(patch) => edit(update(items, r.item.linkId, patch))}
+                              onKind={(kind) => {
+                                const next = newLinkId()
+                                edit(changeKind(items, r.item.linkId, kind, next))
+                                setOpened((o) => o.map((x) => (x === r.item.linkId ? next : x)))
+                              }}
+                            />
+                          )
+                        }
+                      </SortableRow>
+                    ))}
+                  </ul>
+                </SortableList>
+                <ListEnd>
+                  {(ref, over) => (
+                    <div ref={ref} className={over ? 'list-end over' : 'list-end'}>
+                      {items.length === 0 && <p className="muted">{t('questionnaire.empty')}</p>}
+                    </div>
+                  )}
+                </ListEnd>
+              </div>
             </div>
-          </div>
-        )}
-      </DragArea>
+          )}
+        </DragArea>
+      )}
       <FailureAlert failure={failed} onReload={onReload} />
+      {confirm === 'translate' && (
+        <Confirm
+          question={t('questionnaire.translateQuestion')}
+          lines={[t('questionnaire.translateWarning')]}
+          confirm={t('questionnaire.addTranslation')}
+          cancel={t('questionnaire.publishWithout')}
+          onConfirm={() => {
+            setConfirm(undefined)
+            setAdding(true)
+          }}
+          onCancel={() => setConfirm('publish')}
+        />
+      )}
       {confirm === 'publish' && (
         <Confirm
           question={t('questionnaire.publishQuestion')}

@@ -3,7 +3,7 @@ import type { Bundle, Questionnaire, QuestionnaireResponse } from './api/fhir'
 import { answered, requestsOf, statusOf, valueText } from './responses'
 import { newItem } from './builder'
 import { fromFHIR } from './questionnaire'
-import { questionnaireFHIR } from './test/questionnaires'
+import { questionnaireFHIR, translatedFHIR } from './test/questionnaires'
 import { responseFHIR, responsesBundle } from './test/responses'
 import { translator } from './test/translate'
 
@@ -156,5 +156,35 @@ describe('statusOf', () => {
       'Predan: nedjelja, 8. studenoga 2026. u 18:45',
     )
     expect(statusOf({ status: 'stopped' }, start, before, zone, translator('sr-Cyrl'), 'sr-Cyrl')).toBe('Повучен')
+  })
+})
+
+describe('a response answered in a translation', () => {
+  const translated = { ...translatedFHIR(), status: 'active' as const }
+  const answers = [
+    { linkId: 'smoker', answer: [{ valueBoolean: true }] },
+    { linkId: 'sec', item: [{ linkId: 'one', answer: [{ valueString: 'B' }] }, { linkId: 'many', answer: [{ valueString: 'C' }] }] },
+  ]
+  const read = (language?: string) => requestsOf(responsesBundle([{ ...responseFHIR('r1', 'completed', { item: answers }), language } as QuestionnaireResponse], [translated]))[0]
+
+  it('carries the language and the questions and options as the patient read them, the original where a text is missing', () => {
+    const r = read('en')
+    expect(r.language).toBe('en')
+    expect(r.answers.map((b) => b.section)).toEqual([undefined, 'Placeholder section'])
+    expect(r.translated).toEqual([
+      { questions: [{ linkId: 'smoker', text: 'Placeholder yes or no in English', kind: 'boolean', values: [{ valueBoolean: true }] }] },
+      {
+        section: 'Placeholder section in English',
+        questions: [
+          { linkId: 'one', text: 'Placeholder single in English', kind: 'single', values: [{ valueString: 'B in English' }] },
+          { linkId: 'many', text: 'Placeholder multiple', kind: 'multiple', values: [{ valueString: 'C' }] },
+        ],
+      },
+    ])
+  })
+
+  it('has no translated questions when answered in the original language, or before the language was recorded', () => {
+    expect(read('bs')).toMatchObject({ language: 'bs', translated: undefined })
+    expect(read(undefined)).toMatchObject({ language: undefined, translated: undefined })
   })
 })
