@@ -204,6 +204,11 @@ the owner was away".
   with no language gets Bosnian e-mails (SPEC §3), and the worker tests assert the English texts; the fixture now
   states the choice instead of the tests changing what they assert. Two test files had `renderInLanguage`
   imported twice after the merge of areas A and B; one import each was removed.
+- **The dev database stayed at migration 00028 until wave 2's integration**: `docker compose run migrate` reuses
+  the image built when the stack started, and migrations are embedded at build time. Wave 2's integration
+  rebuilt the stack from `feat/i18n` (`docker compose up -d --build --wait`), which applied 00029.
+- **`make e2e` is run as its steps** (web and e2e installs, the rate-limit reset, the Go and web journeys, the
+  LiveKit log check) without its `up` prerequisite, for the reason the first point gives.
 
 ### 0.1 Baseline: database, contract, checks
 
@@ -446,3 +451,76 @@ the owner was away".
 - **A message already shown stays in its language** after a language change until the next action (sign-in
   notices, errors): only the file problems of an upload, kept by `Uploads`, are written when shown.
 - **Arabic "General practice" is طب الأسرة** (the draft had two terms with a slash).
+
+### 2.1 internal/questionnaireresponse: the language answered in
+
+- **Starting shares every check of saving the answers but If-Match**: the contract gives the start no If-Match and
+  no 412, and a repeated start is harmless; the language query itself refuses a change once anything is saved.
+- **The order of the refusals**: the answers' refusals first (forbidden, submitted, withdrawn, appointment closed,
+  past due, consent required), then `language_locked`, then `language_unavailable`. The version is read (and that
+  read audited, as for every save) before the last two, since one helper serves all the patient's changes.
+- **A tag outside the enum is refused in the handler** with 400 `invalid_request` (the contract's "a tag outside
+  the list included"), from a slice of the ten tags in `handler_http.go`, as auth and questionnaire keep theirs; the
+  service refuses any other unknown language as `language_unavailable` anyway.
+- **Choosing the same language again moves the response to its next version** like any other choice: simpler than
+  comparing, and it only happens on a tap.
+- **The language is in a Full view only**: the FHIR read without the answers (the clinic's admin, the practitioner
+  before the submit) does not carry it, since it says which translation the patient answered and goes with the
+  answers (data minimisation). The JSON writes, which only the patient receives, always carry it once set.
+- **No test through the real questionnaire service in this package**: that a patient is given only complete
+  translations is 1.4's rule, tested there; the end-to-end journey is 3.1's.
+
+### 2.2 Web: the translation editor
+
+- **The translation editor replaces the item list while a translation is open**, instead of a second column on
+  every item card: the cards keep their drag handles, types and options, and the translator needs only the
+  texts. The panel's buttons switch between the original and each translation, so the builder stays one column
+  with nothing new on the cards but B7.
+- **B5 comes before the usual publish confirmation**, not instead of it: "Publish without" goes on to "Publish this
+  questionnaire?", which keeps its warning that a published version cannot be changed. The six existing publish
+  tests answer B5 first (`withoutTranslation()`); nothing they assert changed.
+- **The builder checks completeness before it asks**, as it already checks the items: an incomplete translation
+  shows B6 and B7 without a request. On a 422 `translation_incomplete` the language comes from the same rule on
+  the translations the API holds (the save's answer), because `attempt` (`web/src/api/result.ts`, not this
+  package's file) passes on `linkIds` but not `language`; when the rule finds none, the alert is "Some items need
+  attention." on the items named.
+- **B7 is shown on the item cards** (the original view, where the doctor publishes) for the items the refused
+  translation lacks, and goes away as they are translated or when the translation is removed; the empty fields of
+  the translation editor say the rest.
+- **A translation with no text at all is not kept across a reload**: the builder reads drafts through FHIR, where
+  only translated texts carry the extension. Saved and reloaded before its title is written, it is gone, which
+  loses nothing.
+- **The ten language names live in `questionnaire.ts`** (the staff five from `language.ts`, plus Deutsch,
+  العربية, Türkçe, Italiano, Français), not in `language.ts`, which is 1.5's file; the FHIR translation fields are
+  typed there too (`FHIRQuestionnaire`), not in `api/fhir.ts`, for the same reason. The integration step may move
+  them.
+- **The response's language is read from FHIR `QuestionnaireResponse.language`**, which 2.1 adds; before 2.1 is
+  merged no response carries one and the answers view is as before.
+- **Choice answers are shown in the patient's language** in the translated view (the option at the same position),
+  since the patient read them so; the switch shows the original options with the original questions.
+- **The styles are in `web/src/translation.css`**, imported by the two components, not in `app.css`, which the
+  terminology package edits in the same wave.
+- **Words**: translation is *prijevod* (bs, hr) and *prevod* (sr, ijekavian Serbian uses it); "Original
+  ([language])" is *Izvornik* (bs, hr) and *Original* (sr); "complete" is "sve prevedeno"; "Filled in in" is
+  "Popunjeno na jeziku:" (bs, sr) and "Ispunjeno na jeziku:" (hr). The language name stays in the nominative in
+  parentheses or after a colon, so no case ending is built onto an endonym.
+
+### 2.3 Mobile: choosing the questionnaire's language
+
+- **The response is started when the questionnaire opens**, not before its first save: a file upload saves without
+  the answers' call, and a response must have its language before anything is saved, or it would be locked with
+  none. The app's language starts it at once; a choice starts it with M3.
+- **A response already started opens in its language**, even when the app's language has changed since and the
+  questionnaire has it: the patient chose it, and switching silently would show other questions than the ones they
+  began with. The start endpoint allows choosing again before the first answer, but the app offers no "change
+  language" control (no COPY for one); the patient keeps what they started.
+- **A questionnaire that names no language opens as written and is not started** (FHIR `language` is optional in
+  R4; since 1.4 the API always sends it). Nothing is sent that the app would have to invent.
+- **The language list in M2 is joined with ", "** in every language, Arabic included, since the names are each
+  language's own name (L1) and mostly Latin script.
+- **The choice page's title is the questionnaire's original title**: no language is chosen yet.
+- **The test fixtures say the language**: `questionnaire()` is written in `en` and `response()` is started in `en`
+  unless a test says otherwise, so the existing questionnaire, attachment and upload tests keep their requests
+  exactly (no start call) and new tests pass `language: null` for a response not started.
+- **`lib/questionnaire.dart` is about 460 lines** (364 before): the translation reading sits with the FHIR reading
+  it extends; splitting one parser over two files would not make it simpler.
