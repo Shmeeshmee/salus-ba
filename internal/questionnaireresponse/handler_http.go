@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -24,7 +25,12 @@ type Writer interface {
 	SaveAnswers(ctx context.Context, c appointment.Caller, id string, answers []Answer, version int32) (Response, error)
 	Submit(ctx context.Context, c appointment.Caller, id string, version int32) (Response, error)
 	Withdraw(ctx context.Context, c appointment.Caller, id string) (Response, error)
+	Start(ctx context.Context, c appointment.Caller, id, language string) (Response, error)
 }
+
+// languages are the tags of the enum language (api/openapi.yaml Language, docs/i18n/SPEC.md §3 "Tags"); a
+// body with another is not the request.
+var languages = []string{"bs", "hr", "sr-Latn", "sr-Cyrl", "en", "de", "ar", "tr", "it", "fr"}
 
 // HTTPHandler serves the questionnaire requests and the patient's answers of the JSON API (api/openapi.yaml).
 // Errors are {"error": "<code>"} with a fixed code per case, plus the offending linkIds on 422; internal
@@ -44,6 +50,7 @@ func NewHTTPHandler(svc Writer, caller func(ctx context.Context) (appointment.Ca
 // Routes declares the JSON questionnaire response routes on mux.
 func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /appointments/{id}/questionnaires", h.request)
+	mux.HandleFunc("POST /questionnaire-responses/{id}/start", h.start)
 	mux.HandleFunc("PUT /questionnaire-responses/{id}/answers", h.saveAnswers)
 	mux.HandleFunc("POST /questionnaire-responses/{id}/submit", h.submit)
 	mux.HandleFunc("POST /questionnaire-responses/{id}/withdraw", h.withdraw)
@@ -59,6 +66,7 @@ type responseJSON struct {
 	DueAt           string   `json:"dueAt"`
 	Authored        string   `json:"authored,omitempty"`
 	LastUpdated     string   `json:"lastUpdated"`
+	Language        string   `json:"language,omitempty"`
 	Answers         []Answer `json:"answers"`
 	VersionID       int32    `json:"versionId"`
 }
@@ -78,6 +86,23 @@ func (h *HTTPHandler) request(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := h.svc.Request(r.Context(), c, r.PathValue("id"), *req.QuestionnaireID)
 	h.write(w, r, http.StatusCreated, out, err)
+}
+
+// start: the body is {"language": "<a tag of the enum>"}.
+func (h *HTTPHandler) start(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.signedIn(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Language *string `json:"language"`
+	}
+	if !decode(w, r, &req) || req.Language == nil || !slices.Contains(languages, *req.Language) {
+		writeCode(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	out, err := h.svc.Start(r.Context(), c, r.PathValue("id"), *req.Language)
+	h.write(w, r, http.StatusOK, out, err)
 }
 
 // saveAnswers replaces the saved answers; If-Match is the version they were read at.
@@ -148,7 +173,7 @@ func (h *HTTPHandler) write(w http.ResponseWriter, r *http.Request, status int, 
 	body := responseJSON{
 		ID: out.ID, AppointmentID: out.AppointmentID, QuestionnaireID: out.QuestionnaireID, Status: out.Status, Source: out.Source,
 		Answers: answers, DueAt: instant(out.DueAt), Authored: instant(out.AuthoredAt), LastUpdated: instant(out.LastUpdated),
-		VersionID: out.VersionID,
+		Language: out.Language, VersionID: out.VersionID,
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("ETag", fhir.ETag(strconv.FormatInt(int64(out.VersionID), 10)))
@@ -198,6 +223,8 @@ var errorCodes = []struct {
 	{ErrWithdrawn, "withdrawn", http.StatusConflict},
 	{ErrPastDue, "past_due", http.StatusConflict},
 	{ErrAttachmentsPending, "attachments_pending", http.StatusConflict},
+	{ErrLanguageLocked, "language_locked", http.StatusConflict},
+	{ErrLanguageUnavailable, "language_unavailable", http.StatusUnprocessableEntity},
 }
 
 func (h *HTTPHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {

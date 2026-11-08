@@ -36,6 +36,12 @@ var (
 	// ErrAttachmentsPending is returned for a submit while a file of the response is still being checked for
 	// malware (attachments_pending, docs/attachments/SPEC.md §2 "Submit").
 	ErrAttachmentsPending = errors.New("questionnaireresponse: attachments pending")
+	// ErrLanguageLocked is returned for a choice of the language once an answer or a file is saved
+	// (language_locked, docs/i18n/SPEC.md §3 "The patient's language").
+	ErrLanguageLocked = errors.New("questionnaireresponse: language locked")
+	// ErrLanguageUnavailable is returned for a language that is neither the questionnaire's original nor one of
+	// its complete translations (language_unavailable).
+	ErrLanguageUnavailable = errors.New("questionnaireresponse: language unavailable")
 	// ErrAnswersInvalid is what every *AnswersError is (answers_invalid).
 	ErrAnswersInvalid = errors.New("questionnaireresponse: answers invalid")
 )
