@@ -224,6 +224,10 @@ the owner was away".
   (`specialtyAtClinic`, all ten languages, Arabic with "،") instead of a `join(', ')` in code, which SPEC §3
   forbids and which put a Latin comma in Arabic. Test first; the Arabic booking golden was updated on purpose
   for the comma and looked at.
+- **`postgres.SetPassword` serialises behind an advisory lock instead of retrying** (test first): every test
+  package sets the app roles' passwords as it starts, and on this host ten jittered retries of "tuple
+  concurrently updated" ran out (one package failed to start under `make cover` in the terminology 3.1
+  integration). 48 callers on their own connections failed every time before the change and pass after.
 
 ### 0.1 Baseline: database, contract, checks
 
