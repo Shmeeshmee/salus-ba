@@ -611,3 +611,95 @@ COPY.md additions (not yet reviewed):
 Dev stack: nothing started, stopped or written. `npm ci` filled this worktree's `web/node_modules` (git-ignored).
 
 ### 3.1 End-to-end, walk and the partner's file
+
+2026-11-08, done. Worktree `salus-term-3.1`, branch `terminology/3.1` from `feat/terminology` after wave 2 and the
+whole languages plan.
+
+Built:
+- `test/e2e/terminology_test.go`: `TestTerminology_APractitionerFindsATermAndAPatientIsRefused` (the practitioner
+  finds a term by its Latin label with its Croatian and English labels, `Cache-Control: no-store`, and by its
+  Croatian label typed without the háček; a patient gets 403 `forbidden`, nobody signed in 401; then the web
+  journey) and `TestTerminology_TheCuratorsRoundTrip` (the drafts' export holds the term; its row edited, Latin
+  corrected, a note, `reviewed`, imported with a row of an unknown id: `updated 1, refused 1` naming the id and a
+  non-zero exit; the search shows the new label as reviewed; the reviewed export has the note; the same row again:
+  `unchanged 1`). Each journey adds its own synthetic symptom with `salusctl terminology import` of a one-line seed
+  (a Wikidata id `Q9` + 15 digits, beyond Wikidata's own; made-up labels "Zyntheticum …", "Čirzynt …", "E2E
+  synthetic term …") and deletes it in its cleanup as the owner, so the dev database's seed terms are never
+  changed and a stack without the seed (CI) runs them the same.
+- `test/e2e/web/terminology.spec.ts`: Ctrl+K on the calendar opens the palette; the Latin label finds the term with
+  its English label and "Not reviewed yet"; Enter copies the English (UI) label to the clipboard ("Copied" in the
+  status region); Escape closes; the header button opens it on the questionnaires screen.
+- `docs/terminology/WALK.md` and `docs/terminology/walk/` (24 files, 1.4 MB): the acceptance walk, below.
+
+Test first (failures seen):
+- The search journey before the web spec existed: `the web journey failed: exit status 1 … Error: No tests found.`
+- The web spec's first run: `expect(locator).toBeVisible() failed … getByRole('dialog', { name: 'Medical terms' })
+  … <element(s) not found>`: Ctrl+K was pressed while the shell was still reading the account (the header, and its
+  key listener, render only after it); the spec now waits for the header button first, as a user would see it.
+- The round trip passed on its first run: it checks 2.1's behaviour, already built; it was not weakened to pass.
+
+The walk (SPEC §5; details, evidence and the notes in `WALK.md`):
+
+| Step | Result | Screenshots and texts (`docs/terminology/walk/`) |
+| --- | --- | --- |
+| 1 Seed and counts | Pass: `unchanged 4943`; anatomy 1,500, diagnosis 2,000, symptom 500, procedure 143, drug 800 | – |
+| 2 Ctrl+K on calendar, builder, consultation | Pass | `step2-calendar(-390).png`, `step2-builder(-390).png`, `step2-consultation(-390).png` |
+| 3a "jetra" | Partly: finds the liver with *liver*; its Latin is *iecur* in the seed, *hepar* only an English synonym | `step3-jetra(-390).png`, `step3-api.txt` |
+| 3b "hepar" | Pass: finds *jetra* | `step3-hepar.png` |
+| 3c "cir" | **Fail on the real seed**: no plain *čir* term; *Venski čir* ranks below 24 prefix matches in other languages | `step3-cir.png`, `step3-cir-ui.txt`, `step3-cir-with-hacek.png` |
+| 4 sr-Cyrl and Croatian UI | Pass: *јетра*; *jetra* | `step4-sr-Cyrl(-390).png`, `step4-hr(-390).png` |
+| 5 Draft, export–edit–import | Pass, on the liver (`c320dee9-9bff-403a-9a6b-866a3b9ae471`, Q9368); set back to draft after | `step5-draft(-390).png`, `step5-import-reviewed.txt`, `step5-reviewed(-390).png`, `step5-import-back-to-draft.txt` |
+| 6 Patient 403 | Pass | `step6-patient-403.txt` |
+| 7 No search text in the api log | Pass (1,759 lines, 55 search requests) | – |
+
+The partner's file: `salusctl terminology export` of every term (in the tools container, into the worktree, then
+copied and the worktree copy deleted) at `/home/mesha/salus-terminology/terms-2026-11-08.csv` on the host: 4,943
+rows plus the header (32 columns), UTF-8 with a byte order mark, all `draft` (the liver included), no synthetic
+term. Not committed.
+
+Benchmark (`go test -run '^$' -bench BenchmarkSearch -benchtime=2000x -count=3 ./internal/terminology`, as `make
+bench-terminology`, through `run --rm --no-deps tools`), beside 1.1's committed row (4.4–5.0 / 13.5–15.2 ms):
+
+| Run | 50 concurrent p50 / p95 |
+| --- | --- |
+| 1.1, committed query (its log above) | 4.4–5.0 / 13.5–15.2 ms |
+| 3.1, same query and synthetic data, 2026-11-08 | 4.0–4.3 / **16.7–20.1 ms** |
+
+The 3.1 run misses the SPEC's p95 under 15 ms in all three rounds. The host was not idle: a local language-model
+server of another project used about four cores and the swap was full (load average 7 to 11 during the run);
+nothing of this stack was running. The benchmark still measures the synthetic 88,330 labels, not the loaded seed
+(73,529). 1.1 already found the target met without margin; the levers it named (a stored folded-label column, a
+GiST nearest-neighbour order) need a migration and are the owner's call.
+
+Checks (all through `docker compose … run --rm --no-deps -T`, nothing else running against the stack):
+- Go (alone): `scripts/lint.sh`: 0 issues (both modules), check-migrations ok; archcheck: exit 0; `scripts/cover.sh`
+  (the main module's `go test ./...` with coverage): pass, total 94.2%, every package at 80% or more, 43 packages
+  ok; tools module `go test ./...`: ok.
+- FHIR: `scripts/fhir-validate.sh` in `fhir-validator`: every golden file `Success: 0 errors`.
+- Clients: `npm run -s gen:api`, the Dart generator and `dart format`: no diff. sqlc: no diff.
+- Catalogs: `scripts/i18n-check.sh`: pass.
+- Web: lint 0 warnings, typecheck ok, 33 files / 575 tests passed, build ok (the existing chunk-size warning).
+- Mobile: `flutter analyze` no issues; `flutter test` 421 passed. Debug APK: not built (the flutter image has no
+  Android SDK, as in the languages plan; CI's `apk` job builds it).
+- E2E: the `make e2e` steps with `--no-deps`, twice in a row: both runs `ok` (64 s, 58 s), 19 journeys each, the
+  terminology ones included; the LiveKit log check passed both times.
+
+Decided while the owner was away:
+- **The e2e journeys add and delete their own synthetic term** instead of using a seed term: the dev database keeps
+  its seed exactly (checked after the runs: 4,943 terms, all draft) and CI, whose stack has no seed, runs the same
+  journeys. The cleanup deletes the term as the owner (`DATABASE_URL` of the playwright service, as `startAt`
+  writes). No delete command was added to salusctl (out of 3.1's files and not in the SPEC).
+- **Step 5 set the liver back to draft** after the walk: the SPEC's curation is the partner's ("reviews every term"),
+  so a term marked reviewed by a walk would tell the partner something untrue. The import of a `draft` row is
+  allowed (0.1: "Turning a term back to draft keeps its last `reviewed_at`"); the liver's labels are unchanged, its
+  `reviewed_at` keeps the walk's time.
+- **Step 3c is recorded as failed, not fixed**: the cause is the ranking in `query.sql` (1.1's file) and the seed's
+  data; 3.1 owns the tests and the walk only.
+
+COPY.md additions (not yet reviewed): none (3.1 adds no product text).
+
+Dev stack: nothing started, stopped or rebuilt. Written in the dev database and left: the synthetic clinics,
+accounts, appointments and the draft questionnaire of the walk and of the two e2e runs (as every e2e run leaves
+them); the walk's account language set and cleared again. The liver term's `review_status` went to `reviewed` and
+back to `draft` (`updated_at` and `reviewed_at` 2026-11-08 01:19 UTC). The e2e journeys' synthetic terms are
+deleted. Redis: the login rate-limit counters cleared before each run, as `make e2e` does.
