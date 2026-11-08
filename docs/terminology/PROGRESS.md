@@ -7,7 +7,7 @@
 | 1.2 tools/terminology: the seed | done (integrated 2026-11-08) | cd5ded5 |
 | 2.1 salusctl: import, export and curation | done (integrated 2026-11-08) | 7a25651 |
 | 2.2 Web: the cheatsheet | done (integrated 2026-11-08) | 60a129d |
-| 3.1 End-to-end, walk and the partner's file | not started | |
+| 3.1 End-to-end, walk and the partner's file | done (integrated 2026-11-08) | a52e53d |
 
 ## Facts
 
@@ -38,6 +38,14 @@
 - **A second CallScreen race fixed at its cause**: the join test asserted the room was shown the moment Leave
   rendered, but the stage shows it from an effect. It now waits for that condition (no timeout, no retry);
   under CPU load the probe failed 1 in 123 before, 0 in 164 after.
+- **Walk step 3c ("cir" finds "čir") is left failing for the owner, not fixed at integration.** Accent folding
+  works (the e2e journey finds "Čirzynt" by "cirzynt"), but the seed has no plain "čir" term in bs or hr, and the
+  ranking puts 24 labels starting with "cir" in other languages first. A fix changes the ranking in `query.sql`
+  (languages requested first, fewer search languages, or a whole-word tier) while the p95 is already at its
+  limit, or fills the data, which is the partner's. Safest: record it and leave the choice to the owner.
+- **The p95 at 50 concurrent is at or over the 15 ms target**: 13.5–15.2 ms (1.1), 14.9–15.8 ms (wave 2
+  integration), 16.7–20.1 ms (3.1, host loaded by another project). The levers need a migration (a stored
+  folded label or a GiST index); left to the owner.
 
 #### 0.1 Baseline
 
@@ -168,6 +176,19 @@
   (`{language}: još nema izraza`), because "nema pojma" reads as "no idea".
 - **The palette's styles are in `web/src/terminology/cheatsheet.css`**, imported by the component, so `app.css`
   (not this package's) is untouched.
+
+#### 3.1 End-to-end, walk and the partner's file
+
+- **The e2e journeys add and delete their own synthetic term** instead of using a seed term: the dev database keeps
+  its seed exactly (checked after the runs: 4,943 terms, all draft) and CI, whose stack has no seed, runs the same
+  journeys. The cleanup deletes the term as the owner (`DATABASE_URL` of the playwright service, as `startAt`
+  writes). No delete command was added to salusctl (out of 3.1's files and not in the SPEC).
+- **Step 5 set the liver back to draft** after the walk: the SPEC's curation is the partner's ("reviews every term"),
+  so a term marked reviewed by a walk would tell the partner something untrue. The import of a `draft` row is
+  allowed (0.1: "Turning a term back to draft keeps its last `reviewed_at`"); the liver's labels are unchanged, its
+  `reviewed_at` keeps the walk's time.
+- **Step 3c is recorded as failed, not fixed**: the cause is the ranking in `query.sql` (1.1's file) and the seed's
+  data; 3.1 owns the tests and the walk only.
 
 ## Waiting on people
 
