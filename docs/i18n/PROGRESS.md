@@ -72,6 +72,11 @@
   rebuilt the stack from `feat/i18n` (`docker compose up -d --build --wait`), which applied 00029.
 - **`make e2e` is run as its steps** (web and e2e installs, the rate-limit reset, the Go and web journeys, the
   LiveKit log check) without its `up` prerequisite, for the reason the first point gives.
+- **Wave 2 integration: the end-to-end journeys act as the apps now do.** Their patients register with
+  `detectedLanguage` `en` (a patient with no language gets Bosnian e-mails, and the journeys read the English
+  ones), and the builder journey answers the B5 prompt ("Publish without") before the publish confirmation.
+  Both were seen failing first (9 Go journeys waiting 30 s for an English e-mail; the web journey missing the
+  confirmation).
 
 #### 0.1 Baseline: database, contract, checks
 

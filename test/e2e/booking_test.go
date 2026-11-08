@@ -170,7 +170,9 @@ type patient struct {
 func newPatientWithProfile(t *testing.T) *patient {
 	t.Helper()
 	p := &patient{api: newAPI(t), addr: email(t, "patient")}
-	p.must(http.StatusCreated, http.MethodPost, "/auth/register", map[string]string{"email": p.addr, "password": password}, nil)
+	// The patient's phone is in English, which the app matches and sends (docs/i18n SPEC §3), so the e-mails
+	// these journeys read are the English ones.
+	p.must(http.StatusCreated, http.MethodPost, "/auth/register", map[string]string{"email": p.addr, "password": password, "detectedLanguage": "en"}, nil)
 	p.bearer = p.login(p.addr).Token
 	if got := p.do(http.MethodGet, "/me/patient", nil, nil); got != http.StatusNotFound {
 		t.Fatalf("GET /me/patient before the profile = %d, want 404", got)
