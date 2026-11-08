@@ -17,6 +17,7 @@ import { useLanguage, useT } from './i18n/useT'
 import { CalendarIcon, ClinicIcon, ClockIcon, ListIcon, Logo, PeopleIcon, SignOutIcon } from './icons'
 import { LanguagePicker } from './LanguagePicker'
 import { navigate, usePath } from './route'
+import { Cheatsheet } from './terminology/Cheatsheet'
 import { Alert, Link, Notice } from './ui'
 
 type Clients = { api: ApiClient; fhir: FhirClient }
@@ -96,6 +97,7 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
       <header className="bar">
         <Logo />
         {staff && <Navigation admin={account.role === 'admin'} />}
+        {staff && <Cheatsheet api={api} />}
         {staff && <LanguagePicker value={staffChoice(account)} onChange={(language) => saveLanguage(account, language)} />}
         <button type="button" className="quiet" onClick={signOut}>
           <SignOutIcon />

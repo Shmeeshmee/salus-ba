@@ -452,4 +452,92 @@ Dev stack: nothing started, stopped or written in the dev database `salus`. A th
 
 ### 2.2 Web: the cheatsheet
 
+2026-11-08, done. Worktree `salus-term-2.2`, branch `terminology/2.2` from `feat/terminology` after terminology
+wave 1 and languages wave 1.
+
+Built:
+- `web/src/terminology/Cheatsheet.tsx`: the header button (a search icon, named and titled "Search medical terms
+  (Ctrl+K)", "(⌘K)" on macOS) and the palette it opens, also on Ctrl+K or ⌘K anywhere. A modal dialog: a
+  combobox (at most 100 characters) over a listbox of terms; the search waits 150 ms after the last change and
+  aborts the one before (`AbortController`), so only the last text's answer is shown; blank text asks nothing.
+  Each term shows its category (codes behind its tooltip, `TipTag`), "Not reviewed yet" on a draft, and a cell
+  per language (Latin, the UI language, English; "More languages" adds the other staff languages): the
+  preferred label with a Copy button ("Copied" after), its synonyms, or "No term in … yet". Keyboard: arrows
+  move the chosen term (`aria-activedescendant`), Enter copies its UI-language label (announced in a status
+  region), Escape closes and gives the focus back, Tab stays inside. Empty and error states; the source line
+  in the footer.
+- `web/src/terminology/cheatsheet.css`: the palette near the top of the page, full screen at 390 px with the
+  language cells stacked; a 120 ms fade only under `prefers-reduced-motion: no-preference`. One custom icon
+  (the search glass, the app's 1.6 stroke).
+- `web/src/i18n/terminology/{en,bs,hr,sr-Latn,sr-Cyrl}.json`: COPY.md T1 to T12 and the additions below.
+- The shell: `web/src/App.tsx` gets one mount line, `{staff && <Cheatsheet api={api} />}` after the
+  navigation in the header, plus its import line. Nothing else in the shell changed.
+- `web/src/i18n/catalog.test.ts`: `terminology` added to the list of areas it expects (the test fails on any
+  new area; this package's plan adds one).
+
+Test first (failures seen), `web/src/terminology/Cheatsheet.test.tsx` against a stub returning nothing:
+- `Unable to find an accessible element with the role "button" and name "Search medical terms (Ctrl+K)"`,
+  `Unable to find role="dialog"`, and every search case `expected 0 to be greater than 0`; 18 of 19 failed (the
+  plain-K case passes by its nature).
+- Then with the component and the catalogs: `expected 'terminology.failed' to be 'Pretraga trenutno nije
+  dostupna. Pokušajte ponovo.'`: Vitest's persistent module cache (`web/node_modules/.vitest-cache`) had kept
+  `import.meta.glob`'s result from before the new catalog folder existed. Cleared; green. A fresh install (CI)
+  has no such cache; anyone adding a catalog area locally may need to clear it.
+- `catalog.test.ts` `has the areas of the plan` failed once the area existed, as it should; updated.
+
+Debounce and cancellation tests use `vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })`, advance
+exactly 149 ms and 1 ms, and wait for conditions with `vi.waitFor`; no sleep, no retry. The late-answer test
+holds the first request open, changes the text, then resolves it: the first request's signal is aborted and
+its answer never shown. Eight back-to-back runs of the file: 19/19 each.
+
+Checks (all through `docker compose -f deployments/docker-compose.yml run --rm --no-deps -T node`):
+- `bash ../scripts/i18n-check.sh`: catalogs pass.
+- `npm run lint` (oxlint): 0 warnings, 0 errors.
+- `npm run typecheck`: ok.
+- `npm test`: 31 files, 542 tests passed.
+- `npm run build`: built (the existing over-500 kB chunk warning, unchanged in kind).
+- Go, archcheck, sqlc, clients: not run; 2.2 changes no Go code, contract or client.
+- Browser walk: not done; this session has no browser tool, and 3.1 walks (RUN-RULES).
+
+For the integration step:
+- **The Vite dev server does not proxy `/terminology`** (`web/vite.config.ts` lists each API prefix; 0.1 did not
+  add this one). Without `'/terminology': apiUrl` in its `proxy`, the cheatsheet on `make web-dev` gets the
+  app's `index.html` and shows the error state. `vite.config.ts` is not this package's file, so it is not
+  changed here; the integration step or 3.1 adds the line before the walk.
+
+Decided while the owner was away:
+- **"More languages" adds the other staff languages** (Bosnian, Croatian, Serbian in both scripts, whichever are
+  not shown already), not German, Arabic, Turkish, Italian or French: SPEC §1 and T2 name Latin and the local
+  languages and English, and the web app has names only for its own languages.
+- **One request carries all six languages** (Latin, UI, English, then the others, `languages` comma separated as
+  the contract's `explode: false`), so "More languages" shows at once without a second search and the API
+  never reads the account's language (1.1's audited fallback).
+- **Language names in the cells are translated per UI language** (e.g. "Engleski" in the Croatian UI), from the
+  terminology catalog, not the endonyms of `web/src/language.ts`: T3 has "Latin" and "English" translated, and
+  mixing endonyms with translated names in one row reads oddly.
+- **Each language cell carries its own small language caption** instead of a table header row, so the same
+  markup reads at 390 px with the cells stacked.
+- **A Copy button per shown preferred label**; synonyms are shown but not copied by a button (SPEC: "a copy
+  button on each label"; one per cell keeps the row calm). "Copied" stays on that button until the next copy or
+  answer; no timer.
+- **A refused clipboard write shows nothing** (no "Copied"); no new error text.
+- **Enter on a term without a UI-language label copies nothing.** The cell shows "No term in … yet".
+- **Ctrl+K and ⌘K both open it on every platform**; only the name in the tooltip follows the platform
+  (`navigator.platform` matching Mac, iPhone, iPad).
+- **ICD-10 is "MKB-10" in Bosnian, Croatian and Serbian** (МКБ-10 in Cyrillic), as doctors in BiH write it; TA98,
+  ATC and ICD-10-PCS stay as they are.
+- **Bosnian and Serbian "Procedura", Croatian "Postupak"** for Procedure; "izraz" rather than "pojam" in T11
+  (`{language}: još nema izraza`), because "nema pojma" reads as "no idea".
+- **The palette's styles are in `web/src/terminology/cheatsheet.css`**, imported by the component, so `app.css`
+  (not this package's) is untouched.
+
+COPY.md additions (not yet reviewed):
+- T13 `terminology.title` (the palette's and the result list's accessible name): "Medical terms".
+- T14 `terminology.close` (the palette's close button, needed where there is no Escape key, e.g. on a phone):
+  "Close".
+- T15 `terminology.language.bs`, `.hr`, `.srLatn`, `.srCyrl` (cell captions and T11's `{language}`, beside T3's
+  "Latin" and "English"): "Bosnian", "Croatian", "Serbian (Latin)", "Serbian (Cyrillic)".
+
+Dev stack: nothing started, stopped or written. `npm ci` filled this worktree's `web/node_modules` (git-ignored).
+
 ### 3.1 End-to-end, walk and the partner's file
