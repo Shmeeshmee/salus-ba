@@ -135,6 +135,12 @@ the owner was away".
 - **The seed is in the dev database**, loaded at wave 2's integration with `make terminology-import` after the
   stack was rebuilt from `feat/terminology` (which applied 00030): created 4,943, refused 0; anatomy 1,500,
   diagnosis 2,000, symptom 500, procedure 143, drug 800.
+- **pgtest caps its pools at 8 connections** (`pgtest.PoolMaxConns`, test first): on this 28-core host the
+  test packages' CPU-sized pools together passed Postgres's 400 connection slots ("too many clients", three
+  packages in one `make test`). The terminology benchmark opens its own pool as wide as its concurrency.
+- **A second CallScreen race fixed at its cause**: the join test asserted the room was shown the moment Leave
+  rendered, but the stage shows it from an effect. It now waits for that condition (no timeout, no retry);
+  under CPU load the probe failed 1 in 123 before, 0 in 164 after.
 
 ### 0.1 Baseline
 
