@@ -197,17 +197,17 @@ WITH folded AS MATERIALIZED (
                         ELSE 1 END
                + CASE WHEN f.language = 'la' OR f.language::text = $4::text THEN 2
                       WHEN f.language = 'en' THEN 1
-                      ELSE 0 END)::integer AS tier,
+                      ELSE 0 END)::integer AS score,
            max(word_similarity(term_fold($2::text), f.label))::real AS similarity
     FROM folded f
     GROUP BY f.term_id
 ), best AS (
     SELECT t.id, t.reviewed_at, t.rank, t.category, t.review_status, t.wikidata_id, t.icd10, t.ta98, t.atc, t.pcs,
-           h.tier, h.similarity
+           h.score, h.similarity
     FROM hits h
     JOIN term t ON t.id = h.term_id
     WHERE $5::term_category IS NULL OR t.category = $5::term_category
-    ORDER BY h.tier DESC, h.similarity DESC, t.rank DESC, t.id
+    ORDER BY h.score DESC, h.similarity DESC, t.rank DESC, t.id
     LIMIT $6
 )
 SELECT b.id, b.reviewed_at, b.rank, b.category, b.review_status, b.wikidata_id, b.icd10, b.ta98, b.atc, b.pcs,
@@ -222,7 +222,7 @@ CROSS JOIN LATERAL (
     FROM term_label
     WHERE term_id = b.id AND language::text = ANY($1::text[])
 ) l
-ORDER BY b.tier DESC, b.similarity DESC, b.rank DESC, b.id
+ORDER BY b.score DESC, b.similarity DESC, b.rank DESC, b.id
 `
 
 type SearchTermsParams struct {

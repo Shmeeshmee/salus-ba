@@ -106,7 +106,7 @@ func TestTerminology_TheCuratorsRoundTrip(t *testing.T) {
 	unknown := slices.Clone(row)
 	unknown[col("id")] = "00000000-0000-4000-8000-" + term.suffix + "0000"
 	edited := filepath.Join(dir, "edited.csv")
-	writeCSV(t, edited, header, row, unknown)
+	writeCSV(t, edited, []string{"# For the curator: kept by the spreadsheet"}, header, row, unknown)
 	out, err := salusctlResult(t, "terminology", "import", edited)
 	if err == nil || !strings.HasPrefix(out, "created 0, updated 1, unchanged 0, refused 1\n") || !strings.Contains(out, "(id "+unknown[col("id")]+")") {
 		t.Fatalf("importing the edited row and an unknown id: %v, %q; want updated 1, refused 1 naming the unknown id, and a non-zero exit", err, out)
@@ -240,13 +240,18 @@ func exportedRow(t *testing.T, path, status, id string) (header, row []string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	records, err := csv.NewReader(bytes.NewReader(bytes.TrimPrefix(raw, []byte("\xef\xbb\xbf")))).ReadAll()
-	if err != nil || len(records) == 0 {
+	in := csv.NewReader(bytes.NewReader(bytes.TrimPrefix(raw, []byte("\xef\xbb\xbf"))))
+	in.FieldsPerRecord = -1 // the curator's note is one cell
+	records, err := in.ReadAll()
+	if err != nil || len(records) < 2 {
 		t.Fatalf("reading the export: %d records, %v", len(records), err)
 	}
-	for _, r := range records[1:] {
+	if len(records[0]) != 1 || !strings.HasPrefix(records[0][0], "# For the curator:") {
+		t.Fatalf("the export's first line is %q; want the curator's note", records[0])
+	}
+	for _, r := range records[2:] {
 		if r[0] == id {
-			return records[0], r
+			return records[1], r
 		}
 	}
 	t.Fatalf("the %s export has no row for the synthetic term", status)
@@ -257,7 +262,7 @@ func writeCSV(t *testing.T, path string, records ...[]string) {
 	t.Helper()
 	var b bytes.Buffer
 	w := csv.NewWriter(&b)
-	if err := w.WriteAll(records); err != nil {
+	if err := w.WriteAll(records); err != nil { // records of any width: the note is one cell
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, b.Bytes(), 0o600); err != nil {
