@@ -214,6 +214,12 @@ the owner was away".
   ones), and the builder journey answers the B5 prompt ("Publish without") before the publish confirmation.
   Both were seen failing first (9 Go journeys waiting 30 s for an English e-mail; the web journey missing the
   confirmation).
+- **pgtest caps its pools at 8 connections** (`pgtest.PoolMaxConns`, test first): on this 28-core host the
+  test packages' CPU-sized pools together passed Postgres's 400 connection slots ("too many clients", three
+  packages in one `make test`). The terminology benchmark opens its own pool as wide as its concurrency.
+- **A second CallScreen race fixed at its cause**: the join test asserted the room was shown the moment Leave
+  rendered, but the stage shows it from an effect. It now waits for that condition (no timeout, no retry);
+  under CPU load the probe failed 1 in 123 before, 0 in 164 after.
 
 ### 0.1 Baseline: database, contract, checks
 
