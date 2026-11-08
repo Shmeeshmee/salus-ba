@@ -188,7 +188,8 @@ describe('CallScreen: joining', () => {
     expectCsrfOnWrites(requests)
     expect(last().url).toBe(joined.url)
     expect(last().token).toBe(joined.token)
-    expect(last().shown).toBe(true)
+    // The room is shown from an effect of the call's stage, which React can run after Leave renders.
+    await vi.waitFor(() => expect(last().shown).toBe(true))
   })
 
   it.each([
