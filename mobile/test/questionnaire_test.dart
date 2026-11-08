@@ -265,6 +265,42 @@ void main() {
       expect(details.items[2].repeats, isTrue);
     });
 
+    test('a version names its language and its translations, the original first', () {
+      expect(Version.fromFhir(everyType()).languages, ['en'], reason: 'no translation');
+      final v = Version.fromFhir(translated(everyType(), into: const ['en', 'de']));
+      expect(v.language, 'bs');
+      expect(v.languages, ['bs', 'en', 'de']);
+    });
+
+    test('a version without a language names none, and a tag the app does not have is left out', () {
+      final q = translated(everyType(), into: const ['en', 'xx'])..remove('language');
+      expect(Version.fromFhir(q).languages, isEmpty);
+      expect(Version.fromFhir({...q, 'language': 'bs'}).languages, ['bs', 'en']);
+    });
+
+    test(
+      'a version in a translation: its title, texts, help and options as shown, the options answered as written',
+      () {
+        final v = Version.fromFhir(translated(everyType(), into: const ['en', 'de'])).inLanguage('de');
+
+        expect(v.title, 'de: Placeholder intake questionnaire');
+        expect(v.canonical, '$questionnaireUrl|1');
+        final smoker = v.items[1];
+        expect((smoker.text, smoker.help), ('de: Placeholder yes or no question', 'de: Placeholder help text'));
+        final freq = v.items[2];
+        expect(freq.options, ['Placeholder option A', 'Placeholder option B']);
+        expect(freq.label('Placeholder option B'), 'de: Placeholder option B');
+        expect(v.items[3].items.first.text, 'de: Placeholder short answer');
+        expect(v.items[3].condition!.string, 'Placeholder option B');
+        expect(v.inLanguage('bs').items[2].label('Placeholder option B'), 'Placeholder option B');
+      },
+    );
+
+    test('a response names the language it is answered in, none before it is started', () {
+      expect(Response.fromFhir(response('r1', language: 'de')).language, 'de');
+      expect(Response.fromFhir(response('r1', language: null)).language, isNull);
+    });
+
     test('an item type the app does not know is kept as unsupported', () {
       final v = Version.fromFhir(
         questionnaire(

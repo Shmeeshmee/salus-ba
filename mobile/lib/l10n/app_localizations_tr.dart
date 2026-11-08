@@ -915,4 +915,23 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get specialty394583002 => 'Endokrinoloji';
+
+  @override
+  String questionnaireNotInLanguage(String language) {
+    return 'Bu soru formu şu dilde mevcut değil: $language.';
+  }
+
+  @override
+  String questionnaireLanguages(String languages) {
+    return 'Şu dillerde mevcut: $languages. En iyi anladığınız dili seçin.';
+  }
+
+  @override
+  String continueInLanguage(String language) {
+    return 'Şu dilde devam et: $language';
+  }
+
+  @override
+  String get languageUnavailable =>
+      'Bu dil artık bu soru formu için mevcut değil. Başka bir dil seçin.';
 }

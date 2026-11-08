@@ -931,4 +931,23 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get specialty394583002 => 'الغدد الصماء';
+
+  @override
+  String questionnaireNotInLanguage(String language) {
+    return 'هذا الاستبيان غير متاح باللغة: $language.';
+  }
+
+  @override
+  String questionnaireLanguages(String languages) {
+    return 'هذا الاستبيان متاح باللغات التالية: $languages. اختر اللغة التي تفهمها أكثر من غيرها.';
+  }
+
+  @override
+  String continueInLanguage(String language) {
+    return 'المتابعة باللغة: $language';
+  }
+
+  @override
+  String get languageUnavailable =>
+      'لم تعد هذه اللغة متاحة لهذا الاستبيان. اختر لغة أخرى.';
 }

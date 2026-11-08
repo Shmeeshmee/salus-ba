@@ -2,6 +2,7 @@ import 'package:salus_api/api.dart' as api;
 
 import 'file_prep.dart' show FileKind;
 import 'l10n/app_localizations.dart';
+import 'l10n/language.dart' show languages;
 import 'messages.dart';
 
 // The questionnaires the patient fills in (docs/questionnaire/SPEC.md §2 "Item model", "Patient flow"): the FHIR
@@ -29,6 +30,7 @@ class Item {
     this.required = false,
     this.repeats = false,
     this.options = const [],
+    this.labels = const [],
     this.help,
     this.condition,
     this.items = const [],
@@ -45,6 +47,9 @@ class Item {
   final bool repeats;
   final List<String> options;
 
+  /// The options as shown, in the language the questionnaire is read in; [options] when empty.
+  final List<String> labels;
+
   /// The text of the item's `help` display child.
   final String? help;
   final Condition? condition;
@@ -56,12 +61,26 @@ class Item {
   final Set<FileKind> accept;
   final int maxFiles;
 
+  /// How [option] is shown: its translation, or as written.
+  String label(String option) => labels.elementAtOrNull(options.indexOf(option)) ?? option;
+
   bool get isQuestion => !const {ItemType.group, ItemType.display, ItemType.unsupported}.contains(type);
 }
 
-/// A Questionnaire version.
+/// A Questionnaire version, its texts in one of its languages (docs/i18n/SPEC.md §3 "FHIR"): the original, or a
+/// translation from the R4 `translation` extensions. Option values stay as written, as answers and conditions name
+/// them; only their [Item.labels] are translated.
 class Version {
-  const Version({required this.id, required this.url, required this.version, required this.title, required this.items});
+  const Version._(
+    this._resource, {
+    required this.id,
+    required this.url,
+    required this.version,
+    required this.title,
+    required this.items,
+    required this.language,
+    required this.languages,
+  });
 
   final String id;
   final String url;
@@ -69,16 +88,35 @@ class Version {
   final String title;
   final List<Item> items;
 
+  /// The language it is written in (`Questionnaire.language`), empty when the resource names none.
+  final String language;
+
+  /// The languages it can be answered in, the original first, then its translations (a patient reads only complete
+  /// ones); each one of the app's [languages]. Empty without an original language.
+  final List<String> languages;
+  final Map<String, dynamic> _resource;
+
   /// How a response names it: `<url>|<version>`.
   String get canonical => '$url|$version';
 
-  factory Version.fromFhir(Map<String, dynamic> r) => Version(
-    id: _string(r['id']),
-    url: _string(r['url']),
-    version: _string(r['version']),
-    title: _string(r['title']),
-    items: _items(r['item']),
-  );
+  /// The same version read in [tag], one of [languages]; a text without a translation stays as written.
+  Version inLanguage(String tag) => Version.fromFhir(_resource, tag);
+
+  /// The version read in [tag], or as written when [tag] is null or the original.
+  factory Version.fromFhir(Map<String, dynamic> r, [String? tag]) {
+    final original = _string(r['language']);
+    final translations = tag == null || tag == original ? null : tag;
+    return Version._(
+      r,
+      id: _string(r['id']),
+      url: _string(r['url']),
+      version: _string(r['version']),
+      title: _text(r, 'title', translations),
+      items: _items(r['item'], translations),
+      language: original,
+      languages: original.isEmpty ? const [] : _languages(r, original),
+    );
+  }
 }
 
 /// The answers by linkId. Each value is in its item's type: a String (string, text, choice), bool, int, num
@@ -118,6 +156,7 @@ class Response {
     required this.versionId,
     required this.answers,
     this.authored,
+    this.language,
   });
 
   final String id;
@@ -129,6 +168,9 @@ class Response {
   final int versionId;
   final Answers answers;
   final DateTime? authored;
+
+  /// The language it is answered in (`QuestionnaireResponse.language`); null until the patient starts it.
+  final String? language;
 
   factory Response.fromFhir(Map<String, dynamic> r) {
     final answers = <String, List<Object>>{};
@@ -154,6 +196,7 @@ class Response {
       versionId: int.tryParse(_string(r['meta']?['versionId'])) ?? 0,
       answers: answers,
       authored: authored is String ? DateTime.parse(authored).toUtc() : null,
+      language: r['language'] is String ? r['language'] as String : null,
     );
   }
 }
@@ -285,23 +328,25 @@ const _helpControl = 'http://hl7.org/fhir/StructureDefinition/questionnaire-item
 const _mimeType = 'http://hl7.org/fhir/StructureDefinition/mimeType';
 const _maxOccurs = 'http://hl7.org/fhir/StructureDefinition/questionnaire-maxOccurs';
 
-List<Item> _items(Object? raw) => [
+List<Item> _items(Object? raw, String? tag) => [
   for (final it in (raw as List?) ?? const [])
-    if (!_isHelp(it as Map)) _item(it),
+    if (!_isHelp(it as Map)) _item(it, tag),
 ];
 
-Item _item(Map it) {
+Item _item(Map it, String? tag) {
+  final options = ((it['answerOption'] as List?) ?? const []).cast<Map>();
   final children = (it['item'] as List?) ?? const [];
   final help = children.cast<Map>().where(_isHelp).firstOrNull;
   final when = (it['enableWhen'] as List?)?.firstOrNull as Map?;
   return Item(
     linkId: _string(it['linkId']),
     type: ItemType.values.firstWhere((t) => t.name == it['type'], orElse: () => ItemType.unsupported),
-    text: _string(it['text']),
+    text: _text(it, 'text', tag),
     required: it['required'] == true,
     repeats: it['repeats'] == true,
-    options: [for (final o in (it['answerOption'] as List?) ?? const []) _string(o['valueString'])],
-    help: help == null ? null : _string(help['text']),
+    options: [for (final o in options) _string(o['valueString'])],
+    labels: tag == null ? const [] : [for (final o in options) _text(o, 'valueString', tag)],
+    help: help == null ? null : _text(help, 'text', tag),
     condition: when == null
         ? null
         : Condition(
@@ -309,7 +354,7 @@ Item _item(Map it) {
             boolean: when['answerBoolean'] as bool?,
             string: when['answerString'] as String?,
           ),
-    items: _items(children),
+    items: _items(children, tag),
     accept: {for (final e in _extensions(it, _mimeType)) ?kindOf(_string(e['valueCode']))},
     maxFiles: _extensions(it, _maxOccurs).map((e) => e['valueInteger']).whereType<int>().firstOrNull ?? 1,
   );
@@ -324,6 +369,55 @@ bool _isHelp(Map it) =>
       (e) =>
           e['url'] == _helpControl && (e['valueCodeableConcept']?['coding'] as List?)?.firstOrNull?['code'] == 'help',
     );
+
+const _translation = 'http://hl7.org/fhir/StructureDefinition/translation';
+
+/// The text of the element [key] of [e] in [tag]: its translation (the `translation` extension on `_<key>`), or the
+/// text as written when [tag] is null or has none.
+String _text(Map e, String key, String? tag) {
+  if (tag != null) {
+    for (final (lang, content) in _translations(e['_$key'])) {
+      if (lang == tag) return content;
+    }
+  }
+  return _string(e[key]);
+}
+
+/// The (language, text) pairs of a primitive element's `translation` extensions.
+Iterable<(String, String)> _translations(Object? element) sync* {
+  final extensions = element is Map ? element['extension'] : null;
+  for (final e in extensions is List ? extensions.whereType<Map>() : const <Map>[]) {
+    if (e['url'] != _translation) continue;
+    final parts = ((e['extension'] as List?) ?? const []).whereType<Map>();
+    final lang = parts.where((p) => p['url'] == 'lang').firstOrNull?['valueCode'];
+    final content = parts.where((p) => p['url'] == 'content').firstOrNull?['valueString'];
+    if (lang is String && content is String) yield (lang, content);
+  }
+}
+
+/// [original], then every language a text of [r] is translated into, in the order met; only the app's languages.
+List<String> _languages(Map r, String original) {
+  final found = <String>{original};
+  void walk(Object? node) {
+    if (node is List) node.forEach(walk);
+    if (node is! Map) return;
+    if (node['url'] == _translation) {
+      found.addAll(
+        _translations({
+          'extension': [node],
+        }).map((t) => t.$1),
+      );
+      return;
+    }
+    node.values.forEach(walk);
+  }
+
+  walk(r);
+  return [
+    for (final l in found)
+      if (languages.contains(l)) l,
+  ];
+}
 
 const _appointmentExtension = 'https://salus.invalid/fhir/StructureDefinition/questionnaireresponse-appointment';
 

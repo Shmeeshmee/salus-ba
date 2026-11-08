@@ -923,6 +923,25 @@ class AppLocalizationsSr extends AppLocalizations {
 
   @override
   String get specialty394583002 => 'Ендокринологија';
+
+  @override
+  String questionnaireNotInLanguage(String language) {
+    return 'Овај упитник није доступан на језику: $language.';
+  }
+
+  @override
+  String questionnaireLanguages(String languages) {
+    return 'Доступан је на овим језицима: $languages. Изаберите онај који најбоље разумијете.';
+  }
+
+  @override
+  String continueInLanguage(String language) {
+    return 'Наставите на језику: $language';
+  }
+
+  @override
+  String get languageUnavailable =>
+      'Овај језик више није доступан за овај упитник. Изаберите други.';
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -1843,6 +1862,25 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
 
   @override
   String get specialty394583002 => 'Ендокринологија';
+
+  @override
+  String questionnaireNotInLanguage(String language) {
+    return 'Овај упитник није доступан на језику: $language.';
+  }
+
+  @override
+  String questionnaireLanguages(String languages) {
+    return 'Доступан је на овим језицима: $languages. Изаберите онај који најбоље разумијете.';
+  }
+
+  @override
+  String continueInLanguage(String language) {
+    return 'Наставите на језику: $language';
+  }
+
+  @override
+  String get languageUnavailable =>
+      'Овај језик више није доступан за овај упитник. Изаберите други.';
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -2763,4 +2801,23 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String get specialty394583002 => 'Endokrinologija';
+
+  @override
+  String questionnaireNotInLanguage(String language) {
+    return 'Ovaj upitnik nije dostupan na jeziku: $language.';
+  }
+
+  @override
+  String questionnaireLanguages(String languages) {
+    return 'Dostupan je na ovim jezicima: $languages. Izaberite onaj koji najbolje razumijete.';
+  }
+
+  @override
+  String continueInLanguage(String language) {
+    return 'Nastavite na jeziku: $language';
+  }
+
+  @override
+  String get languageUnavailable =>
+      'Ovaj jezik više nije dostupan za ovaj upitnik. Izaberite drugi.';
 }

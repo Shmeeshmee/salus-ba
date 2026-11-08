@@ -80,6 +80,19 @@ void main() {
     }
   });
 
+  test("every mobile string of the languages COPY.md is in the English catalog, placeholders as parameters", () {
+    final strings = [
+      for (final line in File('../docs/i18n/COPY.md').readAsLinesSync())
+        if (RegExp(r'^- M\d+[ :]').hasMatch(line))
+          for (final m in RegExp(r'"([^"]+)"').allMatches(line)) m[1]!,
+    ];
+
+    expect(strings, hasLength(4), reason: 'COPY.md parsed');
+    for (final s in strings) {
+      expect(_inCatalog(s), isTrue, reason: s);
+    }
+  });
+
   // docs/attachments/COPY.md M15 and M16 replace the consultation's two purpose strings (one per permission on
   // iOS), and M17 is new (owner, 2026-11-07).
   test("iOS asks for the camera, the microphone and the photo library in the owner's words", () {

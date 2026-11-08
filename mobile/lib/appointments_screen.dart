@@ -11,6 +11,7 @@ import 'l10n/app_localizations.dart';
 import 'loading.dart';
 import 'messages.dart';
 import 'questionnaire.dart';
+import 'questionnaire_language.dart';
 import 'questionnaire_screen.dart';
 import 'session.dart';
 import 'ui.dart' as ui;
@@ -107,15 +108,20 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
   Future<void> _fill(Response r, Version v, String clinic, Zone zone) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => QuestionnaireScreen(
+        builder: (_) => QuestionnaireLanguage(
           booking: widget.booking,
-          media: widget.media,
-          files: widget.files,
-          now: widget.now,
           version: v,
           response: r,
-          clinic: clinic,
-          zone: zone,
+          builder: (v, r) => QuestionnaireScreen(
+            booking: widget.booking,
+            media: widget.media,
+            files: widget.files,
+            now: widget.now,
+            version: v,
+            response: r,
+            clinic: clinic,
+            zone: zone,
+          ),
         ),
       ),
     );
@@ -236,7 +242,7 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(v.title, style: Theme.of(context).textTheme.titleSmall),
+        Text(_title(v, r), style: Theme.of(context).textTheme.titleSmall),
         Text(
           submitted
               ? t.submittedStatus
@@ -255,6 +261,12 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
         if (submitted) ...[const SizedBox(height: 8), OutlinedButton(onPressed: open, child: Text(t.viewAnswers))],
       ],
     );
+  }
+
+  /// The title in the language the questionnaire opens in.
+  String _title(Version v, Response r) {
+    final tag = readIn(v, r, appLanguage(context));
+    return tag == null ? v.title : v.inLanguage(tag).title;
   }
 
   static String _status(AppLocalizations t, String status) => switch (status) {

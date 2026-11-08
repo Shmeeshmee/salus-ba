@@ -254,5 +254,9 @@
   "specialty418960008": "Otorinolaringoiatria",
   "specialty394594003": "Oftalmologia",
   "specialty394801008": "Ortopedia",
-  "specialty394583002": "Endocrinologia"
+  "specialty394583002": "Endocrinologia",
+  "questionnaireNotInLanguage": "Questo questionario non è disponibile in {language}.",
+  "questionnaireLanguages": "È disponibile in: {languages}. Scelga la lingua che comprende meglio.",
+  "continueInLanguage": "Continua in {language}",
+  "languageUnavailable": "Questa lingua non è più disponibile per questo questionario. Ne scelga un’altra."
 }

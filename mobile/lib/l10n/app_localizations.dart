@@ -1479,7 +1479,7 @@ abstract class AppLocalizations {
   /// M12.
   ///
   /// In en, this message translates to:
-  /// **'{n, plural, one{{n} file} other{{n} files}}'**
+  /// **'{n, plural, one{1 file} other{{n} files}}'**
   String fileCount(int n);
 
   /// M13.
@@ -1643,6 +1643,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Endocrinology'**
   String get specialty394583002;
+
+  /// docs/i18n COPY.md M1: the questionnaire is not written or translated in the app's language; the language's own name (L1).
+  ///
+  /// In en, this message translates to:
+  /// **'This questionnaire is not available in {language}.'**
+  String questionnaireNotInLanguage(String language);
+
+  /// docs/i18n COPY.md M2: the questionnaire's languages, each by its own name (L1), separated by commas.
+  ///
+  /// In en, this message translates to:
+  /// **'It is available in: {languages}. Choose the one you understand best.'**
+  String questionnaireLanguages(String languages);
+
+  /// docs/i18n COPY.md M3: the button that starts the questionnaire in the chosen language; its own name (L1).
+  ///
+  /// In en, this message translates to:
+  /// **'Continue in {language}'**
+  String continueInLanguage(String language);
+
+  /// docs/i18n COPY.md M4: the API refused the language (language_unavailable).
+  ///
+  /// In en, this message translates to:
+  /// **'This language is no longer available for this questionnaire. Choose another one.'**
+  String get languageUnavailable;
 }
 
 class _AppLocalizationsDelegate
