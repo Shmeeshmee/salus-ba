@@ -46,7 +46,7 @@ directory when something goes in it.
 | `internal/config` | The only package that reads the environment |
 | `internal/api` | `app.go` builds every domain (the shared composition root); `router/` mounts middleware and routes |
 | `internal/worker` | The River client for `cmd/worker` and the registration of every job's worker |
-| `pkg/` | Infrastructure with no knowledge of this product: `postgres`, `httpx`, `clock`, `middleware`, `redis`, `fhir` (generic FHIR primitives: `Reference`, `CodeableConcept`, `OperationOutcome`, bundles), `envelope` (per-file envelope encryption in AES-GCM segments), `filetype` (file type from the bytes, size limits), `clamd` (the ClamAV `INSTREAM` client). Never imports `internal/` |
+| `pkg/` | Infrastructure with no knowledge of this product: `postgres`, `httpx`, `clock`, `middleware`, `redis`, `fhir` (generic FHIR primitives: `Reference`, `CodeableConcept`, `OperationOutcome`, bundles), `envelope` (per-file envelope encryption in AES-GCM segments), `filetype` (file type from the bytes, size limits), `clamd` (the ClamAV `INSTREAM` client), `wire` (the `{type, version, payload}` envelope of live messages), and the engine ports with in-memory fakes: `stt`, `llm`, `tts`. Never imports `internal/` |
 | `api/` | Contracts: `openapi.yaml` for non-FHIR endpoints, `fhir/` for the CapabilityStatement, profiles (StructureDefinitions) and ValueSets we use. The TypeScript client (openapi-typescript) and the Dart client (openapi-generator) are generated from `openapi.yaml` into `web/` and `mobile/` with `make gen-clients`; never edit them by hand |
 | `configs/` | Config templates and defaults (`.env.example`) |
 | `deployments/` | `docker-compose.yml` (the stack, with the `objectstore` (Garage, S3-compatible) and `clamd` (ClamAV) services of ADR 0010, plus the `tools`, `node`, `landing-dev` and `flutter` toolchain services behind profiles), and later the orchestration manifests |
@@ -77,8 +77,9 @@ identity      auth (accounts, sessions, MFA)
 directory     practitioner, organization, practitionerrole
 patient       patient, relatedperson
 scheduling    schedule, slot, appointment
-consultation  encounter, videosession, communication
-clinical      binary, questionnaire, questionnaireresponse, observation, condition, medicationrequest, documentreference
+consultation  encounter, videosession, communication, transcript, suggestion
+clinical      binary, questionnaire, questionnaireresponse, observation, condition, medicationrequest, documentreference,
+              composition
 privacy       consent, auditevent, datarequest (GDPR subject requests), retention
               and the pure rule package access (who may see what)
 notification  notification

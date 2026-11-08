@@ -32,6 +32,10 @@ before the code that uses it is merged.
 
 A speech-to-text engine for live transcription (ADR 0006) is not chosen; a hosted engine would be a
 processor holding patient audio and needs a DPA, an entry here and explicit SPEC approval first.
+Since the consultation intelligence plan's P0 (`docs/plans/consult-intelligence.md`, SAL-2, 2026-11-08) the ports
+for it exist (`pkg/stt`, `pkg/llm` for translation, suggestions and drafting, `pkg/tts` for dubbing), implemented
+by in-memory fakes only: no processor is added. Each real engine is a processor of patient audio or text and needs
+the above, plus zero data retention in writing, before it is wired in.
 
 ## Not processors
 

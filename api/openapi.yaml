@@ -2913,3 +2913,124 @@ components:
           items:
             type: string
             enum: [postgres, redis]
+    # The consultation's live messages (docs/plans/consult-intelligence.md): pushed to the practitioner's
+    # browser over a WebSocket, and carried on the encounter's Redis Stream as the same bytes. Each is a
+    # pkg/wire envelope of one event; api/contract_test.go keeps these in step with the Go types.
+    ConsultMessage:
+      description: One live message of a consultation, told apart by `type`.
+      oneOf:
+        - {$ref: "#/components/schemas/TranscriptMessage"}
+        - {$ref: "#/components/schemas/SuggestionMessage"}
+        - {$ref: "#/components/schemas/DraftMessage"}
+      discriminator:
+        propertyName: type
+        mapping:
+          transcript: "#/components/schemas/TranscriptMessage"
+          suggestion: "#/components/schemas/SuggestionMessage"
+          draft: "#/components/schemas/DraftMessage"
+    TranscriptMessage:
+      type: object
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: transcript}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/TranscriptEvent"}
+    SuggestionMessage:
+      type: object
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: suggestion}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/SuggestionEvent"}
+    DraftMessage:
+      type: object
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: draft}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/DraftEvent"}
+    TranscriptEvent:
+      type: object
+      description: >-
+        One segment as it is recognised. Partial segments (`is_final` false) revise each other under the same
+        `segment_id` until the final one; only final segments are stored.
+      required: [encounter_id, segment_id, speaker, lang, original, translation, is_final, ts_start, ts_end]
+      properties:
+        encounter_id: {type: string, format: uuid}
+        segment_id: {type: string, format: uuid}
+        speaker:
+          type: string
+          enum: [doctor, patient]
+        lang:
+          type: string
+          description: The language the segment was spoken in, a BCP 47 tag.
+        original:
+          type: string
+        translation:
+          type: string
+          description: Into the other participant's language; empty until it is translated.
+        is_final:
+          type: boolean
+        ts_start:
+          type: string
+          format: date-time
+        ts_end:
+          type: string
+          format: date-time
+    SuggestionEvent:
+      type: object
+      description: >-
+        A suggestion for the practitioner only, citing the segments it came from; a prompt, never a diagnosis.
+        Pushed when shown and on every change of its status.
+      required: [id, encounter_id, type, text, confidence, source_segment_ids, status]
+      properties:
+        id: {type: string, format: uuid}
+        encounter_id: {type: string, format: uuid}
+        type:
+          type: string
+          enum: [diagnosis, question, red_flag, term]
+        text:
+          type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        source_segment_ids:
+          type: array
+          minItems: 1
+          items: {type: string, format: uuid}
+        status:
+          type: string
+          enum: [shown, dismissed, pinned]
+    DraftEvent:
+      type: object
+      description: A document drafted from a clinic's template (a FHIR Composition), pushed on every change.
+      required: [draft_id, encounter_id, template_id, status, fields]
+      properties:
+        draft_id: {type: string, format: uuid}
+        encounter_id: {type: string, format: uuid}
+        template_id: {type: string, format: uuid}
+        status:
+          type: string
+          enum: [preliminary, final, entered-in-error]
+        fields:
+          type: array
+          minItems: 1
+          description: In the template's order.
+          items: {$ref: "#/components/schemas/DraftField"}
+    DraftField:
+      type: object
+      description: >-
+        One field by its template key. A filled field has a value and the segments it came from (none when the
+        practitioner typed it); a missing one has neither.
+      required: [key, value, missing]
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        source_segment_ids:
+          type: array
+          items: {type: string, format: uuid}
+        missing:
+          type: boolean
