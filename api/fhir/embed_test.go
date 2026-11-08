@@ -120,7 +120,7 @@ func TestCapabilityStatement_DefinesListedByItsSearchParameter(t *testing.T) {
 	if !strings.Contains(fhir.CapabilityStatement(), `"definition": "`+sp.URL+`"`) {
 		t.Errorf("the CapabilityStatement does not define listed by %s", sp.URL)
 	}
-	for _, name := range []string{"listed", "timezone"} {
+	for _, name := range []string{"listed", "timezone", "default-language"} {
 		var sd struct {
 			URL     string `json:"url"`
 			Type    string `json:"type"`

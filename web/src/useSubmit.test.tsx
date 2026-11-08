@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { somethingWrong } from './messages'
+import { renderInLanguage } from './i18n/renderInLanguage'
 import { useSubmit } from './useSubmit'
 
 afterEach(cleanup)
@@ -20,11 +20,19 @@ function Form({ action }: { action: () => Promise<string | undefined> }) {
 describe('useSubmit', () => {
   it('shows a fixed message and enables the form again when the action rejects', async () => {
     const action = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
-    render(<Form action={action} />)
+    renderInLanguage(<Form action={action} />, 'en')
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect((await screen.findByRole('alert')).textContent).toBe(somethingWrong)
+    expect((await screen.findByRole('alert')).textContent).toBe('Something went wrong. Try again.')
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Save' }).disabled).toBe(false)
+  })
+
+  it('shows the fixed message in the UI language', async () => {
+    renderInLanguage(<Form action={vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))} />, 'bs')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Nešto nije u redu. Pokušajte ponovo.')
   })
 })

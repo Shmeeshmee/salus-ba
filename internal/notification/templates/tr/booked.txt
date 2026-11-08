@@ -1,0 +1,12 @@
+Randevunuz oluşturuldu
+
+Randevunuz oluşturuldu.
+Klinik: {{.Clinic}}
+Tarih ve saat: {{.When}}
+
+{{if .Questionnaire}}Randevunuzdan önce doldurmanız gereken bir anket var. Anketi Salus uygulamasında bulabilirsiniz.
+
+{{end}}Randevunuzu görmek veya iptal etmek için Salus uygulamasını açın:
+{{.Link}}
+
+Randevunuzu, başlamasından en geç 24 saat öncesine kadar iptal edebilirsiniz.

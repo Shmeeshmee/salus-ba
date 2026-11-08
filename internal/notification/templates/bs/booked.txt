@@ -1,0 +1,11 @@
+Vaš termin je zakazan
+
+Vaš termin u ustanovi {{.Clinic}} je zakazan.
+Datum i vrijeme: {{.When}}
+
+{{if .Questionnaire}}Prije termina trebate popuniti upitnik. Naći ćete ga u aplikaciji Salus.
+
+{{end}}Da biste vidjeli ili otkazali termin, otvorite aplikaciju Salus:
+{{.Link}}
+
+Termin možete otkazati najkasnije 24 sata prije početka.

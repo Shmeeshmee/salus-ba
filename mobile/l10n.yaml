@@ -1,0 +1,7 @@
+# gen-l10n (docs/i18n/SPEC.md §3 "Catalogs"): one catalog per language in lib/l10n/app_<language>.arb, English the
+# template. `flutter pub get`, `flutter analyze` and `flutter test` regenerate lib/l10n/app_localizations*.dart.
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+nullable-getter: false

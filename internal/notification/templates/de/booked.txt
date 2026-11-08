@@ -1,0 +1,11 @@
+Ihr Termin ist gebucht
+
+Ihr Termin bei {{.Clinic}} ist gebucht.
+Datum und Uhrzeit: {{.When}}
+
+{{if .Questionnaire}}Vor Ihrem Termin ist ein Fragebogen auszufüllen. Sie finden ihn in der Salus-App.
+
+{{end}}Um den Termin anzusehen oder abzusagen, öffnen Sie die Salus-App:
+{{.Link}}
+
+Sie können ihn bis 24 Stunden vor Beginn absagen.

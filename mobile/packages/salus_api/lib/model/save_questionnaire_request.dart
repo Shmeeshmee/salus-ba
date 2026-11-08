@@ -16,6 +16,8 @@ class SaveQuestionnaireRequest {
     required this.title,
     this.description,
     this.item = const [],
+    this.language,
+    this.translations = const [],
   });
 
   /// Not blank.
@@ -32,24 +34,40 @@ class SaveQuestionnaireRequest {
   /// At most 200 items in all, sections and instructions included.
   List<QuestionnaireItem> item;
 
+  /// The original language; absent keeps the draft's (a new questionnaire's is the clinic's default language).
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  Language? language;
+
+  /// The draft's translations, all of them: one per language, none in the original language. A translation may be incomplete while the version is a draft; publishing refuses it until complete. Absent keeps the draft's.
+  List<QuestionnaireTranslation> translations;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is SaveQuestionnaireRequest &&
           other.title == title &&
           other.description == description &&
-          _deepEquality.equals(other.item, item);
+          _deepEquality.equals(other.item, item) &&
+          other.language == language &&
+          _deepEquality.equals(other.translations, translations);
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
       (title.hashCode) +
       (description == null ? 0 : description!.hashCode) +
-      (item.hashCode);
+      (item.hashCode) +
+      (language == null ? 0 : language!.hashCode) +
+      (translations.hashCode);
 
   @override
   String toString() =>
-      'SaveQuestionnaireRequest[title=$title, description=$description, item=$item]';
+      'SaveQuestionnaireRequest[title=$title, description=$description, item=$item, language=$language, translations=$translations]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -60,6 +78,12 @@ class SaveQuestionnaireRequest {
       json[r'description'] = null;
     }
     json[r'item'] = this.item;
+    if (this.language != null) {
+      json[r'language'] = this.language;
+    } else {
+      json[r'language'] = null;
+    }
+    json[r'translations'] = this.translations;
     return json;
   }
 
@@ -89,6 +113,9 @@ class SaveQuestionnaireRequest {
         title: mapValueOfType<String>(json, r'title')!,
         description: mapValueOfType<String>(json, r'description'),
         item: QuestionnaireItem.listFromJson(json[r'item']),
+        language: Language.fromJson(json[r'language']),
+        translations:
+            QuestionnaireTranslation.listFromJson(json[r'translations']),
       );
     }
     return null;

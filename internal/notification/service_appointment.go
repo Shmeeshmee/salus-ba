@@ -15,9 +15,10 @@ type Appointments interface {
 	Notice(ctx context.Context, agent, org, id string) (appointment.Notice, error)
 }
 
-// Accounts gives the e-mail of an account, audited with the job as agent (auth.Service).
+// Accounts gives the e-mail of an account and the language to write to it in ("" for none), audited with the
+// job as agent (auth.Service).
 type Accounts interface {
-	AccountEmail(ctx context.Context, agent, id string) (string, error)
+	AccountEmail(ctx context.Context, agent, id string) (email, language string, err error)
 }
 
 // Questionnaires tells whether an appointment has a questionnaire for the patient to fill in, audited with the
@@ -26,43 +27,25 @@ type Questionnaires interface {
 	Outstanding(ctx context.Context, agent, org, appointmentID string) (bool, error)
 }
 
-// questionnaireOutstanding is COPY E1 (docs/questionnaire/COPY.md): the confirmation and the reminder add it as
-// their second paragraph when a questionnaire is outstanding. Never the questionnaire's title.
-const questionnaireOutstanding = "There is a questionnaire to fill in before your appointment. You can find it in the Salus app.\n\n"
-
-// The appointment e-mails, each named by its job's kind, which is the agent of its reads. body takes extra, a
-// paragraph added after the first one ("" for none).
+// The appointment e-mails, each named by its job's kind, which is the agent of its reads, and written by its
+// template (templates/<language>/<template>.txt).
 var (
 	bookedEmail = appointmentEmail{
-		agent: appointment.BookedEmailArgs{}.Kind(), applies: appointment.StatusBooked, subject: "Your appointment is booked", asksQuestionnaire: true,
-		body: func(clinic, when, link, extra string) string {
-			return "Your appointment at " + clinic + " is booked for " + when + ".\n\n" + extra +
-				"To see or cancel it, open the Salus app:\n" + link + "\n\n" +
-				"You can cancel it up to 24 hours before it starts.\n"
-		},
+		agent: appointment.BookedEmailArgs{}.Kind(), applies: appointment.StatusBooked, template: "booked", asksQuestionnaire: true,
 	}
 	cancelledEmail = appointmentEmail{
-		agent: appointment.CancelledEmailArgs{}.Kind(), applies: appointment.StatusCancelled, subject: "Your appointment is cancelled",
-		body: func(clinic, when, link, _ string) string {
-			return "Your appointment at " + clinic + " on " + when + " is cancelled.\n\n" +
-				"To book another time, open the Salus app:\n" + link + "\n"
-		},
+		agent: appointment.CancelledEmailArgs{}.Kind(), applies: appointment.StatusCancelled, template: "cancelled",
 	}
 	reminderEmail = appointmentEmail{
-		agent: appointment.ReminderEmailArgs{}.Kind(), applies: appointment.StatusBooked, subject: "Reminder of your appointment", asksQuestionnaire: true,
-		body: func(clinic, when, link, extra string) string {
-			return "This is a reminder of your appointment at " + clinic + " on " + when + ".\n\n" + extra +
-				"To see it, open the Salus app:\n" + link + "\n"
-		},
+		agent: appointment.ReminderEmailArgs{}.Kind(), applies: appointment.StatusBooked, template: "reminder", asksQuestionnaire: true,
 	}
 )
 
 // appointmentEmail is one of the appointment e-mails: sent only while the appointment is in the status it
-// applies to. One that asksQuestionnaire mentions an outstanding questionnaire.
+// applies to. One that asksQuestionnaire mentions an outstanding questionnaire (COPY E1).
 type appointmentEmail struct {
-	body              func(clinic, when, link, extra string) string
 	agent             string
-	subject           string
+	template          string
 	applies           appointment.Status
 	asksQuestionnaire bool
 }
@@ -85,8 +68,8 @@ func (s *Service) SendAppointmentReminder(ctx context.Context, id, org string) e
 	return s.sendAppointment(ctx, reminderEmail, id, org)
 }
 
-// sendAppointment sends e about the appointment id of the clinic org to its patient's account e-mail: the
-// clinic's name, the start in the clinic's time zone with the zone's name, and the link to the app's
+// sendAppointment sends e about the appointment id of the clinic org to its patient's account e-mail, in the
+// account's language, else Bosnian (docs/i18n/SPEC.md §3 "The account's language fields"): the clinic's name, the start in the clinic's time zone with the zone's name, and the link to the app's
 // appointments; nothing about the practitioner, the specialty or the visit (docs/booking/SPEC.md "E-mail"),
 // and for the confirmation and the reminder E1 when a questionnaire is outstanding, never which one
 // (docs/questionnaire/SPEC.md §2 "Notifications").
@@ -108,31 +91,34 @@ func (s *Service) sendAppointment(ctx context.Context, e appointmentEmail, id, o
 	if err != nil {
 		return fmt.Errorf("notification: %s: the clinic's time zone: %w", e.agent, err)
 	}
-	extra, err := s.questionnaireMention(ctx, e, org, id)
+	outstanding, err := s.questionnaireOutstanding(ctx, e, org, id)
 	if err != nil {
 		return fmt.Errorf("notification: %s: %w", e.agent, err)
 	}
-	to, err := s.accounts.AccountEmail(ctx, e.agent, n.AccountID)
+	to, language, err := s.accounts.AccountEmail(ctx, e.agent, n.AccountID)
 	if err != nil {
 		return fmt.Errorf("notification: %s: %w", e.agent, err)
 	}
-	when := n.Appointment.Start.In(loc).Format("Monday 2 January 2006, 15:04") + " (" + clinic.TimeZone + ")"
-	msg := Message{To: to, Subject: e.subject, Body: e.body(clinic.Name, when, s.patientAppURL+"/appointments", extra)}
+	l := s.in(language)
+	when, err := l.when(n.Appointment.Start.In(loc), clinic.TimeZone)
+	if err != nil {
+		return fmt.Errorf("notification: %s: %w", e.agent, err)
+	}
+	msg, err := l.message(to, e.template, letter{Clinic: clinic.Name, When: when, Link: s.patientAppURL + "/appointments", Questionnaire: outstanding})
+	if err != nil {
+		return fmt.Errorf("notification: %s: %w", e.agent, err)
+	}
 	if err := s.sender.Send(ctx, msg); err != nil {
 		return fmt.Errorf("notification: %s: %w", e.agent, err)
 	}
 	return nil
 }
 
-// questionnaireMention is E1's paragraph when e asks and the appointment id of the clinic org has a
-// questionnaire outstanding, else "".
-func (s *Service) questionnaireMention(ctx context.Context, e appointmentEmail, org, id string) (string, error) {
+// questionnaireOutstanding tells whether e asks and the appointment id of the clinic org has a questionnaire
+// outstanding.
+func (s *Service) questionnaireOutstanding(ctx context.Context, e appointmentEmail, org, id string) (bool, error) {
 	if !e.asksQuestionnaire {
-		return "", nil
+		return false, nil
 	}
-	outstanding, err := s.questionnaires.Outstanding(ctx, e.agent, org, id)
-	if err != nil || !outstanding {
-		return "", err
-	}
-	return questionnaireOutstanding, nil
+	return s.questionnaires.Outstanding(ctx, e.agent, org, id)
 }

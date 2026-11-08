@@ -54,7 +54,13 @@ void main() {
     expect(find.text('Signed in as $email'), findsOneWidget);
     expect(h.store.token, token);
     expect(h.api.calls, ['POST /auth/register', 'POST /auth/login', 'GET /auth/me', 'GET /me/patient']);
-    expect(jsonDecode(h.api.last('POST /auth/register').body), {'email': email, 'password': password});
+    // Nothing chosen on the device: no language, and the device's matched language (docs/i18n/SPEC.md §3).
+    expect(jsonDecode(h.api.last('POST /auth/register').body), {
+      'email': email,
+      'password': password,
+      'language': null,
+      'detectedLanguage': 'en',
+    });
     expectNoCsrfHeader(h.api);
   });
 

@@ -29,13 +29,15 @@ type loginJSON struct {
 
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		languagesJSON
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-	if !decodeJSON(w, r, &req) {
+	language, detected, ok := decodeSignIn(w, r, &req, &req.languagesJSON)
+	if !ok {
 		return
 	}
-	res, err := h.svc.Login(r.Context(), req.Email, req.Password, clientIP(r, h.trustedProxies))
+	res, err := h.svc.Login(r.Context(), req.Email, req.Password, clientIP(r, h.trustedProxies), language, detected)
 	h.writeLogin(w, r, res, err)
 }
 

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -282,6 +283,37 @@ func TestSetPassword_ConcurrentCallsAllSucceed(t *testing.T) {
 	for range cap(errs) {
 		if err := <-errs; err != nil {
 			t.Errorf("SetPassword() error = %v", err)
+		}
+	}
+}
+
+// Every test package sets the app roles' passwords when it starts, so on a large host forty callers can meet
+// on one role at once, each on its own connection; none may fail (seen: "tuple concurrently updated" after the
+// retries ran out, in the terminology 3.1 integration step).
+func TestSetPassword_ManyCallersOnTheirOwnConnectionsAllSucceed(t *testing.T) {
+	t.Parallel()
+	dbURL := pgtest.NewDatabaseURL(t)
+	const callers = 48
+	pool, err := postgres.Open(t.Context(), dbURL+"&pool_max_conns="+strconv.Itoa(callers))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	role := newRole(t, pool)
+	for round := range 5 {
+		start := make(chan struct{})
+		errs := make(chan error, callers)
+		for range callers {
+			go func() {
+				<-start
+				errs <- postgres.SetPassword(t.Context(), pool, role, "synthetic")
+			}()
+		}
+		close(start)
+		for range callers {
+			if err := <-errs; err != nil {
+				t.Fatalf("round %d: SetPassword() error = %v", round, err)
+			}
 		}
 	}
 }

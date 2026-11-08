@@ -16,6 +16,10 @@ type Repository interface {
 	ByID(ctx context.Context, id string) (Account, error)
 	// SetPasswordHash replaces the account's password hash.
 	SetPasswordHash(ctx context.Context, id, hash string) error
+	// SetLanguage sets the account's chosen language, or clears it for "", or returns ErrNotFound.
+	SetLanguage(ctx context.Context, id, language string) error
+	// SetDetectedLanguage sets the language the client matched, or returns ErrNotFound.
+	SetDetectedLanguage(ctx context.Context, id, language string) error
 
 	// TOTPSecret returns the account's sealed TOTP secret, or nil when there is none.
 	TOTPSecret(ctx context.Context, id string) ([]byte, error)

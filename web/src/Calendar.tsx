@@ -2,22 +2,21 @@ import { useState, type ReactNode } from 'react'
 import type { Account } from './api/client'
 import { participant, type Appointment, type Bundle, type FhirClient } from './api/fhir'
 import { joinWindow, useNow } from './consultation'
+import { useFormat, useT } from './i18n/useT'
 import { ChevronIcon } from './icons'
 import { useLoad } from './load'
-import { consultation as text, statusLabels } from './messages'
 import { PractitionerPicker } from './PractitionerPicker'
 import { navigate } from './route'
 import { loadStaff, loadTimeZone } from './staff'
-import { addDays, dayIn, dayLabel, sameDay, startOfDay, timeOf, weekOf, type Day } from './time'
+import { addDays, dayIn, sameDay, startOfDay, weekOf, type Day } from './time'
 import { Alert, Link } from './ui'
-
-const loadFailed = 'The calendar could not be loaded. Reload the page to try again.'
 
 type Props = { fhir: FhirClient; account: Account; now?: () => Date }
 
 // Calendar is a practitioner's week, Monday to Sunday in the clinic's time zone: their own, or, for an admin,
 // the practitioner they pick.
 export function Calendar({ fhir, account, now = () => new Date() }: Props) {
+  const t = useT()
   const organizationId = account.organizationId ?? ''
   const admin = account.role === 'admin'
   const { state: setup } = useLoad(async () => {
@@ -29,7 +28,7 @@ export function Calendar({ fhir, account, now = () => new Date() }: Props) {
 
   if (setup.name !== 'loaded') {
     return (
-      <Panel>{setup.name === 'loading' ? <p className="muted">Loading</p> : <Alert message={loadFailed} />}</Panel>
+      <Panel>{setup.name === 'loading' ? <p className="muted">{t('common.loading')}</p> : <Alert message={t('calendar.loadFailed')} />}</Panel>
     )
   }
 
@@ -43,31 +42,38 @@ export function Calendar({ fhir, account, now = () => new Date() }: Props) {
       <div className="toolbar">
         {admin && staff.length > 0 && <PractitionerPicker staff={staff} value={practitionerId ?? ''} onChange={setChosen} />}
         <div className="week-nav">
-          <button type="button" className="icon" aria-label="Previous week" title="Previous week" onClick={() => setShown(addDays(start, -7))}>
+          <button
+            type="button"
+            className="icon"
+            aria-label={t('calendar.previousWeek')}
+            title={t('calendar.previousWeek')}
+            onClick={() => setShown(addDays(start, -7))}
+          >
             <ChevronIcon direction="left" />
           </button>
           <button type="button" className="quiet" onClick={() => setShown(undefined)} disabled={sameDay(start, thisWeek)}>
-            This week
+            {t('calendar.thisWeek')}
           </button>
-          <button type="button" className="icon" aria-label="Next week" title="Next week" onClick={() => setShown(addDays(start, 7))}>
+          <button type="button" className="icon" aria-label={t('calendar.nextWeek')} title={t('calendar.nextWeek')} onClick={() => setShown(addDays(start, 7))}>
             <ChevronIcon direction="right" />
           </button>
         </div>
-        <p className="muted small">Times in {zone}</p>
+        <p className="muted small">{t('calendar.timesIn', { zone })}</p>
       </div>
       {practitionerId ? (
         <Week fhir={fhir} practitionerId={practitionerId} start={start} zone={zone} now={now} joins={account.role === 'practitioner'} />
       ) : (
-        <p className="muted">No practitioners yet.</p>
+        <p className="muted">{t('common.noPractitioners')}</p>
       )}
     </Panel>
   )
 }
 
 function Panel({ children }: { children: ReactNode }) {
+  const t = useT()
   return (
     <section className="panel calendar">
-      <h1>Calendar</h1>
+      <h1>{t('calendar.title')}</h1>
       {children}
     </section>
   )
@@ -77,6 +83,8 @@ function Panel({ children }: { children: ReactNode }) {
 type WeekProps = { fhir: FhirClient; practitionerId: string; start: Day; zone: string; now: () => Date; joins: boolean }
 
 function Week({ fhir, practitionerId, start, zone, now, joins }: WeekProps) {
+  const t = useT()
+  const f = useFormat()
   const from = startOfDay(start, zone)
   const to = startOfDay(addDays(start, 7), zone)
   const { state } = useLoad(async () => {
@@ -88,21 +96,21 @@ function Week({ fhir, practitionerId, start, zone, now, joins }: WeekProps) {
   }, [fhir, practitionerId, from.getTime(), to.getTime()])
   const at = useNow(now)
 
-  if (state.name === 'loading') return <p className="muted">Loading</p>
-  if (state.name === 'failed') return <Alert message={loadFailed} />
+  if (state.name === 'loading') return <p className="muted">{t('common.loading')}</p>
+  if (state.name === 'failed') return <Alert message={t('calendar.loadFailed')} />
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i))
   const today = dayIn(at, zone)
   return (
     <>
-      {state.value.length === 0 && <p className="muted">No appointments this week.</p>}
+      {state.value.length === 0 && <p className="muted">{t('calendar.noAppointments')}</p>}
       <div className="week">
         {days.map((day) => {
           const appts = state.value.filter((a) => sameDay(dayIn(new Date(a.start), zone), day))
-          const label = dayLabel(day)
+          const label = f.date(startOfDay(day, zone), zone, 'short')
           const classes = ['day', appts.length === 0 && 'empty', sameDay(day, today) && 'today'].filter(Boolean).join(' ')
           return (
-            <section key={label} className={classes} aria-label={label}>
+            <section key={`${day.year}-${day.month}-${day.day}`} className={classes} aria-label={label}>
               <h2>{label}</h2>
               {appts.map((a) => (
                 <Card key={a.id} appt={a} zone={zone} now={at} joins={joins} />
@@ -116,6 +124,8 @@ function Week({ fhir, practitionerId, start, zone, now, joins }: WeekProps) {
 }
 
 function Card({ appt, zone, now, joins }: { appt: Appointment; zone: string; now: Date; joins: boolean }) {
+  const t = useT()
+  const f = useFormat()
   const start = new Date(appt.start)
   const end = new Date(appt.end)
   const current = appt.status === 'booked' && start <= now && now < end
@@ -123,11 +133,11 @@ function Card({ appt, zone, now, joins }: { appt: Appointment; zone: string; now
   const card = (
     <Link to={`/appointments/${appt.id}`} className={`appt ${appt.status}${current ? ' current' : ''}`}>
       <span className="appt-time">
-        {timeOf(start, zone)}–{timeOf(end, zone)}
+        {f.time(start, zone)}–{f.time(end, zone)}
       </span>
       {name && <span className="appt-name">{name}</span>}
-      {appt.status !== 'booked' && <span className="tag">{statusLabels[appt.status]}</span>}
-      {current && <span className="now">Now</span>}
+      {appt.status !== 'booked' && <span className="tag">{t(`calendar.status.${appt.status}`)}</span>}
+      {current && <span className="now">{t('calendar.now')}</span>}
     </Link>
   )
   if (!joins || joinWindow(appt, now) !== 'open') return card
@@ -135,7 +145,7 @@ function Card({ appt, zone, now, joins }: { appt: Appointment; zone: string; now
     <div className="appt-join">
       {card}
       <button type="button" className="primary" onClick={() => navigate(`/appointments/${appt.id}/call`)}>
-        {text.join}
+        {t('calendar.join')}
       </button>
     </div>
   )

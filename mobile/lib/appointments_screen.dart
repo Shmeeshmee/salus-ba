@@ -7,9 +7,11 @@ import 'call.dart';
 import 'call_screen.dart';
 import 'fhir.dart';
 import 'files.dart';
+import 'l10n/app_localizations.dart';
 import 'loading.dart';
 import 'messages.dart';
 import 'questionnaire.dart';
+import 'questionnaire_language.dart';
 import 'questionnaire_screen.dart';
 import 'session.dart';
 import 'ui.dart' as ui;
@@ -106,15 +108,20 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
   Future<void> _fill(Response r, Version v, String clinic, Zone zone) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => QuestionnaireScreen(
+        builder: (_) => QuestionnaireLanguage(
           booking: widget.booking,
-          media: widget.media,
-          files: widget.files,
-          now: widget.now,
           version: v,
           response: r,
-          clinic: clinic,
-          zone: zone,
+          builder: (v, r) => QuestionnaireScreen(
+            booking: widget.booking,
+            media: widget.media,
+            files: widget.files,
+            now: widget.now,
+            version: v,
+            response: r,
+            clinic: clinic,
+            zone: zone,
+          ),
         ),
       ),
     );
@@ -125,14 +132,11 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cancel this appointment?'),
-        content: Text(
-          'Your appointment on ${zone.date(a.start)} at ${zone.time(a.start)} will be cancelled. You will get an '
-          'e-mail to confirm it.',
-        ),
+        title: Text(context.t.cancelTitle),
+        content: Text(context.t.cancelBody(zone.date(a.start, context.t.localeName), zone.time(a.start))),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Keep it')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Cancel appointment')),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(context.t.keepIt)),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: Text(context.t.cancelAppointment)),
         ],
       ),
     );
@@ -144,18 +148,19 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
     try {
       await widget.booking.cancel(a.id);
       if (!mounted) return;
-      setState(() => _message = appointmentCancelled);
+      setState(() => _message = context.t.appointmentCancelled);
       await reload();
     } on ApiFailure catch (failure) {
-      if (mounted) setState(() => _error = bookingMessage(failure));
+      if (mounted) setState(() => _error = bookingMessage(context.t, failure));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final now = widget.now();
+    final t = context.t;
     return ui.Page(
-      title: 'My appointments',
+      title: t.myAppointments,
       children: [
         if (_message != null) ui.Message(_message!),
         if (_error != null) ui.Message(_error!, error: true),
@@ -169,10 +174,10 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
               if (!a.end.isAfter(now)) a,
           ];
           return [
-            if (data.all.isEmpty) const Text('You have no appointments yet.'),
-            if (upcoming.isNotEmpty) const ui.Heading('Upcoming'),
+            if (data.all.isEmpty) Text(t.noAppointments),
+            if (upcoming.isNotEmpty) ui.Heading(t.upcoming),
             for (final a in upcoming) _card(a, data, now),
-            if (past.isNotEmpty) const ui.Heading('Past'),
+            if (past.isNotEmpty) ui.Heading(t.past),
             for (final a in past) _card(a, data, now),
           ];
         }),
@@ -186,7 +191,8 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
     final open = a.status == 'booked' && a.start.isAfter(now);
     final cancellable = open && a.start.difference(now) >= cancelWindow;
     final window = joinWindow(a, now);
-    final clinic = place?.$1.name ?? unlistedClinic;
+    final t = context.t;
+    final clinic = place?.$1.name ?? t.unlistedClinic;
     final questionnaires = a.status == 'cancelled'
         ? const <(Response, Version)>[]
         : [
@@ -200,22 +206,21 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ui.Heading(zone.date(a.start)),
-            Text('${zone.time(a.start)} to ${zone.time(a.end)} (${zone.name})'),
-            Text(place == null ? unlistedClinic : [place.$2.name, place.$1.name].where((s) => s.isNotEmpty).join(', ')),
-            Text(_status(a.status)),
+            ui.Heading(zone.date(a.start, t.localeName)),
+            Text(t.timeRange(zone.time(a.start), zone.time(a.end), zone.name)),
+            Text(
+              place == null ? t.unlistedClinic : [place.$2.name, place.$1.name].where((s) => s.isNotEmpty).join(', '),
+            ),
+            Text(_status(t, a.status)),
             if (window == JoinWindow.open) ...[
               const SizedBox(height: 8),
-              FilledButton(onPressed: () => _join(a), child: const Text(joinConsultation)),
+              FilledButton(onPressed: () => _join(a), child: Text(t.joinConsultation)),
             ],
-            if (window == JoinWindow.before) const Text(joinFrom),
+            if (window == JoinWindow.before) Text(t.joinFrom),
             if (open) ...[
               const SizedBox(height: 8),
-              OutlinedButton(
-                onPressed: cancellable ? () => _cancel(a, zone) : null,
-                child: const Text('Cancel appointment'),
-              ),
-              if (!cancellable) const Text(cancelWindowHint),
+              OutlinedButton(onPressed: cancellable ? () => _cancel(a, zone) : null, child: Text(t.cancelAppointment)),
+              if (!cancellable) Text(t.cancelWindowHint),
             ],
             for (final (r, v) in questionnaires) ...[
               const SizedBox(height: 16),
@@ -233,35 +238,42 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
     final submitted = r.status == ResponseStatus.completed;
     final closed = !submitted && !a.start.isAfter(now);
     final started = r.answers.isNotEmpty;
+    final t = context.t;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(v.title, style: Theme.of(context).textTheme.titleSmall),
+        Text(_title(v, r), style: Theme.of(context).textTheme.titleSmall),
         Text(
           submitted
-              ? submittedStatus
+              ? t.submittedStatus
               : closed
-              ? closedStatus
+              ? t.closedStatus
               : started
-              ? inProgress
-              : toFillIn,
+              ? t.inProgress
+              : t.toFillIn,
         ),
-        if (closed) const Text(questionnaireClosed),
+        if (closed) Text(t.questionnaireClosed),
         if (!submitted && !closed) ...[
-          const Text(submitBeforeStart),
+          Text(t.submitBeforeStart),
           const SizedBox(height: 8),
-          FilledButton(onPressed: open, child: Text(started ? continueFilling : fillIn)),
+          FilledButton(onPressed: open, child: Text(started ? t.continueFilling : t.fillIn)),
         ],
-        if (submitted) ...[const SizedBox(height: 8), OutlinedButton(onPressed: open, child: const Text(viewAnswers))],
+        if (submitted) ...[const SizedBox(height: 8), OutlinedButton(onPressed: open, child: Text(t.viewAnswers))],
       ],
     );
   }
 
-  static String _status(String status) => switch (status) {
-    'booked' => 'Booked',
-    'cancelled' => 'Cancelled',
-    'fulfilled' => 'Attended',
-    'noshow' => 'Not attended',
+  /// The title in the language the questionnaire opens in.
+  String _title(Version v, Response r) {
+    final tag = readIn(v, r, appLanguage(context));
+    return tag == null ? v.title : v.inLanguage(tag).title;
+  }
+
+  static String _status(AppLocalizations t, String status) => switch (status) {
+    'booked' => t.statusBooked,
+    'cancelled' => t.statusCancelled,
+    'fulfilled' => t.statusAttended,
+    'noshow' => t.statusNotAttended,
     _ => status,
   };
 }

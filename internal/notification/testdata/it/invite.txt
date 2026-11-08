@@ -1,0 +1,8 @@
+Subject: Il suo invito a Salus
+
+Ha ricevuto un invito a unirsi a Synthetic clinic su Salus.
+
+Per accettare, apra questo link, scelga una password e imposti un codice di accesso:
+https://app.example.test/invite#c2Vzc2lvbiB0b2tlbiBvZiAzMiBzeW50aGV0aWMgYnl0ZXM
+
+Il link funziona una sola volta e scade 72 ore dopo la creazione dell'invito. Se non si aspettava questa e-mail, può ignorarla.

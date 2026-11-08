@@ -3,20 +3,24 @@ import { binaryContentURL, type ApiClient } from './api/client'
 import { attempt } from './api/result'
 import { sizeText, type Attached } from './attachment'
 import { ChevronIcon, CrossIcon } from './icons'
-import { files as t } from './messages'
+import { useLanguage, useT } from './i18n/useT'
 
 type Props = { api: ApiClient; files: Attached[] }
 
+type T = ReturnType<typeof useT>
+
 // nameOf is the file's title, or its kind while it has none.
-const nameOf = (f: Attached) => f.title || t.kinds[f.kind]
+const nameOf = (f: Attached, t: T) => f.title || t(`attachments.kinds.${f.kind}`)
 // labelOf is W11, the name a screen reader gives the photo, document or video.
-const labelOf = (f: Attached) => (f.title ? t.label[f.kind](f.title) : t.kinds[f.kind])
+const labelOf = (f: Attached, t: T) => (f.title ? t(`attachments.label.${f.kind}`, { title: f.title }) : t(`attachments.kinds.${f.kind}`))
 
 // Files is the answer of a file upload item on a submitted response (W7 to W9): each file with its kind and
 // size, opened in the viewer or downloaded. The bytes are read from the content endpoint built from the binary
 // id, on the app's own origin, so the session cookie goes with every request and the browser makes the Range
 // requests of a video itself.
 export function Files({ api, files }: Props) {
+  const t = useT()
+  const { language } = useLanguage()
   const shown = files.filter((f) => f.id !== undefined)
   const [open, setOpen] = useState<number>()
   return (
@@ -26,13 +30,13 @@ export function Files({ api, files }: Props) {
           // A file has no other identity on the answer: the same file may be attached twice.
           <li key={`${f.id ?? 'none'}-${i}`}>
             <span className="file-name">
-              <span className="file-title">{nameOf(f)}</span>
-              <span className="file-details">{t.details(t.kinds[f.kind], sizeText(f.size))}</span>
+              <span className="file-title">{nameOf(f, t)}</span>
+              <span className="file-details">{t('attachments.details', { kind: t(`attachments.kinds.${f.kind}`), size: sizeText(f.size, t, language) })}</span>
             </span>
             {f.id !== undefined && (
               <span className="file-actions">
                 <button type="button" className="quiet" onClick={() => setOpen(shown.indexOf(f))}>
-                  {t.open}
+                  {t('attachments.open')}
                 </button>
                 <DownloadLink file={f} className="quiet" />
               </span>
@@ -46,9 +50,10 @@ export function Files({ api, files }: Props) {
 }
 
 function DownloadLink({ file, className }: { file: Attached; className: string }) {
+  const t = useT()
   return (
     <a className={className} href={binaryContentURL(file.id ?? '')} download={file.title || ''}>
-      {t.download}
+      {t('attachments.download')}
     </a>
   )
 }
@@ -60,6 +65,7 @@ type ViewerProps = { api: ApiClient; files: Attached[]; start: number; onClose: 
 // viewer, a video in the browser's player. It takes the focus, keeps it inside while open, closes on escape and
 // gives the focus back to what had it.
 function Viewer({ api, files, start, onClose }: ViewerProps) {
+  const t = useT()
   const id = useId()
   const [at, setAt] = useState(start)
   const [tries, setTries] = useState(0) // a new try mounts the media again
@@ -108,23 +114,23 @@ function Viewer({ api, files, start, onClose }: ViewerProps) {
         <div className="viewer-bar">
           <p className="viewer-title">
             <span id={`${id}-t`} className="file-title">
-              {nameOf(f)}
+              {nameOf(f, t)}
             </span>
             <span id={`${id}-n`} className="muted">
-              {t.position(at + 1, files.length)}
+              {t('attachments.position', { n: at + 1, total: files.length })}
             </span>
           </p>
           {files.length > 1 && (
             <>
-              <button type="button" className="icon" aria-label={t.previous} title={t.previous} aria-disabled={at === 0} onClick={() => go(at - 1)}>
+              <button type="button" className="icon" aria-label={t('attachments.previous')} title={t('attachments.previous')} aria-disabled={at === 0} onClick={() => go(at - 1)}>
                 <ChevronIcon direction="left" />
               </button>
-              <button type="button" className="icon" aria-label={t.next} title={t.next} aria-disabled={at === files.length - 1} onClick={() => go(at + 1)}>
+              <button type="button" className="icon" aria-label={t('attachments.next')} title={t('attachments.next')} aria-disabled={at === files.length - 1} onClick={() => go(at + 1)}>
                 <ChevronIcon direction="right" />
               </button>
             </>
           )}
-          <button type="button" ref={closeButton} className="icon" aria-label={t.close} title={t.close} onClick={onClose}>
+          <button type="button" ref={closeButton} className="icon" aria-label={t('attachments.close')} title={t('attachments.close')} onClick={onClose}>
             <CrossIcon />
           </button>
         </div>
@@ -148,21 +154,23 @@ function Viewer({ api, files, start, onClose }: ViewerProps) {
 }
 
 function Media({ file, onError }: { file: Attached; onError: () => void }) {
+  const t = useT()
   const url = binaryContentURL(file.id ?? '')
-  if (file.kind === 'photo') return <img src={url} alt={labelOf(file)} onError={onError} />
-  if (file.kind === 'video') return <video src={url} controls preload="metadata" aria-label={labelOf(file)} onError={onError} />
+  if (file.kind === 'photo') return <img src={url} alt={labelOf(file, t)} onError={onError} />
+  if (file.kind === 'video') return <video src={url} controls preload="metadata" aria-label={labelOf(file, t)} onError={onError} />
   // The browser's own PDF viewer; what is inside shows where it has none, and an error (a 404) is asked about.
   return (
-    <object data={url} type="application/pdf" aria-label={labelOf(file)} onError={onError}>
+    <object data={url} type="application/pdf" aria-label={labelOf(file, t)} onError={onError}>
       <CannotShow file={file} />
     </object>
   )
 }
 
 function CannotShow({ file }: { file: Attached }) {
+  const t = useT()
   return (
     <div className="viewer-message">
-      <p>{t.cannotShow}</p>
+      <p>{t('attachments.cannotShow')}</p>
       <div className="actions">
         <DownloadLink file={file} className="button" />
       </div>
@@ -171,16 +179,17 @@ function CannotShow({ file }: { file: Attached }) {
 }
 
 function ProblemView({ problem, file, onRetry }: { problem: Problem; file: Attached; onRetry: () => void }) {
+  const t = useT()
   if (problem === 'cannot') return <CannotShow file={file} />
   return (
     <div className="viewer-message">
       <p className="alert" role="alert">
-        {problem === 'gone' ? t.gone : t.failed}
+        {t(problem === 'gone' ? 'attachments.gone' : 'attachments.failed')}
       </p>
       {problem === 'failed' && (
         <div className="actions">
           <button type="button" onClick={onRetry}>
-            {t.tryAgain}
+            {t('attachments.tryAgain')}
           </button>
         </div>
       )}

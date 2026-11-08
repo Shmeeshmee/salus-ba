@@ -62,11 +62,12 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /fhir/R4/QuestionnaireResponse", h.search)
 }
 
-// resource is a QuestionnaireResponse as FHIR R4 JSON. A Name view carries no item.
+// resource is a QuestionnaireResponse as FHIR R4 JSON. A Name view carries no item and no language.
 type resource struct {
 	ResourceType  string         `json:"resourceType"`
 	ID            string         `json:"id"`
 	Meta          fhir.Meta      `json:"meta"`
+	Language      string         `json:"language,omitempty"` // the language answered in; with the answers only
 	Extension     []extension    `json:"extension"`
 	Questionnaire string         `json:"questionnaire"`
 	Status        Status         `json:"status"`
@@ -126,6 +127,7 @@ func (h *Handler) toFHIR(s Seen, v questionnaire.Questionnaire) resource {
 			}})
 		}
 		res.Item = nest(v.Items, given)
+		res.Language = r.Language
 	}
 	return res
 }

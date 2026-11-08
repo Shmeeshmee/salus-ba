@@ -1,0 +1,7 @@
+Subject: Ihr Termin wurde abgesagt
+
+Ihr Termin bei Synthetic clinic wurde abgesagt.
+Datum und Uhrzeit: Montag, 7. Januar 2030, 10:00 Uhr (Europe/Sarajevo)
+
+Um einen anderen Termin zu buchen, öffnen Sie die Salus-App:
+https://patient.example.test/appointments

@@ -1,11 +1,13 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { renderInLanguage } from './i18n/renderInLanguage'
+import type { Language } from './i18n/languages'
 import { AppointmentQuestionnaires } from './AppointmentQuestionnaires'
 import { newApiClient } from './api/client'
 import { newFhirClient, type Questionnaire, type QuestionnaireResponse } from './api/fhir'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, paths, type Route } from './test/fakeFetch'
 import { appointment } from './test/fixtures'
-import { questionnaireFHIR } from './test/questionnaires'
+import { questionnaireFHIR, translatedFHIR } from './test/questionnaires'
 import { responseFHIR, responsesBundle } from './test/responses'
 
 afterEach(cleanup)
@@ -82,9 +84,15 @@ function json(r: string, status: QuestionnaireResponse['status'], questionnaireI
 
 type Who = 'own' | 'admin' | 'other'
 
-function renderSection(who: Who, responses: QuestionnaireResponse[], versions: Questionnaire[], routes: Record<string, Route> = {}, opts: { now?: Date; appt?: typeof booked } = {}) {
+function renderSection(
+  who: Who,
+  responses: QuestionnaireResponse[],
+  versions: Questionnaire[],
+  routes: Record<string, Route> = {},
+  opts: { now?: Date; appt?: typeof booked; language?: Language } = {},
+) {
   const fake = fakeFetch({ [search]: () => fhirJSON(responsesBundle(responses, versions)), ...routes })
-  render(
+  renderInLanguage(
     <AppointmentQuestionnaires
       api={newApiClient(fake.fetch)}
       fhir={newFhirClient(fake.fetch)}
@@ -94,6 +102,7 @@ function renderSection(who: Who, responses: QuestionnaireResponse[], versions: Q
       admin={who === 'admin'}
       now={opts.now ?? before}
     />,
+    opts.language ?? 'en',
   )
   return fake
 }
@@ -102,6 +111,21 @@ const section = async () => within(await screen.findByRole('region', { name: 'Qu
 const rowOf = async (title: string) => within((await (await section()).findByText(title)).closest('li')!)
 
 describe('AppointmentQuestionnaires', () => {
+  it('is in the UI language, the date of a submission included', async () => {
+    renderSection('own', [responseFHIR('r1', 'completed', { authored: '2026-11-08T17:45:00Z' })], [intake], {}, { language: 'sr-Latn' })
+
+    const region = within(await screen.findByRole('region', { name: 'Upitnici' }))
+    const row = within((await region.findByText('Placeholder intake')).closest('li')!)
+    expect(row.getByText('Predat: nedjelja, 8. novembar 2026. u 18:45')).toBeTruthy()
+    expect(row.getByRole('button', { name: 'Prikaži odgovore' })).toBeTruthy()
+  })
+
+  it('names a request whose version the search did not include by W35\'s word', async () => {
+    renderSection('own', [responseFHIR('r1', 'in-progress')], [])
+
+    expect((await rowOf('Questionnaire')).getByText('Not submitted yet')).toBeTruthy()
+  })
+
   it("searches the appointment's responses with their versions included", async () => {
     const { requests } = renderSection('own', [], [])
 
@@ -124,7 +148,7 @@ describe('AppointmentQuestionnaires', () => {
   it('shows a submitted one with its time in the clinic zone', async () => {
     renderSection('own', [responseFHIR('r1', 'completed', { authored: '2026-11-08T17:45:00Z' })], [intake])
 
-    expect((await rowOf('Placeholder intake')).getByText('Submitted Sunday 8 November 2026, 18:45')).toBeTruthy()
+    expect((await rowOf('Placeholder intake')).getByText('Submitted Sunday, 8 November 2026, 18:45')).toBeTruthy()
   })
 
   it('says when the requests cannot be loaded', async () => {
@@ -157,6 +181,55 @@ describe('AppointmentQuestionnaires', () => {
 
       fireEvent.click(row.getByRole('button', { name: 'Hide answers' }))
       expect(row.queryByText('Placeholder short answer')).toBeNull()
+    })
+
+    describe('answered in a translation (B9)', () => {
+      const translated: Questionnaire = { ...translatedFHIR(), status: 'active' }
+      const inLanguage = (language?: string) =>
+        ({
+          ...responseFHIR('r1', 'completed', {
+            authored: '2026-11-08T17:45:00Z',
+            item: [{ linkId: 'smoker', answer: [{ valueBoolean: true }] }, { linkId: 'sec', item: [{ linkId: 'one', answer: [{ valueString: 'B' }] }] }],
+          }),
+          language,
+        }) as QuestionnaireResponse
+
+      it('say the language, show the questions as the patient read them, and the original on the switch', async () => {
+        renderSection('own', [inLanguage('en')], [translated])
+        const row = await rowOf('Placeholder intake')
+        fireEvent.click(row.getByRole('button', { name: 'View answers' }))
+
+        expect(row.getByText('Filled in in English')).toBeTruthy()
+        const answers = (q: string) => row.getByText(q).closest('div')!.querySelector('dd')!
+        expect(answers('Placeholder single in English').textContent).toBe('B in English')
+        expect(row.getByRole('heading', { name: 'Placeholder section in English' })).toBeTruthy()
+        const original = row.getByRole('switch', { name: 'Show the original questions' }) as HTMLInputElement
+        expect(original.checked).toBe(false)
+
+        fireEvent.click(original)
+        expect(answers('Placeholder single').textContent).toBe('B')
+        expect(row.getByRole('heading', { name: 'Placeholder section' })).toBeTruthy()
+        expect(row.queryByText('Placeholder single in English')).toBeNull()
+      })
+
+      it('say the language without a switch when the patient answered in the original', async () => {
+        renderSection('own', [inLanguage('bs')], [translated])
+        const row = await rowOf('Placeholder intake')
+        fireEvent.click(row.getByRole('button', { name: 'View answers' }))
+
+        expect(row.getByText('Filled in in Bosanski')).toBeTruthy()
+        expect(row.queryByRole('switch')).toBeNull()
+        expect(row.getByText('Placeholder single')).toBeTruthy()
+      })
+
+      it('are in the UI language', async () => {
+        renderSection('own', [inLanguage('en')], [translated], {}, { language: 'hr' })
+        const row = within((await screen.findByText('Placeholder intake')).closest('li')!)
+        fireEvent.click(row.getByRole('button', { name: 'Prikaži odgovore' }))
+
+        expect(row.getByText('Ispunjeno na jeziku: English')).toBeTruthy()
+        expect(row.getByRole('switch', { name: 'Prikaži izvorna pitanja' })).toBeTruthy()
+      })
     })
 
     it('list the files of a file upload item, each to open, and say Not answered without one (W7, W8)', async () => {
@@ -212,7 +285,7 @@ describe('AppointmentQuestionnaires', () => {
       renderSection('admin', [responseFHIR('r1', 'completed', { authored: '2026-11-08T17:45:00Z' }), responseFHIR('r2', 'in-progress', { questionnaire: `${followUp.url}|1` })], [intake, followUp])
 
       const row = await rowOf('Placeholder intake')
-      const status = row.getByText('Submitted Sunday 8 November 2026, 18:45')
+      const status = row.getByText('Submitted Sunday, 8 November 2026, 18:45')
       const tip = row.getByRole('tooltip')
       expect(tip.textContent).toBe("Only the appointment's practitioner can see the answers.")
       expect(status.getAttribute('aria-describedby')).toBe(tip.id)
@@ -224,7 +297,7 @@ describe('AppointmentQuestionnaires', () => {
       renderSection('admin', [responseFHIR('r1', 'completed', { questionnaire: `${every.url}|1`, authored: '2026-11-08T17:45:00Z' })], [every])
 
       const row = await rowOf('Placeholder every type')
-      expect(row.getByText('Submitted Sunday 8 November 2026, 18:45')).toBeTruthy()
+      expect(row.getByText('Submitted Sunday, 8 November 2026, 18:45')).toBeTruthy()
       expect(row.queryByText('Not answered')).toBeNull()
       expect(row.queryByRole('button')).toBeNull()
     })

@@ -1,0 +1,1271 @@
+{
+  "@@locale": "en",
+  "tryAgain": "Try again",
+  "@tryAgain": {
+    "description": "Button: try once more after an action failed (M20)."
+  },
+  "language": "Language",
+  "@language": {
+    "description": "The language picker: its button tooltip and its title (i18n L2)."
+  },
+  "useDeviceLanguage": "Use the device's language",
+  "@useDeviceLanguage": {
+    "description": "The picker's first option: follow the phone's language again (i18n L3)."
+  },
+  "languageSaved": "Language saved.",
+  "@languageSaved": {
+    "description": "After a change while signed in (i18n L4)."
+  },
+  "somethingWrong": "Something went wrong. Try again.",
+  "@somethingWrong": {
+    "description": "Any failure without a sentence of its own."
+  },
+  "unreachable": "Salus could not be reached. Check your connection and try again.",
+  "@unreachable": {
+    "description": "The API could not be reached."
+  },
+  "wrongCredentials": "The e-mail or password is wrong.",
+  "@wrongCredentials": {
+    "description": "Sign-in refused."
+  },
+  "wrongCode": "The code is wrong. Check the time on your device and try again.",
+  "@wrongCode": {
+    "description": "Wrong authenticator code."
+  },
+  "challengeEnded": "The sign-in has ended. Enter your e-mail and password again.",
+  "@challengeEnded": {
+    "description": "The two-step sign-in expired."
+  },
+  "emailTaken": "This e-mail already has an account. Sign in instead.",
+  "@emailTaken": {
+    "description": "Registration with a used e-mail."
+  },
+  "invalidEmail": "Enter a valid e-mail address.",
+  "@invalidEmail": {
+    "description": "Field error."
+  },
+  "invalidPassword": "Use 12 to 128 characters for the password.",
+  "@invalidPassword": {
+    "description": "Field error."
+  },
+  "missingPassword": "Enter your password.",
+  "@missingPassword": {
+    "description": "Field error."
+  },
+  "invalidCode": "The code has 6 digits.",
+  "@invalidCode": {
+    "description": "Field error: the authenticator code."
+  },
+  "staffOnly": "This app is for patients. Clinic staff use the Salus web app.",
+  "@staffOnly": {
+    "description": "A staff account signed in to the patient app."
+  },
+  "accountReady": "Your account is ready. Sign in to continue.",
+  "@accountReady": {
+    "description": "After registration when signing in did not finish."
+  },
+  "signOutFailed": "Could not sign out. Check your connection and try again.",
+  "@signOutFailed": {
+    "description": "Sign-out failed."
+  },
+  "tooManyAttemptsLater": "Too many attempts. Try again later.",
+  "@tooManyAttemptsLater": {
+    "description": "Rate limited, no wait time known."
+  },
+  "tooManyAttempts": "{minutes, plural, one{Too many attempts. Try again in {minutes} minute.} other{Too many attempts. Try again in {minutes} minutes.}}",
+  "@tooManyAttempts": {
+    "description": "Rate limited; minutes to wait.",
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "signInTitle": "Sign in to Salus",
+  "@signInTitle": {
+    "description": "Sign-in screen title."
+  },
+  "email": "E-mail",
+  "@email": {
+    "description": "Field label."
+  },
+  "password": "Password",
+  "@password": {
+    "description": "Field label."
+  },
+  "signIn": "Sign in",
+  "@signIn": {
+    "description": "Button."
+  },
+  "createAnAccount": "Create an account",
+  "@createAnAccount": {
+    "description": "Link on sign-in, and the registration screen title."
+  },
+  "codePrompt": "Enter the 6-digit code from your authenticator app.",
+  "@codePrompt": {
+    "description": "Second sign-in step."
+  },
+  "code": "Code",
+  "@code": {
+    "description": "Field label: the authenticator code."
+  },
+  "useAnotherAccount": "Use another account",
+  "@useAnotherAccount": {
+    "description": "Link back to the first sign-in step."
+  },
+  "passwordHint": "12 to 128 characters",
+  "@passwordHint": {
+    "description": "Helper under the new password field."
+  },
+  "createAccount": "Create account",
+  "@createAccount": {
+    "description": "Registration button."
+  },
+  "haveAccount": "I already have an account",
+  "@haveAccount": {
+    "description": "Link from registration to sign-in."
+  },
+  "signedInAs": "Signed in as {email}",
+  "@signedInAs": {
+    "description": "Home screen; the e-mail address.",
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "completeProfile": "Complete your profile",
+  "@completeProfile": {
+    "description": "Button and profile screen title."
+  },
+  "completeProfileFirst": "Complete your profile before you book.",
+  "@completeProfileFirst": {
+    "description": "Home screen reminder."
+  },
+  "bookAppointment": "Book an appointment",
+  "@bookAppointment": {
+    "description": "Home button."
+  },
+  "myAppointments": "My appointments",
+  "@myAppointments": {
+    "description": "Home button and screen title."
+  },
+  "myConsents": "My consents",
+  "@myConsents": {
+    "description": "Home button and screen title."
+  },
+  "myProfile": "My profile",
+  "@myProfile": {
+    "description": "Home button and screen title."
+  },
+  "signOut": "Sign out",
+  "@signOut": {
+    "description": "Home link."
+  },
+  "profileIntro": "Clinics you book with see these details. The phone number is optional; the practitioner uses it only to reach you about an appointment.",
+  "@profileIntro": {
+    "description": "Profile screen, when creating it."
+  },
+  "givenName": "Given name",
+  "@givenName": {
+    "description": "Field label."
+  },
+  "familyName": "Family name",
+  "@familyName": {
+    "description": "Field label."
+  },
+  "dateOfBirth": "Date of birth",
+  "@dateOfBirth": {
+    "description": "Field label."
+  },
+  "dateFormatHint": "YYYY-MM-DD",
+  "@dateFormatHint": {
+    "description": "Helper under the date of birth: the format typed (year, month, day)."
+  },
+  "phoneOptional": "Phone (optional)",
+  "@phoneOptional": {
+    "description": "Field label."
+  },
+  "phoneHint": "With the country code, for example {example}",
+  "@phoneHint": {
+    "description": "Helper under the phone field. example is a phone number in international form, written by the app.",
+    "placeholders": {
+      "example": {
+        "type": "String"
+      }
+    }
+  },
+  "save": "Save",
+  "@save": {
+    "description": "Button."
+  },
+  "notNow": "Not now",
+  "@notNow": {
+    "description": "Button: leave it for later (profile, consent, camera explanation M18)."
+  },
+  "invalidGivenName": "Enter your given name, up to 100 characters.",
+  "@invalidGivenName": {
+    "description": "Field error."
+  },
+  "invalidFamilyName": "Enter your family name, up to 100 characters.",
+  "@invalidFamilyName": {
+    "description": "Field error."
+  },
+  "invalidName": "Enter your given and family name, up to 100 characters each.",
+  "@invalidName": {
+    "description": "Error from the API."
+  },
+  "birthDateFormat": "Enter your date of birth as YYYY-MM-DD.",
+  "@birthDateFormat": {
+    "description": "Field error."
+  },
+  "birthDateRange": "Enter a date of birth in the past, from 1900 on.",
+  "@birthDateRange": {
+    "description": "Field error."
+  },
+  "invalidPhone": "Enter the phone number with its country code, for example {example}.",
+  "@invalidPhone": {
+    "description": "Field error. example is a phone number in international form, written by the app.",
+    "placeholders": {
+      "example": {
+        "type": "String"
+      }
+    }
+  },
+  "profileChanged": "Your profile was changed in the meantime. Check it and save again.",
+  "@profileChanged": {
+    "description": "Save conflict."
+  },
+  "chooseClinic": "Choose a clinic",
+  "@chooseClinic": {
+    "description": "Screen title."
+  },
+  "noClinics": "No clinics are listed yet.",
+  "@noClinics": {
+    "description": "Empty list."
+  },
+  "noPractitioners": "This clinic has no practitioners listed yet.",
+  "@noPractitioners": {
+    "description": "Empty list."
+  },
+  "choosePractitioner": "Choose a practitioner.",
+  "@choosePractitioner": {
+    "description": "Above the list of practitioners."
+  },
+  "noOpenTimes": "This practitioner has no open times yet.",
+  "@noOpenTimes": {
+    "description": "No schedule."
+  },
+  "timesIn": "Times are in {zone}.",
+  "@timesIn": {
+    "description": "The time zone, an IANA name such as Europe/Sarajevo.",
+    "placeholders": {
+      "zone": {
+        "type": "String"
+      }
+    }
+  },
+  "previousDay": "Previous day",
+  "@previousDay": {
+    "description": "Button."
+  },
+  "nextDay": "Next day",
+  "@nextDay": {
+    "description": "Button."
+  },
+  "noFreeTimes": "No free times on this day.",
+  "@noFreeTimes": {
+    "description": "Empty day."
+  },
+  "bookThisTime": "Book this time",
+  "@bookThisTime": {
+    "description": "Screen title."
+  },
+  "chooseAnotherTime": "Choose another time",
+  "@chooseAnotherTime": {
+    "description": "Link after the time was taken."
+  },
+  "book": "Book",
+  "@book": {
+    "description": "Button: book the time."
+  },
+  "timeRange": "{start} to {end} ({zone})",
+  "@timeRange": {
+    "description": "An appointment's times, 24-hour, and the time zone.",
+    "placeholders": {
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      },
+      "zone": {
+        "type": "String"
+      }
+    }
+  },
+  "slotTaken": "This time is no longer free. Choose another time.",
+  "@slotTaken": {
+    "description": "Booking refused."
+  },
+  "consentNeeded": "Booking with this clinic needs your consent.",
+  "@consentNeeded": {
+    "description": "The patient did not agree."
+  },
+  "appointmentBooked": "Your appointment is booked.",
+  "@appointmentBooked": {
+    "description": "After booking."
+  },
+  "unlistedClinic": "A clinic no longer listed",
+  "@unlistedClinic": {
+    "description": "In place of a clinic name."
+  },
+  "cancelTitle": "Cancel this appointment?",
+  "@cancelTitle": {
+    "description": "Dialog title."
+  },
+  "cancelBody": "Your appointment on {date} at {time} will be cancelled. You will get an e-mail to confirm it.",
+  "@cancelBody": {
+    "description": "[legal] Dialog text: the effect of a cancellation.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "keepIt": "Keep it",
+  "@keepIt": {
+    "description": "Dialog button: do not cancel."
+  },
+  "cancelAppointment": "Cancel appointment",
+  "@cancelAppointment": {
+    "description": "Button."
+  },
+  "noAppointments": "You have no appointments yet.",
+  "@noAppointments": {
+    "description": "Empty list."
+  },
+  "upcoming": "Upcoming",
+  "@upcoming": {
+    "description": "Heading."
+  },
+  "past": "Past",
+  "@past": {
+    "description": "Heading."
+  },
+  "statusBooked": "Booked",
+  "@statusBooked": {
+    "description": "An appointment's status."
+  },
+  "statusCancelled": "Cancelled",
+  "@statusCancelled": {
+    "description": "An appointment's status."
+  },
+  "statusAttended": "Attended",
+  "@statusAttended": {
+    "description": "An appointment's status."
+  },
+  "statusNotAttended": "Not attended",
+  "@statusNotAttended": {
+    "description": "An appointment's status."
+  },
+  "appointmentCancelled": "Your appointment is cancelled.",
+  "@appointmentCancelled": {
+    "description": "After cancelling."
+  },
+  "cancelWindowHint": "Can be cancelled in the app until 24 hours before the start.",
+  "@cancelWindowHint": {
+    "description": "[legal] Under a booked appointment: the cancellation rule."
+  },
+  "cancelWindowClosed": "This appointment starts in less than 24 hours and can no longer be cancelled in the app.",
+  "@cancelWindowClosed": {
+    "description": "[legal] Cancellation refused: the rule."
+  },
+  "appointmentClosed": "This appointment is no longer booked.",
+  "@appointmentClosed": {
+    "description": "Refused: the appointment changed."
+  },
+  "consentTitle": "Share your details with {clinic}",
+  "@consentTitle": {
+    "description": "[legal] Consent screen title; the clinic's name.",
+    "placeholders": {
+      "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "consentIntro": "Before your first booking with {clinic}, we need your consent to share your details with it.",
+  "@consentIntro": {
+    "description": "[legal] Consent screen.",
+    "placeholders": {
+      "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "whatIsShared": "What is shared",
+  "@whatIsShared": {
+    "description": "[legal] Consent heading."
+  },
+  "whatIsSharedBody": "Your profile (your name, date of birth and, if you gave one, your phone number) and your appointments with this clinic.",
+  "@whatIsSharedBody": {
+    "description": "[legal] Consent screen."
+  },
+  "whoSeesIt": "Who sees it",
+  "@whoSeesIt": {
+    "description": "[legal] Consent heading."
+  },
+  "whoSeesItBody": "{clinic}. The practitioner you book with sees your profile; the clinic's administrators see your name and appointment times.",
+  "@whoSeesItBody": {
+    "description": "[legal] Consent screen.",
+    "placeholders": {
+      "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "whatFor": "What for",
+  "@whatFor": {
+    "description": "[legal] Consent heading."
+  },
+  "whatForBody": "Only for your care at this clinic: to prepare for and hold your appointments.",
+  "@whatForBody": {
+    "description": "[legal] Consent screen."
+  },
+  "whoIsResponsible": "Who is responsible",
+  "@whoIsResponsible": {
+    "description": "[legal] Consent heading."
+  },
+  "whoIsResponsibleBody": "{clinic} is responsible for your data. Salus processes it on the clinic's behalf.",
+  "@whoIsResponsibleBody": {
+    "description": "[legal] Consent screen.",
+    "placeholders": {
+      "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "readPrivacyNotice": "Read the privacy notice",
+  "@readPrivacyNotice": {
+    "description": "[legal] Link to the privacy notice."
+  },
+  "privacyNoticeFailed": "The privacy notice could not be opened.",
+  "@privacyNoticeFailed": {
+    "description": "The link could not be opened."
+  },
+  "howToRevoke": "How to revoke",
+  "@howToRevoke": {
+    "description": "[legal] Consent heading."
+  },
+  "howToRevokeBody": "You can revoke this consent at any time under My consents. The clinic then no longer sees your profile. It keeps your name and the details of appointments that have already taken place, as part of its care records. Your future appointments there are cancelled.",
+  "@howToRevokeBody": {
+    "description": "[legal] Consent screen: the effect of revoking."
+  },
+  "agreeAndBook": "Agree and book",
+  "@agreeAndBook": {
+    "description": "[legal] Consent button: gives the consent."
+  },
+  "revokeTitle": "Revoke your consent?",
+  "@revokeTitle": {
+    "description": "[legal] Dialog title."
+  },
+  "revokeBody": "{clinic} will no longer see your profile. It keeps your name and the details of appointments that have already taken place, as part of its care records. Your future appointments with {clinic} will be cancelled.",
+  "@revokeBody": {
+    "description": "[legal] Dialog text: the effect of revoking.",
+    "placeholders": {
+      "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "keepConsent": "Keep consent",
+  "@keepConsent": {
+    "description": "Dialog button."
+  },
+  "revokeConsent": "Revoke consent",
+  "@revokeConsent": {
+    "description": "[legal] Button and dialog button."
+  },
+  "noConsents": "You have not given any consents yet.",
+  "@noConsents": {
+    "description": "Empty list."
+  },
+  "consentsIntro": "You share your profile and appointments with these clinics for your care.",
+  "@consentsIntro": {
+    "description": "[legal] Above the consents."
+  },
+  "givenOn": "Given on {date}",
+  "@givenOn": {
+    "description": "A consent's date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "consentActive": "Active",
+  "@consentActive": {
+    "description": "A consent's status."
+  },
+  "revokedOn": "Revoked on {date}",
+  "@revokedOn": {
+    "description": "A consent's status and date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "consentRevoked": "Your consent is revoked. Your future appointments with this clinic will be cancelled, and you will get an e-mail for each.",
+  "@consentRevoked": {
+    "description": "[legal] After revoking: its effect."
+  },
+  "consentAlreadyRevoked": "This consent is already revoked.",
+  "@consentAlreadyRevoked": {
+    "description": "Refused: already revoked."
+  },
+  "joinConsultation": "Join consultation",
+  "@joinConsultation": {
+    "description": "M1."
+  },
+  "joinFrom": "You can join from 10 minutes before the start.",
+  "@joinFrom": {
+    "description": "M2."
+  },
+  "checkTitle": "Check your camera and microphone",
+  "@checkTitle": {
+    "description": "M3."
+  },
+  "checkIntro": "The practitioner will see and hear you once you join.",
+  "@checkIntro": {
+    "description": "M4."
+  },
+  "noSound": "No sound detected. Check that your microphone is on and not muted.",
+  "@noSound": {
+    "description": "M5."
+  },
+  "joinCameraOff": "Join with camera off",
+  "@joinCameraOff": {
+    "description": "M6."
+  },
+  "joinMicrophoneOff": "Join with microphone off",
+  "@joinMicrophoneOff": {
+    "description": "M6."
+  },
+  "joinNow": "Join",
+  "@joinNow": {
+    "description": "M7."
+  },
+  "joining": "Joining…",
+  "@joining": {
+    "description": "M8."
+  },
+  "cameraDenied": "Salus does not have access to your camera. You can allow it in your device settings, or join without video.",
+  "@cameraDenied": {
+    "description": "[legal] M9: a permission refused."
+  },
+  "microphoneDenied": "Salus does not have access to your microphone. You can allow it in your device settings. Without it, the practitioner cannot hear you.",
+  "@microphoneDenied": {
+    "description": "[legal] M10: a permission refused."
+  },
+  "openSettings": "Open settings",
+  "@openSettings": {
+    "description": "M11."
+  },
+  "noCamera": "No camera found.",
+  "@noCamera": {
+    "description": "M12."
+  },
+  "noMicrophone": "No microphone found.",
+  "@noMicrophone": {
+    "description": "M12."
+  },
+  "waiting": "Waiting for the practitioner",
+  "@waiting": {
+    "description": "M13."
+  },
+  "joinsYouHere": "{name} will join you here. Keep this screen open.",
+  "@joinsYouHere": {
+    "description": "M14; the practitioner's name.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mute": "Mute microphone",
+  "@mute": {
+    "description": "M15."
+  },
+  "unmute": "Unmute microphone",
+  "@unmute": {
+    "description": "M15."
+  },
+  "cameraOff": "Turn camera off",
+  "@cameraOff": {
+    "description": "M15."
+  },
+  "cameraOn": "Turn camera on",
+  "@cameraOn": {
+    "description": "M15."
+  },
+  "leave": "Leave",
+  "@leave": {
+    "description": "M15; also leaving a questionnaire (questionnaire M15)."
+  },
+  "peerCameraOff": "{name}'s camera is off",
+  "@peerCameraOff": {
+    "description": "M16; the practitioner's name.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "peerMuted": "{name} is muted",
+  "@peerMuted": {
+    "description": "M17; the practitioner's name.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "peerLeft": "{name} has left the consultation. They can join again until the consultation ends.",
+  "@peerLeft": {
+    "description": "M18; the practitioner's name.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "reconnecting": "Connection lost. Reconnecting…",
+  "@reconnecting": {
+    "description": "M19."
+  },
+  "notRestored": "The connection could not be restored.",
+  "@notRestored": {
+    "description": "M20."
+  },
+  "reconnected": "Reconnected",
+  "@reconnected": {
+    "description": "M21."
+  },
+  "consultationOver": "The consultation has ended",
+  "@consultationOver": {
+    "description": "M22."
+  },
+  "closeScreen": "You can close this screen.",
+  "@closeScreen": {
+    "description": "M23."
+  },
+  "timeLimit": "The consultation reached its time limit and has ended.",
+  "@timeLimit": {
+    "description": "M24."
+  },
+  "practitionerAbsent": "The practitioner did not join",
+  "@practitionerAbsent": {
+    "description": "M25."
+  },
+  "timePassed": "The time to join this consultation has passed. The clinic can see that you joined. The clinic may contact you, or you can book a new appointment.",
+  "@timePassed": {
+    "description": "M26."
+  },
+  "withdrewConsent": "You withdrew your consent for this clinic, so you have left the consultation.",
+  "@withdrewConsent": {
+    "description": "[legal] M27."
+  },
+  "appointmentWasCancelled": "This appointment was cancelled, so the consultation has ended.",
+  "@appointmentWasCancelled": {
+    "description": "M28."
+  },
+  "windowNotOpen": "This consultation opens 10 minutes before the start.",
+  "@windowNotOpen": {
+    "description": "M29."
+  },
+  "consultationEnded": "This consultation has ended.",
+  "@consultationEnded": {
+    "description": "M30."
+  },
+  "joinNeedsConsent": "Joining needs your consent for this clinic.",
+  "@joinNeedsConsent": {
+    "description": "M32."
+  },
+  "consultationNotAvailable": "This consultation is not available.",
+  "@consultationNotAvailable": {
+    "description": "M33."
+  },
+  "cannotConnect": "The video connection could not be started. Check your connection and try again.",
+  "@cannotConnect": {
+    "description": "M34."
+  },
+  "whyCameraAndMicrophone": "To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded.",
+  "@whyCameraAndMicrophone": {
+    "description": "[legal] M35: Android, before the system permission prompt."
+  },
+  "toFillIn": "To fill in",
+  "@toFillIn": {
+    "description": "M1."
+  },
+  "inProgress": "In progress",
+  "@inProgress": {
+    "description": "M1."
+  },
+  "submittedStatus": "Submitted",
+  "@submittedStatus": {
+    "description": "M1: status."
+  },
+  "closedStatus": "Closed",
+  "@closedStatus": {
+    "description": "M1: status."
+  },
+  "fillIn": "Fill in",
+  "@fillIn": {
+    "description": "M2."
+  },
+  "continueFilling": "Continue",
+  "@continueFilling": {
+    "description": "M2: continue filling in."
+  },
+  "viewAnswers": "View answers",
+  "@viewAnswers": {
+    "description": "M2."
+  },
+  "submitBeforeStart": "Please submit it before your appointment starts.",
+  "@submitBeforeStart": {
+    "description": "M3."
+  },
+  "questionnaireClosed": "The appointment has started, so this questionnaire can no longer be filled in.",
+  "@questionnaireClosed": {
+    "description": "M4."
+  },
+  "savedAsYouGo": "Your answers are saved as you go. {clinic} sees them only after you submit.",
+  "@savedAsYouGo": {
+    "description": "M5; the clinic's name.",
+    "placeholders": {
+      "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "saved": "Saved",
+  "@saved": {
+    "description": "M6."
+  },
+  "saving": "Saving…",
+  "@saving": {
+    "description": "M6."
+  },
+  "notSaved": "Not saved. Check your connection. Saving will try again.",
+  "@notSaved": {
+    "description": "M6."
+  },
+  "requiredQuestion": "Required",
+  "@requiredQuestion": {
+    "description": "M7."
+  },
+  "moreInformation": "More information",
+  "@moreInformation": {
+    "description": "M8."
+  },
+  "yourAnswer": "Your answer",
+  "@yourAnswer": {
+    "description": "M9."
+  },
+  "chooseDate": "Choose a date",
+  "@chooseDate": {
+    "description": "M9."
+  },
+  "selectOne": "Select one.",
+  "@selectOne": {
+    "description": "M9."
+  },
+  "selectAll": "Select all that apply.",
+  "@selectAll": {
+    "description": "M9."
+  },
+  "yes": "Yes",
+  "@yes": {
+    "description": "M9."
+  },
+  "no": "No",
+  "@no": {
+    "description": "M9."
+  },
+  "questionRequired": "This question is required.",
+  "@questionRequired": {
+    "description": "M10."
+  },
+  "enterWholeNumber": "Enter a whole number.",
+  "@enterWholeNumber": {
+    "description": "M10."
+  },
+  "enterNumber": "Enter a number.",
+  "@enterNumber": {
+    "description": "M10."
+  },
+  "numberTooLarge": "This number is too large.",
+  "@numberTooLarge": {
+    "description": "M10."
+  },
+  "upToCharacters": "Enter up to {max} characters.",
+  "@upToCharacters": {
+    "description": "M10; max is 255 or 4000.",
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "enterValidDate": "Enter a valid date.",
+  "@enterValidDate": {
+    "description": "M10."
+  },
+  "submit": "Submit",
+  "@submit": {
+    "description": "M11."
+  },
+  "submitTitle": "Submit your answers?",
+  "@submitTitle": {
+    "description": "M11."
+  },
+  "submitBody": "You cannot change them after you submit. Your practitioner at {clinic} will see them.",
+  "@submitBody": {
+    "description": "M11; the clinic's name.",
+    "placeholders": {
+      "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "M11: dialog button."
+  },
+  "requiredMissing": "Some required questions are not answered.",
+  "@requiredMissing": {
+    "description": "M12."
+  },
+  "answersSubmitted": "Answers submitted",
+  "@answersSubmitted": {
+    "description": "M13."
+  },
+  "answersSubmittedBody": "Your practitioner can see them before your appointment. You can view them from My appointments.",
+  "@answersSubmittedBody": {
+    "description": "M13."
+  },
+  "yourAnswers": "Your answers",
+  "@yourAnswers": {
+    "description": "M14."
+  },
+  "submittedAt": "Submitted {when}",
+  "@submittedAt": {
+    "description": "M14; when is dateAndTime.",
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "dateAndTime": "{date}, {time}",
+  "@dateAndTime": {
+    "description": "A long date and a 24-hour time.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "notAnswered": "Not answered",
+  "@notAnswered": {
+    "description": "M14."
+  },
+  "leaveUnsaved": "Your last answer is not saved yet. Leave anyway?",
+  "@leaveUnsaved": {
+    "description": "M15."
+  },
+  "stay": "Stay",
+  "@stay": {
+    "description": "M15."
+  },
+  "fillingNeedsConsent": "Filling in this questionnaire needs your consent for this clinic.",
+  "@fillingNeedsConsent": {
+    "description": "M16."
+  },
+  "pastDue": "The appointment has started, so this questionnaire can no longer be changed.",
+  "@pastDue": {
+    "description": "M16."
+  },
+  "withdrawnByClinic": "The clinic withdrew this questionnaire. You do not need to fill it in.",
+  "@withdrawnByClinic": {
+    "description": "M16."
+  },
+  "alreadySubmitted": "You have already submitted this questionnaire.",
+  "@alreadySubmitted": {
+    "description": "M16."
+  },
+  "changedElsewhere": "These answers were changed on another device. The latest answers are shown.",
+  "@changedElsewhere": {
+    "description": "M16."
+  },
+  "questionnaireNotAvailable": "This questionnaire is not available.",
+  "@questionnaireNotAvailable": {
+    "description": "M16."
+  },
+  "done": "Done",
+  "@done": {
+    "description": "M17: the date picker's confirm button."
+  },
+  "addFile": "Add file",
+  "@addFile": {
+    "description": "M1."
+  },
+  "photosUpTo": "Photos up to 20 MB.",
+  "@photosUpTo": {
+    "description": "M2."
+  },
+  "documentsUpTo": "Documents (PDF) up to 20 MB.",
+  "@documentsUpTo": {
+    "description": "M2."
+  },
+  "videosUpTo": "Videos up to 200 MB.",
+  "@videosUpTo": {
+    "description": "M2."
+  },
+  "oneFileHint": "1 file.",
+  "@oneFileHint": {
+    "description": "M2: an item that takes one file."
+  },
+  "upToFilesHint": "{n, plural, one{Up to {n} file.} other{Up to {n} files.}}",
+  "@upToFilesHint": {
+    "description": "M2: an item that takes 2 or more files.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "takePhoto": "Take a photo",
+  "@takePhoto": {
+    "description": "M3."
+  },
+  "recordVideo": "Record a video",
+  "@recordVideo": {
+    "description": "M3."
+  },
+  "chooseFromPhotos": "Choose from photos",
+  "@chooseFromPhotos": {
+    "description": "M3."
+  },
+  "chooseDocument": "Choose a document",
+  "@chooseDocument": {
+    "description": "M3."
+  },
+  "preparing": "Preparing…",
+  "@preparing": {
+    "description": "M4."
+  },
+  "uploadingPercent": "Uploading… {n}%",
+  "@uploadingPercent": {
+    "description": "M4; n from 0 to 100.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "checkingFile": "Checking the file…",
+  "@checkingFile": {
+    "description": "M4."
+  },
+  "added": "Added",
+  "@added": {
+    "description": "M4."
+  },
+  "notUploaded": "Not uploaded. Check your connection.",
+  "@notUploaded": {
+    "description": "M5."
+  },
+  "remove": "Remove",
+  "@remove": {
+    "description": "M5, M6."
+  },
+  "removeFile": "Remove file",
+  "@removeFile": {
+    "description": "M6."
+  },
+  "removeFileTitle": "Remove this file?",
+  "@removeFileTitle": {
+    "description": "M6."
+  },
+  "removeFileBody": "It is deleted from your answers.",
+  "@removeFileBody": {
+    "description": "M6."
+  },
+  "fileRejected": "This file did not pass the safety check and was deleted. Choose another file.",
+  "@fileRejected": {
+    "description": "M7."
+  },
+  "fileTooLarge": "This file is larger than {max} MB.",
+  "@fileTooLarge": {
+    "description": "M8; max is 20 or 200.",
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "fileTypeRefused": "This kind of file cannot be added to this question.",
+  "@fileTypeRefused": {
+    "description": "M8."
+  },
+  "tooManyFiles": "{n, plural, one{You can add up to {n} file to this question.} other{You can add up to {n} files to this question.}}",
+  "@tooManyFiles": {
+    "description": "M8.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "filesFull": "The files in this questionnaire have reached 500 MB. Remove a file to add another.",
+  "@filesFull": {
+    "description": "M8."
+  },
+  "fileNotUploaded": "The file could not be uploaded. Try again.",
+  "@fileNotUploaded": {
+    "description": "M8."
+  },
+  "cannotPrepareFile": "This file could not be prepared for upload. Choose another file.",
+  "@cannotPrepareFile": {
+    "description": "M9."
+  },
+  "filesBeingChecked": "Some files are still being checked. You can submit once they are ready.",
+  "@filesBeingChecked": {
+    "description": "M10."
+  },
+  "leaveUploading": "A file is still uploading. Leave anyway? The upload stops.",
+  "@leaveUploading": {
+    "description": "M11."
+  },
+  "fileCount": "{n, plural, one{1 file} other{{n} files}}",
+  "@fileCount": {
+    "description": "M12.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "photoKind": "Photo",
+  "@photoKind": {
+    "description": "M13."
+  },
+  "documentKind": "Document",
+  "@documentKind": {
+    "description": "M13."
+  },
+  "videoKind": "Video",
+  "@videoKind": {
+    "description": "M13."
+  },
+  "kilobytes": "{n} KB",
+  "@kilobytes": {
+    "description": "M13.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "megabytes": "{mb} MB",
+  "@megabytes": {
+    "description": "M13; mb has one decimal, written for the language.",
+    "placeholders": {
+      "mb": {
+        "type": "String"
+      }
+    }
+  },
+  "kindAndSize": "{kind}, {size}",
+  "@kindAndSize": {
+    "description": "M12, M13: \"Photo, 2.4 MB\".",
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "uploadingLabel": "Uploading {title}, {n} percent",
+  "@uploadingLabel": {
+    "description": "M14: screen reader; the file's name.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "fileLabel": "{kind}, {title}, {status}",
+  "@fileLabel": {
+    "description": "M14: screen reader.",
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "title": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "allowCamera": "Allow camera access",
+  "@allowCamera": {
+    "description": "[legal] M18: Android, before the system permission prompt."
+  },
+  "whyCameraForFiles": "Salus needs the camera to take the photo or video you add to this questionnaire.",
+  "@whyCameraForFiles": {
+    "description": "[legal] M18: Android, before the system permission prompt."
+  },
+  "continueLabel": "Continue",
+  "@continueLabel": {
+    "description": "M18; also the sign-in code step."
+  },
+  "cameraDeniedForFiles": "Salus does not have access to your camera. You can allow it in your device settings, or choose a file instead.",
+  "@cameraDeniedForFiles": {
+    "description": "[legal] M19: a permission refused."
+  },
+  "photosDenied": "Salus does not have access to your photos. You can allow it in your device settings.",
+  "@photosDenied": {
+    "description": "[legal] M20: a permission refused."
+  },
+  "cameraPhotoTitle": "Photo, {date}, {time}",
+  "@cameraPhotoTitle": {
+    "description": "M21: the name of a photo taken with the camera.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraVideoTitle": "Video, {date}, {time}",
+  "@cameraVideoTitle": {
+    "description": "M22: the name of a video recorded with the camera.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "specialty394814009": "General practice",
+  "@specialty394814009": {
+    "description": "Specialty, SNOMED CT 394814009."
+  },
+  "specialty419192003": "Internal medicine",
+  "@specialty419192003": {
+    "description": "Specialty, SNOMED CT 419192003."
+  },
+  "specialty394579002": "Cardiology",
+  "@specialty394579002": {
+    "description": "Specialty, SNOMED CT 394579002."
+  },
+  "specialty394582007": "Dermatology",
+  "@specialty394582007": {
+    "description": "Specialty, SNOMED CT 394582007."
+  },
+  "specialty394586005": "Gynaecology",
+  "@specialty394586005": {
+    "description": "Specialty, SNOMED CT 394586005."
+  },
+  "specialty394537008": "Paediatrics",
+  "@specialty394537008": {
+    "description": "Specialty, SNOMED CT 394537008."
+  },
+  "specialty394587001": "Psychiatry",
+  "@specialty394587001": {
+    "description": "Specialty, SNOMED CT 394587001."
+  },
+  "specialty394591006": "Neurology",
+  "@specialty394591006": {
+    "description": "Specialty, SNOMED CT 394591006."
+  },
+  "specialty418960008": "ENT",
+  "@specialty418960008": {
+    "description": "Specialty, SNOMED CT 418960008 (otolaryngology)."
+  },
+  "specialty394594003": "Ophthalmology",
+  "@specialty394594003": {
+    "description": "Specialty, SNOMED CT 394594003."
+  },
+  "specialty394801008": "Orthopaedics",
+  "@specialty394801008": {
+    "description": "Specialty, SNOMED CT 394801008."
+  },
+  "specialty394583002": "Endocrinology",
+  "@specialty394583002": {
+    "description": "Specialty, SNOMED CT 394583002."
+  },
+  "questionnaireNotInLanguage": "This questionnaire is not available in {language}.",
+  "@questionnaireNotInLanguage": {
+    "description": "docs/i18n COPY.md M1: the questionnaire is not written or translated in the app's language; the language's own name (L1).",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "questionnaireLanguages": "It is available in: {languages}. Choose the one you understand best.",
+  "@questionnaireLanguages": {
+    "description": "docs/i18n COPY.md M2: the questionnaire's languages, each by its own name (L1), separated by commas.",
+    "placeholders": {
+      "languages": {
+        "type": "String"
+      }
+    }
+  },
+  "continueInLanguage": "Continue in {language}",
+  "@continueInLanguage": {
+    "description": "docs/i18n COPY.md M3: the button that starts the questionnaire in the chosen language; its own name (L1).",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "languageUnavailable": "This language is no longer available for this questionnaire. Choose another one.",
+  "@languageUnavailable": {
+    "description": "docs/i18n COPY.md M4: the API refused the language (language_unavailable)."
+  },
+  "specialtyAtClinic": "{specialty}, {clinic}",
+  "@specialtyAtClinic": {
+    "description": "A practitioner's specialty and clinic on the free times screen.",
+    "placeholders": {
+      "specialty": {
+        "type": "String"
+      },
+      "clinic": {
+        "type": "String"
+      }
+    }
+  }
+}

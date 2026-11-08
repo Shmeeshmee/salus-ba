@@ -27,7 +27,7 @@ by the app.
 - W16: "More options", "Add help text", "Help text", with the hint "Patients see this when they tap the information icon."
 - W17 (condition): "Add condition", "Show this only if", "is", "Remove condition"; when there is nothing to depend on: "A condition needs a yes or no question or a choice question above this item."
 - W18 (item actions): "Move up", "Move down", "Delete", "Drag to reorder"
-- W19 (deleting a question others depend on): "Delete this question?" / "[n] items are shown only after an answer to it. Their conditions will be removed." with the buttons "Delete", "Cancel"
+- W19 (deleting a question others depend on): "Delete this question?" / "[n] items are shown only after an answer to it. Their conditions will be removed.", for one item "1 item is shown only after an answer to it. Its condition will be removed." (singular approved by the owner, 2026-11-08), with the buttons "Delete", "Cancel"
 - W20: "Save draft", "Saving…", "Saved", "Discard draft"
 - W21: "Discard this draft?" / "This cannot be undone." with the buttons "Discard", "Cancel"
 - W22: "Publish"; "Publish this questionnaire?" / "Once published, it cannot be changed. To change it later, you create a new version." For a later version, also: "Version [n] will be retired. Patients who have already been asked keep that version." Buttons "Publish", "Cancel"

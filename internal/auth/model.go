@@ -26,7 +26,12 @@ type Account struct {
 	OrganizationID string // the clinic of a staff account; empty for a patient
 	PractitionerID string // the directory's practitioner of a practitioner account; empty otherwise
 	PasswordHash   string // argon2id PHC string; never leaves the domain
-	Role           Role
+	// Language is the user's own choice of language, a BCP 47 tag of the enum language (docs/i18n/SPEC.md §3);
+	// empty while they follow their browser or device.
+	Language string
+	// DetectedLanguage is the language the client matched at the last registration or sign-in; empty before.
+	DetectedLanguage string
+	Role             Role
 }
 
 // Member is what a staff session is in its clinic: whether its account is the admin, and the practitioner it

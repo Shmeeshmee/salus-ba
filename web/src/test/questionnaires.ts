@@ -1,5 +1,6 @@
 import type { Questionnaire } from '../api/fhir'
 import type { components } from '../api/schema'
+import type { FHIRQuestionnaire } from '../questionnaire'
 
 // A synthetic questionnaire in both forms the web app reads: FHIR (the library and the builder's read) and
 // the JSON API's answer (after a save). Placeholder wording, no clinical content.
@@ -80,6 +81,70 @@ export function questionnaireJSON(): JSONQuestionnaire {
           },
         ],
       },
+    ],
+  }
+}
+
+// The same questionnaire written in Bosnian, with an English translation that lacks the multiple choice question
+// and a German one with the title only, as the FHIR read carries them (the R4 translation extension) and as the
+// JSON API answers them.
+const translation = (lang: string, content: string) => ({
+  url: 'http://hl7.org/fhir/StructureDefinition/translation',
+  extension: [
+    { url: 'lang', valueCode: lang },
+    { url: 'content', valueString: content },
+  ],
+})
+const inEnglish = (content: string) => ({ extension: [translation('en', content)] })
+
+export function translatedFHIR(): FHIRQuestionnaire {
+  const q = questionnaireFHIR()
+  const [intro, smoker, sec] = q.item ?? []
+  const [one, many, secHelp] = sec.item ?? []
+  const [smokerHelp] = smoker.item ?? []
+  return {
+    ...q,
+    language: 'bs',
+    _title: { extension: [translation('en', 'Placeholder intake in English'), translation('de', 'Placeholder intake in German')] },
+    item: [
+      { ...intro, _text: inEnglish('Placeholder instructions in English') },
+      { ...smoker, _text: inEnglish('Placeholder yes or no in English'), item: [{ ...smokerHelp, _text: inEnglish('Placeholder help in English') }] },
+      {
+        ...sec,
+        _text: inEnglish('Placeholder section in English'),
+        item: [
+          {
+            ...one,
+            _text: inEnglish('Placeholder single in English'),
+            answerOption: [
+              { valueString: 'A', _valueString: inEnglish('A in English') },
+              { valueString: 'B', _valueString: inEnglish('B in English') },
+            ],
+          },
+          many,
+          { ...secHelp, _text: inEnglish('Placeholder section help in English') },
+        ],
+      },
+    ],
+  }
+}
+
+export function translatedJSON(): JSONQuestionnaire {
+  return {
+    ...questionnaireJSON(),
+    language: 'bs',
+    translations: [
+      {
+        language: 'en',
+        title: 'Placeholder intake in English',
+        items: {
+          intro: { text: 'Placeholder instructions in English' },
+          smoker: { text: 'Placeholder yes or no in English', help: 'Placeholder help in English' },
+          sec: { text: 'Placeholder section in English', help: 'Placeholder section help in English' },
+          one: { text: 'Placeholder single in English', options: ['A in English', 'B in English'] },
+        },
+      },
+      { language: 'de', title: 'Placeholder intake in German', items: {} },
     ],
   }
 }

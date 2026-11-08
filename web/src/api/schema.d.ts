@@ -81,7 +81,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Choose the account's language
+         * @description Saves the language the user picked (docs/i18n/SPEC.md §3 "Picking and saving"); it wins on every device from then on, and e-mails use it. `null` clears it: the app follows the browser's or the device's language again. A staff account takes only a staff language. Audited.
+         */
+        patch: operations["updateMe"];
         trace?: never;
     };
     "/auth/login": {
@@ -664,6 +668,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/questionnaire-responses/{id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The response's id (FHIR QuestionnaireResponse.id). */
+                id: components["parameters"]["QuestionnaireResponseID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Choose the language to answer in
+         * @description The patient starts their questionnaire in a language it has: its original language or one of its complete translations (docs/i18n/SPEC.md §3 "The patient's language"). The language may be chosen again until the first answer is saved, not after. The appointment's practitioner reads the questions in it. Not cached. Audited, also when refused.
+         */
+        post: operations["startQuestionnaire"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/questionnaire-responses/{id}/answers": {
         parameters: {
             query?: never;
@@ -835,6 +862,10 @@ export interface components {
         LoginRequest: {
             email: string;
             password: string;
+            /** @description The language the user picked on the device before signing in; saved as their choice. */
+            language?: components["schemas"]["Language"];
+            /** @description The language the client matched from the browser's or the device's languages; saved for e-mails while the user has no choice of their own. */
+            detectedLanguage?: components["schemas"]["Language"];
         };
         LoginResponse: {
             /** @enum {string} */
@@ -874,6 +905,10 @@ export interface components {
             email: string;
             /** @description Counted in characters, not bytes. */
             password: string;
+            /** @description The language the user picked on the device before signing in; saved as their choice. */
+            language?: components["schemas"]["Language"];
+            /** @description The language the client matched from the browser's or the device's languages; saved for e-mails while the user has no choice of their own. */
+            detectedLanguage?: components["schemas"]["Language"];
         };
         InviteRequest: {
             email: string;
@@ -903,6 +938,10 @@ export interface components {
             token: string;
             /** @description Counted in characters, not bytes. */
             password: string;
+            /** @description The language the user picked on the device before signing in; saved as their choice. */
+            language?: components["schemas"]["Language"];
+            /** @description The language the client matched from the browser's or the device's languages; saved for e-mails while the user has no choice of their own. */
+            detectedLanguage?: components["schemas"]["Language"];
         };
         Acceptance: {
             /** @description For `/auth/mfa/confirm`; valid 5 minutes. */
@@ -929,7 +968,18 @@ export interface components {
              */
             practitionerId?: string;
             mfaEnrolled: boolean;
+            /** @description The language the user chose; absent while they follow the browser's or the device's language, which the client then matches itself. */
+            language?: components["schemas"]["Language"];
         };
+        UpdateMeRequest: {
+            /** @description The language chosen, or `null` to follow the browser's or the device's language again. */
+            language: components["schemas"]["Language"] | null;
+        };
+        /**
+         * @description A BCP 47 tag (docs/i18n/SPEC.md §3 "Tags"). Staff accounts and a clinic's default language take only the staff languages, the first five: bs, hr, sr-Latn, sr-Cyrl, en. Serbian is ijekavian in both scripts.
+         * @enum {string}
+         */
+        Language: "bs" | "hr" | "sr-Latn" | "sr-Cyrl" | "en" | "de" | "ar" | "tr" | "it" | "fr";
         /** @description The patient's profile (docs/booking/SPEC.md "Profile"). Health data. */
         Patient: {
             /** Format: uuid */
@@ -1103,6 +1153,10 @@ export interface components {
             description?: string;
             /** @description At most 200 items in all, sections and instructions included. */
             item: components["schemas"]["QuestionnaireItem"][];
+            /** @description The original language; absent keeps the draft's (a new questionnaire's is the clinic's default language). */
+            language?: components["schemas"]["Language"];
+            /** @description The draft's translations, all of them: one per language, none in the original language. A translation may be incomplete while the version is a draft; publishing refuses it until complete. Absent keeps the draft's. */
+            translations?: components["schemas"]["QuestionnaireTranslation"][];
         };
         /** @description One item, as FHIR Questionnaire.item. Sections (`group`) are top level only and hold questions and instructions. Single and multiple choice are both `choice`; `repeats` tells them apart. */
         QuestionnaireItem: {
@@ -1152,6 +1206,10 @@ export interface components {
             title: string;
             description?: string;
             item: components["schemas"]["QuestionnaireItem"][];
+            /** @description The original language (Questionnaire.language). */
+            language?: components["schemas"]["Language"];
+            /** @description Its translations, in the language list's order. A patient reads them through FHIR, as the translation extension on each translated element. */
+            translations?: components["schemas"]["QuestionnaireTranslation"][];
             /** Format: date-time */
             lastUpdated: string;
             /**
@@ -1164,6 +1222,25 @@ export interface components {
              * @description The version of this row, for If-Match.
              */
             versionId: number;
+        };
+        /** @description A version's texts in another language (docs/i18n/SPEC.md §3 "Questionnaires"). */
+        QuestionnaireTranslation: {
+            language: components["schemas"]["Language"];
+            /** @description Empty while not yet translated. */
+            title: string;
+            description?: string;
+            /** @description The items' texts by linkId; an item missing here is not yet translated. */
+            items: {
+                [key: string]: components["schemas"]["QuestionnaireItemTranslation"];
+            };
+        };
+        QuestionnaireItemTranslation: {
+            /** @description The item's text, within its limits as in the original. */
+            text?: string;
+            /** @description The help text; for an item that has one. */
+            help?: string;
+            /** @description A choice item's option texts, by the options' position; as many as the item has. */
+            options?: string[];
         };
         QuestionnaireDefault: {
             /** Format: uuid */
@@ -1205,6 +1282,9 @@ export interface components {
             linkId: string;
             values: components["schemas"]["AnswerValue"][];
         };
+        StartQuestionnaireRequest: {
+            language: components["schemas"]["Language"];
+        };
         SaveAnswersRequest: {
             /** @description Every saved answer; a question left out is unanswered. */
             answers: components["schemas"]["Answer"][];
@@ -1241,6 +1321,8 @@ export interface components {
              * @description When the patient submitted; absent before.
              */
             authored?: string;
+            /** @description The language the patient answers in; absent until they start. */
+            language?: components["schemas"]["Language"];
             /** Format: date-time */
             lastUpdated: string;
             /**
@@ -1274,9 +1356,11 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "internal error" | "timeout";
-            /** @description With `invalid_questionnaire` and `answers_invalid` only, the offending items' linkIds in document order. */
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "internal error" | "timeout";
+            /** @description With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
+            /** @description With `translation_incomplete` only, the translation that is incomplete. */
+            language?: components["schemas"]["Language"];
         };
         /** @description What a client needs to join the room. The token is a secret: it is never logged or stored. Health data: it shows whom the patient consults. */
         ConsultationJoin: {
@@ -1711,6 +1795,54 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    updateMe: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMeRequest"];
+            };
+        };
+        responses: {
+            /** @description The account, changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            /** @description `invalid_request`: a body that is not the request (a tag outside the list included). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["CSRF"];
+            /** @description `language_unavailable`: a staff account chose a language the web app does not offer. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
         };
     };
     login: {
@@ -2781,6 +2913,15 @@ export interface operations {
                 };
             };
             412: components["responses"]["QuestionnaireChanged"];
+            /** @description `translation_incomplete`: a translation lacks some of the version's texts; `language` names the translation and `linkIds` the items it lacks, in document order (none when only the title is missing). A patient never sees a half-translated questionnaire: finish or remove it. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };
@@ -3355,6 +3496,59 @@ export interface operations {
             };
             /** @description `already_requested`: the appointment has a request of that questionnaire (a withdrawn one may be requested again); `not_active`: the version is a draft or retired; `appointment_started`: the appointment has started; `appointment_closed`: it is no longer booked; `consent_required`: the patient's consent with the clinic is not active. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    startQuestionnaire: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The response's id (FHIR QuestionnaireResponse.id). */
+                id: components["parameters"]["QuestionnaireResponseID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartQuestionnaireRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["QuestionnaireResponse"];
+            /** @description `invalid_request`: a body that is not the request (a tag outside the list included). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AnswersForbidden"];
+            404: components["responses"]["QuestionnaireResponseNotFound"];
+            /** @description `language_locked`: an answer or a file is saved, so the language stays; and the answers' `submitted`, `withdrawn`, `appointment_closed`, `past_due`, `consent_required`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `language_unavailable`: the questionnaire is neither written nor completely translated in it. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

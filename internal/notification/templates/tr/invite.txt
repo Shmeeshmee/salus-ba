@@ -1,0 +1,8 @@
+Salus davetiniz
+
+Salus'ta {{.Clinic}} ekibine katılmaya davet edildiniz.
+
+Daveti kabul etmek için bu bağlantıyı açın, bir parola seçin ve bir giriş kodu ayarlayın:
+{{.Link}}
+
+Bağlantı yalnızca bir kez kullanılabilir ve davetin oluşturulmasından 72 saat sonra geçerliliğini yitirir. Bu e-postayı beklemiyorsanız dikkate almayabilirsiniz.

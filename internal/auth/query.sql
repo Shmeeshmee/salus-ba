@@ -1,23 +1,31 @@
 -- name: CreateAccount :one
 -- DO NOTHING on a taken e-mail returns no row and leaves the transaction usable, so the failure can be
 -- audited in it.
-INSERT INTO account (email, password_hash, role, organization_id)
-VALUES (@email, @password_hash, @role, sqlc.narg('organization_id'))
+INSERT INTO account (email, password_hash, role, organization_id, language, detected_language)
+VALUES (@email, @password_hash, @role, sqlc.narg('organization_id'), sqlc.narg('language'), sqlc.narg('detected_language'))
 ON CONFLICT (email) DO NOTHING
 RETURNING id;
 
 -- name: AccountByEmail :one
-SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language
 FROM account
 WHERE email = @email;
 
 -- name: AccountByID :one
-SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language
 FROM account
 WHERE id = @id;
 
 -- name: SetPasswordHash :execrows
 UPDATE account SET password_hash = @password_hash WHERE id = @id;
+
+-- name: SetAccountLanguage :execrows
+-- The user's choice; null clears it (the client's match applies again).
+UPDATE account SET language = sqlc.narg('language') WHERE id = @id;
+
+-- name: SetDetectedLanguage :execrows
+-- What the client matched at a registration or sign-in.
+UPDATE account SET detected_language = @detected_language WHERE id = @id;
 
 -- name: TOTPSecret :one
 SELECT totp_secret FROM account WHERE id = @id;

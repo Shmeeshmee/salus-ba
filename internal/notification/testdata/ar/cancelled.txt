@@ -1,0 +1,7 @@
+Subject: تم إلغاء موعدك
+
+تم إلغاء موعدك في Synthetic clinic.
+التاريخ والوقت: الاثنين 7 يناير 2030، الساعة 10:00 (Europe/Sarajevo)
+
+لحجز موعد آخر، افتح تطبيق Salus:
+https://patient.example.test/appointments

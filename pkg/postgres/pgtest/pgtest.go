@@ -18,6 +18,7 @@ import (
 	"io/fs"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -200,9 +201,22 @@ func setRolePassword(ctx context.Context, admin *pgxpool.Pool, role, password st
 	return postgres.SetPassword(ctx, admin, role, password)
 }
 
+// PoolMaxConns caps every pool pgtest opens. go test runs up to one package per CPU at once, each with
+// parallel tests and a pool per database; pools sized by the CPU count (pgx's default) could together pass the
+// server's connection limit on a large host. A test that measures concurrency opens its own pool on
+// NewDatabaseURL with the size it needs.
+const PoolMaxConns = 8
+
 func connect(t testing.TB, dbURL string) *pgxpool.Pool {
 	t.Helper()
-	pool, err := postgres.Open(context.Background(), dbURL)
+	u, err := url.Parse(dbURL)
+	if err != nil {
+		t.Fatal("pgtest: the database URL does not parse")
+	}
+	q := u.Query()
+	q.Set("pool_max_conns", strconv.Itoa(PoolMaxConns))
+	u.RawQuery = q.Encode()
+	pool, err := postgres.Open(context.Background(), u.String())
 	if err != nil {
 		t.Fatalf("pgtest: connect: %v", err)
 	}

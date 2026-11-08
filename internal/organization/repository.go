@@ -16,7 +16,7 @@ type Repository interface {
 	ByID(ctx context.Context, id string) (Organization, error)
 	// Listed returns the listed clinics the scope shows, by name.
 	Listed(ctx context.Context) ([]Organization, error)
-	// Update sets the name, listing and time zone of the clinic o.ID at version o.VersionID, moving it to the
+	// Update sets the name, listing, time zone and default language of the clinic o.ID at version o.VersionID, moving it to the
 	// next version, last updated at at; or returns ErrConflict when that version is not the current one.
 	Update(ctx context.Context, o Organization, at time.Time) (Organization, error)
 	// Create stores a new active clinic and returns it. Only the owner may (the operator command).

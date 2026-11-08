@@ -84,7 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) widget.onSaved(saved);
     } on ApiFailure catch (failure) {
       if (!mounted) return;
-      setState(() => _error = bookingMessage(failure));
+      setState(() => _error = bookingMessage(context.t, failure));
       if (failure.code == 'version_conflict') await _reload();
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -97,21 +97,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final current = await widget.booking.me();
       if (current != null && mounted) setState(() => _show(current));
     } on ApiFailure catch (failure) {
-      if (mounted) setState(() => _error = bookingMessage(failure));
+      if (mounted) setState(() => _error = bookingMessage(context.t, failure));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final creating = widget.profile == null;
+    final t = context.t;
     return ui.Page(
-      title: creating ? 'Complete your profile' : 'My profile',
+      title: creating ? t.completeProfile : t.myProfile,
       children: [
-        if (creating)
-          const Text(
-            'Clinics you book with see these details. The phone number is optional; the practitioner uses it '
-            'only to reach you about an appointment.',
-          ),
+        if (creating) Text(t.profileIntro),
         Form(
           key: _form,
           child: Column(
@@ -119,42 +116,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               TextFormField(
                 controller: _given,
-                decoration: const InputDecoration(labelText: 'Given name'),
+                decoration: InputDecoration(labelText: t.givenName),
                 autofillHints: const [AutofillHints.givenName],
                 textCapitalization: TextCapitalization.words,
-                validator: validateGivenName,
+                validator: (v) => validateGivenName(t, v),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _family,
-                decoration: const InputDecoration(labelText: 'Family name'),
+                decoration: InputDecoration(labelText: t.familyName),
                 autofillHints: const [AutofillHints.familyName],
                 textCapitalization: TextCapitalization.words,
-                validator: validateFamilyName,
+                validator: (v) => validateFamilyName(t, v),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _birth,
-                decoration: const InputDecoration(labelText: 'Date of birth', helperText: 'YYYY-MM-DD'),
+                decoration: InputDecoration(labelText: t.dateOfBirth, helperText: t.dateFormatHint),
                 keyboardType: TextInputType.datetime,
-                validator: (v) => validateBirthDate(v, widget.now()),
+                // Digits and dashes read left to right in every language (docs/i18n/SPEC.md §3 "Right to left").
+                textDirection: TextDirection.ltr,
+                validator: (v) => validateBirthDate(t, v, widget.now()),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _phone,
-                decoration: const InputDecoration(
-                  labelText: 'Phone (optional)',
-                  helperText: 'With the country code, for example +387 60 000 0000',
-                ),
+                decoration: InputDecoration(labelText: t.phoneOptional, helperText: t.phoneHint(phoneExample(t))),
                 keyboardType: TextInputType.phone,
+                textDirection: TextDirection.ltr,
                 autofillHints: const [AutofillHints.telephoneNumber],
-                validator: validatePhone,
+                validator: (v) => validatePhone(t, v),
               ),
               const SizedBox(height: 24),
-              ui.SubmitButton('Save', busy: _busy, onPressed: _save),
+              ui.SubmitButton(t.save, busy: _busy, onPressed: _save),
               if (widget.onLater != null) ...[
                 const SizedBox(height: 8),
-                TextButton(onPressed: _busy ? null : widget.onLater, child: const Text('Not now')),
+                TextButton(onPressed: _busy ? null : widget.onLater, child: Text(t.notNow)),
               ],
             ],
           ),

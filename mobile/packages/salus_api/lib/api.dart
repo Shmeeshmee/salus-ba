@@ -62,6 +62,7 @@ part 'model/grant_consent_request.dart';
 part 'model/invite.dart';
 part 'model/invite_list.dart';
 part 'model/invite_request.dart';
+part 'model/language.dart';
 part 'model/live_kit_webhook_event.dart';
 part 'model/login_request.dart';
 part 'model/login_response.dart';
@@ -71,7 +72,9 @@ part 'model/questionnaire_default.dart';
 part 'model/questionnaire_item.dart';
 part 'model/questionnaire_item_answer_option_inner.dart';
 part 'model/questionnaire_item_enable_when.dart';
+part 'model/questionnaire_item_translation.dart';
 part 'model/questionnaire_response.dart';
+part 'model/questionnaire_translation.dart';
 part 'model/register_request.dart';
 part 'model/request_questionnaire_request.dart';
 part 'model/role_specialty.dart';
@@ -84,8 +87,10 @@ part 'model/set_role_questionnaire_request.dart';
 part 'model/set_specialty_request.dart';
 part 'model/specialty.dart';
 part 'model/specialty_list.dart';
+part 'model/start_questionnaire_request.dart';
 part 'model/status.dart';
 part 'model/unavailable.dart';
+part 'model/update_me_request.dart';
 part 'model/verify_request.dart';
 
 /// An [ApiClient] instance that uses the default values obtained from

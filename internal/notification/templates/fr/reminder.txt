@@ -1,0 +1,9 @@
+Rappel de votre rendez-vous
+
+Nous vous rappelons votre rendez-vous chez {{.Clinic}}.
+Date et heure : {{.When}}
+
+{{if .Questionnaire}}Un questionnaire est à remplir avant votre rendez-vous. Vous le trouverez dans l'application Salus.
+
+{{end}}Pour consulter votre rendez-vous, ouvrez l'application Salus :
+{{.Link}}

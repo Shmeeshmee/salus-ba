@@ -21,10 +21,30 @@ func (q *Queries) ClearQuestionnaireDefault(ctx context.Context, practitionerRol
 	return err
 }
 
+const copyQuestionnaireTranslations = `-- name: CopyQuestionnaireTranslations :exec
+INSERT INTO questionnaire_translation (questionnaire_id, language, texts, created_at, updated_at)
+SELECT $1::uuid, t.language, t.texts, $2, $2
+FROM questionnaire_translation t
+WHERE t.questionnaire_id = $3::uuid
+`
+
+type CopyQuestionnaireTranslationsParams struct {
+	ToID   pgtype.UUID
+	At     pgtype.Timestamptz
+	FromID pgtype.UUID
+}
+
+// A new version starts with the translations of the version it copies.
+func (q *Queries) CopyQuestionnaireTranslations(ctx context.Context, arg CopyQuestionnaireTranslationsParams) error {
+	_, err := q.db.Exec(ctx, copyQuestionnaireTranslations, arg.ToID, arg.At, arg.FromID)
+	return err
+}
+
 const createQuestionnaire = `-- name: CreateQuestionnaire :one
-INSERT INTO questionnaire (series_id, organization_id, version, status, title, description, items, updated_at)
-VALUES (gen_random_uuid(), $1, 1, 'draft', $2, $3, $4, $5)
-RETURNING id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items
+INSERT INTO questionnaire (series_id, organization_id, version, status, title, description, items, language, updated_at)
+VALUES (gen_random_uuid(), $1, 1, 'draft', $2, $3, $4,
+        COALESCE($5::language, 'bs'), $6)
+RETURNING id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
 `
 
 type CreateQuestionnaireParams struct {
@@ -32,6 +52,7 @@ type CreateQuestionnaireParams struct {
 	Title          string
 	Description    string
 	Items          []byte
+	Language       NullLanguage
 	UpdatedAt      pgtype.Timestamptz
 }
 
@@ -48,15 +69,18 @@ type CreateQuestionnaireRow struct {
 	Title          string
 	Description    string
 	Items          []byte
+	Language       Language
 }
 
 // Version 1 of a new series.
+// No language given (before the service passes the clinic's default) is the column's default, bs.
 func (q *Queries) CreateQuestionnaire(ctx context.Context, arg CreateQuestionnaireParams) (CreateQuestionnaireRow, error) {
 	row := q.db.QueryRow(ctx, createQuestionnaire,
 		arg.OrganizationID,
 		arg.Title,
 		arg.Description,
 		arg.Items,
+		arg.Language,
 		arg.UpdatedAt,
 	)
 	var i CreateQuestionnaireRow
@@ -73,18 +97,19 @@ func (q *Queries) CreateQuestionnaire(ctx context.Context, arg CreateQuestionnai
 		&i.Title,
 		&i.Description,
 		&i.Items,
+		&i.Language,
 	)
 	return i, err
 }
 
 const createQuestionnaireVersion = `-- name: CreateQuestionnaireVersion :one
-INSERT INTO questionnaire (series_id, organization_id, version, status, title, description, items, updated_at)
+INSERT INTO questionnaire (series_id, organization_id, version, status, title, description, items, language, updated_at)
 SELECT f.series_id, f.organization_id, (SELECT max(v.version) + 1 FROM questionnaire v WHERE v.series_id = f.series_id),
-       'draft', f.title, f.description, f.items, $1
+       'draft', f.title, f.description, f.items, f.language, $1
 FROM questionnaire f
 WHERE f.id = $2
 ON CONFLICT DO NOTHING
-RETURNING id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items
+RETURNING id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
 `
 
 type CreateQuestionnaireVersionParams struct {
@@ -105,6 +130,7 @@ type CreateQuestionnaireVersionRow struct {
 	Title          string
 	Description    string
 	Items          []byte
+	Language       Language
 }
 
 // The series' next version, a draft copy of the version from. DO NOTHING when the series has a draft (or
@@ -126,6 +152,7 @@ func (q *Queries) CreateQuestionnaireVersion(ctx context.Context, arg CreateQues
 		&i.Title,
 		&i.Description,
 		&i.Items,
+		&i.Language,
 	)
 	return i, err
 }
@@ -143,8 +170,41 @@ func (q *Queries) DeleteQuestionnaireDraft(ctx context.Context, id pgtype.UUID) 
 	return result.RowsAffected(), nil
 }
 
+const deleteQuestionnaireTranslations = `-- name: DeleteQuestionnaireTranslations :exec
+DELETE FROM questionnaire_translation
+WHERE questionnaire_id = $1
+`
+
+// Saving a draft's translations replaces them all; row-level security lets only a draft's go.
+func (q *Queries) DeleteQuestionnaireTranslations(ctx context.Context, questionnaireID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteQuestionnaireTranslations, questionnaireID)
+	return err
+}
+
+const insertQuestionnaireTranslation = `-- name: InsertQuestionnaireTranslation :exec
+INSERT INTO questionnaire_translation (questionnaire_id, language, texts, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $4)
+`
+
+type InsertQuestionnaireTranslationParams struct {
+	QuestionnaireID pgtype.UUID
+	Language        Language
+	Texts           []byte
+	At              pgtype.Timestamptz
+}
+
+func (q *Queries) InsertQuestionnaireTranslation(ctx context.Context, arg InsertQuestionnaireTranslationParams) error {
+	_, err := q.db.Exec(ctx, insertQuestionnaireTranslation,
+		arg.QuestionnaireID,
+		arg.Language,
+		arg.Texts,
+		arg.At,
+	)
+	return err
+}
+
 const lockQuestionnaire = `-- name: LockQuestionnaire :one
-SELECT id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items
+SELECT id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
 FROM questionnaire
 WHERE id = $1
 FOR NO KEY UPDATE
@@ -163,6 +223,7 @@ type LockQuestionnaireRow struct {
 	Title          string
 	Description    string
 	Items          []byte
+	Language       Language
 }
 
 // Lifecycle steps of one version run one after the other: the second publish of a draft sees it active.
@@ -182,6 +243,7 @@ func (q *Queries) LockQuestionnaire(ctx context.Context, id pgtype.UUID) (LockQu
 		&i.Title,
 		&i.Description,
 		&i.Items,
+		&i.Language,
 	)
 	return i, err
 }
@@ -190,7 +252,7 @@ const publishQuestionnaire = `-- name: PublishQuestionnaire :one
 UPDATE questionnaire
 SET status = 'active', published_at = $1, version_id = version_id + 1, updated_at = $1
 WHERE id = $2 AND status = 'draft'
-RETURNING id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items
+RETURNING id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
 `
 
 type PublishQuestionnaireParams struct {
@@ -211,6 +273,7 @@ type PublishQuestionnaireRow struct {
 	Title          string
 	Description    string
 	Items          []byte
+	Language       Language
 }
 
 func (q *Queries) PublishQuestionnaire(ctx context.Context, arg PublishQuestionnaireParams) (PublishQuestionnaireRow, error) {
@@ -229,12 +292,13 @@ func (q *Queries) PublishQuestionnaire(ctx context.Context, arg PublishQuestionn
 		&i.Title,
 		&i.Description,
 		&i.Items,
+		&i.Language,
 	)
 	return i, err
 }
 
 const questionnaireByID = `-- name: QuestionnaireByID :one
-SELECT id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items
+SELECT id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
 FROM questionnaire
 WHERE id = $1
 `
@@ -252,6 +316,7 @@ type QuestionnaireByIDRow struct {
 	Title          string
 	Description    string
 	Items          []byte
+	Language       Language
 }
 
 func (q *Queries) QuestionnaireByID(ctx context.Context, id pgtype.UUID) (QuestionnaireByIDRow, error) {
@@ -270,6 +335,7 @@ func (q *Queries) QuestionnaireByID(ctx context.Context, id pgtype.UUID) (Questi
 		&i.Title,
 		&i.Description,
 		&i.Items,
+		&i.Language,
 	)
 	return i, err
 }
@@ -301,6 +367,38 @@ func (q *Queries) QuestionnaireDefault(ctx context.Context, practitionerRoleID p
 	return i, err
 }
 
+const questionnaireTranslations = `-- name: QuestionnaireTranslations :many
+SELECT language, texts
+FROM questionnaire_translation
+WHERE questionnaire_id = $1
+ORDER BY language
+`
+
+type QuestionnaireTranslationsRow struct {
+	Language Language
+	Texts    []byte
+}
+
+func (q *Queries) QuestionnaireTranslations(ctx context.Context, questionnaireID pgtype.UUID) ([]QuestionnaireTranslationsRow, error) {
+	rows, err := q.db.Query(ctx, questionnaireTranslations, questionnaireID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []QuestionnaireTranslationsRow
+	for rows.Next() {
+		var i QuestionnaireTranslationsRow
+		if err := rows.Scan(&i.Language, &i.Texts); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const retireActiveQuestionnaire = `-- name: RetireActiveQuestionnaire :exec
 UPDATE questionnaire
 SET status = 'retired', retired_at = $1, version_id = version_id + 1, updated_at = $1
@@ -322,7 +420,7 @@ const retireQuestionnaire = `-- name: RetireQuestionnaire :one
 UPDATE questionnaire
 SET status = 'retired', retired_at = $1, version_id = version_id + 1, updated_at = $1
 WHERE id = $2 AND status = 'active'
-RETURNING id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items
+RETURNING id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
 `
 
 type RetireQuestionnaireParams struct {
@@ -343,6 +441,7 @@ type RetireQuestionnaireRow struct {
 	Title          string
 	Description    string
 	Items          []byte
+	Language       Language
 }
 
 func (q *Queries) RetireQuestionnaire(ctx context.Context, arg RetireQuestionnaireParams) (RetireQuestionnaireRow, error) {
@@ -361,12 +460,13 @@ func (q *Queries) RetireQuestionnaire(ctx context.Context, arg RetireQuestionnai
 		&i.Title,
 		&i.Description,
 		&i.Items,
+		&i.Language,
 	)
 	return i, err
 }
 
 const searchQuestionnaires = `-- name: SearchQuestionnaires :many
-SELECT id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items
+SELECT id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
 FROM questionnaire
 WHERE ($1::uuid IS NULL OR series_id = $1::uuid)
   AND ($2::text IS NULL OR status = $2::text)
@@ -393,6 +493,7 @@ type SearchQuestionnairesRow struct {
 	Title          string
 	Description    string
 	Items          []byte
+	Language       Language
 }
 
 func (q *Queries) SearchQuestionnaires(ctx context.Context, arg SearchQuestionnairesParams) ([]SearchQuestionnairesRow, error) {
@@ -417,6 +518,7 @@ func (q *Queries) SearchQuestionnaires(ctx context.Context, arg SearchQuestionna
 			&i.Title,
 			&i.Description,
 			&i.Items,
+			&i.Language,
 		); err != nil {
 			return nil, err
 		}
@@ -471,15 +573,17 @@ func (q *Queries) SetQuestionnaireDefault(ctx context.Context, arg SetQuestionna
 
 const updateQuestionnaireDraft = `-- name: UpdateQuestionnaireDraft :one
 UPDATE questionnaire
-SET title = $1, description = $2, items = $3, version_id = version_id + 1, updated_at = $4
-WHERE id = $5 AND status = 'draft' AND version_id = $6
-RETURNING id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items
+SET title = $1, description = $2, items = $3,
+    language = COALESCE($4::language, language), version_id = version_id + 1, updated_at = $5
+WHERE id = $6 AND status = 'draft' AND version_id = $7
+RETURNING id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
 `
 
 type UpdateQuestionnaireDraftParams struct {
 	Title       string
 	Description string
 	Items       []byte
+	Language    NullLanguage
 	UpdatedAt   pgtype.Timestamptz
 	ID          pgtype.UUID
 	VersionID   int32
@@ -498,14 +602,16 @@ type UpdateQuestionnaireDraftRow struct {
 	Title          string
 	Description    string
 	Items          []byte
+	Language       Language
 }
 
-// Optimistic locking: only the current version of a draft changes.
+// Optimistic locking: only the current version of a draft changes. No language given keeps the draft's.
 func (q *Queries) UpdateQuestionnaireDraft(ctx context.Context, arg UpdateQuestionnaireDraftParams) (UpdateQuestionnaireDraftRow, error) {
 	row := q.db.QueryRow(ctx, updateQuestionnaireDraft,
 		arg.Title,
 		arg.Description,
 		arg.Items,
+		arg.Language,
 		arg.UpdatedAt,
 		arg.ID,
 		arg.VersionID,
@@ -524,6 +630,7 @@ func (q *Queries) UpdateQuestionnaireDraft(ctx context.Context, arg UpdateQuesti
 		&i.Title,
 		&i.Description,
 		&i.Items,
+		&i.Language,
 	)
 	return i, err
 }

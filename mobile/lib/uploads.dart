@@ -7,13 +7,16 @@ import 'package:http/http.dart' as http;
 import 'booking.dart';
 import 'file_prep.dart';
 import 'files.dart';
-import 'messages.dart';
+import 'l10n/app_localizations.dart';
 import 'questionnaire.dart';
 import 'session.dart';
 
 // The files of one questionnaire response while the patient fills it in (docs/attachments/SPEC.md §2 "Mobile"):
 // each picked file prepared, uploaded one at a time with its progress, then its status read until the scan says
 // `clean` or `rejected`. Nothing here logs; a file's name is shown and nowhere else.
+
+/// A problem with a file, written in the language the screen shows when it is shown.
+typedef FileProblem = String Function(AppLocalizations t);
 
 /// Where a file stands (COPY M4, M5).
 enum FileState { preparing, uploading, checking, added, failed }
@@ -83,7 +86,7 @@ class Uploads extends ChangeNotifier {
   final void Function(ApiFailure failure) onEnded;
 
   final _entries = <FileEntry>[];
-  final _errors = <String, String>{};
+  final _errors = <String, FileProblem>{};
   final _queue = <FileEntry>[];
   FileEntry? _current;
   Completer<void>? _abort;
@@ -95,7 +98,7 @@ class Uploads extends ChangeNotifier {
   ];
 
   /// The last problem of an item's files (M7, M8, M9).
-  String? error(String linkId) => _errors[linkId];
+  FileProblem? error(String linkId) => _errors[linkId];
 
   /// A file not yet clean: Submit waits (M10).
   bool get pending => _entries.any((e) => e.state != FileState.added && e.state != FileState.failed);
@@ -119,9 +122,9 @@ class Uploads extends ChangeNotifier {
     try {
       file = await files.prepare(picked);
     } on TooLarge catch (t) {
-      return _drop(e, fileTooLarge(t.kind.maxMegabytes));
+      return _drop(e, (w) => w.fileTooLarge(t.kind.maxMegabytes));
     } on Object {
-      return _drop(e, cannotPrepareFile);
+      return _drop(e, (w) => w.cannotPrepareFile);
     }
     if (_disposed) return file.discard();
     if (picked.title case final title?) {
@@ -210,11 +213,11 @@ class Uploads extends ChangeNotifier {
     }
     final item = items[e.linkId];
     await _drop(e, switch (f.code) {
-      'too_large' => fileTooLarge((e.kind ?? FileKind.photo).maxMegabytes),
-      'unsupported_type' => fileTypeRefused,
-      'too_many_files' => tooManyFiles(item?.maxFiles ?? 1),
-      'response_full' => filesFull,
-      _ => fileNotUploaded,
+      'too_large' => (t) => t.fileTooLarge((e.kind ?? FileKind.photo).maxMegabytes),
+      'unsupported_type' => (t) => t.fileTypeRefused,
+      'too_many_files' => (t) => t.tooManyFiles(item?.maxFiles ?? 1),
+      'response_full' => (t) => t.filesFull,
+      _ => (t) => t.fileNotUploaded,
     });
   }
 
@@ -224,7 +227,7 @@ class Uploads extends ChangeNotifier {
       case 'clean':
         e.state = FileState.added;
       case 'rejected':
-        unawaited(_drop(e, fileRejected));
+        unawaited(_drop(e, (t) => t.fileRejected));
         return;
       default:
         e.state = FileState.checking;
@@ -248,7 +251,7 @@ class Uploads extends ChangeNotifier {
     }
   }
 
-  Future<void> _drop(FileEntry e, String message) async {
+  Future<void> _drop(FileEntry e, FileProblem message) async {
     await _forget(e);
     _errors[e.linkId] = message;
     _changed();

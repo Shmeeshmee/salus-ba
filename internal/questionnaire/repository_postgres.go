@@ -89,7 +89,7 @@ func (r *postgresRepository) Create(ctx context.Context, q Questionnaire, at tim
 		return Questionnaire{}, err
 	}
 	row, err := r.q(ctx).CreateQuestionnaire(ctx, questionnairedb.CreateQuestionnaireParams{
-		OrganizationID: org, Title: q.Title, Description: q.Description, Items: items, UpdatedAt: timestamp(at),
+		OrganizationID: org, Title: q.Title, Description: q.Description, Items: items, Language: nullLanguage(q.Language), UpdatedAt: timestamp(at),
 	})
 	return toQuestionnaire(questionnairedb.QuestionnaireByIDRow(row), err, nil)
 }
@@ -100,7 +100,15 @@ func (r *postgresRepository) CreateVersion(ctx context.Context, from Questionnai
 		return Questionnaire{}, ErrNotFound
 	}
 	row, err := r.q(ctx).CreateQuestionnaireVersion(ctx, questionnairedb.CreateQuestionnaireVersionParams{FromID: u, UpdatedAt: timestamp(at)})
-	return toQuestionnaire(questionnairedb.QuestionnaireByIDRow(row), err, ErrDraftExists)
+	next, err := toQuestionnaire(questionnairedb.QuestionnaireByIDRow(row), err, ErrDraftExists)
+	if err != nil {
+		return Questionnaire{}, err
+	}
+	err = r.q(ctx).CopyQuestionnaireTranslations(ctx, questionnairedb.CopyQuestionnaireTranslationsParams{FromID: u, ToID: row.ID, At: timestamp(at)})
+	if err != nil {
+		return Questionnaire{}, err
+	}
+	return next, nil
 }
 
 func (r *postgresRepository) UpdateDraft(ctx context.Context, q Questionnaire, at time.Time) (Questionnaire, error) {
@@ -113,7 +121,8 @@ func (r *postgresRepository) UpdateDraft(ctx context.Context, q Questionnaire, a
 		return Questionnaire{}, err
 	}
 	row, err := r.q(ctx).UpdateQuestionnaireDraft(ctx, questionnairedb.UpdateQuestionnaireDraftParams{
-		ID: u, Title: q.Title, Description: q.Description, Items: items, VersionID: q.VersionID, UpdatedAt: timestamp(at),
+		ID: u, Title: q.Title, Description: q.Description, Items: items, Language: nullLanguage(q.Language), VersionID: q.VersionID,
+		UpdatedAt: timestamp(at),
 	})
 	return toQuestionnaire(questionnairedb.QuestionnaireByIDRow(row), err, ErrConflict)
 }
@@ -156,6 +165,53 @@ func (r *postgresRepository) RetireActive(ctx context.Context, seriesID string, 
 	return r.q(ctx).RetireActiveQuestionnaire(ctx, questionnairedb.RetireActiveQuestionnaireParams{SeriesID: u, At: timestamp(at)})
 }
 
+func (r *postgresRepository) Translations(ctx context.Context, id string) ([]Translation, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return nil, nil // no version has that id
+	}
+	rows, err := r.q(ctx).QuestionnaireTranslations(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Translation, 0, len(rows))
+	for _, row := range rows {
+		var t Translation
+		if err := json.Unmarshal(row.Texts, &t); err != nil {
+			return nil, err
+		}
+		t.Language = string(row.Language)
+		out = append(out, t)
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) PutTranslations(ctx context.Context, id string, ts []Translation, at time.Time) error {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return ErrNotFound
+	}
+	if err := r.q(ctx).DeleteQuestionnaireTranslations(ctx, u); err != nil {
+		return err
+	}
+	for _, t := range ts {
+		if t.Items == nil {
+			t.Items = map[string]ItemTranslation{}
+		}
+		texts, err := json.Marshal(t)
+		if err != nil {
+			return err
+		}
+		err = r.q(ctx).InsertQuestionnaireTranslation(ctx, questionnairedb.InsertQuestionnaireTranslationParams{
+			QuestionnaireID: u, Language: questionnairedb.Language(t.Language), Texts: texts, At: timestamp(at),
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *postgresRepository) Default(ctx context.Context, roleID string) (Default, error) {
 	var u pgtype.UUID
 	if u.Scan(roleID) != nil {
@@ -184,6 +240,11 @@ func (r *postgresRepository) ClearDefault(ctx context.Context, roleID string) er
 	return r.q(ctx).ClearQuestionnaireDefault(ctx, u)
 }
 
+// nullLanguage is a language tag as a query takes it: "" is null, for the column's default or the draft's own.
+func nullLanguage(tag string) questionnairedb.NullLanguage {
+	return questionnairedb.NullLanguage{Language: questionnairedb.Language(tag), Valid: tag != ""}
+}
+
 func timestamp(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
 
 // itemsJSON is the item tree as stored in questionnaire.items: always a list.
@@ -210,7 +271,8 @@ func toQuestionnaire(row questionnairedb.QuestionnaireByIDRow, err, noRows error
 	return Questionnaire{
 		ID: row.ID.String(), SeriesID: row.SeriesID.String(), OrganizationID: row.OrganizationID.String(),
 		Version: row.Version, VersionID: row.VersionID, Status: Status(row.Status), Title: row.Title, Description: row.Description,
-		Items: items, LastUpdated: row.UpdatedAt.Time, PublishedAt: row.PublishedAt.Time, RetiredAt: row.RetiredAt.Time,
+		Language: string(row.Language),
+		Items:    items, LastUpdated: row.UpdatedAt.Time, PublishedAt: row.PublishedAt.Time, RetiredAt: row.RetiredAt.Time,
 	}, nil
 }
 

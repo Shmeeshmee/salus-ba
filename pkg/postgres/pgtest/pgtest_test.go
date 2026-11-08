@@ -2,6 +2,7 @@ package pgtest_test
 
 import (
 	"context"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"os"
 	"os/exec"
 	"slices"
@@ -236,5 +237,16 @@ func TestWaitForLockWait_ReturnsOnceASessionWaitsOnALock(t *testing.T) {
 	}
 	if err := <-waited; err != nil {
 		t.Errorf("the second update = %v", err)
+	}
+}
+
+// A test's pools are small: up to one package per CPU runs at once, each with parallel tests, and a pool
+// sized by the CPU count in each could pass the server's connection limit (seen on a 28-core host).
+func TestNewAppDatabase_PoolsAreCappedAtPoolMaxConns(t *testing.T) {
+	owner, app := pgtest.NewAppDatabase(t)
+	for name, pool := range map[string]interface{ Stat() *pgxpool.Stat }{"owner": owner, "app": app} {
+		if got := pool.Stat().MaxConns(); got != pgtest.PoolMaxConns {
+			t.Errorf("%s pool MaxConns = %d, want %d", name, got, pgtest.PoolMaxConns)
+		}
 	}
 }

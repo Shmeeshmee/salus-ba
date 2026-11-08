@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mime"
 	"net"
 	"net/smtp"
 	"net/textproto"
@@ -80,7 +81,8 @@ func deliver(c *smtp.Client, m Message) error {
 	if err != nil {
 		return err
 	}
-	header := "From: Salus <" + from + ">\r\nTo: " + m.To + "\r\nSubject: " + m.Subject +
+	// A subject outside ASCII is encoded (RFC 2047); an ASCII one is left as it is.
+	header := "From: Salus <" + from + ">\r\nTo: " + m.To + "\r\nSubject: " + mime.QEncoding.Encode("utf-8", m.Subject) +
 		"\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n"
 	if _, err := w.Write([]byte(header + strings.ReplaceAll(m.Body, "\n", "\r\n"))); err != nil {
 		return err

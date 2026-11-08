@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Device, Kind, Media, Opened, Preview, Settings } from './call'
-import { consultation as text } from './messages'
+import { useT } from './i18n/useT'
 import { Alert } from './ui'
 
 type Props = { media: Media; busy: boolean; error?: string; onJoin: (settings: Settings, camera: boolean) => void }
@@ -10,6 +10,7 @@ type Props = { media: Media; busy: boolean; error?: string; onJoin: (settings: S
 // failed, then the user joins with what remains; onJoin gets the settings and whether a camera is there to turn
 // on later.
 export function DeviceCheck({ media, busy, error, onJoin }: Props) {
+  const t = useT()
   const camera = useDevice(media, 'camera')
   const microphone = useDevice(media, 'microphone')
   const [cameraOff, setCameraOff] = useState(false)
@@ -25,8 +26,8 @@ export function DeviceCheck({ media, busy, error, onJoin }: Props) {
 
   return (
     <section className="panel device-check">
-      <h1>{text.checkTitle}</h1>
-      <p className="muted">{text.checkIntro}</p>
+      <h1>{t('consultation.checkTitle')}</h1>
+      <p className="muted">{t('consultation.checkIntro')}</p>
       <div className="check-media">
         <div className="preview">
           {camera.opened?.preview && <CameraPreview preview={camera.opened.preview} />}
@@ -38,13 +39,13 @@ export function DeviceCheck({ media, busy, error, onJoin }: Props) {
           <Problem kind="microphone" problem={microphone.opened?.problem} />
           {microphone.opened?.preview && (
             <>
-              <meter className="level" aria-label={text.microphone} min={0} max={1} value={level} />
-              {silent && <p className="hint">{text.noSound}</p>}
+              <meter className="level" aria-label={t('consultation.microphone')} min={0} max={1} value={level} />
+              {silent && <p className="hint">{t('consultation.noSound')}</p>}
             </>
           )}
           <label className="check-option">
             <input type="checkbox" checked={cameraOff || !camera.usable} disabled={!camera.usable} onChange={(e) => setCameraOff(e.target.checked)} />
-            {text.joinCameraOff}
+            {t('consultation.joinCameraOff')}
           </label>
           <label className="check-option">
             <input
@@ -53,12 +54,12 @@ export function DeviceCheck({ media, busy, error, onJoin }: Props) {
               disabled={!microphone.usable}
               onChange={(e) => setMicrophoneOff(e.target.checked)}
             />
-            {text.joinMicrophoneOff}
+            {t('consultation.joinMicrophoneOff')}
           </label>
           <Alert message={error} />
           <div className="actions">
             <button type="button" className="primary" disabled={busy || !camera.opened || !microphone.opened} onClick={join}>
-              {busy ? text.joining : text.joinNow}
+              {t(busy ? 'consultation.joining' : 'consultation.joinNow')}
             </button>
           </div>
         </div>
@@ -127,11 +128,12 @@ function useLevel(opened?: Opened) {
 }
 
 function Picker({ kind, state }: { kind: Kind; state: DeviceState }) {
+  const t = useT()
   if (state.devices.length === 0) return null
   const id = `device-${kind}`
   return (
     <div className="field">
-      <label htmlFor={id}>{kind === 'camera' ? text.camera : text.microphone}</label>
+      <label htmlFor={id}>{t(kind === 'camera' ? 'consultation.camera' : 'consultation.microphone')}</label>
       <select id={id} value={state.chosen ?? ''} onChange={(e) => state.choose(e.target.value)}>
         {state.devices.map((d) => (
           <option key={d.id} value={d.id}>
@@ -143,12 +145,14 @@ function Picker({ kind, state }: { kind: Kind; state: DeviceState }) {
   )
 }
 
+// problems are the message ids of what the browser does not allow or does not have.
 const problems = {
-  camera: { denied: text.cameraDenied, missing: text.noCamera },
-  microphone: { denied: text.microphoneDenied, missing: text.noMicrophone },
+  camera: { denied: 'consultation.cameraDenied', missing: 'consultation.noCamera' },
+  microphone: { denied: 'consultation.microphoneDenied', missing: 'consultation.noMicrophone' },
 } as const
 
 function Problem({ kind, problem }: { kind: Kind; problem?: Opened['problem'] }) {
+  const t = useT()
   if (!problem) return null
-  return <p className="alert">{problems[kind][problem]}</p>
+  return <p className="alert">{t(problems[kind][problem])}</p>
 }

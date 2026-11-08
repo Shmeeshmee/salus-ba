@@ -30,19 +30,21 @@ func (q *Queries) AcceptInvite(ctx context.Context, arg AcceptInviteParams) (int
 }
 
 const accountByEmail = `-- name: AccountByEmail :one
-SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language
 FROM account
 WHERE email = $1
 `
 
 type AccountByEmailRow struct {
-	ID             pgtype.UUID
-	MfaEnrolledAt  pgtype.Timestamptz
-	OrganizationID pgtype.UUID
-	PractitionerID pgtype.UUID
-	Role           string
-	Email          string
-	PasswordHash   string
+	ID               pgtype.UUID
+	MfaEnrolledAt    pgtype.Timestamptz
+	OrganizationID   pgtype.UUID
+	PractitionerID   pgtype.UUID
+	Role             string
+	Email            string
+	PasswordHash     string
+	Language         NullLanguage
+	DetectedLanguage NullLanguage
 }
 
 func (q *Queries) AccountByEmail(ctx context.Context, email string) (AccountByEmailRow, error) {
@@ -56,24 +58,28 @@ func (q *Queries) AccountByEmail(ctx context.Context, email string) (AccountByEm
 		&i.Role,
 		&i.Email,
 		&i.PasswordHash,
+		&i.Language,
+		&i.DetectedLanguage,
 	)
 	return i, err
 }
 
 const accountByID = `-- name: AccountByID :one
-SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language
 FROM account
 WHERE id = $1
 `
 
 type AccountByIDRow struct {
-	ID             pgtype.UUID
-	MfaEnrolledAt  pgtype.Timestamptz
-	OrganizationID pgtype.UUID
-	PractitionerID pgtype.UUID
-	Role           string
-	Email          string
-	PasswordHash   string
+	ID               pgtype.UUID
+	MfaEnrolledAt    pgtype.Timestamptz
+	OrganizationID   pgtype.UUID
+	PractitionerID   pgtype.UUID
+	Role             string
+	Email            string
+	PasswordHash     string
+	Language         NullLanguage
+	DetectedLanguage NullLanguage
 }
 
 func (q *Queries) AccountByID(ctx context.Context, id pgtype.UUID) (AccountByIDRow, error) {
@@ -87,6 +93,8 @@ func (q *Queries) AccountByID(ctx context.Context, id pgtype.UUID) (AccountByIDR
 		&i.Role,
 		&i.Email,
 		&i.PasswordHash,
+		&i.Language,
+		&i.DetectedLanguage,
 	)
 	return i, err
 }
@@ -112,17 +120,19 @@ func (q *Queries) ConfirmMFA(ctx context.Context, arg ConfirmMFAParams) (int64, 
 }
 
 const createAccount = `-- name: CreateAccount :one
-INSERT INTO account (email, password_hash, role, organization_id)
-VALUES ($1, $2, $3, $4)
+INSERT INTO account (email, password_hash, role, organization_id, language, detected_language)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (email) DO NOTHING
 RETURNING id
 `
 
 type CreateAccountParams struct {
-	Email          string
-	PasswordHash   string
-	Role           string
-	OrganizationID pgtype.UUID
+	Email            string
+	PasswordHash     string
+	Role             string
+	OrganizationID   pgtype.UUID
+	Language         NullLanguage
+	DetectedLanguage NullLanguage
 }
 
 // DO NOTHING on a taken e-mail returns no row and leaves the transaction usable, so the failure can be
@@ -133,6 +143,8 @@ func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (p
 		arg.PasswordHash,
 		arg.Role,
 		arg.OrganizationID,
+		arg.Language,
+		arg.DetectedLanguage,
 	)
 	var id pgtype.UUID
 	err := row.Scan(&id)
@@ -449,6 +461,42 @@ func (q *Queries) SessionByTokenHash(ctx context.Context, arg SessionByTokenHash
 		&i.MfaVerified,
 	)
 	return i, err
+}
+
+const setAccountLanguage = `-- name: SetAccountLanguage :execrows
+UPDATE account SET language = $1 WHERE id = $2
+`
+
+type SetAccountLanguageParams struct {
+	Language NullLanguage
+	ID       pgtype.UUID
+}
+
+// The user's choice; null clears it (the client's match applies again).
+func (q *Queries) SetAccountLanguage(ctx context.Context, arg SetAccountLanguageParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setAccountLanguage, arg.Language, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setDetectedLanguage = `-- name: SetDetectedLanguage :execrows
+UPDATE account SET detected_language = $1 WHERE id = $2
+`
+
+type SetDetectedLanguageParams struct {
+	DetectedLanguage NullLanguage
+	ID               pgtype.UUID
+}
+
+// What the client matched at a registration or sign-in.
+func (q *Queries) SetDetectedLanguage(ctx context.Context, arg SetDetectedLanguageParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setDetectedLanguage, arg.DetectedLanguage, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setInviteToken = `-- name: SetInviteToken :execrows

@@ -5,8 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand/v2"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -98,35 +96,21 @@ func SetLocal(ctx context.Context, name, value string) error {
 	return nil
 }
 
-// passwordAttempts bounds the retries of SetPassword; each waits up to passwordBackoff times its number,
-// with jitter so racing callers spread out.
-const (
-	passwordAttempts = 10
-	passwordBackoff  = 10 * time.Millisecond
-)
-
 // SetPassword sets role's password. The statement is built by the server's format(), so the password is
-// quoted as a literal, never spliced. Roles are cluster-wide: an ALTER ROLE that races another one on the
-// same role fails with "tuple concurrently updated", so it is retried. Errors never carry the password.
+// quoted as a literal, never spliced. Roles are cluster-wide, and two ALTER ROLEs on one role at once fail with
+// "tuple concurrently updated" (every test package sets the app roles' passwords when it starts), so the
+// statement runs in one DO block behind a transaction-scoped advisory lock that every SetPassword takes: callers
+// wait their turn instead of failing. Errors never carry the password.
 func SetPassword(ctx context.Context, db Querier, role, password string) error {
 	var stmt string
-	err := db.QueryRow(ctx, "SELECT format('ALTER ROLE %I PASSWORD %L', $1::text, $2::text)", role, password).Scan(&stmt)
-	if err != nil {
-		return fmt.Errorf("postgres: set password of %s: %w", role, err)
-	}
-	for attempt := range passwordAttempts {
-		if _, err = db.Exec(ctx, stmt); !concurrentlyUpdated(err) {
-			break
-		}
-		time.Sleep(rand.N(time.Duration(attempt+1) * passwordBackoff))
+	err := db.QueryRow(ctx, `SELECT format('DO %L', format(
+		'BEGIN PERFORM pg_advisory_xact_lock(hashtext(%L)); ALTER ROLE %I PASSWORD %L; END',
+		'salus.postgres.SetPassword', $1::text, $2::text))`, role, password).Scan(&stmt)
+	if err == nil {
+		_, err = db.Exec(ctx, stmt)
 	}
 	if err != nil {
 		return fmt.Errorf("postgres: set password of %s: %w", role, err)
 	}
 	return nil
-}
-
-func concurrentlyUpdated(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "XX000" && pgErr.Message == "tuple concurrently updated"
 }

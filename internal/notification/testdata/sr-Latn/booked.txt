@@ -1,0 +1,9 @@
+Subject: Vaš termin je zakazan
+
+Vaš termin u ustanovi Synthetic clinic je zakazan.
+Datum i vrijeme: ponedjeljak, 7. januar 2030. u 10:00 (Europe/Sarajevo)
+
+Da biste pogledali ili otkazali termin, otvorite aplikaciju Salus:
+https://patient.example.test/appointments
+
+Termin možete otkazati najkasnije 24 sata prije početka.

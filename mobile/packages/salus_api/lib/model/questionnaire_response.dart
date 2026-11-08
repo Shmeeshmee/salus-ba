@@ -21,6 +21,7 @@ class QuestionnaireResponse {
     this.answers = const [],
     required this.dueAt,
     this.authored,
+    this.language,
     required this.lastUpdated,
     required this.versionId,
   });
@@ -52,6 +53,15 @@ class QuestionnaireResponse {
   ///
   DateTime? authored;
 
+  /// The language the patient answers in; absent until they start.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  Language? language;
+
   DateTime lastUpdated;
 
   /// The version of the answers, for If-Match.
@@ -69,6 +79,7 @@ class QuestionnaireResponse {
           _deepEquality.equals(other.answers, answers) &&
           other.dueAt == dueAt &&
           other.authored == authored &&
+          other.language == language &&
           other.lastUpdated == lastUpdated &&
           other.versionId == versionId;
 
@@ -83,12 +94,13 @@ class QuestionnaireResponse {
       (answers.hashCode) +
       (dueAt.hashCode) +
       (authored == null ? 0 : authored!.hashCode) +
+      (language == null ? 0 : language!.hashCode) +
       (lastUpdated.hashCode) +
       (versionId.hashCode);
 
   @override
   String toString() =>
-      'QuestionnaireResponse[id=$id, appointmentId=$appointmentId, questionnaireId=$questionnaireId, status=$status, source_=$source_, answers=$answers, dueAt=$dueAt, authored=$authored, lastUpdated=$lastUpdated, versionId=$versionId]';
+      'QuestionnaireResponse[id=$id, appointmentId=$appointmentId, questionnaireId=$questionnaireId, status=$status, source_=$source_, answers=$answers, dueAt=$dueAt, authored=$authored, language=$language, lastUpdated=$lastUpdated, versionId=$versionId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -103,6 +115,11 @@ class QuestionnaireResponse {
       json[r'authored'] = this.authored!.toUtc().toIso8601String();
     } else {
       json[r'authored'] = null;
+    }
+    if (this.language != null) {
+      json[r'language'] = this.language;
+    } else {
+      json[r'language'] = null;
     }
     json[r'lastUpdated'] = this.lastUpdated.toUtc().toIso8601String();
     json[r'versionId'] = this.versionId;
@@ -168,6 +185,7 @@ class QuestionnaireResponse {
         answers: Answer.listFromJson(json[r'answers']),
         dueAt: mapDateTime(json, r'dueAt', r'')!,
         authored: mapDateTime(json, r'authored', r''),
+        language: Language.fromJson(json[r'language']),
         lastUpdated: mapDateTime(json, r'lastUpdated', r'')!,
         versionId: mapValueOfType<int>(json, r'versionId')!,
       );

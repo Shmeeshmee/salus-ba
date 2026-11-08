@@ -114,7 +114,7 @@ func benchmarkLoginBurst(b *testing.B, conns int) {
 		var wg sync.WaitGroup
 		for i := range logins {
 			wg.Go(func() {
-				if _, err := svc.Login(ctx, fmt.Sprintf("user%d@example.test", i), password, clientIP); err != nil {
+				if _, err := svc.Login(ctx, fmt.Sprintf("user%d@example.test", i), password, clientIP, "", ""); err != nil {
 					b.Error(err)
 				}
 			})
@@ -142,7 +142,7 @@ func BenchmarkAuthenticate(b *testing.B) {
 		Repo: auth.NewPostgresRepository(app), Hasher: auth.NewArgon2Hasher(auth.DefaultArgon2Params(), 1), Audit: nopAuditor{},
 		Tx: postgres.NewTransactor(app), Clock: clock.System{}, Counters: nopCounters{}, RateLimitKey: []byte("k"),
 	})
-	if _, err := svc.Register(b.Context(), "ana@example.test", password); err != nil {
+	if _, err := svc.Register(b.Context(), "ana@example.test", password, "", ""); err != nil {
 		b.Fatal(err)
 	}
 	_, err := app.Exec(b.Context(), `INSERT INTO session (account_id, mfa_verified, token_hash, expires_at)
@@ -150,7 +150,7 @@ func BenchmarkAuthenticate(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	res, err := svc.Login(b.Context(), "ana@example.test", password, clientIP)
+	res, err := svc.Login(b.Context(), "ana@example.test", password, clientIP, "", "")
 	if err != nil {
 		b.Fatal(err)
 	}

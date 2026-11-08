@@ -1,4 +1,5 @@
 import type { Fetch } from './client'
+import { isStaffLanguage, type Language } from '../i18n/languages'
 
 // Hand-written types for the FHIR R4 elements the web app uses; everything else is absent.
 export interface Meta {
@@ -166,21 +167,35 @@ export function participant(appt: Appointment, type: 'Patient' | 'Practitioner' 
 // The clinic's settings in Organization extensions (api/fhir/StructureDefinition-organization-*.json).
 export const listedURL = 'https://salus.invalid/fhir/StructureDefinition/organization-listed'
 export const timeZoneURL = 'https://salus.invalid/fhir/StructureDefinition/organization-timezone'
+export const defaultLanguageURL = 'https://salus.invalid/fhir/StructureDefinition/organization-default-language'
 export const defaultTimeZone = 'Europe/Sarajevo'
 
-export type ClinicSettings = { name: string; listed: boolean; timeZone: string }
+// defaultLanguage is a staff language (docs/i18n/SPEC.md §3 "The clinic's default language"), Bosnian unless set.
+export type ClinicSettings = { name: string; listed: boolean; timeZone: string; defaultLanguage: Language }
 
 export function settingsOf(org: Organization): ClinicSettings {
   const ext = (url: string) => org.extension?.find((e) => e.url === url)
-  return { name: org.name, listed: ext(listedURL)?.valueBoolean ?? false, timeZone: ext(timeZoneURL)?.valueCode ?? defaultTimeZone }
+  const language = ext(defaultLanguageURL)?.valueCode
+  return {
+    name: org.name,
+    listed: ext(listedURL)?.valueBoolean ?? false,
+    timeZone: ext(timeZoneURL)?.valueCode ?? defaultTimeZone,
+    defaultLanguage: isStaffLanguage(language) ? language : 'bs',
+  }
 }
 
 export function withSettings(org: Organization, s: ClinicSettings): Organization {
-  const others = (org.extension ?? []).filter((e) => e.url !== listedURL && e.url !== timeZoneURL)
+  const own = [listedURL, timeZoneURL, defaultLanguageURL]
+  const others = (org.extension ?? []).filter((e) => !own.includes(e.url))
   return {
     ...org,
     name: s.name,
-    extension: [...others, { url: listedURL, valueBoolean: s.listed }, { url: timeZoneURL, valueCode: s.timeZone }],
+    extension: [
+      ...others,
+      { url: listedURL, valueBoolean: s.listed },
+      { url: timeZoneURL, valueCode: s.timeZone },
+      { url: defaultLanguageURL, valueCode: s.defaultLanguage },
+    ],
   }
 }
 

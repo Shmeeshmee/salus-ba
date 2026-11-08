@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:salus_api/api.dart';
 
+import 'language_picker.dart';
 import 'messages.dart';
 import 'session.dart';
 import 'ui.dart' as ui;
@@ -43,7 +44,12 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   void _submitPassword() {
-    if (_form.currentState!.validate()) _run(() => widget.session.login(_email.text.trim(), _password.text));
+    if (!_form.currentState!.validate()) return;
+    final choice = LanguageChoice.of(context);
+    _run(
+      () =>
+          widget.session.login(_email.text.trim(), _password.text, language: choice.chosen, detected: choice.detected),
+    );
   }
 
   void _submitCode() {
@@ -76,7 +82,7 @@ class _SignInScreenState extends State<SignInScreen> {
             _code.clear();
           case StaffAccount():
             _challenge = null;
-            _notice = staffOnly;
+            _notice = context.t.staffOnly;
         }
       });
     } on ApiFailure catch (failure) {
@@ -84,9 +90,9 @@ class _SignInScreenState extends State<SignInScreen> {
       setState(() {
         if (failure.code == 'invalid_challenge') {
           _challenge = null;
-          _notice = challengeEnded;
+          _notice = context.t.challengeEnded;
         } else {
-          _error = failureMessage(failure);
+          _error = failureMessage(context.t, failure);
         }
       });
     } finally {
@@ -97,8 +103,9 @@ class _SignInScreenState extends State<SignInScreen> {
   @override
   Widget build(BuildContext context) {
     return ui.Page(
-      title: 'Sign in to Salus',
+      title: context.t.signInTitle,
       children: [
+        const LanguageButton(),
         if (_notice != null) ui.Message(_notice!),
         Form(
           key: _form,
@@ -112,44 +119,53 @@ class _SignInScreenState extends State<SignInScreen> {
     );
   }
 
-  List<Widget> _passwordStep() => [
-    TextFormField(
-      controller: _email,
-      decoration: const InputDecoration(labelText: 'E-mail'),
-      keyboardType: TextInputType.emailAddress,
-      autofillHints: const [AutofillHints.email],
-      autocorrect: false,
-      validator: validateEmail,
-    ),
-    const SizedBox(height: 16),
-    TextFormField(
-      controller: _password,
-      decoration: const InputDecoration(labelText: 'Password'),
-      obscureText: true,
-      autofillHints: const [AutofillHints.password],
-      validator: validatePassword,
-      onFieldSubmitted: (_) => _submitPassword(),
-    ),
-    const SizedBox(height: 24),
-    ui.SubmitButton('Sign in', busy: _busy, onPressed: _submitPassword),
-    const SizedBox(height: 8),
-    TextButton(onPressed: _busy ? null : widget.onRegister, child: const Text('Create an account')),
-  ];
+  List<Widget> _passwordStep() {
+    final t = context.t;
+    return [
+      TextFormField(
+        controller: _email,
+        decoration: InputDecoration(labelText: t.email),
+        keyboardType: TextInputType.emailAddress,
+        // An address reads left to right in every language (docs/i18n/SPEC.md §3 "Right to left").
+        textDirection: TextDirection.ltr,
+        autofillHints: const [AutofillHints.email],
+        autocorrect: false,
+        validator: (v) => validateEmail(t, v),
+      ),
+      const SizedBox(height: 16),
+      TextFormField(
+        controller: _password,
+        decoration: InputDecoration(labelText: t.password),
+        obscureText: true,
+        autofillHints: const [AutofillHints.password],
+        validator: (v) => validatePassword(t, v),
+        onFieldSubmitted: (_) => _submitPassword(),
+      ),
+      const SizedBox(height: 24),
+      ui.SubmitButton(t.signIn, busy: _busy, onPressed: _submitPassword),
+      const SizedBox(height: 8),
+      TextButton(onPressed: _busy ? null : widget.onRegister, child: Text(t.createAnAccount)),
+    ];
+  }
 
-  List<Widget> _codeStep() => [
-    const Text('Enter the 6-digit code from your authenticator app.'),
-    const SizedBox(height: 16),
-    TextFormField(
-      controller: _code,
-      decoration: const InputDecoration(labelText: 'Code'),
-      keyboardType: TextInputType.number,
-      autofillHints: const [AutofillHints.oneTimeCode],
-      validator: validateCode,
-      onFieldSubmitted: (_) => _submitCode(),
-    ),
-    const SizedBox(height: 24),
-    ui.SubmitButton('Continue', busy: _busy, onPressed: _submitCode),
-    const SizedBox(height: 8),
-    TextButton(onPressed: _busy ? null : _restart, child: const Text('Use another account')),
-  ];
+  List<Widget> _codeStep() {
+    final t = context.t;
+    return [
+      Text(t.codePrompt),
+      const SizedBox(height: 16),
+      TextFormField(
+        controller: _code,
+        decoration: InputDecoration(labelText: t.code),
+        keyboardType: TextInputType.number,
+        textDirection: TextDirection.ltr,
+        autofillHints: const [AutofillHints.oneTimeCode],
+        validator: (v) => validateCode(t, v),
+        onFieldSubmitted: (_) => _submitCode(),
+      ),
+      const SizedBox(height: 24),
+      ui.SubmitButton(t.continueLabel, busy: _busy, onPressed: _submitCode),
+      const SizedBox(height: 8),
+      TextButton(onPressed: _busy ? null : _restart, child: Text(t.useAnotherAccount)),
+    ];
+  }
 }

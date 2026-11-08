@@ -1,16 +1,18 @@
 import { useState } from 'react'
+import { useIntl } from 'react-intl'
 import type { Account, ApiClient } from './api/client'
 import { FhirError, nameOf, participant, type Appointment, type AppointmentStatus, type FhirClient, type Patient } from './api/fhir'
 import { attempt, type Outcome } from './api/result'
 import { AppointmentQuestionnaires } from './AppointmentQuestionnaires'
 import { joinWindow, useNow } from './consultation'
+import { useFormat, useT } from './i18n/useT'
 import { ChevronIcon } from './icons'
 import { useLoad } from './load'
-import { consultation as text, somethingWrong, statusLabels } from './messages'
 import { navigate } from './route'
 import { loadTimeZone } from './staff'
-import { longDate, timeOf } from './time'
 import { Alert, Link } from './ui'
+
+type T = ReturnType<typeof useT>
 
 type Props = { api: ApiClient; fhir: FhirClient; account: Account; id: string; now?: () => Date }
 type Detail = { zone: string; appt: Appointment; profile?: Patient }
@@ -22,6 +24,7 @@ type Detail = { zone: string; appt: Appointment; profile?: Patient }
 // the video consultation inside its window (an admin cannot join), and both see whether each side joined.
 // Both see the appointment's questionnaire requests; only the appointment's own practitioner changes them.
 export function AppointmentDetail({ api, fhir, account, id, now = () => new Date() }: Props) {
+  const t = useT()
   const organizationId = account.organizationId ?? ''
   const practitioner = account.role === 'practitioner'
   const { state, set } = useLoad(async (): Promise<Detail> => {
@@ -35,10 +38,10 @@ export function AppointmentDetail({ api, fhir, account, id, now = () => new Date
     <section className="panel detail">
       <Link to="/" className="back">
         <ChevronIcon direction="left" />
-        Calendar
+        {t('calendar.title')}
       </Link>
-      {state.name === 'loading' && <p className="muted">Loading</p>}
-      {state.name === 'failed' && <Alert message={loadMessage(state.error)} />}
+      {state.name === 'loading' && <p className="muted">{t('common.loading')}</p>}
+      {state.name === 'failed' && <Alert message={loadMessage(t, state.error)} />}
       {state.name === 'loaded' && (
         <Body
           {...state.value}
@@ -63,9 +66,9 @@ async function readPatient(fhir: FhirClient, id: string): Promise<Patient | unde
   }
 }
 
-function loadMessage(err: unknown): string {
-  if (err instanceof FhirError && err.status === 404) return 'This appointment could not be found.'
-  return 'The appointment could not be loaded. Reload the page to try again.'
+function loadMessage(t: T, err: unknown): string {
+  if (err instanceof FhirError && err.status === 404) return t('calendar.notFound')
+  return t('calendar.appointmentLoadFailed')
 }
 
 type BodyProps = Detail & {
@@ -79,6 +82,8 @@ type BodyProps = Detail & {
 }
 
 function Body({ zone, appt, profile, api, fhir, practitioner, own, admin, now, onChanged }: BodyProps) {
+  const t = useT()
+  const f = useFormat()
   const at = useNow(now)
   const join = joinWindow(appt, at)
   const start = new Date(appt.start)
@@ -86,20 +91,20 @@ function Body({ zone, appt, profile, api, fhir, practitioner, own, admin, now, o
   const name = profile ? nameOf(profile.name?.[0]) : participant(appt, 'Patient')?.display
   return (
     <>
-      <h1>{name || 'Appointment'}</h1>
+      <h1>{name || t('calendar.appointment')}</h1>
       <p className="when">
-        <span>{`${longDate(start, zone)}, ${timeOf(start, zone)}–${timeOf(end, zone)}`}</span>
-        <span className={`tag ${appt.status}`}>{statusLabels[appt.status]}</span>
+        <span>{t('calendar.when', { date: f.date(start, zone, 'long'), start: f.time(start, zone), end: f.time(end, zone) })}</span>
+        <span className={`tag ${appt.status}`}>{t(`calendar.status.${appt.status}`)}</span>
       </p>
       {profile && <Profile patient={profile} />}
       {practitioner && join === 'open' && (
         <div className="actions join">
           <button type="button" className="primary" onClick={() => navigate(`/appointments/${appt.id}/call`)}>
-            {text.join}
+            {t('calendar.join')}
           </button>
         </div>
       )}
-      {practitioner && join === 'before' && <p className="hint join">{text.joinFrom}</p>}
+      {practitioner && join === 'before' && <p className="hint join">{t('calendar.joinFrom')}</p>}
       <Consultation api={api} id={appt.id} zone={zone} />
       <AppointmentQuestionnaires api={api} fhir={fhir} appt={appt} zone={zone} own={own} admin={admin} now={at} />
       {appt.status === 'booked' && <Actions api={api} id={appt.id} practitioner={practitioner} started={at >= start} onChanged={onChanged} />}
@@ -111,43 +116,45 @@ function Body({ zone, appt, profile, api, fhir, practitioner, own, admin, now, o
 // status"). A side that has not joined is named only once the consultation has ended. Left out when the status
 // cannot be read.
 function Consultation({ api, id, zone }: { api: ApiClient; id: string; zone: string }) {
+  const t = useT()
+  const f = useFormat()
   const { state } = useLoad(() => attempt(api.GET('/appointments/{id}/consultation', { params: { path: { id } } })), [api, id])
   if (state.name !== 'loaded' || !state.value.ok) return null
   const status = state.value.data
   const ended = status.state === 'ended'
-  const joined = (at: string | undefined, joinedAt: (time: string) => string, didNot: string) => {
-    if (at) return <li>{joinedAt(timeOf(new Date(at), zone))}</li>
-    return ended ? <li>{didNot}</li> : null
+  const joined = (at: string | undefined, who: 'patient' | 'practitioner') => {
+    if (at) return <li>{t(`calendar.${who}JoinedAt`, { time: f.time(new Date(at), zone) })}</li>
+    return ended ? <li>{t(`calendar.${who}DidNotJoin`)}</li> : null
   }
   return (
-    <section className="consultation" aria-label={text.title}>
-      <h2>{text.title}</h2>
+    <section className="consultation" aria-label={t('calendar.consultation')}>
+      <h2>{t('calendar.consultation')}</h2>
       <ul>
-        <li>{text.states[status.state]}</li>
-        {joined(status.patientJoinedAt, text.patientJoinedAt, text.patientDidNotJoin)}
-        {joined(status.practitionerJoinedAt, text.practitionerJoinedAt, text.practitionerDidNotJoin)}
+        <li>{t(`calendar.consultationState.${status.state}`)}</li>
+        {joined(status.patientJoinedAt, 'patient')}
+        {joined(status.practitionerJoinedAt, 'practitioner')}
       </ul>
     </section>
   )
 }
 
-const birthDate = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' })
-
 function Profile({ patient }: { patient: Patient }) {
-  const phone = patient.telecom?.find((t) => t.system === 'phone')?.value
+  const t = useT()
+  const intl = useIntl()
+  const phone = patient.telecom?.find((c) => c.system === 'phone')?.value
   return (
     <details className="more">
-      <summary>Patient details</summary>
+      <summary>{t('calendar.patientDetails')}</summary>
       <dl>
         {patient.birthDate && (
           <>
-            <dt>Birth date</dt>
-            <dd>{birthDate.format(new Date(`${patient.birthDate}T00:00:00Z`))}</dd>
+            <dt>{t('calendar.birthDate')}</dt>
+            <dd>{intl.formatDate(new Date(`${patient.birthDate}T00:00:00Z`), { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' })}</dd>
           </>
         )}
         {phone && (
           <>
-            <dt>Phone</dt>
+            <dt>{t('calendar.phone')}</dt>
             <dd>{phone}</dd>
           </>
         )}
@@ -159,6 +166,7 @@ function Profile({ patient }: { patient: Patient }) {
 type ActionsProps = { api: ApiClient; id: string; practitioner: boolean; started: boolean; onChanged: (s: AppointmentStatus) => void }
 
 function Actions({ api, id, practitioner, started, onChanged }: ActionsProps) {
+  const t = useT()
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string>()
@@ -170,7 +178,7 @@ function Actions({ api, id, practitioner, started, onChanged }: ActionsProps) {
     setBusy(false)
     setConfirming(false)
     if (res.ok) onChanged(res.data.status)
-    else setError(actionMessage(res.code))
+    else setError(actionMessage(t, res.code))
   }
 
   const params = { params: { path: { id } } }
@@ -184,31 +192,31 @@ function Actions({ api, id, practitioner, started, onChanged }: ActionsProps) {
         <>
           <div className="actions">
             <button type="button" className="primary" disabled={busy || !started} onClick={() => setStatus('fulfilled')}>
-              Mark fulfilled
+              {t('calendar.markFulfilled')}
             </button>
             <button type="button" disabled={busy || !started} onClick={() => setStatus('noshow')}>
-              Mark no-show
+              {t('calendar.markNoShow')}
             </button>
           </div>
-          {!started && <p className="hint">You can record the outcome once the appointment has started.</p>}
+          {!started && <p className="hint">{t('calendar.outcomeHint')}</p>}
         </>
       )}
       {confirming ? (
         <div className="confirm">
-          <p>Cancel this appointment? The patient is told by e-mail, and the time becomes free again.</p>
+          <p>{t('calendar.cancelQuestion')}</p>
           <div className="actions">
             <button type="button" className="danger" disabled={busy} onClick={cancel}>
-              Yes, cancel
+              {t('calendar.yesCancel')}
             </button>
             <button type="button" disabled={busy} onClick={() => setConfirming(false)}>
-              Keep it
+              {t('calendar.keepIt')}
             </button>
           </div>
         </div>
       ) : (
         <div className="actions">
           <button type="button" className="quiet danger-text" disabled={busy} onClick={() => setConfirming(true)}>
-            Cancel appointment
+            {t('calendar.cancelAppointment')}
           </button>
         </div>
       )}
@@ -216,10 +224,10 @@ function Actions({ api, id, practitioner, started, onChanged }: ActionsProps) {
   )
 }
 
-function actionMessage(code?: string): string {
-  if (code === 'appointment_closed') return 'This appointment is already closed. Reload the page to see its status.'
-  if (code === 'appointment_not_started') return 'The appointment has not started yet.'
-  if (code === 'forbidden') return 'You cannot change this appointment.'
-  if (code === 'not_found') return 'This appointment could not be found.'
-  return somethingWrong
+function actionMessage(t: T, code?: string): string {
+  if (code === 'appointment_closed') return t('calendar.closed')
+  if (code === 'appointment_not_started') return t('calendar.notStarted')
+  if (code === 'forbidden') return t('calendar.forbidden')
+  if (code === 'not_found') return t('calendar.notFound')
+  return t('common.somethingWrong')
 }

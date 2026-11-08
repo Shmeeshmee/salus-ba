@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Salus, görüntülü görüşme sırasında sağlık uzmanının sizi görebilmesi ve bir soru formuna eklediğiniz fotoğraf ve videoları çekmek için kamerayı kullanır. Görüşme kaydedilmez.";
+"NSMicrophoneUsageDescription" = "Salus, görüntülü görüşme sırasında sağlık uzmanının sizi duyabilmesi ve bir soru formuna eklediğiniz videoların sesini kaydetmek için mikrofonu kullanır. Görüşme kaydedilmez.";
+"NSPhotoLibraryUsageDescription" = "Salus, fotoğraf arşivinizi yalnızca seçtiğiniz fotoğraf ve videoları bir soru formuna eklemek için açar.";

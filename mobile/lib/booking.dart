@@ -100,6 +100,15 @@ class Booking {
     return status;
   }
 
+  /// Starts the response [id] in [language], one of its questionnaire's languages (docs/i18n/SPEC.md §3 "The
+  /// patient's language"); again with another until an answer or a file is saved. The answer carries the new version.
+  Future<api.QuestionnaireResponse> start(String id, String language) => _answered(
+    () => _questionnaires.startQuestionnaire(
+      id,
+      api.StartQuestionnaireRequest(language: api.Language.fromJson(language)!),
+    ),
+  );
+
   /// Replaces the saved answers of the response at [versionId] (docs/questionnaire/SPEC.md §2 "Patient flow");
   /// the answer carries the new version.
   Future<api.QuestionnaireResponse> saveAnswers(String id, int versionId, List<api.Answer> answers) => _answered(

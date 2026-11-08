@@ -1,8 +1,10 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Availability } from './Availability'
 import { newApiClient, type Account } from './api/client'
 import { newFhirClient } from './api/fhir'
+import type { Language } from './i18n/languages'
+import { renderInLanguage } from './i18n/renderInLanguage'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, paths, type Route } from './test/fakeFetch'
 import { admin, clinicRoute, cy, dee, practitioner, staffRoute } from './test/fixtures'
 import { questionnaireFHIR } from './test/questionnaires'
@@ -26,7 +28,7 @@ const followUp = { ...intake, id: 'q2', url: 'https://salus.invalid/fhir/Questio
 const actives = 'GET /fhir/R4/Questionnaire'
 const activesRoute = { [actives]: () => fhirJSON(responsesBundle([], [intake, followUp])) }
 
-function renderEditor(account: Account, routes: Record<string, Route>) {
+function renderEditor(account: Account, routes: Record<string, Route>, language: Language = 'en') {
   const fake = fakeFetch({
     ...clinicRoute,
     ...staffRoute,
@@ -35,12 +37,12 @@ function renderEditor(account: Account, routes: Record<string, Route>) {
     [`GET ${defaultPath(dee.roleId)}`]: none(dee.roleId),
     ...routes,
   })
-  render(<Availability api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} />)
+  renderInLanguage(<Availability api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} />, language)
   return fake
 }
 
-function rows() {
-  return within(screen.getByRole('list', { name: 'Working hours' })).queryAllByRole('listitem')
+function rows(name = 'Working hours') {
+  return within(screen.getByRole('list', { name })).queryAllByRole('listitem')
 }
 
 describe('Availability', () => {
@@ -281,5 +283,38 @@ describe('Availability', () => {
       expect((await screen.findByRole('alert')).textContent).toBe('Something went wrong. Try again.')
       expect(screen.queryByLabelText('Questionnaire for every booking')).toBeNull()
     })
+  })
+})
+
+describe('Availability in a language', () => {
+  it('shows the hours in the language', async () => {
+    renderEditor(practitioner, { [`GET ${path(cy.roleId)}`]: () => Response.json(saved) }, 'bs')
+
+    const day = (await screen.findByLabelText('Dan 1')) as HTMLSelectElement
+    expect(screen.getByRole('heading', { name: 'Radno vrijeme' })).toBeTruthy()
+    expect(rows('Radno vrijeme')).toHaveLength(1)
+    expect(day.selectedOptions[0].textContent).toBe('Ponedjeljak')
+    expect(screen.getByLabelText('Trajanje termina u minutama')).toBeTruthy()
+    expect(screen.getByText('Vremenska zona: Europe/Sarajevo')).toBeTruthy()
+    expect(await screen.findByLabelText('Upitnik uz svako zakazivanje')).toBeTruthy()
+  })
+
+  it("writes times in 24 hours whatever the browser's locale", async () => {
+    renderEditor(practitioner, { [`GET ${path(cy.roleId)}`]: () => Response.json(saved) })
+
+    const from = (await screen.findByLabelText('From 1')) as HTMLInputElement
+    expect(from.type).toBe('text')
+    expect(from.value).toBe('09:00')
+    expect(from.getAttribute('inputmode')).toBe('numeric')
+  })
+
+  it('refuses a time that is not hours and minutes before sending anything', async () => {
+    const { requests } = renderEditor(practitioner, { [`GET ${path(cy.roleId)}`]: () => Response.json(saved) })
+
+    fireEvent.change(await screen.findByLabelText('From 1'), { target: { value: '9.00' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Enter each time as hours and minutes, from 00:00 to 23:59.')
+    expect(requests.filter((r) => r.method === 'PUT')).toHaveLength(0)
   })
 })

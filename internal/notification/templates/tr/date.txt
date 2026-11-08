@@ -1,0 +1,1 @@
+{{.Day}} {{.Month}} {{.Year}} {{.Weekday}}, saat {{.Time}} ({{.Zone}})

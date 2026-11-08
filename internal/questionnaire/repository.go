@@ -23,7 +23,7 @@ type Repository interface {
 	Search(ctx context.Context, f Filter) ([]Questionnaire, error)
 	// Create stores q's content as version 1 of a new series, a draft of q's clinic changed at at.
 	Create(ctx context.Context, q Questionnaire, at time.Time) (Questionnaire, error)
-	// CreateVersion stores a copy of from's content as a draft of its series, at the series' next version
+	// CreateVersion stores a copy of from's content and translations as a draft of its series, at the series' next version
 	// number, changed at at; or returns ErrDraftExists when the series has a draft.
 	CreateVersion(ctx context.Context, from Questionnaire, at time.Time) (Questionnaire, error)
 	// UpdateDraft sets the draft q.ID's content when q.VersionID is its current version, moving it to the
@@ -37,6 +37,12 @@ type Repository interface {
 	Retire(ctx context.Context, id string, at time.Time) (Questionnaire, error)
 	// RetireActive retires the active version of the series, if it has one, at at.
 	RetireActive(ctx context.Context, seriesID string, at time.Time) error
+	// Translations returns the translations of the version id that the scope shows, in the enum's order;
+	// none for an id that is not a UUID.
+	Translations(ctx context.Context, id string) ([]Translation, error)
+	// PutTranslations replaces the translations of the draft id with ts, changed at at; refused (row-level
+	// security) when id is not a draft of the clinic set.
+	PutTranslations(ctx context.Context, id string, ts []Translation, at time.Time) error
 	// Default returns the default of the role roleID, or ErrNotFound when it has none.
 	Default(ctx context.Context, roleID string) (Default, error)
 	// SetDefault stores d as its role's default, replacing the one it has, changed at at.

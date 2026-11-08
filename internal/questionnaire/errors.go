@@ -19,6 +19,8 @@ var (
 	ErrDraftExists = errors.New("questionnaire: draft exists")
 	// ErrInvalid is what every *InvalidError is (invalid_questionnaire).
 	ErrInvalid = errors.New("questionnaire: invalid questionnaire")
+	// ErrTranslationIncomplete is what every *TranslationIncompleteError is (translation_incomplete).
+	ErrTranslationIncomplete = errors.New("questionnaire: translation incomplete")
 )
 
 // InvalidError is a questionnaire that breaks a rule of SPEC.md §2 "Item model", "Limits" or "linkIds".
@@ -33,3 +35,16 @@ func (e *InvalidError) Error() string { return ErrInvalid.Error() }
 
 // Is makes errors.Is(err, ErrInvalid) hold.
 func (e *InvalidError) Is(target error) bool { return target == ErrInvalid }
+
+// TranslationIncompleteError refuses to publish a draft whose translation into Language lacks some of the
+// version's texts (docs/i18n/SPEC.md §3 "Complete or nothing"). LinkIDs are the items it lacks, in document
+// order; none when only the title or the description is missing. It never holds a text.
+type TranslationIncompleteError struct {
+	Language string
+	LinkIDs  []string
+}
+
+func (e *TranslationIncompleteError) Error() string { return ErrTranslationIncomplete.Error() }
+
+// Is makes errors.Is(err, ErrTranslationIncomplete) hold.
+func (e *TranslationIncompleteError) Is(target error) bool { return target == ErrTranslationIncomplete }

@@ -46,15 +46,16 @@ func (f *fakeAppointments) Notice(_ context.Context, agent, org, id string) (app
 	}, nil
 }
 
-// fakeAccounts gives the patient's synthetic address.
+// fakeAccounts gives the patient's synthetic address and the language set ("" for none).
 type fakeAccounts struct {
-	err   error
-	asked []string // agent, account
+	err      error
+	language string
+	asked    []string // agent, account
 }
 
-func (f *fakeAccounts) AccountEmail(_ context.Context, agent, id string) (string, error) {
+func (f *fakeAccounts) AccountEmail(_ context.Context, agent, id string) (string, string, error) {
 	f.asked = []string{agent, id}
-	return "ana@example.test", f.err
+	return "ana@example.test", f.language, f.err
 }
 
 type zonedClinics struct{ err error }
@@ -89,11 +90,22 @@ func newMailAsking(appts *fakeAppointments, accounts *fakeAccounts, clinics zone
 	})
 }
 
-// golden compares body with testdata/name, or rewrites it with -update.
+// mail is how a golden file holds an e-mail: its subject line, a blank line and its body.
+func mail(m notification.Message) string {
+	return "Subject: " + m.Subject + "\n\n" + m.Body
+}
+
+// golden compares body with testdata/name (en/ when name has no folder), or rewrites it with -update.
 func golden(t *testing.T, name, body string) {
 	t.Helper()
+	if !strings.Contains(name, "/") {
+		name = "en/" + name
+	}
 	path := filepath.Join("testdata", name)
 	if *update {
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -129,7 +141,7 @@ func TestAppointmentEmails_HoldTheClinicTheLocalTimeAndTheLinkAndNothingElse(t *
 			appointment.StatusBooked, "appointment_reminder_email", "Reminder of your appointment", "reminder.txt"},
 	}
 	for _, tt := range tests {
-		appts, accounts, sender := &fakeAppointments{status: tt.status}, &fakeAccounts{}, &fakeSender{}
+		appts, accounts, sender := &fakeAppointments{status: tt.status}, &fakeAccounts{language: "en"}, &fakeSender{}
 		if err := tt.send(newMail(appts, accounts, zonedClinics{}, sender), t.Context()); err != nil {
 			t.Fatalf("%s: error = %v", tt.agent, err)
 		}
@@ -141,7 +153,7 @@ func TestAppointmentEmails_HoldTheClinicTheLocalTimeAndTheLinkAndNothingElse(t *
 			t.Fatalf("%s: sent %+v, want one e-mail to the patient with subject %q", tt.agent, sender.sent, tt.subject)
 		}
 		body := sender.sent[0].Body
-		golden(t, tt.golden, body)
+		golden(t, tt.golden, mail(sender.sent[0]))
 		for _, want := range []string{"Synthetic clinic", "Monday 7 January 2030, 10:00 (Europe/Sarajevo)", "https://patient.example.test/appointments"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("%s: the body lacks %q", tt.agent, want)
@@ -175,7 +187,7 @@ func TestAppointmentEmails_SendNothingThatNoLongerApplies(t *testing.T) {
 			return s.SendAppointmentCancelled(ctx, apptID, clinicID)
 		}, appointment.StatusBooked},
 	} {
-		accounts, sender := &fakeAccounts{}, &fakeSender{}
+		accounts, sender := &fakeAccounts{language: "en"}, &fakeSender{}
 		if err := tt.send(newMail(&fakeAppointments{status: tt.status}, accounts, zonedClinics{}, sender), t.Context()); err != nil {
 			t.Errorf("%s: error = %v, want nil", name, err)
 		}
@@ -193,10 +205,10 @@ func TestAppointmentEmails_StopAtTheFirstFailureWithoutLeakingTheMessage(t *test
 		clinics  zonedClinics
 		sender   *fakeSender
 	}{
-		"the appointment": {&fakeAppointments{err: down}, &fakeAccounts{}, zonedClinics{}, &fakeSender{}},
-		"the clinic":      {&fakeAppointments{status: appointment.StatusBooked}, &fakeAccounts{}, zonedClinics{err: down}, &fakeSender{}},
-		"the account":     {&fakeAppointments{status: appointment.StatusBooked}, &fakeAccounts{err: down}, zonedClinics{}, &fakeSender{}},
-		"the send":        {&fakeAppointments{status: appointment.StatusBooked}, &fakeAccounts{}, zonedClinics{}, &fakeSender{err: down}},
+		"the appointment": {&fakeAppointments{err: down}, &fakeAccounts{language: "en"}, zonedClinics{}, &fakeSender{}},
+		"the clinic":      {&fakeAppointments{status: appointment.StatusBooked}, &fakeAccounts{language: "en"}, zonedClinics{err: down}, &fakeSender{}},
+		"the account":     {&fakeAppointments{status: appointment.StatusBooked}, &fakeAccounts{err: down, language: "en"}, zonedClinics{}, &fakeSender{}},
+		"the send":        {&fakeAppointments{status: appointment.StatusBooked}, &fakeAccounts{language: "en"}, zonedClinics{}, &fakeSender{err: down}},
 	} {
 		err := newMail(s.appts, s.accounts, s.clinics, s.sender).SendAppointmentBooked(t.Context(), apptID, clinicID)
 		if !errors.Is(err, down) || strings.Contains(err.Error(), "ana@example.test") || strings.Contains(err.Error(), "Synthetic clinic") {
@@ -206,7 +218,7 @@ func TestAppointmentEmails_StopAtTheFirstFailureWithoutLeakingTheMessage(t *test
 			t.Errorf("%s failing: an e-mail was sent", name)
 		}
 	}
-	err := newMail(&fakeAppointments{err: appointment.ErrNotFound}, &fakeAccounts{}, zonedClinics{}, &fakeSender{}).SendAppointmentReminder(t.Context(), apptID, clinicID)
+	err := newMail(&fakeAppointments{err: appointment.ErrNotFound}, &fakeAccounts{language: "en"}, zonedClinics{}, &fakeSender{}).SendAppointmentReminder(t.Context(), apptID, clinicID)
 	if !errors.Is(err, appointment.ErrNotFound) {
 		t.Errorf("an unknown appointment = %v, want appointment.ErrNotFound for the job to cancel", err)
 	}
@@ -233,7 +245,7 @@ func TestAppointmentEmails_MentionAnOutstandingQuestionnaireAfterTheFirstParagra
 	for _, tt := range tests {
 		for _, outstanding := range []bool{true, false} {
 			q, sender := &fakeQuestionnaires{outstanding: outstanding}, &fakeSender{}
-			s := newMailAsking(&fakeAppointments{status: appointment.StatusBooked}, &fakeAccounts{}, zonedClinics{}, sender, q)
+			s := newMailAsking(&fakeAppointments{status: appointment.StatusBooked}, &fakeAccounts{language: "en"}, zonedClinics{}, sender, q)
 			if err := tt.send(s, t.Context()); err != nil {
 				t.Fatalf("%s: error = %v", tt.agent, err)
 			}
@@ -245,10 +257,10 @@ func TestAppointmentEmails_MentionAnOutstandingQuestionnaireAfterTheFirstParagra
 			}
 			body := sender.sent[0].Body
 			if !outstanding {
-				golden(t, tt.golden+".txt", body)
+				golden(t, tt.golden+".txt", mail(sender.sent[0]))
 				continue
 			}
-			golden(t, tt.golden+"_questionnaire.txt", body)
+			golden(t, tt.golden+"_questionnaire.txt", mail(sender.sent[0]))
 			paragraphs := strings.Split(body, "\n\n")
 			if len(paragraphs) < 2 || paragraphs[1] != e1 {
 				t.Errorf("%s: the second paragraph is not E1:\n%s", tt.agent, body)
@@ -256,7 +268,7 @@ func TestAppointmentEmails_MentionAnOutstandingQuestionnaireAfterTheFirstParagra
 		}
 	}
 	q, sender := &fakeQuestionnaires{outstanding: true}, &fakeSender{}
-	if err := newMailAsking(&fakeAppointments{status: appointment.StatusCancelled}, &fakeAccounts{}, zonedClinics{}, sender, q).
+	if err := newMailAsking(&fakeAppointments{status: appointment.StatusCancelled}, &fakeAccounts{language: "en"}, zonedClinics{}, sender, q).
 		SendAppointmentCancelled(t.Context(), apptID, clinicID); err != nil {
 		t.Fatal(err)
 	}
@@ -269,13 +281,13 @@ func TestAppointmentEmails_MentionAnOutstandingQuestionnaireAfterTheFirstParagra
 func TestAppointmentEmails_SendNothingWhenTheQuestionnaireCheckFails(t *testing.T) {
 	down := errors.New("down")
 	q, sender := &fakeQuestionnaires{err: down}, &fakeSender{}
-	err := newMailAsking(&fakeAppointments{status: appointment.StatusBooked}, &fakeAccounts{}, zonedClinics{}, sender, q).
+	err := newMailAsking(&fakeAppointments{status: appointment.StatusBooked}, &fakeAccounts{language: "en"}, zonedClinics{}, sender, q).
 		SendAppointmentBooked(t.Context(), apptID, clinicID)
 	if !errors.Is(err, down) || len(sender.sent) != 0 {
 		t.Errorf("error = %v, sent %d; want the check's error and nothing sent", err, len(sender.sent))
 	}
 	q = &fakeQuestionnaires{outstanding: true}
-	if err := newMailAsking(&fakeAppointments{status: appointment.StatusCancelled}, &fakeAccounts{}, zonedClinics{}, &fakeSender{}, q).
+	if err := newMailAsking(&fakeAppointments{status: appointment.StatusCancelled}, &fakeAccounts{language: "en"}, zonedClinics{}, &fakeSender{}, q).
 		SendAppointmentReminder(t.Context(), apptID, clinicID); err != nil || q.asked != nil {
 		t.Errorf("a reminder of a cancelled appointment: error = %v, asked %v; want nil and no check", err, q.asked)
 	}

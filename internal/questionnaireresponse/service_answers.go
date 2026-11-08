@@ -23,8 +23,8 @@ import (
 // ErrWithdrawn, ErrAppointmentClosed, ErrPastDue, ErrConsentRequired, ErrConflict, an *AnswersError; each
 // refusal is audited.
 func (s *Service) SaveAnswers(ctx context.Context, c appointment.Caller, id string, answers []Answer, version int32) (Response, error) {
-	return s.answer(ctx, c, id, version, "save answers", func(ctx context.Context, r Response, items []questionnaire.Item) (Response, error, error) {
-		if refused := checkAnswers(items, answers); refused != nil {
+	return s.answer(ctx, c, id, &version, "save answers", func(ctx context.Context, r Response, q questionnaire.Questionnaire) (Response, error, error) {
+		if refused := checkAnswers(q.Items, answers); refused != nil {
 			return Response{}, refused, nil
 		}
 		out, err := s.Repo.SaveAnswers(ctx, r.ID, answers, s.Clock.Now())
@@ -39,8 +39,8 @@ func (s *Service) SaveAnswers(ctx context.Context, c appointment.Caller, id stri
 // hidden items are removed, and their files detached with the binary_discard job enqueued in the transaction.
 // The same conditions, transaction, audit and refusals as SaveAnswers.
 func (s *Service) Submit(ctx context.Context, c appointment.Caller, id string, version int32) (Response, error) {
-	return s.answer(ctx, c, id, version, "submit", func(ctx context.Context, r Response, items []questionnaire.Item) (Response, error, error) {
-		kept, hidden, refused := submitted(items, r.Answers, r.Attachments)
+	return s.answer(ctx, c, id, &version, "submit", func(ctx context.Context, r Response, q questionnaire.Questionnaire) (Response, error, error) {
+		kept, hidden, refused := submitted(q.Items, r.Answers, r.Attachments)
 		if refused == nil && slices.ContainsFunc(r.Attachments, func(a binary.Attachment) bool { return a.Pending }) {
 			refused = ErrAttachmentsPending
 		}
@@ -61,13 +61,13 @@ func (s *Service) Submit(ctx context.Context, c appointment.Caller, id string, v
 	})
 }
 
-// change is the work of a patient's change of their open response r, given the items of its version: the
-// response changed, a refusal (audited, committed), or any other error (rolled back).
-type change func(ctx context.Context, r Response, items []questionnaire.Item) (out Response, refused, err error)
+// change is the work of a patient's change of their open response r, given its version as the patient reads
+// it: the response changed, a refusal (audited, committed), or any other error (rolled back).
+type change func(ctx context.Context, r Response, q questionnaire.Questionnaire) (out Response, refused, err error)
 
 // answer runs fn on the response id for its patient c in one transaction, after the checks every change of
-// the answers shares, and audits it.
-func (s *Service) answer(ctx context.Context, c appointment.Caller, id string, version int32, name string, fn change) (Response, error) {
+// the answers shares (the version, If-Match, only when given), and audits it.
+func (s *Service) answer(ctx context.Context, c appointment.Caller, id string, version *int32, name string, fn change) (Response, error) {
 	var out Response
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
@@ -83,7 +83,11 @@ func (s *Service) answer(ctx context.Context, c appointment.Caller, id string, v
 			refused = ErrNotFound
 			return s.record(ctx, c, auditevent.CodeUpdate, "", auditevent.OutcomeMinorFailure)
 		}
-		if refused, err = s.open(ctx, r, att, version); err != nil {
+		want := r.VersionID
+		if version != nil {
+			want = *version
+		}
+		if refused, err = s.open(ctx, r, att, want); err != nil {
 			return err
 		}
 		if refused == nil {
@@ -91,7 +95,7 @@ func (s *Service) answer(ctx context.Context, c appointment.Caller, id string, v
 			if err != nil {
 				return err // the version a response references is always there
 			}
-			if out, refused, err = fn(ctx, r, q.Items); err != nil {
+			if out, refused, err = fn(ctx, r, q); err != nil {
 				return err
 			}
 		}

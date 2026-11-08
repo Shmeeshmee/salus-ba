@@ -15,6 +15,8 @@ class AcceptInviteRequest {
   AcceptInviteRequest({
     required this.token,
     required this.password,
+    this.language,
+    this.detectedLanguage,
   });
 
   /// From the invite link's fragment.
@@ -23,25 +25,59 @@ class AcceptInviteRequest {
   /// Counted in characters, not bytes.
   String password;
 
+  /// The language the user picked on the device before signing in; saved as their choice.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  Language? language;
+
+  /// The language the client matched from the browser's or the device's languages; saved for e-mails while the user has no choice of their own.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  Language? detectedLanguage;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is AcceptInviteRequest &&
           other.token == token &&
-          other.password == password;
+          other.password == password &&
+          other.language == language &&
+          other.detectedLanguage == detectedLanguage;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (token.hashCode) + (password.hashCode);
+      (token.hashCode) +
+      (password.hashCode) +
+      (language == null ? 0 : language!.hashCode) +
+      (detectedLanguage == null ? 0 : detectedLanguage!.hashCode);
 
   @override
-  String toString() => 'AcceptInviteRequest[token=$token, password=$password]';
+  String toString() =>
+      'AcceptInviteRequest[token=$token, password=$password, language=$language, detectedLanguage=$detectedLanguage]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'token'] = this.token;
     json[r'password'] = this.password;
+    if (this.language != null) {
+      json[r'language'] = this.language;
+    } else {
+      json[r'language'] = null;
+    }
+    if (this.detectedLanguage != null) {
+      json[r'detectedLanguage'] = this.detectedLanguage;
+    } else {
+      json[r'detectedLanguage'] = null;
+    }
     return json;
   }
 
@@ -70,6 +106,8 @@ class AcceptInviteRequest {
       return AcceptInviteRequest(
         token: mapValueOfType<String>(json, r'token')!,
         password: mapValueOfType<String>(json, r'password')!,
+        language: Language.fromJson(json[r'language']),
+        detectedLanguage: Language.fromJson(json[r'detectedLanguage']),
       );
     }
     return null;

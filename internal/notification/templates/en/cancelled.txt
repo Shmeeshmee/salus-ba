@@ -1,0 +1,6 @@
+Your appointment is cancelled
+
+Your appointment at {{.Clinic}} on {{.When}} is cancelled.
+
+To book another time, open the Salus app:
+{{.Link}}
