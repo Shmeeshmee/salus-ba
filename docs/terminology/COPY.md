@@ -1,6 +1,6 @@
 # Medical terminology: text (English source)
 
-Status: draft, 2026-11-07. The owner approves it by starting the run (the run prompt records the approval in PROGRESS.md). Translated into the five staff languages by 2.2.
+Status: approved by the owner, 2026-11-07 (by starting the run); T12 changed and T13 to T15 approved 2026-11-08. Translated into the five staff languages by 2.2.
 
 - T1 (header button, tooltip): "Search medical terms (Ctrl+K)"; on macOS "(⌘K)"
 - T2 (palette placeholder): "Search in Latin, Bosnian, Croatian, Serbian or English"
@@ -13,11 +13,12 @@ Status: draft, 2026-11-07. The owner approves it by starting the run (the run pr
 - T9 (no result): "No terms found. Try fewer letters or another language."
 - T10 (error): "The search is not available. Try again."
 - T11 (no label in a language): "No term in [language] yet"
-- T12 (footer of the palette): "Terms from Wikidata, reviewed by Salus."
+- T12 (footer of the palette): "Terms from Wikidata. Not every term has been reviewed yet." (owner's answer,
+  2026-11-08; was "Terms from Wikidata, reviewed by Salus.")
 
-## Added by a package, not yet reviewed
+## Added by a package, approved
 
-Written by a package during the unattended run of 2026-11-07; each waits for the owner's review.
+Written by a package during the unattended run of 2026-11-07; approved by the owner as written, 2026-11-08.
 
 ### 2.2 Web: the cheatsheet
 

@@ -186,15 +186,18 @@ func (q *Queries) ListTerms(ctx context.Context, arg ListTermsParams) ([]ListTer
 
 const searchTerms = `-- name: SearchTerms :many
 WITH folded AS MATERIALIZED (
-    SELECT l.term_id, term_fold(l.label) AS label
+    SELECT l.term_id, l.language, term_fold(l.label) AS label
     FROM term_label l
     WHERE term_fold($2::text) <% term_fold(l.label)
        OR (char_length($2::text) < 2 AND term_fold(l.label) LIKE term_fold($3::text) || '%')
 ), hits AS (
     SELECT f.term_id,
-           max(CASE WHEN f.label = term_fold($2::text) THEN 3
-                    WHEN f.label LIKE term_fold($3::text) || '%' THEN 2
-                    ELSE 1 END)::integer AS tier,
+           max(3 * CASE WHEN f.label = term_fold($2::text) THEN 3
+                        WHEN f.label LIKE term_fold($3::text) || '%' THEN 2
+                        ELSE 1 END
+               + CASE WHEN f.language = 'la' OR f.language::text = $4::text THEN 2
+                      WHEN f.language = 'en' THEN 1
+                      ELSE 0 END)::integer AS tier,
            max(word_similarity(term_fold($2::text), f.label))::real AS similarity
     FROM folded f
     GROUP BY f.term_id
@@ -203,9 +206,9 @@ WITH folded AS MATERIALIZED (
            h.tier, h.similarity
     FROM hits h
     JOIN term t ON t.id = h.term_id
-    WHERE $4::term_category IS NULL OR t.category = $4::term_category
+    WHERE $5::term_category IS NULL OR t.category = $5::term_category
     ORDER BY h.tier DESC, h.similarity DESC, t.rank DESC, t.id
-    LIMIT $5
+    LIMIT $6
 )
 SELECT b.id, b.reviewed_at, b.rank, b.category, b.review_status, b.wikidata_id, b.icd10, b.ta98, b.atc, b.pcs,
        coalesce(l.languages, '{}')::text[] AS label_languages,
@@ -223,11 +226,12 @@ ORDER BY b.tier DESC, b.similarity DESC, b.rank DESC, b.id
 `
 
 type SearchTermsParams struct {
-	Languages []string
-	Text      string
-	Prefix    string
-	Category  NullTermCategory
-	MaxTerms  int32
+	Languages  []string
+	Text       string
+	Prefix     string
+	UiLanguage string
+	Category   NullTermCategory
+	MaxTerms   int32
 }
 
 type SearchTermsRow struct {
@@ -247,7 +251,9 @@ type SearchTermsRow struct {
 }
 
 // The terms with a label in any language that matches the folded text: 3 exact, 2 prefix, 1 word similarity
-// (<%, served by the trigram index). A term counts by its best label. A label that starts with a text of two
+// (<%, served by the trigram index). Within a match type, a label in Latin or the caller's UI language comes
+// first, then English, then the other languages: a label scores tier * 3 + its language's place (2, 1, 0), and a
+// term counts by its best label. A label that starts with a text of two
 // characters or more is also within word similarity (n of its n+1 trigrams, at least 0.67 against pg_trgm's 0.6),
 // so only a one-character text needs the LIKE in the filter: one index scan, not two. Each candidate label is
 // folded once (folded is materialized). Each term comes with its labels in the languages, as three parallel
@@ -258,6 +264,7 @@ func (q *Queries) SearchTerms(ctx context.Context, arg SearchTermsParams) ([]Sea
 		arg.Languages,
 		arg.Text,
 		arg.Prefix,
+		arg.UiLanguage,
 		arg.Category,
 		arg.MaxTerms,
 	)

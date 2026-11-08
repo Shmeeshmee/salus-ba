@@ -1,0 +1,40 @@
+Walk step 3, re-run 2026-11-08 on the dev database (the seed of wave 2, 4,943 terms), with the ranking of the
+owner's answer: within each match type, Latin and the UI language (here Bosnian) first, then English, then the
+others. The search query of internal/terminology/query.sql, run with psql; languages la, bs, en; limit 5.
+q=jetra
+  1. anatomy c320dee9-9bff-403a-9a6b-866a3b9ae471: la="iecur" bs="jetra" en="liver" (+hepar)
+  2. diagnosis 57c5dde8-46f7-40b6-bc0b-f7246f59804b: bs="Zatajenje jetre" en="acute liver failure" (+acute fulminant hepatic failure | Acute hepatic failure | Fulminant hepatic failure | liver failure, acute)
+  3. diagnosis 15965f25-923b-419c-a41a-4b3237f0269f: la="Carcinoma hepatocellulare" (+Cancer iecoris | Cancer iecuris) bs="Hepatoćelijski karcinom" en="hepatocellular carcinoma" (+Adult HCC | Adult Hepatocellular Carcinoma | adult Hepatoma | Adult Primary Carcinoma of Liver Cell | Adult Primary Carcinoma of the Liver Cell | adult primary hepatocellular carcinoma | Adult Primary Hepatoma | Adult Primary Liver Cell Carcinoma | Carcinoma, Hepatocellular | carcinoma, hepatocellular, nos | HCC | Hepatocellular Cancer | Hepatocellular carcinoma, HCC | Hepatoma | malignant hepatoma)
+  4. procedure a66971a3-d05c-4c68-9d2b-77679eab2f56: en="liver transplantation" (+hepatic transplantation | Liver transplant)
+  5. diagnosis 51852a67-7864-42ba-a730-b3e99a9b88b5: en="metabolic dysfunction–associated steatotic liver disease" (+fatty liver disease, Nonalcoholic | FATTY LIVER DISEASE, NONALCOHOLIC, SUSCEPTIBILITY TO, 1 | FATTY LIVER DISEASE, NONALCOHOLIC, SUSCEPTIBILITY TO, 1; NAFLD1 | Liver Disease, Alcoholic, Susceptibility To, 1 | MASLD | metabolic dysfunction associated steatotic liver disease | NAFLD | NAFLD1 | NAFLD - Nonalcoholic Fatty Liver Disease | non-alcohol fatty liver disease | non-alcoholic fatty liver | non-alcoholic fatty liver disease | nonalcoholic fatty liver disease)
+q=hepar
+  1. anatomy c320dee9-9bff-403a-9a6b-866a3b9ae471: la="iecur" bs="jetra" en="liver" (+hepar)
+  2. drug 0e5af675-d8ab-4022-a13d-6d90304b896e: bs="Heparin" en="heparin" (+Calciparine | Heparinate | Heparinic acid | heparin sodium | Hep-lock | Liquaemin | Panheprin | Sodium heparin)
+  3. diagnosis 71ae5316-72a7-492c-a96f-80879a200d1a: en="heparin-induced thrombocytopenia" (+HAT | Heparin-associated thrombocytopenia | Heparin-induced thrombocytopenia type 2 | HIT)
+  4. diagnosis 4bcd1ffc-38ac-46bb-9c1a-0622a48c08d1: la="hepatitis B" bs="Hepatitis B" en="hepatitis B" (+hepatitis B infection | hepatitis type B | serum hepatitis | Viral Hepatitis B)
+  5. diagnosis 5062b174-2124-4fab-8b7e-2682f45a5279: la="Hepatitis A" bs="Hepatitis A" en="hepatitis A" (+Hepatitis A Infection | hepatitis type A | Viral hepatitis A | Viral hepatitis, type A)
+q=kasalj
+  1. symptom 007fe113-79e4-41ab-a8f4-f4ab2340144e: la="tussis" bs="kašalj" (+kašljanje) en="cough" (+coughing)
+  2. diagnosis c9d3afb8-fced-42e0-b8bd-1a30afbef1af: bs="Veliki kašalj" en="pertussis" (+bordetella infection | Bordetella pertussis whooping cough | obsolete Bordetella pertussis whooping cough | WC | WC - Whooping cough | whooping cough | Whooping cough, Pertussis)
+  3. symptom 77d0fbdb-a1e4-4e6d-816d-0a0e697a0b31: la="Tussis chronica" bs="Hronični kašalj" en="chronic cough"
+q=cir
+  1. anatomy c11112a1-c45c-4f14-8123-a7b33370e8fc: la="Circulus arteriosus cerebri" en="circle of Willis" (+cerebral arterial circle | loop of Willis | Willis' circle | Willis polygon)
+  2. diagnosis 79049b4e-e666-4119-9a0a-9502140afa8b: la="ictus" bs="šok" en="shock" (+circulatory shock)
+  3. diagnosis 9141bee1-dcb5-4079-b7f3-0308da6ea9a6: en="jet lag" (+circadian dysrhythmia | circadian rhythm sleep disorder, jet lag type | desynchronosis | jetlag)
+  4. diagnosis bbe620ac-aede-42ed-8d9c-5de8beec11c5: en="delayed sleep phase disorder" (+circadian rhythm sleep-wake disorder, delayed type | delayed sleep phase syndrome | delayed sleep-wake phase disorde | DSPD | DSPS | sleep-wake schedule disorder, delayed phase | sleepwake schedule disorder, delayed phase | sleep wake schedule disorder, delayed phase type)
+  5. diagnosis 1ed71778-6045-4439-a003-031fd06e542d: en="circadian rhythm sleep disorder" (+chronobiology disease | circadian sleep disorder | CRSD | disorders of the sleep-wake schedule | Sleep Disorders, Circadian Rhythm | sleep-wake schedule disorder)
+
+The same search before and after the change (q=kost): Dengue, matched only through a prefix in a language the
+cheatsheet does not show, no longer comes before Bosnian prefix matches.
+before:
+  1. anatomy 75ae0761-d671-4517-9032-dfac62b65bcc: la="os" bs="Kost" en="bone" (+bone and bones | bone organ | bones)
+  2. diagnosis 59637ce1-659f-4e0a-ad39-0aed32c32ba2: la="Dengue" en="dengue fever" (+break-bone fever | breakbone fever | classical dengue | classical dengue fever | classic dengue | dengue | dengue disease)
+  3. anatomy d64f968c-6432-4f83-9838-5c9c79ed639b: la="Medulla ossium" bs="Koštana srž" en="bone marrow" (+marrow)
+  4. symptom cebf0c51-b1a3-4e6e-a6a2-cf9944ff42da: la="Fractura" en="bone fracture" (+broken bone)
+  5. anatomy 4faf7677-c994-4815-989c-567ac1018275: la="Carpus" (+Ossa carpi) bs="Kosti korijena šake" en="carpal bone" (+bone of carpus)
+after:
+  1. anatomy 75ae0761-d671-4517-9032-dfac62b65bcc: la="os" bs="Kost" en="bone" (+bone and bones | bone organ | bones)
+  2. anatomy d64f968c-6432-4f83-9838-5c9c79ed639b: la="Medulla ossium" bs="Koštana srž" en="bone marrow" (+marrow)
+  3. anatomy 4faf7677-c994-4815-989c-567ac1018275: la="Carpus" (+Ossa carpi) bs="Kosti korijena šake" en="carpal bone" (+bone of carpus)
+  4. anatomy a1e0c823-9db5-409a-b12b-4a1297576bcc: la="Metatarsus" bs="Kosti grane stopala" en="metatarsal bones" (+metatarsal | metatarsal bone)
+  5. anatomy 48217ae2-7f0e-49d4-b11f-5a824b7cf181: la="Metacarpus" bs="Kosti grane šake" en="metacarpal bones" (+metacarpal | metacarpal bone)

@@ -59,8 +59,12 @@ Reopen only with the owner.
     `preferred` (one preferred label per term and language), primary key (`term_id`, `language`, `label`).
 - **Search**: Postgres `pg_trgm` and `unaccent` (through an immutable wrapper so it can be indexed): typing
   "cir" finds "čir", "hepar" finds "jetra" through the shared term, misspellings within trigram distance still
-  match. Ranking: exact label, then prefix, then trigram similarity, then the term's `rank`. Measured: p95 under
-  15 ms for one search at 50 concurrent, recorded in `PROGRESS.md`.
+  match. Ranking: exact label, then prefix, then trigram similarity; within each of these, a label in Latin or
+  the caller's UI language first, then English, then the other languages (owner's answer, 2026-11-08; no
+  migration); then word similarity and the term's `rank`. The UI language is the first requested language other
+  than Latin (the web and the defaults put it there), so a search reads no account. Target: p95 under 25 ms for one
+  search at 50 concurrent (the palette debounces 150 ms; owner's answer, 2026-11-08, was 15 ms); measured
+  2026-11-08 with the language ranking: 17.1–18.5 ms (3.9 ms alone), recorded in `PROGRESS.md`.
 - **Read-only for the app.** Grants to `salus_app`: `SELECT` only. Writes go through `salusctl` as the owner.
 
 ### Curation
@@ -101,7 +105,9 @@ None. The search text is not stored or logged.
 1. `make terminology-import` loads the seed; counts per category match `PROGRESS.md`.
 2. Signed in as a practitioner, Ctrl+K from the calendar, the builder and a consultation screen: the palette
    opens each time.
-3. "jetra" finds *hepar* (Latin) and *liver*; "hepar" finds *jetra*; "cir" finds *čir*.
+3. "jetra" finds *hepar* (Latin) and *liver*; "hepar" finds *jetra*; "kasalj" finds *kašalj* (accents aside, a term
+   with a Bosnian label). "cir" finds *čir* once the curator adds the label: the seed has none (owner's answer,
+   2026-11-08).
 4. In the `sr-Cyrl` UI the result shows the Cyrillic label; in Croatian the Croatian one.
 5. A draft term shows "Not reviewed yet"; after an export, a `reviewed` edit and an import, it doesn't.
 6. A patient token gets 403 on the search route.
@@ -116,7 +122,9 @@ None. The search text is not stored or logged.
 
 ## 7. Before production
 
-- The partner's review of at least the anatomy and diagnosis terms.
+- The partner's review of at least the anatomy and diagnosis terms: anatomy Latin after Terminologia Anatomica
+  (TA98, *hepar*, not *iecur*), the missing Bosnian, Croatian and Serbian labels filled in (*čir* among them), each
+  checked row set to `reviewed`. The CSV's first line says so.
 - `SOURCES.md` checked by a lawyer together with the other licences.
 
 ## 8. Open points
@@ -141,6 +149,10 @@ the owner was away".
 - **A second CallScreen race fixed at its cause**: the join test asserted the room was shown the moment Leave
   rendered, but the stage shows it from an effect. It now waits for that condition (no timeout, no retry);
   under CPU load the probe failed 1 in 123 before, 0 in 164 after.
+- **Owner's answers, 2026-11-08** (to the two points below): the ranking puts labels in Latin and the caller's UI
+  language first within each match type, then English, then the others (no migration); the p95 target is under
+  25 ms at 50 concurrent; step 3c is re-walked with a term that has a Bosnian label, and *čir* is the curator's to
+  add.
 - **Walk step 3c ("cir" finds "čir") is left failing for the owner, not fixed at integration.** Accent folding
   works (the e2e journey finds "Čirzynt" by "cirzynt"), but the seed has no plain "čir" term in bs or hr, and the
   ranking puts 24 labels starting with "cir" in other languages first. A fix changes the ranking in `query.sql`

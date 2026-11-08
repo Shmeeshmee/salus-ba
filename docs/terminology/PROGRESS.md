@@ -17,7 +17,16 @@
 
 ## Decisions
 
-(none yet)
+Owner's answers, 2026-11-08 (follow-ups to PR #28):
+- **Ranking by language within each match type**: Latin and the caller's UI language, then English, then the
+  other languages. No migration (SPEC §3 "Search").
+- **The p95 target is under 25 ms at 50 concurrent** (the palette debounces 150 ms); was 15 ms.
+- **T12** is "Terms from Wikidata. Not every term has been reviewed yet." in all five staff languages; **T13, T14,
+  T15 approved**.
+- **Walk step 3** is re-run with a term that has a Bosnian label; *čir* is the curator's to add.
+- **The partner's CSV** starts with a note line for the curator: anatomy Latin after TA98 (*hepar*, not *iecur*),
+  the missing Bosnian, Croatian and Serbian terms filled in (*čir*), `review_status` set to `reviewed` when a row
+  is checked.
 
 ## Decided while the owner was away
 
@@ -728,3 +737,38 @@ accounts, appointments and the draft questionnaire of the walk and of the two e2
 them); the walk's account language set and cleared again. The liver term's `review_status` went to `reviewed` and
 back to `draft` (`updated_at` and `reviewed_at` 2026-11-08 01:19 UTC). The e2e journeys' synthetic terms are
 deleted. Redis: the login rate-limit counters cleared before each run, as `make e2e` does.
+
+### Owner's follow-ups of 2026-11-08
+
+Done 2026-11-08, on `feat/terminology` rebased on `main` after #27.
+
+Built, each test first:
+- **Ranking** (`query.sql`): a label scores its match type × 3 plus its language's place (Latin or the UI
+  language 2, English 1, the others 0), and a term counts by its best label; then word similarity, `rank`, id.
+  `Search.UILanguage` is the first requested language other than Latin (`service.go` `uiLanguage`): the web sends
+  Latin, the UI language and English first, and the defaults do the same, so a search reads no account (the
+  account read is audited, which would add a write to every keystroke). Tests:
+  `TestSearch_RanksByLanguageWithinAMatchType` (one label per term, ranks set against the language order, an
+  exact German label still first), `TestSearch_TheUILanguageOfTheRanking`.
+- **T12** in the five staff catalogs; `catalog.test.ts` holds the approved text per language.
+- **The curator's note**: `EncodeCSV` writes it as the first line, one cell; `DecodeCSV` skips the lines before
+  the header whose first cell starts with `#`, quoted, unquoted or padded with empty cells as a spreadsheet saves
+  it, and still counts their lines. `salusctl`'s round trip test reads the new layout.
+
+Benchmark (`make bench-terminology`, 2,000 searches × 3 rounds, synthetic 88,330 labels; the host shared with
+another project's test run and a local language-model server):
+
+| Run, same host and hour | alone p50 / p95 | 50 concurrent p50 / p95 |
+| --- | --- | --- |
+| Before (`origin/feat/terminology`) | 1.25–1.29 / 3.47–3.57 ms | 3.22–3.29 / 15.4–16.7 ms |
+| With the language ranking | 1.32 / 3.85 ms | 3.72–3.78 / **17.1–18.5 ms** |
+
+Under the 25 ms target; the language ranking costs about 2 ms of p95 at 50 concurrent.
+
+Walk step 3 again: `WALK.md` "Step 3 again", `walk/step3-rerun.txt`. "kasalj" finds *kašalj* first; "cir" finds no
+*čir*, which the seed lacks (the curator's).
+
+The partner's file, regenerated with the note (`make terminology-export`, every term, from the dev database):
+`/home/mesha/salus-terminology/terms-2026-11-08.csv` on the host, replacing the earlier export: the note line, the
+header (32 columns), 4,943 rows, all `draft`. Not committed.
+

@@ -104,7 +104,7 @@ func TestSearch_TrimsTheTextAndPassesTheSearchOn(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := terminology.Search{Text: "jetra", Category: "anatomy", Languages: []string{"hr", "la"}, Limit: 5}
+	want := terminology.Search{Text: "jetra", Category: "anatomy", UILanguage: "hr", Languages: []string{"hr", "la"}, Limit: 5}
 	if repo.got == nil || !reflect.DeepEqual(*repo.got, want) || langs.reads != 0 {
 		t.Errorf("searched %+v, read the UI language %d times; want %+v and no read", repo.got, langs.reads, want)
 	}
@@ -128,6 +128,34 @@ func TestSearch_DefaultLanguagesAreLatinTheUILanguageAndEnglish(t *testing.T) {
 		}
 		if repo.got == nil || !reflect.DeepEqual(repo.got.Languages, c.want) {
 			t.Errorf("UI language %q: searched in %v; want %v", c.ui, repo.got, c.want)
+		}
+	}
+}
+
+// The ranking's UI language (labels in it and in Latin first): the account's, when the request names no
+// languages; else the first requested language other than Latin, as the web asks for Latin, the UI language and
+// English first.
+func TestSearch_TheUILanguageOfTheRanking(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name      string
+		ui        string
+		want      string
+		languages []string
+	}{
+		{"the account's, without languages", "hr", "hr", nil},
+		{"English, for an account without one", "", "en", nil},
+		{"the web's order: Latin, the UI language, English", "hr", "bs", []string{"la", "bs", "en", "hr"}},
+		{"the web's order in English", "", "en", []string{"la", "en", "bs"}},
+		{"none but Latin", "", "", []string{"la"}},
+	} {
+		repo := &fakeRepo{}
+		langs := &fakeLanguages{tags: map[string]string{staff.AccountID: c.ui}}
+		if _, err := newService(repo, langs).Search(t.Context(), staff, terminology.Search{Text: "jetra", Languages: c.languages, Limit: 10}); err != nil {
+			t.Fatal(err)
+		}
+		if repo.got == nil || repo.got.UILanguage != c.want {
+			t.Errorf("%s: searched %+v; want the UI language %q", c.name, repo.got, c.want)
 		}
 	}
 }

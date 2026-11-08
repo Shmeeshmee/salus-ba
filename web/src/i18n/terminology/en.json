@@ -26,5 +26,5 @@
   "none": "No terms found. Try fewer letters or another language.",
   "failed": "The search is not available. Try again.",
   "noLabel": "No term in {language} yet",
-  "source": "Terms from Wikidata, reviewed by Salus."
+  "source": "Terms from Wikidata. Not every term has been reviewed yet."
 }

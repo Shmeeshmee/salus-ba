@@ -37,7 +37,8 @@ func NewService(repo Repository, language func(ctx context.Context, accountID st
 // that order (docs/terminology/SPEC.md §3 "API and UI"). Staff only: a patient gets ErrForbidden. A text that
 // is blank or longer than 100 characters, a limit outside 1 to 25, or an unknown or repeated language or
 // category gives ErrInvalidSearch. Without languages, the labels are Latin, the caller's UI language and
-// English. Not audited: the terms are reference data, no patient data is read.
+// English. Within a match type, labels in Latin and the UI language rank first, then English, then the others.
+// Not audited: the terms are reference data, no patient data is read.
 func (s *Service) Search(ctx context.Context, c Caller, q Search) ([]Match, error) {
 	if !c.Staff {
 		return nil, ErrForbidden
@@ -53,6 +54,7 @@ func (s *Service) Search(ctx context.Context, c Caller, q Search) ([]Match, erro
 		}
 		q.Languages = defaultLanguages(ui)
 	}
+	q.UILanguage = uiLanguage(q.Languages)
 	terms, err := s.repo.Search(ctx, q)
 	if err != nil {
 		return nil, fmt.Errorf("terminology: search: %w", err)
@@ -88,6 +90,18 @@ func defaultLanguages(ui string) []string {
 		out = append(out, ui)
 	}
 	return append(out, "en")
+}
+
+// uiLanguage is the caller's UI language for the ranking: the first of langs other than Latin, as the defaults
+// and the web both put it right after Latin (English when it is the UI language); empty when there is none. It
+// saves reading the account on every keystroke.
+func uiLanguage(langs []string) string {
+	for _, l := range langs {
+		if l != "la" {
+			return l
+		}
+	}
+	return ""
 }
 
 // match groups t's labels per language of langs, in that order, leaving out a language without a label. The

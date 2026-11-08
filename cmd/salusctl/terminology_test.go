@@ -75,13 +75,14 @@ func TestTerminologyExportImport_RoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := strings.Split(string(file), "\n")
-	if len(lines) != 4 || !strings.Contains(lines[0], "id,category,wikidata") || !strings.Contains(lines[1], ",Q9368,") {
-		t.Fatalf("exported %q: want the header and the two terms, the most common first", file)
+	if len(lines) != 5 || !strings.Contains(lines[0], "# For the curator") || !strings.Contains(lines[1], "id,category,wikidata") ||
+		!strings.Contains(lines[2], ",Q9368,") {
+		t.Fatalf("exported %q: want the curator's note, the header and the two terms, the most common first", file)
 	}
 	// liver: reviewed, its Croatian label filled in (the hr column is the 11th).
-	cells := strings.Split(lines[1], ",")
+	cells := strings.Split(lines[2], ",")
 	cells[10], cells[len(cells)-2] = "jetra", "reviewed"
-	lines[1] = strings.Join(cells, ",")
+	lines[2] = strings.Join(cells, ",")
 	edited := writeFile(t, "terms.csv", strings.Join(lines, "\n"))
 
 	out.Reset()

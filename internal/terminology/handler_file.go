@@ -94,14 +94,23 @@ func seedLanguages(labels map[string][]string) []string {
 	return append(out, other...)
 }
 
-// EncodeCSV writes terms as the curator's CSV: a byte order mark, the header, then one row per term with the
-// preferred label per language and its synonyms joined with " | ". A cell a spreadsheet would read as a formula
-// gets a leading apostrophe, which DecodeCSV removes.
+// csvNote is the first line of the curator's CSV, one cell (owner's answer, 2026-11-08); DecodeCSV skips the lines
+// before the header whose first cell starts with #.
+const csvNote = `# For the curator: anatomy Latin follows Terminologia Anatomica (TA98), e.g. "hepar", not "iecur". ` +
+	`Fill in missing Bosnian, Croatian and Serbian terms, such as "čir". Set review_status to reviewed when a row ` +
+	`is checked. The import skips the lines that start with #.`
+
+// EncodeCSV writes terms as the curator's CSV: a byte order mark, the curator's note, the header, then one row
+// per term with the preferred label per language and its synonyms joined with " | ". A cell a spreadsheet would
+// read as a formula gets a leading apostrophe, which DecodeCSV removes.
 func EncodeCSV(w io.Writer, terms []Term) error {
 	if _, err := io.WriteString(w, bom); err != nil {
 		return err
 	}
 	out := csv.NewWriter(w)
+	if err := out.Write([]string{csvNote}); err != nil {
+		return err
+	}
 	if err := out.Write(csvColumns); err != nil {
 		return err
 	}
@@ -133,7 +142,8 @@ func EncodeCSV(w io.Writer, terms []Term) error {
 	return out.Error()
 }
 
-// DecodeCSV reads the curator's CSV. The header must name every column of EncodeCSV once and no other, in any
+// DecodeCSV reads the curator's CSV, skipping the note lines before the header (a first cell that starts with #,
+// however a spreadsheet quoted or padded it). The header must name every column of EncodeCSV once and no other, in any
 // order; otherwise the whole file is refused, since a column renamed in a spreadsheet would empty the labels of
 // every row. A row with another number of cells or a rank that is not a whole number is refused.
 func DecodeCSV(r io.Reader) ([]ImportRow, []RowError, error) {
@@ -144,6 +154,9 @@ func DecodeCSV(r io.Reader) ([]ImportRow, []RowError, error) {
 	cr := csv.NewReader(in)
 	cr.FieldsPerRecord = -1
 	header, err := cr.Read()
+	for err == nil && len(header) > 0 && strings.HasPrefix(strings.TrimSpace(header[0]), "#") {
+		header, err = cr.Read()
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("terminology: the CSV has no header: %w", err)
 	}

@@ -122,7 +122,7 @@ describe('opening and closing', () => {
   it('names the source in its footer', () => {
     setup('en')
     fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true })
-    expect(within(screen.getByRole('dialog')).getByText('Terms from Wikidata, reviewed by Salus.')).toBeTruthy()
+    expect(within(screen.getByRole('dialog')).getByText('Terms from Wikidata. Not every term has been reviewed yet.')).toBeTruthy()
   })
 })
 

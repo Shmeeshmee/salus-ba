@@ -61,6 +61,9 @@ func search(t *testing.T, repo terminology.Repository, s terminology.Search) []s
 	if s.Languages == nil {
 		s.Languages = []string{"la", "bs", "en"}
 	}
+	if s.UILanguage == "" {
+		s.UILanguage = "bs"
+	}
 	terms, err := repo.Search(t.Context(), s)
 	if err != nil {
 		t.Fatalf("Search(%q): %v", s.Text, err)
@@ -95,6 +98,48 @@ func TestSearch_Ranking(t *testing.T) {
 		got := search(t, repo, terminology.Search{Text: c.text, Category: c.category})
 		if !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%s: Search(%q, %q) = %v, want %v", c.name, c.text, c.category, got, c.want)
+		}
+	}
+}
+
+// Synthetic terms for the language order: one label each, in one language, all prefixes of "zeta" (equal word
+// similarity), with ranks against the language order; and an exact German label of the lowest rank.
+const (
+	zetaDe    = "00000000-0000-4000-8000-000000000011" // de prefix, rank 900
+	zetaEn    = "00000000-0000-4000-8000-000000000012" // en prefix, rank 500
+	zetaLa    = "00000000-0000-4000-8000-000000000013" // la prefix, rank 100
+	zetaBs    = "00000000-0000-4000-8000-000000000014" // bs prefix, rank 50
+	zetaExact = "00000000-0000-4000-8000-000000000015" // de exact, rank 1
+)
+
+// Within each match type, a label in the caller's UI language or in Latin ranks first, then English, then the
+// other languages; the match type still comes first (owner's answer, 2026-11-08; SPEC §3 "Search").
+func TestSearch_RanksByLanguageWithinAMatchType(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	_, err := owner.Exec(t.Context(), `
+		INSERT INTO term (id, category, rank) VALUES
+			('`+zetaDe+`', 'anatomy', 900), ('`+zetaEn+`', 'anatomy', 500), ('`+zetaLa+`', 'anatomy', 100),
+			('`+zetaBs+`', 'anatomy', 50), ('`+zetaExact+`', 'anatomy', 1);
+		INSERT INTO term_label (term_id, language, label, preferred) VALUES
+			('`+zetaDe+`', 'de', 'zetamin', true), ('`+zetaEn+`', 'en', 'zetavor', true),
+			('`+zetaLa+`', 'la', 'zetarius', true), ('`+zetaBs+`', 'bs', 'zetanik', true),
+			('`+zetaExact+`', 'de', 'zeta', true)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := terminology.NewPostgresRepository(app)
+	for _, c := range []struct {
+		ui   string
+		want []string
+	}{
+		{"bs", []string{zetaExact, zetaLa, zetaBs, zetaEn, zetaDe}},
+		{"de", []string{zetaExact, zetaDe, zetaLa, zetaEn, zetaBs}},
+		{"en", []string{zetaExact, zetaEn, zetaLa, zetaDe, zetaBs}},
+	} {
+		got := search(t, repo, terminology.Search{Text: "zeta", UILanguage: c.ui})
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("Search(zeta) in UI language %s = %v, want %v", c.ui, got, c.want)
 		}
 	}
 }

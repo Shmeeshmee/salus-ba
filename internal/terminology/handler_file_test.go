@@ -59,7 +59,7 @@ func TestEncodeCSV(t *testing.T) {
 		t.Fatalf("EncodeCSV: %v", err)
 	}
 
-	want := "\ufeff" + csvHeader +
+	want := "\ufeff" + csvNote + csvHeader +
 		"00000000-0000-4000-8000-000000000001,anatomy,Q9368,,A05.8.01.001,,,180,hepar,,,,јетра,liver,,,,,,iecur | jecur,,,,,,,,,,,reviewed,\n" +
 		"00000000-0000-4000-8000-000000000002,drug,Q180809,,,A11HA05,,40,,,,,,'-(+)-biotin,,,,,,,,,,,\"vitamin B7, biotin\",,,,,,draft,\"Check the Latin, then mark reviewed.\"\n"
 	if out.String() != want {
@@ -83,8 +83,8 @@ func TestDecodeCSV_ReadsWhatEncodeCSVWrites(t *testing.T) {
 	for i, r := range rows {
 		want := csvTerms[i]
 		want.ReviewedAt = time.Time{}
-		if r.Line != i+2 || !reflect.DeepEqual(r.Term, want) {
-			t.Errorf("row %d = line %d %+v,\nwant line %d %+v", i, r.Line, r.Term, i+2, want)
+		if r.Line != i+3 || !reflect.DeepEqual(r.Term, want) {
+			t.Errorf("row %d = line %d %+v,\nwant line %d %+v", i, r.Line, r.Term, i+3, want)
 		}
 	}
 }
@@ -118,6 +118,31 @@ func TestDecodeCSV_TakesTheColumnsInAnyOrderAndRefusesABadRow(t *testing.T) {
 	wantRefused := []terminology.RowError{{ID: "i2", Line: 3, Reason: "rank: not a whole number"}, {Line: 4, Reason: "3 cells, the header has 32"}}
 	if err != nil || !reflect.DeepEqual(rows, want) || !reflect.DeepEqual(refused, wantRefused) {
 		t.Errorf("DecodeCSV = %+v, %+v, %v;\nwant %+v, %+v", rows, refused, err, want, wantRefused)
+	}
+}
+
+// csvNote is the curator's note EncodeCSV writes before the header (owner's answer, 2026-11-08).
+const csvNote = `"# For the curator: anatomy Latin follows Terminologia Anatomica (TA98), e.g. ""hepar"", not ""iecur"". ` +
+	`Fill in missing Bosnian, Croatian and Serbian terms, such as ""čir"". Set review_status to reviewed when a ` +
+	`row is checked. The import skips the lines that start with #."` + "\n"
+
+// A spreadsheet saves the note back quoted or not, padded with empty cells; the import skips it wherever the
+// first cell starts with # before the header, and counts its line.
+func TestDecodeCSV_SkipsTheNoteLinesBeforeTheHeader(t *testing.T) {
+	t.Parallel()
+	row := "i1,symptom,,,,,,7,,,,,,fever,,,,,,,,,,,,,,,,,reviewed,"
+	for _, c := range []struct{ name, note string }{
+		{"as exported", csvNote},
+		{"unquoted", "# For the curator: check each row\n"},
+		{"padded by a spreadsheet", `"# For the curator: anatomy Latin, TA98",,,,,` + "\n"},
+		{"two lines", "# one\n#two\n"},
+	} {
+		file := "\ufeff" + c.note + csvHeader + row + "\n"
+		rows, refused, err := terminology.DecodeCSV(strings.NewReader(file))
+		wantLine := strings.Count(c.note, "\n") + 2
+		if err != nil || len(refused) != 0 || len(rows) != 1 || rows[0].Term.ID != "i1" || rows[0].Line != wantLine {
+			t.Errorf("%s: DecodeCSV = %+v, %v, %v; want i1 on line %d", c.name, rows, refused, err, wantLine)
+		}
 	}
 }
 

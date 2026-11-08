@@ -40,7 +40,8 @@ made through the API as the end-to-end journeys make them). Screenshots and text
 - **Latin labels**: the seed's Latin is Wikidata's, often classical (*iecur*), where doctors use the anatomical Latin
   of TA98 (*hepar*). The partner's review covers it.
 - **The footer says "Terms from Wikidata, reviewed by Salus."** (COPY.md) while every term is still a draft; the
-  owner may want it to say so until the partner's review is in.
+  owner may want it to say so until the partner's review is in. (Owner's answer, 2026-11-08: T12 is now "Terms from
+  Wikidata. Not every term has been reviewed yet.")
 - English synonyms from Wikidata are long for some terms (hepatocellular carcinoma: 15 synonyms), which makes a
   result tall, most visibly at 390 px. A curation point.
 
@@ -49,3 +50,20 @@ made through the API as the end-to-end journeys make them). Screenshots and text
 - A decision on the ranking point above (step 3c).
 - Walking the cheatsheet once by hand in a real browser (this walk was scripted), including the clipboard on macOS
   (⌘K).
+
+## Step 3 again, 2026-11-08
+
+After the owner's answers (the ranking by language within each match type; step 3 with a term that has a Bosnian
+label), step 3 was run again on the dev database with the seed, through the search query itself (psql, languages
+`la`, `bs`, `en`, UI language Bosnian): `walk/step3-rerun.txt`.
+
+| Step | Result |
+| --- | --- |
+| 3a "jetra" | The liver first (*iecur*, *jetra*, *liver*), then liver failure (*Zatajenje jetre*) and hepatocellular carcinoma. The Latin is still Wikidata's *iecur*: the curator's (TA98 *hepar*) |
+| 3b "hepar" | Pass: the liver first, then *Heparin* |
+| 3c "kasalj" | Pass: *kašalj* (tussis, cough) first, then *Veliki kašalj* and *Hronični kašalj*: accents aside, a Bosnian label found and ranked first |
+| 3c "cir" | No *čir*: the seed has no such label. The curator adds it (the CSV's note says so). With the new ranking the Latin *Circulus arteriosus cerebri* now comes first and Turkish *cırcır* (diarrhoea) is gone from the top five |
+
+Before and after on the same data ("kost"): *Dengue*, matched only through a prefix in a language the cheatsheet does
+not show, was second; it is now below the Bosnian prefix matches *Koštana srž*, *Kosti korijena šake* and others.
+

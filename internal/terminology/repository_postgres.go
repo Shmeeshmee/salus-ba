@@ -38,7 +38,9 @@ func NewPostgresCurationRepository(db postgres.Querier) CurationRepository {
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
 func (r *postgresRepository) Search(ctx context.Context, s Search) ([]Term, error) {
-	params := terminologydb.SearchTermsParams{Text: s.Text, Prefix: likeEscaper.Replace(s.Text), MaxTerms: s.Limit, Languages: s.Languages}
+	params := terminologydb.SearchTermsParams{
+		Text: s.Text, Prefix: likeEscaper.Replace(s.Text), UiLanguage: s.UILanguage, MaxTerms: s.Limit, Languages: s.Languages,
+	}
 	if s.Category != "" {
 		params.Category = terminologydb.NullTermCategory{TermCategory: terminologydb.TermCategory(s.Category), Valid: true}
 	}

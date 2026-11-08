@@ -32,10 +32,11 @@ type Label struct {
 // Search is what a search asks for: text matched against every label in every language, an optional
 // category, the languages whose labels come back, and how many terms at most.
 type Search struct {
-	Text      string
-	Category  string // empty for any
-	Languages []string
-	Limit     int32
+	Text       string
+	Category   string // empty for any
+	UILanguage string // the caller's UI language: its labels and Latin rank first within a match type
+	Languages  []string
+	Limit      int32
 }
 
 // Caller is who searches: their account, and whether they are staff of a clinic (its admin or one of its
