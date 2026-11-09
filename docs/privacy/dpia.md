@@ -1237,3 +1237,35 @@ choice that holds on the next sign-in from another browser, a patient language r
 cleared; a translated questionnaire answered in English by a German patient, the language locked after the first
 answer and read by the practitioner; an Italian patient on a Bosnian-only questionnaire. All with synthetic
 accounts and placeholder questionnaire wording.
+
+## Consultation intelligence (`docs/plans/consult-intelligence.md`)
+
+### P0 (SAL-2): contracts and tables
+
+**Processing added.** None runs yet: P0 adds the event types, the engine ports with in-memory fakes, and four
+tables nothing writes to so far. `transcript_segment` will hold what each participant said in a consultation
+(the original, its translation, the speaker, the language and the times); `suggestion` what was suggested to the
+practitioner from it and what they did with it; `document_draft` the document the practitioner writes from a
+clinic's `document_template` (no personal data). Each row references its FHIR `Encounter`. The plan's "Personal
+data" section says why each field is needed.
+
+**Purpose and lawful basis.** The care of the patient in the consultation (Art. 9(2)(h)). Whether the care consent
+covers translation, suggestions and drafting, or each needs its own `Consent`, is open: a decision for the owner and
+legal before SAL-4 (the plan's "Gates"). **Needs legal confirmation before production.**
+
+**Access.** Row-level security, the clinic's scope only: a row follows its encounter (the active consent, or after a
+revocation the appointments that started before it); a draft also needs its template in the same clinic. A video
+room's scope, which shows an encounter after a revocation, sees and writes nothing here; neither does the patient's
+until the export feature (tested). `salus_app` never changes a segment, a suggestion's content or which encounter or
+template a row belongs to, and deletes nothing (tested).
+
+**Retention.** `keep` with the clinical record, like `encounter`; the periods need the legal decision.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Patient speech or text sent to a hosted engine without a DPA | Only the fakes implement the ports; a real STT, translation, suggestion or TTS engine needs its DPA, zero data retention in writing and an entry in `processors.md` first |
+| A transcript written after a revocation | No room scope on these tables; the service checks the active consent before each write (from SAL-4) |
+| Transcript text in logs or errors | Validation errors name the field, never its value (tested) |
+| A suggestion read as a diagnosis | Shown to the practitioner only, labelled as a suggestion, citing its segments; what they did with it is kept |

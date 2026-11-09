@@ -1485,6 +1485,91 @@ export interface components {
             /** @description Names of the failing checks. */
             failed: ("postgres" | "redis")[];
         };
+        /** @description One live message of a consultation, told apart by `type`. */
+        ConsultMessage: components["schemas"]["TranscriptMessage"] | components["schemas"]["SuggestionMessage"] | components["schemas"]["DraftMessage"];
+        TranscriptMessage: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "transcript";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["TranscriptEvent"];
+        };
+        SuggestionMessage: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "suggestion";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["SuggestionEvent"];
+        };
+        DraftMessage: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "draft";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["DraftEvent"];
+        };
+        /** @description One segment as it is recognised. Partial segments (`is_final` false) revise each other under the same `segment_id` until the final one; only final segments are stored. */
+        TranscriptEvent: {
+            /** Format: uuid */
+            encounter_id: string;
+            /** Format: uuid */
+            segment_id: string;
+            /** @enum {string} */
+            speaker: "doctor" | "patient";
+            /** @description The language the segment was spoken in, a BCP 47 tag. */
+            lang: string;
+            original: string;
+            /** @description Into the other participant's language; empty until it is translated. */
+            translation: string;
+            is_final: boolean;
+            /** Format: date-time */
+            ts_start: string;
+            /** Format: date-time */
+            ts_end: string;
+        };
+        /** @description A suggestion for the practitioner only, citing the segments it came from; a prompt, never a diagnosis. Pushed when shown and on every change of its status. */
+        SuggestionEvent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            encounter_id: string;
+            /** @enum {string} */
+            type: "diagnosis" | "question" | "red_flag" | "term";
+            text: string;
+            confidence: number;
+            source_segment_ids: string[];
+            /** @enum {string} */
+            status: "shown" | "dismissed" | "pinned";
+        };
+        /** @description A document drafted from a clinic's template (a FHIR Composition), pushed on every change. */
+        DraftEvent: {
+            /** Format: uuid */
+            draft_id: string;
+            /** Format: uuid */
+            encounter_id: string;
+            /** Format: uuid */
+            template_id: string;
+            /** @enum {string} */
+            status: "preliminary" | "final" | "entered-in-error";
+            /** @description In the template's order. */
+            fields: components["schemas"]["DraftField"][];
+        };
+        /** @description One field by its template key. A filled field has a value and the segments it came from (none when the practitioner typed it); a missing one has neither. */
+        DraftField: {
+            key: string;
+            value: string;
+            source_segment_ids?: string[];
+            missing: boolean;
+        };
     };
     responses: {
         /** @description `unauthenticated`: no valid session. */

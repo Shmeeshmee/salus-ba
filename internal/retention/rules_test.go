@@ -189,3 +189,21 @@ func TestRules_DeleteRejectedBinariesAfterTwentyFourHours(t *testing.T) {
 	}
 	t.Fatal("no rule for binary")
 }
+
+// The consultation's transcript, suggestions and drafts are kept with the clinical record, like the encounter
+// (docs/plans/consult-intelligence.md, "Personal data").
+func TestRules_KeepTheConsultationsTranscriptSuggestionsAndDrafts(t *testing.T) {
+	want := map[string]bool{"transcript_segment": true, "suggestion": true, "document_draft": true}
+	for _, r := range retention.Rules() {
+		if !want[r.Table] {
+			continue
+		}
+		if r.Then != retention.ThenKeep {
+			t.Errorf("%s then %q, want %q", r.Table, r.Then, retention.ThenKeep)
+		}
+		delete(want, r.Table)
+	}
+	for table := range want {
+		t.Errorf("no rule for %s", table)
+	}
+}

@@ -291,7 +291,7 @@ func searchQuery(raw string) (url.Values, Filter, bool) {
 		switch key {
 		case "url":
 			f.SeriesID, ok = strings.CutPrefix(v, canonicalBase)
-			ok = ok && isUUID(f.SeriesID)
+			ok = ok && fhir.IsUUID(f.SeriesID)
 		case "version":
 			n, err := strconv.ParseInt(v, 10, 32)
 			f.Version, ok = int32(n), err == nil && n > 0
@@ -304,24 +304,6 @@ func searchQuery(raw string) (url.Values, Filter, bool) {
 		}
 	}
 	return q, f, true
-}
-
-// isUUID tells whether s is a UUID in its 8-4-4-4-12 hexadecimal form, as every id of this server is.
-func isUUID(s string) bool {
-	if len(s) != 36 {
-		return false
-	}
-	for i, r := range s {
-		switch {
-		case i == 8 || i == 13 || i == 18 || i == 23:
-			if r != '-' {
-				return false
-			}
-		case (r < '0' || r > '9') && (r < 'a' || r > 'f') && (r < 'A' || r > 'F'):
-			return false
-		}
-	}
-	return true
 }
 
 // signedIn returns the caller, or answers 401 (nobody signed in) or 500 and false.

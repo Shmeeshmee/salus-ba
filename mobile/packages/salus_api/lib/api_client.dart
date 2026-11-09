@@ -230,10 +230,18 @@ class ApiClient {
           return Consent.fromJson(value);
         case 'ConsentList':
           return ConsentList.fromJson(value);
+        case 'ConsultMessage':
+          return ConsultMessage.fromJson(value);
         case 'ConsultationJoin':
           return ConsultationJoin.fromJson(value);
         case 'ConsultationStatus':
           return ConsultationStatus.fromJson(value);
+        case 'DraftEvent':
+          return DraftEvent.fromJson(value);
+        case 'DraftField':
+          return DraftField.fromJson(value);
+        case 'DraftMessage':
+          return DraftMessage.fromJson(value);
         case 'EnrolRequest':
           return EnrolRequest.fromJson(value);
         case 'Enrolment':
@@ -302,6 +310,10 @@ class ApiClient {
           return StartQuestionnaireRequest.fromJson(value);
         case 'Status':
           return Status.fromJson(value);
+        case 'SuggestionEvent':
+          return SuggestionEvent.fromJson(value);
+        case 'SuggestionMessage':
+          return SuggestionMessage.fromJson(value);
         case 'Term':
           return Term.fromJson(value);
         case 'TermCategory':
@@ -314,6 +326,10 @@ class ApiClient {
           return TermLanguageTypeTransformer().decode(value);
         case 'TermList':
           return TermList.fromJson(value);
+        case 'TranscriptEvent':
+          return TranscriptEvent.fromJson(value);
+        case 'TranscriptMessage':
+          return TranscriptMessage.fromJson(value);
         case 'Unavailable':
           return Unavailable.fromJson(value);
         case 'UpdateMeRequest':

@@ -181,3 +181,22 @@ func NewSearchset(self string, matches, included []BundleEntry) Bundle {
 	}
 	return b
 }
+
+// IsUUID tells whether s is a UUID in its 8-4-4-4-12 hexadecimal form, as every resource id of this server is
+// (CLAUDE.md "FHIR": ids are opaque UUIDs).
+func IsUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, r := range s {
+		switch {
+		case i == 8 || i == 13 || i == 18 || i == 23:
+			if r != '-' {
+				return false
+			}
+		case (r < '0' || r > '9') && (r < 'a' || r > 'f') && (r < 'A' || r > 'F'):
+			return false
+		}
+	}
+	return true
+}
