@@ -6,11 +6,19 @@ package llm
 
 import "context"
 
-// TranslateRequest is a text and its language, and the language to translate it into (BCP 47 tags).
+// TranslateRequest is a text and its language, and the language to translate it into (BCP 47 tags). Glossary
+// is the terms found in the text, each with the term to use for it in the target language; it may be empty.
 type TranslateRequest struct {
-	Text string
-	From string
-	To   string
+	Text     string
+	From     string
+	To       string
+	Glossary []Term
+}
+
+// Term is a glossary entry: a term as it is written in the source language, and in the target language.
+type Term struct {
+	Source string
+	Target string
 }
 
 // Translator translates one text.
@@ -25,10 +33,13 @@ type Utterance struct {
 	Text    string
 }
 
-// SuggestRequest is a transcript, and the language to write the suggestions in.
+// SuggestRequest is a transcript, the language to write the suggestions in, and the texts of the suggestions
+// already shown from it (dismissed and pinned ones included): none of them, nor one saying the same, is to be
+// suggested again.
 type SuggestRequest struct {
 	Lang       string
 	Transcript []Utterance
+	Shown      []string
 }
 
 // Suggestion is one suggestion: its kind (a name the caller defines), its text, how confident the model is

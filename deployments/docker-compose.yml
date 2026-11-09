@@ -115,6 +115,9 @@ services:
       # The retention_apply job's own login, salus_retention (BYPASSRLS, SELECT and DELETE on the tables whose
       # rule is delete). Only this service has it (internal/worker's tests check). Synthetic, local only.
       RETENTION_DATABASE_URL: postgres://salus_retention:local-retention-password@postgres:5432/salus?sslmode=disable
+      # The live suggestions' model (SAL-7): the fake suggests nothing, no text leaves the stack. Anthropic is
+      # not enabled (docs/privacy/processors.md).
+      LLM_ENGINE: fake
     depends_on:
       <<: *app-deps
       objectstore: {condition: service_healthy}
@@ -143,13 +146,16 @@ services:
 
   # The transcription agent (SAL-4): works only River's transcription queue, joins each consultation's LiveKit room
   # once the practitioner is in, and puts the transcript events on the encounter's Redis Stream. STT_ENGINE is
-  # fake: placeholder captions, no audio leaves the stack. Azure is not enabled (docs/privacy/processors.md).
+  # fake: placeholder captions, no audio leaves the stack. LLM_ENGINE is fake: each final line is "translated" by
+  # marking it with its target language, no text leaves the stack. Neither Azure nor Anthropic is enabled
+  # (docs/privacy/processors.md).
   agent:
     <<: *app
     command: ["/usr/local/bin/agent"]
     environment:
       <<: [*app-env, *livekit-env]
       STT_ENGINE: fake
+      LLM_ENGINE: fake
     depends_on:
       <<: *app-deps
       livekit: {condition: service_healthy}

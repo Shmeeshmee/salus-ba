@@ -194,3 +194,28 @@ func TestNext_FailsWhenABackendFails(t *testing.T) {
 		}
 	}
 }
+
+// Allowed is the stream's rule for another domain acting on what the stream shows (a suggestion's dismissal,
+// SAL-7): the encounter's practitioner with an active consent gets the encounter's id; everyone else Export's
+// refusal, with the id as far as they may know it. It audits nothing: the caller audits its own action.
+func TestAllowed_IsTheStreamsRule(t *testing.T) {
+	f := newFixture()
+	if id, err := f.svc.Allowed(t.Context(), pract, encounterID); err != nil || id != encounterID {
+		t.Errorf("Allowed(practitioner) = %q, %v; want the encounter", id, err)
+	}
+	for _, tt := range refusals {
+		f := newFixture()
+		if tt.setup != nil {
+			tt.setup(f)
+		}
+		if id, err := f.svc.Allowed(t.Context(), tt.caller, encounterID); !errors.Is(err, tt.want) || id != tt.id {
+			t.Errorf("%s: Allowed() = %q, %v; want %q, %v", tt.name, id, err, tt.id, tt.want)
+		}
+		checkEvents(t, tt.name, f.audit)
+	}
+	f = newFixture()
+	f.encounters.err = errBackend
+	if _, err := f.svc.Allowed(t.Context(), pract, encounterID); !errors.Is(err, errBackend) {
+		t.Errorf("Allowed() error = %v, want the backend's", err)
+	}
+}

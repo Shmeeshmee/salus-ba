@@ -1391,6 +1391,83 @@ producers; losing it loses live captions, never the stored transcript.
 | What was said in a log line | The consumer logs the stream key, the entry id, the type and the reason only; the gateway the encounter id (tested for the synthetic text) |
 | The lookup function discloses more than the clinic | Owned by a role with two columns of `encounter` and no other privilege; `EXECUTE` for `salus_app` only (tested) |
 
+### B (SAL-5): translation of the transcript
+
+**Processing added.** Inside the agent (`cmd/agent`), while it is in the consultation's room, each final segment
+is translated into the listener's language before it goes on the encounter's stream: a patient's into the
+practitioner's (the clinic's default), a practitioner's into the patient's (their account's, else the clinic's).
+Partial segments and segments already in the listener's language are not translated. For each line the
+terminology (reference data, no personal data) is searched for the medical terms said in it, by the line's words,
+in memory; the line is never stored by that search, logged or put into an error. The translation, or the flag
+`translation_failed` when it could not be made within 1.5 s and one retry, is stored with the segment
+(`transcript_segment.translation`, `translation_failed`, migration 00034): the flag tells a reader of the record
+that the line's translation is missing, rather than not needed. No new table.
+
+The translation is done by a language model behind `llm.Translator`. The default is the fake, which sends text
+nowhere. The Anthropic Claude API adapter (`pkg/llm/anthropic`) is built and not enabled: it would send each line,
+its two languages and the terms found in it (no name, account or id of a person) to a processor with no EU region
+today (`processors.md`).
+
+**Purpose and lawful basis.** As P0: the care of the patient in the consultation (Art. 9(2)(h)), so that the
+practitioner and the patient understand each other. The consent question for translation stays open (P0's note,
+`docs/legal/BRIEF.md` Q16); the owner's interim decision applies: translation runs only while the agent is in the
+room, that is while the patient's care consent with the clinic is active.
+
+**Audit.** No AuditEvent of its own: like the speech-to-text, the translation is processing in the agent's memory
+during the session; the stored segment's write is audited by SAL-6's consumer.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Patient speech sent to a hosted model without a DPA, outside the EU, or retained | Fake by default; the Anthropic adapter needs `LLM_ENGINE=anthropic` and may not be enabled before the DPA, zero data retention (an organisation arrangement with Anthropic) and an EU region, which the API does not offer today (`processors.md`) |
+| A line translated or published after the consent is withdrawn | The removal ends the call: a pending translation is cancelled and nothing is published after it (tested) |
+| A mistranslated line read as what was said | The original is always kept and shown with the translation; a failed translation is flagged, never replaced by a guess; the prompt forbids adding, explaining or correcting |
+| A line injected as instructions to the model | The prompt marks the line and the glossary as data, never instructions; the answer is constrained to a fixed JSON schema |
+| What was said in a log line or error | Logs carry the session id, the speaker's role and the error; the adapter's errors name a status, an API error type or a stop reason only (tested with marker text) |
+
+### D (SAL-7): the live suggestions worker, and dismissing and pinning
+
+**Processing added.** The suggestions worker (`worker.Suggestions` in `cmd/worker`, `suggestion.Assistant`) reads
+each consultation's stream, keeps the latest 30 final lines in memory, and sends them with the texts of the
+suggestions already shown to the model behind `llm.Suggester`, in the clinic's default language. What comes back is
+checked (a known type, confidence 0 to 1, sources among the lines sent, a text of 1 to 300 characters), stored in
+`suggestion` and put on the stream for the practitioner. The practitioner dismisses, pins or unpins a suggestion
+over the event stream's WebSocket; the status is stored. No new table or field: `suggestion` already holds what was
+suggested, from which lines, and what the practitioner did with it (P0). Redis holds one lease key per encounter
+(`suggest:<encounter_id>:lease`, the worker member's random name, 30 s TTL): no personal data.
+
+**Purpose and lawful basis.** As P0: AI assistance for the practitioner's care of the patient in the consultation
+(Art. 9(2)(h)), under the owner's interim consent decision (plan, "Gates", pending `docs/legal/BRIEF.md` Q16): the
+worker suggests only while the patient's care consent with the clinic is active, and stops at once on its
+withdrawal (checked before every model call and again before every store). A suggestion is labelled as AI
+assistance in the event (`origin: "ai"`) and never presented as a diagnosis.
+
+**Processors.** None new: `LLM_ENGINE=fake` (the default) suggests nothing and sends nothing. The Anthropic adapter
+(SAL-5's entry in `processors.md`) is merged and not enabled; enabled, it would receive the window and the texts of
+the suggestions already shown, no name or id of a person.
+
+**Access.** The worker is a system path (the encounter's clinic scope, row-level security). A status change has the
+stream's rule (`access.ConsultationRecord`: the encounter's practitioner with an active consent) and only a
+suggestion of that encounter.
+
+**Audit.** The worker's read of the shown suggestions before each run and each suggestion it stores (agent
+`suggestions_worker`, `HOPERAT`), refusals too; every status change by the practitioner (update, `TREAT`), refused
+ones too.
+
+**Retention.** Unchanged: `suggestion` is `keep` with the record; the lease expires on its own.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A suggestion made or shown after a revocation | Consent checked before the model call and before each store; nothing is published before it is stored (tested) |
+| A dismissed suggestion comes back | The stored suggestions decide, any status, by their words (a rewording sharing three words in four is the same); the model is also told them (tested, the real database included) |
+| A stale event sets an older status back | The stream consumer never changes a stored status; only the practitioner's path does, before publishing (tested) |
+| The model's output shows something wrong or unsourced | Validated against the contract; dropped items are counted, not shown (tested) |
+| What was said or suggested in a log line | The worker logs encounter ids, counts and reasons; a failed model call is logged without its error, which may echo the input (tested for the synthetic text) |
+| A status change for another encounter's suggestion | The update is keyed by the encounter and the id together; another's is `not_found` (tested on the database and through api.New) |
+
 ### E (SAL-8): document templates, drafting and signing
 
 **Processing added.** The encounter's practitioner drafts a document from a clinic template: the stored transcript

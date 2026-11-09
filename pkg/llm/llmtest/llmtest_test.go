@@ -1,11 +1,13 @@
 package llmtest_test
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Shmeeshmee/salus/pkg/llm"
 	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
@@ -29,13 +31,43 @@ func transcript() []llm.Utterance {
 func TestTranslator_MarksTheTextWithTheTargetLanguageAndRecordsTheCall(t *testing.T) {
 	t.Parallel()
 	tr := &llmtest.Translator{}
-	req := llm.TranslateRequest{Text: "placeholder", From: "bs", To: "de"}
+	req := llm.TranslateRequest{Text: "placeholder", From: "bs", To: "de", Glossary: []llm.Term{{Source: "glavobolja", Target: "Kopfschmerz"}}}
 	got, err := tr.Translate(t.Context(), req)
 	if err != nil || got != "[de] placeholder" {
 		t.Errorf("Translate() = %q, %v; want %q", got, err, "[de] placeholder")
 	}
-	if calls := tr.Calls(); !slices.Equal(calls, []llm.TranslateRequest{req}) {
+	if calls := tr.Calls(); !reflect.DeepEqual(calls, []llm.TranslateRequest{req}) {
 		t.Errorf("Calls() = %+v", calls)
+	}
+	req.Glossary[0].Target = "changed by the caller"
+	if calls := tr.Calls(); calls[0].Glossary[0].Target != "Kopfschmerz" {
+		t.Errorf("the recorded glossary changed with the caller's: %+v", calls[0].Glossary)
+	}
+}
+
+// Failures fails that many calls first, then translates: a model that recovers.
+func TestTranslator_FailsItsFirstFailuresCalls(t *testing.T) {
+	t.Parallel()
+	tr := &llmtest.Translator{Failures: 2}
+	req := llm.TranslateRequest{Text: "placeholder", From: "tr", To: "bs"}
+	for i := range 2 {
+		if _, err := tr.Translate(t.Context(), req); !errors.Is(err, llmtest.ErrScripted) {
+			t.Errorf("call %d: %v, want %v", i+1, err, llmtest.ErrScripted)
+		}
+	}
+	if got, err := tr.Translate(t.Context(), req); err != nil || got != "[bs] placeholder" {
+		t.Errorf("third call = %q, %v; want the translation", got, err)
+	}
+}
+
+// Delay holds every call that long, or until its context ends.
+func TestTranslator_WaitsItsDelayOrTheContext(t *testing.T) {
+	t.Parallel()
+	tr := &llmtest.Translator{Delay: time.Hour}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
+	defer cancel()
+	if _, err := tr.Translate(ctx, llm.TranslateRequest{Text: "x", To: "bs"}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("Translate() = %v, want the context's deadline", err)
 	}
 }
 
@@ -63,7 +95,8 @@ func TestSuggester_ReturnsACopyOfItsSuggestionsAndRecordsTheCall(t *testing.T) {
 	t.Parallel()
 	want := []llm.Suggestion{{Kind: "question", Text: "placeholder question", Confidence: 0.5, SourceIDs: []string{"s1"}}}
 	s := &llmtest.Suggester{Suggestions: want}
-	got, err := s.Suggest(t.Context(), llm.SuggestRequest{Lang: "bs", Transcript: transcript()})
+	shown := []string{"placeholder shown before"}
+	got, err := s.Suggest(t.Context(), llm.SuggestRequest{Lang: "bs", Transcript: transcript(), Shown: shown})
 	if err != nil || len(got) != 1 || got[0].Text != want[0].Text {
 		t.Fatalf("Suggest() = %+v, %v; want %+v", got, err, want)
 	}
@@ -71,7 +104,9 @@ func TestSuggester_ReturnsACopyOfItsSuggestionsAndRecordsTheCall(t *testing.T) {
 	if s.Suggestions[0].SourceIDs[0] != "s1" {
 		t.Error("the caller's change reached the fake's script")
 	}
-	if calls := s.Calls(); len(calls) != 1 || calls[0].Lang != "bs" || len(calls[0].Transcript) != 2 {
+	shown[0] = "changed"
+	if calls := s.Calls(); len(calls) != 1 || calls[0].Lang != "bs" || len(calls[0].Transcript) != 2 ||
+		!slices.Equal(calls[0].Shown, []string{"placeholder shown before"}) {
 		t.Errorf("Calls() = %+v", calls)
 	}
 }
@@ -121,6 +156,28 @@ func TestDrafter_ReturnsItsError(t *testing.T) {
 	}
 }
 
+// DiscardCalls keeps no calls (for a long-running fake, as in cmd/agent).
+func TestTranslator_KeepsNoCallsWithDiscardCalls(t *testing.T) {
+	t.Parallel()
+	tr := &llmtest.Translator{DiscardCalls: true}
+	if got, err := tr.Translate(t.Context(), llm.TranslateRequest{Text: "x", To: "bs"}); err != nil || got != "[bs] x" || len(tr.Calls()) != 0 {
+		t.Errorf("Translate() = %q, %v with %d calls kept; want the translation and none", got, err, len(tr.Calls()))
+	}
+}
+
+// The Suggester and Drafter keep no calls with DiscardCalls either, for a long-running fake engine.
+func TestSuggesterAndDrafter_KeepNoCallsWithDiscardCalls(t *testing.T) {
+	t.Parallel()
+	s := &llmtest.Suggester{DiscardCalls: true, Suggestions: []llm.Suggestion{{Kind: "question", Text: "placeholder", SourceIDs: []string{"s1"}}}}
+	if got, err := s.Suggest(t.Context(), llm.SuggestRequest{Lang: "bs", Transcript: transcript()}); err != nil || len(got) != 1 || len(s.Calls()) != 0 {
+		t.Errorf("Suggest() = %+v, %v with %d calls kept; want the suggestion and none", got, err, len(s.Calls()))
+	}
+	d := &llmtest.Drafter{DiscardCalls: true}
+	if got, err := d.Draft(t.Context(), llm.DraftRequest{Lang: "bs", Fields: []llm.FieldSpec{{Key: "k", Label: "L"}}}); err != nil || len(got) != 1 || len(d.Calls()) != 0 {
+		t.Errorf("Draft() = %+v, %v with %d calls kept; want one field and none", got, err, len(d.Calls()))
+	}
+}
+
 // A field's type, instruction and required flag reach the fake as the caller sent them, and the recorded
 // request is the caller's own copy: a later change to the caller's slice does not alter it.
 func TestDrafter_RecordsEachFieldsTypeInstructionAndRequiredFlag(t *testing.T) {
@@ -146,19 +203,5 @@ func TestFieldTypes_AreTextListDateAndCoded(t *testing.T) {
 	got := []llm.FieldType{llm.FieldText, llm.FieldList, llm.FieldDate, llm.FieldCoded}
 	if !slices.Equal(got, []llm.FieldType{"text", "list", "date", "coded"}) {
 		t.Errorf("field types = %q", got)
-	}
-}
-
-// EmptyDrafter, the api's default until an engine is configured, marks every field missing and keeps nothing
-// of a request, so a long-lived process does not grow with each draft.
-func TestEmptyDrafter_MarksEveryFieldMissingAndKeepsNothing(t *testing.T) {
-	t.Parallel()
-	var d llm.Drafter = llmtest.EmptyDrafter{}
-	got, err := d.Draft(t.Context(), llm.DraftRequest{Fields: []llm.FieldSpec{{Key: "a"}, {Key: "b"}}, Transcript: transcript()})
-	if err != nil || len(got) != 2 || got[0].Key != "a" || !got[0].Missing || got[0].Value != "" || got[0].SourceIDs != nil || got[1].Key != "b" || !got[1].Missing {
-		t.Errorf("Draft() = %+v, %v", got, err)
-	}
-	if size := reflect.TypeFor[llmtest.EmptyDrafter]().Size(); size != 0 {
-		t.Errorf("EmptyDrafter holds %d bytes, want none", size)
 	}
 }

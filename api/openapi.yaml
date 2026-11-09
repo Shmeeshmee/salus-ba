@@ -1600,9 +1600,12 @@ paths:
         stored transcript is `GET /encounters/{id}/transcript`). The handshake must come from the API's own
         origin, or carry no Origin (no browser). Access is checked again after every read of the stream: when
         it ends (a revocation, a cancellation) nothing more is sent and the socket closes within a second, with
-        code 4403 and reason `consent_required` or `forbidden`, or 4404 `not_found`; 1011 on a server error. The
-        client sends nothing but control frames. Each subscription is audited as an operation on the
-        encounter, also when refused.
+        code 4403 and reason `consent_required` or `forbidden`, or 4404 `not_found`; 1011 on a server error.
+        Each subscription is audited as an operation on the encounter, also when refused. The client may send
+        text frames of `ConsultCommand` (at most 512 bytes; a longer frame ends the socket): a
+        `suggestion_status` message dismisses, pins or unpins a suggestion of the encounter, under the same rule,
+        audited, refusals included. It is answered with nothing on success (the suggestion with its new status
+        comes on the stream, to every open view), and with a `command_error` frame otherwise.
       tags: [consultation]
       security:
         - sessionCookie: []
@@ -3698,6 +3701,8 @@ components:
         - {$ref: "#/components/schemas/TranscriptMessage"}
         - {$ref: "#/components/schemas/SuggestionMessage"}
         - {$ref: "#/components/schemas/DraftMessage"}
+        # The cursor last: the Dart generator gives the flat model the last variant's payload, as before SAL-7.
+        - {$ref: "#/components/schemas/CommandErrorMessage"}
         - {$ref: "#/components/schemas/CursorMessage"}
       discriminator:
         propertyName: type
@@ -3706,6 +3711,58 @@ components:
           suggestion: "#/components/schemas/SuggestionMessage"
           draft: "#/components/schemas/DraftMessage"
           cursor: "#/components/schemas/CursorMessage"
+          command_error: "#/components/schemas/CommandErrorMessage"
+    # What the client sends on GET /encounters/{id}/events, and the answer to one that failed (SAL-7).
+    ConsultCommand:
+      description: A text frame the client sends on GET /encounters/{id}/events, told apart by `type`.
+      oneOf:
+        - {$ref: "#/components/schemas/SuggestionStatusMessage"}
+      discriminator:
+        propertyName: type
+        mapping:
+          suggestion_status: "#/components/schemas/SuggestionStatusMessage"
+    SuggestionStatusMessage:
+      type: object
+      description: The practitioner dismisses, pins or unpins (`shown`) a suggestion of the stream's encounter.
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: suggestion_status}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/SuggestionStatus"}
+    SuggestionStatus:
+      type: object
+      required: [id, status]
+      properties:
+        id: {type: string, format: uuid}
+        status:
+          type: string
+          enum: [shown, dismissed, pinned]
+    CommandErrorMessage:
+      type: object
+      description: Answers a client's message that failed; nothing changed.
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: command_error}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/CommandError"}
+    CommandError:
+      type: object
+      required: [command, error]
+      properties:
+        command:
+          type: string
+          description: The failed message's `type`; empty when it was no envelope.
+        id:
+          type: string
+          description: The suggestion the message named, when it named one.
+        error:
+          type: string
+          description: >-
+            `invalid_message`: no envelope; `unknown_command`: a type or version the server does not take;
+            `invalid`: a payload or status the contract does not allow; `not_found`: no such suggestion of the
+            encounter, or an encounter the caller may not see; `consent_required`: after a revocation;
+            `forbidden`: not the encounter's practitioner; `internal`: a server error.
+          enum: [invalid_message, unknown_command, invalid, not_found, consent_required, forbidden, internal]
     CursorMessage:
       type: object
       description: Sent before each live message, with the stream id of its entry, which a client resumes after.
@@ -3769,7 +3826,14 @@ components:
           type: string
         translation:
           type: string
-          description: Into the other participant's language; empty until it is translated.
+          description: >-
+            Into the other participant's language; empty until it is translated. Partial segments and segments
+            said in the other participant's language are not translated.
+        translation_failed:
+          type: boolean
+          description: >-
+            Present and true on a final segment that should have been translated and was not: the original is
+            all there is. Absent otherwise.
         is_final:
           type: boolean
         ts_start:
@@ -3781,17 +3845,27 @@ components:
     SuggestionEvent:
       type: object
       description: >-
-        A suggestion for the practitioner only, citing the segments it came from; a prompt, never a diagnosis.
-        Pushed when shown and on every change of its status.
-      required: [id, encounter_id, type, text, confidence, source_segment_ids, status]
+        AI assistance for the practitioner only: a suggestion from a language model, citing the segments it came
+        from; a prompt the practitioner may ignore, never a diagnosis. Whatever shows one labels it as AI
+        assistance (`origin`). Pushed when shown and on every change of its status.
+      required: [id, encounter_id, type, text, confidence, source_segment_ids, status, origin]
       properties:
         id: {type: string, format: uuid}
         encounter_id: {type: string, format: uuid}
         type:
           type: string
           enum: [diagnosis, question, red_flag, term]
+          description: >-
+            What the suggestion prompts: a diagnosis to consider (not one made), a question to ask, a red flag to
+            check, or a term to explain.
         text:
           type: string
+          minLength: 1
+          maxLength: 300
+        origin:
+          type: string
+          enum: [ai]
+          description: Always `ai`, an AI model's suggestion, shown as AI assistance.
         confidence:
           type: number
           minimum: 0

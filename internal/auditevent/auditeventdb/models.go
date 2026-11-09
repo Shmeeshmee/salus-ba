@@ -573,15 +573,16 @@ type TermLabel struct {
 }
 
 type TranscriptSegment struct {
-	ID          pgtype.UUID
-	CreatedAt   pgtype.Timestamptz
-	TsStart     pgtype.Timestamptz
-	TsEnd       pgtype.Timestamptz
-	EncounterID pgtype.UUID
-	Speaker     string
-	Lang        string
-	Original    string
-	Translation string
+	ID                pgtype.UUID
+	CreatedAt         pgtype.Timestamptz
+	TsStart           pgtype.Timestamptz
+	TsEnd             pgtype.Timestamptz
+	EncounterID       pgtype.UUID
+	Speaker           string
+	Lang              string
+	Original          string
+	Translation       string
+	TranslationFailed bool
 }
 
 type VideoSession struct {

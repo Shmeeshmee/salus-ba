@@ -88,7 +88,7 @@ func (c consultStream) segment(id string, final bool) transcript.Event {
 func (c consultStream) suggestion(status suggestion.Status) suggestion.Event {
 	return suggestion.Event{
 		ID: "5a000000-0000-4000-8000-000000000001", EncounterID: c.encounter, Type: suggestion.TypeQuestion, Text: suggested,
-		Status: status, SourceSegmentIDs: []string{segmentA}, Confidence: 0.5,
+		Status: status, Origin: suggestion.OriginAI, SourceSegmentIDs: []string{segmentA}, Confidence: 0.5,
 	}
 }
 
@@ -132,7 +132,8 @@ func (c consultStream) waitDrained(t *testing.T, entries int64) {
 }
 
 // What the stream carries is stored, each table by its own domain: final segments once (partials stay on the
-// stream, a re-delivered final is no second row), suggestions with their latest status; drafts are SAL-8's and
+// stream, a re-delivered final is no second row), suggestions once, as first shown (a later event's status was
+// stored by whoever changed it, SAL-7, so the consumer changes nothing); drafts are SAL-8's and
 // left alone. An entry that is no envelope, an unknown type or version, an invalid event and one naming another
 // encounter than its stream's are acknowledged and dropped. Every write is audited as the consumer's, and the
 // log holds nothing that was said or suggested.
@@ -162,9 +163,9 @@ func TestConsultStream_StoresTheFinalSegmentsAndTheSuggestions(t *testing.T) {
 
 	c.waitRows(t, 1, "SELECT count(*) FROM transcript_segment WHERE encounter_id = $1", c.encounter)
 	c.waitRows(t, 1, "SELECT count(*) FROM transcript_segment WHERE id = $1 AND original = $2", segmentA, spoken)
-	c.waitRows(t, 1, "SELECT count(*) FROM suggestion WHERE encounter_id = $1 AND status = 'pinned' AND version_id = 2", c.encounter)
+	c.waitRows(t, 1, "SELECT count(*) FROM suggestion WHERE encounter_id = $1 AND status = 'shown' AND version_id = 1", c.encounter)
 	c.waitRows(t, 0, "SELECT count(*) FROM document_draft")
-	c.waitRows(t, 3, `SELECT count(*) FROM audit_event WHERE agent_name = 'consult_stream' AND outcome = 0 AND entity_reference = $1
+	c.waitRows(t, 2, `SELECT count(*) FROM audit_event WHERE agent_name = 'consult_stream' AND outcome = 0 AND entity_reference = $1
 		AND entity_name IN ('transcript_segment', 'suggestion')`, "Encounter/"+c.encounter)
 	for _, s := range []string{spoken, suggested} {
 		if strings.Contains(c.log.String(), s) {

@@ -1,5 +1,7 @@
-// Command worker runs the River background jobs of the default queue and the scan queue, and the consultations'
-// stream consumer (worker.ConsultStream, on REDIS_URL), which stores what the encounters' Redis Streams carry. It
+// Command worker runs the River background jobs of the default queue and the scan queue, the consultations'
+// stream consumer (worker.ConsultStream, on REDIS_URL), which stores what the encounters' Redis Streams carry,
+// and the live suggestions worker (worker.Suggestions), on the language model LLM_ENGINE chooses
+// (config.LoadLLM: the fake by default, Anthropic's API off until its DPA). It
 // logs in as salus_app (DATABASE_URL), and as salus_retention (RETENTION_DATABASE_URL) for the retention_apply
 // job alone; the binary jobs reach the object store and clamd (config.LoadObjectStore, config.LoadClamd).
 package main
@@ -23,6 +25,9 @@ import (
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clamd"
 	"github.com/Shmeeshmee/salus/pkg/envelope"
+	"github.com/Shmeeshmee/salus/pkg/llm"
+	"github.com/Shmeeshmee/salus/pkg/llm/anthropic"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/redis"
 )
@@ -56,6 +61,14 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if ret.DatabaseURL == "" {
 		return errors.New("config: RETENTION_DATABASE_URL is required")
 	}
+	model, err := config.LoadLLM()
+	if err != nil {
+		return err
+	}
+	suggester, err := newSuggester(model)
+	if err != nil {
+		return err
+	}
 	files, err := loadFiles()
 	if err != nil {
 		return err
@@ -83,16 +96,21 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if err := client.Start(context.WithoutCancel(ctx)); err != nil {
 		return err
 	}
-	consumed := make(chan struct{})
+	consumed, suggested := make(chan struct{}), make(chan struct{})
 	go func() {
 		defer close(consumed)
 		worker.NewConsultStream(pool, rdb, log).Run(ctx)
 	}()
-	log.Info("started")
+	go func() {
+		defer close(suggested)
+		worker.NewSuggestions(pool, rdb, suggester, log).Run(ctx)
+	}()
+	log.Info("started", "llm_engine", string(model.Engine))
 
 	<-ctx.Done()
 	log.Info("shutting down")
-	<-consumed // it stops within one read; an entry it had not acknowledged is written again later
+	<-consumed  // it stops within one read; an entry it had not acknowledged is written again later
+	<-suggested // it stops within a tick, or a model call
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stopTimeout)
 	defer cancel()
 	if err := client.Stop(stopCtx); err != nil {
@@ -100,6 +118,19 @@ func run(ctx context.Context, logOut io.Writer) error {
 	}
 	log.Info("stopped")
 	return nil
+}
+
+// llmTimeout bounds one call to the language model's HTTP API; a suggestion run is bounded tighter by its own
+// timeout.
+const llmTimeout = 2 * time.Minute
+
+// newSuggester is the configured language model: the fake (keeping no calls, suggesting nothing), or Anthropic's
+// Claude API (not to be enabled before its DPA, docs/privacy/processors.md).
+func newSuggester(model config.LLM) (llm.Suggester, error) {
+	if model.Engine != config.LLMAnthropic {
+		return &llmtest.Suggester{DiscardCalls: true}, nil
+	}
+	return anthropic.New(anthropic.Config{Key: model.AnthropicKey, Model: model.Model}, &http.Client{Timeout: llmTimeout})
 }
 
 // s3PageSize is the object store listing's page for binary's purger, S3's largest.

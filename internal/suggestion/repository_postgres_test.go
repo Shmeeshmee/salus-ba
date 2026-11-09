@@ -2,6 +2,8 @@ package suggestion_test
 
 import (
 	"context"
+	"errors"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -39,22 +41,30 @@ func seedEncounter(t *testing.T, owner *pgxpool.Pool) (clinic, encounterID strin
 	return clinic, encounterID
 }
 
-func save(t *testing.T, app *pgxpool.Pool, clinic string, e suggestion.Event) (suggestion.Saved, error) {
+// inScope runs fn in a transaction scoped to the clinic, as the encounter's service sets it.
+func inScope(t *testing.T, app *pgxpool.Pool, clinic string, fn func(ctx context.Context, r suggestion.Repository) error) error {
 	t.Helper()
-	var saved suggestion.Saved
-	err := postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+	return postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
 		if err := postgres.SetLocal(ctx, "app.organization_id", clinic); err != nil {
 			return err
 		}
-		var err error
-		saved, err = suggestion.NewPostgresRepository(app).Save(ctx, e)
-		return err
+		return fn(ctx, suggestion.NewPostgresRepository(app))
 	})
-	return saved, err
 }
 
-// A suggestion is stored once; a later event changes its status only, once.
-func TestSave_StoresOnceAndThenChangesTheStatusOnly(t *testing.T) {
+func insert(t *testing.T, app *pgxpool.Pool, clinic string, e suggestion.Event) (bool, error) {
+	t.Helper()
+	var created bool
+	err := inScope(t, app, clinic, func(ctx context.Context, r suggestion.Repository) error {
+		var err error
+		created, err = r.Insert(ctx, e)
+		return err
+	})
+	return created, err
+}
+
+// A suggestion is stored once; a later insert of it changes nothing.
+func TestInsert_StoresOnce(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
 	clinic, enc := seedEncounter(t, owner)
@@ -63,17 +73,16 @@ func TestSave_StoresOnceAndThenChangesTheStatusOnly(t *testing.T) {
 	pinned := e
 	pinned.Status, pinned.Text, pinned.Confidence = suggestion.StatusPinned, "Placeholder text changed", 0.1
 
-	var got []suggestion.Saved
-	for _, ev := range []suggestion.Event{e, e, pinned, pinned} {
-		saved, err := save(t, app, clinic, ev)
+	var got []bool
+	for _, ev := range []suggestion.Event{e, e, pinned} {
+		created, err := insert(t, app, clinic, ev)
 		if err != nil {
-			t.Fatalf("Save() error = %v", err)
+			t.Fatalf("Insert() error = %v", err)
 		}
-		got = append(got, saved)
+		got = append(got, created)
 	}
-	want := []suggestion.Saved{suggestion.SavedCreated, suggestion.SavedUnchanged, suggestion.SavedUpdated, suggestion.SavedUnchanged}
-	if !slices.Equal(got, want) {
-		t.Errorf("Save() = %v, want %v", got, want)
+	if want := []bool{true, false, false}; !slices.Equal(got, want) {
+		t.Errorf("Insert() = %v, want %v", got, want)
 	}
 	var text, status string
 	var version int
@@ -83,20 +92,99 @@ func TestSave_StoresOnceAndThenChangesTheStatusOnly(t *testing.T) {
 		Scan(&text, &status, &version, &confidence, &sources); err != nil {
 		t.Fatal(err)
 	}
-	if text != e.Text || status != "pinned" || version != 2 || confidence != e.Confidence || !slices.Equal(sources, e.SourceSegmentIDs) {
-		t.Errorf("stored %q %s v%d %v %v, want the first text and confidence, pinned at version 2", text, status, version, confidence, sources)
+	if text != e.Text || status != "shown" || version != 1 || confidence != e.Confidence || !slices.Equal(sources, e.SourceSegmentIDs) {
+		t.Errorf("stored %q %s v%d %v %v, want the first event at version 1", text, status, version, confidence, sources)
 	}
 }
 
 // Another clinic's scope cannot write a suggestion of the encounter (row-level security).
-func TestSave_AnotherClinicCannotWrite(t *testing.T) {
+func TestInsert_AnotherClinicCannotWrite(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
 	_, enc := seedEncounter(t, owner)
 	other, _ := seedEncounter(t, owner)
 	e := valid()
 	e.EncounterID = enc
-	if _, err := save(t, app, other, e); err == nil {
-		t.Error("Save() in another clinic's scope succeeded, want the row-level security refusal")
+	if _, err := insert(t, app, other, e); err == nil {
+		t.Error("Insert() in another clinic's scope succeeded, want the row-level security refusal")
+	}
+}
+
+// SetStatus changes the status of a suggestion of the encounter and gives it back as an event; the same status
+// again changes nothing. A suggestion of another encounter, or one another clinic's scope does not show, is
+// ErrNotFound.
+func TestSetStatus_ChangesTheStatusOfASuggestionOfTheEncounter(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	clinic, enc := seedEncounter(t, owner)
+	other, otherEnc := seedEncounter(t, owner)
+	e := valid()
+	e.EncounterID = enc
+	if _, err := insert(t, app, clinic, e); err != nil {
+		t.Fatal(err)
+	}
+	setStatus := func(scope, encounterID string, status suggestion.Status) (suggestion.Event, bool, error) {
+		var got suggestion.Event
+		var changed bool
+		err := inScope(t, app, scope, func(ctx context.Context, r suggestion.Repository) error {
+			var err error
+			got, changed, err = r.SetStatus(ctx, encounterID, e.ID, status)
+			return err
+		})
+		return got, changed, err
+	}
+	want := e
+	want.Status = suggestion.StatusDismissed
+	for i, wantChanged := range []bool{true, false} {
+		got, changed, err := setStatus(clinic, enc, suggestion.StatusDismissed)
+		if err != nil || changed != wantChanged || !reflect.DeepEqual(got, want) {
+			t.Errorf("SetStatus() #%d = %+v, %v, %v; want %+v, %v", i, got, changed, err, want, wantChanged)
+		}
+	}
+	var version int
+	if err := owner.QueryRow(t.Context(), `SELECT version_id FROM suggestion WHERE id = $1`, e.ID).Scan(&version); err != nil || version != 2 {
+		t.Errorf("version %d, %v; want 2", version, err)
+	}
+	for name, tt := range map[string][2]string{"another encounter": {clinic, otherEnc}, "another clinic": {other, enc}} {
+		if _, _, err := setStatus(tt[0], tt[1], suggestion.StatusPinned); !errors.Is(err, suggestion.ErrNotFound) {
+			t.Errorf("%s: SetStatus() error = %v, want ErrNotFound", name, err)
+		}
+	}
+}
+
+// ByEncounter gives the encounter's suggestions, oldest first, with their statuses; another clinic's scope sees
+// none.
+func TestByEncounter_GivesTheEncountersSuggestions(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	clinic, enc := seedEncounter(t, owner)
+	other, otherEnc := seedEncounter(t, owner)
+	first, second, elsewhere := valid(), valid(), valid()
+	first.EncounterID, second.EncounterID, elsewhere.EncounterID = enc, enc, otherEnc
+	second.ID, elsewhere.ID = segmentID, unknownID
+	second.Type, second.Text, second.Status = suggestion.TypeRedFlag, "Placeholder red flag", suggestion.StatusPinned
+	second.SourceSegmentIDs = []string{suggestionID, segmentID}
+	for _, ev := range []struct {
+		clinic string
+		e      suggestion.Event
+	}{{clinic, first}, {clinic, second}, {other, elsewhere}} {
+		if _, err := insert(t, app, ev.clinic, ev.e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	byEncounter := func(scope string) ([]suggestion.Event, error) {
+		var got []suggestion.Event
+		err := inScope(t, app, scope, func(ctx context.Context, r suggestion.Repository) error {
+			var err error
+			got, err = r.ByEncounter(ctx, enc)
+			return err
+		})
+		return got, err
+	}
+	if got, err := byEncounter(clinic); err != nil || !reflect.DeepEqual(got, []suggestion.Event{first, second}) {
+		t.Errorf("ByEncounter() = %+v, %v; want %+v", got, err, []suggestion.Event{first, second})
+	}
+	if got, err := byEncounter(other); err != nil || len(got) != 0 {
+		t.Errorf("ByEncounter() in another clinic's scope = %+v, %v; want none", got, err)
 	}
 }

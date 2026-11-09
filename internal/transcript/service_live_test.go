@@ -16,6 +16,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/transcript"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/stt"
 	"github.com/Shmeeshmee/salus/pkg/stt/stttest"
 	"github.com/Shmeeshmee/salus/pkg/wire"
@@ -136,12 +137,14 @@ func (p *fakePublisher) Publish(_ context.Context, encounterID string, envelope 
 }
 
 type liveFixture struct {
-	calls     *fakeCalls
-	languages *fakeLanguages
-	publisher *fakePublisher
-	stt       *stttest.Recognizer
-	logs      *syncBuffer
-	svc       *transcript.Live
+	calls      *fakeCalls
+	languages  *fakeLanguages
+	publisher  *fakePublisher
+	stt        *stttest.Recognizer
+	translator *llmtest.Translator
+	glossary   *fakeGlossary
+	logs       *syncBuffer
+	svc        *transcript.Live
 }
 
 func newLiveFixture(t *testing.T, script ...stt.Result) *liveFixture {
@@ -149,19 +152,24 @@ func newLiveFixture(t *testing.T, script ...stt.Result) *liveFixture {
 	f := &liveFixture{
 		calls: newCalls(), languages: &fakeLanguages{patient: "tr", clinic: "bs"},
 		publisher: &fakePublisher{sent: make(chan published, 100)}, stt: &stttest.Recognizer{Results: script},
-		logs: &syncBuffer{},
+		translator: &llmtest.Translator{}, glossary: &fakeGlossary{}, logs: &syncBuffer{},
 	}
 	f.svc = f.service(f.stt)
 	t.Cleanup(f.svc.Stop)
 	return f
 }
 
-func (f *liveFixture) service(r stt.Recognizer) *transcript.Live {
-	return transcript.NewLive(transcript.LivePorts{
+// service is the Live on the fixture's ports and r; budget, when given, is its translation budget.
+func (f *liveFixture) service(r stt.Recognizer, budget ...time.Duration) *transcript.Live {
+	p := transcript.LivePorts{
 		Calls: f.calls, Appointments: f.languages, Accounts: f.languages, Clinics: f.languages,
-		Publisher: f.publisher, Recognizer: r, Clock: clock.Fixed{T: now}, Retry: time.Millisecond,
-		Log: slog.New(slog.NewJSONHandler(f.logs, nil)),
-	})
+		Publisher: f.publisher, Recognizer: r, Translator: f.translator, Glossary: f.glossary,
+		Clock: clock.Fixed{T: now}, Retry: time.Millisecond, Log: slog.New(slog.NewJSONHandler(f.logs, nil)),
+	}
+	if len(budget) > 0 {
+		p.TranslateBudget = budget[0]
+	}
+	return transcript.NewLive(p)
 }
 
 // next waits for the next envelope on the stream and decodes its event.
@@ -209,7 +217,7 @@ func script() []stt.Result {
 // The agent joins the session's room and, for each person's microphone, opens a recognition in their language
 // at 16 kHz (the patient's: their account's; the practitioner's: the clinic's), sends it the audio, and puts each
 // result on the encounter's stream as a transcript envelope: partial ones revising one segment until the final,
-// the next result a new segment, with the times of the audio and no translation (SAL-5).
+// the next result a new segment, with the times of the audio; partial ones are not translated (SAL-5).
 func TestTranscribe_PutsEachSpeakersSegmentsOnTheEncountersStream(t *testing.T) {
 	f := newLiveFixture(t, script()...)
 	if err := f.svc.Transcribe(t.Context(), sessionID, clinicID); err != nil {
@@ -238,11 +246,20 @@ func TestTranscribe_PutsEachSpeakersSegmentsOnTheEncountersStream(t *testing.T) 
 	if err := first.Validate(); err != nil {
 		t.Errorf("the first event is not valid: %v", err)
 	}
-	if events[1].SegmentID != first.SegmentID || events[2].SegmentID != first.SegmentID || !events[2].IsFinal || events[1].IsFinal {
-		t.Errorf("events %+v; want two partials and the final of one segment", events[:3])
+	// The final is published once translated (SAL-5), so the next segment's partial may come before it.
+	var segment, next []transcript.Event
+	for _, e := range events[1:] {
+		if e.SegmentID == first.SegmentID {
+			segment = append(segment, e)
+		} else {
+			next = append(next, e)
+		}
 	}
-	if events[3].SegmentID == first.SegmentID || events[3].IsFinal || events[3].Original != "Next" {
-		t.Errorf("fourth event %+v; want a partial of a new segment", events[3])
+	if len(segment) != 2 || segment[0].IsFinal || !segment[1].IsFinal {
+		t.Errorf("events %+v; want two partials and the final of one segment", events)
+	}
+	if len(next) != 1 || next[0].IsFinal || next[0].Original != "Next" {
+		t.Errorf("events %+v; want a partial of a new segment", next)
 	}
 
 	streams := f.stt.Streams()

@@ -32,13 +32,14 @@ import (
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot"
+	"github.com/Shmeeshmee/salus/internal/suggestion"
 	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/internal/transcript"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/envelope"
-	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
+	"github.com/Shmeeshmee/salus/pkg/llm"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/redis"
 )
@@ -57,8 +58,9 @@ type App struct {
 const minRateLimitKey = 32
 
 // New connects to the dependencies and builds the handler; lk is the video server (config.LoadLiveKit), files
-// the object store and the key-encryption key of the questionnaire attachments (config.LoadObjectStore).
-func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config.ObjectStore, log *slog.Logger) (*App, error) {
+// the object store and the key-encryption key of the questionnaire attachments (config.LoadObjectStore), drafter
+// the language model that drafts documents (config.LoadLLM's engine).
+func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config.ObjectStore, drafter llm.Drafter, log *slog.Logger) (*App, error) {
 	k, err := checkKeys(cfg, files)
 	if err != nil {
 		return nil, err
@@ -109,7 +111,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies)
 	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners)
-	consultAPI, consultStream := newConsultRecord(consultPorts{pool: pool, rdb: rdb, audit: audit, tx: tx, encounters: encounters, consents: consents, files: files, kek: kek}, appointmentCaller(accounts, patients), fhirBase, log)
+	consultAPI, consultStream := newConsultRecord(consultPorts{pool: pool, rdb: rdb, audit: audit, tx: tx, encounters: encounters, consents: consents, files: files, kek: kek, drafter: drafter}, appointmentCaller(accounts, patients), fhirBase, log)
 	questionnaireAPI, streams := questionnaireRoutes(questionnairePorts{
 		pool: pool, audit: audit, tx: tx, jobs: jobs, roles: roles, clinics: clinics, accounts: accounts, appointments: appointments, patients: patients,
 		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
@@ -205,23 +207,27 @@ type consultPorts struct {
 	consents   *consent.Service
 	kek        *envelope.KEK
 	files      config.ObjectStore
+	drafter    llm.Drafter // config.LoadLLM's engine (cmd/api)
 }
 
 // newConsultRecord builds the encounter's live events (its Redis Stream), its stored transcript, and its
 // documents (templates, drafting, signing, the signed PDF and their FHIR reads), for its practitioner; it
-// returns their routes and the stream's. The drafting runs on llmtest.EmptyDrafter, which keeps nothing of a
-// request, until an engine is configured (SAL-5): every field missing.
+// returns their routes and the stream's, with the suggestions' statuses the practitioner sets on the stream.
 func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointment.Caller, bool, error), fhirBase string, log *slog.Logger) (routes []func(*http.ServeMux), stream func(*http.ServeMux)) {
 	transcripts := transcript.NewService(transcript.Ports{
 		Repo: transcript.NewPostgresRepository(p.pool), Stream: transcript.NewRedisStream(p.rdb), Encounters: p.encounters, Consents: p.consents,
 		Audit: p.audit, Tx: p.tx,
 	})
 	documents := composition.NewService(composition.Ports{
-		Repo: composition.NewPostgresRepository(p.pool), Encounters: p.encounters, Transcripts: transcripts, Drafter: llmtest.EmptyDrafter{},
+		Repo: composition.NewPostgresRepository(p.pool), Encounters: p.encounters, Transcripts: transcripts, Drafter: p.drafter,
 		Store:     binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, p.files.Endpoint, p.files.Region, p.files.Bucket, p.files.AccessKeyID, p.files.SecretAccessKey, s3PageSize),
 		Publisher: transcript.NewRedisPublisher(p.rdb), Audit: p.audit, Tx: p.tx, Clock: clock.System{}, KEK: p.kek, Log: log,
 	})
-	transcriptHandler := transcript.NewHTTPHandler(transcripts, caller, clock.System{}, log)
+	suggestions := suggestion.NewService(suggestion.Ports{
+		Repo: suggestion.NewPostgresRepository(p.pool), Encounters: p.encounters, Consents: p.consents, Records: transcripts,
+		Publisher: suggestion.NewRedisPublisher(p.rdb), Audit: p.audit, Tx: p.tx,
+	})
+	transcriptHandler := transcript.NewHTTPHandler(transcripts, suggestion.NewCommandHandler(suggestions, log), caller, clock.System{}, log)
 	return []func(*http.ServeMux){
 		transcriptHandler.Routes,
 		composition.NewHTTPHandler(documents, caller, log).Routes,

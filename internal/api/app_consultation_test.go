@@ -16,7 +16,12 @@ import (
 	"github.com/Shmeeshmee/salus/internal/api"
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/llm"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 )
+
+// testDrafter is the api's default drafting engine: the fake, keeping no calls.
+func testDrafter() llm.Drafter { return &llmtest.Drafter{DiscardCalls: true} }
 
 // testLiveKit is a synthetic LiveKit configuration; the server URL resolves nowhere, so a test that needs
 // LiveKit itself uses the compose one through TEST_LIVEKIT_*.
@@ -52,7 +57,7 @@ func livekitSignature(t *testing.T, lk config.LiveKit, body []byte) string {
 func TestNew_ServesTheLiveKitWebhook(t *testing.T) {
 	var log bytes.Buffer
 	lk := testLiveKit()
-	app, err := api.New(t.Context(), testConfig(t), lk, testObjectStore(t), slog.New(slog.NewJSONHandler(&log, nil)))
+	app, err := api.New(t.Context(), testConfig(t), lk, testObjectStore(t), testDrafter(), slog.New(slog.NewJSONHandler(&log, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

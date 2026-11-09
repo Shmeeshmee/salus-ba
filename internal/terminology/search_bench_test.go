@@ -208,3 +208,72 @@ func benchDatabase(b *testing.B, concurrent int) (owner, app *pgxpool.Pool) {
 	}
 	return open(dbURL, pgtest.PoolMaxConns), open(pgtest.AppURL(b, dbURL), max(concurrent, pgtest.PoolMaxConns))
 }
+
+// BenchmarkGlossary looks up the glossary of b.N lines through the service on the app's role, alone and 10 at a
+// time (ten consultations' final lines at once), on synthetic terms of the seed's size: each line is 20 synthetic
+// German words, two of them a term's label. It reports the p50, p95 and p99 of one line (SAL-5: a translated
+// line on screen under 2 s).
+func BenchmarkGlossary(b *testing.B) {
+	for _, concurrent := range []int{1, 10} {
+		b.Run(fmt.Sprintf("concurrent=%d", concurrent), func(b *testing.B) { benchmarkGlossary(b, concurrent) })
+	}
+}
+
+func benchmarkGlossary(b *testing.B, concurrent int) {
+	owner, app := benchDatabase(b, concurrent)
+	loadTerms(b, owner)
+	var german []string
+	if err := app.QueryRow(b.Context(), `SELECT array_agg(label) FROM term_label WHERE language = 'de'`).Scan(&german); err != nil {
+		b.Fatal(err)
+	}
+	r := rand.New(rand.NewPCG(5, 6))
+	lines := make([]string, b.N)
+	for i := range lines {
+		words := make([]string, 18)
+		for j := range words {
+			words[j] = word(r, latinScript)
+		}
+		words = slices.Insert(words, r.IntN(len(words)), german[r.IntN(len(german))])
+		words = slices.Insert(words, r.IntN(len(words)), german[r.IntN(len(german))]+"en")
+		lines[i] = strings.Join(words, " ") + "."
+	}
+	svc := terminology.NewService(terminology.NewPostgresRepository(app), nil)
+	latencies := make([]time.Duration, b.N)
+	next := make(chan int, b.N)
+	for i := range b.N {
+		next <- i
+	}
+	close(next)
+
+	b.ResetTimer()
+	var wg sync.WaitGroup
+	var failed sync.Once
+	var found int64
+	var mu sync.Mutex
+	for range concurrent {
+		wg.Go(func() {
+			for i := range next {
+				start := clock.System{}.Now()
+				entries, err := svc.Glossary(b.Context(), lines[i], "de", "bs")
+				latencies[i] = time.Since(start)
+				if err != nil {
+					failed.Do(func() { b.Error(err) })
+				}
+				mu.Lock()
+				found += int64(len(entries))
+				mu.Unlock()
+			}
+		})
+	}
+	wg.Wait()
+	b.StopTimer()
+
+	slices.Sort(latencies)
+	ms := func(q float64) float64 {
+		return float64(latencies[int(q*float64(len(latencies)-1))].Microseconds()) / 1000
+	}
+	b.ReportMetric(ms(0.5), "p50-ms")
+	b.ReportMetric(ms(0.95), "p95-ms")
+	b.ReportMetric(ms(0.99), "p99-ms")
+	b.ReportMetric(float64(found)/float64(b.N), "terms/line")
+}

@@ -12,6 +12,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/llm"
 	"github.com/Shmeeshmee/salus/pkg/stt"
 )
 
@@ -46,23 +47,29 @@ type Clinics interface {
 }
 
 // LivePorts are Live's dependencies. Retry is how long a failed recognition waits before it is opened again
-// (a second when zero). Log takes the session's id, a speaker's role and errors, never what was said.
+// (a second when zero); TranslateBudget how long a final segment's translation may take, retry included
+// (defaultTranslateBudget when zero). Log takes the session's id, a speaker's role and errors, never what was
+// said.
 type LivePorts struct {
-	Calls        Calls
-	Appointments Appointments
-	Accounts     Accounts
-	Clinics      Clinics
-	Publisher    Publisher
-	Recognizer   stt.Recognizer
-	Clock        clock.Clock
-	Log          *slog.Logger
-	Retry        time.Duration
+	Calls           Calls
+	Appointments    Appointments
+	Accounts        Accounts
+	Clinics         Clinics
+	Publisher       Publisher
+	Recognizer      stt.Recognizer
+	Translator      llm.Translator
+	Glossary        Glossary
+	Clock           clock.Clock
+	Log             *slog.Logger
+	Retry           time.Duration
+	TranslateBudget time.Duration
 }
 
 // Live is the live transcription of the consultations (docs/plans/consult-intelligence.md, SAL-4): the agent
 // in each consultation's room, each person's microphone through speech-to-text in their language, every partial
-// and final result as a transcript.Event on the encounter's stream. Translation is SAL-5's; storing the final
-// segments is Service.Store's (SAL-6), from the stream.
+// and final result as a transcript.Event on the encounter's stream, each final one translated into the other
+// participant's language first (SAL-5, service_translate.go). Storing the final segments is Service.Store's
+// (SAL-6), from the stream.
 type Live struct {
 	calls map[string]context.CancelFunc // the sessions the agent is in, by id
 	LivePorts
@@ -74,6 +81,9 @@ type Live struct {
 func NewLive(p LivePorts) *Live {
 	if p.Retry == 0 {
 		p.Retry = defaultRetry
+	}
+	if p.TranslateBudget == 0 {
+		p.TranslateBudget = defaultTranslateBudget
 	}
 	return &Live{LivePorts: p, calls: map[string]context.CancelFunc{}}
 }
@@ -125,9 +135,11 @@ func (s *Live) forget(sessionID string) {
 	delete(s.calls, sessionID)
 }
 
-// call is a consultation the agent is in.
+// call is a consultation the agent is in: the locale each role is recognised in, and the language (a tag of the
+// enum language) each speaker reads.
 type call struct {
-	locales map[videosession.Role]string
+	locales   map[videosession.Role]string
+	languages map[Speaker]string
 	videosession.AgentCall
 	sessionID string
 }
@@ -139,17 +151,23 @@ func (s *Live) join(ctx context.Context, sessionID, org string) (call, error) {
 	if err != nil {
 		return call{}, err
 	}
-	locales, err := s.locales(ctx, org, ac.AppointmentID)
+	languages, err := s.languages(ctx, org, ac.AppointmentID)
 	if err != nil {
 		ac.Leave()
 		for range ac.Tracks { //nolint:revive // read until closed, as AgentCall asks
 		}
 		return call{}, fmt.Errorf("transcript: languages: %w", err)
 	}
-	return call{AgentCall: ac, sessionID: sessionID, locales: locales}, nil
+	locales := map[videosession.Role]string{
+		videosession.RolePatient:      speechLocale(languages[SpeakerPatient]),
+		videosession.RolePractitioner: speechLocale(languages[SpeakerPractitioner]),
+	}
+	return call{AgentCall: ac, sessionID: sessionID, locales: locales, languages: languages}, nil
 }
 
-func (s *Live) locales(ctx context.Context, org, appointmentID string) (map[videosession.Role]string, error) {
+// languages are the speakers' languages: the patient's account's (else the clinic's), the practitioner's the
+// clinic's default (SAL-4).
+func (s *Live) languages(ctx context.Context, org, appointmentID string) (map[Speaker]string, error) {
 	clinic, err := s.Clinics.DefaultLanguage(ctx, org)
 	if err != nil {
 		return nil, err
@@ -165,9 +183,7 @@ func (s *Live) locales(ctx context.Context, org, appointmentID string) (map[vide
 	if patient == "" {
 		patient = clinic
 	}
-	return map[videosession.Role]string{
-		videosession.RolePatient: speechLocale(patient), videosession.RolePractitioner: speechLocale(clinic),
-	}, nil
+	return map[Speaker]string{SpeakerPatient: patient, SpeakerPractitioner: clinic}, nil
 }
 
 // transcribe recognises each track of the call until the agent is out of the room or ctx ends; then every
