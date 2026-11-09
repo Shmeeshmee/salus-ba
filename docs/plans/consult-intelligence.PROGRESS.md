@@ -376,7 +376,9 @@ Branch `sal-8-draft`, 2026-11-09.
   `POST/GET /encounters/{id}/drafts`, `POST /drafts/{id}/sign`, `GET /document-references/{id}/content`;
   `version_id` on `DraftEvent`. FHIR reads of `Composition`, `DocumentReference`, `Provenance` (CapabilityStatement,
   golden files validated with `make fhir-validate`).
-- Wired in `api.New` on the `llmtest` drafter; `make document-templates-seed clinic=<id>`; `make bench-drafting`.
+- Wired in `api.New` with the drafter `cmd/api` takes from `config.LoadLLM` (after main, with SAL-5, was merged in:
+  the fake `llmtest.Drafter{DiscardCalls: true}` by default; SAL-5's Anthropic adapter now sends each field's type,
+  required flag and instruction and keeps only values of the field's type, golden request updated); `make document-templates-seed clinic=<id>`; `make bench-drafting`.
 - The attachments' purger keeps object keys that are no binary id (the PDFs are under `composition/`).
 
 **Tests seen failing first.** Each behaviour's test failed before its code: most as compile errors for the new
@@ -419,4 +421,3 @@ and the quality of the fields it fills (blocked on SAL-5's adapter and the DPA).
   nothing deletes it yet (the attachments' purger now leaves `composition/` alone).
 - The web wiring of `templates()`, `generate`, `sign` (SAL-9's page): a later PR. `sign` there sends no `If-Match`
   yet; the draft's `version_id` is now on every event for it.
-- The real drafting engine (SAL-5) and its prompt for the new `FieldSpec` fields, once SAL-5 is merged.
