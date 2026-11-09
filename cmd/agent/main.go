@@ -21,8 +21,6 @@ import (
 	"time"
 	_ "time/tzdata" // the clinics' time zones, independent of the runtime image
 
-	"github.com/gorilla/websocket"
-
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/internal/worker"
@@ -118,5 +116,5 @@ func newRecognizer(engine config.STT) (stt.Recognizer, error) {
 		return &stttest.Recognizer{Results: placeholder, DiscardAudio: true}, nil
 	}
 	return azure.New(azure.Config{Region: engine.AzureRegion, Key: engine.AzureKey},
-		&websocket.Dialer{HandshakeTimeout: handshakeTimeout}, clock.System{})
+		azure.NewDialer(handshakeTimeout), clock.System{})
 }

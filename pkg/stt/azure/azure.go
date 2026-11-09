@@ -62,6 +62,11 @@ type Config struct {
 	Key    string
 }
 
+// NewDialer is the dialer New takes in production: the system's TLS roots, a handshake bounded by timeout.
+func NewDialer(timeout time.Duration) *websocket.Dialer {
+	return &websocket.Dialer{HandshakeTimeout: timeout}
+}
+
 // Recognizer opens Azure recognition streams.
 type Recognizer struct {
 	clock    clock.Clock

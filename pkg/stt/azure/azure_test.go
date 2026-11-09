@@ -360,3 +360,10 @@ func TestStream_ConnectFailureNamesNoKey(t *testing.T) {
 		t.Errorf("Stream() = %v, want an error naming the status 401 and not the key", err)
 	}
 }
+
+func TestNewDialer_BoundsTheHandshake(t *testing.T) {
+	t.Parallel()
+	if d := azure.NewDialer(3 * time.Second); d.HandshakeTimeout != 3*time.Second || d.NetDialContext != nil || d.TLSClientConfig != nil {
+		t.Errorf("NewDialer() = %+v, want only the handshake timeout set", d)
+	}
+}
