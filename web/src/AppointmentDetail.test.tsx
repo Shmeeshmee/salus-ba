@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import { AppointmentDetail } from './AppointmentDetail'
@@ -260,6 +260,28 @@ describe('AppointmentDetail', () => {
       const s = await section()
       expect(s.getByText('Patient did not join')).toBeTruthy()
       expect(s.getByText('Practitioner did not join')).toBeTruthy()
+    })
+
+    // The status is read with the appointment, so the page appears in one piece: a section that came in late
+    // would push down what is already on the page, under a click on its way (the e2e attachments flake).
+    it('is read before the page shows, so nothing moves under a click', async () => {
+      let answer: ((r: Response) => void) | undefined
+      const fake = renderDetail(practitioner, {
+        [read]: () => fhirJSON(booked),
+        [patientRead]: () => outcome(404, 'not-found'),
+        [statusGet]: () => new Promise<Response>((done) => (answer = done)),
+      })
+
+      await vi.waitFor(() => expect(answer).toBeDefined())
+      await vi.waitFor(() => expect(fake.requests.some((r) => new URL(r.url).pathname === `/fhir/R4/Appointment/${id}`)).toBe(true))
+      // Every answered request, its body and React's updates settle within these turns; the status stays open.
+      for (let turn = 0; turn < 10; turn++) await act(async () => {})
+      expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+      expect(screen.queryByRole('region', { name: 'Questionnaires' })).toBeNull()
+
+      answer?.(Response.json({ state: 'not_started' }))
+      expect((await section()).getByText('Not started')).toBeTruthy()
+      expect(screen.getByRole('region', { name: 'Questionnaires' })).toBeTruthy()
     })
 
     it('is left out when the status cannot be read', async () => {
