@@ -54,7 +54,7 @@ bench-stt: tools-image
 		go test -run '^$$' -bench 'FrameLatency' -benchtime=100x -count=3 ./internal/videosession"
 
 ## bench-translate: the translated line's latency, final frame in to translated final event read back from the compose
-## Redis through the glossary and the fake translator or the Anthropic adapter against an httptest server, and the
+## Redis through a fake glossary and the fake translator or the Anthropic adapter against an httptest server, and the
 ## glossary lookup on synthetic terms of the seed's size (docs/plans/consult-intelligence.PROGRESS.md, SAL-5)
 bench-translate: tools-image
 	$(GO) sh -c "go test -run '^$$' -bench 'TranslatedLatency' -benchtime=1000x -count=3 ./internal/transcript && \

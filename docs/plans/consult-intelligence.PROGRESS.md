@@ -251,13 +251,13 @@ glossary's candidate tests.
 
 | What | p50 | p95 | p99 |
 | --- | --- | --- | --- |
-| Pipeline, fake translator: final frame handed to the agent to the translated final read back from Redis (XREAD BLOCK), the glossary on a real database, 1,000 lines, 3 runs | 0.26 to 0.39 ms | 0.60 to 0.86 ms | 0.97 to 1.14 ms |
-| Pipeline, Anthropic adapter against its httptest server (TLS, the request's JSON, an answer at once), same | 0.48 to 0.62 ms | 1.07 to 1.18 ms | 1.34 to 1.41 ms |
+| Pipeline, fake translator: final frame handed to the agent to the translated final read back from Redis (XREAD BLOCK), a fake glossary (archcheck: a domain's test builds no other domain's repository), 1,000 lines, 3 runs | 0.09 to 0.10 ms | 0.15 to 0.17 ms | 0.20 to 0.23 ms |
+| Pipeline, Anthropic adapter against its httptest server (TLS, the request's JSON, an answer at once), same | 0.14 to 0.23 ms | 0.32 to 0.43 ms | 0.46 to 0.59 ms |
 | Glossary alone, a 20-word German line with two terms, on synthetic terms of the seed's size (5,300 terms, 88,330 labels), 2,000 lines, 3 runs, one at a time | 1.10 to 1.79 ms | 1.56 to 2.42 ms | 2.08 to 2.96 ms |
 | Same, 10 lines at a time | 1.38 to 1.93 ms | 2.59 to 4.01 ms | 15.5 to 18.2 ms |
 
-Our part of a translated line is under 3 ms at p99 (one at a time) and under 20 ms with ten consultations' lines at
-once; with SAL-4's partial path (under 3 ms) and SAL-6's gateway (p99 6.2 ms) the stack adds about 30 ms at worst
+Our part of a translated line, the pipeline plus the glossary, is under 4 ms at p99 one at a time and under 20 ms with
+ten consultations' lines at once; with SAL-4's partial path (under 3 ms) and SAL-6's gateway (p99 6.2 ms) the stack adds about 30 ms at worst
 to the 2 s target. The rest is the model's own time to answer, which only a run with real credentials can measure
 (blocked: the DPA and the region, `processors.md`): its time per line for the chosen model and effort (the default
 is `claude-opus-5-5` at effort `low`, which always thinks; `LLM_MODEL` can name a faster one, the owner's choice),

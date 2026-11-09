@@ -25,7 +25,6 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/llm"
 	"github.com/Shmeeshmee/salus/pkg/llm/anthropic"
 	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
-	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 	"github.com/Shmeeshmee/salus/pkg/stt"
 	"github.com/Shmeeshmee/salus/pkg/stt/azure"
@@ -166,9 +165,9 @@ func benchPartial(b *testing.B, r stt.Recognizer) {
 }
 
 // The translated line's latency (SAL-5, target on screen under 2 s): from an audio frame whose result is final to
-// its translated final event read back from the encounter's stream, through the glossary on a real database
-// (terminology on pgtest) and the translator. make bench-translate runs these; the numbers are in
-// docs/plans/consult-intelligence.PROGRESS.md.
+// its translated final event read back from the encounter's stream, through the translator; the glossary is a fake
+// here (a domain's test may not build another's repository), its own lookup is BenchmarkGlossary in terminology.
+// make bench-translate runs these; the numbers are in docs/plans/consult-intelligence.PROGRESS.md.
 
 // finalEcho answers every frame of audio with a final result at once.
 type finalEcho struct{}
@@ -220,13 +219,12 @@ func BenchmarkTranslatedLatency_AnthropicAdapter(b *testing.B) {
 // back from Redis, and reports p50, p95 and p99.
 func benchTranslated(b *testing.B, translator llm.Translator) {
 	rdb := redistest.NewClient(b)
-	_, app := pgtest.NewAppDatabase(b)
 	calls := newCalls()
 	languages := &fakeLanguages{patient: "tr", clinic: "bs"}
 	svc := transcript.NewLive(transcript.LivePorts{
 		Calls: calls, Appointments: languages, Accounts: languages, Clinics: languages,
 		Publisher: transcript.NewRedisPublisher(rdb), Recognizer: finalEcho{}, Translator: translator,
-		Glossary: terminology.NewService(terminology.NewPostgresRepository(app), nil),
+		Glossary: &fakeGlossary{entries: []terminology.GlossaryEntry{{Source: "baş ağrısı", Target: "glavobolja"}}},
 		Clock:    clock.System{}, Log: slog.New(slog.DiscardHandler),
 	})
 	b.Cleanup(svc.Stop)
