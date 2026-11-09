@@ -31,6 +31,14 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # The app's languages (docs/i18n/SPEC.md §3): Material's and Cupertino's own texts, right to left for Arabic, and
+  # the catalogs generated from lib/l10n/*.arb (l10n.yaml). Shipped with the Flutter SDK.
+  flutter_localizations:
+    sdk: flutter
+  # Plurals, dates, times and numbers in the UI language; the generated catalogs need it. Pinned exact, the
+  # version flutter_localizations resolves.
+  intl: 0.20.3
+
   # Generated from api/openapi.yaml by `make gen-clients`.
   salus_api:
     path: packages/salus_api
@@ -89,6 +97,9 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
 
+  # Generates lib/l10n/app_localizations*.dart from the catalogs (l10n.yaml).
+  generate: true
+
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
@@ -124,3 +135,15 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+  # Arabic letters (docs/i18n/SPEC.md §3 "Fonts"): Noto Sans Arabic v2.013, the unhinted static fonts from the
+  # notofonts/arabic release, under the SIL Open Font License (assets/fonts/NotoSansArabic-OFL.txt). Bundled:
+  # no font is loaded from the network. The theme names it as a fallback (lib/app.dart).
+  fonts:
+    - family: NotoSansArabic
+      fonts:
+        - asset: assets/fonts/NotoSansArabic-Regular.ttf
+        - asset: assets/fonts/NotoSansArabic-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansArabic-Bold.ttf
+          weight: 700

@@ -166,11 +166,19 @@ type patient struct {
 	name      string
 }
 
-// newPatientWithProfile registers a patient, signs in and completes the profile with synthetic values.
+// newPatientWithProfile registers a patient whose phone is in English, signs in and completes the profile with
+// synthetic values. The app matches the phone's language and sends it (docs/i18n SPEC §3), so the e-mails these
+// journeys read are the English ones.
 func newPatientWithProfile(t *testing.T) *patient {
 	t.Helper()
+	return newPatientIn(t, "en")
+}
+
+// newPatientIn is newPatientWithProfile for a phone whose language the app matched to language.
+func newPatientIn(t *testing.T, language string) *patient {
+	t.Helper()
 	p := &patient{api: newAPI(t), addr: email(t, "patient")}
-	p.must(http.StatusCreated, http.MethodPost, "/auth/register", map[string]string{"email": p.addr, "password": password}, nil)
+	p.must(http.StatusCreated, http.MethodPost, "/auth/register", map[string]string{"email": p.addr, "password": password, "detectedLanguage": language}, nil)
 	p.bearer = p.login(p.addr).Token
 	if got := p.do(http.MethodGet, "/me/patient", nil, nil); got != http.StatusNotFound {
 		t.Fatalf("GET /me/patient before the profile = %d, want 404", got)

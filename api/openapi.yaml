@@ -103,6 +103,46 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+    patch:
+      operationId: updateMe
+      summary: Choose the account's language
+      description: >-
+        Saves the language the user picked (docs/i18n/SPEC.md §3 "Picking and saving"); it wins on every
+        device from then on, and e-mails use it. `null` clears it: the app follows the browser's or the
+        device's language again. A staff account takes only a staff language. Audited.
+      tags: [auth]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/UpdateMeRequest"}
+      responses:
+        "200":
+          description: The account, changed.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Account"}
+        "400":
+          description: "`invalid_request`: a body that is not the request (a tag outside the list included)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/CSRF"
+        "422":
+          description: "`language_unavailable`: a staff account chose a language the web app does not offer."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /auth/login:
     post:
       operationId: login
@@ -973,6 +1013,14 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "412":
           $ref: "#/components/responses/QuestionnaireChanged"
+        "422":
+          description: >-
+            `translation_incomplete`: a translation lacks some of the version's texts; `language` names the
+            translation and `linkIds` the items it lacks, in document order (none when only the title is
+            missing). A patient never sees a half-translated questionnaire: finish or remove it.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
   /questionnaires/{id}/retire:
@@ -1487,6 +1535,56 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /questionnaire-responses/{id}/start:
+    parameters:
+      - $ref: "#/components/parameters/QuestionnaireResponseID"
+    post:
+      operationId: startQuestionnaire
+      summary: Choose the language to answer in
+      description: >-
+        The patient starts their questionnaire in a language it has: its original language or one of its
+        complete translations (docs/i18n/SPEC.md §3 "The patient's language"). The language may be chosen
+        again until the first answer is saved, not after. The appointment's practitioner reads the questions
+        in it. Not cached. Audited, also when refused.
+      tags: [questionnaires]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/StartQuestionnaireRequest"}
+      responses:
+        "200":
+          $ref: "#/components/responses/QuestionnaireResponse"
+        "400":
+          description: "`invalid_request`: a body that is not the request (a tag outside the list included)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/AnswersForbidden"
+        "404":
+          $ref: "#/components/responses/QuestionnaireResponseNotFound"
+        "409":
+          description: >-
+            `language_locked`: an answer or a file is saved, so the language stays; and the answers' `submitted`,
+            `withdrawn`, `appointment_closed`, `past_due`, `consent_required`.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422":
+          description: "`language_unavailable`: the questionnaire is neither written nor completely translated in it."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /questionnaire-responses/{id}/answers:
     parameters:
       - $ref: "#/components/parameters/QuestionnaireResponseID"
@@ -1797,6 +1895,73 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /terminology/search:
+    get:
+      operationId: searchTerminology
+      summary: Search the medical terminology
+      description: >-
+        The cheatsheet's search (docs/terminology/SPEC.md §3 "API and UI"). Matches q against every label of every
+        term in every language, case and accents aside: an exact label first, then a label that starts with q,
+        then a word within trigram distance (later words of a label, misspellings), then the more common term.
+        Each match carries its labels in the requested languages. Staff only (practitioners and admins). Not
+        audited: it reads no patient data. The search text is never logged or stored, and no error repeats it.
+      tags: [terminology]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: The search text, 1 to 100 characters.
+          schema: {type: string, minLength: 1, maxLength: 100}
+        - name: languages
+          in: query
+          required: false
+          description: >-
+            The languages whose labels come back, in the order the client shows them. Default: la, the caller's
+            UI language, en.
+          style: form
+          explode: false
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 11
+            uniqueItems: true
+            items: {$ref: "#/components/schemas/TermLanguage"}
+        - name: category
+          in: query
+          required: false
+          description: Only terms of this category; any when absent.
+          schema: {$ref: "#/components/schemas/TermCategory"}
+        - name: limit
+          in: query
+          required: false
+          description: How many terms at most.
+          schema: {type: integer, format: int32, minimum: 1, maximum: 25, default: 10}
+      responses:
+        "200":
+          description: The matching terms, best first; an empty list when none match.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TermList"}
+        "400":
+          description: "`invalid_request`: q missing, blank or longer than 100 characters, or an unknown language, category or limit."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: the caller is not staff of a clinic (a patient)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /webhooks/livekit:
     post:
       operationId: receiveLiveKitWebhook
@@ -2067,6 +2232,14 @@ components:
           type: string
         password:
           type: string
+        language:
+          $ref: "#/components/schemas/Language"
+          description: The language the user picked on the device before signing in; saved as their choice.
+        detectedLanguage:
+          $ref: "#/components/schemas/Language"
+          description: >-
+            The language the client matched from the browser's or the device's languages; saved for e-mails
+            while the user has no choice of their own.
     LoginResponse:
       type: object
       required: [next]
@@ -2135,6 +2308,14 @@ components:
           minLength: 12
           maxLength: 128
           description: Counted in characters, not bytes.
+        language:
+          $ref: "#/components/schemas/Language"
+          description: The language the user picked on the device before signing in; saved as their choice.
+        detectedLanguage:
+          $ref: "#/components/schemas/Language"
+          description: >-
+            The language the client matched from the browser's or the device's languages; saved for e-mails
+            while the user has no choice of their own.
     InviteRequest:
       type: object
       required: [email, role]
@@ -2193,6 +2374,14 @@ components:
           minLength: 12
           maxLength: 128
           description: Counted in characters, not bytes.
+        language:
+          $ref: "#/components/schemas/Language"
+          description: The language the user picked on the device before signing in; saved as their choice.
+        detectedLanguage:
+          $ref: "#/components/schemas/Language"
+          description: >-
+            The language the client matched from the browser's or the device's languages; saved for e-mails
+            while the user has no choice of their own.
     Acceptance:
       type: object
       required: [challenge, secret, uri]
@@ -2230,6 +2419,79 @@ components:
             otherwise.
         mfaEnrolled:
           type: boolean
+        language:
+          $ref: "#/components/schemas/Language"
+          description: >-
+            The language the user chose; absent while they follow the browser's or the device's language,
+            which the client then matches itself.
+    UpdateMeRequest:
+      type: object
+      required: [language]
+      additionalProperties: false
+      properties:
+        language:
+          description: The language chosen, or `null` to follow the browser's or the device's language again.
+          oneOf:
+            - $ref: "#/components/schemas/Language"
+            - type: "null"
+    Language:
+      type: string
+      enum: [bs, hr, sr-Latn, sr-Cyrl, en, de, ar, tr, it, fr]
+      description: >-
+        A BCP 47 tag (docs/i18n/SPEC.md §3 "Tags"). Staff accounts and a clinic's default language take only
+        the staff languages, the first five: bs, hr, sr-Latn, sr-Cyrl, en. Serbian is ijekavian in both scripts.
+    TermLanguage:
+      type: string
+      enum: [la, bs, hr, sr-Latn, sr-Cyrl, en, de, ar, tr, it, fr]
+      description: A label's language (docs/terminology/SPEC.md §3 "Database"), Latin then the ten app languages.
+    TermCategory:
+      type: string
+      enum: [anatomy, diagnosis, symptom, procedure, drug]
+    TermCodes:
+      type: object
+      description: >-
+        The codes that identify the term, each absent when it has none; several codes of one kind are joined
+        with ", ". Identifiers only, from Wikidata (docs/terminology/SOURCES.md).
+      properties:
+        wikidata: {type: string, description: "The Wikidata item, e.g. Q9368."}
+        icd10: {type: string}
+        ta98: {type: string, description: Terminologia Anatomica 98.}
+        atc: {type: string}
+        pcs: {type: string, description: An ICD-10-PCS or ICD-9-CM procedure code.}
+    TermLabels:
+      type: object
+      required: [language, preferred, synonyms]
+      properties:
+        language: {$ref: "#/components/schemas/TermLanguage"}
+        preferred: {type: string, description: "The preferred label in this language; the first alphabetically when none is marked."}
+        synonyms:
+          type: array
+          description: The other labels in this language, alphabetically; empty when there are none.
+          items: {type: string}
+    Term:
+      type: object
+      required: [id, category, reviewStatus, codes, labels]
+      properties:
+        id: {type: string, format: uuid}
+        category: {$ref: "#/components/schemas/TermCategory"}
+        reviewStatus:
+          type: string
+          enum: [draft, reviewed]
+          description: "`draft` until the curator has reviewed the term (the UI marks it \"Not reviewed yet\")."
+        codes: {$ref: "#/components/schemas/TermCodes"}
+        labels:
+          type: array
+          description: >-
+            One entry per requested language that has a label, in the order requested. A language with no label
+            is absent: gaps are never filled by machine translation.
+          items: {$ref: "#/components/schemas/TermLabels"}
+    TermList:
+      type: object
+      required: [terms]
+      properties:
+        terms:
+          type: array
+          items: {$ref: "#/components/schemas/Term"}
     Patient:
       type: object
       required: [id, givenName, familyName, birthDate, versionId, lastUpdated]
@@ -2494,6 +2756,16 @@ components:
           maxItems: 200
           items: {$ref: "#/components/schemas/QuestionnaireItem"}
           description: At most 200 items in all, sections and instructions included.
+        language:
+          $ref: "#/components/schemas/Language"
+          description: The original language; absent keeps the draft's (a new questionnaire's is the clinic's default language).
+        translations:
+          type: array
+          items: {$ref: "#/components/schemas/QuestionnaireTranslation"}
+          description: >-
+            The draft's translations, all of them: one per language, none in the original language. A
+            translation may be incomplete while the version is a draft; publishing refuses it until complete.
+            Absent keeps the draft's.
     QuestionnaireItem:
       type: object
       required: [linkId, text, type]
@@ -2594,6 +2866,15 @@ components:
         item:
           type: array
           items: {$ref: "#/components/schemas/QuestionnaireItem"}
+        language:
+          $ref: "#/components/schemas/Language"
+          description: The original language (Questionnaire.language).
+        translations:
+          type: array
+          items: {$ref: "#/components/schemas/QuestionnaireTranslation"}
+          description: >-
+            Its translations, in the language list's order. A patient reads them through FHIR, as the
+            translation extension on each translated element.
         lastUpdated:
           type: string
           format: date-time
@@ -2605,6 +2886,39 @@ components:
           type: integer
           format: int32
           description: The version of this row, for If-Match.
+    QuestionnaireTranslation:
+      type: object
+      required: [language, title, items]
+      additionalProperties: false
+      description: A version's texts in another language (docs/i18n/SPEC.md §3 "Questionnaires").
+      properties:
+        language:
+          $ref: "#/components/schemas/Language"
+        title:
+          type: string
+          maxLength: 200
+          description: Empty while not yet translated.
+        description:
+          type: string
+          maxLength: 1000
+        items:
+          type: object
+          description: The items' texts by linkId; an item missing here is not yet translated.
+          additionalProperties: {$ref: "#/components/schemas/QuestionnaireItemTranslation"}
+    QuestionnaireItemTranslation:
+      type: object
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          description: The item's text, within its limits as in the original.
+        help:
+          type: string
+          description: The help text; for an item that has one.
+        options:
+          type: array
+          items: {type: string}
+          description: A choice item's option texts, by the options' position; as many as the item has.
     QuestionnaireDefault:
       type: object
       required: [practitionerRoleId, versionId]
@@ -2673,6 +2987,13 @@ components:
           type: array
           minItems: 1
           items: {$ref: "#/components/schemas/AnswerValue"}
+    StartQuestionnaireRequest:
+      type: object
+      required: [language]
+      additionalProperties: false
+      properties:
+        language:
+          $ref: "#/components/schemas/Language"
     SaveAnswersRequest:
       type: object
       required: [answers]
@@ -2718,6 +3039,9 @@ components:
           type: string
           format: date-time
           description: When the patient submitted; absent before.
+        language:
+          $ref: "#/components/schemas/Language"
+          description: The language the patient answers in; absent until they start.
         lastUpdated:
           type: string
           format: date-time
@@ -2814,12 +3138,20 @@ components:
             - scanning
             - range_not_satisfiable
             - attachments_pending
+            - language_unavailable
+            - language_locked
+            - translation_incomplete
             - internal error
             - timeout
         linkIds:
           type: array
           items: {type: string}
-          description: With `invalid_questionnaire` and `answers_invalid` only, the offending items' linkIds in document order.
+          description: >-
+            With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending
+            items' linkIds in document order.
+        language:
+          $ref: "#/components/schemas/Language"
+          description: With `translation_incomplete` only, the translation that is incomplete.
     ConsultationJoin:
       type: object
       required: [url, token, expiresAt, peerName, role]

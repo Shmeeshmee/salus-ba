@@ -21,6 +21,8 @@ const (
 	systemItemControl    = "http://hl7.org/fhir/questionnaire-item-control"
 	extensionMimeType    = "http://hl7.org/fhir/StructureDefinition/mimeType"
 	extensionMaxOccurs   = "http://hl7.org/fhir/StructureDefinition/questionnaire-maxOccurs"
+	// extensionTranslation carries a text's translation into one language (docs/i18n/SPEC.md §3 "FHIR").
+	extensionTranslation = "http://hl7.org/fhir/StructureDefinition/translation"
 )
 
 // mimeTypes are the content types of each kind of file, as the server detects them.
@@ -57,19 +59,23 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /fhir/R4/Questionnaire", h.search)
 }
 
-// Resource is a Questionnaire as FHIR R4 JSON.
+// Resource is a Questionnaire as FHIR R4 JSON. Language is the original language; the _-prefixed elements
+// carry the translations of the text beside them.
 type Resource struct {
-	ResourceType string     `json:"resourceType"`
-	ID           string     `json:"id"`
-	Meta         fhir.Meta  `json:"meta"`
-	URL          string     `json:"url"`
-	Version      string     `json:"version"`
-	Title        string     `json:"title"`
-	Status       Status     `json:"status"`
-	SubjectType  []string   `json:"subjectType"`
-	Date         string     `json:"date"`
-	Description  string     `json:"description,omitempty"`
-	Item         []fhirItem `json:"item,omitempty"`
+	ResourceType   string     `json:"resourceType"`
+	ID             string     `json:"id"`
+	Meta           fhir.Meta  `json:"meta"`
+	Language       string     `json:"language,omitempty"`
+	URL            string     `json:"url"`
+	Version        string     `json:"version"`
+	Title          string     `json:"title"`
+	TitleExt       *element   `json:"_title,omitempty"`
+	Status         Status     `json:"status"`
+	SubjectType    []string   `json:"subjectType"`
+	Date           string     `json:"date"`
+	Description    string     `json:"description,omitempty"`
+	DescriptionExt *element   `json:"_description,omitempty"`
+	Item           []fhirItem `json:"item,omitempty"`
 }
 
 // fhirItem is a Questionnaire.item. Help text is a child display item with the help item control.
@@ -77,12 +83,36 @@ type fhirItem struct {
 	Extension    []extension  `json:"extension,omitempty"`
 	LinkID       string       `json:"linkId"`
 	Text         string       `json:"text"`
+	TextExt      *element     `json:"_text,omitempty"`
 	Type         string       `json:"type"`
 	EnableWhen   []enableWhen `json:"enableWhen,omitempty"`
-	AnswerOption []Option     `json:"answerOption,omitempty"`
+	AnswerOption []fhirOption `json:"answerOption,omitempty"`
 	Item         []fhirItem   `json:"item,omitempty"`
 	Required     bool         `json:"required,omitempty"`
 	Repeats      bool         `json:"repeats,omitempty"`
+}
+
+// fhirOption is a Questionnaire.item.answerOption with its translations.
+type fhirOption struct {
+	ValueStringExt *element `json:"_valueString,omitempty"`
+	ValueString    string   `json:"valueString"`
+}
+
+// element is the extensions of a primitive element in FHIR JSON (_title, _text, …): its translations.
+type element struct {
+	Extension []translation `json:"extension"`
+}
+
+// translation is one translation extension: its parts, lang and content, are extensions too.
+type translation struct {
+	URL       string            `json:"url"`
+	Extension []translationPart `json:"extension"`
+}
+
+type translationPart struct {
+	URL         string `json:"url"`
+	ValueCode   string `json:"valueCode,omitempty"`
+	ValueString string `json:"valueString,omitempty"`
 }
 
 type enableWhen struct {
@@ -100,25 +130,66 @@ type extension struct {
 	ValueInteger         int32                 `json:"valueInteger,omitempty"` // maxFiles, 2 to 10
 }
 
-// ToFHIR is the version q as a FHIR Questionnaire; a QuestionnaireResponse search includes it.
+// ToFHIR is the version q as a FHIR Questionnaire, with the translations it carries; a QuestionnaireResponse
+// search includes it.
 func ToFHIR(q Questionnaire) Resource {
-	return Resource{
-		ResourceType: "Questionnaire", ID: q.ID, Meta: fhir.NewMeta(q.VersionID, q.LastUpdated),
+	r := Resource{
+		ResourceType: "Questionnaire", ID: q.ID, Meta: fhir.NewMeta(q.VersionID, q.LastUpdated), Language: q.Language,
 		URL: CanonicalURL(q.SeriesID), Version: strconv.FormatInt(int64(q.Version), 10), Title: q.Title, Status: q.Status,
 		SubjectType: []string{"Patient"}, Date: q.LastUpdated.UTC().Format(time.RFC3339), Description: q.Description,
-		Item: toFHIRItems(q.Items),
+		TitleExt: translations(q.Translations, func(t Translation) string { return t.Title }),
+		Item:     toFHIRItems(q.Items, q.Translations),
 	}
+	if q.Description != "" {
+		r.DescriptionExt = translations(q.Translations, func(t Translation) string { return t.Description })
+	}
+	return r
 }
 
-func toFHIRItems(items []Item) []fhirItem {
+// translations is the translation extensions of one text, which text gives from each translation: one per
+// translation that has it, in their order; nil when none has.
+func translations(ts []Translation, text func(Translation) string) *element {
+	var out []translation
+	for _, t := range ts {
+		if s := text(t); !blank(s) {
+			out = append(out, translation{URL: extensionTranslation, Extension: []translationPart{
+				{URL: "lang", ValueCode: t.Language}, {URL: "content", ValueString: s},
+			}})
+		}
+	}
+	if out == nil {
+		return nil
+	}
+	return &element{Extension: out}
+}
+
+// answerOptions are the item's answer options with their translations.
+func answerOptions(it Item, ts []Translation) []fhirOption {
+	if len(it.Options) == 0 {
+		return nil
+	}
+	out := make([]fhirOption, 0, len(it.Options))
+	for i, o := range it.Options {
+		out = append(out, fhirOption{ValueString: o.Value, ValueStringExt: translations(ts, func(t Translation) string {
+			if opts := t.Items[it.LinkID].Options; i < len(opts) {
+				return opts[i]
+			}
+			return ""
+		})})
+	}
+	return out
+}
+
+func toFHIRItems(items []Item, ts []Translation) []fhirItem {
 	if len(items) == 0 {
 		return nil
 	}
 	out := make([]fhirItem, 0, len(items))
 	for _, it := range items {
 		f := fhirItem{
-			LinkID: it.LinkID, Text: it.Text, Type: string(it.Type), AnswerOption: it.Options, Item: toFHIRItems(it.Items),
+			LinkID: it.LinkID, Text: it.Text, Type: string(it.Type), AnswerOption: answerOptions(it, ts), Item: toFHIRItems(it.Items, ts),
 			Required: it.Required, Repeats: it.Repeats,
+			TextExt: translations(ts, func(t Translation) string { return t.Items[it.LinkID].Text }),
 		}
 		if it.Type == ItemAttachment {
 			f.Extension, f.Repeats = attachmentExtensions(it), it.MaxFiles > 1
@@ -128,7 +199,8 @@ func toFHIRItems(items []Item) []fhirItem {
 		}
 		if it.Help != "" {
 			// "." is never in a linkId of ours, so the help item's cannot clash with another.
-			f.Item = append(f.Item, fhirItem{LinkID: it.LinkID + ".help", Text: it.Help, Type: string(ItemDisplay), Extension: []extension{{
+			help := translations(ts, func(t Translation) string { return t.Items[it.LinkID].Help })
+			f.Item = append(f.Item, fhirItem{LinkID: it.LinkID + ".help", Text: it.Help, TextExt: help, Type: string(ItemDisplay), Extension: []extension{{
 				URL:                  extensionItemControl,
 				ValueCodeableConcept: &fhir.CodeableConcept{Coding: []fhir.Coding{{System: systemItemControl, Code: "help", Display: "Help-Button"}}},
 			}}})

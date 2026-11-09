@@ -1192,6 +1192,52 @@ synthetic accounts, and check end to end that a rejected file is detached and un
 reads only the clean files of the submitted response, that every upload, status read, download and range request
 is audited, and that a cancellation takes the file's row with the response.
 
+## Languages (`docs/i18n`)
+
+### Package 3.1: the three language fields, end to end
+
+**Processing added.** Three personal-data fields (docs/i18n/SPEC.md §5), added by packages 0.1, 1.1 and 2.1 and
+walked end to end in 3.1:
+
+| Where | Field | Why it is needed |
+| --- | --- | --- |
+| `account` | `language` | The user's chosen language, so every device and every e-mail uses it |
+| `account` | `detected_language` | The language for e-mails when the user hasn't chosen one |
+| `questionnaire_response` | `language` | Which translation the patient answered, so the practitioner reads the questions the patient read |
+
+`account.language` is set only by the user (the picker, or a choice made on the sign-in or registration screen and
+sent with the next sign-in) and cleared by "Use the browser's language" / "Use the device's language".
+`account.detected_language` is the language the client matched from the browser's or the phone's language list at
+the last registration or sign-in; only the matched tag is sent, never the device's list. `questionnaire_response.
+language` is set when the patient starts a questionnaire and cannot change after the first saved answer.
+`organization.default_language` and `questionnaire_translation` hold no personal data. No processor is added: the
+translations are drafted in the repository, and machine translation of questionnaires is out of the feature
+(it would need an AI processor, a DPA and its own SPEC).
+
+**Purpose and lawful basis.** The account's two fields provide the service the user signed up for, in a language
+they read (Art. 6(1)(b)); they are not special-category data, although a language can hint at origin, which is
+why they are minimised (one tag each, no history) and never used for anything but the UI and the e-mails: no
+analytics, marketing or profiling. The response's language is part of the answers, under the questionnaire's
+basis (docs/questionnaire/SPEC.md §4, Art. 9(2)(h)), and is shown only with the answers: the FHIR read without
+the answers does not carry it.
+
+**Access and audit.** The account's fields are read and written only by `auth` (its own account, `GET` and
+`PATCH /auth/me`, sign-in and registration), and every change is audited like any account write; the notification
+job reads the e-mail language through `auth.Service.AccountEmail`, one audited read with the job as agent. The
+response's language follows the response's row-level security and audit (the start is audited, refused or not).
+
+**Logs.** No language appears in a log line, metric or trace next to an account or patient id (checked in 3.1:
+no log call in `internal/` names a language).
+
+**Retention.** Covered by the existing rules: the account's fields go with the account, the response's with the
+response (`retention`); no new table with personal data.
+
+**Tested.** `test/e2e/language_test.go`: a German phone's registration and its German confirmation e-mail; a staff
+choice that holds on the next sign-in from another browser, a patient language refused for staff, and the choice
+cleared; a translated questionnaire answered in English by a German patient, the language locked after the first
+answer and read by the practitioner; an Italian patient on a Bosnian-only questionnaire. All with synthetic
+accounts and placeholder questionnaire wording.
+
 ## Consultation intelligence (`docs/plans/consult-intelligence.md`)
 
 ### P0 (SAL-2): contracts and tables

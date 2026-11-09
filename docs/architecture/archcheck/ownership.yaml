@@ -25,10 +25,13 @@ tables:
   questionnaire: {owner: questionnaire, personal_data: false}
   questionnaire_default: {owner: questionnaire, personal_data: false}
   questionnaire_response: {owner: questionnaireresponse, personal_data: true}
+  questionnaire_translation: {owner: questionnaire, personal_data: false}
   schedule: {owner: schedule, personal_data: true}
   session: {owner: auth, personal_data: true}
   slot: {owner: slot, personal_data: true}
   suggestion: {owner: suggestion, personal_data: true}
+  term: {owner: terminology, personal_data: false}
+  term_label: {owner: terminology, personal_data: false}
   transcript_segment: {owner: transcript, personal_data: true}
   video_session: {owner: videosession, personal_data: true}
   river_job: {owner: river}

@@ -68,7 +68,7 @@ func (s *stubClinics) Update(_ context.Context, c organization.Caller, id string
 }
 
 func clinic(version int32) organization.Organization {
-	return organization.Organization{ID: clinicA, Name: "Synthetic clinic", TimeZone: "Europe/Sarajevo", VersionID: version, LastUpdated: now, Active: true}
+	return organization.Organization{ID: clinicA, Name: "Synthetic clinic", TimeZone: "Europe/Sarajevo", DefaultLanguage: "bs", VersionID: version, LastUpdated: now, Active: true}
 }
 
 type orgServer struct {

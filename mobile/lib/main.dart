@@ -7,6 +7,7 @@ import 'app.dart';
 import 'booking.dart';
 import 'call.dart';
 import 'files.dart';
+import 'l10n/language.dart';
 import 'session.dart';
 import 'token_store.dart';
 
@@ -20,9 +21,10 @@ const apiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://
 const privacyNoticeUrl = String.fromEnvironment('PRIVACY_NOTICE_URL', defaultValue: 'https://salus.invalid/privacy');
 
 void main() {
+  const storage = FlutterSecureStorage();
   final bearer = HttpBearerAuth();
   final client = ApiClient(basePath: apiBaseUrl, authentication: bearer);
-  final session = Session(api: AuthApi(client), bearer: bearer, store: const SecureTokenStore(FlutterSecureStorage()));
+  final session = Session(api: AuthApi(client), bearer: bearer, store: const SecureTokenStore(storage));
   runApp(
     SalusApp(
       session: session,
@@ -30,6 +32,7 @@ void main() {
       now: DateTime.now,
       media: LiveKitMedia(),
       files: DeviceFiles(),
+      languages: const SecureLanguageStore(storage),
       privacyNoticeUrl: Uri.parse(privacyNoticeUrl),
       openUrl: (url) => launchUrl(url, mode: LaunchMode.externalApplication),
     ),

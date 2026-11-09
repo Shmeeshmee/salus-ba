@@ -1,0 +1,45 @@
+/* The medical terms cheatsheet (docs/terminology/SPEC.md §3 "The cheatsheet"): a palette over the page, near the
+   top, one term per row with a cell per language. */
+.cheatsheet-open { padding: 8px; }
+.cheatsheet-backdrop {
+  position: fixed; inset: 0; z-index: 20; display: grid; justify-items: center; align-items: start;
+  padding: 10vh var(--space-gutter) 24px; background: rgba(14, 21, 18, .32);
+}
+.cheatsheet {
+  width: min(100%, 760px); max-height: 100%; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(14, 21, 18, .16); overflow: hidden;
+}
+.cheatsheet-search { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--color-border); color: var(--color-text-muted); }
+.cheatsheet-search input { flex: 1; min-width: 0; border: 0; padding: 10px 4px; font-size: 17px; color: var(--color-ink); }
+.cheatsheet-search input:focus-visible { outline: none; }
+.cheatsheet-search .quiet { font-size: 14px; }
+.cheatsheet-more { justify-self: end; margin: 6px 8px 0; font-size: 14px; }
+.cheatsheet .alert, .cheatsheet-empty { margin: 16px; }
+.cheatsheet-empty { font-size: 15px; }
+.cheatsheet-terms { list-style: none; margin: 0; padding: 6px; overflow-y: auto; display: grid; align-content: start; gap: 2px; }
+.term { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--radius-control); }
+.term[aria-selected='true'] { background: var(--color-mint-faint); }
+.term-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.term-head .tag { font-size: 12px; }
+.term-head .tip [role='tooltip'] { left: 0; right: auto; }
+.tag.draft { color: var(--color-text-muted); background: var(--color-page); border-style: dashed; }
+.term-labels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 16px; }
+.term-label { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: start; gap: 0 4px; min-width: 0; }
+.term-language { grid-column: 1 / -1; font-size: 12px; color: var(--color-text-muted); }
+.term-preferred { font-weight: 600; overflow-wrap: anywhere; }
+.term-synonyms { grid-column: 1; font-size: 14px; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.term-missing { grid-column: 1 / -1; font-size: 14px; color: var(--color-text-muted); }
+.term-copy { grid-column: 2; grid-row: 2; align-self: start; padding: 2px 8px; font-size: 13px; }
+.cheatsheet-source { margin: 0; padding: 8px 16px; font-size: 13px; border-top: 1px solid var(--color-border); }
+
+@keyframes cheatsheet-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: no-preference) {
+  .cheatsheet { animation: cheatsheet-in .12s ease-out; }
+}
+
+@media (max-width: 520px) {
+  .cheatsheet-backdrop { padding: 0; }
+  .cheatsheet { width: 100%; height: 100%; border: 0; border-radius: 0; }
+  .term-labels { grid-template-columns: 1fr; }
+}

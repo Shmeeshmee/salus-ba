@@ -3,8 +3,9 @@ import type { Bundle, Questionnaire, QuestionnaireResponse } from './api/fhir'
 import { answered, requestsOf, statusOf, valueText } from './responses'
 import { newItem } from './builder'
 import { fromFHIR } from './questionnaire'
-import { questionnaireFHIR } from './test/questionnaires'
+import { questionnaireFHIR, translatedFHIR } from './test/questionnaires'
 import { responseFHIR, responsesBundle } from './test/responses'
+import { translator } from './test/translate'
 
 const version = { ...questionnaireFHIR(), status: 'active' as const }
 const items = fromFHIR(version).items
@@ -81,7 +82,15 @@ describe('valueText', () => {
     ['integer', { valueInteger: 0 }, '0'],
     ['date', { valueDate: '1990-01-31' }, '31 January 1990'],
   ] as const)('writes a %s answer', (_, value, text) => {
-    expect(valueText(value)).toBe(text)
+    expect(valueText(value, translator('en'), 'en')).toBe(text)
+  })
+
+  it.each([
+    [{ valueBoolean: true }, 'Da'],
+    [{ valueDecimal: 36.6 }, '36,6'],
+    [{ valueDate: '1990-01-31' }, '31. januar 1990.'],
+  ] as const)('writes %o in the UI language', (value, text) => {
+    expect(valueText(value, translator('bs'), 'bs')).toBe(text)
   })
 })
 
@@ -133,10 +142,49 @@ describe('statusOf', () => {
     ['stopped', before, 'Withdrawn'],
     ['stopped', start, 'Withdrawn'],
   ] as const)('%s at %s is %s', (status, now, text) => {
-    expect(statusOf({ status }, start, now, zone)).toBe(text)
+    expect(statusOf({ status }, start, now, zone, translator('en'), 'en')).toBe(text)
   })
 
   it('gives the submitted date and time in the clinic zone', () => {
-    expect(statusOf({ status: 'completed', authored: '2026-11-08T17:45:00Z' }, start, before, zone)).toBe('Submitted Sunday 8 November 2026, 18:45')
+    expect(statusOf({ status: 'completed', authored: '2026-11-08T17:45:00Z' }, start, before, zone, translator('en'), 'en')).toBe(
+      'Submitted Sunday, 8 November 2026, 18:45',
+    )
+  })
+
+  it('writes the status in the UI language', () => {
+    expect(statusOf({ status: 'completed', authored: '2026-11-08T17:45:00Z' }, start, before, zone, translator('hr'), 'hr')).toBe(
+      'Predan: nedjelja, 8. studenoga 2026. u 18:45',
+    )
+    expect(statusOf({ status: 'stopped' }, start, before, zone, translator('sr-Cyrl'), 'sr-Cyrl')).toBe('Повучен')
+  })
+})
+
+describe('a response answered in a translation', () => {
+  const translated = { ...translatedFHIR(), status: 'active' as const }
+  const answers = [
+    { linkId: 'smoker', answer: [{ valueBoolean: true }] },
+    { linkId: 'sec', item: [{ linkId: 'one', answer: [{ valueString: 'B' }] }, { linkId: 'many', answer: [{ valueString: 'C' }] }] },
+  ]
+  const read = (language?: string) => requestsOf(responsesBundle([{ ...responseFHIR('r1', 'completed', { item: answers }), language } as QuestionnaireResponse], [translated]))[0]
+
+  it('carries the language and the questions and options as the patient read them, the original where a text is missing', () => {
+    const r = read('en')
+    expect(r.language).toBe('en')
+    expect(r.answers.map((b) => b.section)).toEqual([undefined, 'Placeholder section'])
+    expect(r.translated).toEqual([
+      { questions: [{ linkId: 'smoker', text: 'Placeholder yes or no in English', kind: 'boolean', values: [{ valueBoolean: true }] }] },
+      {
+        section: 'Placeholder section in English',
+        questions: [
+          { linkId: 'one', text: 'Placeholder single in English', kind: 'single', values: [{ valueString: 'B in English' }] },
+          { linkId: 'many', text: 'Placeholder multiple', kind: 'multiple', values: [{ valueString: 'C' }] },
+        ],
+      },
+    ])
+  })
+
+  it('has no translated questions when answered in the original language, or before the language was recorded', () => {
+    expect(read('bs')).toMatchObject({ language: 'bs', translated: undefined })
+    expect(read(undefined)).toMatchObject({ language: undefined, translated: undefined })
   })
 })

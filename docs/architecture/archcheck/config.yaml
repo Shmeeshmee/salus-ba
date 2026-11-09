@@ -9,6 +9,7 @@ contexts:
   notification: [notification]
   patient: [patient]
   privacy: [access, auditevent, consent, retention]
+  reference: [terminology]
   scheduling: [appointment, schedule, slot]
 
 # Packages under internal/ that are not domains: configuration and composition roots.

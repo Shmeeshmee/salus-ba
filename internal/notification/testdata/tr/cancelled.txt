@@ -1,0 +1,8 @@
+Subject: Randevunuz iptal edildi
+
+Randevunuz iptal edildi.
+Klinik: Synthetic clinic
+Tarih ve saat: 7 Ocak 2030 Pazartesi, saat 10:00 (Europe/Sarajevo)
+
+Başka bir zamana randevu almak için Salus uygulamasını açın:
+https://patient.example.test/appointments

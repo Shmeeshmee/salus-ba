@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' show NumberFormat;
 
 import 'call.dart' show Access, Kind, Media;
 import 'file_prep.dart' show CannotPrepare, FileKind;
 import 'files.dart';
+import 'l10n/app_localizations.dart';
 import 'messages.dart';
 import 'questionnaire.dart';
 import 'uploads.dart';
@@ -13,38 +15,35 @@ import 'zones.dart';
 // their status, "Add file" and the sheet of sources the item accepts, and the files read only once submitted.
 
 /// The hint under a file upload item (M2): a sentence per accepted kind, in this order, then the number of files.
-String fileHint(Item item) => [
-  if (item.accept.contains(FileKind.photo)) photosUpTo,
-  if (item.accept.contains(FileKind.document)) documentsUpTo,
-  if (item.accept.contains(FileKind.video)) videosUpTo,
-  if (item.maxFiles == 1) oneFileHint else upToFilesHint(item.maxFiles),
+String fileHint(AppLocalizations t, Item item) => [
+  if (item.accept.contains(FileKind.photo)) t.photosUpTo,
+  if (item.accept.contains(FileKind.document)) t.documentsUpTo,
+  if (item.accept.contains(FileKind.video)) t.videosUpTo,
+  if (item.maxFiles == 1) t.oneFileHint else t.upToFilesHint(item.maxFiles),
 ].join(' ');
 
-/// A size as M13 writes it: KB under 1 MB, MB with one decimal from there.
-String fileSize(int bytes) {
-  if (bytes < 999500) return kilobytes(bytes < 1000 ? 1 : (bytes / 1000).round());
-  return megabytes((bytes / 1000000).toStringAsFixed(1));
+/// A size as M13 writes it: KB under 1 MB, MB with one decimal from there, with the language's decimal mark.
+String fileSize(AppLocalizations t, int bytes) {
+  if (bytes < 999500) return t.kilobytes(bytes < 1000 ? 1 : (bytes / 1000).round());
+  return t.megabytes(NumberFormat('0.0', t.localeName).format(bytes / 1000000));
 }
 
-String kindName(FileKind? kind) => switch (kind) {
-  FileKind.photo => photoKind,
-  FileKind.document => documentKind,
-  FileKind.video => videoKind,
+String kindName(AppLocalizations t, FileKind? kind) => switch (kind) {
+  FileKind.photo => t.photoKind,
+  FileKind.document => t.documentKind,
+  FileKind.video => t.videoKind,
   null => '',
 };
 
-/// The number of files of a submitted answer (M12).
-String fileCount(int n) => n == 1 ? oneFile : filesCount(n);
-
 /// The sources [item] accepts, in M3's order.
-List<(Source, String)> sourcesOf(Item item) {
+List<(Source, String)> sourcesOf(AppLocalizations t, Item item) {
   final photo = item.accept.contains(FileKind.photo);
   final video = item.accept.contains(FileKind.video);
   return [
-    if (photo) (Source.camera, takePhoto),
-    if (video) (Source.videoCamera, recordVideo),
-    if (photo || video) (Source.library, chooseFromPhotos),
-    if (item.accept.contains(FileKind.document)) (Source.document, chooseDocument),
+    if (photo) (Source.camera, t.takePhoto),
+    if (video) (Source.videoCamera, t.recordVideo),
+    if (photo || video) (Source.library, t.chooseFromPhotos),
+    if (item.accept.contains(FileKind.document)) (Source.document, t.chooseDocument),
   ];
 }
 
@@ -55,20 +54,20 @@ Future<Source?> chooseSource(BuildContext context, Item item) => showModalBottom
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final (source, label) in sourcesOf(item))
+        for (final (source, label) in sourcesOf(context.t, item))
           ListTile(title: Text(label), onTap: () => Navigator.of(context).pop(source)),
-        ListTile(title: const Text(cancel), onTap: () => Navigator.of(context).pop()),
+        ListTile(title: Text(context.t.cancel), onTap: () => Navigator.of(context).pop()),
       ],
     ),
   ),
 );
 
 /// The title of a file from the camera (M21, M22): its kind and the patient's local date and time at [taken].
-String cameraTitle(Source source, DateTime taken) {
+String cameraTitle(AppLocalizations t, Source source, DateTime taken) {
   final local = taken.toLocal();
-  final date = Zone.longDate(DateTime.utc(local.year, local.month, local.day));
+  final date = Zone.longDate(DateTime.utc(local.year, local.month, local.day), t.localeName);
   final time = Zone.clock(local);
-  return source == Source.videoCamera ? cameraVideoTitle(date, time) : cameraPhotoTitle(date, time);
+  return source == Source.videoCamera ? t.cameraVideoTitle(date, time) : t.cameraPhotoTitle(date, time);
 }
 
 /// "Add file": the sheet, the camera's permission when a camera source is chosen, then the picker. Answers the
@@ -81,6 +80,7 @@ Future<({Picked? picked, String? error})?> pickFile(
   required Files files,
   required DateTime Function() now,
 }) async {
+  final t = context.t;
   final source = await chooseSource(context, item);
   if (source == null || !context.mounted) return null;
   final camera = source == Source.camera || source == Source.videoCamera;
@@ -92,15 +92,15 @@ Future<({Picked? picked, String? error})?> pickFile(
       videos: item.accept.contains(FileKind.video),
     );
     if (picked == null) return null;
-    final titled = camera ? Picked(path: picked.path, name: picked.name, title: cameraTitle(source, now())) : picked;
+    final titled = camera ? Picked(path: picked.path, name: picked.name, title: cameraTitle(t, source, now())) : picked;
     return (picked: titled, error: null);
   } on AccessRefused catch (r) {
     if (context.mounted) {
-      await _refused(context, media, r.refused == Refused.camera ? cameraDeniedForFiles : photosDenied);
+      await _refused(context, media, r.refused == Refused.camera ? t.cameraDeniedForFiles : t.photosDenied);
     }
     return null;
   } on CannotPrepare {
-    return (picked: null, error: cannotPrepareFile);
+    return (picked: null, error: t.cannotPrepareFile);
   }
 }
 
@@ -112,18 +112,18 @@ Future<bool> _cameraAllowed(BuildContext context, Media media) async {
     access = await media.ask(Kind.camera);
   }
   if (access == Access.allowed) return true;
-  if (context.mounted) await _refused(context, media, cameraDeniedForFiles);
+  if (context.mounted) await _refused(context, media, context.t.cameraDeniedForFiles);
   return false;
 }
 
 Future<bool?> _explainCamera(BuildContext context) => showDialog<bool>(
   context: context,
   builder: (context) => AlertDialog(
-    title: const Text(allowCamera),
-    content: const Text(whyCameraForFiles),
+    title: Text(context.t.allowCamera),
+    content: Text(context.t.whyCameraForFiles),
     actions: [
-      TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text(notNow)),
-      TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text(continueLabel)),
+      TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(context.t.notNow)),
+      TextButton(onPressed: () => Navigator.of(context).pop(true), child: Text(context.t.continueLabel)),
     ],
   ),
 );
@@ -134,13 +134,13 @@ Future<void> _refused(BuildContext context, Media media, String text) => showDia
   builder: (context) => AlertDialog(
     content: Text(text),
     actions: [
-      TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text(cancel)),
+      TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(context.t.cancel)),
       TextButton(
         onPressed: () {
           Navigator.of(context).pop();
           media.openSettings();
         },
-        child: const Text(openSettings),
+        child: Text(context.t.openSettings),
       ),
     ],
   ),
@@ -176,13 +176,13 @@ class FileField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         header,
-        Text(fileHint(item), style: small),
+        Text(fileHint(context.t, item), style: small),
         for (final f in files)
           _FileRow(file: f, enabled: enabled, onRetry: () => onRetry(f), onRemove: () => onRemove(f)),
         if (enabled && files.length < item.maxFiles)
           Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton(onPressed: onAdd, child: const Text(addFile)),
+            alignment: AlignmentDirectional.centerStart,
+            child: OutlinedButton(onPressed: onAdd, child: Text(context.t.addFile)),
           ),
         if (error != null) Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
       ],
@@ -198,19 +198,21 @@ class _FileRow extends StatelessWidget {
   final VoidCallback onRetry;
   final VoidCallback onRemove;
 
-  String get _status => switch (file.state) {
-    FileState.preparing => preparing,
-    FileState.uploading => uploadingPercent(file.percent),
-    FileState.checking => checkingFile,
-    FileState.added => added,
-    FileState.failed => notUploaded,
+  String _status(AppLocalizations t) => switch (file.state) {
+    FileState.preparing => t.preparing,
+    FileState.uploading => t.uploadingPercent(file.percent),
+    FileState.checking => t.checkingFile,
+    FileState.added => t.added,
+    FileState.failed => t.notUploaded,
   };
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final f = file;
-    final kind = kindName(f.kind);
+    final t = context.t;
+    final kind = kindName(t, f.kind);
+    final status = _status(t);
     final failed = f.state == FileState.failed;
     final removable = enabled && (f.state == FileState.checking || f.state == FileState.added);
     return Padding(
@@ -224,22 +226,23 @@ class _FileRow extends StatelessWidget {
                 // Its own node for TalkBack and VoiceOver, not merged into the question (M14).
                 child: Semantics(
                   container: true,
-                  label: fileLabel(kind, f.title, _status),
+                  label: t.fileLabel(kind, f.title, status),
                   excludeSemantics: true,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(f.title),
-                      if (f.kind != null) Text(kindAndSize(kind, fileSize(f.size)), style: theme.textTheme.bodySmall),
+                      if (f.kind != null)
+                        Text(t.kindAndSize(kind, fileSize(t, f.size)), style: theme.textTheme.bodySmall),
                       Text(
-                        _status,
+                        status,
                         style: failed ? TextStyle(color: theme.colorScheme.error) : theme.textTheme.bodySmall,
                       ),
                     ],
                   ),
                 ),
               ),
-              if (removable) IconButton(icon: const Icon(Icons.close), tooltip: removeFile, onPressed: onRemove),
+              if (removable) IconButton(icon: const Icon(Icons.close), tooltip: t.removeFile, onPressed: onRemove),
             ],
           ),
           if (f.state == FileState.uploading)
@@ -247,14 +250,14 @@ class _FileRow extends StatelessWidget {
               container: true,
               child: LinearProgressIndicator(
                 value: f.percent / 100,
-                semanticsLabel: uploadingLabel(f.title, f.percent),
+                semanticsLabel: t.uploadingLabel(f.title, f.percent),
               ),
             ),
           if (failed && enabled)
             Row(
               children: [
-                TextButton(onPressed: onRetry, child: const Text(tryAgain)),
-                TextButton(onPressed: onRemove, child: const Text(remove)),
+                TextButton(onPressed: onRetry, child: Text(t.tryAgain)),
+                TextButton(onPressed: onRemove, child: Text(t.remove)),
               ],
             ),
         ],
@@ -264,10 +267,13 @@ class _FileRow extends StatelessWidget {
 }
 
 /// A submitted file upload answer read only (M12, M13): the number of files, then each title with its kind and size.
-List<Widget> filesRead(BuildContext context, List<Attached> files) => [
-  Text(fileCount(files.length)),
-  for (final f in files) ...[
-    Text(f.title),
-    Text(kindAndSize(kindName(f.kind), fileSize(f.size)), style: Theme.of(context).textTheme.bodySmall),
-  ],
-];
+List<Widget> filesRead(BuildContext context, List<Attached> files) {
+  final t = context.t;
+  return [
+    Text(t.fileCount(files.length)),
+    for (final f in files) ...[
+      Text(f.title),
+      Text(t.kindAndSize(kindName(t, f.kind), fileSize(t, f.size)), style: Theme.of(context).textTheme.bodySmall),
+    ],
+  ];
+}

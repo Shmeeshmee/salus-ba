@@ -1,4 +1,4 @@
-# Web: lint, typecheck, tests, build, and the generated TypeScript client.
+# Web: lint (after the catalog check), typecheck, tests, build, and the generated TypeScript client.
 # Runs on every pull request so its required checks always report; the jobs skip when no path matching the
 # filter changed (a skipped job counts as passed). Everything runs through make in Docker, as locally.
 name: web
@@ -26,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: filter
-        run: bash scripts/ci-changed.sh '^web/|^api/openapi\.yaml$|^build/package/node\.Dockerfile$|^deployments/|^(Makefile|\.github/workflows/web\.yml)$' >> "$GITHUB_OUTPUT"
+        run: bash scripts/ci-changed.sh '^web/|^api/openapi\.yaml$|^scripts/i18n-check\.|^build/package/node\.Dockerfile$|^deployments/|^(Makefile|\.github/workflows/web\.yml)$' >> "$GITHUB_OUTPUT"
 
   web:
     needs: changes

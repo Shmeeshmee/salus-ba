@@ -1,0 +1,3 @@
+salusctl terminology import liver-draft.csv
+created 0, updated 1, unchanged 0, refused 0
+terms: anatomy 1500, diagnosis 2000, symptom 500, procedure 143, drug 800

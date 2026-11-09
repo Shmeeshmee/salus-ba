@@ -1,0 +1,22 @@
+{
+  "email": "E-mail",
+  "loading": "Učitavanje",
+  "noPractitioners": "Još nema ljekara.",
+  "practitioner": "Ljekar",
+  "reload": "Učitaj ponovo",
+  "save": "Sačuvaj",
+  "saving": "Čuvanje",
+  "somethingWrong": "Nešto nije u redu. Pokušajte ponovo.",
+  "specialty.394537008": "Pedijatrija",
+  "specialty.394579002": "Kardiologija",
+  "specialty.394582007": "Dermatologija",
+  "specialty.394583002": "Endokrinologija",
+  "specialty.394586005": "Ginekologija",
+  "specialty.394587001": "Psihijatrija",
+  "specialty.394591006": "Neurologija",
+  "specialty.394594003": "Oftalmologija",
+  "specialty.394801008": "Ortopedija",
+  "specialty.394814009": "Opća medicina",
+  "specialty.418960008": "ORL",
+  "specialty.419192003": "Interna medicina"
+}

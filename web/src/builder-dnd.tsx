@@ -16,7 +16,7 @@ import {
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type Ref } from 'react'
 import { at, cancelled, find, insert, move, newItem, rowsOf, type Item, type Kind, type Result, type Row } from './builder'
-import { questionnaires as t } from './messages'
+import { useT } from './i18n/useT'
 
 // The builder's drag and drop: the only module that imports @dnd-kit (an oxlint rule keeps it so). It maps
 // @dnd-kit's events onto builder.ts and sets every text @dnd-kit gives a screen reader to COPY W41 and W42.
@@ -75,6 +75,7 @@ type AreaProps = {
 // DragArea is the drag-and-drop context of the palette and the list. While a section is moved, children
 // get true and list the top level only.
 export function DragArea({ items, label, newLinkId, onChange, onNested, children }: AreaProps) {
+  const t = useT()
   const [active, setActive] = useState<string>()
   const lastOver = useRef<UniqueIdentifier>(undefined) // the drop place last announced
   const sensors = useSensors(
@@ -84,20 +85,20 @@ export function DragArea({ items, label, newLinkId, onChange, onNested, children
   )
   const name = (id: UniqueIdentifier) => {
     const s = String(id)
-    if (s.startsWith(fromPalette)) return t.kinds[s.slice(fromPalette.length) as Kind]
+    if (s.startsWith(fromPalette)) return t(`questionnaire.kinds.${s.slice(fromPalette.length) as Kind}`)
     const it = find(items, s)
     return it ? label(it) : ''
   }
   const placed = (p: Projection | undefined) => {
     if (!p) return undefined
-    return p.result.ok ? at(p.result.items, p.id, label, false) : t.nestedSection
+    return p.result.ok ? at(p.result.items, p.id, label, false, t) : t('questionnaire.nestedSection')
   }
   const fromList = (id: UniqueIdentifier) => !String(id).startsWith(fromPalette)
 
   const announcements: Announcements = {
     onDragStart: ({ active }) => {
       lastOver.current = active.id // a drag starts over its own place: "Moving" is said, not the place
-      return t.moving(name(active.id))
+      return t('questionnaire.moving', { item: name(active.id) })
     },
     onDragOver: ({ active, over }) => {
       if (over?.id === lastOver.current) return undefined
@@ -106,10 +107,10 @@ export function DragArea({ items, label, newLinkId, onChange, onNested, children
     },
     onDragEnd: ({ active, over }) => {
       const p = project(items, active.id, over?.id, 'new')
-      if (p?.result.ok) return at(p.result.items, p.id, label, true)
-      return fromList(active.id) ? cancelled(items, String(active.id), label) : undefined
+      if (p?.result.ok) return at(p.result.items, p.id, label, true, t)
+      return fromList(active.id) ? cancelled(items, String(active.id), label, t) : undefined
     },
-    onDragCancel: ({ active }) => (fromList(active.id) ? cancelled(items, String(active.id), label) : undefined),
+    onDragCancel: ({ active }) => (fromList(active.id) ? cancelled(items, String(active.id), label, t) : undefined),
   }
 
   function onDragEnd({ active, over }: DragEndEvent) {
@@ -125,7 +126,7 @@ export function DragArea({ items, label, newLinkId, onChange, onNested, children
     <DndContext
       sensors={sensors}
       collisionDetection={closestTop}
-      accessibility={{ announcements, screenReaderInstructions: { draggable: t.dragInstructions } }}
+      accessibility={{ announcements, screenReaderInstructions: { draggable: t('questionnaire.dragInstructions') } }}
       onDragStart={({ active }) => setActive(String(active.id))}
       onDragEnd={onDragEnd}
       onDragCancel={() => setActive(undefined)}

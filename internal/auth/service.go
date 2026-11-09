@@ -93,8 +93,12 @@ func NewService(p Ports) *Service {
 
 // Register creates a patient account. The e-mail is trimmed and lower-cased; the password is stored only as
 // its argon2id hash. A taken e-mail gives ErrEmailTaken (SPEC.md "E-mail as login": this does reveal that
-// the e-mail has an account).
-func (s *Service) Register(ctx context.Context, email, password string) (Account, error) {
+// the e-mail has an account). language is the language the user chose on the device and detected the one
+// the app matched (docs/i18n/SPEC.md §3), each "" for none.
+func (s *Service) Register(ctx context.Context, email, password, language, detected string) (Account, error) {
+	if err := checkLanguages(language, detected); err != nil {
+		return Account{}, err
+	}
 	email = normaliseEmail(email)
 	if !validEmail(email) {
 		return Account{}, ErrInvalidEmail
@@ -106,7 +110,7 @@ func (s *Service) Register(ctx context.Context, email, password string) (Account
 	if err != nil {
 		return Account{}, fmt.Errorf("auth: register: %w", err)
 	}
-	a := Account{Email: email, Role: RolePatient, PasswordHash: hash}
+	a := Account{Email: email, Role: RolePatient, PasswordHash: hash, Language: language, DetectedLanguage: detected}
 	var taken bool
 	err = s.tx.WithTx(ctx, func(ctx context.Context) error {
 		id, err := s.repo.Create(ctx, a)

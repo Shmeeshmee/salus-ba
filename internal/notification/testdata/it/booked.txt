@@ -1,0 +1,9 @@
+Subject: Il suo appuntamento è prenotato
+
+Il suo appuntamento presso Synthetic clinic è prenotato.
+Data e ora: lunedì 7 gennaio 2030, ore 10:00 (Europe/Sarajevo)
+
+Per vedere o annullare l'appuntamento, apra l'app Salus:
+https://patient.example.test/appointments
+
+Può annullarlo fino a 24 ore prima dell'inizio.

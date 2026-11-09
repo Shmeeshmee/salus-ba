@@ -23,13 +23,16 @@ class Organization {
 
 /// A practitioner of a clinic: FHIR PractitionerRole with the included Practitioner's name.
 class PractitionerRole {
-  const PractitionerRole({required this.id, required this.name, this.specialty});
+  const PractitionerRole({required this.id, required this.name, this.specialty, this.specialtyCode});
 
   final String id;
   final String name;
 
   /// The specialty's text (or display) as the API gives it; null when the role has none.
   final String? specialty;
+
+  /// The specialty's SNOMED CT code, which names it in the app's language; null when the role has none.
+  final String? specialtyCode;
 }
 
 /// A free FHIR Slot.
@@ -83,6 +86,7 @@ class Fhir {
             id: _string(r['id']),
             name: names[_reference(r['practitioner'])] ?? '',
             specialty: _specialty(r['specialty']),
+            specialtyCode: _specialtyCode(r['specialty']),
           ),
     ];
   }
@@ -183,6 +187,12 @@ class Fhir {
     final concept = specialties.first as Map;
     final coding = (concept['coding'] as List?)?.firstOrNull as Map?;
     return (concept['text'] ?? coding?['display']) as String?;
+  }
+
+  static String? _specialtyCode(Object? specialties) {
+    if (specialties is! List || specialties.isEmpty) return null;
+    final coding = ((specialties.first as Map)['coding'] as List?)?.firstOrNull as Map?;
+    return coding?['system'] == 'http://snomed.info/sct' ? coding!['code'] as String? : null;
   }
 
   static String? _participant(Object? participants, String prefix) {

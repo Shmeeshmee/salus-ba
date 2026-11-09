@@ -1,0 +1,7 @@
+Vaš je termin otkazan
+
+Vaš je termin u ustanovi {{.Clinic}} otkazan.
+Datum i vrijeme: {{.When}}
+
+Za rezervaciju drugog termina otvorite aplikaciju Salus:
+{{.Link}}

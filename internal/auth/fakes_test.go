@@ -26,15 +26,16 @@ func (f *fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context
 
 // fakeRepository holds accounts by id.
 type fakeRepository struct {
-	err        error // returned by every call when set
-	rehashErr  error // returned by SetPasswordHash when set
-	sessionErr error // returned by the session calls when set
-	accounts   map[string]auth.Account
-	rehashed   map[string]string
-	secrets    map[string][]byte // sealed TOTP secrets by account
-	lastStep   map[string]int64
-	sessions   map[string]*fakeSession // by token hash
-	inTx       func()                  // called on the first repository call inside a transaction, when set
+	err         error // returned by every call when set
+	rehashErr   error // returned by SetPasswordHash when set
+	languageErr error // returned by SetLanguage and SetDetectedLanguage when set
+	sessionErr  error // returned by the session calls when set
+	accounts    map[string]auth.Account
+	rehashed    map[string]string
+	secrets     map[string][]byte // sealed TOTP secrets by account
+	lastStep    map[string]int64
+	sessions    map[string]*fakeSession // by token hash
+	inTx        func()                  // called on the first repository call inside a transaction, when set
 	fakeInvites
 	outside []string // the calls made outside a transaction
 	purges  []purge  // the retention deletes, in order
@@ -114,6 +115,34 @@ func (r *fakeRepository) SetPasswordHash(ctx context.Context, id, hash string) e
 	r.seen(ctx, "SetPasswordHash")
 	r.rehashed[id] = hash
 	return r.rehashErr
+}
+
+func (r *fakeRepository) SetLanguage(ctx context.Context, id, language string) error {
+	r.seen(ctx, "SetLanguage")
+	if r.languageErr != nil {
+		return r.languageErr
+	}
+	a, ok := r.accounts[id]
+	if !ok {
+		return auth.ErrNotFound
+	}
+	a.Language = language
+	r.accounts[id] = a
+	return r.err
+}
+
+func (r *fakeRepository) SetDetectedLanguage(ctx context.Context, id, language string) error {
+	r.seen(ctx, "SetDetectedLanguage")
+	if r.languageErr != nil {
+		return r.languageErr
+	}
+	a, ok := r.accounts[id]
+	if !ok {
+		return auth.ErrNotFound
+	}
+	a.DetectedLanguage = language
+	r.accounts[id] = a
+	return r.err
 }
 
 func (r *fakeRepository) TOTPSecret(ctx context.Context, id string) ([]byte, error) {

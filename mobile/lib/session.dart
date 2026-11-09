@@ -109,12 +109,30 @@ class Session {
     }
   }
 
-  Future<void> register(String email, String password) =>
-      apiCall(() => _api.register(RegisterRequest(email: email, password: password)));
+  /// A new account, with the language chosen on the device ([language], null for none) and the device's matched
+  /// language ([detected]), which the account keeps (docs/i18n/SPEC.md §3 "The account's language fields").
+  Future<void> register(String email, String password, {required String? language, required String detected}) =>
+      apiCall(
+        () => _api.register(
+          RegisterRequest(
+            email: email,
+            password: password,
+            language: Language.fromJson(language),
+            detectedLanguage: Language.fromJson(detected),
+          ),
+        ),
+      );
 
-  Future<SignIn> login(String email, String password) async {
+  /// Signs in with the languages as [register] sends them; a choice sent here is saved on the account.
+  Future<SignIn> login(String email, String password, {required String? language, required String detected}) async {
+    final request = LoginRequest(
+      email: email,
+      password: password,
+      language: Language.fromJson(language),
+      detectedLanguage: Language.fromJson(detected),
+    );
     // The plain call drops the headers; a 429 needs Retry-After.
-    final response = await apiCall(() => _api.loginWithHttpInfo(LoginRequest(email: email, password: password)));
+    final response = await apiCall(() => _api.loginWithHttpInfo(request));
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiFailure.fromLogin(response.statusCode, response.body, response.headers['retry-after']);
     }
@@ -131,6 +149,10 @@ class Session {
     final step = await apiCall(() => _api.verifyMfa(VerifyRequest(challenge: challenge, code: code)));
     return _open(step?.token);
   }
+
+  /// Saves the language the patient chose on the account, or none ([tag] null) to follow each device's language.
+  Future<void> setLanguage(String? tag) =>
+      apiCall(() => _api.updateMe(UpdateMeRequest(language: Language.fromJson(tag))));
 
   /// Ends the session. A session the API already ended counts as signed out; any other failure keeps it.
   Future<void> signOut() async {

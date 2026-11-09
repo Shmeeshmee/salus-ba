@@ -54,6 +54,8 @@ test('the practitioner builds a questionnaire by drag and drop, publishes it and
   await expect(announced(page, 'Placeholder question A moved to position 2 of 3.')).toBeAttached()
 
   await page.getByRole('button', { name: 'Publish', exact: true }).click() // W22
+  // With no translation, the builder first asks whether to add one (i18n COPY.md B5).
+  await page.getByRole('alertdialog', { name: 'Add a translation before publishing?' }).getByRole('button', { name: 'Publish without' }).click()
   const confirm = page.getByRole('alertdialog', { name: 'Publish this questionnaire?' })
   await expect(confirm.getByText('Once published, it cannot be changed. To change it later, you create a new version.')).toBeVisible()
   await confirm.getByRole('button', { name: 'Publish' }).click()

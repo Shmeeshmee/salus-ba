@@ -1,0 +1,9 @@
+Subject: تذكير بموعدك
+
+نذكّرك بموعدك في Synthetic clinic.
+التاريخ والوقت: الاثنين 7 يناير 2030، الساعة 10:00 (Europe/Sarajevo)
+
+يوجد استبيان عليك تعبئته قبل موعدك. ستجده في تطبيق Salus.
+
+لعرض الموعد، افتح تطبيق Salus:
+https://patient.example.test/appointments

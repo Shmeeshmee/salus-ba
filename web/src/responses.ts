@@ -1,8 +1,11 @@
 import type { AnswerValue, Bundle, Questionnaire, QuestionnaireResponse, QuestionnaireResponseItem } from './api/fhir'
-import { isQuestion, type Condition, type Item, type Kind } from './builder'
-import { questionnaires as t } from './messages'
-import { fromFHIR, type Version } from './questionnaire'
-import { longDate, timeOf } from './time'
+import { find, isChoice, isQuestion, type Condition, type Item, type Kind } from './builder'
+import { formatDate, formatTime, intlLocale } from './i18n/format'
+import type { Language } from './i18n/languages'
+import type { useT } from './i18n/useT'
+import { fromFHIR, isContentLanguage, type ContentLanguage, type Translation, type Version } from './questionnaire'
+
+type T = ReturnType<typeof useT>
 
 // An appointment's questionnaire requests as the appointment detail shows them, read from the
 // QuestionnaireResponse search with the versions included (SPEC §2 "What the practitioner sees").
@@ -18,11 +21,16 @@ export type Block = { section?: string; questions: Question[] }
 export type Request = {
   id: string
   url?: string // the series' canonical url
-  title: string
+  title?: string // the version's title; none when the search did not include the version
   status: ResponseStatus
   authored?: string
   answers: Block[] // only for a submitted response
+  language?: ContentLanguage // the language the patient answered in (B9); none before they started
+  translated?: Block[] // the answers with the questions in that language, when it is not the original
 }
+
+// The FHIR response carries the language answered in (QuestionnaireResponse.language).
+type FHIRResponse = QuestionnaireResponse & { language?: string }
 
 function flatten(items: QuestionnaireResponseItem[], out: Map<string, AnswerValue[]>): Map<string, AnswerValue[]> {
   for (const it of items) {
@@ -70,23 +78,61 @@ export function answered(items: Item[], response: QuestionnaireResponseItem[] = 
   return blocks
 }
 
-const calendarDate = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' })
-
-// valueText is one answer as the practitioner reads it.
-export function valueText(v: AnswerValue): string {
-  if (v.valueBoolean !== undefined) return v.valueBoolean ? t.yes : t.no
-  if (v.valueDate !== undefined) return calendarDate.format(new Date(`${v.valueDate}T00:00:00Z`))
-  return String(v.valueString ?? v.valueInteger ?? v.valueDecimal ?? '')
+// valueText is one answer as the practitioner reads it, in the UI language: a date on the calendar (no time
+// zone), a number as written but with the language's decimal sign.
+export function valueText(v: AnswerValue, t: T, language: Language): string {
+  if (v.valueBoolean !== undefined) return t(v.valueBoolean ? 'questionnaire.yes' : 'questionnaire.no')
+  const locale = intlLocale(language)
+  if (v.valueDate !== undefined) {
+    return new Intl.DateTimeFormat(locale, { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${v.valueDate}T00:00:00Z`))
+  }
+  const n = v.valueInteger ?? v.valueDecimal
+  if (n !== undefined) return new Intl.NumberFormat(locale, { maximumFractionDigits: 20, useGrouping: false }).format(n)
+  return v.valueString ?? ''
 }
 
-function requestOf(r: QuestionnaireResponse, v?: Version): Request {
+const filled = (s?: string): s is string => s !== undefined && s.trim() !== ''
+
+// inTranslation is the items with their texts in the translation, the original's where it lacks one. The
+// options stay the original's: the answers and the conditions are written in them.
+function inTranslation(items: Item[], t: Translation): Item[] {
+  return items.map((it) => {
+    const text = t.items[it.linkId]?.text
+    return { ...it, text: filled(text) ? text : it.text, items: inTranslation(it.items, t) }
+  })
+}
+
+// translatedValues gives a choice answer as the patient read it: the option at the same position in the translation.
+function translatedValues(q: Question, items: Item[], t: Translation): Question {
+  const item = find(items, q.linkId)
+  if (!item || !isChoice(item.kind)) return q
+  const options = t.items[q.linkId]?.options ?? []
+  const values = q.values.map((v) => {
+    const option = options[item.options.indexOf(v.valueString ?? '')]
+    return filled(option) ? { valueString: option } : v
+  })
+  return { ...q, values }
+}
+
+// translatedAnswers is the answers as the patient read the questions (B9), when they answered in a translation.
+function translatedAnswers(v: Version, language: ContentLanguage | undefined, r: QuestionnaireResponse): Block[] | undefined {
+  const t = v.translations.find((x) => x.language === language)
+  if (!t || language === v.language) return undefined
+  return answered(inTranslation(v.items, t), r.item).map((b) => ({ ...b, questions: b.questions.map((q) => translatedValues(q, v.items, t)) }))
+}
+
+function requestOf(r: FHIRResponse, v?: Version): Request {
+  const language = isContentLanguage(r.language) ? r.language : undefined
+  const submitted = v && r.status === 'completed'
   return {
     id: r.id,
     url: v?.url,
-    title: v?.title ?? t.picker,
+    title: v?.title,
     status: r.status,
     authored: r.authored,
-    answers: v && r.status === 'completed' ? answered(v.items, r.item) : [],
+    answers: submitted ? answered(v.items, r.item) : [],
+    language,
+    translated: submitted ? translatedAnswers(v, language, r) : undefined,
   }
 }
 
@@ -106,11 +152,11 @@ export function requestOfVersion(id: string, v: Version): Request {
 }
 
 // statusOf is W34: unsubmitted ones are closed once the appointment has started.
-export function statusOf(r: Pick<Request, 'status' | 'authored'>, start: Date, now: Date, zone: string): string {
-  if (r.status === 'stopped') return t.withdrawn
+export function statusOf(r: Pick<Request, 'status' | 'authored'>, start: Date, now: Date, zone: string, t: T, language: Language): string {
+  if (r.status === 'stopped') return t('questionnaire.withdrawn')
   if (r.status === 'completed') {
     const at = new Date(r.authored ?? '')
-    return t.submitted(`${longDate(at, zone)}, ${timeOf(at, zone)}`)
+    return t('questionnaire.submitted', { date: formatDate(at, zone, language, 'long'), time: formatTime(at, zone, language) })
   }
-  return now >= start ? t.notSubmittedBefore : t.notSubmitted
+  return t(now >= start ? 'questionnaire.notSubmittedBefore' : 'questionnaire.notSubmitted')
 }

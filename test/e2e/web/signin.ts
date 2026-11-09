@@ -13,12 +13,16 @@ export async function signIn(page: Page) {
   await expect(page).toHaveURL(/:5173\/$/)
 }
 
+// lastStep is the step of the last code used: the enrolment's (E2E_TOTP_LAST_STEP), then this spec's own sign-ins'.
+let lastStep: number | undefined
+
 // totpCode is the authenticator's code (RFC 6238: SHA-1, 6 digits, 30 s) of a step the API has not seen used: the
-// current one, or the one after the enrolment's (E2E_TOTP_LAST_STEP), which it accepts as one step of drift.
+// current one, or the one after the last used, which it accepts as one step of drift.
 async function totpCode(): Promise<string> {
   const now = () => Math.floor(Date.now() / 30_000)
-  const step = Math.max(now(), Number(required('E2E_TOTP_LAST_STEP')) + 1)
+  const step = Math.max(now(), (lastStep ?? Number(required('E2E_TOTP_LAST_STEP'))) + 1)
   await expect.poll(now, { timeout: 60_000 }).toBeGreaterThanOrEqual(step - 1)
+  lastStep = step
   const counter = Buffer.alloc(8)
   counter.writeBigInt64BE(BigInt(step))
   const sum = createHmac('sha1', Buffer.from(required('E2E_TOTP_SECRET'), 'hex')).update(counter).digest()

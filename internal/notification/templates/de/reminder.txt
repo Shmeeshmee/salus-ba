@@ -1,0 +1,9 @@
+Erinnerung an Ihren Termin
+
+Wir erinnern Sie an Ihren Termin bei {{.Clinic}}.
+Datum und Uhrzeit: {{.When}}
+
+{{if .Questionnaire}}Vor Ihrem Termin ist ein Fragebogen auszufüllen. Sie finden ihn in der Salus-App.
+
+{{end}}Um den Termin anzusehen, öffnen Sie die Salus-App:
+{{.Link}}

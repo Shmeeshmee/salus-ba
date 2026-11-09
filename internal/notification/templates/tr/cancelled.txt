@@ -1,0 +1,8 @@
+Randevunuz iptal edildi
+
+Randevunuz iptal edildi.
+Klinik: {{.Clinic}}
+Tarih ve saat: {{.When}}
+
+Başka bir zamana randevu almak için Salus uygulamasını açın:
+{{.Link}}

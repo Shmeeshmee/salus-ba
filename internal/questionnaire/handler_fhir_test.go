@@ -85,7 +85,7 @@ func getFHIR(t testing.TB, svc *stubReader, caller func(context.Context) (questi
 // text and a condition hiding it, required questions, help text on questions, conditions on a boolean and on
 // a single choice, and a multiple choice.
 var everyType = questionnaire.Questionnaire{
-	ID: activeA, SeriesID: seriesA, OrganizationID: clinicA, Version: 1, Status: questionnaire.StatusActive,
+	ID: activeA, SeriesID: seriesA, OrganizationID: clinicA, Version: 1, Status: questionnaire.StatusActive, Language: "bs",
 	Title: placeholderTitle, Description: "Placeholder description, not clinical content",
 	PublishedAt: now, LastUpdated: now, VersionID: 4,
 	Items: []questionnaire.Item{
@@ -116,7 +116,7 @@ var everyType = questionnaire.Questionnaire{
 
 // A draft: the next version of the same series, changed a day later, one question so far.
 var draft = questionnaire.Questionnaire{
-	ID: draftA, SeriesID: seriesA, OrganizationID: clinicA, Version: 2, Status: questionnaire.StatusDraft,
+	ID: draftA, SeriesID: seriesA, OrganizationID: clinicA, Version: 2, Status: questionnaire.StatusDraft, Language: "hr",
 	Title: placeholderTitle, LastUpdated: now.Add(24 * time.Hour), VersionID: 1,
 	Items: []questionnaire.Item{{LinkID: "smoker", Text: "Placeholder yes or no question", Type: questionnaire.ItemBoolean}},
 }

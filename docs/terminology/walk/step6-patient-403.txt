@@ -1,0 +1,4 @@
+GET /terminology/search?q=jetra with a patient's bearer token
+HTTP 403
+{"error":"forbidden"}
+

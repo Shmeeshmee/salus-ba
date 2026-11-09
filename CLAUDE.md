@@ -83,6 +83,7 @@ clinical      binary, questionnaire, questionnaireresponse, observation, conditi
 privacy       consent, auditevent, datarequest (GDPR subject requests), retention
               and the pure rule package access (who may see what)
 notification  notification
+reference     terminology (the medical term list: reference data, no personal data, read-only for the app)
 ```
 
 Start with the fewest domains a feature needs. Add a domain when a SPEC asks for it, and add it to the lists
@@ -279,6 +280,8 @@ service).
   response in `testdata/`, against R4 and the `api/fhir/` profiles once there are any. No terminology server.
 - `make arch-gate` — archcheck, `go vet` and the tests; the Claude Code Stop hook runs it at the end of every
   session.
+- `make i18n-check` — `scripts/i18n-check.sh` in the `node` service: every catalog against its source language
+  (see "Languages").
 - `make migrate`, `make sqlc`, `make gen-clients`, `make up`, `make down` — apply migrations, regenerate
   queries, regenerate the API clients, start and stop the local stack.
 - Web (`web/`, `node` service): `make web-lint` (oxlint), `make web-typecheck`, `make web-test` (Vitest),
@@ -298,3 +301,23 @@ service).
 Plain and professional: no hype, no exclamation marks, no emoji. Sentence case for headings and buttons.
 Medical wording in demo or placeholder content stays labelled as a placeholder, and nothing in the product
 presents itself as a diagnosis unless a practitioner made it.
+
+## Languages
+
+Salus speaks ten languages, BCP 47 tags of the Postgres enum `language`: staff (`web/`) use `bs`, `hr`,
+`sr-Latn`, `sr-Cyrl`, `en`; patients (`mobile/`, e-mails) those and `de`, `ar`, `tr`, `it`, `fr`. Serbian is
+ijekavian in both scripts; Bosnian and Croatian follow their own standards. `docs/i18n/` has the rest (SPEC,
+`TRANSLATIONS.md`).
+
+- No hard-coded user-facing string: every one goes through the catalog (`web/src/i18n/<area>/<language>.json`,
+  `mobile/lib/l10n/app_<language>.arb`, `internal/notification/templates/<language>/`). The API returns codes,
+  never sentences.
+- A string added or changed is written in every language of its app in the same commit (web: the five staff
+  languages; mobile and e-mail: all ten), as ICU MessageFormat, never joined from pieces. `make i18n-check`
+  (inside `make web-lint`, `make mobile-analyze` and `make lint`) fails on a missing or extra key, a placeholder
+  or plural mismatch, or invalid ICU.
+- Strings with legal weight (consent, privacy notice links, permission prompts, cancellation and revocation
+  effects) carry the `legal` tag: `"description": "legal"` in the web JSON, `@` metadata in the ARB.
+- The language picker shows each language by its own name (endonym). Dates, times and numbers go through
+  `Intl` / `intl` in the UI language: 24-hour times and Latin digits everywhere, Arabic included.
+- Adding a language is a forward migration (`ALTER TYPE language ADD VALUE`) plus its catalogs.

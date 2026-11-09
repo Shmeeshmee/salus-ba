@@ -7,18 +7,18 @@ VALUES (@organization_id, @appointment_id, @patient_id, @practitioner_role_id, @
         @source, 'in-progress', @due_at, @at, @at)
 ON CONFLICT (appointment_id, series_id) WHERE status <> 'stopped' DO NOTHING
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-          series_id, version_id, source, status, answers, attachments;
+          series_id, version_id, source, status, answers, attachments, language;
 
 -- name: QuestionnaireResponseByID :one
 SELECT id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-       series_id, version_id, source, status, answers, attachments
+       series_id, version_id, source, status, answers, attachments, language
 FROM questionnaire_response
 WHERE id = @id;
 
 -- name: LockQuestionnaireResponse :one
 -- Changes to one response run one after the other: a withdrawal waits for a submit, and sees it.
 SELECT id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-       series_id, version_id, source, status, answers, attachments
+       series_id, version_id, source, status, answers, attachments, language
 FROM questionnaire_response
 WHERE id = @id
 FOR NO KEY UPDATE;
@@ -30,7 +30,15 @@ UPDATE questionnaire_response
 SET status = 'stopped', answers = '[]', attachments = '[]', updated_at = @at, version_id = version_id + 1
 WHERE id = @id
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-          series_id, version_id, source, status, answers, attachments;
+          series_id, version_id, source, status, answers, attachments, language;
+
+-- name: SetQuestionnaireResponseLanguage :one
+-- The patient starts: the language they answer in, while in progress and before anything is answered.
+UPDATE questionnaire_response
+SET language = @language, updated_at = @at, version_id = version_id + 1
+WHERE id = @id AND status = 'in-progress' AND answers = '[]' AND attachments = '[]'
+RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
+          series_id, version_id, source, status, answers, attachments, language;
 
 -- name: SaveQuestionnaireResponseAnswers :one
 -- The patient's save: the answers replaced, while in progress.
@@ -38,7 +46,7 @@ UPDATE questionnaire_response
 SET answers = @answers, updated_at = @at, version_id = version_id + 1
 WHERE id = @id AND status = 'in-progress'
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-          series_id, version_id, source, status, answers, attachments;
+          series_id, version_id, source, status, answers, attachments, language;
 
 -- name: CompleteQuestionnaireResponse :one
 -- The patient's submit: completed with the answers kept, authored now; final.
@@ -46,13 +54,13 @@ UPDATE questionnaire_response
 SET status = 'completed', answers = @answers, authored_at = @at, updated_at = @at, version_id = version_id + 1
 WHERE id = @id AND status = 'in-progress'
 RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-          series_id, version_id, source, status, answers, attachments;
+          series_id, version_id, source, status, answers, attachments, language;
 
 -- name: SearchQuestionnaireResponses :many
 -- QuestionnaireResponse?appointment=…&patient=…&status=…; an absent parameter matches everything, the scope
 -- decides the rest.
 SELECT id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
-       series_id, version_id, source, status, answers, attachments
+       series_id, version_id, source, status, answers, attachments, language
 FROM questionnaire_response
 WHERE (sqlc.narg(appointment_id)::uuid IS NULL OR appointment_id = sqlc.narg(appointment_id)::uuid)
   AND (sqlc.narg(patient_id)::uuid IS NULL OR patient_id = sqlc.narg(patient_id)::uuid)

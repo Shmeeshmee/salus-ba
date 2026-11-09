@@ -20,6 +20,7 @@ export default defineConfig({
       '/questionnaire-responses': apiUrl,
       '/binaries': apiUrl, // the files of questionnaire answers: status and content
       '/specialties': apiUrl,
+      '/terminology': apiUrl, // the cheatsheet's search (no screen of the app is under /terminology)
       // /questionnaires and /questionnaires/<id> are also screens of the app: only their writes go to the API.
       '/questionnaires': { target: apiUrl, bypass: (req) => (req.method === 'GET' ? '/index.html' : undefined) },
       '/fhir': apiUrl,

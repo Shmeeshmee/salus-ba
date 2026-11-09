@@ -1,0 +1,7 @@
+Subject: Il suo appuntamento è stato annullato
+
+Il suo appuntamento presso Synthetic clinic è stato annullato.
+Data e ora: lunedì 7 gennaio 2030, ore 10:00 (Europe/Sarajevo)
+
+Per prenotare un altro orario, apra l'app Salus:
+https://patient.example.test/appointments

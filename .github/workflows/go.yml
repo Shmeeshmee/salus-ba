@@ -1,4 +1,4 @@
-# Go: lint (with the migration immutability check), archcheck, tests with coverage, generated code, e2e, FHIR validation.
+# Go: lint (with the migration immutability check and the e-mail catalog check), archcheck, tests with coverage, generated code, e2e, FHIR validation.
 # Runs on every pull request so its required checks always report; the jobs skip when no path matching the
 # filter changed (a skipped job counts as passed). Everything runs through make in Docker, as locally.
 name: go

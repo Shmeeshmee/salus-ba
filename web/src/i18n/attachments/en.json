@@ -1,0 +1,22 @@
+{
+  "count": "{n, plural, one {# file} other {# files}}",
+  "kinds.photo": "Photo",
+  "kinds.document": "Document",
+  "kinds.video": "Video",
+  "kb": "{n} KB",
+  "mb": "{n} MB",
+  "details": "{kind}, {size}",
+  "open": "Open",
+  "download": "Download",
+  "close": "Close",
+  "previous": "Previous file",
+  "next": "Next file",
+  "position": "File {n} of {total}",
+  "label.photo": "Photo: {title}",
+  "label.document": "Document: {title}",
+  "label.video": "Video: {title}",
+  "cannotShow": "This file cannot be shown here.",
+  "gone": "This file is no longer available.",
+  "failed": "The file could not be loaded.",
+  "tryAgain": "Try again"
+}

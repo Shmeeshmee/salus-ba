@@ -1,0 +1,191 @@
+Diagnosis
+Not reviewed yet
+Latin
+Alvei profluvium
+Diarrhoea
+Copy
+English
+diarrhea
+diarrhea of presumed infectious origin, diarrhoea, diarrhœa, upset stomach
+Copy
+Bosnian
+dijareja
+Copy
+Croatian
+proljev
+Copy
+Serbian (Latin)
+dijareja
+Copy
+Serbian (Cyrillic)
+дијареја
+пролив, прољев
+Copy
+Diagnosis
+Not reviewed yet
+Latin
+ictus
+Copy
+English
+shock
+circulatory shock
+Copy
+Bosnian
+šok
+Copy
+Croatian
+šok (krvotočni urušaj)
+Copy
+Serbian (Latin)
+Šok
+Copy
+Serbian (Cyrillic)
+шок
+Copy
+Drug
+Not reviewed yet
+Latin
+Melatoninum
+Melatonina
+Copy
+English
+melatonin
+5-methoxy-N-acetyltryptamine, Melatol, Melatonin (synth.) standard-grade, Melatonin (synth.) ultra-pure, Melovine, MLT, MT6, {N-[2-(5-methoxy-1H-indol-3-yl)ethyl]-} Acetamide, N-(2-(5-Methoxy-1H-indol-3-yl)ethyl)acetamide, N-[2-(5-Methoxy-1H-indol-3-yl)ethyl)acetamide, N-[2-(5-Methoxy-1H-indol-3-yl)ethyl]acetamide, N-[2-(5-Methoxy-1H-indol-3-yl)ethyl]-Acetamide, N-[2-(5-methoxyindol-3-yl)ethyl]acetamide, {N-[2-(5-methoxyindol-3-yl)ethyl]-} Acetamide, N-(2-(5-Methoxyindol-3-yl)ethyl)acetamide, N-(2-(5-Methoxyindol-3-yl)ethyl)-Acetamide, N-[2-(5-Methoxyindol-3-yl)ethyl]-Acetamide, N-Acetyl-5-methoxy-tryptamine, N-Acetyl-5-methoxy-tryptamine Melatonine, Regulin
+Copy
+Bosnian
+Melatonin
+Copy
+Croatian
+Melatonin
+Copy
+Serbian (Latin)
+Melatonin
+Copy
+Serbian (Cyrillic)
+мелатонин
+Copy
+Diagnosis
+Not reviewed yet
+Latin
+No term in Latin yet
+English
+jet lag
+circadian dysrhythmia, circadian rhythm sleep disorder, jet lag type, desynchronosis, jetlag
+Copy
+Bosnian
+No term in Bosnian yet
+Croatian
+Jet lag
+Jetlag
+Copy
+Serbian (Latin)
+džetleg
+Copy
+Serbian (Cyrillic)
+џетлег
+Џет лаг, Џет лег
+Copy
+Anatomy
+Not reviewed yet
+Latin
+Circulus arteriosus cerebri
+Copy
+English
+circle of Willis
+cerebral arterial circle, loop of Willis, Willis' circle, Willis polygon
+Copy
+Bosnian
+No term in Bosnian yet
+Croatian
+Willisov arterijski prsten
+Circulus arteriosus cerebri, Circulus arteriosus cerebri Wilisii, Circulus arteriosus cerebri Willisi, Wilisov arterijski prsten
+Copy
+Serbian (Latin)
+Vilisov arterijski krug
+Copy
+Serbian (Cyrillic)
+Вилисов артеријски круг
+Copy
+Anatomy
+Not reviewed yet
+Latin
+No term in Latin yet
+English
+gyrus
+cerebral gyrus, gyri, gyrus of brain, gyrus of cerebral hemisphere
+Copy
+Bosnian
+No term in Bosnian yet
+Croatian
+No term in Croatian yet
+Serbian (Latin)
+No term in Serbian (Latin) yet
+Serbian (Cyrillic)
+No term in Serbian (Cyrillic) yet
+Diagnosis
+Not reviewed yet
+Latin
+No term in Latin yet
+English
+delayed sleep phase disorder
+circadian rhythm sleep-wake disorder, delayed type, delayed sleep phase syndrome, delayed sleep-wake phase disorde, DSPD, DSPS, sleep-wake schedule disorder, delayed phase, sleepwake schedule disorder, delayed phase, sleep wake schedule disorder, delayed phase type
+Copy
+Bosnian
+No term in Bosnian yet
+Croatian
+No term in Croatian yet
+Serbian (Latin)
+No term in Serbian (Latin) yet
+Serbian (Cyrillic)
+No term in Serbian (Cyrillic) yet
+Diagnosis
+Not reviewed yet
+Latin
+No term in Latin yet
+English
+circadian rhythm sleep disorder
+chronobiology disease, circadian sleep disorder, CRSD, disorders of the sleep-wake schedule, Sleep Disorders, Circadian Rhythm, sleep-wake schedule disorder
+Copy
+Bosnian
+No term in Bosnian yet
+Croatian
+No term in Croatian yet
+Serbian (Latin)
+Cirkadijalna disritmija
+Copy
+Serbian (Cyrillic)
+Циркадијална дисритмија
+Copy
+Diagnosis
+Not reviewed yet
+Latin
+No term in Latin yet
+English
+nuchal cord
+Copy
+Bosnian
+No term in Bosnian yet
+Croatian
+No term in Croatian yet
+Serbian (Latin)
+Nuhalna pupčana vrpca
+Copy
+Serbian (Cyrillic)
+Нухална пупчана врпца
+Copy
+Anatomy
+Not reviewed yet
+Latin
+No term in Latin yet
+English
+cardiovascular system
+circulatory system
+Copy
+Bosnian
+No term in Bosnian yet
+Croatian
+No term in Croatian yet
+Serbian (Latin)
+No term in Serbian (Latin) yet
+Serbian (Cyrillic)
+No term in Serbian (Cyrillic) yet

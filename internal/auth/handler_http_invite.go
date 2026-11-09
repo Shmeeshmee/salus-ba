@@ -66,13 +66,15 @@ func (h *Handler) listInvites(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) acceptInvite(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		languagesJSON
 		Token    string `json:"token"`
 		Password string `json:"password"`
 	}
-	if !decodeJSON(w, r, &req) {
+	language, detected, ok := decodeSignIn(w, r, &req, &req.languagesJSON)
+	if !ok {
 		return
 	}
-	acc, err := h.svc.AcceptInvite(r.Context(), req.Token, req.Password)
+	acc, err := h.svc.AcceptInvite(r.Context(), req.Token, req.Password, language, detected)
 	if err != nil {
 		h.writeError(w, r, err)
 		return

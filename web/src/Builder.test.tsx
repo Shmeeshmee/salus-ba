@@ -1,5 +1,7 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderInLanguage } from './i18n/renderInLanguage'
+import type { Language } from './i18n/languages'
 import { newApiClient } from './api/client'
 import { newFhirClient, type Questionnaire } from './api/fhir'
 import appCSS from './app.css?raw'
@@ -8,7 +10,7 @@ import type { SaveRequest } from './questionnaire'
 import { navigate, usePath } from './route'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, paths, type Route } from './test/fakeFetch'
 import { searchset } from './test/fixtures'
-import { questionnaireFHIR, questionnaireJSON } from './test/questionnaires'
+import { questionnaireFHIR, questionnaireJSON, translatedFHIR, translatedJSON } from './test/questionnaires'
 
 const path = '/questionnaires/q1'
 const read = 'GET /fhir/R4/Questionnaire/q1'
@@ -33,9 +35,9 @@ function draft(extra: Partial<Questionnaire> = {}): Questionnaire {
   return { ...questionnaireFHIR(), ...extra }
 }
 
-function renderBuilder(routes: Record<string, Route>, q: Questionnaire = draft()) {
+function renderBuilder(routes: Record<string, Route>, q: Questionnaire = draft(), language: Language = 'en') {
   const fake = fakeFetch({ [read]: () => fhirJSON(q), [series]: () => fhirJSON(searchset([q])), ...routes })
-  render(<Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" />)
+  renderInLanguage(<Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" />, language)
   return fake
 }
 
@@ -85,9 +87,25 @@ function deferred() {
   return { promise, resolve }
 }
 
+// withoutTranslation answers the question a publish with no translation asks first (B5): publish without.
+function withoutTranslation() {
+  fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Add a translation before publishing?' })).getByRole('button', { name: 'Publish without' }))
+}
+
 const saved = (extra = {}) => () => Response.json({ ...questionnaireJSON(), versionId: 4, ...extra })
 
 describe('Builder: a draft', () => {
+  it('is in the UI language, the problems on the items and the screen reader texts included', async () => {
+    renderBuilder({}, draft(), 'hr')
+
+    expect(await screen.findByLabelText('Naslov')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Spremi nacrt' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Kratki odgovor' }))
+    expect(screen.getByText('Dodajte tekst ovoj stavci.')).toBeTruthy()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Pomakni gore' }).at(-1) as HTMLElement)
+    expect(document.querySelector('[role="status"][aria-live="polite"]')?.textContent).toMatch(/^Stavka Kratki odgovor je /)
+  })
+
   it('shows the title, the template hint, the palette and the items, each closed', async () => {
     renderBuilder({})
 
@@ -413,7 +431,7 @@ describe('Builder: deleting', () => {
 
     fireEvent.click(within(card('Placeholder single')).getByRole('button', { name: 'Delete' }))
     const confirm = within(card('Placeholder single')).getByRole('alertdialog', { name: 'Delete this question?' })
-    expect(description(confirm)).toBe('1 items are shown only after an answer to it. Their conditions will be removed.')
+    expect(description(confirm)).toBe('1 item is shown only after an answer to it. Its condition will be removed.')
     expect(confirm.contains(document.activeElement)).toBe(true)
     fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
     expect(cards()).toContain('Placeholder single')
@@ -543,6 +561,7 @@ describe('Builder: publishing and the lifecycle', () => {
     const publish = await screen.findByRole('button', { name: 'Publish' })
     publish.focus()
     fireEvent.click(publish)
+    withoutTranslation()
 
     const dialog = screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })
     expect(description(dialog)).toBe('Once published, it cannot be changed. To change it later, you create a new version.')
@@ -554,6 +573,7 @@ describe('Builder: publishing and the lifecycle', () => {
   it('asks to confirm a publish, and keeps the draft on Cancel', async () => {
     const { requests } = renderBuilder({})
     fireEvent.click(await screen.findByRole('button', { name: 'Publish' }))
+    withoutTranslation()
 
     expect(screen.getByText('Publish this questionnaire?')).toBeTruthy()
     expect(screen.getByText('Once published, it cannot be changed. To change it later, you create a new version.')).toBeTruthy()
@@ -570,9 +590,10 @@ describe('Builder: publishing and the lifecycle', () => {
       [series]: () => fhirJSON(searchset([v1, v2])),
       'POST /questionnaires/q1/publish': () => Response.json({ ...questionnaireJSON(), version: 2, status: 'active', versionId: 4 }),
     })
-    render(<Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" />)
+    renderInLanguage(<Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" />, 'en')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Publish' }))
+    withoutTranslation()
     expect(screen.getByText('Version 1 will be retired. Patients who have already been asked keep that version.')).toBeTruthy()
     fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Publish' }))
 
@@ -589,6 +610,7 @@ describe('Builder: publishing and the lifecycle', () => {
     })
     fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Placeholder renamed' } })
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
+    withoutTranslation()
     fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Publish' }))
 
     expect(await screen.findByText('This questionnaire is published and cannot be changed.')).toBeTruthy()
@@ -599,6 +621,7 @@ describe('Builder: publishing and the lifecycle', () => {
   it('shows a publish refused with 422 on the section it names', async () => {
     renderBuilder({ 'POST /questionnaires/q1/publish': () => Response.json({ error: 'invalid_questionnaire', linkIds: ['sec'] }, { status: 422 }) })
     fireEvent.click(await screen.findByRole('button', { name: 'Publish' }))
+    withoutTranslation()
     fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Publish' }))
 
     expect((await screen.findByRole('alert')).textContent).toBe('Some items need attention.')
@@ -614,6 +637,7 @@ describe('Builder: publishing and the lifecycle', () => {
     })
     fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Placeholder renamed' } })
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
+    withoutTranslation()
     fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Publish' }))
 
     await vi.waitFor(() => expect(document.querySelector('.builder')?.hasAttribute('inert')).toBe(true))
@@ -660,7 +684,7 @@ describe('Builder: publishing and the lifecycle', () => {
       [series]: () => fhirJSON(searchset([active, draft({ id: 'q9', version: '2' })])),
       'POST /questionnaires/q1/revise': () => apiError(409, 'draft_exists'),
     })
-    render(<Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" />)
+    renderInLanguage(<Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" />, 'en')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Edit as new version' }))
     expect((await screen.findByRole('alert')).textContent).toBe('A draft of this questionnaire already exists.')
@@ -707,6 +731,100 @@ describe('Builder: publishing and the lifecycle', () => {
   })
 })
 
+describe('Builder: publishing and the translations', () => {
+  const complete = () => {
+    const q = translatedFHIR()
+    const many = q.item?.[2].item?.[1]
+    if (!many) throw new Error('no multiple choice item')
+    const en = (content: string) => ({ extension: [{ url: 'http://hl7.org/fhir/StructureDefinition/translation', extension: [{ url: 'lang', valueCode: 'en' }, { url: 'content', valueString: content }] }] })
+    many._text = en('Placeholder multiple in English')
+    many.answerOption = [
+      { valueString: 'C', _valueString: en('C in English') },
+      { valueString: 'D', _valueString: en('D in English') },
+    ]
+    return { ...q, _title: { extension: q._title?.extension?.slice(0, 1) } }
+  }
+
+  it('asks first whether to add a translation when there is none (B5)', async () => {
+    const { requests } = renderBuilder({})
+    const publish = await screen.findByRole('button', { name: 'Publish' })
+    publish.focus()
+    fireEvent.click(publish)
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Add a translation before publishing?' })
+    expect(description(dialog)).toBe("Patients who use Salus in another language will be asked to choose one of this questionnaire's languages.")
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add translation' }))
+
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(within(screen.getByRole('region', { name: 'Languages' })).getByRole('button', { name: 'English' })).toBeTruthy()
+    expect(requests.some((r) => r.method === 'POST')).toBe(false)
+  })
+
+  it('publishes without a translation when told to, after the usual confirmation', async () => {
+    const { requests } = renderBuilder({ 'POST /questionnaires/q1/publish': () => Response.json({ ...questionnaireJSON(), status: 'active', versionId: 4 }) })
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish' }))
+    withoutTranslation()
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Publish' }))
+
+    expect(await screen.findByText('This questionnaire is published and cannot be changed.')).toBeTruthy()
+    expect(paths(requests).filter((p) => !p.startsWith('GET'))).toEqual(['POST /questionnaires/q1/publish'])
+  })
+
+  it('does not offer to publish an incomplete translation: says which (B6) and marks what it lacks (B7)', async () => {
+    const { requests } = renderBuilder({}, translatedFHIR())
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish' }))
+
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toBe('The English translation is not complete. Finish it or remove it to publish.')
+    expect(within(card('Placeholder multiple')).getByText('Missing in English')).toBeTruthy()
+    expect(card('Placeholder multiple').classList.contains('attention')).toBe(true)
+    expect(within(card('Placeholder single')).queryByText('Missing in English')).toBeNull()
+    expect(requests.some((r) => r.method === 'POST')).toBe(false)
+  })
+
+  it('takes the marks away once the translation is removed', async () => {
+    renderBuilder({}, translatedFHIR())
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish' }))
+    fireEvent.click(within(screen.getByRole('region', { name: 'Languages' })).getAllByRole('button', { name: 'Remove translation' })[0])
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Remove the English translation?' })).getByRole('button', { name: 'Remove' }))
+
+    expect(screen.queryByText('Missing in English')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('asks the usual confirmation when every translation is complete', async () => {
+    renderBuilder({}, complete())
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish' }))
+
+    expect(screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })).toBeTruthy()
+  })
+
+  it('shows a publish refused with 422 translation_incomplete on the items it names', async () => {
+    renderBuilder(
+      {
+        'PUT /questionnaires/q1': () => Response.json({ ...translatedJSON(), versionId: 4 }),
+        'POST /questionnaires/q1/publish': () => Response.json({ error: 'translation_incomplete', language: 'en', linkIds: ['many'] }, { status: 422 }),
+      },
+      complete(),
+    )
+    fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Placeholder renamed' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Publish this questionnaire?' })).getByRole('button', { name: 'Publish' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('The English translation is not complete. Finish it or remove it to publish.')
+    expect(card('Placeholder multiple').classList.contains('attention')).toBe(true)
+    expect(within(card('Placeholder multiple')).getByText('Missing in English')).toBeTruthy()
+  })
+
+  it('says it in the UI language', async () => {
+    renderBuilder({}, translatedFHIR(), 'bs')
+    fireEvent.click(await screen.findByRole('button', { name: 'Objavi' }))
+
+    expect(screen.getByRole('alert').textContent).toBe('Prijevod (English) nije završen. Završite ga ili ga uklonite da biste objavili upitnik.')
+    expect(within(card('Placeholder multiple')).getByText('Nedostaje prijevod (English)')).toBeTruthy()
+  })
+})
+
 describe('Builder: leaving with unsaved changes', () => {
   it('asks in an alert dialog that takes the focus', async () => {
     renderBuilder({})
@@ -739,7 +857,7 @@ describe('Builder: leaving with unsaved changes', () => {
     function Shell() {
       return usePath() === path ? <Builder api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id="q1" /> : <p>Elsewhere</p>
     }
-    render(<Shell />)
+    renderInLanguage(<Shell />, 'en')
     fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Placeholder unsaved' } })
 
     act(() => {

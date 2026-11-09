@@ -11,6 +11,56 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Language string
+
+const (
+	LanguageBs     Language = "bs"
+	LanguageHr     Language = "hr"
+	LanguageSrLatn Language = "sr-Latn"
+	LanguageSrCyrl Language = "sr-Cyrl"
+	LanguageEn     Language = "en"
+	LanguageDe     Language = "de"
+	LanguageAr     Language = "ar"
+	LanguageTr     Language = "tr"
+	LanguageIt     Language = "it"
+	LanguageFr     Language = "fr"
+)
+
+func (e *Language) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = Language(s)
+	case string:
+		*e = Language(s)
+	default:
+		return fmt.Errorf("unsupported scan type for Language: %T", src)
+	}
+	return nil
+}
+
+type NullLanguage struct {
+	Language Language
+	Valid    bool // Valid is true if Language is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLanguage) Scan(value interface{}) error {
+	if value == nil {
+		ns.Language, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.Language.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLanguage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.Language), nil
+}
+
 type RiverJobState string
 
 const (
@@ -59,17 +109,115 @@ func (ns NullRiverJobState) Value() (driver.Value, error) {
 	return string(ns.RiverJobState), nil
 }
 
+type TermCategory string
+
+const (
+	TermCategoryAnatomy   TermCategory = "anatomy"
+	TermCategoryDiagnosis TermCategory = "diagnosis"
+	TermCategorySymptom   TermCategory = "symptom"
+	TermCategoryProcedure TermCategory = "procedure"
+	TermCategoryDrug      TermCategory = "drug"
+)
+
+func (e *TermCategory) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TermCategory(s)
+	case string:
+		*e = TermCategory(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TermCategory: %T", src)
+	}
+	return nil
+}
+
+type NullTermCategory struct {
+	TermCategory TermCategory
+	Valid        bool // Valid is true if TermCategory is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTermCategory) Scan(value interface{}) error {
+	if value == nil {
+		ns.TermCategory, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TermCategory.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTermCategory) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TermCategory), nil
+}
+
+type TermLanguage string
+
+const (
+	TermLanguageLa     TermLanguage = "la"
+	TermLanguageBs     TermLanguage = "bs"
+	TermLanguageHr     TermLanguage = "hr"
+	TermLanguageSrLatn TermLanguage = "sr-Latn"
+	TermLanguageSrCyrl TermLanguage = "sr-Cyrl"
+	TermLanguageEn     TermLanguage = "en"
+	TermLanguageDe     TermLanguage = "de"
+	TermLanguageAr     TermLanguage = "ar"
+	TermLanguageTr     TermLanguage = "tr"
+	TermLanguageIt     TermLanguage = "it"
+	TermLanguageFr     TermLanguage = "fr"
+)
+
+func (e *TermLanguage) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TermLanguage(s)
+	case string:
+		*e = TermLanguage(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TermLanguage: %T", src)
+	}
+	return nil
+}
+
+type NullTermLanguage struct {
+	TermLanguage TermLanguage
+	Valid        bool // Valid is true if TermLanguage is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTermLanguage) Scan(value interface{}) error {
+	if value == nil {
+		ns.TermLanguage, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TermLanguage.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTermLanguage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TermLanguage), nil
+}
+
 type Account struct {
-	ID             pgtype.UUID
-	CreatedAt      pgtype.Timestamptz
-	MfaEnrolledAt  pgtype.Timestamptz
-	TotpLastStep   pgtype.Int8
-	OrganizationID pgtype.UUID
-	PractitionerID pgtype.UUID
-	Role           string
-	Email          string
-	PasswordHash   string
-	TotpSecret     []byte
+	ID               pgtype.UUID
+	CreatedAt        pgtype.Timestamptz
+	MfaEnrolledAt    pgtype.Timestamptz
+	TotpLastStep     pgtype.Int8
+	OrganizationID   pgtype.UUID
+	PractitionerID   pgtype.UUID
+	Role             string
+	Email            string
+	PasswordHash     string
+	TotpSecret       []byte
+	Language         NullLanguage
+	DetectedLanguage NullLanguage
 }
 
 type Appointment struct {
@@ -170,14 +318,15 @@ type Invite struct {
 }
 
 type Organization struct {
-	ID        pgtype.UUID
-	CreatedAt pgtype.Timestamptz
-	UpdatedAt pgtype.Timestamptz
-	VersionID int32
-	Active    bool
-	Name      string
-	Listed    bool
-	TimeZone  string
+	ID              pgtype.UUID
+	CreatedAt       pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
+	VersionID       int32
+	Active          bool
+	Name            string
+	Listed          bool
+	TimeZone        string
+	DefaultLanguage Language
 }
 
 type Patient struct {
@@ -228,6 +377,7 @@ type Questionnaire struct {
 	Title          string
 	Description    string
 	Items          []byte
+	Language       Language
 }
 
 type QuestionnaireDefault struct {
@@ -256,6 +406,15 @@ type QuestionnaireResponse struct {
 	Status             string
 	Answers            []byte
 	Attachments        []byte
+	Language           NullLanguage
+}
+
+type QuestionnaireTranslation struct {
+	QuestionnaireID pgtype.UUID
+	Language        Language
+	CreatedAt       pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
+	Texts           []byte
 }
 
 type RiverJob struct {
@@ -332,6 +491,30 @@ type Slot struct {
 	VersionID      int32
 	Status         string
 	Period         pgtype.Range[pgtype.Timestamptz]
+}
+
+type Term struct {
+	ID           pgtype.UUID
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+	ReviewedAt   pgtype.Timestamptz
+	Rank         int32
+	Category     TermCategory
+	ReviewStatus string
+	WikidataID   pgtype.Text
+	Icd10        pgtype.Text
+	Ta98         pgtype.Text
+	Atc          pgtype.Text
+	Pcs          pgtype.Text
+	Note         pgtype.Text
+}
+
+type TermLabel struct {
+	CreatedAt pgtype.Timestamptz
+	TermID    pgtype.UUID
+	Language  TermLanguage
+	Preferred bool
+	Label     string
 }
 
 type VideoSession struct {

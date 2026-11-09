@@ -33,8 +33,9 @@ type Ports struct {
 	PatientAppURL string
 }
 
-// Service composes and sends the e-mails.
+// Service composes and sends the e-mails, each in its reader's language.
 type Service struct {
+	letters        map[string]letters
 	invites        Invites
 	appointments   Appointments
 	accounts       Accounts
@@ -48,6 +49,7 @@ type Service struct {
 // NewService returns a Service on its ports.
 func NewService(p Ports) *Service {
 	return &Service{
+		letters: loadLetters(),
 		invites: p.Invites, appointments: p.Appointments, accounts: p.Accounts, clinics: p.Clinics,
 		questionnaires: p.Questionnaires, sender: p.Sender,
 		webBaseURL: strings.TrimRight(p.WebBaseURL, "/"), patientAppURL: strings.TrimRight(p.PatientAppURL, "/"),
@@ -56,7 +58,7 @@ func NewService(p Ports) *Service {
 
 // SendInvite sends the e-mail of the invite inviteID of the clinic org (the invite_email job): the clinic's
 // name and a link with a new token, in the URL fragment so it never reaches a server log. Nothing else about
-// the invite goes into it. The token is issued before the send, in its own transaction; a failed send is
+// the invite goes into it. It is written in the clinic's default language: the invitee has no account yet. The token is issued before the send, in its own transaction; a failed send is
 // retried by the job, which issues a new one. Errors carry no address or token.
 func (s *Service) SendInvite(ctx context.Context, inviteID, org string) error {
 	clinic, err := s.clinics.Read(ctx, organization.Caller{OrganizationID: org}, org)
@@ -67,20 +69,12 @@ func (s *Service) SendInvite(ctx context.Context, inviteID, org string) error {
 	if err != nil {
 		return fmt.Errorf("notification: invite: %w", err)
 	}
-	if err := s.sender.Send(ctx, inviteMessage(email, clinic.Name, s.webBaseURL+"/invite#"+token)); err != nil {
+	msg, err := s.in(clinic.DefaultLanguage).message(email, "invite", letter{Clinic: clinic.Name, Link: s.webBaseURL + "/invite#" + token})
+	if err != nil {
+		return fmt.Errorf("notification: invite: %w", err)
+	}
+	if err := s.sender.Send(ctx, msg); err != nil {
 		return fmt.Errorf("notification: invite: %w", err)
 	}
 	return nil
-}
-
-// inviteMessage is the invite e-mail: the clinic's name and the link, and fixed text.
-func inviteMessage(to, clinic, link string) Message {
-	return Message{
-		To:      to,
-		Subject: "Your invitation to Salus",
-		Body: "You are invited to join " + clinic + " on Salus.\n\n" +
-			"To accept, open this link, choose a password and set up a sign-in code:\n" +
-			link + "\n\n" +
-			"The link works once and expires 72 hours after the invitation was made. If you did not expect this e-mail, you can ignore it.\n",
-	}
 }
