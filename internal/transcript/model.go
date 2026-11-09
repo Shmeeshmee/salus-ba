@@ -64,6 +64,59 @@ func (e Event) Validate() error {
 // StreamKey is the Redis Stream of every live event of an encounter's consultation.
 func StreamKey(encounterID string) string { return "consult:" + encounterID + ":events" }
 
+// StreamField is the one field of a stream entry, holding the event's wire envelope: XADD <StreamKey> *
+// envelope <bytes>. Every producer (the agent, the suggestions, the drafting) writes it; the consumer that
+// stores the events and the WebSocket gateway read it.
+const StreamField = "envelope"
+
+// The type and version of the cursor frame the WebSocket gateway sends before each envelope it forwards: its
+// payload is the stream id of the entry whose envelope follows (Cursor), which a client resumes after.
+const (
+	CursorType    = "cursor"
+	CursorVersion = 1
+)
+
+// Cursor is the payload of a cursor frame (CursorMessage in api/openapi.yaml).
+type Cursor struct {
+	ID string `json:"id"`
+}
+
+// Entry is one entry of an encounter's stream: its id, Redis's "<milliseconds>-<sequence>", and the bytes of
+// its envelope, which go to the practitioner unchanged and undecoded. Envelope is nil for an entry without
+// StreamField.
+type Entry struct {
+	ID       string
+	Envelope []byte
+}
+
+// The stream's bounds (SAL-4): the agent caps it at about StreamMaxLen entries (XADD MAXLEN ~) and sets it to
+// expire StreamTTL after its last entry, so it is gone half an hour after the consultation's last event: Redis
+// is transport, transcript_segment the record (ADR 0005).
+const (
+	StreamMaxLen = 10000
+	StreamTTL    = 30 * time.Minute
+)
+
+// speechLocales are the locales the product's languages are recognised in: the region their speakers in
+// Bosnia and Herzegovina's clinics come from (docs/plans/consult-intelligence.md, SAL-4). Arabic is ar-SA:
+// the Gulf states' visitors are most of the clinics' Arabic-speaking patients, and Saudi Arabic is the closest
+// of Azure's Arabic locales to the Gulf's and to Modern Standard Arabic; the accuracy benchmark is to confirm it.
+var speechLocales = map[string]string{
+	"bs": "bs-BA", "hr": "hr-HR", "sr-Latn": "sr-RS", "sr-Cyrl": "sr-RS", "en": "en-GB",
+	"de": "de-DE", "ar": "ar-SA", "tr": "tr-TR", "it": "it-IT", "fr": "fr-FR",
+}
+
+// fallbackLocale is the locale of a language the product does not have (none should reach it): Bosnian.
+const fallbackLocale = "bs-BA"
+
+// speechLocale is the locale the language (a tag of the enum language) is recognised in.
+func speechLocale(language string) string {
+	if l, ok := speechLocales[language]; ok {
+		return l
+	}
+	return fallbackLocale
+}
+
 // validLang accepts a BCP 47 tag's shape: a primary language of two or three lower-case letters, then subtags
 // of one to eight letters or digits. The engines decide which languages they support.
 func validLang(tag string) bool {

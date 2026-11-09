@@ -80,6 +80,7 @@ func TestLiveEvents_MatchTheirGoTypes(t *testing.T) {
 			"status": {string(composition.StatusPreliminary), string(composition.StatusFinal), string(composition.StatusEnteredInError)},
 		}},
 		"DraftField": {composition.Field{}, nil},
+		"Cursor":     {transcript.Cursor{}, nil},
 	} {
 		sch, ok := s[name]
 		if !ok {
@@ -123,6 +124,7 @@ func TestConsultMessages_AreTheEnvelopesTheGoPackagesSend(t *testing.T) {
 		"TranscriptMessage": {transcript.MessageType, "TranscriptEvent", transcript.MessageVersion},
 		"SuggestionMessage": {suggestion.MessageType, "SuggestionEvent", suggestion.MessageVersion},
 		"DraftMessage":      {composition.MessageType, "DraftEvent", composition.MessageVersion},
+		"CursorMessage":     {transcript.CursorType, "Cursor", transcript.CursorVersion},
 	} {
 		m := s[name]
 		if !slices.Equal(slices.Sorted(slices.Values(m.Required)), []string{"payload", "type", "version"}) {
@@ -146,5 +148,26 @@ func TestConsultMessages_AreTheEnvelopesTheGoPackagesSend(t *testing.T) {
 	if want := []string{"#/components/schemas/DraftMessage", "#/components/schemas/SuggestionMessage",
 		"#/components/schemas/TranscriptMessage"}; !slices.Equal(refs, want) {
 		t.Errorf("ConsultMessage is one of %v, want %v", refs, want)
+	}
+}
+
+// The WebSocket's frames are the live messages, each preceded by its cursor (GET /encounters/{id}/events), and
+// the export's segments are TranscriptEvents.
+func TestConsultFrames_AreTheMessagesAndTheCursor(t *testing.T) {
+	t.Parallel()
+	s := schemas(t)
+	var refs []string
+	for _, o := range s["ConsultFrame"].OneOf {
+		refs = append(refs, o.Ref)
+	}
+	slices.Sort(refs)
+	// Flat, so the generators give each message its own payload type (a nested oneOf left the Dart model with
+	// the cursor's payload only).
+	if want := []string{"#/components/schemas/CursorMessage", "#/components/schemas/DraftMessage", "#/components/schemas/SuggestionMessage",
+		"#/components/schemas/TranscriptMessage"}; !slices.Equal(refs, want) {
+		t.Errorf("ConsultFrame is one of %v, want %v", refs, want)
+	}
+	if items := s["Transcript"].Properties["segments"].Items; items == nil || items.Ref != "#/components/schemas/TranscriptEvent" {
+		t.Errorf("Transcript.segments items = %+v, want a TranscriptEvent reference", items)
 	}
 }

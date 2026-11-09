@@ -5,14 +5,20 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/livekit/protocol/auth"
 	"github.com/livekit/protocol/livekit"
+	protologger "github.com/livekit/protocol/logger"
 	"github.com/livekit/protocol/utils/protojson"
 	lksdk "github.com/livekit/server-sdk-go/v2"
+	"github.com/pion/webrtc/v4"
+	"github.com/tphakala/go-opus/opus"
 	"github.com/twitchtv/twirp"
 )
 
@@ -167,4 +173,184 @@ func failed(op string, err error) error {
 		return fmt.Errorf("videosession: livekit %s: %s", op, te.Code())
 	}
 	return fmt.Errorf("videosession: livekit %s: %w", op, err)
+}
+
+// frameBuffer is how many decoded frames (20 ms each) a track keeps for a slow reader before it drops them.
+const frameBuffer = 50
+
+// trackBuffer is how many tracks wait for the agent to take them; past it one is not heard (a room has two
+// people, each with one microphone, and their reconnections).
+const trackBuffer = 16
+
+// pcmRate is the rate the agent's audio is decoded to: 16 kHz, what speech-to-text engines take.
+const pcmRate = 16000
+
+type livekitListener struct{}
+
+// NewLiveKitListener returns the Listener on LiveKit's Go SDK: the agent joins as a participant that subscribes
+// to every audio track and decodes it in pure Go (Opus through github.com/tphakala/go-opus, a port of libopus that
+// decodes every Opus mode; G.711 µ-law by its table), with no cgo.
+//
+// The SDK and its WebRTC stack log the room, the identities and the addresses through its package logger by
+// default, which a connection's own logger does not fully replace: NewLiveKitListener silences that logger for
+// the process. Only cmd/agent builds a Listener.
+func NewLiveKitListener() Listener {
+	lksdk.SetLogger(protologger.GetDiscardLogger())
+	return livekitListener{}
+}
+
+// Listen connects to the room at url (ws:// or http://) with the agent's token. It does not wait on ctx: the
+// SDK's connection has its own timeout.
+func (livekitListener) Listen(_ context.Context, url, token string) (Listening, error) {
+	l := &listening{tracks: make(chan RemoteAudio, trackBuffer)}
+	cb := lksdk.NewRoomCallback()
+	cb.OnTrackSubscribed = func(track *webrtc.TrackRemote, _ *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
+		if track.Kind() != webrtc.RTPCodecTypeAudio {
+			return
+		}
+		dec, err := newDecoder(track.Codec().MimeType)
+		if err != nil {
+			return
+		}
+		frames := make(chan []byte, frameBuffer)
+		if !l.hand(RemoteAudio{Identity: rp.Identity(), Frames: frames}) {
+			dec.close()
+			return
+		}
+		go decodeTrack(track, dec, frames)
+	}
+	cb.OnDisconnected = l.end
+	// The SDK logs the room, the identities and the addresses to the standard logger by default: never.
+	room, err := lksdk.ConnectToRoomWithToken(strings.Replace(url, "http", "ws", 1), token, cb,
+		lksdk.WithAutoSubscribe(true), lksdk.WithLogger(protologger.GetDiscardLogger()))
+	if err != nil {
+		return Listening{}, failed("listen", err)
+	}
+	var once sync.Once
+	return Listening{Tracks: l.tracks, Leave: func() { once.Do(func() { room.Disconnect(); l.end() }) }}, nil
+}
+
+// listening hands the room's tracks over until the agent is out of it.
+type listening struct {
+	tracks chan RemoteAudio
+	mu     sync.Mutex
+	ended  bool
+}
+
+// hand hands a track over unless the agent is out of the room or trackBuffer tracks wait already: it never
+// blocks, so neither LiveKit's callback nor end waits on a slow reader.
+func (l *listening) hand(a RemoteAudio) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.ended {
+		return false
+	}
+	select {
+	case l.tracks <- a:
+		return true
+	default:
+		return false
+	}
+}
+
+// end closes the tracks once: the agent is out of the room.
+func (l *listening) end() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if !l.ended {
+		l.ended = true
+		close(l.tracks)
+	}
+}
+
+// decodeTrack decodes the track's RTP into frames until it ends, dropping frames nobody reads in time.
+func decodeTrack(track *webrtc.TrackRemote, dec decoder, frames chan<- []byte) {
+	defer close(frames)
+	defer dec.close()
+	for {
+		pkt, _, err := track.ReadRTP()
+		if err != nil {
+			return
+		}
+		pcm := dec.decode(pkt.Payload)
+		if len(pcm) == 0 {
+			continue
+		}
+		select {
+		case frames <- pcm:
+		default:
+		}
+	}
+}
+
+// decoder turns one track's RTP payloads into 16 kHz 16-bit little-endian mono PCM.
+type decoder interface {
+	decode(payload []byte) []byte
+	close()
+}
+
+// newDecoder is the decoder of the codec: Opus or G.711 µ-law; other codecs are not heard.
+func newDecoder(mime string) (decoder, error) {
+	switch {
+	case strings.EqualFold(mime, webrtc.MimeTypeOpus):
+		d, err := opus.NewDecoder(pcmRate, 1)
+		if err != nil {
+			return nil, errors.New("videosession: opus decoder")
+		}
+		return &opusDecoder{d: d, pcm: make([]int16, pcmRate*120/1000)}, nil
+	case strings.EqualFold(mime, webrtc.MimeTypePCMU):
+		return &pcmuDecoder{}, nil
+	}
+	return nil, errors.New("videosession: an audio codec the agent does not decode")
+}
+
+// opusDecoder decodes Opus at 16 kHz, mono (a stereo stream is mixed down).
+type opusDecoder struct {
+	d   *opus.Decoder
+	pcm []int16 // up to 120 ms, Opus's longest frame
+}
+
+func (o *opusDecoder) decode(payload []byte) []byte {
+	n, err := o.d.Decode(payload, o.pcm)
+	if err != nil {
+		return nil
+	}
+	return le16(o.pcm[:n])
+}
+
+func (*opusDecoder) close() {}
+
+// pcmuDecoder decodes G.711 µ-law at 8 kHz and doubles its rate to 16 kHz, each new sample the mean of its
+// neighbours.
+type pcmuDecoder struct{ prev int16 }
+
+func (p *pcmuDecoder) decode(payload []byte) []byte {
+	out := make([]int16, 0, 2*len(payload))
+	for _, c := range payload {
+		s := ulaw(c)
+		out = append(out, int16((int32(p.prev)+int32(s))/2), s)
+		p.prev = s
+	}
+	return le16(out)
+}
+
+func (*pcmuDecoder) close() {}
+
+// ulaw is the sample of a G.711 µ-law code.
+func ulaw(c byte) int16 {
+	c = ^c
+	t := (int32(c&0x0f)<<3 + 0x84) << ((c & 0x70) >> 4)
+	if c&0x80 != 0 {
+		return int16(0x84 - t)
+	}
+	return int16(t - 0x84)
+}
+
+// le16 is samples as 16-bit little-endian bytes.
+func le16(samples []int16) []byte {
+	b := make([]byte, 2*len(samples))
+	for i, s := range samples {
+		binary.LittleEndian.PutUint16(b[2*i:], uint16(s))
+	}
+	return b
 }

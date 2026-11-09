@@ -56,6 +56,18 @@ LiveKit room audio (one track per participant)
 | Speaker | `practitioner` or `patient`, as FHIR and the rest of the codebase name them (renamed from the ticket's `doctor` by the owner, 2026-11-09; migration 00032) |
 | Stream key | `consult:<encounter_id>:events`, from `transcript.StreamKey` |
 
+## Decisions taken for C (SAL-6, 2026-11-09; agent decisions, for the owner to review)
+
+| Topic | Decision |
+| --- | --- |
+| Stream entry | One field, `envelope` (`transcript.StreamField`), holding the wire envelope's bytes: `XADD consult:<encounter_id>:events * envelope <bytes>`. A shared contract every producer (SAL-4, SAL-7, SAL-8) writes |
+| Consumer | A Redis Streams consumer group (`consult_stream`) in `cmd/worker`, beside River, not a River job: the producers write Redis, not Postgres, so there is no transaction to enqueue a job in, and a job per entry would add a Postgres write before the real one. Streams are found by `SCAN TYPE stream` once a second (no registry to keep in step with the producers); a failed or orphaned entry is claimed again after 30 s. At least once; the writes are idempotent (segment and suggestion ids from the events) |
+| Writes | Final segments to `transcript_segment`, suggestions to `suggestion` (a later event changes only the status), each through its own domain's service, in the encounter's clinic scope (`encounter_organization`, migration 00033), only with the patient's active consent. Drafts are left to SAL-8 |
+| Gateway | `GET /encounters/{id}/events`, a WebSocket (gorilla/websocket: already in the module graph through the LiveKit SDK, at the same version, and it hijacks through `http.ResponseController`, which the access log's writer supports). Each entry goes out as a `cursor` frame with its stream id and then the envelope's bytes unchanged; the client keeps a cursor once the message after it has arrived and resumes with `?after=`, so a drop between the two frames repeats nothing and loses nothing. Without `after`, every entry still on the stream |
+| Who | The encounter's practitioner with an active consent (`access.ConsultationRecord`); no admin, no patient. The rule is checked again after every read of the stream (at least once a second), so a revocation ends the stream at once |
+| Origin | The upgrade must come from the API's own origin (or no Origin: no browser). The web app calls the API on its own origin; the cookie is `SameSite=Strict` and a WebSocket cannot send `X-Salus-CSRF` |
+| Export | `GET /encounters/{id}/transcript`, plain JSON (`{"segments": [TranscriptEvent]}`), not FHIR: the plan and the CapabilityStatement name no FHIR resource for the transcript. Same rule as the stream |
+
 ## Contracts (P0)
 
 | Event | `type`, `version` | Fields |
@@ -89,12 +101,43 @@ after-revocation rule apply unchanged; the clinic scope only. A patient's access
 
 - **Processors.** A hosted STT engine, the translation and suggestion model, and a TTS engine each touch
   patient audio or text: each needs a DPA, an EU region, zero data retention in writing, and an entry in
-  `docs/privacy/processors.md` before the code that calls it is merged (CLAUDE.md "GDPR and health data").
-  The fakes are the only implementations until then.
+  `docs/privacy/processors.md` before it is enabled with any real patient audio (changed from "before the code
+  that calls it is merged" by the owner, 2026-11-09, for SAL-4: an adapter may be merged off by default). The
+  fakes are the default; Azure AI Speech (`pkg/stt/azure`) is merged, not enabled.
 - **Consent.** Translation, suggestions and drafting are processing beyond the video call itself: whether the
-  care consent covers them or each needs its own `Consent` is a decision for the owner and legal before SAL-4.
+  care consent covers them or each needs its own `Consent` is a decision for the owner and legal
+  (`docs/legal/BRIEF.md` Q16). Interim decision (owner, 2026-11-09, pending Q16): the agent joins and transcribes
+  only while the patient's existing care Consent with the encounter's clinic is active (the consent encounter
+  access uses), and leaves the room as soon as it is withdrawn: the revocation's `consent_revoked` job removes
+  the agent with the patient (SAL-3), its recognitions end at once, and the agent asks again once connected, so
+  a revocation that commits while it connects is seen too.
 - **Logs.** No transcript text, translation, suggestion or field value in a log line, error or trace.
 - **Copy.** Every user-facing string goes to the owner first. Suggestions are labelled as suggestions.
+
+## SAL-4 (A): audio ingest and streaming STT, as built (2026-11-09)
+
+- **When the agent joins.** Every join of a person with access into an open consultation the practitioner has
+  joined enqueues `transcription_join` (queue `transcription`, worked only by `cmd/agent`) in the webhook's
+  transaction; the agent joins a session once and the next join asks again (a restarted agent comes back). It
+  needs the practitioner joined, because the transcript belongs to the `Encounter` that join starts.
+- **Audio.** `videosession` (the only LiveKit code) joins with SAL-3's agent grant, subscribes to every audio
+  track and decodes it in pure Go to 16 kHz mono PCM: Opus with `github.com/tphakala/go-opus` (a port of
+  libopus that decodes every Opus mode; a transpiled libopus, `kazzmir/opus-go`, was tried and dropped: it fails
+  Go's pointer checks under `-race`), G.711 µ-law by its table. Tracks come out by role; the room's identities
+  stay in `videosession`. The SDK's logger is silenced (it printed rooms, identities and addresses).
+- **Speakers and languages.** `practitioner` or `patient` from the session's identities. The patient is
+  recognised in their account's language (auth, audited), else the clinic's default; the practitioner in the
+  clinic's default. Each language in one locale: `bs-BA`, `hr-HR`, `sr-RS` (both scripts), `en-GB`, `de-DE`,
+  `ar-SA`, `tr-TR`, `it-IT`, `fr-FR`. Arabic is `ar-SA`: the Gulf visitors are most of the clinics'
+  Arabic-speaking patients and Saudi Arabic is the nearest of Azure's Arabic locales to the Gulf's and to Modern
+  Standard Arabic; the accuracy benchmark is to confirm it.
+- **Stream.** Each result is a `transcript.Event` (translation empty, SAL-5), a `wire` envelope XADDed to
+  `transcript.StreamKey` under the field `envelope` (`transcript.StreamField`), `MAXLEN ~ 10000`
+  (`StreamMaxLen`), the key's TTL set to 30 minutes on every entry (`StreamTTL`), so the stream expires half an
+  hour after the consultation's last event. Partial results revise one segment id until its final.
+- **Engines.** `STT_ENGINE=fake` (default: placeholder captions, audio goes nowhere) or `azure`
+  (`AZURE_SPEECH_REGION`, `AZURE_SPEECH_KEY`): Azure's real-time WebSocket protocol, no SDK, no cgo, an EU
+  region only, no `storeAudio`, nothing logged.
 
 ## Work packages
 

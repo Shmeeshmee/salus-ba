@@ -20,7 +20,8 @@ x-app: &app
     migrate: {condition: service_completed_successfully}
     redis: {condition: service_healthy}
 
-# The LiveKit settings (docs/consultation/SPEC.md §2 "Configuration"): only the api and the worker load them.
+# The LiveKit settings (docs/consultation/SPEC.md §2 "Configuration"): only the api, the worker and the agent load
+# them.
 # The key pair is deployments/livekit.yaml's synthetic dev pair, local only.
 x-livekit-env: &livekit-env
   LIVEKIT_URL: http://livekit:7880
@@ -140,9 +141,18 @@ services:
       <<: *app-deps
       mailpit: {condition: service_healthy}
 
+  # The transcription agent (SAL-4): works only River's transcription queue, joins each consultation's LiveKit room
+  # once the practitioner is in, and puts the transcript events on the encounter's Redis Stream. STT_ENGINE is
+  # fake: placeholder captions, no audio leaves the stack. Azure is not enabled (docs/privacy/processors.md).
   agent:
     <<: *app
     command: ["/usr/local/bin/agent"]
+    environment:
+      <<: [*app-env, *livekit-env]
+      STT_ENGINE: fake
+    depends_on:
+      <<: *app-deps
+      livekit: {condition: service_healthy}
 
   # Video (ADR 0006), configured by livekit.yaml: the synthetic dev key pair, rooms created only by the api, JSON
   # logs, the ICE settings for clients on the host and on the compose network, and TURN (TLS on 443, UDP on 3478,
@@ -323,6 +333,7 @@ services:
       E2E_SALUSCTL: /tmp/salusctl
       E2E_LIVEKIT_CHECK: /e2e/livekit-check.tsv
       TEST_LIVEKIT_URL: http://livekit:7880
+      E2E_REDIS_URL: redis://redis:6379/0 # the encounter's event stream the transcription agent writes (SAL-4)
       DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable # salusctl and startAt: the owner
       API_URL: http://api:8080 # the Vite dev server proxies API calls here
     volumes:

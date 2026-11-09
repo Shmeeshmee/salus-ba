@@ -21,6 +21,9 @@ type Repository interface {
 	Finish(ctx context.Context, appointmentID string, at time.Time) (Encounter, bool, error)
 	// ByID returns the encounter, or ErrNotFound (also outside the scope, or for an id that is not a UUID).
 	ByID(ctx context.Context, id string) (Encounter, error)
+	// Organization returns the clinic of the encounter id whatever the scope (encounter_organization), and
+	// nothing else of it: ErrNotFound for an unknown id or one that is not a UUID.
+	Organization(ctx context.Context, id string) (string, error)
 	// Search returns the encounters of the appointment and the patient of f, when set, that the scope shows.
 	Search(ctx context.Context, f Filter) ([]Encounter, error)
 }

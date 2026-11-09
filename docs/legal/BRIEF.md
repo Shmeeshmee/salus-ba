@@ -113,6 +113,10 @@ or would it need the patient's explicit consent, and what changes if the speech-
 third party?
 Transcription is not built yet and needs its own SPEC; a hosted engine would be a processor holding patient
 audio.
+Interim choice (owner, 2026-11-09, pending this answer): the transcription agent joins and transcribes only while
+the patient's existing care consent with the clinic is active, the same consent that gives the clinic access to the
+encounter, and leaves the call as soon as it is withdrawn (SAL-4, [plan, Gates](../plans/consult-intelligence.md#gates-before-real-engines-are-wired-in)).
+The only engine enabled is a fake that sends audio nowhere; Azure AI Speech is built but not enabled.
 Sources: [consultation §7](../consultation/SPEC.md#7-up-next), [processors.md, pending](../privacy/processors.md#pending).
 
 ## 3. Consent, privacy and permission texts in each language

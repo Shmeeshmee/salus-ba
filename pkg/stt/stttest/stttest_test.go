@@ -151,3 +151,22 @@ func TestRecognizer_ReturnsItsError(t *testing.T) {
 		t.Errorf("Stream() = %v, want %v", err, want)
 	}
 }
+
+// With DiscardAudio a stream keeps none of its audio, so a fake running a long call (cmd/agent's default) holds
+// no more memory than the script.
+func TestStream_DiscardsTheAudioWhenAsked(t *testing.T) {
+	t.Parallel()
+	r := &stttest.Recognizer{DiscardAudio: true}
+	s, err := r.Stream(t.Context(), stt.Config{Lang: "bs", SampleRate: 16000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		if err := s.Send(make([]byte, 640)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := r.Streams()[0].Audio(); len(got) != 0 {
+		t.Errorf("kept %d bytes of audio, want none", len(got))
+	}
+}

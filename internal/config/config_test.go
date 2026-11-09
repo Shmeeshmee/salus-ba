@@ -230,7 +230,7 @@ func TestLoadLiveKit_RequiresEachSettingWithoutEchoingValues(t *testing.T) {
 
 // The api and the worker load the LiveKit settings; the notifier and the scheduler do not (SPEC.md
 // "Configuration" in docs/consultation), and Load never reads them.
-func TestLoadLiveKit_IsCalledOnlyByTheAPIAndTheWorker(t *testing.T) {
+func TestLoadLiveKit_IsCalledOnlyByTheAPITheWorkerAndTheAgent(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
 	t.Setenv("LIVEKIT_API_SECRET", "livekit-secret-marker")
 	cfg, err := config.Load()
@@ -269,7 +269,8 @@ func TestLoadLiveKit_IsCalledOnlyByTheAPIAndTheWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"cmd/api/main.go", "cmd/worker/main.go"}; !slices.Equal(callers, want) {
+	// The agent joins the consultations' rooms (SAL-4).
+	if want := []string{"cmd/agent/main.go", "cmd/api/main.go", "cmd/worker/main.go"}; !slices.Equal(callers, want) {
 		t.Errorf("LoadLiveKit is called by %v, want %v", callers, want)
 	}
 	if want := []string{"internal/config/config.go"}; !slices.Equal(readers, want) {
@@ -440,4 +441,90 @@ func TestLoadObjectStoreAndLoadClamd_AreCalledOnlyByTheAPIAndTheWorker(t *testin
 			t.Errorf("the %s variables are read in %v, want internal/config/config.go", key, found[key])
 		}
 	}
+}
+
+func TestLoadSTT_DefaultsToTheFake(t *testing.T) {
+	t.Setenv("STT_ENGINE", "")
+	got, err := config.LoadSTT()
+	if err != nil || got.Engine != config.STTFake {
+		t.Errorf("LoadSTT() = %+v, %v; want the fake", got, err)
+	}
+}
+
+func TestLoadSTT_ReadsAzuresRegionAndKey(t *testing.T) {
+	t.Setenv("STT_ENGINE", "azure")
+	t.Setenv("AZURE_SPEECH_REGION", "westeurope")
+	t.Setenv("AZURE_SPEECH_KEY", "speech-key-marker")
+	got, err := config.LoadSTT()
+	if err != nil || got != (config.STT{Engine: config.STTAzure, AzureRegion: "westeurope", AzureKey: "speech-key-marker"}) {
+		t.Errorf("LoadSTT() = %+v, %v", got, err)
+	}
+}
+
+func TestLoadSTT_RefusesAnUnknownEngineOrAzureWithoutItsSettingsWithoutEchoingThem(t *testing.T) {
+	for name, tc := range map[string]struct{ engine, region, key, variable string }{
+		"an unknown engine": {engine: "engine-marker", variable: "STT_ENGINE"},
+		"no region":         {engine: "azure", key: "key-marker", variable: "AZURE_SPEECH_REGION"},
+		"no key":            {engine: "azure", region: "region-marker", variable: "AZURE_SPEECH_KEY"},
+	} {
+		t.Setenv("STT_ENGINE", tc.engine)
+		t.Setenv("AZURE_SPEECH_REGION", tc.region)
+		t.Setenv("AZURE_SPEECH_KEY", tc.key)
+		_, err := config.LoadSTT()
+		if err == nil || !strings.Contains(err.Error(), tc.variable) || strings.Contains(err.Error(), "marker") {
+			t.Errorf("%s: LoadSTT() = %v, want an error naming %s and no value", name, err, tc.variable)
+		}
+	}
+}
+
+// Load never reads the speech engine's settings; only cmd/agent loads them, and only internal/config names
+// their variables.
+func TestLoadSTT_IsCalledOnlyByTheAgent(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+	t.Setenv("AZURE_SPEECH_KEY", "speech-key-marker")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprintf("%#v", cfg); strings.Contains(got, "speech-key-marker") {
+		t.Errorf("Load() holds the speech key: %s", got)
+	}
+	callers, readers := sourcesContaining(t, "config.LoadSTT("), sourcesContaining(t, `Getenv("AZURE_`)
+	if want := []string{"cmd/agent/main.go"}; !slices.Equal(callers, want) {
+		t.Errorf("LoadSTT is called by %v, want %v", callers, want)
+	}
+	if want := []string{"internal/config/config.go"}; !slices.Equal(readers, want) {
+		t.Errorf("the Azure variables are named in %v, want only %v", readers, want)
+	}
+}
+
+// sourcesContaining lists the repository's non-test Go files that contain needle, relative to its root.
+func sourcesContaining(t *testing.T, needle string) []string {
+	t.Helper()
+	root := filepath.Join("..", "..")
+	var found []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && (d.Name() == "node_modules" || d.Name() == ".git" || d.Name() == "tools") {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(src), needle) {
+			rel, _ := filepath.Rel(root, path)
+			found = append(found, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return found
 }

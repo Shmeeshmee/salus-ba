@@ -231,3 +231,25 @@ func TestByIDAndSearch_ReadInTheScope(t *testing.T) {
 		}
 	}
 }
+
+// Organization gives the clinic of an encounter outside any scope, and ErrNotFound for an unknown id or one
+// that is not a UUID.
+func TestOrganization_GivesTheClinicOfAnEncounterOutsideAnyScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 2, 0, 0, time.UTC)
+	s := seedDB(t, owner, at)
+	e, _, err := startIn(t, app, s, s.encounter(0, at))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := encounter.NewPostgresRepository(app)
+	if got, err := r.Organization(t.Context(), e.ID); err != nil || got != s.clinic {
+		t.Errorf("Organization() = %q, %v; want %s", got, err, s.clinic)
+	}
+	for _, id := range []string{"00000000-0000-4000-8000-000000000000", "Encounter/1"} {
+		if _, err := r.Organization(t.Context(), id); !errors.Is(err, encounter.ErrNotFound) {
+			t.Errorf("Organization(%q) error = %v, want ErrNotFound", id, err)
+		}
+	}
+}

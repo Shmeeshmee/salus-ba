@@ -32,6 +32,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/internal/terminology"
+	"github.com/Shmeeshmee/salus/internal/transcript"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -106,6 +107,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies)
 	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners)
+	transcripts := newTranscripts(pool, rdb, audit, tx, encounters, consents, appointmentCaller(accounts, patients), log)
 	questionnaireAPI, streams := questionnaireRoutes(questionnairePorts{
 		pool: pool, audit: audit, tx: tx, jobs: jobs, roles: roles, clinics: clinics, accounts: accounts, appointments: appointments, patients: patients,
 		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
@@ -134,8 +136,9 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			terminology.NewHTTPHandler(terminology.NewService(terminology.NewPostgresRepository(pool), uiLanguage(accounts)), terminologyCaller(accounts), log).Routes,
+			transcripts.Routes,
 		}, questionnaireAPI...),
-		Streams: streams,
+		Streams: append(streams, transcripts.StreamRoutes),
 		Timeout: RequestTimeout,
 	})
 	return &App{Handler: h, pool: pool, redis: rdb}, nil
@@ -189,6 +192,17 @@ func newConsultation(pool *pgxpool.Pool, lk config.LiveKit, jobs *river.Client[p
 		Jobs: videosession.NewRiverJobs(jobs), Encounters: encounters, Audit: audit, Tx: tx, Clock: clock.System{},
 		Appointments: appointments, Consents: consents, Patients: patients, Practitioners: practitioners, PublicURL: lk.PublicURL,
 	})
+}
+
+// newTranscripts builds the handler of the encounter's live events (its Redis Stream on rdb) and of its stored
+// transcript, for its practitioner.
+func newTranscripts(pool *pgxpool.Pool, rdb *goredis.Client, audit *auditevent.Service, tx *postgres.Transactor, encounters *encounter.Service,
+	consents *consent.Service, caller func(ctx context.Context) (appointment.Caller, bool, error), log *slog.Logger,
+) *transcript.HTTPHandler {
+	return transcript.NewHTTPHandler(transcript.NewService(transcript.Ports{
+		Repo: transcript.NewPostgresRepository(pool), Stream: transcript.NewRedisStream(rdb), Encounters: encounters, Consents: consents,
+		Audit: audit, Tx: tx,
+	}), caller, clock.System{}, log)
 }
 
 // s3PageSize is the object store listing's page, S3's largest.

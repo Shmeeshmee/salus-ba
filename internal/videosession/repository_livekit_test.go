@@ -1,6 +1,7 @@
 package videosession_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -8,6 +9,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log"
+	"math"
 	"os"
 	"slices"
 	"strings"
@@ -16,12 +19,20 @@ import (
 
 	"github.com/livekit/protocol/auth"
 	"github.com/livekit/protocol/livekit"
+	protologger "github.com/livekit/protocol/logger"
 	"github.com/livekit/protocol/utils/protojson"
 	lksdk "github.com/livekit/server-sdk-go/v2"
+	"github.com/pion/webrtc/v4"
+	"github.com/pion/webrtc/v4/pkg/media"
+	"github.com/tphakala/go-opus/opus"
 
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
+
+// listener is the agent's listener, built before any test runs: NewLiveKitListener silences the SDK's package
+// logger, which the parallel tests' connections read.
+var listener = videosession.NewLiveKitListener()
 
 // The compose LiveKit (deployments/livekit.yaml), reached from the tools container. Like the databases, the
 // tests fail without it; they never skip.
@@ -74,7 +85,8 @@ func (s livekitServer) connect(t *testing.T, token string) (*lksdk.Room, <-chan 
 	gone := make(chan lksdk.DisconnectionReason, 1)
 	cb := lksdk.NewRoomCallback()
 	cb.OnDisconnectedWithReason = func(r lksdk.DisconnectionReason) { gone <- r }
-	room, err := lksdk.ConnectToRoomWithToken(strings.Replace(s.url, "http", "ws", 1), token, cb, lksdk.WithAutoSubscribe(false))
+	room, err := lksdk.ConnectToRoomWithToken(strings.Replace(s.url, "http", "ws", 1), token, cb, lksdk.WithAutoSubscribe(false),
+		lksdk.WithLogger(protologger.GetDiscardLogger())) // so TestListen_LogsNothing hears only the agent
 	if err != nil {
 		return nil, gone
 	}
@@ -558,5 +570,367 @@ func TestParseWebhook_ReadsAnAgentsEventsAsOther(t *testing.T) {
 		if err != nil || got != want {
 			t.Errorf("ParseWebhook(%s of an agent) = %+v, %v; want %+v", kind, got, err, want)
 		}
+	}
+}
+
+// publishTone publishes a synthetic 440 Hz tone (never a recording) as the room's microphone until the test ends:
+// Opus at 48 kHz, as browsers and phones send it, or G.711 µ-law at 8 kHz, as the e2e participant does.
+func publishTone(t *testing.T, room *lksdk.Room, codec string) {
+	t.Helper()
+	capability := webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2}
+	if codec == webrtc.MimeTypePCMU {
+		capability = webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypePCMU, ClockRate: 8000, Channels: 1}
+	}
+	track, err := lksdk.NewLocalSampleTrack(capability)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := room.LocalParticipant.PublishTrack(track, &lksdk.TrackPublicationOptions{Source: livekit.TrackSource_MICROPHONE}); err != nil {
+		t.Fatalf("publish the tone: %v", err)
+	}
+	frame := toneFrames(t, codec)
+	ctx, stop := context.WithCancel(context.Background())
+	t.Cleanup(stop)
+	go func() {
+		tick := time.NewTicker(20 * time.Millisecond)
+		defer tick.Stop()
+		for n := 0; ; n++ {
+			if err := track.WriteSample(media.Sample{Data: frame(n), Duration: 20 * time.Millisecond}, nil); err != nil {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+			}
+		}
+	}()
+}
+
+// toneFrames gives the n-th 20 ms frame of a 440 Hz tone in the codec (Opus from go-opus's encoder, which codes
+// CELT only; the decoder takes SILK and hybrid too, checked by its RFC 6716 vectors).
+func toneFrames(t *testing.T, codec string) func(n int) []byte {
+	t.Helper()
+	if codec == webrtc.MimeTypePCMU {
+		return func(n int) []byte {
+			b := make([]byte, 160)
+			for i := range b {
+				b[i] = mulawOf(int16(8000 * math.Sin(2*math.Pi*440*float64(n*160+i)/8000)))
+			}
+			return b
+		}
+	}
+	enc, err := opus.NewEncoder(opus.EncoderConfig{SampleRate: 48000, Channels: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return func(n int) []byte {
+		pcm := make([]int16, 960)
+		for i := range pcm {
+			pcm[i] = int16(8000 * math.Sin(2*math.Pi*440*float64(n*960+i)/48000))
+		}
+		packet := make([]byte, 1276)
+		k, err := enc.Encode(pcm, packet)
+		if err != nil {
+			return nil
+		}
+		return packet[:k]
+	}
+}
+
+// mulawOf is the G.711 µ-law code of a sample.
+func mulawOf(sample int16) byte {
+	const bias, clip = 0x84, 32635
+	v, sign := int(sample), byte(0)
+	if v < 0 {
+		v, sign = -v, 0x80
+	}
+	v = min(v, clip) + bias
+	exp := 7
+	for mask := 0x4000; v&mask == 0 && exp > 0; mask >>= 1 {
+		exp--
+	}
+	return ^(sign | byte(exp<<4) | byte((v>>(exp+3))&0x0f))
+}
+
+// pitch is the frequency of a tone in 16 kHz PCM, from its zero crossings.
+func pitch(pcm []byte) float64 {
+	crossings, prev := 0, int16(0)
+	for i := 0; i+1 < len(pcm); i += 2 {
+		s := int16(uint16(pcm[i]) | uint16(pcm[i+1])<<8)
+		if (prev < 0) != (s < 0) {
+			crossings++
+		}
+		prev = s
+	}
+	return float64(crossings) / 2 / (float64(len(pcm)/2) / 16000)
+}
+
+// The agent hears each person's microphone in the room, Opus or G.711, decoded to 16 kHz 16-bit mono PCM in
+// 20 ms frames, by their identity; when it is removed from the room the tracks end (SAL-4).
+func TestListen_HandsOverEachMicrophoneDecodedTo16kHzUntilTheAgentIsRemoved(t *testing.T) {
+	t.Parallel()
+	lk := newLiveKitServer(t)
+	name := lk.room(t)
+	p := lk.provider()
+	token, err := p.Token(videosession.Grant{Room: name, Identity: "a_listen", ValidFor: time.Minute, Agent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, err := listener.Listen(t.Context(), strings.Replace(lk.url, "http", "ws", 1), token)
+	if err != nil {
+		t.Fatalf("Listen() = %v", err)
+	}
+	t.Cleanup(l.Leave)
+	for identity, codec := range map[string]string{"p_opus": webrtc.MimeTypeOpus, "p_pcmu": webrtc.MimeTypePCMU} {
+		pt, err := p.Token(videosession.Grant{Room: name, Identity: identity, ValidFor: time.Minute})
+		if err != nil {
+			t.Fatal(err)
+		}
+		room, _ := lk.connect(t, pt)
+		if room == nil {
+			t.Fatalf("%s did not connect", identity)
+		}
+		publishTone(t, room, codec)
+	}
+
+	heard, tracks := hear(t, l, 2)
+	for identity, pcm := range heard {
+		if f := pitch(pcm[len(pcm)/2:]); f < 400 || f > 480 {
+			t.Errorf("%s: a tone of %.0f Hz, want 440", identity, f)
+		}
+	}
+
+	if err := p.RemoveParticipant(t.Context(), name, "a_listen"); err != nil {
+		t.Fatal(err)
+	}
+	ended := make(chan struct{})
+	go func() {
+		for a := range l.Tracks {
+			tracks = append(tracks, a)
+		}
+		for _, a := range tracks {
+			for range a.Frames { //nolint:revive // drained until the track ends
+			}
+		}
+		close(ended)
+	}()
+	select {
+	case <-ended:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the agent's tracks did not end within 15 s of its removal")
+	}
+}
+
+// The agent's connection logs nothing: LiveKit's SDK and WebRTC stack print the room, the identities and the
+// connection's addresses to the standard logger by default (SPEC.md §2: rooms and identities are never logged).
+// Not parallel, so it owns the standard logger while it runs.
+func TestListen_LogsNothing(t *testing.T) {
+	var logs bytes.Buffer
+	prev := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(prev) })
+
+	lk := newLiveKitServer(t)
+	name := lk.room(t)
+	p := lk.provider()
+	token, err := p.Token(videosession.Grant{Room: name, Identity: "a_quiet", ValidFor: time.Minute, Agent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, err := listener.Listen(t.Context(), lk.url, token)
+	if err != nil {
+		t.Fatalf("Listen() = %v", err)
+	}
+	pt, err := p.Token(videosession.Grant{Room: name, Identity: "p_quiet", ValidFor: time.Minute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	room, _ := lk.connect(t, pt)
+	if room == nil {
+		t.Fatal("the publisher did not connect")
+	}
+	publishTone(t, room, webrtc.MimeTypeOpus)
+	select {
+	case a := <-l.Tracks:
+		<-a.Frames
+	case <-time.After(20 * time.Second):
+		t.Fatal("no track within 20 s")
+	}
+	l.Leave()
+	if logs.Len() != 0 {
+		t.Errorf("the connection logged %d bytes, want none; the first line: %s", logs.Len(), strings.SplitN(logs.String(), "\n", 2)[0])
+	}
+}
+
+// hear reads a second of audio from each of the first n tracks, checking each frame is 20 ms of 16 kHz 16-bit
+// mono PCM, and returns the audio by identity and the tracks.
+func hear(t *testing.T, l videosession.Listening, n int) (map[string][]byte, []videosession.RemoteAudio) {
+	t.Helper()
+	heard := map[string][]byte{}
+	var tracks []videosession.RemoteAudio
+	deadline := time.After(20 * time.Second)
+	for len(heard) < n {
+		select {
+		case a := <-l.Tracks:
+			var pcm []byte
+			for range 50 {
+				f, ok := <-a.Frames
+				if !ok {
+					t.Fatalf("%s's track ended early", a.Identity)
+				}
+				if len(f) != 640 {
+					t.Fatalf("%s: a frame of %d bytes, want 640 (20 ms at 16 kHz, 16-bit mono)", a.Identity, len(f))
+				}
+				pcm = append(pcm, f...)
+			}
+			heard[a.Identity] = pcm
+			tracks = append(tracks, a)
+		case <-deadline:
+			t.Fatalf("heard %d tracks within 20 s, want %d", len(heard), n)
+		}
+	}
+	return heard, tracks
+}
+
+// BenchmarkListen_FrameLatency is the LiveKit hop of the partial caption's latency (SAL-4): from a synthetic tone
+// burst's first Opus frame written by a publisher on the compose LiveKit to the agent's first decoded frame of it,
+// after 200 ms of silence each time; p50, p95 and p99 reported (make bench-stt).
+func BenchmarkListen_FrameLatency(b *testing.B) {
+	lk := newLiveKitServer(b)
+	name := "r_bench_" + strings.ToLower(rand.Text())
+	p := lk.provider()
+	if err := p.CreateRoom(b.Context(), videosession.Room{Name: name, MaxParticipants: 2, EmptyTimeout: time.Hour}); err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() { _ = p.DeleteRoom(context.Background(), name) })
+	token, err := p.Token(videosession.Grant{Room: name, Identity: "a_bench", ValidFor: time.Minute, Agent: true})
+	if err != nil {
+		b.Fatal(err)
+	}
+	l, err := listener.Listen(b.Context(), lk.url, token)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(l.Leave)
+	pt, err := p.Token(videosession.Grant{Room: name, Identity: "p_bench", ValidFor: time.Minute})
+	if err != nil {
+		b.Fatal(err)
+	}
+	room, err := lksdk.ConnectToRoomWithToken(strings.Replace(lk.url, "http", "ws", 1), pt, lksdk.NewRoomCallback(),
+		lksdk.WithAutoSubscribe(false), lksdk.WithLogger(protologger.GetDiscardLogger()))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(room.Disconnect)
+	track, err := lksdk.NewLocalSampleTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2})
+	if err != nil {
+		b.Fatal(err)
+	}
+	if _, err := room.LocalParticipant.PublishTrack(track, &lksdk.TrackPublicationOptions{Source: livekit.TrackSource_MICROPHONE}); err != nil {
+		b.Fatal(err)
+	}
+	loud := listenLoud(b, l)
+	tone, silence := burstFrames(b)
+	write := func(f []byte) { _ = track.WriteSample(media.Sample{Data: f, Duration: 20 * time.Millisecond}, nil) }
+	wall := clock.System{}
+	took := make([]time.Duration, 0, b.N)
+	b.ResetTimer()
+	for range b.N {
+		for range 10 {
+			write(silence())
+			time.Sleep(20 * time.Millisecond)
+		}
+		drainLoud(loud)
+		start := wall.Now()
+		got := false
+		for i := 0; i < 50 && !got; i++ {
+			write(tone())
+			select {
+			case at := <-loud:
+				took, got = append(took, at.Sub(start)), true
+			case <-time.After(20 * time.Millisecond):
+			}
+		}
+		if !got {
+			b.Fatal("the agent heard no tone within a second")
+		}
+	}
+	b.StopTimer()
+	reportPercentiles(b, took)
+}
+
+// listenLoud reports the time of each decoded frame of the first track that holds a tone (not silence).
+func listenLoud(b *testing.B, l videosession.Listening) chan time.Time {
+	b.Helper()
+	loud := make(chan time.Time, 100)
+	var a videosession.RemoteAudio
+	select {
+	case a = <-l.Tracks:
+	case <-time.After(20 * time.Second):
+		b.Fatal("no track within 20 s")
+	}
+	go func() {
+		wall := clock.System{}
+		for f := range a.Frames {
+			var sum float64
+			for i := 0; i+1 < len(f); i += 2 {
+				s := float64(int16(uint16(f[i]) | uint16(f[i+1])<<8))
+				sum += s * s
+			}
+			if math.Sqrt(sum/float64(len(f)/2)) > 1000 {
+				select {
+				case loud <- wall.Now():
+				default:
+				}
+			}
+		}
+	}()
+	return loud
+}
+
+func drainLoud(loud chan time.Time) {
+	for {
+		select {
+		case <-loud:
+		default:
+			return
+		}
+	}
+}
+
+// burstFrames encodes, with one encoder, the frames of a continuous 440 Hz tone and of digital silence.
+func burstFrames(b *testing.B) (tone, silence func() []byte) {
+	b.Helper()
+	enc, err := opus.NewEncoder(opus.EncoderConfig{SampleRate: 48000, Channels: 1})
+	if err != nil {
+		b.Fatal(err)
+	}
+	n := 0
+	encode := func(amp float64) []byte {
+		pcm := make([]int16, 960)
+		for i := range pcm {
+			pcm[i] = int16(amp * math.Sin(2*math.Pi*440*float64(n*960+i)/48000))
+		}
+		n++
+		packet := make([]byte, 1276)
+		k, err := enc.Encode(pcm, packet)
+		if err != nil {
+			return nil
+		}
+		return packet[:k]
+	}
+	return func() []byte { return encode(8000) }, func() []byte { return encode(0) }
+}
+
+// reportPercentiles reports p50, p95 and p99 of took in milliseconds.
+func reportPercentiles(b *testing.B, took []time.Duration) {
+	b.Helper()
+	slices.Sort(took)
+	for _, p := range []struct {
+		name string
+		q    float64
+	}{{"p50-ms", 0.50}, {"p95-ms", 0.95}, {"p99-ms", 0.99}} {
+		b.ReportMetric(float64(took[int(p.q*float64(len(took)-1))].Microseconds())/1000, p.name)
 	}
 }
