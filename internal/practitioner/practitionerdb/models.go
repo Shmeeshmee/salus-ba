@@ -290,14 +290,25 @@ type Consent struct {
 }
 
 type DocumentDraft struct {
-	ID          pgtype.UUID
-	CreatedAt   pgtype.Timestamptz
-	UpdatedAt   pgtype.Timestamptz
-	EncounterID pgtype.UUID
-	TemplateID  pgtype.UUID
-	VersionID   int32
-	Status      string
-	Fields      []byte
+	ID                  pgtype.UUID
+	CreatedAt           pgtype.Timestamptz
+	UpdatedAt           pgtype.Timestamptz
+	EncounterID         pgtype.UUID
+	TemplateID          pgtype.UUID
+	VersionID           int32
+	Status              string
+	Fields              []byte
+	SignedAt            pgtype.Timestamptz
+	PdfSize             pgtype.Int8
+	SignerRoleID        pgtype.UUID
+	DocumentReferenceID pgtype.UUID
+	ProvenanceID        pgtype.UUID
+	Language            Language
+	Title               string
+	TypeCode            string
+	PdfKekID            pgtype.Text
+	PdfSha1             []byte
+	PdfWrappedKey       []byte
 }
 
 type DocumentTemplate struct {
@@ -308,6 +319,16 @@ type DocumentTemplate struct {
 	VersionID      int32
 	Title          string
 	Fields         []byte
+	Language       Language
+	Status         string
+	TypeCode       string
+}
+
+type DocumentTemplateTranslation struct {
+	TemplateID pgtype.UUID
+	CreatedAt  pgtype.Timestamptz
+	Language   Language
+	Texts      []byte
 }
 
 type Encounter struct {
