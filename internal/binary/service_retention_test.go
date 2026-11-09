@@ -70,8 +70,9 @@ func TestPurger_DeletesOldRejectedRowsThenOldObjectsWithoutARow(t *testing.T) {
 	}
 
 	oldRejected, freshRejected, withRow := s.file("files", 10, 1), s.file("files", 11, 2), s.file("files", 12, 3)
-	orphan, young := binaryID(), binaryID()
-	for _, key := range []string{oldRejected.ID, freshRejected.ID, withRow.ID, orphan} {
+	// foreign is another owner's object (a signed document's PDF, internal/composition): no binary id, kept.
+	orphan, young, foreign := binaryID(), binaryID(), "composition/"+binaryID()
+	for _, key := range []string{oldRejected.ID, freshRejected.ID, withRow.ID, orphan, foreign} {
 		putObject(key)
 	}
 	written := clock.System{}.Now()
@@ -101,7 +102,7 @@ func TestPurger_DeletesOldRejectedRowsThenOldObjectsWithoutARow(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("rows left %v, want the fresh rejected one and the clean one", got)
 	}
-	for key, kept := range map[string]bool{oldRejected.ID: false, orphan: false, freshRejected.ID: true, withRow.ID: true, young: true} {
+	for key, kept := range map[string]bool{oldRejected.ID: false, orphan: false, freshRejected.ID: true, withRow.ID: true, young: true, foreign: true} {
 		_, err := store.GetRange(t.Context(), key, 0, 0)
 		switch {
 		case kept && err != nil:
