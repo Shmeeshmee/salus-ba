@@ -83,11 +83,11 @@ func translateUser(req llm.TranslateRequest) string {
 	if len(req.Glossary) > 0 {
 		b.WriteString("<glossary>\n")
 		for _, t := range req.Glossary {
-			b.WriteString(t.Source + " = " + t.Target + "\n")
+			b.WriteString(escape(t.Source) + " = " + escape(t.Target) + "\n")
 		}
 		b.WriteString("</glossary>\n")
 	}
-	b.WriteString("<line>" + req.Text + "</line>")
+	b.WriteString("<line>" + escape(req.Text) + "</line>")
 	return b.String()
 }
 
@@ -181,7 +181,7 @@ func fieldsBlock(fields []llm.FieldSpec) string {
 	var b strings.Builder
 	b.WriteString("<fields>\n")
 	for _, f := range fields {
-		b.WriteString(f.Key + ": " + f.Label + "\n")
+		b.WriteString(escape(f.Key) + ": " + escape(f.Label) + "\n")
 	}
 	b.WriteString("</fields>")
 	return b.String()
@@ -192,11 +192,16 @@ func transcriptBlock(lines []llm.Utterance) string {
 	var b strings.Builder
 	b.WriteString("<transcript>\n")
 	for _, u := range lines {
-		b.WriteString("[" + u.ID + "] " + u.Speaker + ": " + u.Text + "\n")
+		b.WriteString("[" + escape(u.ID) + "] " + escape(u.Speaker) + ": " + escape(u.Text) + "\n")
 	}
 	b.WriteString("</transcript>")
 	return b.String()
 }
+
+// escaper keeps the data inside the prompt's tags from closing or opening one: <, > and & as XML writes them.
+var escaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+
+func escape(s string) string { return escaper.Replace(s) }
 
 func utteranceIDs(lines []llm.Utterance) map[string]bool {
 	ids := make(map[string]bool, len(lines))
