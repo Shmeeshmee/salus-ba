@@ -115,7 +115,7 @@ func run(ctx context.Context, logOut io.Writer) error {
 // newRecognizer is the configured engine: the fake, or Azure in its EU region (azure.New refuses any other).
 func newRecognizer(engine config.STT) (stt.Recognizer, error) {
 	if engine.Engine != config.STTAzure {
-		return &stttest.Recognizer{Results: placeholder}, nil
+		return &stttest.Recognizer{Results: placeholder, DiscardAudio: true}, nil
 	}
 	return azure.New(azure.Config{Region: engine.AzureRegion, Key: engine.AzureKey},
 		&websocket.Dialer{HandshakeTimeout: handshakeTimeout}, clock.System{})

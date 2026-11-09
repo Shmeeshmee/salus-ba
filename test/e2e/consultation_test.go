@@ -405,7 +405,7 @@ func transcriptOf(t *testing.T, encounterID string) func() map[string]bool {
 	rdb := goredis.NewClient(opts)
 	t.Cleanup(func() { _ = rdb.Close() })
 	return func() map[string]bool {
-		entries, err := rdb.XRange(context.Background(), "consult:"+encounterID+":events", "-", "+").Result()
+		entries, err := rdb.XRange(t.Context(), "consult:"+encounterID+":events", "-", "+").Result()
 		if err != nil {
 			t.Fatalf("read the encounter's stream: %v", err)
 		}

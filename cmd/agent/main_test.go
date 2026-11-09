@@ -9,9 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/migrations"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
+	"github.com/Shmeeshmee/salus/pkg/stt/stttest"
 )
 
 func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
@@ -120,4 +122,15 @@ func runUntilStarted(t *testing.T) (string, error) {
 	cancel()
 	err := <-done
 	return logs.String(), err
+}
+
+// The default engine keeps no audio: a consultation of hours holds no more memory than its placeholder script.
+func TestNewRecognizer_TheFakeKeepsNoAudio(t *testing.T) {
+	r, err := newRecognizer(config.STT{Engine: config.STTFake})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fake, ok := r.(*stttest.Recognizer); !ok || !fake.DiscardAudio {
+		t.Errorf("the default recognizer is %T %+v, want the fake discarding its audio", r, r)
+	}
 }
