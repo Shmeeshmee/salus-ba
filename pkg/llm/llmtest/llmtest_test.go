@@ -152,3 +152,12 @@ func TestDrafter_ReturnsItsError(t *testing.T) {
 		t.Errorf("Draft() = %v, want %v", err, errDown)
 	}
 }
+
+// DiscardCalls keeps no calls (for a long-running fake, as in cmd/agent).
+func TestTranslator_KeepsNoCallsWithDiscardCalls(t *testing.T) {
+	t.Parallel()
+	tr := &llmtest.Translator{DiscardCalls: true}
+	if got, err := tr.Translate(t.Context(), llm.TranslateRequest{Text: "x", To: "bs"}); err != nil || got != "[bs] x" || len(tr.Calls()) != 0 {
+		t.Errorf("Translate() = %q, %v with %d calls kept; want the translation and none", got, err, len(tr.Calls()))
+	}
+}

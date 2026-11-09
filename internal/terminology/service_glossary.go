@@ -23,7 +23,7 @@ const (
 // language to, for the line's translation (docs/plans/consult-intelligence.md, SAL-5). A term is found by a
 // phrase of the line, one to three words, equal to one of its labels in from, case and accents aside; the
 // phrase's last word may carry up to three more letters (a plural, a case ending, a Turkish suffix) as long as
-// four are left. Words of two letters or fewer are no phrase of their own, punctuation around a word is not part
+// four are left, and an Arabic phrase a proclitic ("and", "with", "the") on its first word. Words of two letters or fewer are no phrase of their own, punctuation around a word is not part
 // of it, and only the first 200 words are looked up. At most 20 terms, the most common first. Both languages
 // must be the terms' app languages and differ (else ErrInvalidSearch). For the transcription agent: the terms are
 // reference data, so nothing is audited; the line is patient speech and is never logged, stored or put into an
@@ -32,7 +32,7 @@ func (s *Service) Glossary(ctx context.Context, text, from, to string) ([]Glossa
 	if from == to || from == "la" || to == "la" || !slices.Contains(languages, from) || !slices.Contains(languages, to) {
 		return nil, ErrInvalidSearch
 	}
-	candidates := phrases(text)
+	candidates := phrases(text, from == "ar")
 	if len(candidates) == 0 {
 		return nil, nil
 	}
@@ -43,8 +43,9 @@ func (s *Service) Glossary(ctx context.Context, text, from, to string) ([]Glossa
 	return entries, nil
 }
 
-// phrases are the candidate phrases of text, each once, in the order they first occur.
-func phrases(text string) []string {
+// phrases are the candidate phrases of text, each once, in the order they first occur; with arabic, each phrase
+// also without a proclitic on its first word.
+func phrases(text string, arabic bool) []string {
 	var words []string
 	for _, f := range strings.Fields(text) {
 		if w := strings.TrimFunc(f, notWord); w != "" {
@@ -68,9 +69,18 @@ func phrases(text string) []string {
 			if n == 1 && utf8.RuneCountInString(last) < glossaryMinWord {
 				continue
 			}
-			head := strings.Join(words[i:i+n-1], " ")
-			for _, w := range forms(last) {
-				add(strings.TrimSpace(head + " " + w))
+			heads := []string{strings.Join(words[i:i+n-1], " ")}
+			if bare := withoutProclitic(words[i]); arabic && bare != "" && n > 1 {
+				heads = append(heads, strings.Join(append([]string{bare}, words[i+1:i+n-1]...), " "))
+			}
+			lasts := forms(last)
+			if bare := withoutProclitic(last); arabic && bare != "" && n == 1 {
+				lasts = append(lasts, forms(bare)...)
+			}
+			for _, head := range heads {
+				for _, w := range lasts {
+					add(strings.TrimSpace(head + " " + w))
+				}
 			}
 		}
 	}
@@ -85,6 +95,20 @@ func forms(w string) []string {
 		out = append(out, string(r[:len(r)-cut]))
 	}
 	return out
+}
+
+// arabicProclitics are the prefixes an Arabic word may carry: "and", "so", "with", "for", "like", "the", and
+// their joins with "the"; the longest first.
+var arabicProclitics = []string{"وال", "فال", "بال", "كال", "لل", "ال", "و", "ف", "ب", "ل", "ك"}
+
+// withoutProclitic is w without its Arabic proclitic, when three letters at least are left; empty otherwise.
+func withoutProclitic(w string) string {
+	for _, p := range arabicProclitics {
+		if rest, ok := strings.CutPrefix(w, p); ok && utf8.RuneCountInString(rest) >= glossaryMinWord {
+			return rest
+		}
+	}
+	return ""
 }
 
 // notWord is punctuation or a symbol around a word.

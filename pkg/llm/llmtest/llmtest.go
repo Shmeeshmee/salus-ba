@@ -16,20 +16,23 @@ import (
 var ErrScripted = errors.New("llmtest: scripted failure")
 
 // Translator returns the text marked with the target language: "[de] text". It fails its first Failures calls
-// with ErrScripted, and holds every call for Delay (or until its context ends) before it answers.
+// with ErrScripted, and holds every call for Delay (or until its context ends) before it answers. With
+// DiscardCalls it keeps none of its calls (for a long-running fake, as in cmd/agent).
 type Translator struct {
-	Err      error
-	calls    []llm.TranslateRequest
-	Failures int
-	Delay    time.Duration
-	mu       sync.Mutex
+	Err          error
+	calls        []llm.TranslateRequest
+	Failures     int
+	Delay        time.Duration
+	mu           sync.Mutex
+	DiscardCalls bool
 }
 
 // Translate records the request and marks its text.
 func (f *Translator) Translate(ctx context.Context, req llm.TranslateRequest) (string, error) {
 	f.mu.Lock()
-	req.Glossary = slices.Clone(req.Glossary)
-	f.calls = append(f.calls, req)
+	if !f.DiscardCalls {
+		f.calls = append(f.calls, llm.TranslateRequest{Text: req.Text, From: req.From, To: req.To, Glossary: slices.Clone(req.Glossary)})
+	}
 	fail := f.Failures > 0
 	if fail {
 		f.Failures--

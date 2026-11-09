@@ -1,0 +1,15 @@
+{
+  "line": "Ich habe seit drei Tagen starke Kopfschmerzen und Fieber.",
+  "from": "de",
+  "to": "bs",
+  "glossary": [
+    {
+      "source": "Fieber",
+      "target": "groznica"
+    },
+    {
+      "source": "Kopfschmerz",
+      "target": "glavobolja"
+    }
+  ]
+}

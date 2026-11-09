@@ -14,6 +14,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/internal/worker"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 	"github.com/Shmeeshmee/salus/pkg/stt/stttest"
 )
@@ -61,7 +62,7 @@ func runAgentJob(t *testing.T, db logins, w *watched, sessionID string) (river.E
 	t.Helper()
 	logs := &syncBuffer{}
 	video := worker.Video{Provider: liveKit(t), Listener: w, URL: os.Getenv("TEST_LIVEKIT_URL")}
-	client, live, err := worker.NewAgent(db.app, redistest.NewClient(t), video, &stttest.Recognizer{}, slog.New(slog.NewJSONHandler(logs, nil)))
+	client, live, err := worker.NewAgent(db.app, redistest.NewClient(t), video, &stttest.Recognizer{}, &llmtest.Translator{}, slog.New(slog.NewJSONHandler(logs, nil)))
 	if err != nil {
 		t.Fatalf("NewAgent() error = %v", err)
 	}
@@ -143,16 +144,19 @@ func TestTranscriptionJoin_JoinsTheRoomAndLeavesWhenTheConsentIsRevoked(t *testi
 // NewAgent needs everything the agent works with.
 func TestNewAgent_NeedsItsDependencies(t *testing.T) {
 	t.Parallel()
-	if _, _, err := worker.NewAgent(newLogins(t).app, nil, worker.Video{}, nil, slog.New(slog.DiscardHandler)); err == nil {
+	if _, _, err := worker.NewAgent(newLogins(t).app, nil, worker.Video{}, nil, nil, slog.New(slog.DiscardHandler)); err == nil {
 		t.Error("NewAgent() without Redis, video or a recognizer = nil error")
 	}
 	// Without the pool or the logger too (Copilot on #36): an error, not a panic later.
 	app, rdb, log := newLogins(t).app, redistest.NewClient(t), slog.New(slog.DiscardHandler)
 	video := worker.Video{Provider: liveKit(t), Listener: listener, URL: os.Getenv("TEST_LIVEKIT_URL")}
-	if _, _, err := worker.NewAgent(nil, rdb, video, &stttest.Recognizer{}, log); err == nil {
+	if _, _, err := worker.NewAgent(nil, rdb, video, &stttest.Recognizer{}, &llmtest.Translator{}, log); err == nil {
 		t.Error("NewAgent() without the pool = nil error")
 	}
-	if _, _, err := worker.NewAgent(app, rdb, video, &stttest.Recognizer{}, nil); err == nil {
+	if _, _, err := worker.NewAgent(app, rdb, video, &stttest.Recognizer{}, &llmtest.Translator{}, nil); err == nil {
 		t.Error("NewAgent() without a logger = nil error")
+	}
+	if _, _, err := worker.NewAgent(app, rdb, video, &stttest.Recognizer{}, nil, log); err == nil {
+		t.Error("NewAgent() without a translator = nil error")
 	}
 }

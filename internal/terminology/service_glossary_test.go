@@ -67,6 +67,28 @@ func TestGlossary_CandidatesAllowAShortSuffixAndDropPunctuation(t *testing.T) {
 	}
 }
 
+// In Arabic a phrase may begin with a proclitic (و "and", ب "with", ال "the" and their joins): the phrase is also
+// looked up without it, as long as three letters of its first word are left.
+func TestGlossary_CandidatesDropAnArabicProclitic(t *testing.T) {
+	t.Parallel()
+	repo := &fakeRepo{}
+	if _, err := newService(repo, &fakeLanguages{}).Glossary(t.Context(), "صداع وحمى بالصدر", "ar", "bs"); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []string{"وحمى", "حمى", "بالصدر", "صدر", "صداع وحمى", "حمى بالصدر"} {
+		if !slices.Contains(repo.glossaryQuery.Candidates, c) {
+			t.Errorf("candidates %q lack %q", repo.glossaryQuery.Candidates, c)
+		}
+	}
+	repo = &fakeRepo{}
+	if _, err := newService(repo, &fakeLanguages{}).Glossary(t.Context(), "Blut", "de", "bs"); err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(repo.glossaryQuery.Candidates, "lut") {
+		t.Errorf("a German word lost its first letter: %q", repo.glossaryQuery.Candidates)
+	}
+}
+
 // Only the first 200 words of a line are looked up, each candidate once.
 func TestGlossary_BoundsTheCandidates(t *testing.T) {
 	t.Parallel()

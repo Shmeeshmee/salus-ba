@@ -19,6 +19,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/transcript"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 	"github.com/Shmeeshmee/salus/pkg/stt"
 	"github.com/Shmeeshmee/salus/pkg/stt/azure"
@@ -123,8 +124,9 @@ func benchPartial(b *testing.B, r stt.Recognizer) {
 	languages := &fakeLanguages{patient: "bs", clinic: "bs"}
 	svc := transcript.NewLive(transcript.LivePorts{
 		Calls: calls, Appointments: languages, Accounts: languages, Clinics: languages,
-		Publisher: transcript.NewRedisPublisher(rdb), Recognizer: r, Clock: clock.System{},
-		Log: slog.New(slog.DiscardHandler),
+		Publisher: transcript.NewRedisPublisher(rdb), Recognizer: r, Translator: &llmtest.Translator{}, Glossary: &fakeGlossary{},
+		Clock: clock.System{},
+		Log:   slog.New(slog.DiscardHandler),
 	})
 	b.Cleanup(svc.Stop)
 	if err := svc.Transcribe(b.Context(), sessionID, clinicID); err != nil {

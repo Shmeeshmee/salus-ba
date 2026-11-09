@@ -101,6 +101,6 @@ type GlossaryQuery struct {
 // GlossaryEntry is a term found in a line: its label as the line's language has it, and its preferred label in
 // the language the line is translated into.
 type GlossaryEntry struct {
-	Source string
-	Target string
+	Source string `json:"source"`
+	Target string `json:"target"`
 }
