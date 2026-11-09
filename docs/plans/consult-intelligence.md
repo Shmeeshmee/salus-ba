@@ -139,6 +139,21 @@ after-revocation rule apply unchanged; the clinic scope only. A patient's access
   (`AZURE_SPEECH_REGION`, `AZURE_SPEECH_KEY`): Azure's real-time WebSocket protocol, no SDK, no cgo, an EU
   region only, no `storeAudio`, nothing logged.
 
+## SAL-5 (B): translation, as built (2026-11-09; agent decisions, for the owner to review)
+
+| Topic | Decision |
+| --- | --- |
+| Direction | Each side reads the other in their own language: a patient's final segment goes into the practitioner's language (the clinic's default, SAL-4), a practitioner's into the patient's (their account's, else the clinic's). The second is the plan's "other participant's language" and gives the bilingual transcript both directions |
+| No translation | Partial segments (cost and latency), and a segment whose speaker and listener have the same language tag. Bosnian, Croatian and both Serbian scripts are different tags and are translated into each other (script and standard) |
+| One event | A final segment is published once, with its translation or `translation_failed`, so SAL-6's consumer stores it once. It is translated in the background: the next segment's partials are not held up, and may reach the stream before it (the page orders by `ts_start`) |
+| Budget | 1.5 s per final segment, glossary and one retry included (`transcript.LivePorts.TranslateBudget`); then the original is published alone and flagged. Nothing translated after the agent left the room is published |
+| Contract | `translation_failed`, an optional boolean on TranscriptEvent (present and true only when a translation failed; absent otherwise, so no producer or client had to change), stored as `transcript_segment.translation_failed` (migration 00034) |
+| Glossary | `terminology.Service.Glossary`, per final segment: its phrases of one to three words, equal to a label in the speaker's language, case and accents aside; the last word may carry up to three more letters (four kept), an Arabic phrase a proclitic (و, ب, ال and their joins) on its first word; words of two letters or fewer are no phrase of their own; the first 200 words, at most 20 terms, the most common first, each with its preferred label in the listener's language (draft terms included: the curation has not started). One index lookup per phrase (`term_label_language_folded`). A failed lookup translates without a glossary |
+| Prompt | A medical-consultation system prompt per language pair (faithful, nothing added or explained, numbers and doses as said, the glossary's terms, the line and glossary as data, never instructions), structured output `{"translation"}`. Golden files: `pkg/llm/anthropic/testdata/translate_{de,ar,tr}_bs.golden.json`, the glossaries in `internal/terminology/testdata/` |
+| Audit | No AuditEvent for the translation or the glossary: like the speech-to-text, in-memory processing inside the agent's session; the stored segment's write is audited (SAL-6) |
+| Consent | The owner's interim decision applies unchanged: translation runs inside the agent, which is in the room only while the care Consent is active; a removal cancels pending translations |
+| Engine | `LLM_ENGINE=fake` (default: marks a line with its target language, sends nothing) or `anthropic` (`ANTHROPIC_API_KEY`, `LLM_MODEL`, default `claude-opus-5-5`): `pkg/llm/anthropic`, the Messages API with structured outputs for translation, suggestions and drafting, plain net/http. Merged, not enabled: see "Gates" and `docs/privacy/processors.md` (the API offers no EU region today) |
+
 ## Work packages
 
 | Package | Ticket | What | Depends on |

@@ -213,3 +213,83 @@ templates when `actions` changes). Nothing in `api/openapi.yaml` was added for t
 - "Generating…" can clear early when a regenerate replays an unchanged draft (Copilot, PR #34, declined there):
   the page then shows the previous draft until the new one arrives. The fix depends on how SAL-8 versions a
   redraft over SAL-6's replay; for SAL-8/SAL-10.
+
+## B (SAL-5): translation of the final segments, and the Anthropic Claude API adapter
+
+Branch `sal-5-translate`, 2026-11-09.
+
+**Built.**
+
+- `transcript.Live` translates each final segment in the background (`service_translate.go`) and publishes it
+  once, with its translation or `translation_failed`, so `transcript.Service.Store` (SAL-6) stores it once; partial
+  segments are published at once, untranslated. Budget 1.5 s (`TranslateBudget`), two attempts within it; after a
+  removal nothing pending is published.
+- `terminology.Service.Glossary` (the reference domain's service, not its repository) and its query on the index
+  `term_label_language_folded` (migration 00034). `llm.TranslateRequest.Glossary` (`llm.Term`), additive; the
+  `llmtest.Translator` records it and can fail (`Failures`), wait (`Delay`) or keep nothing (`DiscardCalls`, the
+  agent's default engine).
+- Shared contract, the smallest: `translation_failed`, optional on TranscriptEvent (Go `omitempty`,
+  `api/openapi.yaml`, the generated TypeScript and Dart clients, the contract test) and stored
+  (`transcript_segment.translation_failed`, migration 00034). Nobody who sends or reads the event had to change.
+- `pkg/llm/anthropic`: `Translator`, `Suggester` and `Drafter` on the Messages API (`anthropic-version: 2026-10-21`,
+  structured outputs, fixed schemas, the answers validated). `config.LoadLLM` (`LLM_ENGINE=fake|anthropic`,
+  `ANTHROPIC_API_KEY`, `LLM_MODEL`), called by `cmd/agent`; `worker.NewAgent` takes the translator. Compose sets
+  `LLM_ENGINE: fake`.
+- Golden files: the glossary for a synthetic German, Arabic and Turkish line into Bosnian
+  (`internal/terminology/testdata/glossary_{de,ar,tr}_bs.golden.json`, from synthetic terms on a real database) and
+  the request the adapter sends for each (`pkg/llm/anthropic/testdata/translate_{de,ar,tr}_bs.golden.json`), plus
+  the suggestion and draft requests (`suggest.golden.json`, `draft.golden.json`).
+
+**Tests seen failing first.** Compile errors for each new port and type; then, for example:
+`TestLiveEvents_MatchTheirGoTypes: properties [...] want the Go fields [... translation_failed ...]` for the
+contract; the stored round trip without the flag; `LoadLLM is called by [], want cmd/agent/main.go` until the
+agent loaded it; the adapter's golden files before they were written. Mutations checked: one attempt instead of two
+fails the retry test (`one failure: ... TranslationFailed:true`); a three-letter stem or 400 words fails the
+glossary's candidate tests.
+
+**Measurements** (`make bench-translate`, i7-14700HX, compose Postgres and Redis, 2026-11-09):
+
+| What | p50 | p95 | p99 |
+| --- | --- | --- | --- |
+| Pipeline, fake translator: final frame handed to the agent to the translated final read back from Redis (XREAD BLOCK), the glossary on a real database, 1,000 lines, 3 runs | 0.26 to 0.39 ms | 0.60 to 0.86 ms | 0.97 to 1.14 ms |
+| Pipeline, Anthropic adapter against its httptest server (TLS, the request's JSON, an answer at once), same | 0.48 to 0.62 ms | 1.07 to 1.18 ms | 1.34 to 1.41 ms |
+| Glossary alone, a 20-word German line with two terms, on synthetic terms of the seed's size (5,300 terms, 88,330 labels), 2,000 lines, 3 runs, one at a time | 1.10 to 1.79 ms | 1.56 to 2.42 ms | 2.08 to 2.96 ms |
+| Same, 10 lines at a time | 1.38 to 1.93 ms | 2.59 to 4.01 ms | 15.5 to 18.2 ms |
+
+Our part of a translated line is under 3 ms at p99 (one at a time) and under 20 ms with ten consultations' lines at
+once; with SAL-4's partial path (under 3 ms) and SAL-6's gateway (p99 6.2 ms) the stack adds about 30 ms at worst
+to the 2 s target. The rest is the model's own time to answer, which only a run with real credentials can measure
+(blocked: the DPA and the region, `processors.md`): its time per line for the chosen model and effort (the default
+is `claude-opus-5-5` at effort `low`, which always thinks; `LLM_MODEL` can name a faster one, the owner's choice),
+the first request's schema compilation (once per 24 hours per schema), the network to Anthropic's region, how often
+it refuses medical content, and the translations' quality per language (a native speaker's review of the German,
+Arabic and Turkish into Bosnian lines). If the model's p95 is over the 1.5 s budget, lines go out flagged rather
+than late: the budget is one constant.
+
+**Decisions (2026-11-09, agent decision, for the owner to review).** In the plan, "SAL-5 (B): translation, as
+built". Also:
+
+- The practitioner's lines are translated into the patient's language: the plan's goal ("each side sees what the
+  other said in their own language") and the bilingual transcript in both directions. The patient's app does not
+  show them yet.
+- The translator is given the speakers' language tags (`tr`, `sr-Cyrl`), not the recognition locales, and the
+  speaker's configured language, not one the engine may detect.
+- A failed or slow translation is not translated later: the segment is stored once, flagged. A later re-translation
+  of flagged segments would be a new ticket.
+- The page (SAL-9) shows the original of a failed line as it shows one awaiting its translation; marking it
+  ("translation unavailable") needs a string the owner approves first (Copy), so it is left for a follow-up.
+- Adapter: plain `net/http` with the injected client, no SDK: one endpoint and three JSON shapes, the client in about 200 lines (`anthropic.go`);
+  the SDK would add a dependency tree for that (CLAUDE.md "Do not add a dependency..."). No beta header and no
+  server-side refusal fallback (a beta; a refusal is a failed call, so the line goes out flagged). Effort `low` for
+  translation (the live path), `medium` for suggestions and drafting. The suggestion schema allows the plan's four
+  kinds; a suggestion that is not valid (unknown kind, empty, confidence outside 0 to 1, a source not in the
+  transcript) is dropped; a draft field without a source from the transcript is missing. The Suggester and Drafter
+  request types are unchanged.
+- The glossary includes draft terms (none is reviewed yet) and gives the target's preferred label; a term without a
+  label in the target language is left out ("gaps stay gaps").
+
+**Blocked.** Enabling the adapter: the DPA, zero data retention, and an EU region the API does not offer
+(`processors.md`; the gate is the owner's). The model's latency and the translations' quality, as above.
+
+**Checks.** `make lint`, `make test`, `make archcheck`, `make cover`, `make e2e`, `make web-typecheck`,
+`make mobile-analyze`, `make gen-clients` and `make sqlc` with no diff: see the PR.

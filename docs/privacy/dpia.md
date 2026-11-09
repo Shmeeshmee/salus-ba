@@ -1390,3 +1390,38 @@ producers; losing it loses live captions, never the stored transcript.
 | An entry written twice, or a crashed worker's entry lost | Consumer group, at-least-once; segments by their event id, suggestions by theirs, so a repeat adds no row (tested); an unacknowledged entry is claimed again after 30 s |
 | What was said in a log line | The consumer logs the stream key, the entry id, the type and the reason only; the gateway the encounter id (tested for the synthetic text) |
 | The lookup function discloses more than the clinic | Owned by a role with two columns of `encounter` and no other privilege; `EXECUTE` for `salus_app` only (tested) |
+
+### B (SAL-5): translation of the transcript
+
+**Processing added.** Inside the agent (`cmd/agent`), while it is in the consultation's room, each final segment
+is translated into the listener's language before it goes on the encounter's stream: a patient's into the
+practitioner's (the clinic's default), a practitioner's into the patient's (their account's, else the clinic's).
+Partial segments and segments already in the listener's language are not translated. For each line the
+terminology (reference data, no personal data) is searched for the medical terms said in it, by the line's words,
+in memory; the line is never stored by that search, logged or put into an error. The translation, or the flag
+`translation_failed` when it could not be made within 1.5 s and one retry, is stored with the segment
+(`transcript_segment.translation`, `translation_failed`, migration 00034): the flag tells a reader of the record
+that the line's translation is missing, rather than not needed. No new table.
+
+The translation is done by a language model behind `llm.Translator`. The default is the fake, which sends text
+nowhere. The Anthropic Claude API adapter (`pkg/llm/anthropic`) is built and not enabled: it would send each line,
+its two languages and the terms found in it (no name, account or id of a person) to a processor with no EU region
+today (`processors.md`).
+
+**Purpose and lawful basis.** As P0: the care of the patient in the consultation (Art. 9(2)(h)), so that the
+practitioner and the patient understand each other. The consent question for translation stays open (P0's note,
+`docs/legal/BRIEF.md` Q16); the owner's interim decision applies: translation runs only while the agent is in the
+room, that is while the patient's care consent with the clinic is active.
+
+**Audit.** No AuditEvent of its own: like the speech-to-text, the translation is processing in the agent's memory
+during the session; the stored segment's write is audited by SAL-6's consumer.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Patient speech sent to a hosted model without a DPA, outside the EU, or retained | Fake by default; the Anthropic adapter needs `LLM_ENGINE=anthropic` and may not be enabled before the DPA, zero data retention (an organisation arrangement with Anthropic) and an EU region, which the API does not offer today (`processors.md`) |
+| A line translated or published after the consent is withdrawn | The removal ends the call: a pending translation is cancelled and nothing is published after it (tested) |
+| A mistranslated line read as what was said | The original is always kept and shown with the translation; a failed translation is flagged, never replaced by a guess; the prompt forbids adding, explaining or correcting |
+| A line injected as instructions to the model | The prompt marks the line and the glossary as data, never instructions; the answer is constrained to a fixed JSON schema |
+| What was said in a log line or error | Logs carry the session id, the speaker's role and the error; the adapter's errors name a status, an API error type or a stop reason only (tested with marker text) |

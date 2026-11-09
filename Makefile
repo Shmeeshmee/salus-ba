@@ -17,7 +17,7 @@ TEST_SERVICES := postgres redis mailpit livekit objectstore clamd
 GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...
 GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream turn-check livekit-turn-cert lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream turn-check livekit-turn-cert lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	terminology-fetch terminology-import terminology-export \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
@@ -52,6 +52,13 @@ bench-slots: tools-image
 bench-stt: tools-image
 	$(GO) sh -c "go test -run '^$$' -bench 'PartialLatency' -benchtime=1000x -count=3 ./internal/transcript && \
 		go test -run '^$$' -bench 'FrameLatency' -benchtime=100x -count=3 ./internal/videosession"
+
+## bench-translate: the translated line's latency, final frame in to translated final event read back from the compose
+## Redis through the glossary and the fake translator or the Anthropic adapter against an httptest server, and the
+## glossary lookup on synthetic terms of the seed's size (docs/plans/consult-intelligence.PROGRESS.md, SAL-5)
+bench-translate: tools-image
+	$(GO) sh -c "go test -run '^$$' -bench 'TranslatedLatency' -benchtime=1000x -count=3 ./internal/transcript && \
+		go test -run '^$$' -bench 'BenchmarkGlossary' -benchtime=2000x -count=3 ./internal/terminology"
 
 ## bench-join: the consultation's token request through the service on the real database, with the compose
 ## LiveKit and with a fake provider (docs/consultation/PROGRESS.md, package 1)
