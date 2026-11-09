@@ -881,6 +881,28 @@ from their account (audited, the agent as agent).
 | What was said in a log | Logs carry the session id, the speaker's role and error codes; the SDK's logger is silenced (tested) |
 | The stream outliving the consultation | `MAXLEN ~ 10000` and a 30-minute TTL refreshed on each entry |
 
+### SAL-9: the practitioner's call page (captions, transcript, suggestions, documents)
+
+**Processing added.** None yet: the page is built and tested against in-memory fakes, and the real app passes no
+live source, so it shows no panel. Once wired (SAL-6, SAL-8), it shows the practitioner what the plan already
+processes (`docs/plans/consult-intelligence.md` "Personal data"): the bilingual transcript, the suggestions and
+the drafts of their own appointment's consultation. No new table, column, endpoint or processor.
+
+**Access.** The page asks for one appointment's messages; who may receive them is the gateway's and the drafting
+endpoints' decision, server side, each audited there (`docs/plans/consult-intelligence.PROGRESS.md`, SAL-9). Only
+the practitioner's web app has these panels; the patient app has none.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Transcript or suggestion text left on the device | Kept in the page's memory only: no browser storage, no log line; gone when the page closes |
+| A suggestion read as a diagnosis | Each one is labelled "Suggestion: …" by kind, and the panel always says suggestions are not a diagnosis (`docs/consult-intelligence/COPY.md` W9, tagged `legal`) |
+| A document signed with what the conversation did not cover | Fields the draft could not fill are flagged; signing always asks to confirm and says how many fields are empty |
+
+**Open (follow-up ticket).** The patient's notice at the start of the call that it is transcribed (web and
+mobile), out of SAL-9's scope by the owner's decision of 2026-11-09.
+
 ## Questionnaires (`docs/questionnaire`)
 
 ### Package 3: questionnaire responses and the access rule

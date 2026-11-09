@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import type { Language } from './i18n/languages'
@@ -7,6 +7,7 @@ import { newApiClient } from './api/client'
 import type { Opened } from './call'
 import { apiError, expectCsrfOnWrites, fakeFetch, paths, type Route } from './test/fakeFetch'
 import { fakeMedia } from './test/fakeCall'
+import { fakeActions, fakeLive, segment } from './test/fakeConsult'
 
 afterEach(cleanup)
 
@@ -26,12 +27,14 @@ type Setup = {
   level?: number | null
   connectFails?: boolean
   language?: Language
+  live?: ReturnType<typeof fakeLive>
 }
 
-function renderCall({ routes = {}, language = 'en', ...options }: Setup = {}) {
+function renderCall({ routes = {}, language = 'en', live, ...options }: Setup = {}) {
   const fake = fakeFetch({ [joinPost]: () => Response.json(joined), [statusGet]: () => Response.json(open), ...routes })
   const media = fakeMedia(options)
-  renderInLanguage(<CallScreen api={newApiClient(fake.fetch)} id={id} media={media.media} />, language)
+  const consult = live && { live: live.live, actions: fakeActions().actions }
+  renderInLanguage(<CallScreen api={newApiClient(fake.fetch)} id={id} media={media.media} consult={consult} />, language)
   return { ...fake, ...media }
 }
 
@@ -421,6 +424,47 @@ describe('CallScreen: in the call', () => {
     expect((button('Join again') as HTMLButtonElement).disabled).toBe(true)
     answer?.(Response.json(joined))
     expect(await screen.findByRole('button', { name: 'Leave' })).toBeTruthy()
+  })
+})
+
+describe('CallScreen: the live panels', () => {
+  it('shows none while no live source is wired', async () => {
+    await inCall()
+    expect(screen.queryByRole('complementary')).toBeNull()
+    expect(screen.queryByRole('tab')).toBeNull()
+  })
+
+  it('follows the live source only in the call, beside the video, with the captions on it', async () => {
+    const live = fakeLive()
+    const media = renderCall({ live })
+    await screen.findByRole('button', { name: 'Join' })
+    expect(live.opened).toEqual([])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Join' }))
+    const side = await screen.findByRole('complementary', { name: 'Transcript, suggestions and documents' })
+    expect(live.opened).toEqual([id])
+    act(() => live.emit(segment({ translation: 'Placeholder caption' })))
+    expect(screen.queryByRole('group', { name: 'Captions' })).toBeNull() // the patient is not in the room
+    act(() => media.last().emit(peer(true)))
+
+    const stage = document.querySelector('.stage')!
+    const captions = screen.getByRole('group', { name: 'Captions' })
+    expect(stage.contains(captions)).toBe(true)
+    expect(stage.contains(side)).toBe(false)
+    expect(side.contains(stage)).toBe(false)
+  })
+
+  it('keeps the transcript while it reconnects, and stops following once the practitioner leaves', async () => {
+    const live = fakeLive()
+    const { last } = await inCall({ live })
+    act(() => live.emit(segment({ original: 'Placeholder kept line' })))
+
+    act(() => last().emit({ type: 'reconnecting' }))
+    expect(within(screen.getByRole('list', { name: 'Transcript' })).getByText('Placeholder kept line')).toBeTruthy()
+
+    fireEvent.click(button('Leave'))
+    expect(live.closed()).toBe(1)
+    expect(screen.queryByRole('complementary')).toBeNull()
   })
 })
 

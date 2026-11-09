@@ -6,11 +6,11 @@ before production (SPEC §8).
 
 | Tag | Language | Apps | Status | `legal` strings (web + mobile + e-mail) | Reviewed by | Reviewed on | `legal` strings reviewed by a lawyer |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `bs` | Bosanski | web, mobile, e-mail | drafted | 36 (6 + 30 + 0) | | | no |
-| `hr` | Hrvatski | web, mobile, e-mail | drafted | 36 (6 + 30 + 0) | | | no |
-| `sr-Latn` | Srpski (latinica) | web, mobile, e-mail | drafted | 36 (6 + 30 + 0) | | | no |
-| `sr-Cyrl` | Српски (ћирилица) | web, mobile, e-mail | drafted | 36 (6 + 30 + 0) | | | no |
-| `en` | English | web, mobile, e-mail | source | 36 (6 + 30 + 0) | | | no |
+| `bs` | Bosanski | web, mobile, e-mail | drafted | 37 (7 + 30 + 0) | | | no |
+| `hr` | Hrvatski | web, mobile, e-mail | drafted | 37 (7 + 30 + 0) | | | no |
+| `sr-Latn` | Srpski (latinica) | web, mobile, e-mail | drafted | 37 (7 + 30 + 0) | | | no |
+| `sr-Cyrl` | Српски (ћирилица) | web, mobile, e-mail | drafted | 37 (7 + 30 + 0) | | | no |
+| `en` | English | web, mobile, e-mail | source | 37 (7 + 30 + 0) | | | no |
 | `de` | Deutsch | mobile, e-mail | drafted | 30 (– + 30 + 0) | | | no |
 | `ar` | العربية | mobile, e-mail | drafted | 30 (– + 30 + 0) | | | no |
 | `tr` | Türkçe | mobile, e-mail | drafted | 30 (– + 30 + 0) | | | no |
@@ -24,6 +24,11 @@ whose description in `app_en.arb` starts with `[legal]`, which hold for every la
 template only); e-mail, none, since the templates carry no metadata (package 1.3). The one e-mail sentence with legal
 weight, the cancellation window in `booked.txt` ("You can cancel it up to 24 hours before it starts."), goes to the
 lawyer with the tagged strings in each of the ten languages.
+
+The web count went from 6 to 7 on 2026-11-09 (SAL-9): `consultation.live.suggestionsNote`, the line saying a
+suggestion is not a diagnosis (`docs/consult-intelligence/COPY.md` W9), is tagged `legal` for the lawyer's review
+(agent decision, for the owner to review), and the 41 other strings of the call page's live panels were drafted in
+bs, hr, sr-Latn and sr-Cyrl like every string before them; each language stays `drafted`.
 
 English is the source: its text is the features' COPY.md files word for word, approved by the owner.
 `mobile/lib/l10n/app_sr.arb` is a copy of `app_sr_Cyrl.arb` that Flutter needs as the base of the two Serbian
