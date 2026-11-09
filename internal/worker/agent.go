@@ -18,9 +18,11 @@ import (
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
+	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/internal/transcript"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/llm"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/stt"
 )
@@ -35,11 +37,12 @@ type Video struct {
 
 // NewAgent returns the River client cmd/agent runs, which works only the transcription queue, and the
 // transcription it hands the transcription_join jobs to, on pool (salus_app). The agent hears the calls through
-// video, recognises them with recognizer and puts the events on rdb's streams. cmd/agent stops the client, then
+// video, recognises them with recognizer, translates each final segment with translator and the terminology's
+// glossary (SAL-5), and puts the events on rdb's streams. cmd/agent stops the client, then
 // the transcription.
-func NewAgent(pool *pgxpool.Pool, rdb *goredis.Client, video Video, recognizer stt.Recognizer, log *slog.Logger) (*river.Client[pgx.Tx], *transcript.Live, error) {
-	if pool == nil || rdb == nil || video.Provider == nil || video.Listener == nil || video.URL == "" || recognizer == nil || log == nil {
-		return nil, nil, errors.New("worker: the agent needs the pool, Redis, the video provider, its listener and URL, a recognizer and a logger")
+func NewAgent(pool *pgxpool.Pool, rdb *goredis.Client, video Video, recognizer stt.Recognizer, translator llm.Translator, log *slog.Logger) (*river.Client[pgx.Tx], *transcript.Live, error) {
+	if pool == nil || rdb == nil || video.Provider == nil || video.Listener == nil || video.URL == "" || recognizer == nil || translator == nil || log == nil {
+		return nil, nil, errors.New("worker: the agent needs the pool, Redis, the video provider, its listener and URL, a recognizer, a translator and a logger")
 	}
 	clk := clock.System{}
 	tx := postgres.NewTransactor(pool)
@@ -60,6 +63,7 @@ func NewAgent(pool *pgxpool.Pool, rdb *goredis.Client, video Video, recognizer s
 		Calls: sessions, Appointments: appointments, Clinics: organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk),
 		Accounts:  auth.NewService(auth.Ports{Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
 		Publisher: transcript.NewRedisPublisher(rdb), Recognizer: recognizer, Clock: clk, Log: log,
+		Translator: translator, Glossary: terminology.NewService(terminology.NewPostgresRepository(pool), nil), // Glossary only
 	})
 	workers := river.NewWorkers()
 	addAgentWorkers(workers, live, log)

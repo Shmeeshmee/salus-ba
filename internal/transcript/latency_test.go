@@ -5,20 +5,26 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gorilla/websocket"
 	goredis "github.com/redis/go-redis/v9"
 
+	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/internal/transcript"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/llm"
+	"github.com/Shmeeshmee/salus/pkg/llm/anthropic"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 	"github.com/Shmeeshmee/salus/pkg/stt"
 	"github.com/Shmeeshmee/salus/pkg/stt/azure"
@@ -123,8 +129,9 @@ func benchPartial(b *testing.B, r stt.Recognizer) {
 	languages := &fakeLanguages{patient: "bs", clinic: "bs"}
 	svc := transcript.NewLive(transcript.LivePorts{
 		Calls: calls, Appointments: languages, Accounts: languages, Clinics: languages,
-		Publisher: transcript.NewRedisPublisher(rdb), Recognizer: r, Clock: clock.System{},
-		Log: slog.New(slog.DiscardHandler),
+		Publisher: transcript.NewRedisPublisher(rdb), Recognizer: r, Translator: &llmtest.Translator{}, Glossary: &fakeGlossary{},
+		Clock: clock.System{},
+		Log:   slog.New(slog.DiscardHandler),
 	})
 	b.Cleanup(svc.Stop)
 	if err := svc.Transcribe(b.Context(), sessionID, clinicID); err != nil {
@@ -145,6 +152,103 @@ func benchPartial(b *testing.B, r stt.Recognizer) {
 			b.Fatalf("no partial on the stream within 5 s: %v", err)
 		}
 		last = res[0].Messages[0].ID
+		took = append(took, wall.Now().Sub(start))
+	}
+	b.StopTimer()
+	slices.Sort(took)
+	for _, p := range []struct {
+		name string
+		q    float64
+	}{{"p50-ms", 0.50}, {"p95-ms", 0.95}, {"p99-ms", 0.99}} {
+		b.ReportMetric(float64(took[int(p.q*float64(len(took)-1))].Microseconds())/1000, p.name)
+	}
+}
+
+// The translated line's latency (SAL-5, target on screen under 2 s): from an audio frame whose result is final to
+// its translated final event read back from the encounter's stream, through the translator; the glossary is a fake
+// here (a domain's test may not build another's repository), its own lookup is BenchmarkGlossary in terminology.
+// make bench-translate runs these; the numbers are in docs/plans/consult-intelligence.PROGRESS.md.
+
+// finalEcho answers every frame of audio with a final result at once.
+type finalEcho struct{}
+
+func (finalEcho) Stream(ctx context.Context, cfg stt.Config) (stt.Stream, error) {
+	return &finalEchoStream{echoStream{ctx: ctx, results: make(chan stt.Result, 64)}}, nil
+}
+
+type finalEchoStream struct{ echoStream }
+
+func (s *finalEchoStream) Send([]byte) error {
+	s.n += 20 * time.Millisecond
+	s.results <- stt.Result{Text: "Üç gündür şiddetli baş ağrısı ve ateşim var.", Start: 0, End: s.n, Final: true}
+	return nil
+}
+
+func BenchmarkTranslatedLatency_FakeTranslator(b *testing.B) {
+	benchTranslated(b, &llmtest.Translator{DiscardCalls: true})
+}
+
+// The Anthropic adapter against an httptest server that answers each request with a translation at once: the
+// adapter's JSON, TLS and HTTP on top of the pipeline, without the model's own time.
+func BenchmarkTranslatedLatency_AnthropicAdapter(b *testing.B) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"type":"message","role":"assistant","stop_reason":"end_turn","content":[`+
+			`{"type":"text","text":"{\"translation\":\"[placeholder translation]\"}"}]}`)
+	}))
+	b.Cleanup(srv.Close)
+	pool := x509.NewCertPool()
+	pool.AddCert(srv.Certificate())
+	addr := srv.Listener.Addr().String()
+	hc := &http.Client{Transport: &http.Transport{
+		DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, network, addr)
+		},
+		TLSClientConfig: &tls.Config{RootCAs: pool, ServerName: "example.com", MinVersion: tls.VersionTLS12},
+	}}
+	c, err := anthropic.New(anthropic.Config{Key: "synthetic-bench-key", Model: "claude-opus-5-5"}, hc)
+	if err != nil {
+		b.Fatal(err)
+	}
+	benchTranslated(b, c)
+}
+
+// benchTranslated runs b.N final frames of a Turkish-speaking patient through the agent with translator, into
+// the clinic's Bosnian, one at a time, each timed from the frame's hand-over to its translated final event read
+// back from Redis, and reports p50, p95 and p99.
+func benchTranslated(b *testing.B, translator llm.Translator) {
+	rdb := redistest.NewClient(b)
+	calls := newCalls()
+	languages := &fakeLanguages{patient: "tr", clinic: "bs"}
+	svc := transcript.NewLive(transcript.LivePorts{
+		Calls: calls, Appointments: languages, Accounts: languages, Clinics: languages,
+		Publisher: transcript.NewRedisPublisher(rdb), Recognizer: finalEcho{}, Translator: translator,
+		Glossary: &fakeGlossary{entries: []terminology.GlossaryEntry{{Source: "baş ağrısı", Target: "glavobolja"}}},
+		Clock:    clock.System{}, Log: slog.New(slog.DiscardHandler),
+	})
+	b.Cleanup(svc.Stop)
+	if err := svc.Transcribe(b.Context(), sessionID, clinicID); err != nil {
+		b.Fatal(err)
+	}
+	frames := calls.publish(videosession.RolePatient)
+	frame := make([]byte, 640)
+	key := transcript.StreamKey(encounterID)
+	last := "0"
+	wall := clock.System{}
+	took := make([]time.Duration, 0, b.N)
+	b.ResetTimer()
+	for range b.N {
+		start := wall.Now()
+		frames <- frame
+		res, err := rdb.XRead(b.Context(), &goredis.XReadArgs{Streams: []string{key, last}, Count: 1, Block: 5 * time.Second}).Result()
+		if err != nil || len(res) == 0 || len(res[0].Messages) == 0 {
+			b.Fatalf("no final on the stream within 5 s: %v", err)
+		}
+		last = res[0].Messages[0].ID
+		if env, _ := res[0].Messages[0].Values[transcript.StreamField].(string); !strings.Contains(env, "translation\":\"[") {
+			b.Fatalf("the final is not translated: %s", env)
+		}
 		took = append(took, wall.Now().Sub(start))
 	}
 	b.StopTimer()

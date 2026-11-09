@@ -6,11 +6,19 @@ package llm
 
 import "context"
 
-// TranslateRequest is a text and its language, and the language to translate it into (BCP 47 tags).
+// TranslateRequest is a text and its language, and the language to translate it into (BCP 47 tags). Glossary
+// is the terms found in the text, each with the term to use for it in the target language; it may be empty.
 type TranslateRequest struct {
-	Text string
-	From string
-	To   string
+	Text     string
+	From     string
+	To       string
+	Glossary []Term
+}
+
+// Term is a glossary entry: a term as it is written in the source language, and in the target language.
+type Term struct {
+	Source string
+	Target string
 }
 
 // Translator translates one text.

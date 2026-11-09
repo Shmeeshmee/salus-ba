@@ -58,14 +58,15 @@ func segmentOf(encounterID, id string, at time.Time) transcript.Event {
 	}
 }
 
-// A segment is stored once under its id, and read back in the order it was said, as a final event.
+// A segment is stored once under its id, and read back in the order it was said, as a final event, with its
+// translation or the flag that its translation failed.
 func TestInsert_StoresASegmentOnceAndByEncounterReadsThemInOrder(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
 	at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
 	clinic, enc := seedEncounter(t, owner, at)
 	second, first := segmentOf(enc, segmentID2, at.Add(time.Minute)), segmentOf(enc, segmentID, at)
-	first.Translation = ""
+	first.Translation, first.TranslationFailed = "", true
 
 	var created []bool
 	err := inClinic(t, app, clinic, func(ctx context.Context, r transcript.Repository) error {

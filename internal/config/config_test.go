@@ -528,3 +528,63 @@ func sourcesContaining(t *testing.T, needle string) []string {
 	}
 	return found
 }
+
+func TestLoadLLM_DefaultsToTheFake(t *testing.T) {
+	t.Setenv("LLM_ENGINE", "")
+	t.Setenv("ANTHROPIC_API_KEY", "llm-key-marker")
+	got, err := config.LoadLLM()
+	if err != nil || got != (config.LLM{Engine: config.LLMFake}) {
+		t.Errorf("LoadLLM() = %+v, %v; want the fake and nothing else", got, err)
+	}
+}
+
+func TestLoadLLM_ReadsAnthropicsKeyAndModel(t *testing.T) {
+	t.Setenv("LLM_ENGINE", "anthropic")
+	t.Setenv("ANTHROPIC_API_KEY", "llm-key-marker")
+	t.Setenv("LLM_MODEL", "")
+	got, err := config.LoadLLM()
+	if err != nil || got != (config.LLM{Engine: config.LLMAnthropic, AnthropicKey: "llm-key-marker", Model: "claude-opus-5-5"}) {
+		t.Errorf("LoadLLM() = %+v, %v; want the key and the default model", got, err)
+	}
+	t.Setenv("LLM_MODEL", "claude-haiku-5-5")
+	if got, err := config.LoadLLM(); err != nil || got.Model != "claude-haiku-5-5" {
+		t.Errorf("LoadLLM() = %+v, %v; want the model set", got, err)
+	}
+}
+
+func TestLoadLLM_RefusesAnUnknownEngineOrAnthropicWithoutItsKeyWithoutEchoingThem(t *testing.T) {
+	for name, tc := range map[string]struct{ engine, key, variable string }{
+		"an unknown engine": {engine: "engine-marker", key: "key-marker", variable: "LLM_ENGINE"},
+		"no key":            {engine: "anthropic", variable: "ANTHROPIC_API_KEY"},
+	} {
+		t.Setenv("LLM_ENGINE", tc.engine)
+		t.Setenv("ANTHROPIC_API_KEY", tc.key)
+		_, err := config.LoadLLM()
+		if err == nil || !strings.Contains(err.Error(), tc.variable) || strings.Contains(err.Error(), "marker") {
+			t.Errorf("%s: LoadLLM() = %v, want an error naming %s and no value", name, err, tc.variable)
+		}
+	}
+}
+
+// Load never reads the language model's settings; only a command's main loads them, and only internal/config
+// names their variables.
+func TestLoadLLM_IsCalledOnlyByACommandsMain(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+	t.Setenv("ANTHROPIC_API_KEY", "llm-key-marker")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprintf("%#v", cfg); strings.Contains(got, "llm-key-marker") {
+		t.Errorf("Load() holds the model's key: %s", got)
+	}
+	callers := sourcesContaining(t, "config.LoadLLM(")
+	if len(callers) == 0 || slices.ContainsFunc(callers, func(p string) bool { return !strings.HasPrefix(p, "cmd/") || filepath.Base(p) != "main.go" }) {
+		t.Errorf("LoadLLM is called by %v, want cmd/agent/main.go and only commands' main.go", callers)
+	}
+	for _, needle := range []string{`Getenv("ANTHROPIC_`, `Getenv("LLM_`} {
+		if readers := sourcesContaining(t, needle); !slices.Equal(readers, []string{"internal/config/config.go"}) {
+			t.Errorf("%s is in %v, want only internal/config/config.go", needle, readers)
+		}
+	}
+}

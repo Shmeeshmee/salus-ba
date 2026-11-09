@@ -1,0 +1,15 @@
+{
+  "line": "Üç gündür şiddetli baş ağrısı ve ateşim var.",
+  "from": "tr",
+  "to": "bs",
+  "glossary": [
+    {
+      "source": "ateş",
+      "target": "groznica"
+    },
+    {
+      "source": "baş ağrısı",
+      "target": "glavobolja"
+    }
+  ]
+}

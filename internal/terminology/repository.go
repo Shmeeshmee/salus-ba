@@ -13,6 +13,11 @@ type Repository interface {
 	// and then by the term's rank. Each term carries its labels in s.Languages only, by language in the enum's
 	// order, the preferred one first, then the synonyms alphabetically.
 	Search(ctx context.Context, s Search) ([]Term, error)
+	// Glossary returns at most q.Limit terms with a label in q.From that equals one of q.Candidates, case and
+	// accents aside, the most common (rank) first, each once: the label it was found by (the longest, the
+	// preferred one of a length, when several) and its label in q.To, the preferred one, else the first alphabetically. A term without a label in
+	// q.To is left out.
+	Glossary(ctx context.Context, q GlossaryQuery) ([]GlossaryEntry, error)
 }
 
 // CurationRepository writes the terms: salusctl's, on the owner's connection (salus_app may only read them).
