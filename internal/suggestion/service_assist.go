@@ -69,7 +69,6 @@ type Clinics interface {
 type AssistPorts struct {
 	Suggester llm.Suggester
 	Live      Live
-	Publisher Publisher
 	Clinics   Clinics
 	Clock     clock.Clock
 	Log       *slog.Logger

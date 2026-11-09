@@ -154,7 +154,7 @@ func newAssist(t *testing.T) *assist {
 	t.Helper()
 	x := &assist{fixture: newFixture(), live: &fakeLive{}, suggester: &llmtest.Suggester{}, clock: &stepClock{t: t0}, log: &syncBuffer{}}
 	x.a = suggestion.NewAssistant(x.svc, suggestion.AssistPorts{
-		Suggester: x.suggester, Live: x.live, Publisher: x.publisher, Clinics: fakeClinics{}, Clock: x.clock,
+		Suggester: x.suggester, Live: x.live, Clinics: fakeClinics{}, Clock: x.clock,
 		Log: slog.New(slog.NewJSONHandler(x.log, nil)), Tick: time.Millisecond,
 	})
 	x.session = x.a.NewSession(encounterID)

@@ -1600,9 +1600,12 @@ paths:
         stored transcript is `GET /encounters/{id}/transcript`). The handshake must come from the API's own
         origin, or carry no Origin (no browser). Access is checked again after every read of the stream: when
         it ends (a revocation, a cancellation) nothing more is sent and the socket closes within a second, with
-        code 4403 and reason `consent_required` or `forbidden`, or 4404 `not_found`; 1011 on a server error. The
-        client sends nothing but control frames. Each subscription is audited as an operation on the
-        encounter, also when refused.
+        code 4403 and reason `consent_required` or `forbidden`, or 4404 `not_found`; 1011 on a server error.
+        Each subscription is audited as an operation on the encounter, also when refused. The client may send
+        text frames of `ConsultCommand` (at most 512 bytes; a longer frame ends the socket): a
+        `suggestion_status` message dismisses, pins or unpins a suggestion of the encounter, under the same rule,
+        audited, refusals included. It is answered with nothing on success (the suggestion with its new status
+        comes on the stream, to every open view), and with a `command_error` frame otherwise.
       tags: [consultation]
       security:
         - sessionCookie: []
@@ -3375,6 +3378,7 @@ components:
         - {$ref: "#/components/schemas/SuggestionMessage"}
         - {$ref: "#/components/schemas/DraftMessage"}
         - {$ref: "#/components/schemas/CursorMessage"}
+        - {$ref: "#/components/schemas/CommandErrorMessage"}
       discriminator:
         propertyName: type
         mapping:
@@ -3382,6 +3386,58 @@ components:
           suggestion: "#/components/schemas/SuggestionMessage"
           draft: "#/components/schemas/DraftMessage"
           cursor: "#/components/schemas/CursorMessage"
+          command_error: "#/components/schemas/CommandErrorMessage"
+    # What the client sends on GET /encounters/{id}/events, and the answer to one that failed (SAL-7).
+    ConsultCommand:
+      description: A text frame the client sends on GET /encounters/{id}/events, told apart by `type`.
+      oneOf:
+        - {$ref: "#/components/schemas/SuggestionStatusMessage"}
+      discriminator:
+        propertyName: type
+        mapping:
+          suggestion_status: "#/components/schemas/SuggestionStatusMessage"
+    SuggestionStatusMessage:
+      type: object
+      description: The practitioner dismisses, pins or unpins (`shown`) a suggestion of the stream's encounter.
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: suggestion_status}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/SuggestionStatus"}
+    SuggestionStatus:
+      type: object
+      required: [id, status]
+      properties:
+        id: {type: string, format: uuid}
+        status:
+          type: string
+          enum: [shown, dismissed, pinned]
+    CommandErrorMessage:
+      type: object
+      description: Answers a client's message that failed; nothing changed.
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: command_error}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/CommandError"}
+    CommandError:
+      type: object
+      required: [command, error]
+      properties:
+        command:
+          type: string
+          description: The failed message's `type`; empty when it was no envelope.
+        id:
+          type: string
+          description: The suggestion the message named, when it named one.
+        error:
+          type: string
+          description: >-
+            `invalid_message`: no envelope; `unknown_command`: a type or version the server does not take;
+            `invalid`: a payload or status the contract does not allow; `not_found`: no such suggestion of the
+            encounter, or an encounter the caller may not see; `consent_required`: after a revocation;
+            `forbidden`: not the encounter's practitioner; `internal`: a server error.
+          enum: [invalid_message, unknown_command, invalid, not_found, consent_required, forbidden, internal]
     CursorMessage:
       type: object
       description: Sent before each live message, with the stream id of its entry, which a client resumes after.

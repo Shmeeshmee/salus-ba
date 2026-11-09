@@ -22,7 +22,7 @@ class ConsultFrame {
 
   ConsultFrameVersionEnum version;
 
-  Cursor payload;
+  CommandError payload;
 
   @override
   bool operator ==(Object other) =>
@@ -78,7 +78,7 @@ class ConsultFrame {
       return ConsultFrame(
         type: ConsultFrameTypeEnum.fromJson(json[r'type'])!,
         version: ConsultFrameVersionEnum.fromJson(json[r'version'])!,
-        payload: Cursor.fromJson(json[r'payload'])!,
+        payload: CommandError.fromJson(json[r'payload'])!,
       );
     }
     return null;
@@ -146,6 +146,7 @@ enum ConsultFrameTypeEnum {
   suggestion._(r'suggestion'),
   draft._(r'draft'),
   cursor._(r'cursor'),
+  commandError._(r'command_error'),
   ;
 
   /// Instantiate a new enum with the provided value.
@@ -217,6 +218,8 @@ class ConsultFrameTypeEnumTypeTransformer {
           return ConsultFrameTypeEnum.draft;
         case r'cursor':
           return ConsultFrameTypeEnum.cursor;
+        case r'command_error':
+          return ConsultFrameTypeEnum.commandError;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

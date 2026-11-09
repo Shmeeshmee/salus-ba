@@ -1,5 +1,6 @@
-// Command worker runs the River background jobs of the default queue and the scan queue, and the consultations'
-// stream consumer (worker.ConsultStream, on REDIS_URL), which stores what the encounters' Redis Streams carry. It
+// Command worker runs the River background jobs of the default queue and the scan queue, the consultations'
+// stream consumer (worker.ConsultStream, on REDIS_URL), which stores what the encounters' Redis Streams carry,
+// and the live suggestions worker (worker.Suggestions), on the fake model until an engine is configured. It
 // logs in as salus_app (DATABASE_URL), and as salus_retention (RETENTION_DATABASE_URL) for the retention_apply
 // job alone; the binary jobs reach the object store and clamd (config.LoadObjectStore, config.LoadClamd).
 package main
@@ -23,6 +24,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clamd"
 	"github.com/Shmeeshmee/salus/pkg/envelope"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/redis"
 )
@@ -83,16 +85,22 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if err := client.Start(context.WithoutCancel(ctx)); err != nil {
 		return err
 	}
-	consumed := make(chan struct{})
+	consumed, suggested := make(chan struct{}), make(chan struct{})
 	go func() {
 		defer close(consumed)
 		worker.NewConsultStream(pool, rdb, log).Run(ctx)
+	}()
+	go func() {
+		defer close(suggested)
+		// The fake model (no suggestions) until an engine is chosen by config (SAL-5's adapter, off by default).
+		worker.NewSuggestions(pool, rdb, &llmtest.Suggester{}, log).Run(ctx)
 	}()
 	log.Info("started")
 
 	<-ctx.Done()
 	log.Info("shutting down")
-	<-consumed // it stops within one read; an entry it had not acknowledged is written again later
+	<-consumed  // it stops within one read; an entry it had not acknowledged is written again later
+	<-suggested // it stops within a tick, or a model call
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stopTimeout)
 	defer cancel()
 	if err := client.Stop(stopCtx); err != nil {

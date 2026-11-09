@@ -82,6 +82,12 @@ func TestLiveEvents_MatchTheirGoTypes(t *testing.T) {
 		}},
 		"DraftField": {composition.Field{}, nil},
 		"Cursor":     {transcript.Cursor{}, nil},
+		"SuggestionStatus": {suggestion.StatusChange{}, map[string][]string{
+			"status": {string(suggestion.StatusShown), string(suggestion.StatusDismissed), string(suggestion.StatusPinned)},
+		}},
+		"CommandError": {transcript.CommandError{}, map[string][]string{
+			"error": {"invalid_message", "unknown_command", "invalid", "not_found", "consent_required", "forbidden", "internal"},
+		}},
 	} {
 		sch, ok := s[name]
 		if !ok {
@@ -126,6 +132,8 @@ func TestConsultMessages_AreTheEnvelopesTheGoPackagesSend(t *testing.T) {
 		"SuggestionMessage": {suggestion.MessageType, "SuggestionEvent", suggestion.MessageVersion},
 		"DraftMessage":      {composition.MessageType, "DraftEvent", composition.MessageVersion},
 		"CursorMessage":     {transcript.CursorType, "Cursor", transcript.CursorVersion},
+		"SuggestionStatusMessage": {suggestion.StatusMessageType, "SuggestionStatus", suggestion.StatusMessageVersion},
+		"CommandErrorMessage":     {transcript.CommandErrorType, "CommandError", transcript.CommandErrorVersion},
 	} {
 		m := s[name]
 		if !slices.Equal(slices.Sorted(slices.Values(m.Required)), []string{"payload", "type", "version"}) {
@@ -164,9 +172,17 @@ func TestConsultFrames_AreTheMessagesAndTheCursor(t *testing.T) {
 	slices.Sort(refs)
 	// Flat, so the generators give each message its own payload type (a nested oneOf left the Dart model with
 	// the cursor's payload only).
-	if want := []string{"#/components/schemas/CursorMessage", "#/components/schemas/DraftMessage", "#/components/schemas/SuggestionMessage",
-		"#/components/schemas/TranscriptMessage"}; !slices.Equal(refs, want) {
+	if want := []string{"#/components/schemas/CommandErrorMessage", "#/components/schemas/CursorMessage", "#/components/schemas/DraftMessage",
+		"#/components/schemas/SuggestionMessage", "#/components/schemas/TranscriptMessage"}; !slices.Equal(refs, want) {
 		t.Errorf("ConsultFrame is one of %v, want %v", refs, want)
+	}
+	// What the client sends on the socket (SAL-7).
+	refs = nil
+	for _, o := range s["ConsultCommand"].OneOf {
+		refs = append(refs, o.Ref)
+	}
+	if want := []string{"#/components/schemas/SuggestionStatusMessage"}; !slices.Equal(refs, want) {
+		t.Errorf("ConsultCommand is one of %v, want %v", refs, want)
 	}
 	if items := s["Transcript"].Properties["segments"].Items; items == nil || items.Ref != "#/components/schemas/TranscriptEvent" {
 		t.Errorf("Transcript.segments items = %+v, want a TranscriptEvent reference", items)
