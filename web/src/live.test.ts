@@ -355,6 +355,14 @@ describe('consultSocket: documents', () => {
     expect(await post.json()).toEqual({ fields })
   })
 
+  it('signs nothing for a draft read without its version', async () => {
+    const { actions, requests } = setup(undefined, { [signPost]: () => Response.json({}) })
+    const read = { ...(draft().payload as DraftEvent), version_id: undefined }
+
+    await expect(actions.sign(read, fields)).rejects.toThrow()
+    expect(requests).toEqual([])
+  })
+
   it('fails with the required fields it names when a required field is empty', async () => {
     const { actions } = setup(undefined, { [signPost]: () => Response.json({ error: 'required_missing', keys: ['reason'] }, { status: 422 }) })
 

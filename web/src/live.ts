@@ -159,8 +159,10 @@ export function consultSocket({ api, fhir, open = (url) => new WebSocket(url) }:
       return res.data
     },
     async sign(draft, fields) {
+      // A draft from before SAL-8 has no version to name: it cannot be signed as read.
+      if (draft.version_id === undefined) throw new Error('no version')
       const { data, error, response } = await api.POST('/drafts/{id}/sign', {
-        params: { path: { id: draft.draft_id }, header: { 'If-Match': `W/"${draft.version_id ?? 0}"` } },
+        params: { path: { id: draft.draft_id }, header: { 'If-Match': `W/"${draft.version_id}"` } },
         body: { fields },
       })
       if (response.ok && data) return data as DraftEvent
