@@ -45,10 +45,27 @@ type Suggester interface {
 	Suggest(ctx context.Context, req SuggestRequest) ([]Suggestion, error)
 }
 
-// FieldSpec is one field of a document to fill: its key and the label the model reads.
+// FieldType is what kind of value a field holds, and so how the model writes it.
+type FieldType string
+
+// The field types. A list's items are one per line; a date is YYYY-MM-DD; a coded field's value is one code of
+// the code system the instruction names (ICD-10 for a diagnosis).
+const (
+	FieldText  FieldType = "text"
+	FieldList  FieldType = "list"
+	FieldDate  FieldType = "date"
+	FieldCoded FieldType = "coded"
+)
+
+// FieldSpec is one field of a document to fill: its key, the label and the instruction the model reads, its
+// type, and whether the document needs it. A required field the transcript does not cover is still Missing:
+// the model never guesses.
 type FieldSpec struct {
-	Key   string
-	Label string
+	Key         string
+	Label       string
+	Instruction string
+	Type        FieldType
+	Required    bool
 }
 
 // DraftRequest is the fields to fill from a transcript, and the language to write them in.

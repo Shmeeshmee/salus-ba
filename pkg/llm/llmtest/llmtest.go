@@ -78,6 +78,7 @@ type Drafter struct {
 func (f *Drafter) Draft(_ context.Context, req llm.DraftRequest) ([]llm.DraftField, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	req.Fields, req.Transcript = slices.Clone(req.Fields), slices.Clone(req.Transcript)
 	f.calls = append(f.calls, req)
 	if f.Err != nil {
 		return nil, f.Err
