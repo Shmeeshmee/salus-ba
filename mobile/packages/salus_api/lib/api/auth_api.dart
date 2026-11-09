@@ -446,6 +446,87 @@ class AuthApi {
     return null;
   }
 
+  /// Choose the account's language
+  ///
+  /// Saves the language the user picked (docs/i18n/SPEC.md §3 \"Picking and saving\"); it wins on every device from then on, and e-mails use it. `null` clears it: the app follows the browser's or the device's language again. A staff account takes only a staff language. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [UpdateMeRequest] updateMeRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> updateMeWithHttpInfo(
+    UpdateMeRequest updateMeRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/auth/me';
+
+    // ignore: prefer_final_locals
+    Object? postBody = updateMeRequest;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'PATCH',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Choose the account's language
+  ///
+  /// Saves the language the user picked (docs/i18n/SPEC.md §3 \"Picking and saving\"); it wins on every device from then on, and e-mails use it. `null` clears it: the app follows the browser's or the device's language again. A staff account takes only a staff language. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [UpdateMeRequest] updateMeRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Account?> updateMe(
+    UpdateMeRequest updateMeRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await updateMeWithHttpInfo(
+      updateMeRequest,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'Account',
+      ) as Account;
+    }
+    return null;
+  }
+
   /// Finish signing in with a TOTP code
   ///
   /// With the challenge of `/auth/login` and a code: opens the session. A code is accepted one 30-second step either way, and only once. A wrong code counts against the challenge; the fifth ends it. Audited.

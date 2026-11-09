@@ -1,0 +1,15 @@
+{
+  "mainNav": "Главна навигација",
+  "calendar": "Календар",
+  "workingHours": "Радно вријеме",
+  "practitioners": "Љекари",
+  "questionnaires": "Упитници",
+  "clinicSettings": "Подешавања клинике",
+  "signOut": "Одјави се",
+  "signOutFailed": "Одјава није успјела. Покушајте поново.",
+  "patientsUseApp": "Веб апликација је за особље клинике. Пацијенти користе Salus мобилну апликацију.",
+  "notFound": "Ова страница не постоји.",
+  "language": "Језик",
+  "browserLanguage": "Користи језик прегледача",
+  "languageSaved": "Језик је сачуван."
+}

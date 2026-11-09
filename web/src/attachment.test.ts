@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { binaryContentURL } from './api/client'
 import { filesOf, sizeText } from './attachment'
+import { translator } from './test/translate'
 
 const id = 'b0000000-0000-4000-8000-0000000000b1'
 const url = `https://api.example.test/binaries/${id}/content`
@@ -47,7 +48,11 @@ describe('sizeText (W8)', () => {
     [20_000_000, '20.0 MB'],
     [199_960_000, '200.0 MB'],
   ])('writes %d bytes as %s', (bytes, text) => {
-    expect(sizeText(bytes)).toBe(text)
+    expect(sizeText(bytes, translator('en'), 'en')).toBe(text)
+  })
+
+  it('writes the decimal the way the UI language does', () => {
+    expect(sizeText(1_500_000, translator('hr'), 'hr')).toBe('1,5 MB')
   })
 })
 

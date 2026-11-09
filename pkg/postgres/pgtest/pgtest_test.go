@@ -2,6 +2,8 @@ package pgtest_test
 
 import (
 	"context"
+	"crypto/rand"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"os"
 	"os/exec"
 	"slices"
@@ -236,5 +238,47 @@ func TestWaitForLockWait_ReturnsOnceASessionWaitsOnALock(t *testing.T) {
 	}
 	if err := <-waited; err != nil {
 		t.Errorf("the second update = %v", err)
+	}
+}
+
+// A test's pools are small: up to one package per CPU runs at once, each with parallel tests, and a pool
+// sized by the CPU count in each could pass the server's connection limit (seen on a 28-core host).
+func TestNewAppDatabase_PoolsAreCappedAtPoolMaxConns(t *testing.T) {
+	owner, app := pgtest.NewAppDatabase(t)
+	for name, pool := range map[string]interface{ Stat() *pgxpool.Stat }{"owner": owner, "app": app} {
+		if got := pool.Stat().MaxConns(); got != pgtest.PoolMaxConns {
+			t.Errorf("%s pool MaxConns = %d, want %d", name, got, pgtest.PoolMaxConns)
+		}
+	}
+}
+
+// An advisory lock belongs to one database and roles to the cluster: a test that sets a role's password on its
+// own database (cmd/migrate's) holds the role lock on the server's, so every package's Main, which sets the
+// roles' passwords there, waits instead of failing with "tuple concurrently updated".
+func TestHoldRoleLock_MakesASetPasswordOnTheServersDatabaseWait(t *testing.T) {
+	serverDB, err := postgres.Open(t.Context(), os.Getenv("TEST_DATABASE_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(serverDB.Close)
+	role := "pgtest_role_lock_" + strings.ToLower(rand.Text())
+	if _, err := serverDB.Exec(t.Context(), "CREATE ROLE "+role+" LOGIN"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = serverDB.Exec(context.Background(), "DROP ROLE "+role) })
+
+	release := pgtest.HoldRoleLock(t)
+	done := make(chan error, 1)
+	go func() { done <- postgres.SetPassword(context.Background(), serverDB, role, "synthetic") }()
+
+	pgtest.WaitForLockWait(t, serverDB)
+	select {
+	case err := <-done:
+		t.Fatalf("SetPassword returned %v while the role lock was held", err)
+	default:
+	}
+	release()
+	if err := <-done; err != nil {
+		t.Errorf("SetPassword after the release = %v", err)
 	}
 }

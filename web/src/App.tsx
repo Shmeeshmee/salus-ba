@@ -12,10 +12,13 @@ import { SignIn } from './SignIn'
 import type { Account, ApiClient } from './api/client'
 import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
+import { isStaffLanguage, type Language } from './i18n/languages'
+import { useLanguage, useT } from './i18n/useT'
 import { CalendarIcon, ClinicIcon, ClockIcon, ListIcon, Logo, PeopleIcon, SignOutIcon } from './icons'
-import { questionnaires, somethingWrong } from './messages'
+import { LanguagePicker } from './LanguagePicker'
 import { navigate, usePath } from './route'
-import { Alert, Link } from './ui'
+import { Cheatsheet } from './terminology/Cheatsheet'
+import { Alert, Link, Notice } from './ui'
 
 type Clients = { api: ApiClient; fhir: FhirClient }
 
@@ -29,80 +32,115 @@ export default function App({ api, fhir }: Clients) {
 
 type Me = { name: 'loading' } | { name: 'failed' } | { name: 'loaded'; account: Account }
 
-function SignedIn({ api, fhir, path }: Clients & { path: string }) {
-  const [me, setMe] = useState<Me>({ name: 'loading' })
-  const [signOutError, setSignOutError] = useState<string>()
+// A language saved from the header (shell L4), or a save that failed; shown below the header.
+type LanguageSave = 'saved' | 'failed' | undefined
 
+// staffChoice is the account's language when it is one the web app offers.
+function staffChoice(account: Account): Language | null {
+  return isStaffLanguage(account.language) ? account.language : null
+}
+
+function SignedIn({ api, fhir, path }: Clients & { path: string }) {
+  const t = useT()
+  const { choose } = useLanguage()
+  const [me, setMe] = useState<Me>({ name: 'loading' })
+  const [signOutFailed, setSignOutFailed] = useState(false)
+  const [languageSave, setLanguageSave] = useState<LanguageSave>()
+
+  // The account's language wins over the one kept on the device and the browser's (SPEC §3 "Picking and
+  // saving"); without one, the app follows the browser.
   useEffect(() => {
     let current = true
     attempt(api.GET('/auth/me')).then((res) => {
       if (!current) return
-      if (res.ok) setMe({ name: 'loaded', account: res.data })
-      else if (res.code === 'unauthenticated') navigate('/sign-in', true)
+      if (res.ok) {
+        choose(staffChoice(res.data))
+        setMe({ name: 'loaded', account: res.data })
+      } else if (res.code === 'unauthenticated') navigate('/sign-in', true)
       else setMe({ name: 'failed' })
     })
     return () => {
       current = false
     }
+    // choose is new with every language; the account's language is applied once per read of the account.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [api])
 
   async function signOut() {
-    setSignOutError(undefined)
+    setSignOutFailed(false)
     const res = await attempt(api.POST('/auth/logout'))
     if (res.ok || res.code === 'unauthenticated') navigate('/sign-in', true)
-    else setSignOutError('Signing out failed. Try again.')
+    else setSignOutFailed(true)
+  }
+
+  // saveLanguage switches the UI and the picker at once and saves the choice on the account (PATCH /auth/me).
+  async function saveLanguage(account: Account, language: Language | null) {
+    choose(language)
+    setMe({ name: 'loaded', account: { ...account, language: language ?? undefined } })
+    setLanguageSave(undefined)
+    const res = await attempt(api.PATCH('/auth/me', { body: { language } }))
+    setLanguageSave(res.ok ? 'saved' : 'failed')
   }
 
   if (me.name === 'loading') return null
   if (me.name === 'failed') {
     return (
       <main className="auth">
-        <Alert message={somethingWrong} />
+        <Alert message={t('common.somethingWrong')} />
       </main>
     )
   }
   const account = me.account
-  const admin = account.role === 'admin'
+  const staff = account.role !== 'patient'
   return (
     <>
       <header className="bar">
         <Logo />
-        {account.role !== 'patient' && (
-          <nav aria-label="Main">
-            <Link to="/">
-              <CalendarIcon />
-              Calendar
-            </Link>
-            <Link to="/availability">
-              <ClockIcon />
-              Working hours
-            </Link>
-            <Link to="/practitioners">
-              <PeopleIcon />
-              Practitioners
-            </Link>
-            <Link to="/questionnaires">
-              <ListIcon />
-              {questionnaires.title}
-            </Link>
-            {admin && (
-              <Link to="/clinic">
-                <ClinicIcon />
-                Clinic settings
-              </Link>
-            )}
-          </nav>
-        )}
+        {staff && <Navigation admin={account.role === 'admin'} />}
+        {staff && <Cheatsheet api={api} />}
+        {staff && <LanguagePicker value={staffChoice(account)} onChange={(language) => saveLanguage(account, language)} />}
         <button type="button" className="quiet" onClick={signOut}>
           <SignOutIcon />
-          Sign out
+          {t('shell.signOut')}
         </button>
       </header>
       <main className={path === '/' || callPath.test(path) || questionnairePath.test(path) ? 'page wide' : 'page'}>
-        <Alert message={signOutError} />
+        <Alert message={signOutFailed ? t('shell.signOutFailed') : undefined} />
+        <Alert message={languageSave === 'failed' ? t('common.somethingWrong') : undefined} />
+        <Notice message={languageSave === 'saved' ? t('shell.languageSaved') : undefined} />
         <Screen api={api} fhir={fhir} path={path} account={account} />
       </main>
     </>
+  )
+}
+
+function Navigation({ admin }: { admin: boolean }) {
+  const t = useT()
+  return (
+    <nav aria-label={t('shell.mainNav')}>
+      <Link to="/">
+        <CalendarIcon />
+        {t('shell.calendar')}
+      </Link>
+      <Link to="/availability">
+        <ClockIcon />
+        {t('shell.workingHours')}
+      </Link>
+      <Link to="/practitioners">
+        <PeopleIcon />
+        {t('shell.practitioners')}
+      </Link>
+      <Link to="/questionnaires">
+        <ListIcon />
+        {t('shell.questionnaires')}
+      </Link>
+      {admin && (
+        <Link to="/clinic">
+          <ClinicIcon />
+          {t('shell.clinicSettings')}
+        </Link>
+      )}
+    </nav>
   )
 }
 
@@ -111,8 +149,9 @@ const callPath = /^\/appointments\/([^/]+)\/call$/
 const questionnairePath = /^\/questionnaires\/([^/]+)$/
 
 function Screen({ api, fhir, path, account }: Clients & { path: string; account: Account }) {
+  const t = useT()
   if (account.role === 'patient') {
-    return <p className="panel">The web app is for clinic staff. Patients use the Salus mobile app.</p>
+    return <p className="panel">{t('shell.patientsUseApp')}</p>
   }
   const call = callPath.exec(path)
   if (call) return <CallScreen api={api} id={decodeURIComponent(call[1])} />
@@ -127,5 +166,5 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   if (path === '/clinic' && account.role === 'admin') {
     return <ClinicSettings fhir={fhir} organizationId={account.organizationId ?? ''} />
   }
-  return <p className="panel">This page does not exist.</p>
+  return <p className="panel">{t('shell.notFound')}</p>
 }

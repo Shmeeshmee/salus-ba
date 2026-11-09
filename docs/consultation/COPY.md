@@ -100,5 +100,9 @@ Not approved yet. Shown while the transcription agent is in the room (SPEC §2 "
 right corner of the call, with a mint dot. Nothing calls the agent yet, so neither string is seen in use.
 - W41 / M36: "Transcription is on"
 
+Drafted in every catalog since the merge with the languages feature (web `consultation.transcriptionOn` in five
+languages, mobile `transcriptionOn` in ten; `docs/i18n/TRANSLATIONS.md`: drafted, not reviewed), so a change of
+the English wording changes them too.
+
 For the owner, with SAL-1: once a transcript is kept, "The consultation is not recorded" in the permission text
 above (iOS, Android M35) is no longer the whole truth and needs new wording, with the bs/hr/sr localisation.

@@ -18,7 +18,9 @@ import (
 	"io/fs"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -188,7 +190,7 @@ func roleURL(t testing.TB, dbURL, role, passwordVar string) string {
 
 // setRolePassword sets role's password when the migrations created the role and password is not empty.
 // Roles are cluster-wide and every test package sets the same value (in the compose stack, the one
-// cmd/migrate sets too); SetPassword retries the race between packages.
+// cmd/migrate sets too); SetPassword's lock on the server's database orders the packages.
 func setRolePassword(ctx context.Context, admin *pgxpool.Pool, role, password string) error {
 	var exists bool
 	if err := admin.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)", role).Scan(&exists); err != nil {
@@ -200,9 +202,22 @@ func setRolePassword(ctx context.Context, admin *pgxpool.Pool, role, password st
 	return postgres.SetPassword(ctx, admin, role, password)
 }
 
+// PoolMaxConns caps every pool pgtest opens. go test runs up to one package per CPU at once, each with
+// parallel tests and a pool per database; pools sized by the CPU count (pgx's default) could together pass the
+// server's connection limit on a large host. A test that measures concurrency opens its own pool on
+// NewDatabaseURL with the size it needs.
+const PoolMaxConns = 8
+
 func connect(t testing.TB, dbURL string) *pgxpool.Pool {
 	t.Helper()
-	pool, err := postgres.Open(context.Background(), dbURL)
+	u, err := url.Parse(dbURL)
+	if err != nil {
+		t.Fatal("pgtest: the database URL does not parse")
+	}
+	q := u.Query()
+	q.Set("pool_max_conns", strconv.Itoa(PoolMaxConns))
+	u.RawQuery = q.Encode()
+	pool, err := postgres.Open(context.Background(), u.String())
 	if err != nil {
 		t.Fatalf("pgtest: connect: %v", err)
 	}
@@ -225,6 +240,38 @@ func withDatabase(serverURL, name string) string {
 // lowercase letters, digits and underscores, so it needs no quoting.
 func uniqueName(prefix string) string {
 	return prefix + "_" + strings.ToLower(rand.Text())
+}
+
+// HoldRoleLock takes postgres.RoleLock on the server's database until release is called or the test ends, for
+// a test that sets a role's password on a database of its own (cmd/migrate's): SetPassword's lock orders only
+// the callers on one database, and every package's Main sets the roles' passwords on the server's, which then
+// waits for the test instead of failing with "tuple concurrently updated".
+func HoldRoleLock(t testing.TB) (release func()) {
+	t.Helper()
+	if server.admin == nil {
+		t.Fatal("pgtest: call pgtest.Main(m, migrations) from TestMain")
+	}
+	ctx := context.Background()
+	conn, err := server.admin.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("pgtest: hold the role lock: %v", err)
+	}
+	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock(hashtext($1))", postgres.RoleLock); err != nil {
+		conn.Release()
+		t.Fatalf("pgtest: hold the role lock: %v", err)
+	}
+	var once sync.Once
+	release = func() {
+		once.Do(func() {
+			// Closing the session releases its advisory lock, so the pool never hands out a connection that holds it.
+			if err := conn.Conn().Close(ctx); err != nil {
+				t.Errorf("pgtest: release the role lock: %v", err)
+			}
+			conn.Release()
+		})
+	}
+	t.Cleanup(release)
+	return release
 }
 
 // WaitForLockWait returns once a session on db's database waits on a lock (a row another transaction holds),

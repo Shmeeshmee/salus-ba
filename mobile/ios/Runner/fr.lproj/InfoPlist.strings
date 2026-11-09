@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Salus utilise la caméra pour que le praticien puisse vous voir pendant une consultation vidéo, et pour prendre les photos et vidéos que vous ajoutez à un questionnaire. La consultation n’est pas enregistrée.";
+"NSMicrophoneUsageDescription" = "Salus utilise le micro pour que le praticien puisse vous entendre pendant une consultation vidéo, et pour enregistrer le son des vidéos que vous ajoutez à un questionnaire. La consultation n’est pas enregistrée.";
+"NSPhotoLibraryUsageDescription" = "Salus n’ouvre votre photothèque que pour ajouter à un questionnaire les photos et vidéos que vous choisissez.";

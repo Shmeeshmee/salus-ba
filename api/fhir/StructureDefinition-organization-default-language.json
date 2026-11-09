@@ -1,0 +1,43 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "organization-default-language",
+  "url": "https://salus.invalid/fhir/StructureDefinition/organization-default-language",
+  "version": "0.1.0",
+  "name": "OrganizationDefaultLanguage",
+  "title": "Organization default language",
+  "status": "active",
+  "date": "2026-11-08",
+  "publisher": "Salus",
+  "description": "The clinic's default language, a BCP 47 tag of a staff language: bs, hr, sr-Latn, sr-Cyrl or en (bs unless the clinic's admin changes it). It is the language of e-mails to staff with no language of their own and the original language of a new questionnaire. Not Organization.language, which is the language the resource is written in.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [{ "type": "element", "expression": "Organization" }],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "Default language of the clinic",
+        "definition": "The clinic's default language: bs, hr, sr-Latn, sr-Cyrl or en.",
+        "min": 0,
+        "max": "1"
+      },
+      { "id": "Extension.extension", "path": "Extension.extension", "max": "0" },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "https://salus.invalid/fhir/StructureDefinition/organization-default-language"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [{ "code": "code" }]
+      }
+    ]
+  }
+}

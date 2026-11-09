@@ -43,7 +43,8 @@ func seedBooking(t *testing.T, owner *pgxpool.Pool) booking {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := owner.QueryRow(ctx, `WITH a AS (INSERT INTO account (email, password_hash, role) VALUES ($1, 'h', 'patient') RETURNING id),
+	// The patient chose English, so the e-mails these tests read are the English ones (docs/i18n SPEC §3).
+	if err := owner.QueryRow(ctx, `WITH a AS (INSERT INTO account (email, password_hash, role, language) VALUES ($1, 'h', 'patient', 'en') RETURNING id),
 		p AS (INSERT INTO patient (account_id, given_name, family_name, birth_date) SELECT id, 'Ana', 'Example', '1990-01-01' FROM a RETURNING id)
 		INSERT INTO consent (patient_id, organization_id, status, date_time) SELECT id, $2, 'active', now() - interval '1 day' FROM p
 		RETURNING patient_id::text`, b.email, clinicID).Scan(&b.patient); err != nil {

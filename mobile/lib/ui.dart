@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'messages.dart';
+
 // The colours of the web app (SPEC §2 "Web").
 const _page = Color(0xFFF6F7F5);
 const _ink = Color(0xFF0E1512);
@@ -42,7 +44,8 @@ class Page extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (Navigator.of(context).canPop()) const Align(alignment: Alignment.centerLeft, child: BackButton()),
+                  if (Navigator.of(context).canPop())
+                    const Align(alignment: AlignmentDirectional.centerStart, child: BackButton()),
                   if (title != null) ...[
                     Text(title!, style: Theme.of(context).textTheme.headlineSmall),
                     const SizedBox(height: 24),
@@ -119,7 +122,7 @@ class LoadFailed extends StatelessWidget {
     children: [
       Message(message, error: true),
       const SizedBox(height: 16),
-      SubmitButton('Try again', busy: false, onPressed: onRetry),
+      SubmitButton(context.t.tryAgain, busy: false, onPressed: onRetry),
     ],
   );
 }

@@ -1,0 +1,10 @@
+Your appointment is booked
+
+Your appointment at {{.Clinic}} is booked for {{.When}}.
+
+{{if .Questionnaire}}There is a questionnaire to fill in before your appointment. You can find it in the Salus app.
+
+{{end}}To see or cancel it, open the Salus app:
+{{.Link}}
+
+You can cancel it up to 24 hours before it starts.

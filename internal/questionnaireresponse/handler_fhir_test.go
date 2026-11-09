@@ -183,6 +183,26 @@ func TestHandler_ReadGivesThePractitionerASubmittedResponse(t *testing.T) {
 	}
 }
 
+// The practitioner reads the language the patient answered in as QuestionnaireResponse.language
+// (docs/i18n/SPEC.md §3 "FHIR"); a Name view, which carries no answers, does not carry it either.
+func TestHandler_ReadGivesTheLanguageAnsweredIn(t *testing.T) {
+	t.Parallel()
+	r := completed()
+	r.Language = "sr-Cyrl"
+	rec := getFHIR(t, &stubReader{out: []questionnaireresponse.Seen{{Response: r, Level: access.Full}}}, &stubVersions{}, asCaller(pract), &bytes.Buffer{},
+		"/fhir/R4/QuestionnaireResponse/"+hResponse)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("read = %d %s", rec.Code, rec.Body)
+	}
+	assertGolden(t, "response_language.json", rec.Body.Bytes())
+
+	rec = getFHIR(t, &stubReader{out: []questionnaireresponse.Seen{{Response: r, Level: access.Name}}}, &stubVersions{}, asCaller(admin), &bytes.Buffer{},
+		"/fhir/R4/QuestionnaireResponse/"+hResponse)
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), `"language"`) {
+		t.Errorf("read of a Name view = %d %s, want no language", rec.Code, rec.Body)
+	}
+}
+
 // A Name view (the clinic's admin, the practitioner before the submit) carries no item, whatever the service
 // left in it.
 func TestHandler_ANameViewCarriesNoItem(t *testing.T) {

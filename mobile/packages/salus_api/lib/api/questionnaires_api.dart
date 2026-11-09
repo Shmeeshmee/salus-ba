@@ -846,6 +846,96 @@ class QuestionnairesApi {
     return null;
   }
 
+  /// Choose the language to answer in
+  ///
+  /// The patient starts their questionnaire in a language it has: its original language or one of its complete translations (docs/i18n/SPEC.md §3 \"The patient's language\"). The language may be chosen again until the first answer is saved, not after. The appointment's practitioner reads the questions in it. Not cached. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The response's id (FHIR QuestionnaireResponse.id).
+  ///
+  /// * [StartQuestionnaireRequest] startQuestionnaireRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> startQuestionnaireWithHttpInfo(
+    String id,
+    StartQuestionnaireRequest startQuestionnaireRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/questionnaire-responses/{id}/start'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody = startQuestionnaireRequest;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Choose the language to answer in
+  ///
+  /// The patient starts their questionnaire in a language it has: its original language or one of its complete translations (docs/i18n/SPEC.md §3 \"The patient's language\"). The language may be chosen again until the first answer is saved, not after. The appointment's practitioner reads the questions in it. Not cached. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The response's id (FHIR QuestionnaireResponse.id).
+  ///
+  /// * [StartQuestionnaireRequest] startQuestionnaireRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<QuestionnaireResponse?> startQuestionnaire(
+    String id,
+    StartQuestionnaireRequest startQuestionnaireRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await startQuestionnaireWithHttpInfo(
+      id,
+      startQuestionnaireRequest,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'QuestionnaireResponse',
+      ) as QuestionnaireResponse;
+    }
+    return null;
+  }
+
   /// Submit the answers
   ///
   /// The patient submits the saved answers, as they were read (If-Match): every shown required question must be answered (a shown required attachment item needs a file); the answers and files of hidden questions are removed. Final: no later change. The appointment's practitioner reads the answers from then on. Not cached. Audited, also when refused.

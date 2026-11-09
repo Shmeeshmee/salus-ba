@@ -18,7 +18,7 @@ import {
   update,
   type Item,
 } from './builder'
-import { questionnaires as t } from './messages'
+import { translator } from './test/translate'
 
 // A questionnaire with every shape: a question, a section with two items, a question after it.
 //   a (yes or no)
@@ -238,27 +238,27 @@ describe('problems', () => {
   })
 
   it.each([
-    ['an empty text', (i: Item[]) => update(i, 'b', { text: ' ' }), 'b', t.noText],
-    ['an empty option', (i: Item[]) => update(i, 'y', { options: ['P', ''] }), 'y', 'Fill in this option.'],
-    ['an empty section', (i: Item[]) => update(i, 's', { items: [] }), 's', 'Add at least one item to this section.'],
-    ['one option', (i: Item[]) => update(i, 'y', { options: ['P'] }), 'y', t.fewOptions],
-    ['51 options', (i: Item[]) => update(i, 'y', { options: Array.from({ length: 51 }, (_, n) => `O${n}`) }), 'y', t.manyOptions],
-    ['the same option twice', (i: Item[]) => update(i, 'y', { options: ['P', 'P'] }), 'y', t.sameOptions],
-    ['a condition on a later question', (i: Item[]) => update(i, 'a', { condition: { question: 'y', answer: 'P' } }), 'a', t.conditionOrder],
-    ['a condition on a missing question', (i: Item[]) => update(i, 'b', { condition: { question: 'gone', answer: true } }), 'b', t.conditionOrder],
-    ['a condition on a short answer', (i: Item[]) => update(i, 'b', { condition: { question: 'x', answer: 'P' } }), 'b', t.conditionOrder],
-    ['an answer that is not an option', (i: Item[]) => update(i, 'b', { condition: { question: 'y', answer: 'R' } }), 'b', t.conditionAnswer],
-    ['a text answer to a yes or no', (i: Item[]) => update(i, 'b', { condition: { question: 'a', answer: 'P' } }), 'b', t.conditionAnswer],
-  ])('names %s on its item', (_, change, id, message) => {
+    ['an empty text', (i: Item[]) => update(i, 'b', { text: ' ' }), 'b', 'questionnaire.noText'],
+    ['an empty option', (i: Item[]) => update(i, 'y', { options: ['P', ''] }), 'y', 'questionnaire.emptyOption'],
+    ['an empty section', (i: Item[]) => update(i, 's', { items: [] }), 's', 'questionnaire.emptySection'],
+    ['one option', (i: Item[]) => update(i, 'y', { options: ['P'] }), 'y', 'questionnaire.fewOptions'],
+    ['51 options', (i: Item[]) => update(i, 'y', { options: Array.from({ length: 51 }, (_, n) => `O${n}`) }), 'y', 'questionnaire.manyOptions'],
+    ['the same option twice', (i: Item[]) => update(i, 'y', { options: ['P', 'P'] }), 'y', 'questionnaire.sameOptions'],
+    ['a condition on a later question', (i: Item[]) => update(i, 'a', { condition: { question: 'y', answer: 'P' } }), 'a', 'questionnaire.conditionOrder'],
+    ['a condition on a missing question', (i: Item[]) => update(i, 'b', { condition: { question: 'gone', answer: true } }), 'b', 'questionnaire.conditionOrder'],
+    ['a condition on a short answer', (i: Item[]) => update(i, 'b', { condition: { question: 'x', answer: 'P' } }), 'b', 'questionnaire.conditionOrder'],
+    ['an answer that is not an option', (i: Item[]) => update(i, 'b', { condition: { question: 'y', answer: 'R' } }), 'b', 'questionnaire.conditionAnswer'],
+    ['a text answer to a yes or no', (i: Item[]) => update(i, 'b', { condition: { question: 'a', answer: 'P' } }), 'b', 'questionnaire.conditionAnswer'],
+  ])('names %s on its item by its message id', (_, change, id, message) => {
     expect(problems(change(sample())).get(id)).toEqual([message])
   })
 
   it.each([
-    ['no kind of file', { accept: [] }, [t.noFileKind]],
-    ['no file', { maxFiles: 0 }, [t.fileCount]],
-    ['11 files', { maxFiles: 11 }, [t.fileCount]],
-    ['a part of a file', { maxFiles: 1.5 }, [t.fileCount]],
-    ['an empty number', { maxFiles: Number.NaN }, [t.fileCount]],
+    ['no kind of file', { accept: [] }, ['questionnaire.noFileKind']],
+    ['no file', { maxFiles: 0 }, ['questionnaire.fileCount']],
+    ['11 files', { maxFiles: 11 }, ['questionnaire.fileCount']],
+    ['a part of a file', { maxFiles: 1.5 }, ['questionnaire.fileCount']],
+    ['an empty number', { maxFiles: Number.NaN }, ['questionnaire.fileCount']],
     ['10 files of every kind', { maxFiles: 10, accept: ['photo', 'document', 'video'] }, undefined],
   ] as [string, Partial<Item>, string[] | undefined][])('names a file upload with %s (W6)', (_, patch, messages) => {
     const items = [{ ...newItem('attachment', 'f'), text: 'Placeholder upload', ...patch }]
@@ -268,17 +268,23 @@ describe('problems', () => {
   it('finds a condition moved above its question', () => {
     const items = update(sample(), 'b', { condition: { question: 'y', answer: 'P' } })
     const res = move(items, 'b', 'a')
-    expect(res.ok && problems(res.items).get('b')).toEqual([t.conditionOrder])
+    expect(res.ok && problems(res.items).get('b')).toEqual(['questionnaire.conditionOrder'])
   })
 })
 
 describe('at and cancelled (W42)', () => {
-  const label = (it: Item) => it.text || t.kinds[it.kind]
+  const t = translator('en')
+  const label = (it: Item) => it.text || t(`questionnaire.kinds.${it.kind}`)
   it('says the position in the top level, after a move, in a section, and back after a cancel', () => {
-    expect(at(sample(), 'b', label, false)).toBe('Placeholder long answer is at position 3 of 3.')
-    expect(at(sample(), 'b', label, true)).toBe('Placeholder long answer moved to position 3 of 3.')
-    expect(at(sample(), 'x', label, true)).toBe('Placeholder short answer is in Placeholder section, at position 1 of 2.')
-    expect(at([newItem('string', 'n')], 'n', label, false)).toBe('Short answer is at position 1 of 1.')
-    expect(cancelled(sample(), 'y', label)).toBe('Move cancelled. Placeholder choice is back at position 2 of 2.')
+    expect(at(sample(), 'b', label, false, t)).toBe('Placeholder long answer is at position 3 of 3.')
+    expect(at(sample(), 'b', label, true, t)).toBe('Placeholder long answer moved to position 3 of 3.')
+    expect(at(sample(), 'x', label, true, t)).toBe('Placeholder short answer is in Placeholder section, at position 1 of 2.')
+    expect(at([newItem('string', 'n')], 'n', label, false, t)).toBe('Short answer is at position 1 of 1.')
+    expect(cancelled(sample(), 'y', label, t)).toBe('Move cancelled. Placeholder choice is back at position 2 of 2.')
+  })
+
+  it('says it in the UI language', () => {
+    const bs = translator('bs')
+    expect(at(sample(), 'x', (it) => it.text, true, bs)).toBe('Stavka Placeholder short answer je u odjeljku Placeholder section, na poziciji 1 od 2.')
   })
 })

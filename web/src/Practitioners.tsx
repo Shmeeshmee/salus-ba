@@ -1,21 +1,34 @@
 import { useEffect, useState } from 'react'
+import { useIntl } from 'react-intl'
 import type { Account, ApiClient } from './api/client'
 import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
+import { useT } from './i18n/useT'
 import { useLoad } from './load'
-import { somethingWrong } from './messages'
 import { loadStaff, type Member } from './staff'
 import { Alert, Field, Notice, Submit } from './ui'
 import { useSubmit } from './useSubmit'
 
 type Invite = components['schemas']['Invite']
 type Specialty = components['schemas']['Specialty']
-type Load<T> = { name: 'loading' } | { name: 'failed' } | { name: 'loaded'; value: T }
+type Load<V> = { name: 'loading' } | { name: 'failed' } | { name: 'loaded'; value: V }
+type T = ReturnType<typeof useT>
+
+// useSpecialtyName names a specialty from the catalog by its SNOMED CT code (SPEC §3 "Server text"), and by the
+// API's text only for a code the catalog does not have.
+function useSpecialtyName() {
+  const intl = useIntl()
+  return (code: string, text: string) => {
+    const id = `common.specialty.${code}`
+    return id in intl.messages ? intl.formatMessage({ id }) : text
+  }
+}
 
 // Practitioners lists the clinic's practitioners (PractitionerRole search with the Practitioners included)
 // with their specialty and, for an admin, the specialty editor, the open invites and the invite form.
 export function Practitioners({ api, fhir, account }: { api: ApiClient; fhir: FhirClient; account: Account }) {
+  const t = useT()
   const organizationId = account.organizationId ?? ''
   const admin = account.role === 'admin'
   const { state: members } = useLoad(() => loadStaff(fhir, organizationId), [fhir, organizationId])
@@ -29,9 +42,9 @@ export function Practitioners({ api, fhir, account }: { api: ApiClient; fhir: Fh
   return (
     <>
       <section className="panel">
-        <h1>Practitioners</h1>
-        {members.name === 'loading' && <p className="muted">Loading</p>}
-        {members.name === 'failed' && <Alert message="The practitioners could not be loaded. Reload the page to try again." />}
+        <h1>{t('admin.practitioners')}</h1>
+        {members.name === 'loading' && <p className="muted">{t('common.loading')}</p>}
+        {members.name === 'failed' && <Alert message={t('admin.practitionersLoadFailed')} />}
         {members.name === 'loaded' && (
           <MemberList api={api} members={members.value} specialties={specialties.name === 'loaded' ? specialties.value : []} />
         )}
@@ -42,19 +55,21 @@ export function Practitioners({ api, fhir, account }: { api: ApiClient; fhir: Fh
 }
 
 function MemberList({ api, members, specialties }: { api: ApiClient; members: Member[]; specialties: Specialty[] }) {
-  if (members.length === 0) return <p className="muted">No practitioners yet.</p>
+  const t = useT()
+  const specialtyName = useSpecialtyName()
+  if (members.length === 0) return <p className="muted">{t('common.noPractitioners')}</p>
   return (
-    <ul className="rows" aria-label="Practitioners">
+    <ul className="rows" aria-label={t('admin.practitioners')}>
       {members.map((m) => (
         <li key={m.roleId}>
           <span className="stack">
             <span>{m.name}</span>
-            {!m.active && <span className="tag">Inactive</span>}
+            {!m.active && <span className="tag">{t('admin.inactive')}</span>}
           </span>
           {specialties.length > 0 ? (
             <SpecialtyEditor api={api} member={m} specialties={specialties} />
           ) : (
-            m.specialty && <span className="muted small">{m.specialty.text}</span>
+            m.specialty && <span className="muted small">{specialtyName(m.specialty.code, m.specialty.text)}</span>
           )}
         </li>
       ))}
@@ -65,6 +80,8 @@ function MemberList({ api, members, specialties }: { api: ApiClient; members: Me
 // SpecialtyEditor saves a role's specialty as soon as the admin picks one, with If-Match on the role's
 // version; a refused save puts the previous choice back.
 function SpecialtyEditor({ api, member, specialties }: { api: ApiClient; member: Member; specialties: Specialty[] }) {
+  const t = useT()
+  const specialtyName = useSpecialtyName()
   const [code, setCode] = useState(member.specialty?.code ?? '')
   const [version, setVersion] = useState(member.version)
   const [busy, setBusy] = useState(false)
@@ -84,24 +101,24 @@ function SpecialtyEditor({ api, member, specialties }: { api: ApiClient; member:
     setBusy(false)
     if (res.ok) {
       setVersion(String(res.data.versionId))
-      setResult({ ok: true, message: 'Specialty saved.' })
+      setResult({ ok: true, message: t('admin.specialtySaved') })
       return
     }
     setCode(previous)
-    setResult({ ok: false, message: specialtyMessage(res.code) })
+    setResult({ ok: false, message: specialtyMessage(t, res.code) })
   }
 
   return (
     <span className="specialty">
-      <select aria-label={`Specialty of ${member.name}`} value={code} disabled={busy} onChange={(e) => choose(e.target.value)}>
+      <select aria-label={t('admin.specialtyOf', { name: member.name })} value={code} disabled={busy} onChange={(e) => choose(e.target.value)}>
         {code === '' && (
           <option value="" disabled>
-            Choose a specialty
+            {t('admin.chooseSpecialty')}
           </option>
         )}
         {specialties.map((s) => (
           <option key={s.code} value={s.code}>
-            {s.text}
+            {specialtyName(s.code, s.text)}
           </option>
         ))}
       </select>
@@ -111,14 +128,15 @@ function SpecialtyEditor({ api, member, specialties }: { api: ApiClient; member:
   )
 }
 
-function specialtyMessage(code?: string): string {
-  if (code === 'version_conflict') return 'Someone else changed this practitioner. Reload the page to see the change.'
-  if (code === 'invalid_specialty') return 'Choose a specialty from the list.'
-  if (code === 'forbidden') return 'Only a clinic admin can set a specialty.'
-  return somethingWrong
+function specialtyMessage(t: T, code?: string): string {
+  if (code === 'version_conflict') return t('admin.specialtyConflict')
+  if (code === 'invalid_specialty') return t('admin.invalidSpecialty')
+  if (code === 'forbidden') return t('admin.specialtyForbidden')
+  return t('common.somethingWrong')
 }
 
 function Invites({ api }: { api: ApiClient }) {
+  const t = useT()
   const [invites, setInvites] = useState<Load<Invite[]>>({ name: 'loading' })
 
   useEffect(() => {
@@ -141,33 +159,30 @@ function Invites({ api }: { api: ApiClient }) {
   return (
     <>
       <section className="panel">
-        <h2>Open invites</h2>
-        {invites.name === 'loading' && <p className="muted">Loading</p>}
-        {invites.name === 'failed' && <Alert message="The invites could not be loaded. Reload the page to try again." />}
+        <h2>{t('admin.openInvites')}</h2>
+        {invites.name === 'loading' && <p className="muted">{t('common.loading')}</p>}
+        {invites.name === 'failed' && <Alert message={t('admin.invitesLoadFailed')} />}
         {invites.name === 'loaded' && <InviteList invites={invites.value} />}
       </section>
       <section className="panel">
-        <h2>Invite someone</h2>
+        <h2>{t('admin.inviteSomeone')}</h2>
         <InviteForm api={api} onInvited={added} />
       </section>
     </>
   )
 }
 
-const expires = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
-
 function InviteList({ invites }: { invites: Invite[] }) {
-  if (invites.length === 0) return <p className="muted">No open invites.</p>
+  const t = useT()
+  const intl = useIntl()
+  if (invites.length === 0) return <p className="muted">{t('admin.noInvites')}</p>
   return (
-    <ul className="rows" aria-label="Open invites">
+    <ul className="rows" aria-label={t('admin.openInvites')}>
       {invites.map((i) => (
         <li key={i.id}>
           <span className="stack">
             <span>{i.email}</span>
-            <span className="muted small">
-              {i.role === 'admin' ? 'Admin' : `Practitioner, ${[i.givenName, i.familyName].join(' ')}`}
-              {` · Expires ${expires.format(new Date(i.expiresAt))}`}
-            </span>
+            <span className="muted small">{inviteLine(t, i, intl.formatDate(new Date(i.expiresAt), { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' }))}</span>
           </span>
         </li>
       ))}
@@ -175,9 +190,15 @@ function InviteList({ invites }: { invites: Invite[] }) {
   )
 }
 
+function inviteLine(t: T, invite: Invite, date: string): string {
+  if (invite.role === 'admin') return t('admin.inviteAdmin', { date })
+  return t('admin.invitePractitioner', { name: [invite.givenName, invite.familyName].join(' '), date })
+}
+
 type Role = Invite['role']
 
 function InviteForm({ api, onInvited }: { api: ApiClient; onInvited: (invite: Invite) => void }) {
+  const t = useT()
   const [role, setRole] = useState<Role>('practitioner')
   const [email, setEmail] = useState('')
   const [givenName, setGivenName] = useState('')
@@ -195,26 +216,26 @@ function InviteForm({ api, onInvited }: { api: ApiClient; onInvited: (invite: In
       setSent(true)
       return undefined
     }
-    return inviteMessage(res.code)
+    return inviteMessage(t, res.code)
   })
 
   return (
     <form onSubmit={onSubmit} noValidate>
       <fieldset className="choice">
-        <legend>Role</legend>
-        <RoleOption value="practitioner" label="Practitioner" role={role} onChange={setRole} />
-        <RoleOption value="admin" label="Admin" role={role} onChange={setRole} />
+        <legend>{t('admin.role')}</legend>
+        <RoleOption value="practitioner" label={t('common.practitioner')} role={role} onChange={setRole} />
+        <RoleOption value="admin" label={t('admin.admin')} role={role} onChange={setRole} />
       </fieldset>
-      <Field label="E-mail" type="email" autoComplete="off" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} required />
+      <Field label={t('common.email')} type="email" autoComplete="off" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} required />
       {role === 'practitioner' && (
         <div className="pair">
-          <Field label="Given name" autoComplete="off" maxLength={200} value={givenName} onChange={(e) => setGivenName(e.target.value)} required />
-          <Field label="Family name" autoComplete="off" maxLength={200} value={familyName} onChange={(e) => setFamilyName(e.target.value)} required />
+          <Field label={t('admin.givenName')} autoComplete="off" maxLength={200} value={givenName} onChange={(e) => setGivenName(e.target.value)} required />
+          <Field label={t('admin.familyName')} autoComplete="off" maxLength={200} value={familyName} onChange={(e) => setFamilyName(e.target.value)} required />
         </div>
       )}
       <Alert message={error} />
-      {sent && <Notice message="Invite sent." />}
-      <Submit busy={busy} label="Send invite" busyLabel="Sending" />
+      {sent && <Notice message={t('admin.inviteSent')} />}
+      <Submit busy={busy} label={t('admin.sendInvite')} busyLabel={t('admin.sending')} />
     </form>
   )
 }
@@ -228,9 +249,9 @@ function RoleOption({ value, label, role, onChange }: { value: Role; label: stri
   )
 }
 
-function inviteMessage(code?: string): string {
-  if (code === 'invalid_email') return 'Enter a valid e-mail address.'
-  if (code === 'invalid_name') return 'Enter the given and family name.'
-  if (code === 'forbidden') return 'Only a clinic admin can send invites.'
-  return somethingWrong
+function inviteMessage(t: T, code?: string): string {
+  if (code === 'invalid_email') return t('admin.invalidEmail')
+  if (code === 'invalid_name') return t('admin.invalidName')
+  if (code === 'forbidden') return t('admin.inviteForbidden')
+  return t('common.somethingWrong')
 }

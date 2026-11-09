@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:salus_api/api.dart';
 
+import 'language_picker.dart';
 import 'messages.dart';
 import 'session.dart';
 import 'ui.dart' as ui;
@@ -44,24 +45,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_form.currentState!.validate()) return;
     final email = _email.text.trim();
     final password = _password.text;
+    final choice = LanguageChoice.of(context);
+    final (language, detected) = (choice.chosen, choice.detected);
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await widget.session.register(email, password);
+      await widget.session.register(email, password, language: language, detected: detected);
     } on ApiFailure catch (failure) {
       if (mounted) {
         setState(() {
           _busy = false;
-          _error = failureMessage(failure);
+          _error = failureMessage(context.t, failure);
         });
       }
       return;
     }
     SignIn? result;
     try {
-      result = await widget.session.login(email, password);
+      result = await widget.session.login(email, password, language: language, detected: detected);
     } on ApiFailure {
       result = null;
     }
@@ -75,9 +78,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.t;
     return ui.Page(
-      title: 'Create an account',
+      title: t.createAnAccount,
       children: [
+        const LanguageButton(),
         Form(
           key: _form,
           child: Column(
@@ -85,25 +90,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
             children: [
               TextFormField(
                 controller: _email,
-                decoration: const InputDecoration(labelText: 'E-mail'),
+                decoration: InputDecoration(labelText: t.email),
                 keyboardType: TextInputType.emailAddress,
+                textDirection: TextDirection.ltr,
                 autofillHints: const [AutofillHints.email],
                 autocorrect: false,
-                validator: validateEmail,
+                validator: (v) => validateEmail(t, v),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _password,
-                decoration: const InputDecoration(labelText: 'Password', helperText: '12 to 128 characters'),
+                decoration: InputDecoration(labelText: t.password, helperText: t.passwordHint),
                 obscureText: true,
                 autofillHints: const [AutofillHints.newPassword],
-                validator: validateNewPassword,
+                validator: (v) => validateNewPassword(t, v),
                 onFieldSubmitted: (_) => _submit(),
               ),
               const SizedBox(height: 24),
-              ui.SubmitButton('Create account', busy: _busy, onPressed: _submit),
+              ui.SubmitButton(t.createAccount, busy: _busy, onPressed: _submit),
               const SizedBox(height: 8),
-              TextButton(onPressed: _busy ? null : widget.onSignIn, child: const Text('I already have an account')),
+              TextButton(onPressed: _busy ? null : widget.onSignIn, child: Text(t.haveAccount)),
             ],
           ),
         ),

@@ -1,0 +1,7 @@
+Ihr Termin wurde abgesagt
+
+Ihr Termin bei {{.Clinic}} wurde abgesagt.
+Datum und Uhrzeit: {{.When}}
+
+Um einen anderen Termin zu buchen, öffnen Sie die Salus-App:
+{{.Link}}

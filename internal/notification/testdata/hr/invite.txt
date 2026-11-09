@@ -1,0 +1,8 @@
+Subject: Vaša pozivnica za Salus
+
+Pozvani ste pridružiti se ustanovi Synthetic clinic na platformi Salus.
+
+Za prihvaćanje poziva otvorite ovu poveznicu, odaberite lozinku i postavite kôd za prijavu:
+https://app.example.test/invite#c2Vzc2lvbiB0b2tlbiBvZiAzMiBzeW50aGV0aWMgYnl0ZXM
+
+Poveznica se može upotrijebiti samo jednom i istječe 72 sata nakon izrade pozivnice. Ako niste očekivali ovu poruku, možete je zanemariti.

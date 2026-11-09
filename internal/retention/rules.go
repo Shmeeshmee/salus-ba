@@ -8,7 +8,7 @@ const day = 24 * time.Hour
 // Rules returns the rule of every table with personal data. The periods are defaults that need a legal
 // decision before production (docs/accounts/SPEC.md section 4).
 func Rules() []Rule {
-	return []Rule{
+	return append([]Rule{
 		{
 			Table: "audit_event",
 			Basis: "Accountability and security of processing (GDPR Art. 5(2), 32; Art. 6(1)(c), (f))",
@@ -89,6 +89,28 @@ func Rules() []Rule {
 			Basis: "The patient's files attached to a questionnaire answer (GDPR Art. 9(2)(h), with the consent for sharing before care): each row lives exactly as long as its questionnaire response and is deleted with it (foreign key) or with its answer; a rejected row is deleted 24 h after its scan, and a stored object without a row (a deleted file's ciphertext, an upload that never reached its answer) 24 h after it was written; needs a legal decision before production (docs/attachments/SPEC.md sections 4 and 5)",
 			Keep:  day, // after scanned_at of a rejected row; after an object's last write
 			Then:  ThenDelete,
+		},
+	}, consultIntelligenceRules()...)
+}
+
+// consultIntelligenceRules are the rules of the consultation's transcript, suggestions and drafts
+// (docs/plans/consult-intelligence.md): all kept with the clinical record, like the encounter.
+func consultIntelligenceRules() []Rule {
+	return []Rule{
+		{
+			Table: "transcript_segment",
+			Basis: "The record of what was said in the consultation, with its translation (GDPR Art. 9(2)(h), with the consent for sharing before care); kept with the clinical record like the encounter, needs a legal decision before production (docs/plans/consult-intelligence.md, \"Personal data\")",
+			Then:  ThenKeep,
+		},
+		{
+			Table: "suggestion",
+			Basis: "What was suggested to the practitioner during the consultation and what they did with it, for their accountability (GDPR Art. 9(2)(h), Art. 5(2)); kept with the clinical record, needs a legal decision before production (docs/plans/consult-intelligence.md, \"Personal data\")",
+			Then:  ThenKeep,
+		},
+		{
+			Table: "document_draft",
+			Basis: "The document the practitioner writes about the patient during the consultation (GDPR Art. 9(2)(h)); kept with the clinical record, a discarded one as entered-in-error; needs a legal decision before production (docs/plans/consult-intelligence.md, \"Personal data\")",
+			Then:  ThenKeep,
 		},
 	}
 }

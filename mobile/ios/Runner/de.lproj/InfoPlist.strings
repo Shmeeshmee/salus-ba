@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "Salus verwendet die Kamera, damit Ihr Behandler Sie während einer Videosprechstunde sehen kann, und um die Fotos und Videos aufzunehmen, die Sie einem Fragebogen hinzufügen. Die Sprechstunde wird nicht aufgezeichnet.";
+"NSMicrophoneUsageDescription" = "Salus verwendet das Mikrofon, damit Ihr Behandler Sie während einer Videosprechstunde hören kann, und um den Ton der Videos aufzunehmen, die Sie einem Fragebogen hinzufügen. Die Sprechstunde wird nicht aufgezeichnet.";
+"NSPhotoLibraryUsageDescription" = "Salus öffnet Ihre Fotomediathek nur, um die von Ihnen ausgewählten Fotos und Videos einem Fragebogen hinzuzufügen.";

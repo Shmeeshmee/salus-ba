@@ -29,14 +29,16 @@ func (f *fakeInvites) IssueInviteToken(_ context.Context, inviteID, org string) 
 	return "cy@example.test", token, f.err
 }
 
+// fakeClinics gives a synthetic clinic with the default language set ("" for none).
 type fakeClinics struct {
-	err    error
-	caller organization.Caller
+	err      error
+	language string
+	caller   organization.Caller
 }
 
 func (f *fakeClinics) Read(_ context.Context, c organization.Caller, id string) (organization.Organization, error) {
 	f.caller = c
-	return organization.Organization{ID: id, Name: "Synthetic clinic"}, f.err
+	return organization.Organization{ID: id, Name: "Synthetic clinic", DefaultLanguage: f.language}, f.err
 }
 
 type fakeSender struct {
@@ -50,7 +52,7 @@ func (f *fakeSender) Send(_ context.Context, m notification.Message) error {
 }
 
 func TestSendInvite_MailsTheLinkAndTheClinicNameAndNothingElse(t *testing.T) {
-	invites, clinics, sender := &fakeInvites{}, &fakeClinics{}, &fakeSender{}
+	invites, clinics, sender := &fakeInvites{}, &fakeClinics{language: "en"}, &fakeSender{}
 	svc := notification.NewService(notification.Ports{Invites: invites, Clinics: clinics, Sender: sender, WebBaseURL: "https://app.example.test"})
 
 	if err := svc.SendInvite(t.Context(), inviteID, clinicID); err != nil {

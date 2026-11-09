@@ -7,6 +7,7 @@ import 'call.dart';
 import 'files.dart';
 import 'clinics_screen.dart';
 import 'consents_screen.dart';
+import 'language_picker.dart';
 import 'messages.dart';
 import 'profile_screen.dart';
 import 'session.dart';
@@ -61,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final profile = await widget.booking.me();
       if (mounted) setState(() => _profile = profile);
     } on ApiFailure catch (failure) {
-      if (mounted) setState(() => _loadError = bookingMessage(failure));
+      if (mounted) setState(() => _loadError = bookingMessage(context.t, failure));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -79,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _error = failure.unreachable ? signOutFailed : somethingWrong;
+          _error = failure.unreachable ? context.t.signOutFailed : context.t.somethingWrong;
         });
       }
     }
@@ -130,30 +131,32 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final booking = widget.booking;
     final now = widget.now;
+    final t = context.t;
     return ui.Page(
       title: 'Salus',
       children: [
-        Text('Signed in as ${widget.account.email}'),
+        const LanguageButton(),
+        Text(t.signedInAs(widget.account.email)),
         if (_profile == null) ...[
-          const ui.Message(completeProfileFirst),
-          OutlinedButton(onPressed: _editProfile, child: const Text('Complete your profile')),
+          ui.Message(t.completeProfileFirst),
+          OutlinedButton(onPressed: _editProfile, child: Text(t.completeProfile)),
         ],
         FilledButton(
           onPressed: () =>
               _open(() => ClinicsScreen(booking: booking, now: now, media: widget.media, files: widget.files)),
-          child: const Text('Book an appointment'),
+          child: Text(t.bookAppointment),
         ),
         OutlinedButton(
           onPressed: () =>
               _open(() => AppointmentsScreen(booking: booking, now: now, media: widget.media, files: widget.files)),
-          child: const Text('My appointments'),
+          child: Text(t.myAppointments),
         ),
         OutlinedButton(
           onPressed: () => _open(() => ConsentsScreen(booking: booking)),
-          child: const Text('My consents'),
+          child: Text(t.myConsents),
         ),
-        if (_profile != null) OutlinedButton(onPressed: _editProfile, child: const Text('My profile')),
-        TextButton(onPressed: _busy ? null : _signOut, child: const Text('Sign out')),
+        if (_profile != null) OutlinedButton(onPressed: _editProfile, child: Text(t.myProfile)),
+        TextButton(onPressed: _busy ? null : _signOut, child: Text(t.signOut)),
         if (_error != null) ui.Message(_error!, error: true),
       ],
     );

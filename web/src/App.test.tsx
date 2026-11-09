@@ -1,11 +1,16 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { renderInLanguage } from './i18n/renderInLanguage'
 import App from './App'
 import { newApiClient, type Account } from './api/client'
 import { newFhirClient } from './api/fhir'
+import { loadSavedLanguage } from './i18n/saved'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, type Route } from './test/fakeFetch'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  localStorage.clear()
+})
 
 const org = 'a0000000-0000-4000-8000-00000000000a'
 const admin: Account = { id: 'a1000000-0000-4000-8000-000000000001', email: 'admin@example.test', role: 'admin', organizationId: org, mfaEnrolled: true }
@@ -16,7 +21,7 @@ const organization = () =>
 function renderAt(path: string, routes: Record<string, Route>) {
   history.replaceState(null, '', path)
   const fake = fakeFetch(routes)
-  render(<App api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} />)
+  renderInLanguage(<App api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} />, 'en')
   return fake
 }
 
@@ -158,5 +163,49 @@ describe('App', () => {
 
     await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Signing out failed. Try again.'))
     expect(screen.getByRole('heading', { name: 'Calendar' })).toBeTruthy()
+  })
+})
+
+describe('the language', () => {
+  const me = (account: Account) => ({ ...staff(account), 'PATCH /auth/me': async (r: Request) => Response.json({ ...account, ...(await r.json()) }) })
+
+  it("shows the app in the account's language", async () => {
+    renderAt('/', staff({ ...admin, language: 'hr' }))
+
+    expect(await screen.findByRole('heading', { name: 'Kalendar' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Postavke klinike' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Odjavi se' })).toBeTruthy()
+    expect(loadSavedLanguage()).toBe('hr')
+  })
+
+  it('saves a language picked in the header on the account', async () => {
+    const { requests } = renderAt('/', me(admin))
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Language' }), { target: { value: 'sr-Cyrl' } })
+
+    expect(await screen.findByText('Језик је сачуван.')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Календар' })).toBeTruthy()
+    const patch = requests.find((r) => r.method === 'PATCH')!
+    expect(new URL(patch.url).pathname).toBe('/auth/me')
+    expect(await patch.json()).toEqual({ language: 'sr-Cyrl' })
+    expectCsrfOnWrites(requests)
+  })
+
+  it("goes back to the browser's language when the choice is cleared", async () => {
+    const { requests } = renderAt('/', me({ ...admin, language: 'hr' }))
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Jezik' }), { target: { value: '' } })
+
+    expect(await screen.findByText('Language saved.')).toBeTruthy()
+    expect(await requests.find((r) => r.method === 'PATCH')!.json()).toEqual({ language: null })
+    expect(loadSavedLanguage()).toBeNull()
+  })
+
+  it('says when the language could not be saved', async () => {
+    renderAt('/', { ...staff(admin), 'PATCH /auth/me': () => apiError(500, 'internal error') })
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Language' }), { target: { value: 'bs' } })
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Nešto nije u redu. Pokušajte ponovo.')
   })
 })

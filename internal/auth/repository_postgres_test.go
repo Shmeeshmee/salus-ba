@@ -306,7 +306,7 @@ func count(t *testing.T, db *pgxpool.Pool, query string) int {
 func TestRegister_StoresTheNormalisedEmailAndOnlyTheArgon2Hash(t *testing.T) {
 	t.Parallel()
 	svc, owner := newPostgresService(t, cheap)
-	if _, err := svc.Register(t.Context(), "Ana@Example.test", password); err != nil {
+	if _, err := svc.Register(t.Context(), "Ana@Example.test", password, "", ""); err != nil {
 		t.Fatal(err)
 	}
 	var email, hash string
@@ -323,14 +323,46 @@ func TestLogin_ReHashesOlderParametersInTheDatabase(t *testing.T) {
 	owner, app := pgtest.NewAppDatabase(t)
 	older := auth.NewService(postgresPorts(app, auth.NewArgon2Hasher(cheap, 1)))
 	newer := auth.NewService(postgresPorts(app, auth.NewArgon2Hasher(auth.Argon2Params{Memory: 128, Time: 2, Threads: 1}, 1)))
-	if _, err := older.Register(t.Context(), "ana@example.test", password); err != nil {
+	if _, err := older.Register(t.Context(), "ana@example.test", password, "", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := newer.Login(t.Context(), "ana@example.test", password, clientIP); err != nil {
+	if _, err := newer.Login(t.Context(), "ana@example.test", password, clientIP, "", ""); err != nil {
 		t.Fatalf("Login() = %v", err)
 	}
 	if n := count(t, owner, "SELECT count(*) FROM account WHERE password_hash LIKE '$argon2id$v=19$m=128,t=2,p=1$%'"); n != 1 {
 		t.Error("the hash was not replaced with the newer parameters")
+	}
+}
+
+func TestLanguages_AreSavedByRegistrationSignInAndTheChoiceInTheDatabase(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	svc := auth.NewService(postgresPorts(app, auth.NewArgon2Hasher(cheap, 1)))
+	a, err := svc.Register(t.Context(), "ana@example.test", password, "ar", "de")
+	if err != nil {
+		t.Fatal(err)
+	}
+	languages := func() (chosen, detected *string) {
+		t.Helper()
+		if err := owner.QueryRow(t.Context(), "SELECT language::text, detected_language::text FROM account").Scan(&chosen, &detected); err != nil {
+			t.Fatal(err)
+		}
+		return chosen, detected
+	}
+	if chosen, detected := languages(); chosen == nil || *chosen != "ar" || detected == nil || *detected != "de" {
+		t.Errorf("after registration: %v, %v; want ar, de", chosen, detected)
+	}
+	if _, err := svc.Login(t.Context(), "ana@example.test", password, clientIP, "", "tr"); err != nil {
+		t.Fatal(err)
+	}
+	if chosen, detected := languages(); *chosen != "ar" || *detected != "tr" {
+		t.Errorf("after sign-in: %s, %s; want ar kept, tr detected", *chosen, *detected)
+	}
+	if _, err := svc.SetLanguage(t.Context(), a.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if chosen, detected := languages(); chosen != nil || *detected != "tr" {
+		t.Errorf("after clearing: %v, %s; want no choice, tr kept", chosen, *detected)
 	}
 }
 

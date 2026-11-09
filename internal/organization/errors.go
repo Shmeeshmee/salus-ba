@@ -15,4 +15,7 @@ var (
 	ErrInvalidName = errors.New("organization: invalid name")
 	// ErrInvalidTimeZone is returned for a time zone that is not an IANA zone name.
 	ErrInvalidTimeZone = errors.New("organization: invalid time zone")
+	// ErrInvalidDefaultLanguage is returned for a default language that is not a staff language (bs, hr,
+	// sr-Latn, sr-Cyrl, en).
+	ErrInvalidDefaultLanguage = errors.New("organization: invalid default language")
 )

@@ -95,7 +95,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   void _filesChanged() => setState(() {
     for (final id in _uploads.answers.keys) {
-      if (_errors[id] == questionRequired) _errors.remove(id);
+      if (_errors[id] == context.t.questionRequired) _errors.remove(id);
     }
   });
 
@@ -124,7 +124,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             if (it.type == ItemType.attachment) it.linkId: [...?_answers[it.linkId]?.whereType<Attached>()],
       },
       onEnded: (f) => setState(() {
-        _message = answersMessage(f);
+        _message = answersMessage(context.t, f);
         _closed = true;
       }),
     )..addListener(_filesChanged);
@@ -144,7 +144,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     super.dispose();
   }
 
-  String _shown(Item it) => (_answers[it.linkId] ?? const []).isEmpty ? '' : answerText(it, _answers[it.linkId]!);
+  /// A typed answer as its field shows it: a text or a number, the same in every language.
+  String _shown(Item it) => (_answers[it.linkId] ?? const []).join(', ');
 
   void _set(String linkId, List<Object>? values) {
     if (values == null || values.isEmpty) {
@@ -158,7 +159,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   /// A typed answer: checked at once, saved once typing pauses or the field is left. One that is not valid is
   /// shown on its field and left out of the answers.
   void _typed(Item it, String text) {
-    final read = readTyped(it.type, text);
+    final read = readTyped(context.t, it.type, text);
     setState(() {
       _set(it.linkId, read.value == null ? null : [read.value!]);
       if (read.error == null) {
@@ -233,7 +234,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       return;
     }
     setState(() => _saving = _Saving.none);
-    _refusedFinal(f, invalid: invalidAnswer);
+    _refusedFinal(f, invalid: (it) => invalidAnswer(context.t, it));
   }
 
   /// A refused save or submit: a 412 reads the latest answers, a 422 is shown on the questions it names with
@@ -251,7 +252,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         }
         return;
       }
-      _message = answersMessage(f);
+      _message = answersMessage(context.t, f);
       // Files still being checked (docs/attachments COPY M10) end nothing: Submit waits for them.
       _closed = f.status == 404 || (f.status == 409 && f.code != 'attachments_pending');
     });
@@ -269,13 +270,13 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         _savedEdits = _edits;
         _saving = _Saving.none;
         _closed = r.status == ResponseStatus.stopped;
-        _message = _closed ? withdrawnByClinic : changedElsewhere;
+        _message = _closed ? context.t.withdrawnByClinic : context.t.changedElsewhere;
         for (final it in flatten(_items).where(_isTyped)) {
           _controllers[it.linkId]!.text = _shown(it);
         }
       });
     } on ApiFailure catch (f) {
-      if (mounted) setState(() => _message = answersMessage(f));
+      if (mounted) setState(() => _message = answersMessage(context.t, f));
     }
   }
 
@@ -285,9 +286,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     if (unanswered.isNotEmpty || _errors.keys.any((id) => on[id] == true)) {
       setState(() {
         for (final id in unanswered) {
-          _errors.putIfAbsent(id, () => questionRequired);
+          _errors.putIfAbsent(id, () => context.t.questionRequired);
         }
-        _message = unanswered.isEmpty ? null : requiredMissing;
+        _message = unanswered.isEmpty ? null : context.t.requiredMissing;
       });
       return;
     }
@@ -321,20 +322,20 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       if (!mounted) return;
       setState(() {
         _submitting = false;
-        if (f.status == 422) _message = requiredMissing;
+        if (f.status == 422) _message = context.t.requiredMissing;
       });
-      _refusedFinal(f, invalid: (_) => questionRequired);
+      _refusedFinal(f, invalid: (_) => context.t.questionRequired);
     }
   }
 
   Future<bool?> _confirmSubmit() => showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text(submitTitle),
-      content: Text(submitBody(widget.clinic)),
+      title: Text(context.t.submitTitle),
+      content: Text(context.t.submitBody(widget.clinic)),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text(cancel)),
-        FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text(submit)),
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(context.t.cancel)),
+        FilledButton(onPressed: () => Navigator.of(context).pop(true), child: Text(context.t.submit)),
       ],
     ),
   );
@@ -346,10 +347,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        content: Text(uploading ? leaveUploading : leaveUnsaved),
+        content: Text(uploading ? context.t.leaveUploading : context.t.leaveUnsaved),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text(stay)),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text(leave)),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(context.t.stay)),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: Text(context.t.leave)),
         ],
       ),
     );
@@ -372,7 +373,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   /// took about 620 ms in a Column and 45 ms this way (docs/questionnaire/PROGRESS.md, package 10).
   Widget _page(List<Widget> rows, {required List<Widget> footer}) {
     final head = [
-      if (Navigator.of(context).canPop()) const Align(alignment: Alignment.centerLeft, child: BackButton()),
+      if (Navigator.of(context).canPop()) const Align(alignment: AlignmentDirectional.centerStart, child: BackButton()),
       Text(widget.version.title, style: Theme.of(context).textTheme.headlineSmall),
       const SizedBox(height: 8),
     ];
@@ -417,18 +418,18 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 
   List<Widget> _view() => [
-    if (_submitted) ...[const ui.Heading(answersSubmitted), const ui.Message(answersSubmittedBody)],
+    if (_submitted) ...[ui.Heading(context.t.answersSubmitted), ui.Message(context.t.answersSubmittedBody)],
     ...answersRead(context, items: _items, answers: _response.answers, authored: _response.authored, zone: widget.zone),
   ];
 
   List<Widget> _form() {
     final on = enabled(_items, _all);
     return [
-      Text(savedAsYouGo(widget.clinic)),
+      Text(context.t.savedAsYouGo(widget.clinic)),
       for (final it in flatten(_items))
         if (on[it.linkId]! && it.type != ItemType.unsupported) _item(it),
       // Submit waits for every file to be checked (SPEC §3 O9); the footer says why.
-      if (!_closed) ui.SubmitButton(submit, busy: _submitting || _uploads.pending, onPressed: _submit),
+      if (!_closed) ui.SubmitButton(context.t.submit, busy: _submitting || _uploads.pending, onPressed: _submit),
     ];
   }
 
@@ -437,11 +438,12 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   /// everything is saved.
   List<Widget> _footer() => [
     if (_message != null) ui.Message(_message!, error: true),
-    if (_uploads.pending && !_closed && _message != filesBeingChecked) const ui.Message(filesBeingChecked),
+    if (_uploads.pending && !_closed && _message != context.t.filesBeingChecked)
+      ui.Message(context.t.filesBeingChecked),
     ui.Message(switch (_saving) {
-      _Saving.saving => saving,
-      _Saving.failed => notSaved,
-      _ => saved,
+      _Saving.saving => context.t.saving,
+      _Saving.failed => context.t.notSaved,
+      _ => context.t.saved,
     }, error: _saving == _Saving.failed),
   ];
 
@@ -460,7 +462,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         header: header,
         files: _uploads.of(it.linkId),
         enabled: !_closed && !_submitting,
-        error: _uploads.error(it.linkId) ?? _errors[it.linkId],
+        error: _uploads.error(it.linkId)?.call(context.t) ?? _errors[it.linkId],
         onAdd: () => _addFile(it),
         onRetry: _uploads.retry,
         onRemove: _removeFile,
@@ -500,18 +502,18 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     try {
       await _uploads.remove(f);
     } on ApiFailure catch (failure) {
-      if (mounted) setState(() => _message = answersMessage(failure));
+      if (mounted) setState(() => _message = answersMessage(context.t, failure));
     }
   }
 
   Future<bool?> _confirmRemove() => showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text(removeFileTitle),
-      content: const Text(removeFileBody),
+      title: Text(context.t.removeFileTitle),
+      content: Text(context.t.removeFileBody),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text(cancel)),
-        TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text(remove)),
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(context.t.cancel)),
+        TextButton(onPressed: () => Navigator.of(context).pop(true), child: Text(context.t.remove)),
       ],
     ),
   );

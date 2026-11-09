@@ -5,8 +5,8 @@ import type { components } from './api/schema'
 import { liveKit, type CallEvent, type Media, type Peer, type Room, type Settings } from './call'
 import { joinMessage } from './consultation'
 import { DeviceCheck } from './DeviceCheck'
+import { useT } from './i18n/useT'
 import { CameraIcon, LeaveIcon, MicrophoneIcon } from './icons'
-import { consultation as text } from './messages'
 import { Alert, Notice } from './ui'
 
 type Status = components['schemas']['ConsultationStatus']
@@ -35,6 +35,7 @@ type Props = { api: ApiClient; id: string; media?: Media }
 // rejoin; the server decides whether one is issued. Events of a room this screen has left are ignored
 // (generation), so a late event of an old connection changes nothing.
 export function CallScreen({ api, id, media = liveKit }: Props) {
+  const t = useT()
   const [phase, setPhase] = useState<Phase>({ name: 'check' })
   const [room, setRoom] = useState<Room>()
   const [peer, setPeer] = useState<Peer>(nobody)
@@ -79,7 +80,7 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
     try {
       joined = await media.connect(res.data.url, res.data.token, { ...settings.current }, (e) => gen === generation.current && onEvent(e))
     } catch {
-      if (gen === generation.current) setPhase(again ? { name: 'lost' } : { name: 'check', error: text.cannotConnect })
+      if (gen === generation.current) setPhase(again ? { name: 'lost' } : { name: 'check', error: t('consultation.cannotConnect') })
       return
     }
     if (gen !== generation.current) return void joined.leave()
@@ -95,7 +96,7 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
   function refused(again: boolean, code?: Parameters<typeof joinMessage>[0]) {
     if (again && !code) return setPhase({ name: 'lost' })
     if (again && (code === 'consultation_ended' || code === 'practitioner_did_not_join')) return void finish(false)
-    setPhase({ name: 'check', error: joinMessage(code) })
+    setPhase({ name: 'check', error: joinMessage(code, t) })
   }
 
   // finish shows the end once the room is gone. A room closed while the consultation is still open is rejoined
@@ -174,7 +175,7 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
 
   async function end(): Promise<string | undefined> {
     const res = await attempt(api.POST('/appointments/{id}/consultation/end', params))
-    if (!res.ok) return joinMessage(res.code)
+    if (!res.ok) return joinMessage(res.code, t)
     generation.current++
     setRoom(undefined)
     setPhase({ name: 'ended', status: res.data })
@@ -186,7 +187,7 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
       return <DeviceCheck media={media} busy={phase.name === 'joining'} error={phase.name === 'check' ? phase.error : undefined} onJoin={join} />
     case 'left':
       return (
-        <Message text={phase.otherTab ? text.otherTab : text.left}>
+        <Message text={t(phase.otherTab ? 'consultation.otherTab' : 'consultation.left')}>
           <button
             type="button"
             className="primary"
@@ -196,13 +197,13 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
               void connect(false)
             }}
           >
-            {text.joinAgain}
+            {t('consultation.joinAgain')}
           </button>
         </Message>
       )
     case 'lost':
       return (
-        <Message text={text.notRestored}>
+        <Message text={t('consultation.notRestored')}>
           <button
             type="button"
             className="primary"
@@ -211,7 +212,7 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
               void connect(true)
             }}
           >
-            {text.tryAgain}
+            {t('consultation.tryAgain')}
           </button>
         </Message>
       )
@@ -222,13 +223,13 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
   return (
     <section className="call">
       <Stage room={room} peer={peer} name={peerName} gone={gone} reconnecting={phase.name === 'reconnecting'} cameraOn={local.camera} agent={agent} />
-      <Notice message={reconnected ? text.reconnected : undefined} />
+      <Notice message={reconnected ? t('consultation.reconnected') : undefined} />
       <div className="call-controls">
         <button
           type="button"
           className={`round${local.microphone ? '' : ' off'}`}
-          aria-label={local.microphone ? text.mute : text.unmute}
-          title={local.microphone ? text.mute : text.unmute}
+          aria-label={t(local.microphone ? 'consultation.mute' : 'consultation.unmute')}
+          title={t(local.microphone ? 'consultation.mute' : 'consultation.unmute')}
           disabled={!room}
           onClick={() => toggle('microphone')}
         >
@@ -237,8 +238,8 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
         <button
           type="button"
           className={`round${local.camera ? '' : ' off'}`}
-          aria-label={local.camera ? text.cameraOff : text.cameraOn}
-          title={local.camera ? text.cameraOff : text.cameraOn}
+          aria-label={t(local.camera ? 'consultation.cameraOff' : 'consultation.cameraOn')}
+          title={t(local.camera ? 'consultation.cameraOff' : 'consultation.cameraOn')}
           disabled={!room || !cameraUsable}
           onClick={() => toggle('camera')}
         >
@@ -246,7 +247,7 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
         </button>
         <button type="button" className="leave" onClick={leave}>
           <LeaveIcon />
-          {text.leave}
+          {t('consultation.leave')}
         </button>
         <EndConsultation patientJoined={patientJoined} onEnd={end} />
       </div>
@@ -260,6 +261,7 @@ type StageProps = { room?: Room; peer: Peer; name: string; gone?: Gone; reconnec
 // put into the two video elements by the room. Lines that need the patient's name are left out without one.
 // While the transcription agent is in the room, a line says so (SPEC §2 "Changed for SAL-3").
 function Stage({ room, peer, name, gone, reconnecting, cameraOn, agent }: StageProps) {
+  const t = useT()
   const remote = useRef<HTMLVideoElement>(null)
   const own = useRef<HTMLVideoElement>(null)
   useEffect(() => room?.show(remote.current, own.current), [room])
@@ -269,19 +271,19 @@ function Stage({ room, peer, name, gone, reconnecting, cameraOn, agent }: StageP
       <video ref={remote} className={peer.present && peer.camera ? '' : 'hidden'} playsInline autoPlay />
       <div className="stage-text">
         {!peer.present && !reconnecting && <Absent name={name} gone={gone} />}
-        {peer.present && !peer.camera && name && <p>{text.peerCameraOff(name)}</p>}
+        {peer.present && !peer.camera && name && <p>{t('consultation.peerCameraOff', { name })}</p>}
       </div>
-      {peer.present && !peer.microphone && name && <p className="badge">{text.peerMuted(name)}</p>}
+      {peer.present && !peer.microphone && name && <p className="badge">{t('consultation.peerMuted', { name })}</p>}
       {agent && (
-        <p className="transcription" role="status" aria-label={text.transcriptionOn}>
+        <p className="transcription" role="status" aria-label={t('consultation.transcriptionOn')}>
           <span className="dot" aria-hidden="true" />
-          {text.transcriptionOn}
+          {t('consultation.transcriptionOn')}
         </p>
       )}
       <video ref={own} className={cameraOn ? 'own' : 'own hidden'} muted playsInline autoPlay />
       {reconnecting && (
         <p className="reconnecting" role="status">
-          {text.reconnecting}
+          {t('consultation.reconnecting')}
         </p>
       )}
     </div>
@@ -289,19 +291,21 @@ function Stage({ room, peer, name, gone, reconnecting, cameraOn, agent }: StageP
 }
 
 function Absent({ name, gone }: { name: string; gone?: Gone }) {
-  if (gone === 'consent') return <p>{text.peerWithdrewConsent}</p>
-  if (gone === 'cancelled') return <p>{text.cancelled}</p>
-  if (gone === 'left') return name ? <p>{text.peerLeft(name)}</p> : null
+  const t = useT()
+  if (gone === 'consent') return <p>{t('consultation.peerWithdrewConsent')}</p>
+  if (gone === 'cancelled') return <p>{t('consultation.cancelled')}</p>
+  if (gone === 'left') return name ? <p>{t('consultation.peerLeft', { name })}</p> : null
   return (
     <>
-      <h2>{text.waiting}</h2>
-      {name && <p>{text.notJoinedYet(name)}</p>}
+      <h2>{t('consultation.waiting')}</h2>
+      {name && <p>{t('consultation.notJoinedYet', { name })}</p>}
     </>
   )
 }
 
 // EndConsultation asks to confirm, saying what the end does to the appointment, then ends it for both sides.
 function EndConsultation({ patientJoined, onEnd }: { patientJoined: boolean; onEnd: () => Promise<string | undefined> }) {
+  const t = useT()
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
@@ -317,21 +321,21 @@ function EndConsultation({ patientJoined, onEnd }: { patientJoined: boolean; onE
   if (!confirming) {
     return (
       <button type="button" className="danger" onClick={() => setConfirming(true)}>
-        {text.end}
+        {t('consultation.end')}
       </button>
     )
   }
   return (
     <div className="confirm end-confirm">
-      <p className="strong">{text.endQuestion}</p>
-      <p>{patientJoined ? text.endFulfilled : text.endNoShow}</p>
+      <p className="strong">{t('consultation.endQuestion')}</p>
+      <p>{t(patientJoined ? 'consultation.endFulfilled' : 'consultation.endNoShow')}</p>
       <Alert message={error} />
       <div className="actions">
         <button type="button" className="danger" disabled={busy} onClick={end}>
-          {text.end}
+          {t('consultation.end')}
         </button>
         <button type="button" disabled={busy} onClick={() => setConfirming(false)}>
-          {text.keep}
+          {t('consultation.keep')}
         </button>
       </div>
     </div>
@@ -348,18 +352,19 @@ function Message({ text: message, children }: { text: string; children: ReactNod
 }
 
 function Ended({ status }: { status?: Status }) {
+  const t = useT()
   return (
     <section className="panel call-message">
-      <h1>{text.ended}</h1>
-      {status && <p>{endLine(status)}</p>}
+      <h1>{t('consultation.ended')}</h1>
+      {status && <p>{t(endLine(status))}</p>}
     </section>
   )
 }
 
-// endLine says how the consultation ended: a cancellation by the patient's revocation (the reason) is the
-// withdrawn consent.
+// endLine is the message id of how the consultation ended: a cancellation by the patient's revocation (the
+// reason) is the withdrawn consent.
 function endLine(status: Status): string {
-  if (status.endReason === 'cancelled') return status.reason === 'consent_withdrawn' ? text.peerWithdrewConsent : text.cancelled
-  if (status.endReason === 'time_limit') return text.timeLimit
-  return status.patientJoinedAt ? text.markedFulfilled : text.markedNoShow
+  if (status.endReason === 'cancelled') return status.reason === 'consent_withdrawn' ? 'consultation.peerWithdrewConsent' : 'consultation.cancelled'
+  if (status.endReason === 'time_limit') return 'consultation.timeLimit'
+  return status.patientJoinedAt ? 'consultation.markedFulfilled' : 'consultation.markedNoShow'
 }

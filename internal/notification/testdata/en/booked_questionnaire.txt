@@ -1,0 +1,10 @@
+Subject: Your appointment is booked
+
+Your appointment at Synthetic clinic is booked for Monday 7 January 2030, 10:00 (Europe/Sarajevo).
+
+There is a questionnaire to fill in before your appointment. You can find it in the Salus app.
+
+To see or cancel it, open the Salus app:
+https://patient.example.test/appointments
+
+You can cancel it up to 24 hours before it starts.

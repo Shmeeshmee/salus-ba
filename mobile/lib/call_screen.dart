@@ -89,7 +89,7 @@ class _CallScreenState extends State<CallScreen> {
       if (!_current(gen)) return;
       return setState(() {
         _phase = again ? _Phase.lost : _Phase.check;
-        _error = again ? null : cannotConnect;
+        _error = again ? null : context.t.cannotConnect;
       });
     }
     if (!_current(gen)) {
@@ -107,9 +107,9 @@ class _CallScreenState extends State<CallScreen> {
   void _refused(ApiFailure failure, {required bool again}) {
     switch (failure.code) {
       case 'practitioner_did_not_join':
-        return _ended(practitionerAbsent, timePassed);
+        return _ended(context.t.practitionerAbsent, context.t.timePassed);
       case 'consent_required' when again:
-        return _ended(null, withdrewConsent);
+        return _ended(null, context.t.withdrewConsent);
       case 'consultation_ended' when again:
         _finish(rejoin: false);
         return;
@@ -117,7 +117,7 @@ class _CallScreenState extends State<CallScreen> {
     if (again && failure.unreachable) return setState(() => _phase = _Phase.lost);
     setState(() {
       _phase = _Phase.check;
-      _error = joinMessage(failure);
+      _error = joinMessage(context.t, failure);
     });
   }
 
@@ -131,26 +131,26 @@ class _CallScreenState extends State<CallScreen> {
     } on ApiFailure {
       status = null;
     }
-    if (!_current(gen)) return;
+    if (!_current(gen) || !mounted) return;
     switch (status?.reason) {
       case api.ConsultationStatusReasonEnum.consentWithdrawn:
-        return _ended(null, withdrewConsent);
+        return _ended(null, context.t.withdrewConsent);
       case api.ConsultationStatusReasonEnum.cancelled:
-        return _ended(null, appointmentWasCancelled);
+        return _ended(null, context.t.appointmentWasCancelled);
       default:
     }
     if (status?.state != api.ConsultationStatusStateEnum.ended) {
-      return rejoin ? _connect(again: true) : _ended(consultationOver, closeScreen);
+      return rejoin ? _connect(again: true) : _ended(context.t.consultationOver, context.t.closeScreen);
     }
     switch (status?.endReason) {
       case api.ConsultationStatusEndReasonEnum.practitionerAbsent:
-        _ended(practitionerAbsent, timePassed);
+        _ended(context.t.practitionerAbsent, context.t.timePassed);
       case api.ConsultationStatusEndReasonEnum.timeLimit:
-        _ended(consultationOver, timeLimit);
+        _ended(context.t.consultationOver, context.t.timeLimit);
       case api.ConsultationStatusEndReasonEnum.cancelled:
-        _ended(null, appointmentWasCancelled);
+        _ended(null, context.t.appointmentWasCancelled);
       default:
-        _ended(consultationOver, closeScreen);
+        _ended(context.t.consultationOver, context.t.closeScreen);
     }
   }
 
@@ -233,9 +233,9 @@ class _CallScreenState extends State<CallScreen> {
         return ui.Page(
           title: null,
           children: [
-            const ui.Message(notRestored, error: true),
+            ui.Message(context.t.notRestored, error: true),
             ui.SubmitButton(
-              tryAgain,
+              context.t.tryAgain,
               busy: false,
               onPressed: () {
                 setState(() => _phase = _Phase.reconnecting);
@@ -245,7 +245,7 @@ class _CallScreenState extends State<CallScreen> {
           ],
         );
       case _Phase.ended:
-        return ui.Page(title: _end?.title, children: [ui.Message(_end?.line ?? closeScreen)]);
+        return ui.Page(title: _end?.title, children: [ui.Message(_end?.line ?? context.t.closeScreen)]);
       case _Phase.call || _Phase.reconnecting:
         return _call(context);
     }
@@ -259,10 +259,10 @@ class _CallScreenState extends State<CallScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Align(alignment: Alignment.centerLeft, child: BackButton()),
+              const Align(alignment: AlignmentDirectional.centerStart, child: BackButton()),
               Expanded(child: _stage(context)),
               const SizedBox(height: 12),
-              if (_reconnected) const Center(child: ui.Message(reconnected)),
+              if (_reconnected) Center(child: ui.Message(context.t.reconnected)),
               _controls(),
             ],
           ),
@@ -283,13 +283,13 @@ class _CallScreenState extends State<CallScreen> {
       if (!_peer.present && !between && !_seen) ...[
         Semantics(
           header: true,
-          child: Text(waiting, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
+          child: Text(context.t.waiting, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
         ),
-        if (name.isNotEmpty) Text(joinsYouHere(name), style: white, textAlign: TextAlign.center),
+        if (name.isNotEmpty) Text(context.t.joinsYouHere(name), style: white, textAlign: TextAlign.center),
       ],
       if (!_peer.present && !between && _seen && name.isNotEmpty)
-        Text(peerLeft(name), style: white, textAlign: TextAlign.center),
-      if (_peer.present && !_peer.camera && name.isNotEmpty) Text(peerCameraOff(name), style: white),
+        Text(context.t.peerLeft(name), style: white, textAlign: TextAlign.center),
+      if (_peer.present && !_peer.camera && name.isNotEmpty) Text(context.t.peerCameraOff(name), style: white),
     ];
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
@@ -306,27 +306,32 @@ class _CallScreenState extends State<CallScreen> {
               ),
             ),
             if (_peer.present && !_peer.microphone && name.isNotEmpty)
-              Positioned(left: 12, top: 12, child: _badge(peerMuted(name))),
+              PositionedDirectional(start: 12, top: 12, child: _badge(context.t.peerMuted(name))),
             // While the transcription agent is in the room, a badge says so (SPEC.md "Changed for SAL-3").
             if (room != null && _agent)
-              Positioned(right: 12, top: 12, child: Semantics(liveRegion: true, child: _transcriptionBadge())),
+              PositionedDirectional(end: 12, top: 12, child: Semantics(liveRegion: true, child: _transcriptionBadge(context.t.transcriptionOn))),
             if (room != null && _settings.camera)
-              Positioned(
-                right: 12,
+              PositionedDirectional(
+                end: 12,
                 bottom: 12,
                 width: 96,
                 height: 128,
                 child: ClipRRect(borderRadius: BorderRadius.circular(8), child: room.localView()),
               ),
             if (_phase == _Phase.reconnecting)
-              Positioned(left: 12, right: 12, top: 12, child: Semantics(liveRegion: true, child: _badge(reconnecting))),
+              Positioned(
+                left: 12,
+                right: 12,
+                top: 12,
+                child: Semantics(liveRegion: true, child: _badge(context.t.reconnecting)),
+              ),
           ],
         ),
       ),
     );
   }
 
-  static Widget _transcriptionBadge() => DecoratedBox(
+  static Widget _transcriptionBadge(String text) => DecoratedBox(
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -338,7 +343,7 @@ class _CallScreenState extends State<CallScreen> {
             decoration: BoxDecoration(color: _mint, shape: BoxShape.circle),
             child: SizedBox(width: 8, height: 8),
           ),
-          const Text(transcriptionOn),
+          Text(text),
         ],
       ),
     ),
@@ -358,19 +363,19 @@ class _CallScreenState extends State<CallScreen> {
       spacing: 16,
       children: [
         IconButton.filledTonal(
-          tooltip: microphone ? mute : unmute,
+          tooltip: microphone ? context.t.mute : context.t.unmute,
           onPressed: room == null ? null : () => _toggle(Kind.microphone),
           icon: Icon(microphone ? Icons.mic : Icons.mic_off),
         ),
         IconButton.filledTonal(
-          tooltip: camera ? cameraOff : cameraOn,
+          tooltip: camera ? context.t.cameraOff : context.t.cameraOn,
           onPressed: room == null || !_cameraUsable ? null : () => _toggle(Kind.camera),
           icon: Icon(camera ? Icons.videocam : Icons.videocam_off),
         ),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text(leave),
+          child: Text(context.t.leave),
         ),
       ],
     );

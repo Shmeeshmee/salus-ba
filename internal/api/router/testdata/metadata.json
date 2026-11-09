@@ -20,7 +20,7 @@
           "versioning": "versioned-update",
           "readHistory": false,
           "updateCreate": false,
-          "documentation": "Read: staff of the clinic. Update: the clinic's admin, with If-Match and the version read (a stale or missing version gives 412); it sets the name and, when given, the organization-listed and organization-timezone extensions (a left-out extension keeps its value). Search: anyone, listed=true only.",
+          "documentation": "Read: staff of the clinic. Update: the clinic's admin, with If-Match and the version read (a stale or missing version gives 412); it sets the name and, when given, the organization-listed, organization-timezone and organization-default-language extensions (a left-out extension keeps its value; the default language is one of bs, hr, sr-Latn, sr-Cyrl, en). Search: anyone, listed=true only.",
           "searchParam": [
             {
               "name": "listed",

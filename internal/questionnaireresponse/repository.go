@@ -27,6 +27,9 @@ type Repository interface {
 	Lock(ctx context.Context, id string) (Response, error)
 	// Stop withdraws the response at at: stopped, its answers cleared.
 	Stop(ctx context.Context, id string, at time.Time) (Response, error)
+	// SetLanguage sets the language the patient answers the in-progress response id in, at at, moving it to its
+	// next version; or returns ErrNotFound when there is no such response in progress with nothing answered.
+	SetLanguage(ctx context.Context, id, language string, at time.Time) (Response, error)
 	// SaveAnswers replaces the answers of the in-progress response id at at, moving it to its next version,
 	// or returns ErrNotFound when there is no such response in progress.
 	SaveAnswers(ctx context.Context, id string, answers []Answer, at time.Time) (Response, error)

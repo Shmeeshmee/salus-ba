@@ -1,0 +1,22 @@
+{
+  "email": "E-mail",
+  "loading": "Loading",
+  "noPractitioners": "No practitioners yet.",
+  "practitioner": "Practitioner",
+  "reload": "Reload",
+  "save": "Save",
+  "saving": "Saving",
+  "somethingWrong": "Something went wrong. Try again.",
+  "specialty.394537008": "Paediatrics",
+  "specialty.394579002": "Cardiology",
+  "specialty.394582007": "Dermatology",
+  "specialty.394583002": "Endocrinology",
+  "specialty.394586005": "Gynaecology",
+  "specialty.394587001": "Psychiatry",
+  "specialty.394591006": "Neurology",
+  "specialty.394594003": "Ophthalmology",
+  "specialty.394801008": "Orthopaedics",
+  "specialty.394814009": "General practice",
+  "specialty.418960008": "ENT",
+  "specialty.419192003": "Internal medicine"
+}

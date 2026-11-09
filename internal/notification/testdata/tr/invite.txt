@@ -1,0 +1,8 @@
+Subject: Salus davetiniz
+
+Salus'ta Synthetic clinic ekibine katılmaya davet edildiniz.
+
+Daveti kabul etmek için bu bağlantıyı açın, bir parola seçin ve bir giriş kodu ayarlayın:
+https://app.example.test/invite#c2Vzc2lvbiB0b2tlbiBvZiAzMiBzeW50aGV0aWMgYnl0ZXM
+
+Bağlantı yalnızca bir kez kullanılabilir ve davetin oluşturulmasından 72 saat sonra geçerliliğini yitirir. Bu e-postayı beklemiyorsanız dikkate almayabilirsiniz.

@@ -203,3 +203,20 @@ func TestDateRange_ReadsOneGeAndOneLtInstant(t *testing.T) {
 		}
 	}
 }
+
+func TestIsUUID_AcceptsOnlyTheHyphenatedHexadecimalForm(t *testing.T) {
+	t.Parallel()
+	for s, want := range map[string]bool{
+		"0b6c3a52-6a0c-4c52-9e1b-6f1c2a3b4c5d": true,
+		"0B6C3A52-6A0C-4C52-9E1B-6F1C2A3B4C5D": true,
+		"":                                     false,
+		"0b6c3a526a0c4c529e1b6f1c2a3b4c5d":     false,
+		"0b6c3a52-6a0c-4c52-9e1b-6f1c2a3b4c5":  false,
+		"0b6c3a52-6a0c-4c52-9e1b-6f1c2a3b4c5g": false,
+		"0b6c3a52_6a0c-4c52-9e1b-6f1c2a3b4c5d": false,
+	} {
+		if got := fhir.IsUUID(s); got != want {
+			t.Errorf("IsUUID(%q) = %v, want %v", s, got, want)
+		}
+	}
+}

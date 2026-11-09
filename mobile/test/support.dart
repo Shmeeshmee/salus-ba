@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:salus/app.dart';
 import 'package:salus/booking.dart';
+import 'package:salus/l10n/language.dart';
 import 'package:salus/session.dart';
 import 'package:salus/token_store.dart';
 import 'package:salus_api/api.dart';
@@ -36,6 +37,23 @@ class FakeTokenStore implements TokenStore {
 
   @override
   Future<void> delete() async => token = null;
+}
+
+/// Keeps the chosen language in memory in place of the platform's secure storage; [fails] makes every read throw.
+class FakeLanguageStore implements LanguageStore {
+  FakeLanguageStore([this.language]);
+
+  String? language;
+  var fails = false;
+
+  @override
+  Future<String?> read() async => fails ? throw Exception('storage unavailable') : language;
+
+  @override
+  Future<void> write(String tag) async => language = tag;
+
+  @override
+  Future<void> delete() async => language = null;
 }
 
 typedef Respond = Future<http.Response> Function(http.Request request);
@@ -111,7 +129,10 @@ final privacyNoticeUrl = Uri.parse('https://privacy.example.test/notice');
 class Harness {
   /// A signed-in patient with a profile and no questionnaires unless the test answers `GET /me/patient` or
   /// `GET /fhir/R4/QuestionnaireResponse` otherwise.
-  Harness({FakeTokenStore? store, DateTime? now}) : store = store ?? FakeTokenStore(), now = now ?? wednesday {
+  Harness({FakeTokenStore? store, FakeLanguageStore? languages, DateTime? now})
+    : store = store ?? FakeTokenStore(),
+      languages = languages ?? FakeLanguageStore(),
+      now = now ?? wednesday {
     client = ApiClient(basePath: 'http://api.test', authentication: bearer)
       ..client = _Declaring(api, MockClient(api._handle));
     session = Session(api: AuthApi(client), bearer: bearer, store: this.store);
@@ -126,6 +147,9 @@ class Harness {
   final opened = <Uri>[];
   var openSucceeds = true;
   final FakeTokenStore store;
+
+  /// The language chosen on the device; none unless a test saves one.
+  final FakeLanguageStore languages;
   final bearer = HttpBearerAuth();
 
   /// The camera, the microphone and LiveKit.
@@ -149,6 +173,7 @@ class Harness {
         now: () => now,
         media: media,
         files: files,
+        languages: languages,
         privacyNoticeUrl: privacyNoticeUrl,
         openUrl: (url) async {
           opened.add(url);

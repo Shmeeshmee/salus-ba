@@ -12,13 +12,19 @@ FLUTTER := $(COMPOSE) run --rm -T flutter
 LANDING := $(COMPOSE) run --rm -T -w /src/landing node
 E2E     := $(COMPOSE) run --rm -T playwright
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http turn-check livekit-turn-cert lint archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+# The services the Go tests reach (the tools service's depends_on), and the tests themselves.
+TEST_SERVICES := postgres redis mailpit livekit objectstore clamd
+GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...
+GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
+
+.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology turn-check livekit-turn-cert lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+	terminology-fetch terminology-import terminology-export \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
 ## test: Go tests of both modules against the compose Postgres and Redis (TESTFLAGS="-run X -count=1")
 test: tools-image
-	$(GO) sh -c 'go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...'
+	$(GO) sh -c '$(GO_TEST)'
 
 ## cover: tests with coverage, failing when any package is below 80% (cmd/*/main.go excluded)
 cover: tools-image
@@ -71,6 +77,11 @@ bench-questionnaire-http: up tools-image
 bench-binary-http: tools-image
 	$(GO) go test -tags loadtest -count=1 -v -run TestBinaryHTTPReadings ./internal/api/
 
+## bench-terminology: the terminology search through the service on a database loaded with the seed, 50 searches at
+## a time, with its p95 (docs/terminology/SPEC.md §3 "Search": under 15 ms; PROGRESS.md, package 1.1)
+bench-terminology: tools-image
+	$(GO) go test -run '^$$' -bench 'BenchmarkSearch' -benchtime=2000x -count=3 ./internal/terminology
+
 ## turn-check: a call through the compose LiveKit with UDP and its ICE/TCP port blocked: it does not connect
 ## without TURN, and does through TURN over TLS on 443 (docs/consultation/PROGRESS.md, package 10). Not part of make test.
 turn-check: tools-image
@@ -80,18 +91,30 @@ turn-check: tools-image
 livekit-turn-cert: tools-image
 	$(GO) bash scripts/livekit-turn-cert.sh
 
-## lint: gofmt, go vet, golangci-lint (both modules) and the migration immutability check
-lint: tools-image
+## lint: gofmt, go vet, golangci-lint (both modules), the migration immutability check, and the catalog check
+## (the e-mail templates)
+lint: tools-image i18n-check
 	$(GO) bash scripts/lint.sh
+
+## i18n-check: every catalog (web, mobile, e-mail) has the source language's keys and no other, valid ICU
+## messages with the source's placeholders, and the plural categories each language needs (scripts/i18n-check.sh,
+## docs/i18n/SPEC.md §3 "Catalogs"). In the node service, with web/ installed for the ICU parser.
+i18n-check: web-install
+	$(NODE) bash ../scripts/i18n-check.sh
 
 ## archcheck: the architecture rules (tools/archcheck)
 archcheck: tools-image
 	$(GO) go -C tools run ./archcheck -root /src
 
-## arch-gate: archcheck, go vet and the tests; the Claude Code Stop hook runs it
-arch-gate: archcheck tools-image
-	$(GO) go vet ./...
-	$(MAKE) test
+## arch-gate: archcheck, go vet and the tests; the Claude Code Stop hook runs it. It starts only the test services
+## that are not running and recreates none: `run` alone recreates a running service whose config differs, and
+## LiveKit's and Mailpit's do from another worktree (their bind-mount paths are in the config hash). No orphan is
+## removed.
+arch-gate: tools-image
+	$(COMPOSE) up -d --no-recreate --wait $(TEST_SERVICES)
+	$(GO_NODEPS) go -C tools run ./archcheck -root /src
+	$(GO_NODEPS) go vet ./...
+	$(GO_NODEPS) sh -c '$(GO_TEST)'
 
 ## e2e: start the stack and run the end-to-end tests against it in the playwright service, on the compose network:
 ## the Go journeys (the API, Mailpit's API, salusctl built here on the owner's DATABASE_URL, LiveKit), the web
@@ -131,6 +154,22 @@ migrate-create: tools-image
 salusctl: tools-image
 	$(GO) go run ./cmd/salusctl $(args)
 
+## terminology-fetch: fetch the seed from Wikidata's SPARQL endpoint (network) and write
+## assets/terminology/seed.jsonl (tools/terminology; docs/terminology/SPEC.md §3 "Data"). Never part of a build.
+terminology-fetch: tools-image
+	$(GO) go -C tools run ./terminology -out ../assets/terminology/seed.jsonl
+
+## terminology-import [file=<path>]: load the seed (the default) or a curated CSV into the compose Postgres as the
+## owner (salusctl terminology import; docs/terminology/SPEC.md §3 "Curation")
+terminology-import: tools-image
+	$(GO) go run ./cmd/salusctl terminology import $(or $(file),assets/terminology/seed.jsonl)
+
+## terminology-export out=<path> [status=draft]: write the terms as the curator's CSV (salusctl terminology export),
+## to a path under the repository
+terminology-export: tools-image
+	$(if $(out),,$(error terminology-export: out=<path> is required, e.g. make terminology-export out=terms.csv))
+	$(GO) go run ./cmd/salusctl terminology export -o $(out) $(if $(status),-status $(status))
+
 ## sqlc: generate the domains' query packages (sqlc.yaml arrives with the first domain)
 sqlc: tools-image
 	@if [ -f sqlc.yaml ]; then $(GO) $(TOOL) sqlc generate; else echo "sqlc: no sqlc.yaml yet; it arrives with the first domain's queries"; fi
@@ -151,7 +190,7 @@ web/node_modules/.package-lock.json: web/package.json web/package-lock.json
 	$(NODE) npm ci
 
 ## web-lint, web-typecheck, web-test, web-build: the web app's checks
-web-lint: web-install
+web-lint: web-install i18n-check
 	$(NODE) npm run lint
 web-typecheck: web-install
 	$(NODE) npm run typecheck
@@ -185,7 +224,7 @@ landing-dev: landing-install
 	$(COMPOSE) --profile landing up landing-dev
 
 ## mobile-analyze, mobile-test: the Flutter app's checks (mobile/, flutter service). Device runs are manual.
-mobile-analyze: flutter-image
+mobile-analyze: flutter-image i18n-check
 	$(FLUTTER) flutter analyze
 mobile-test: flutter-image
 	$(FLUTTER) flutter test

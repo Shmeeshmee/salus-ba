@@ -65,6 +65,15 @@ String parameterToString(dynamic value) {
   if (value is DateTime) {
     return value.toUtc().toIso8601String();
   }
+  if (value is Language) {
+    return LanguageTypeTransformer().encode(value).toString();
+  }
+  if (value is TermCategory) {
+    return TermCategoryTypeTransformer().encode(value).toString();
+  }
+  if (value is TermLanguage) {
+    return TermLanguageTypeTransformer().encode(value).toString();
+  }
   return value.toString();
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ErrorCode } from './api/client'
 import type { Appointment } from './api/fhir'
-import { consultation as text, somethingWrong } from './messages'
+import type { useT } from './i18n/useT'
 
 const minute = 60_000
 
@@ -18,24 +18,18 @@ export function joinWindow(appt: Appointment, now: Date): Window {
   return 'open'
 }
 
-// joinMessage is the approved sentence for a refused join or end.
-export function joinMessage(code?: ErrorCode): string {
-  switch (code) {
-    case 'join_window_not_open':
-      return text.windowNotOpen
-    case 'consultation_ended':
-      return text.consultationEnded
-    case 'practitioner_did_not_join':
-      return text.timePassed
-    case 'consent_required':
-      return text.consentRequired
-    case 'consultation_not_started':
-      return text.notStarted
-    case 'not_found':
-      return text.notAvailable
-    default:
-      return somethingWrong
-  }
+const joinMessages: Partial<Record<ErrorCode, string>> = {
+  join_window_not_open: 'consultation.windowNotOpen',
+  consultation_ended: 'consultation.consultationEnded',
+  practitioner_did_not_join: 'consultation.timePassed',
+  consent_required: 'consultation.consentRequired',
+  consultation_not_started: 'consultation.notStarted',
+  not_found: 'consultation.notAvailable',
+}
+
+// joinMessage is the approved sentence for a refused join or end, in the UI language.
+export function joinMessage(code: ErrorCode | undefined, t: ReturnType<typeof useT>): string {
+  return t((code && joinMessages[code]) || 'common.somethingWrong')
 }
 
 // useNow is now(), read again every 15 seconds, so a join button appears and goes while its screen is open.

@@ -1,0 +1,6032 @@
+{
+ "results": {
+  "bindings": [
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "field": {
+     "type": "literal",
+     "value": "icd10"
+    },
+    "value": {
+     "type": "literal",
+     "value": "R51"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "field": {
+     "type": "literal",
+     "value": "ta98"
+    },
+    "value": {
+     "type": "literal",
+     "value": "A01.1.00.007"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "field": {
+     "type": "literal",
+     "value": "ta98"
+    },
+    "value": {
+     "type": "literal",
+     "value": "A15.2.00.001"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "field": {
+     "type": "literal",
+     "value": "icd10"
+    },
+    "value": {
+     "type": "literal",
+     "value": "R50"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "field": {
+     "type": "literal",
+     "value": "icd10"
+    },
+    "value": {
+     "type": "literal",
+     "value": "R52.9"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "Capitis dolor"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "главобоља"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "baş ağrısı"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Auge"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "eye"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Dolor"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Algos"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "آلام"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "ألم"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "الم"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Algesie"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Bauchschneiden"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Schmerzwahrnehmung"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "algia"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "headache"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "cefalea"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Kopfschmerz"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "صداع"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "glavobolja"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "céphalée"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "glavobolja"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "pyrexie"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "iperpiressia"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "hiperpireksija"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "pireksija"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "humma"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "algia"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "dolori"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "ache"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Kopfschmerzen"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Kopfweh"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "ألم في الرقبة"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "الم في الرأس"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "وجع راس"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "وجع في الرأس"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "وجع في الرقبة"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "cephalalgia"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Cephalgia Syndrome"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Cephalgia Syndromes"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Chronic Daily Headache"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Chronic Daily Headaches"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Chronic Headache"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Chronic Headaches"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Daily Headache, Chronic"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Daily Headaches, Chronic"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Headache Syndrome"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Headache Syndromes"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Headache, Chronic"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Headache, Chronic Daily"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Headache, Intractable"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Headaches, Chronic"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Headaches, Chronic Daily"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Headaches, Intractable"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Intractable Headache"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Intractable Headaches"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Syndrome, Headache"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q86"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "mal de tête"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "eyeball"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "eyes"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "eyeballs"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "العين"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "yeux"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "fever"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "fièvre"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "febris"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Fieber"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "febbre"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "حمى"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "العيون"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "عيون"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "oeil"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "👀"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "👁👁"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "bulbo oculare"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Hyperpyrexie"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Pyrexie"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "febrile"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Wundfieber"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Febris intermittens"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "الحمى"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Febris"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "pyrexia"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "ارتفاع الحرارة"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "حـمّى"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Afebril"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Febril"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Subfebril"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "febrile response"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "pyrrhexia"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "fievre"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "occhio"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "göz"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "око"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "oculus"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "œil"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "oko"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "عين"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7364"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "Oko"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "ateş"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "groznica"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "groznica"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q38933"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "грозница"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Schmerz"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "dolore"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "pain"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "dolor"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "douleur"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "الألم"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "bol"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "bol"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "бол"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "sr-ec",
+     "type": "literal",
+     "value": "бол"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "sr-el",
+     "type": "literal",
+     "value": "bol"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q81938"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "ağrı"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "field": {
+     "type": "literal",
+     "value": "ta98"
+    },
+    "value": {
+     "type": "literal",
+     "value": "A01.1.00.005"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "field": {
+     "type": "literal",
+     "value": "ta98"
+    },
+    "value": {
+     "type": "literal",
+     "value": "A15.3.00.001"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "field": {
+     "type": "literal",
+     "value": "ta98"
+    },
+    "value": {
+     "type": "literal",
+     "value": "A12.0.00.009"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "field": {
+     "type": "literal",
+     "value": "pcs"
+    },
+    "value": {
+     "type": "literal",
+     "value": "B?2"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "field": {
+     "type": "literal",
+     "value": "icd9cm"
+    },
+    "value": {
+     "type": "literal",
+     "value": "88.38"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "field": {
+     "type": "literal",
+     "value": "icd9cm"
+    },
+    "value": {
+     "type": "literal",
+     "value": "99.5"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "field": {
+     "type": "literal",
+     "value": "icd9cm"
+    },
+    "value": {
+     "type": "literal",
+     "value": "99.3"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "uho"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "أشعة مقطعية"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "الأشعة المقطعية"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "التصوير الطبقي المبرمج"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "تصوير طبقي"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "تصوير طبقي محوسب"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Computed Axial Tomography"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Computer-Tomographie"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Computertomogramm"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "CAT scan"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "computed axial tomography scan"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "computed tomography scan"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "computerized tomography"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "CT imaging"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "CT machine"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "CT Machine"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "CT scan"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "CT Scan Machine"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Tomography, X-Ray Computed"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "X-Ray Computed"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "X-ray computed tomography"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "CT scan"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "CT scanner"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "CT-scan"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "scanner (TDM)"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "scanner médical"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "tomodensitomètre"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "tomodensitometrie"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "tomographie axiale"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "tomographie axiale calculée"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "kompjuterizirana tomografija"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "kompjutorizirana tomografija"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "Scan CT"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "TAC multistrato"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "Tomodensitometria computerizzata"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "Tomografia assiale"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "Tomografia assiale computerizzata"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "ear"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Ohr"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "orecchio"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "kulak"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "oreille"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "auris"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "أذن"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "uho"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "ears"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Ohren"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "ухо"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "الدم"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "الدم المؤكسج"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "دم مؤكسج"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Sanguis"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "scanner"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "CT"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "tomography"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Computertomografie"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Computertomograf"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Computertomograph"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "CAT"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "TC"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "TAC"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "CT"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "CT"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "Ct"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "scansio tomographica computata"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "vaccinazioni"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "vaccinoterapia"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "vaccinoprofilassi"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "vaccinated"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Impfschutz"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Impfen"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Impfling"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Schutzimpfung"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Impfprogramm"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "تلقيح"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "التلقيح"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "Cijepljenje"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "aktive Immunisierung"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Aktivimmunisierung"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Impfwesen"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "Krv"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7362"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "уво"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Blut"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "blood"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "sangue"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "kan"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "krv"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "sang"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "sanguis"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "دم"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "крв"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q7873"
+    },
+    "value": {
+     "xml:lang": "sr-ec",
+     "type": "literal",
+     "value": "крв"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Computertomographie"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "تصوير مقطعي محوسب"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "kompjuterizirana tomografija"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "computed tomography"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "tomodensitométrie"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "računalna tomografija"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "tomografia computerizzata"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "Tomographia computatralis"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "компјутеризована томографија"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q32566"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "bilgisayarlı tomografi"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "vaccinazione"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "vaccination"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "vaccination"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Impfung"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "вакцинација"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "تطعيم"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "Vakcinacija"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "Cijepljenje"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "Vaccinatio"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q192995"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "aşılama"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "field": {
+     "type": "literal",
+     "value": "atc"
+    },
+    "value": {
+     "type": "literal",
+     "value": "V03AN03"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "field": {
+     "type": "literal",
+     "value": "atc"
+    },
+    "value": {
+     "type": "literal",
+     "value": "V03AN01"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "field": {
+     "type": "literal",
+     "value": "icd10"
+    },
+    "value": {
+     "type": "literal",
+     "value": "B2424."
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "field": {
+     "type": "literal",
+     "value": "icd10"
+    },
+    "value": {
+     "type": "literal",
+     "value": "U07.1"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "field": {
+     "type": "literal",
+     "value": "icd10"
+    },
+    "value": {
+     "type": "literal",
+     "value": "U07.2"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "oxygen"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "ossigeno"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Sauerstoff"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "oxygène"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "أكسجين"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "kisik"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "HIV AIDS"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Immune virus/deficiency"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Coronavirus disease 2019"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "COVID 19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Covid-19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "COVID"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Covid-19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "SARS-CoV-2 infection"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "COVID19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Wuhan pneumonia"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "Coronavirus"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "2019-nCoV"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Severe Acute Respiratory Syndrome Coronavirus 2"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "2019-nCoV"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "الالتهاب الرئوي المرتبط بفيروس كورونا المستجد"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "المرض التنفسي الحاد المرتبط بفيروس كورونا المستجد"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "المرض التنفسي الحاد المرتبط بفيروس كورونا المستجد 2019"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "ذات رئة فيروس كورونا المستجد"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "كوفيد-19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "akutna respiratorna bolest 2019-nCoV"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "KOVID-19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "Nova koronovirusna upala pluća"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "Wuhanska upala pluća"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "kisik"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "oxygenium"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "syndrome d'immunodéficience acquise"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "sindrom stečene imunodeficijencije"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "Morbus deficientiae immunitatis acquisitae"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "helijum"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "element 2"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "élément 2"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "O2"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "kiseonik"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "E948"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "element 8"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "atome d'oxygène"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "élément 8"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "8. element"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "element 8"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "oksijen atomu"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "الأكسجين"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "кисеоник"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q629"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "oksijen"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "HIV/AIDS"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "AIDS"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "AIDS"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "إيدز"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "Sida"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "AIDS"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "acquired immune deficiency syndrome"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "acquired immunodeficiency syndrome"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "السيدا"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "متلازمة العوز المناعي المكتسب"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "متلازمة نقص المناعة المكتسبة"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "مرض الإيدز"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "مرض العوز المناعي"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Acquired immune deficiency syndrome"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Erworbenes Immundefektsyndrom"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "SIDA"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "VIH/SIDA"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "AIDS"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "SIDA"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "SIDA"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "Sindrome da Immunodeficienza Acquisita"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "Morbus HIV"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "SIDA"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "AIDS"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "SIDA"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "sr-ec",
+     "type": "literal",
+     "value": "AIDS"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "sr-ec",
+     "type": "literal",
+     "value": "SIDA"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "sr-ec",
+     "type": "literal",
+     "value": "синдром стечене имунодефицијенције"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "Covid"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "COVID19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "malattia respiratoria acuta da SARS-CoV-2"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "polmonite di Wuhan"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "2019-nCoV"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Coronavirus disease 2019"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Coronavirus-Krankheit 2019"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "2019 NCP"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "2019 novel coronavirus pneumonia"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "2019 novel coronavirus respiratory syndrome"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "2019-nCoV acute respiratory disease"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "CD-19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "coronavirus disease 2019"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "COVID-2019"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "nCOVD 19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "nCOVD-19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "nCOVD19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Novel Coronavirus Pneumonia"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "seafood market pneumonia"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "severe acute respiratory syndrome type 2"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "Wuhan respiratory syndrome"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "WuRS"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "Covid"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "COVID19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "maladie à coronavirus 2019"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "pneumonie de Wuhan"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "сида"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "sr-ec",
+     "type": "literal",
+     "value": "сида"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12199"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "HIV/AIDS"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "COVID-19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "COVID-19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "مرض فيروس كورونا 2019"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "Covid-19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "Coronaviri morbus"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "Ковид 19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "COVID-19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "helium"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "elio"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "hélium"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Helium"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "helium"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "Helyum"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "هيليوم"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "helij"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "COVID19"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "Wuhan virüsü"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q84263196"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "Yeni koronavirüs"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "helij"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q560"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "хелијум"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "field": {
+     "type": "literal",
+     "value": "icd10"
+    },
+    "value": {
+     "type": "literal",
+     "value": "C00-C97"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "field": {
+     "type": "literal",
+     "value": "icd9cm"
+    },
+    "value": {
+     "type": "literal",
+     "value": "199"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "la",
+     "type": "literal",
+     "value": "cancer"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "cancer"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "cancer"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "tr",
+     "type": "literal",
+     "value": "kanser"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Krebs"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "سرطان"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "bs",
+     "type": "literal",
+     "value": "rak"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "hr",
+     "type": "literal",
+     "value": "rak"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "cancro"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "tumore maligno"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "malignant neoplasm"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Krebserkrankung"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Krebskrankheit"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Malignom"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Krebszelle"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "السرطان"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "الورم السرطانى"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "مرض السرطان"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "ورم سرطانى"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "ar",
+     "type": "literal",
+     "value": "ورم سرطاني"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Blastom"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "bösartiger Tumor"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Krebsherd"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "Maligne Neoplasie"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "de",
+     "type": "literal",
+     "value": "maligner Tumor"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "malignant tumor"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "en",
+     "type": "literal",
+     "value": "primary cancer"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "fr",
+     "type": "literal",
+     "value": "tumeur maligne"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "neoplasia cancerosa"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "tumore canceroso"
+    },
+    "field": {
+     "type": "literal",
+     "value": "alias"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "it",
+     "type": "literal",
+     "value": "neoplasia maligna"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   },
+   {
+    "item": {
+     "type": "uri",
+     "value": "http://www.wikidata.org/entity/Q12078"
+    },
+    "value": {
+     "xml:lang": "sr",
+     "type": "literal",
+     "value": "рак"
+    },
+    "field": {
+     "type": "literal",
+     "value": "label"
+    }
+   }
+  ]
+ }
+}
