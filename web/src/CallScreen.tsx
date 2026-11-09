@@ -59,7 +59,7 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
   const settings = useRef<Settings>({ camera: false, microphone: false })
   const present = useRef(false)
   const params = { params: { path: { id } } }
-  const [live, dispatch] = useConsult(consult?.live, id, phase.name === 'call' || phase.name === 'reconnecting')
+  const [live, dispatch, ended] = useConsult(consult?.live, id, phase.name === 'call' || phase.name === 'reconnecting')
 
   useEffect(() => () => void room?.leave(), [room])
   // Unmounting makes every connection still in flight late, so a room that connects afterwards is left.
@@ -272,7 +272,7 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
           <EndConsultation patientJoined={patientJoined} onEnd={end} />
         </div>
       </div>
-      {consult && <ConsultSide appointmentId={id} state={live} dispatch={dispatch} actions={consult.actions} zone={zone} />}
+      {consult && <ConsultSide appointmentId={id} state={live} dispatch={dispatch} actions={consult.actions} zone={zone} end={ended} />}
     </section>
   )
 }

@@ -210,9 +210,80 @@ templates when `actions` changes). Nothing in `api/openapi.yaml` was added for t
   mobile), out of SAL-9's scope by the owner's decision of 2026-11-09.
 - Native-speaker review of the drafted bs, hr and sr strings, and the lawyer's review of W9 in each language.
 - An undo for a dismissed suggestion, and showing a suggestion's confidence, if the owner wants either.
-- "Generating…" can clear early when a regenerate replays an unchanged draft (Copilot, PR #34, declined there):
-  the page then shows the previous draft until the new one arrives. The fix depends on how SAL-8 versions a
-  redraft over SAL-6's replay; for SAL-8/SAL-10.
+- ~~"Generating…" can clear early when a regenerate replays an unchanged draft (Copilot, PR #34)~~: fixed in the
+  wiring follow-up, below.
+
+### 2026-11-09: wired to the real backend (branch `sal-9-wire`, the follow-up to #34)
+
+What was built (web and the e2e journey; no Go, API or migration change):
+
+- `web/src/live.ts`, `consultSocket({ fhir })`: the live source and the actions of one call page, sharing its one
+  socket. The encounter comes from `GET /fhir/R4/Encounter?appointment=<id>` (it starts with the practitioner's
+  join, so an empty search is tried again); then `GET /encounters/<id>/events` on the page's own origin. A cursor
+  is kept once the message after it has arrived (a `command_error` frame does not count) and a reconnect passes it
+  as `after`, so nothing is lost or repeated. Close codes 4403 `consent_required` / `forbidden` and 4404
+  `not_found` end the source for good; anything else (1006, 1011, a refused handshake) is retried after 1, 2, 5,
+  then every 10 s, back to 1 s once a frame arrives.
+- Dismiss, pin and unpin (SAL-7): `setSuggestionStatus` sends `suggestion_status` on the open socket and is done
+  when the suggestion comes back with that status; its `command_error`, or the socket closing first, fails it, and
+  the page puts the status back with W14 (as built in #34). No socket open: it fails at once. `decodeMessage` now
+  drops a suggestion whose `origin` is not `ai`, so the page shows only what it labels as a suggestion (W9, W10).
+  W9 now names AI ("AI suggestions are prompts drawn from the transcript, not a diagnosis. Every decision is
+  yours."), the owner's wording of 2026-11-09, which closes the AI-label question; W24 approved the same day.
+- `LiveSource.subscribe` takes an `onEnd(end)`; `useConsult` keeps the end. `App.tsx` builds the socket once per
+  call page and passes it to `CallScreen`.
+- `translation_failed` (SAL-5): the page shows the original of such a line, in its language, as it shows a line
+  awaiting its translation (tested); no new string.
+- Documents (SAL-8, after main with #39 was merged in): `templates(language)` is `GET /document-templates`, each
+  template's title and labels in the UI language where it is written or translated in it, in its own otherwise;
+  `generate` is `POST /encounters/<id>/drafts` with that language and answers with the stored draft; `sign` is
+  `POST /drafts/<id>/sign` with `If-Match: W/"<version_id>"` of the draft as the page read it; a `422
+  required_missing` fails as `SignRefused` with its `keys`. On subscribing, once the encounter is found,
+  `GET /encounters/<id>/drafts` delivers the drafts the (capped) stream may no longer hold. The Vite dev server
+  proxies `/document-templates` and `/drafts`.
+- **Required fields.** A field the template marks required and the practitioner left empty blocks the sign: Sign
+  then shows W24 (new, pending the owner, COPY.md) instead of the confirmation and marks the field; the same when
+  the server refuses with `required_missing`. Optional empty fields are signed empty after the confirmation (W21).
+- **"Generating…" (Copilot on #34), fixed at its cause.** It cleared on the first draft event of the template that
+  was not the draft shown before, so a replay of the previous version (or any new object for it) cleared it. Now
+  it ends only with the generation's own answer, the stored draft, which the page folds in; and `apply` never
+  replaces a draft with an older `version_id`, so a late or replayed event of the previous version cannot bring
+  it back after the redraft. Tested first (`keeps generating through an event of the previous draft...`, `never
+  replaces a draft with an older version`); the guard's removal fails both.
+- e2e: `test/e2e/web/consultation.spec.ts` now waits for the patient's placeholder line of the fake speech engine
+  in the transcript beside the video: the tone in the room, the agent, SAL-4's fake engine, the stream, SAL-6's
+  gateway and the page, through the real stack. Then, on a synthetic template the Go test creates (one required
+  field, one optional), it generates a draft with the fake model (every field missing), is stopped by W24, fills
+  the required field, signs and sees the document final. It failed first on the missing proxy of
+  `/document-templates` (no template picker). The fake model suggests nothing, so suggestions are not proved end
+  to end.
+
+Tests seen failing first: `live.test.ts` (14, the module missing; then mutations: a cursor kept on its own frame
+fails the reconnect and command_error tests, a reconnect after an end fails the three end tests), four new in
+`CallScreen.test.tsx` (the panel's end state, a rejoin after an end), and the e2e journey (`element(s) not found`
+for the transcript line before `App.tsx` wired the socket). The `translation_failed` tests passed at once: the
+behaviour was already there.
+
+No performance claim is made, so nothing was measured.
+
+**Decisions (2026-11-09, agent decision, for the owner to review).**
+
+- **An end drops what the page has.** On 4403 or 4404 the page clears the transcript, the suggestions, the drafts
+  and the captions it holds in memory, and the panel shows one line instead of its tabs: for `consent_required` the
+  approved `consultation.peerWithdrewConsent` ("The patient withdrew consent for this clinic, so the consultation
+  has ended."), for `forbidden` and `not_found` `consultation.notAvailable` ("This consultation is not
+  available."). Existing strings, no new one (COPY.md). The server already refuses the stream and the export after
+  a revocation; showing what was received before it is the open question SAL-6 recorded for the owner and legal,
+  and the page takes the stricter side until it is answered. Nothing that arrives after the end (a late frame, the
+  stored drafts' answer, a generation's answer) is taken (Copilot, #40). A rejoin subscribes again from nothing.
+- **A refused handshake is retried.** A browser cannot tell a 403 handshake from a dropped connection (both close
+  1006), so the page retries, at most every 10 s; each attempt is audited server side as a refused subscription.
+  The open socket's 4403 (a revocation during the call) is the common case and stops it.
+- **No timeout on a command**: it is answered by its event or its error, or failed when the socket closes.
+- **The draft's language** is the UI language when the template is written or translated in it, else the
+  template's own; the labels the page shows are in that same language.
+- **A refused sign other than `required_missing`** (`version_mismatch` after a redraft, `not_preliminary`,
+  `invalid_values`) shows W23 "could not be signed"; the newer draft comes on the stream.
 
 ## B (SAL-5): translation of the final segments, and the Anthropic Claude API adapter
 

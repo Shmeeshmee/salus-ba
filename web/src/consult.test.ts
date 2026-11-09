@@ -12,6 +12,11 @@ describe('decodeMessage', () => {
     expect(decodeMessage(JSON.stringify(d))).toEqual(d)
   })
 
+  it('reads a transcript line whose translation failed (SAL-5)', () => {
+    const m = segment({ translation: '', translation_failed: true })
+    expect(decodeMessage(JSON.stringify(m))).toEqual(m)
+  })
+
   it.each([
     ['not JSON', 'not json'],
     ['no payload', '{"type":"transcript","version":1}'],
@@ -25,6 +30,8 @@ describe('decodeMessage', () => {
     ['a transcript without a start time', JSON.stringify({ ...segment(), payload: { ...segment().payload, ts_start: undefined } })],
     ['a transcript whose start time is not a time', JSON.stringify({ ...segment(), payload: { ...segment().payload, ts_start: 'soon' } })],
     ['a suggestion without its sources', JSON.stringify({ ...suggestion(), payload: { ...suggestion().payload, source_segment_ids: undefined } })],
+    ['a suggestion without its AI origin', JSON.stringify({ ...suggestion(), payload: { ...suggestion().payload, origin: undefined } })],
+    ['a suggestion of another origin', JSON.stringify({ ...suggestion(), payload: { ...suggestion().payload, origin: 'practitioner' } })],
     ['a suggestion of an unknown status', JSON.stringify({ ...suggestion(), payload: { ...suggestion().payload, status: 'hidden' } })],
     ['a draft without fields', JSON.stringify({ ...draft(), payload: { ...draft().payload, fields: undefined } })],
     ['a draft with a field without a key', JSON.stringify({ ...draft(), payload: { ...draft().payload, fields: [{ value: '', missing: true }] } })],
@@ -105,6 +112,13 @@ describe('apply: suggestions and drafts', () => {
       ['s', 'pinned'],
       ['t', 'shown'],
     ])
+  })
+
+  it('never replaces a draft with an older version of it, a late event or a replay', () => {
+    const v2 = draft({ draft_id: 'd', version_id: 2, fields: [{ key: 'reason', value: 'Placeholder redrafted', missing: false, source_segment_ids: ['s'] }] })
+    const state = fold(draft({ draft_id: 'd', version_id: 1 }), v2, draft({ draft_id: 'd', version_id: 1 }))
+    expect(state.drafts).toEqual([v2.payload])
+    expect(fold(v2, draft({ draft_id: 'd', status: 'final', version_id: 3 })).drafts[0].status).toBe('final')
   })
 
   it('keeps the latest version of every draft', () => {

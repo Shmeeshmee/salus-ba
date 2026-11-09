@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type KeyboardEvent } from 'react'
-import type { ConsultActions, ConsultMessage, ConsultState, SuggestionEvent, TranscriptEvent } from './consult'
+import type { ConsultActions, ConsultMessage, ConsultState, End, SuggestionEvent, TranscriptEvent } from './consult'
 import { Documents } from './Documents'
 import { useFormat, useT } from './i18n/useT'
 import { Alert } from './ui'
@@ -49,11 +49,12 @@ type SideProps = {
   dispatch: Dispatch<ConsultMessage>
   actions: ConsultActions
   zone: string
+  end?: End
 }
 
 // ConsultSide is the panel beside the video. A suggestion's or a field's sources open the transcript at
 // those lines, highlighted. Every tab stays mounted, so the transcript keeps its scroll while hidden.
-export function ConsultSide({ appointmentId, state, dispatch, actions, zone }: SideProps) {
+export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end }: SideProps) {
   const t = useT()
   const { number } = useFormat()
   const id = useId()
@@ -75,6 +76,16 @@ export function ConsultSide({ appointmentId, state, dispatch, actions, zone }: S
     const next = tabs[(tabs.indexOf(tab) + step + tabs.length) % tabs.length]
     setTab(next)
     document.getElementById(`${id}-${next}-tab`)?.focus()
+  }
+
+  if (end) {
+    return (
+      <aside className="call-side" aria-label={t('consultation.live.panels')}>
+        <p className="muted side-ended" role="status">
+          {t(end === 'consent_required' ? 'consultation.peerWithdrewConsent' : 'consultation.notAvailable')}
+        </p>
+      </aside>
+    )
   }
 
   return (

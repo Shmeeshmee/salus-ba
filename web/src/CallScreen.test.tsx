@@ -7,7 +7,7 @@ import { newApiClient } from './api/client'
 import type { Opened } from './call'
 import { apiError, expectCsrfOnWrites, fakeFetch, paths, type Route } from './test/fakeFetch'
 import { fakeMedia } from './test/fakeCall'
-import { fakeActions, fakeLive, segment } from './test/fakeConsult'
+import { fakeActions, fakeLive, segment, suggestion } from './test/fakeConsult'
 
 afterEach(cleanup)
 
@@ -465,6 +465,56 @@ describe('CallScreen: the live panels', () => {
     fireEvent.click(button('Leave'))
     expect(live.closed()).toBe(1)
     expect(screen.queryByRole('complementary')).toBeNull()
+  })
+
+  it.each([
+    ['the patient withdrew their consent', 'consent_required', 'The patient withdrew consent for this clinic, so the consultation has ended.'],
+    ['the practitioner may no longer follow it', 'forbidden', 'This consultation is not available.'],
+    ['the encounter is gone', 'not_found', 'This consultation is not available.'],
+  ] as const)('drops the transcript, the suggestions and the captions and says why once the stream ends because %s', async (_, end, line) => {
+    const live = fakeLive()
+    const { last } = await inCall({ live })
+    act(() => last().emit(peer(true)))
+    act(() => live.emit(segment({ original: 'Placeholder dropped line' }), suggestion({ text: 'Placeholder dropped suggestion' })))
+    expect(screen.getByRole('group', { name: 'Captions' })).toBeTruthy()
+
+    act(() => live.end(end))
+
+    const side = screen.getByRole('complementary', { name: 'Transcript, suggestions and documents' })
+    expect(within(side).getByRole('status').textContent).toBe(line)
+    expect(screen.queryByRole('tab')).toBeNull()
+    expect(screen.queryByText('Placeholder dropped line')).toBeNull()
+    expect(screen.queryByText('Placeholder dropped suggestion')).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Captions' })).toBeNull()
+  })
+
+  it('takes nothing more once the stream has ended, so nothing dropped comes back after a rejoin', async () => {
+    const live = fakeLive()
+    await inCall({ live })
+    act(() => live.end('consent_required'))
+
+    act(() => live.emit(segment({ original: 'Placeholder late line' }))) // a late frame or answer after the end
+    fireEvent.click(button('Leave'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Join again' }))
+    await screen.findByRole('button', { name: 'Leave' })
+
+    expect(screen.queryByText('Placeholder late line')).toBeNull()
+    expect(screen.getByText('The transcript appears here as the conversation goes on.')).toBeTruthy()
+  })
+
+  it('follows the stream again, from nothing, after the practitioner rejoins', async () => {
+    const live = fakeLive()
+    await inCall({ live })
+    act(() => live.emit(segment({ original: 'Placeholder dropped line' })))
+    act(() => live.end('forbidden'))
+
+    fireEvent.click(button('Leave'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Join again' }))
+    await screen.findByRole('button', { name: 'Leave' })
+
+    expect(live.opened).toEqual([id, id])
+    expect(screen.getAllByRole('tab')).toHaveLength(3)
+    expect(screen.getByText('The transcript appears here as the conversation goes on.')).toBeTruthy()
   })
 })
 

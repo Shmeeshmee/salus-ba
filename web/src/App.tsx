@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AcceptInvite } from './AcceptInvite'
 import { AppointmentDetail } from './AppointmentDetail'
 import { Availability } from './Availability'
 import { Builder } from './Builder'
 import { Calendar } from './Calendar'
 import { CallScreen } from './CallScreen'
+import { consultSocket } from './live'
 import { ClinicSettings } from './ClinicSettings'
 import { Practitioners } from './Practitioners'
 import { Questionnaires } from './Questionnaires'
@@ -148,13 +149,19 @@ const appointmentPath = /^\/appointments\/([^/]+)$/
 const callPath = /^\/appointments\/([^/]+)\/call$/
 const questionnairePath = /^\/questionnaires\/([^/]+)$/
 
+// Call is the call page with the consultation's live source and actions, built once for the page (live.ts).
+function Call({ api, fhir, id }: Clients & { id: string }) {
+  const consult = useMemo(() => consultSocket({ api, fhir }), [api, fhir])
+  return <CallScreen api={api} id={id} consult={consult} />
+}
+
 function Screen({ api, fhir, path, account }: Clients & { path: string; account: Account }) {
   const t = useT()
   if (account.role === 'patient') {
     return <p className="panel">{t('shell.patientsUseApp')}</p>
   }
   const call = callPath.exec(path)
-  if (call) return <CallScreen api={api} id={decodeURIComponent(call[1])} />
+  if (call) return <Call api={api} fhir={fhir} id={decodeURIComponent(call[1])} />
   const appointment = appointmentPath.exec(path)
   if (appointment) return <AppointmentDetail api={api} fhir={fhir} account={account} id={decodeURIComponent(appointment[1])} />
   if (path === '/') return <Calendar fhir={fhir} account={account} />

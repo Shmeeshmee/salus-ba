@@ -1,4 +1,4 @@
-import type { ConsultActions, ConsultMessage, DraftEvent, LiveSource, SuggestionEvent, Template, TranscriptEvent } from '../consult'
+import { SignRefused, type ConsultActions, type ConsultMessage, type DraftEvent, type End, type LiveSource, type SuggestionEvent, type Template, type TranscriptEvent } from '../consult'
 
 // The in-memory stand-ins for the live source and the consultation's actions (consult.ts), and builders of the
 // P0 envelopes. Every text is synthetic and labelled as a placeholder; no line is real medical wording.
@@ -52,6 +52,7 @@ export function draft(p: Partial<DraftEvent> = {}): ConsultMessage {
       encounter_id: encounter,
       template_id: templates[0].id,
       status: 'preliminary',
+      version_id: 1,
       fields: [
         { key: 'reason', value: 'Placeholder reason for the visit', source_segment_ids: ['a1000000-0000-4000-8000-000000000001'], missing: false },
         { key: 'plan', value: '', missing: true },
@@ -61,31 +62,35 @@ export function draft(p: Partial<DraftEvent> = {}): ConsultMessage {
   }
 }
 
-// templates are two synthetic clinic templates, their labels placeholders.
+// templates are two synthetic clinic templates, their labels placeholders. The visit summary needs its reason.
 export const templates: Template[] = [
   {
     id: 'd1000000-0000-4000-8000-000000000001',
     title: 'Placeholder visit summary',
+    language: 'en',
     fields: [
-      { key: 'reason', label: 'Placeholder reason' },
-      { key: 'plan', label: 'Placeholder plan' },
+      { key: 'reason', label: 'Placeholder reason', required: true },
+      { key: 'plan', label: 'Placeholder plan', required: false },
     ],
   },
-  { id: 'd1000000-0000-4000-8000-000000000002', title: 'Placeholder referral', fields: [{ key: 'to', label: 'Placeholder referred to' }] },
+  { id: 'd1000000-0000-4000-8000-000000000002', title: 'Placeholder referral', language: 'en', fields: [{ key: 'to', label: 'Placeholder referred to', required: false }] },
 ]
 
-// fakeLive is a live source the test drives: emit delivers a message to every open subscription.
+// fakeLive is a live source the test drives: emit delivers a message to every open subscription, end stops them.
 export function fakeLive() {
   const listeners = new Set<(m: ConsultMessage) => void>()
+  const enders = new Set<(e: End) => void>()
   const opened: string[] = []
   let closed = 0
   const live: LiveSource = {
-    subscribe(appointmentId, onMessage) {
+    subscribe(appointmentId, onMessage, onEnd) {
       opened.push(appointmentId)
       listeners.add(onMessage)
+      if (onEnd) enders.add(onEnd)
       return () => {
         closed++
         listeners.delete(onMessage)
+        if (onEnd) enders.delete(onEnd)
       }
     },
   }
@@ -96,36 +101,45 @@ export function fakeLive() {
     emit: (...messages: ConsultMessage[]) => {
       for (const m of messages) for (const l of listeners) l(m)
     },
+    end: (e: End) => {
+      for (const l of enders) l(e)
+    },
   }
 }
 
-type ActionOptions = { templates?: Template[] | 'fail'; failStatus?: boolean; failSign?: boolean; failGenerate?: boolean }
+type ActionOptions = { templates?: Template[] | 'fail'; failStatus?: boolean; failSign?: boolean | { keys: string[] }; failGenerate?: boolean }
 
-// fakeActions records every call. Generate answers at once and the draft arrives later on the live source, as
-// it will from the drafting backend; sign answers with the signed draft.
+// fakeActions records every call. A generation waits until the test answers it with the stored draft (answer),
+// as the drafting backend answers once the draft is stored; sign answers with the signed draft.
 export function fakeActions(options: ActionOptions = {}) {
   const statuses: [string, SuggestionEvent['status']][] = []
-  const generated: [string, string][] = []
-  const signed: [string, { key: string; value: string }[]][] = []
+  const generated: [string, string, string][] = []
+  const signed: [string, number | undefined, { key: string; value: string }[]][] = []
+  const languages: string[] = []
+  const waiting: ((d: DraftEvent) => void)[] = []
   const actions: ConsultActions = {
     async setSuggestionStatus(id, status) {
       statuses.push([id, status])
       if (options.failStatus) throw new Error('synthetic failure')
     },
-    async templates() {
+    async templates(language) {
+      languages.push(language)
       if (options.templates === 'fail') throw new Error('synthetic failure')
       return options.templates ?? templates
     },
-    async generate(appointmentId, templateId) {
-      generated.push([appointmentId, templateId])
-      if (options.failGenerate) throw new Error('synthetic failure')
+    generate(appointmentId, templateId, language) {
+      generated.push([appointmentId, templateId, language])
+      if (options.failGenerate) return Promise.reject(new Error('synthetic failure'))
+      return new Promise<DraftEvent>((resolve) => waiting.push(resolve))
     },
-    async sign(draftId, fields) {
-      signed.push([draftId, fields])
+    async sign(d, fields) {
+      signed.push([d.draft_id, d.version_id, fields])
+      if (typeof options.failSign === 'object') throw new SignRefused(options.failSign.keys)
       if (options.failSign) throw new Error('synthetic failure')
-      const d = draft({ draft_id: draftId, status: 'final' }).payload as DraftEvent
-      return { ...d, fields: fields.map((f) => ({ ...f, missing: f.value === '' })) }
+      return { ...d, status: 'final', version_id: (d.version_id ?? 0) + 1, fields: fields.map((f) => ({ ...f, missing: f.value === '' })) }
     },
   }
-  return { actions, statuses, generated, signed }
+  // answer answers the oldest generation still waiting with the draft d.
+  const answer = (d: ConsultMessage = draft()) => waiting.shift()?.(d.payload as DraftEvent)
+  return { actions, statuses, generated, signed, languages, answer }
 }

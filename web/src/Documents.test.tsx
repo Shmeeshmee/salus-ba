@@ -35,25 +35,33 @@ function openDocuments(options: Parameters<typeof fakeActions>[0] = {}) {
   const acts = fakeActions(options)
   renderInLanguage(<Side fake={fake} actions={acts.actions} />, 'en')
   fireEvent.click(screen.getByRole('tab', { name: 'Documents' }))
-  return { ...fake, ...acts, emit: (...m: Parameters<Fake['emit']>) => act(() => fake.emit(...m)) }
+  return {
+    ...fake,
+    ...acts,
+    emit: (...m: Parameters<Fake['emit']>) => act(() => fake.emit(...m)),
+    answer: (...d: Parameters<typeof acts.answer>) => act(async () => void acts.answer(...d)),
+  }
 }
 
-// generated picks the visit summary, generates it and delivers its draft on the live source.
+// generated picks the visit summary, generates it and answers with its stored draft.
 async function generated(options: Parameters<typeof fakeActions>[0] = {}) {
   const docs = openDocuments(options)
   fireEvent.change(await screen.findByRole('combobox', { name: 'Template' }), { target: { value: summary.id } })
   fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
   await screen.findByText('Generating the draft from the transcript…')
-  docs.emit(draft())
+  await docs.answer(draft())
   await screen.findByRole('textbox', { name: 'Placeholder reason' })
   return docs
 }
 
+const redraft = (version: number, plan: string) =>
+  draft({ version_id: version, fields: [{ key: 'reason', value: 'Placeholder new reason', missing: false, source_segment_ids: ['s'] }, { key: 'plan', value: plan, missing: false, source_segment_ids: ['s'] }] })
+
 const field = (name: string) => screen.getByRole('textbox', { name }) as HTMLTextAreaElement
 
 describe('Documents: templates', () => {
-  it("offers the clinic's templates, and Generate once one is chosen", async () => {
-    openDocuments()
+  it("offers the clinic's templates in the UI language, and Generate once one is chosen", async () => {
+    const { languages } = openDocuments()
 
     expect(screen.getByText('Loading the templates…')).toBeTruthy()
     const select = (await screen.findByRole('combobox', { name: 'Template' })) as HTMLSelectElement
@@ -61,6 +69,7 @@ describe('Documents: templates', () => {
     expect((screen.getByRole('button', { name: 'Generate' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(select, { target: { value: summary.id } })
     expect((screen.getByRole('button', { name: 'Generate' }) as HTMLButtonElement).disabled).toBe(false)
+    expect(languages).toEqual(['en'])
   })
 
   it('says when the clinic has none', async () => {
@@ -75,10 +84,10 @@ describe('Documents: templates', () => {
 })
 
 describe('Documents: the draft', () => {
-  it('generates the chosen template for this appointment and shows its fields when the draft arrives', async () => {
+  it('generates the chosen template for this appointment in its language and shows its fields once stored', async () => {
     const { generated: calls } = await generated()
 
-    expect(calls).toEqual([[id, summary.id]])
+    expect(calls).toEqual([[id, summary.id, 'en']])
     expect(screen.queryByText('Generating the draft from the transcript…')).toBeNull()
     expect(screen.getByText('Drafted from the transcript. Check every field before you sign.')).toBeTruthy()
     expect(field('Placeholder reason').value).toBe('Placeholder reason for the visit')
@@ -148,20 +157,36 @@ describe('Documents: two templates', () => {
 })
 
 describe('Documents: regenerate', () => {
-  it('regenerates at once when nothing was edited, and shows the new draft when it arrives', async () => {
-    const { emit, generated: calls } = await generated()
+  it('regenerates at once when nothing was edited, and shows the new draft once stored', async () => {
+    const { answer, generated: calls } = await generated()
 
     fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }))
 
     expect(await screen.findByText('Generating the draft from the transcript…')).toBeTruthy()
     expect(calls).toHaveLength(2)
-    emit(draft({ fields: [{ key: 'reason', value: 'Placeholder new reason', missing: false, source_segment_ids: ['s'] }, { key: 'plan', value: 'Placeholder new plan', missing: false, source_segment_ids: ['s'] }] }))
+    await answer(redraft(2, 'Placeholder new plan'))
     expect(await screen.findByDisplayValue('Placeholder new plan')).toBeTruthy()
     expect(screen.queryByText('Generating the draft from the transcript…')).toBeNull()
   })
 
+  it('keeps generating through an event of the previous draft, and shows the redraft whichever comes first', async () => {
+    const { emit, answer } = await generated()
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }))
+    await screen.findByText('Generating the draft from the transcript…')
+
+    emit(draft()) // the previous version again: a replay after a reconnect
+    expect(screen.getByText('Generating the draft from the transcript…')).toBeTruthy()
+    expect(screen.queryByRole('textbox')).toBeNull()
+
+    emit(redraft(2, 'Placeholder new plan')) // the redraft's own event, before its answer
+    await answer(redraft(2, 'Placeholder new plan'))
+    emit(draft()) // and the previous version once more, late
+    expect(screen.queryByText('Generating the draft from the transcript…')).toBeNull()
+    expect(field('Placeholder plan').value).toBe('Placeholder new plan')
+  })
+
   it('asks first when it would replace edits, and keeps them on cancel', async () => {
-    const { emit, generated: calls } = await generated()
+    const { answer, generated: calls } = await generated()
     fireEvent.change(field('Placeholder reason'), { target: { value: 'Placeholder typed reason' } })
 
     fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }))
@@ -175,7 +200,7 @@ describe('Documents: regenerate', () => {
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Regenerate' }))
     await screen.findByText('Generating the draft from the transcript…')
     expect(calls).toHaveLength(2)
-    emit(draft())
+    await answer(draft({ version_id: 2 }))
     await screen.findByText('Drafted from the transcript. Check every field before you sign.')
     expect(field('Placeholder reason').value).toBe('Placeholder reason for the visit')
   })
@@ -196,6 +221,7 @@ describe('Documents: sign', () => {
     expect(signed).toEqual([
       [
         'c1000000-0000-4000-8000-000000000001',
+        1,
         [
           { key: 'reason', value: 'Placeholder typed reason' },
           { key: 'plan', value: '' },
@@ -226,9 +252,37 @@ describe('Documents: sign', () => {
     expect(field('Placeholder reason').readOnly).toBe(false)
   })
 
+  it('blocks the sign while a required field is empty, saying how many, and flags it', async () => {
+    const { signed } = await generated()
+    fireEvent.change(field('Placeholder reason'), { target: { value: ' ' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
+
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect((await screen.findByRole('alert')).textContent).toBe('1 required field is empty. Fill it in before you sign.')
+    expect(field('Placeholder reason').getAttribute('aria-invalid')).toBe('true')
+    expect(field('Placeholder plan').getAttribute('aria-invalid')).toBeNull()
+    expect(signed).toEqual([])
+
+    fireEvent.change(field('Placeholder reason'), { target: { value: 'Placeholder typed reason' } })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(field('Placeholder reason').getAttribute('aria-invalid')).toBeNull()
+  })
+
+  it('flags the fields a refused sign names as required and empty', async () => {
+    await generated({ failSign: { keys: ['plan'] } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Sign' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('1 required field is empty. Fill it in before you sign.')
+    expect(field('Placeholder plan').getAttribute('aria-invalid')).toBe('true')
+    expect(field('Placeholder reason').readOnly).toBe(false)
+  })
+
   it('shows a draft signed elsewhere as final', async () => {
     const { emit } = await generated()
-    emit(draft({ status: 'final' }))
+    emit(draft({ status: 'final', version_id: 2 }))
     expect(await screen.findByText('Signed. This document is final.')).toBeTruthy()
     expect(screen.queryByRole('textbox')).toBeNull()
   })
