@@ -79,7 +79,7 @@
   "live.inProgress": "In progress",
   "live.latest": "Show the latest",
   "live.suggestionsNote": {
-    "defaultMessage": "Suggestions are prompts drawn from the transcript, not a diagnosis. Every decision is yours.",
+    "defaultMessage": "AI suggestions are prompts drawn from the transcript, not a diagnosis. Every decision is yours.",
     "description": "legal"
   },
   "live.kind.diagnosis": "Suggestion: a diagnosis to consider",

@@ -79,7 +79,7 @@
   "live.inProgress": "U toku",
   "live.latest": "Prikaži najnovije",
   "live.suggestionsNote": {
-    "defaultMessage": "Prijedlozi su podsticaji izvedeni iz transkripta, a ne dijagnoza. Svaka odluka je vaša.",
+    "defaultMessage": "AI prijedlozi su podsticaji izvedeni iz transkripta, a ne dijagnoza. Svaka odluka je vaša.",
     "description": "legal"
   },
   "live.kind.diagnosis": "Prijedlog: dijagnoza koju treba razmotriti",

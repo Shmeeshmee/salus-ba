@@ -210,13 +210,13 @@ describe('ConsultPanels: suggestions', () => {
     ['term', 'Suggestion: a term to explain'],
   ] as const
 
-  it('labels every suggestion as a suggestion, never a diagnosis, and counts them on the tab', () => {
+  it('labels every suggestion as an AI suggestion, never a diagnosis, and counts them on the tab', () => {
     const { emit } = renderPanels()
     emit(...kinds.map(([type], i) => suggestion({ id: `s${i}`, type, text: `Placeholder ${type}` })))
 
     expect(tab('Suggestions 4')).toBeTruthy()
     fireEvent.click(tab(/Suggestions/))
-    expect(screen.getByText('Suggestions are prompts drawn from the transcript, not a diagnosis. Every decision is yours.')).toBeTruthy()
+    expect(screen.getByText('AI suggestions are prompts drawn from the transcript, not a diagnosis. Every decision is yours.')).toBeTruthy()
     for (const [type, label] of kinds) {
       const card = screen.getByRole('article', { name: label })
       expect(within(card).getByText(`Placeholder ${type}`)).toBeTruthy()

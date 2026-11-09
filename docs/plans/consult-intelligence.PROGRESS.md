@@ -227,8 +227,9 @@ What was built (web and the e2e journey; no Go, API or migration change):
 - Dismiss, pin and unpin (SAL-7): `setSuggestionStatus` sends `suggestion_status` on the open socket and is done
   when the suggestion comes back with that status; its `command_error`, or the socket closing first, fails it, and
   the page puts the status back with W14 (as built in #34). No socket open: it fails at once. `decodeMessage` now
-  drops a suggestion whose `origin` is not `ai`, so the page shows only what it labels as a suggestion (W9, W10);
-  that no approved string names AI is left open for the owner in COPY.md.
+  drops a suggestion whose `origin` is not `ai`, so the page shows only what it labels as a suggestion (W9, W10).
+  W9 now names AI ("AI suggestions are prompts drawn from the transcript, not a diagnosis. Every decision is
+  yours."), the owner's wording of 2026-11-09, which closes the AI-label question; W24 approved the same day.
 - `LiveSource.subscribe` takes an `onEnd(end)`; `useConsult` keeps the end. `App.tsx` builds the socket once per
   call page and passes it to `CallScreen`.
 - `translation_failed` (SAL-5): the page shows the original of such a line, in its language, as it shows a line

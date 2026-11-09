@@ -30,7 +30,9 @@ suggestion is not a diagnosis (`docs/consult-intelligence/COPY.md` W9), is tagge
 (agent decision, for the owner to review), and the 41 other strings of the call page's live panels were drafted in
 bs, hr, sr-Latn and sr-Cyrl like every string before them; each language stays `drafted`.
 The wiring follow-up to #34 (SAL-9, 2026-11-09) added one string, `consultation.live.requiredEmpty` (COPY.md W24,
-pending the owner's approval), drafted in the same four languages; the count of `legal` strings is unchanged.
+approved by the owner on 2026-11-09), and changed `consultation.live.suggestionsNote` (W9, `legal`) to the owner's
+wording naming AI ("AI suggestions are prompts..."); both drafted in the same four languages, for a native
+speaker's check (W9 also for the lawyer's). The count of `legal` strings is unchanged.
 
 English is the source: its text is the features' COPY.md files word for word, approved by the owner.
 `mobile/lib/l10n/app_sr.arb` is a copy of `app_sr_Cyrl.arb` that Flutter needs as the base of the two Serbian
