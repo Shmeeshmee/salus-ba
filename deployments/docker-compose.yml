@@ -333,6 +333,7 @@ services:
       E2E_SALUSCTL: /tmp/salusctl
       E2E_LIVEKIT_CHECK: /e2e/livekit-check.tsv
       TEST_LIVEKIT_URL: http://livekit:7880
+      E2E_REDIS_URL: redis://redis:6379/0 # the encounter's event stream the transcription agent writes (SAL-4)
       DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable # salusctl and startAt: the owner
       API_URL: http://api:8080 # the Vite dev server proxies API calls here
     volumes:

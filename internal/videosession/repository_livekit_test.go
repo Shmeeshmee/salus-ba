@@ -788,3 +788,145 @@ func hear(t *testing.T, l videosession.Listening, n int) (map[string][]byte, []v
 	}
 	return heard, tracks
 }
+
+// BenchmarkListen_FrameLatency is the LiveKit hop of the partial caption's latency (SAL-4): from a synthetic tone
+// burst's first Opus frame written by a publisher on the compose LiveKit to the agent's first decoded frame of it,
+// after 200 ms of silence each time; p50, p95 and p99 reported (make bench-stt).
+func BenchmarkListen_FrameLatency(b *testing.B) {
+	lk := newLiveKitServer(b)
+	name := "r_bench_" + strings.ToLower(rand.Text())
+	p := lk.provider()
+	if err := p.CreateRoom(b.Context(), videosession.Room{Name: name, MaxParticipants: 2, EmptyTimeout: time.Hour}); err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() { _ = p.DeleteRoom(context.Background(), name) })
+	token, err := p.Token(videosession.Grant{Room: name, Identity: "a_bench", ValidFor: time.Minute, Agent: true})
+	if err != nil {
+		b.Fatal(err)
+	}
+	l, err := videosession.NewLiveKitListener().Listen(b.Context(), lk.url, token)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(l.Leave)
+	pt, err := p.Token(videosession.Grant{Room: name, Identity: "p_bench", ValidFor: time.Minute})
+	if err != nil {
+		b.Fatal(err)
+	}
+	room, err := lksdk.ConnectToRoomWithToken(strings.Replace(lk.url, "http", "ws", 1), pt, lksdk.NewRoomCallback(),
+		lksdk.WithAutoSubscribe(false), lksdk.WithLogger(protologger.GetDiscardLogger()))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(room.Disconnect)
+	track, err := lksdk.NewLocalSampleTrack(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2})
+	if err != nil {
+		b.Fatal(err)
+	}
+	if _, err := room.LocalParticipant.PublishTrack(track, &lksdk.TrackPublicationOptions{Source: livekit.TrackSource_MICROPHONE}); err != nil {
+		b.Fatal(err)
+	}
+	loud := listenLoud(b, l)
+	tone, silence := burstFrames(b)
+	write := func(f []byte) { _ = track.WriteSample(media.Sample{Data: f, Duration: 20 * time.Millisecond}, nil) }
+	wall := clock.System{}
+	took := make([]time.Duration, 0, b.N)
+	b.ResetTimer()
+	for range b.N {
+		for range 10 {
+			write(silence())
+			time.Sleep(20 * time.Millisecond)
+		}
+		drainLoud(loud)
+		start := wall.Now()
+		got := false
+		for i := 0; i < 50 && !got; i++ {
+			write(tone())
+			select {
+			case at := <-loud:
+				took, got = append(took, at.Sub(start)), true
+			case <-time.After(20 * time.Millisecond):
+			}
+		}
+		if !got {
+			b.Fatal("the agent heard no tone within a second")
+		}
+	}
+	b.StopTimer()
+	reportPercentiles(b, took)
+}
+
+// listenLoud reports the time of each decoded frame of the first track that holds a tone (not silence).
+func listenLoud(b *testing.B, l videosession.Listening) chan time.Time {
+	b.Helper()
+	loud := make(chan time.Time, 100)
+	var a videosession.RemoteAudio
+	select {
+	case a = <-l.Tracks:
+	case <-time.After(20 * time.Second):
+		b.Fatal("no track within 20 s")
+	}
+	go func() {
+		wall := clock.System{}
+		for f := range a.Frames {
+			var sum float64
+			for i := 0; i+1 < len(f); i += 2 {
+				s := float64(int16(uint16(f[i]) | uint16(f[i+1])<<8))
+				sum += s * s
+			}
+			if math.Sqrt(sum/float64(len(f)/2)) > 1000 {
+				select {
+				case loud <- wall.Now():
+				default:
+				}
+			}
+		}
+	}()
+	return loud
+}
+
+func drainLoud(loud chan time.Time) {
+	for {
+		select {
+		case <-loud:
+		default:
+			return
+		}
+	}
+}
+
+// burstFrames encodes, with one encoder, the frames of a continuous 440 Hz tone and of digital silence.
+func burstFrames(b *testing.B) (tone, silence func() []byte) {
+	b.Helper()
+	enc, err := opus.NewEncoder(opus.EncoderConfig{SampleRate: 48000, Channels: 1})
+	if err != nil {
+		b.Fatal(err)
+	}
+	n := 0
+	encode := func(amp float64) []byte {
+		pcm := make([]int16, 960)
+		for i := range pcm {
+			pcm[i] = int16(amp * math.Sin(2*math.Pi*440*float64(n*960+i)/48000))
+		}
+		n++
+		packet := make([]byte, 1276)
+		k, err := enc.Encode(pcm, packet)
+		if err != nil {
+			return nil
+		}
+		return packet[:k]
+	}
+	return func() []byte { return encode(8000) }, func() []byte { return encode(0) }
+}
+
+// reportPercentiles reports p50, p95 and p99 of took in milliseconds.
+func reportPercentiles(b *testing.B, took []time.Duration) {
+	b.Helper()
+	slices.Sort(took)
+	for _, p := range []struct {
+		name string
+		q    float64
+	}{{"p50-ms", 0.50}, {"p95-ms", 0.95}, {"p99-ms", 0.99}} {
+		b.ReportMetric(float64(took[int(p.q*float64(len(took)-1))].Microseconds())/1000, p.name)
+	}
+}

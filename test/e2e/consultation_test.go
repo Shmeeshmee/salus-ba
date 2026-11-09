@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	lksdk "github.com/livekit/server-sdk-go/v2"
 	"github.com/pion/webrtc/v4"
 	"github.com/pion/webrtc/v4/pkg/media"
+	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -75,6 +77,13 @@ func TestConsultation_ARevocationDuringTheCallRemovesThePatient(t *testing.T) {
 	eventually(t, "the Encounter in progress once the practitioner joined", func() bool {
 		return encounterOf(t, p, appt.ID).Status == "in-progress"
 	})
+	// The transcription agent (SAL-4) joined once the practitioner was in and hears the patient's tone: the fake
+	// engine's placeholder captions are on the encounter's stream, the patient's, partial and final.
+	captions := transcriptOf(t, encounterOf(t, p, appt.ID).ID)
+	eventually(t, "the patient's placeholder captions on the encounter's stream", func() bool {
+		got := captions()
+		return got["patient partial"] && got["patient final"]
+	})
 
 	var consents struct{ Consents []struct{ ID string } }
 	p.must(http.StatusOK, http.MethodGet, "/me/consents", nil, &consents)
@@ -87,7 +96,8 @@ func TestConsultation_ARevocationDuringTheCallRemovesThePatient(t *testing.T) {
 	if status, code := p.refusal(http.MethodPost, join, nil); status != http.StatusConflict || code != "consent_required" {
 		t.Errorf("the patient's next join = %d %q, want 409 consent_required", status, code)
 	}
-	eventually(t, "the practitioner sees the patient gone", func() bool {
+	// Nobody left: the agent was removed with the patient (it may not listen once the consent is withdrawn).
+	eventually(t, "the practitioner sees the patient and the agent gone", func() bool {
 		return len(practitioner.room.GetRemoteParticipants()) == 0
 	})
 
@@ -114,6 +124,7 @@ func finished(t *testing.T, p *patient, appointmentID string) {
 
 // encounter is the part of a FHIR Encounter the journeys read.
 type encounter struct {
+	ID     string
 	Status string
 	Period struct{ Start, End string }
 }
@@ -381,4 +392,42 @@ func ownerConn(t *testing.T) *pgx.Conn {
 	}
 	t.Cleanup(func() { _ = conn.Close(context.Background()) })
 	return conn
+}
+
+// transcriptOf reads the encounter's event stream in the compose Redis (E2E_REDIS_URL) and gives, on each call,
+// which speakers' partial and final transcript events it holds ("patient partial", "patient final", ...).
+func transcriptOf(t *testing.T, encounterID string) func() map[string]bool {
+	t.Helper()
+	opts, err := goredis.ParseURL(env(t, "E2E_REDIS_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rdb := goredis.NewClient(opts)
+	t.Cleanup(func() { _ = rdb.Close() })
+	return func() map[string]bool {
+		entries, err := rdb.XRange(context.Background(), "consult:"+encounterID+":events", "-", "+").Result()
+		if err != nil {
+			t.Fatalf("read the encounter's stream: %v", err)
+		}
+		got := map[string]bool{}
+		for _, e := range entries {
+			var env struct {
+				Type    string
+				Payload struct {
+					Speaker string `json:"speaker"`
+					IsFinal bool   `json:"is_final"`
+				}
+			}
+			raw, _ := e.Values["envelope"].(string)
+			if json.Unmarshal([]byte(raw), &env) != nil || env.Type != "transcript" {
+				continue
+			}
+			kind := "partial"
+			if env.Payload.IsFinal {
+				kind = "final"
+			}
+			got[env.Payload.Speaker+" "+kind] = true
+		}
+		return got
+	}
 }

@@ -89,12 +89,43 @@ after-revocation rule apply unchanged; the clinic scope only. A patient's access
 
 - **Processors.** A hosted STT engine, the translation and suggestion model, and a TTS engine each touch
   patient audio or text: each needs a DPA, an EU region, zero data retention in writing, and an entry in
-  `docs/privacy/processors.md` before the code that calls it is merged (CLAUDE.md "GDPR and health data").
-  The fakes are the only implementations until then.
+  `docs/privacy/processors.md` before it is enabled with any real patient audio (changed from "before the code
+  that calls it is merged" by the owner, 2026-11-09, for SAL-4: an adapter may be merged off by default). The
+  fakes are the default; Azure AI Speech (`pkg/stt/azure`) is merged, not enabled.
 - **Consent.** Translation, suggestions and drafting are processing beyond the video call itself: whether the
-  care consent covers them or each needs its own `Consent` is a decision for the owner and legal before SAL-4.
+  care consent covers them or each needs its own `Consent` is a decision for the owner and legal
+  (`docs/legal/BRIEF.md` Q16). Interim decision (owner, 2026-11-09, pending Q16): the agent joins and transcribes
+  only while the patient's existing care Consent with the encounter's clinic is active (the consent encounter
+  access uses), and leaves the room as soon as it is withdrawn: the revocation's `consent_revoked` job removes
+  the agent with the patient (SAL-3), its recognitions end at once, and the agent asks again once connected, so
+  a revocation that commits while it connects is seen too.
 - **Logs.** No transcript text, translation, suggestion or field value in a log line, error or trace.
 - **Copy.** Every user-facing string goes to the owner first. Suggestions are labelled as suggestions.
+
+## SAL-4 (A): audio ingest and streaming STT, as built (2026-11-09)
+
+- **When the agent joins.** Every join of a person with access into an open consultation the practitioner has
+  joined enqueues `transcription_join` (queue `transcription`, worked only by `cmd/agent`) in the webhook's
+  transaction; the agent joins a session once and the next join asks again (a restarted agent comes back). It
+  needs the practitioner joined, because the transcript belongs to the `Encounter` that join starts.
+- **Audio.** `videosession` (the only LiveKit code) joins with SAL-3's agent grant, subscribes to every audio
+  track and decodes it in pure Go to 16 kHz mono PCM: Opus with `github.com/tphakala/go-opus` (a port of
+  libopus that decodes every Opus mode; a transpiled libopus, `kazzmir/opus-go`, was tried and dropped: it fails
+  Go's pointer checks under `-race`), G.711 µ-law by its table. Tracks come out by role; the room's identities
+  stay in `videosession`. The SDK's logger is silenced (it printed rooms, identities and addresses).
+- **Speakers and languages.** `practitioner` or `patient` from the session's identities. The patient is
+  recognised in their account's language (auth, audited), else the clinic's default; the practitioner in the
+  clinic's default. Each language in one locale: `bs-BA`, `hr-HR`, `sr-RS` (both scripts), `en-GB`, `de-DE`,
+  `ar-SA`, `tr-TR`, `it-IT`, `fr-FR`. Arabic is `ar-SA`: the Gulf visitors are most of the clinics'
+  Arabic-speaking patients and Saudi Arabic is the nearest of Azure's Arabic locales to the Gulf's and to Modern
+  Standard Arabic; the accuracy benchmark is to confirm it.
+- **Stream.** Each result is a `transcript.Event` (translation empty, SAL-5), a `wire` envelope XADDed to
+  `transcript.StreamKey` under the field `envelope` (`transcript.StreamField`), `MAXLEN ~ 10000`
+  (`StreamMaxLen`), the key's TTL set to 30 minutes on every entry (`StreamTTL`), so the stream expires half an
+  hour after the consultation's last event. Partial results revise one segment id until its final.
+- **Engines.** `STT_ENGINE=fake` (default: placeholder captions, audio goes nowhere) or `azure`
+  (`AZURE_SPEECH_REGION`, `AZURE_SPEECH_KEY`): Azure's real-time WebSocket protocol, no SDK, no cgo, an EU
+  region only, no `storeAudio`, nothing logged.
 
 ## Work packages
 

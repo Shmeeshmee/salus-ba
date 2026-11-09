@@ -273,6 +273,18 @@ Changed for SAL-3 (2026-11-08, owner; Jira SAL-3, epic SAL-1 "Live Consult Intel
   consultation is not recorded" (COPY.md, ADR 0006) and must be reviewed before any transcript is kept.
   Nothing calls `AgentJoin` yet; `cmd/agent` is still a stub.
 
+Changed for SAL-4 (2026-11-09; owner decisions of that day and agent decisions recorded in
+`docs/plans/consult-intelligence.PROGRESS.md`):
+
+- **When the agent joins.** Every participant_joined of a person with access, once the practitioner has joined,
+  enqueues `transcription_join` (queue `transcription`, `cmd/agent`) in the webhook's transaction. `AgentJoin`
+  also refuses before the practitioner joined (`ErrNotStarted`) and gives the agent the Encounter and the room's
+  identities; `AgentAdmitted` asks again once it is connected; `AgentListen` hands over each person's decoded
+  audio by role (`docs/plans/consult-intelligence.md`, "SAL-4 as built").
+- **Basis (interim).** It joins only while the patient's care consent with the clinic is active and leaves when it
+  is withdrawn (owner, 2026-11-09, pending `docs/legal/BRIEF.md` Q16). The permission text "The consultation is not
+  recorded" stays to be reviewed before any transcript is kept (SAL-6).
+
 ## 3. The LiveKit Go SDK
 
 The settled decision is to use the official server SDK (`github.com/livekit/server-sdk-go/v2`, with
@@ -327,7 +339,7 @@ Retention (defaults, **need a legal decision before production**):
 ## 6. Out of scope
 
 Recording, screen sharing, in-call chat, more than two participants, push notifications, in-person
-appointments, live transcription (`cmd/agent` is still a stub; only the agent's grant is built, SAL-3), a practitioner joining from mobile, a patient
+appointments, live transcription beyond the agent's audio and its transcript stream (SAL-4, `docs/plans/consult-intelligence.md`), a practitioner joining from mobile, a patient
 joining from the web, break-glass, `Provenance`, FHIR writes to `Encounter`, network-quality indicators beyond
 "reconnecting", bandwidth settings, call-quality analytics.
 

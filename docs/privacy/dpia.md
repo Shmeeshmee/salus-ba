@@ -862,6 +862,25 @@ must change once a transcript is kept.
 | The agent publishes or injects data into the call | Its grant has no publish and no data permission (tested against the compose LiveKit's token claims) |
 | TURN as a relay into the private network | LiveKit relays UDP only and to private addresses only where `allow_restricted_peer_cidrs` allows; locally the compose network only, in production nothing |
 
+### SAL-4: the transcription agent hears the consultation
+
+**Processing added.** While the patient's care consent with the clinic is active (owner's interim decision,
+2026-11-09, pending `docs/legal/BRIEF.md` Q16), the self-hosted agent (`cmd/agent`) joins each consultation once
+the practitioner is in, decodes each person's microphone in memory and streams it to a speech-to-text engine; the
+partial and final text, with the speaker's role and language, goes to the encounter's Redis Stream (transport
+only, capped, expiring 30 minutes after its last entry). No audio is stored. The engine is the fake, which
+sends audio nowhere; Azure AI Speech is built and not enabled (`processors.md`). The patient's language is read
+from their account (audited, the agent as agent).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Transcribing after the consent is withdrawn | The revocation's job removes the agent (SAL-3); its recognitions end at once and pending results are dropped; it asks again once connected, so a revocation during its connection is seen; the next join is refused (tested in unit, worker and e2e tests) |
+| Audio or text reaching a third party | Fake by default; Azure only in an EU region (the adapter refuses others) and only once its DPA and zero data retention are in writing |
+| What was said in a log | Logs carry the session id, the speaker's role and error codes; the SDK's logger is silenced (tested) |
+| The stream outliving the consultation | `MAXLEN ~ 10000` and a 30-minute TTL refreshed on each entry |
+
 ## Questionnaires (`docs/questionnaire`)
 
 ### Package 3: questionnaire responses and the access rule
