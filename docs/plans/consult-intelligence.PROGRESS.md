@@ -253,6 +253,10 @@ and were fixed by giving such a section a dash as its narrative.
 | `POST /drafts/{id}/sign` (PDF rendered, encrypted, put to Garage, final transaction), 50 runs | p50 18.2 to 18.3 ms, p95 22.0 to 22.9 ms, max 24 ms (two runs) |
 | The request to the model for a 30-minute consultation (360 segments of about 130 characters, 7 fields) | 74 KB as JSON, 46,080 characters of transcript text |
 
+`pdfdoc.Supported` (`go test -bench Supported ./pkg/pdfdoc/`, both fonts parsed per call, a 500-character value): 22 µs
+per call, 3 runs, so about 0.15 ms for a seven-field draft. Kept as it is rather than parsing the fonts once into
+package state (PR #39 review).
+
 Our path is about 10 ms of the 15 s target. What only a run with real credentials can measure: the model's time
 to answer a request of this size (some 12,000 to 15,000 input tokens by the usual 3 to 4 characters per token for
 these languages, an estimate; the engine's tokenizer gives the real count) and the network to its EU endpoint,

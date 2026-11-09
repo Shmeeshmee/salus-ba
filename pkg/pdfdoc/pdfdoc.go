@@ -77,7 +77,7 @@ func Supported(s string) bool {
 
 // Render returns the document as PDF, or ErrUnsupported when a text has a letter the fonts lack.
 func Render(d Document) ([]byte, error) {
-	texts := append([]string{d.Title}, d.Meta...)
+	texts := append([]string{d.Title, bullet, "—"}, d.Meta...) // and what write adds: the bullet, the dash
 	for _, s := range d.Sections {
 		texts = append(append(append(texts, s.Heading), s.Paragraphs...), s.Items...)
 	}

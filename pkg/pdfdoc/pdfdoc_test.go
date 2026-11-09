@@ -104,7 +104,7 @@ func TestRender_RefusesALetterTheFontsLack(t *testing.T) {
 func TestSupported_TheGoFontsLetters(t *testing.T) {
 	t.Parallel()
 	for s, want := range map[string]bool{
-		"Placeholder čćđšž ČĆĐŠŽ ћирилица ğışİ äöüß àéèç — • 0-9 \n": true, "": true, "mixed 日本": false, "مرحبا": false, "\U0001F600": false,
+		"Placeholder čćđšž ČĆĐŠŽ ћирилица ğışİ äöüß àéèç 0-9 \n": true, "— •": true, "": true, "mixed 日本": false, "مرحبا": false, "\U0001F600": false,
 	} {
 		if got := pdfdoc.Supported(s); got != want {
 			t.Errorf("Supported(%q) = %v, want %v", s, got, want)
