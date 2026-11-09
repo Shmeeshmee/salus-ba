@@ -262,6 +262,27 @@ describe('AppointmentDetail', () => {
       expect(s.getByText('Practitioner did not join')).toBeTruthy()
     })
 
+    // The status is read with the appointment, so the page appears in one piece: a section that came in late
+    // would push down what is already on the page, under a click on its way (the e2e attachments flake).
+    it('is read before the page shows, so nothing moves under a click', async () => {
+      let answer: ((r: Response) => void) | undefined
+      const fake = renderDetail(practitioner, {
+        [read]: () => fhirJSON(booked),
+        [patientRead]: () => outcome(404, 'not-found'),
+        [statusGet]: () => new Promise<Response>((done) => (answer = done)),
+      })
+
+      await vi.waitFor(() => expect(answer).toBeDefined())
+      await vi.waitFor(() => expect(fake.requests.some((r) => new URL(r.url).pathname === `/fhir/R4/Appointment/${id}`)).toBe(true))
+      await new Promise((done) => setTimeout(done, 20))
+      expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+      expect(screen.queryByRole('region', { name: 'Questionnaires' })).toBeNull()
+
+      answer?.(Response.json({ state: 'not_started' }))
+      expect((await section()).getByText('Not started')).toBeTruthy()
+      expect(screen.getByRole('region', { name: 'Questionnaires' })).toBeTruthy()
+    })
+
     it('is left out when the status cannot be read', async () => {
       renderDetail(practitioner, { [read]: () => fhirJSON(booked), [patientRead]: () => outcome(404, 'not-found') })
 
