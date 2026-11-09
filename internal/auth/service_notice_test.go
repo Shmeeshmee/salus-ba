@@ -64,3 +64,40 @@ func TestAccountEmail_GivesTheLanguageTheAccountsEmailsAreWrittenIn(t *testing.T
 		}
 	}
 }
+
+// The transcription agent reads only an account's language, to recognise the patient's speech in it (SAL-4):
+// the chosen one, else the one its client last matched, else none. The read is audited with the agent as
+// agent; no address leaves the domain.
+func TestAccountLanguage_GivesTheLanguageAloneAndAuditsTheRead(t *testing.T) {
+	for _, tt := range []struct{ chosen, detected, want string }{
+		{"tr", "de", "tr"},
+		{"", "ar", "ar"},
+		{"", "", ""},
+	} {
+		a := patientWithoutMFA()
+		a.Language, a.DetectedLanguage = tt.chosen, tt.detected
+		f := newFixture(a)
+		got, err := f.svc.AccountLanguage(t.Context(), "transcription_agent", accountID)
+		if err != nil || got != tt.want {
+			t.Errorf("chosen %q, detected %q: AccountLanguage() = %q, %v; want %q", tt.chosen, tt.detected, got, err, tt.want)
+		}
+		if e := f.onlyEvent(t); e.Action != auditevent.ActionRead || e.AgentName != "transcription_agent" || e.EntityReference != "Account/"+accountID || e.Outcome != auditevent.OutcomeSuccess {
+			t.Errorf("audit event %+v, want the agent's read of the account", e)
+		}
+	}
+}
+
+func TestAccountLanguage_AuditsAnUnknownAccountAndPassesFailuresOn(t *testing.T) {
+	f := newFixture()
+	if _, err := f.svc.AccountLanguage(t.Context(), "transcription_agent", accountID); !errors.Is(err, auth.ErrNotFound) {
+		t.Fatalf("AccountLanguage() of an unknown account = %v, want ErrNotFound", err)
+	}
+	if e := f.onlyEvent(t); e.Outcome != auditevent.OutcomeMinorFailure || e.EntityReference != "" {
+		t.Errorf("audit event %+v, want a minor failure without an entity", e)
+	}
+	f = newFixture(staff())
+	f.repo.err = errors.New("boom")
+	if _, err := f.svc.AccountLanguage(t.Context(), "transcription_agent", accountID); err == nil {
+		t.Error("AccountLanguage() with a failing repository = nil, want the error")
+	}
+}

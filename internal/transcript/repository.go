@@ -22,3 +22,10 @@ type Stream interface {
 	// stream does not exist.
 	Read(ctx context.Context, encounterID, after string, wait time.Duration) ([]Entry, error)
 }
+
+// Publisher puts live events on an encounter's Redis Stream (repository_redis.go). Errors carry no event.
+type Publisher interface {
+	// Publish appends the envelope to the encounter's stream (StreamKey) under StreamField, capped at about
+	// StreamMaxLen entries and expiring StreamTTL after its last entry.
+	Publish(ctx context.Context, encounterID string, envelope []byte) error
+}

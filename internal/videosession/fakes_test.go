@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
@@ -20,19 +21,20 @@ import (
 
 // Synthetic ids and names.
 const (
-	clinicA   = "a0000000-0000-4000-8000-00000000000a"
-	clinicB   = "b0000000-0000-4000-8000-00000000000b"
-	patientA  = "aa000000-0000-4000-8000-0000000000aa"
-	accountA  = "acc00000-0000-4000-8000-0000000000aa"
-	accountB  = "acc00000-0000-4000-8000-0000000000bb"
-	roleA1    = "r1000000-0000-4000-8000-0000000000a1"
-	practA1   = "p1000000-0000-4000-8000-0000000000a1"
-	practAcc  = "ac100000-0000-4000-8000-0000000000a1"
-	pract2Acc = "ac200000-0000-4000-8000-0000000000a2"
-	adminAcc  = "ad000000-0000-4000-8000-0000000000ad"
-	apptA     = "e1000000-0000-4000-8000-0000000000a1"
-	apptA2    = "e3000000-0000-4000-8000-0000000000a2"
-	publicURL = "ws://localhost:7880"
+	clinicA    = "a0000000-0000-4000-8000-00000000000a"
+	clinicB    = "b0000000-0000-4000-8000-00000000000b"
+	patientA   = "aa000000-0000-4000-8000-0000000000aa"
+	accountA   = "acc00000-0000-4000-8000-0000000000aa"
+	accountB   = "acc00000-0000-4000-8000-0000000000bb"
+	roleA1     = "r1000000-0000-4000-8000-0000000000a1"
+	practA1    = "p1000000-0000-4000-8000-0000000000a1"
+	practAcc   = "ac100000-0000-4000-8000-0000000000a1"
+	pract2Acc  = "ac200000-0000-4000-8000-0000000000a2"
+	adminAcc   = "ad000000-0000-4000-8000-0000000000ad"
+	apptA      = "e1000000-0000-4000-8000-0000000000a1"
+	apptA2     = "e3000000-0000-4000-8000-0000000000a2"
+	encounterA = "ec000000-0000-4000-8000-0000000000a1"
+	publicURL  = "ws://localhost:7880"
 )
 
 var (
@@ -60,13 +62,13 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 		return fn(ctx)
 	}
 	events, sessions, jobs, finished := len(t.f.audit.events), clone(t.f.repo.sessions), len(t.f.jobs.enqueued), len(t.f.encounters.finished)
-	started := len(t.f.encounters.started)
+	started, agentJoins := len(t.f.encounters.started), len(t.f.jobs.agentJoins)
 	t.f.repo.patient, t.f.repo.clinic, t.f.repo.room, t.f.repo.narrowed = "", "", "", ""
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
 		t.f.audit.events, t.f.repo.sessions = t.f.audit.events[:events], sessions
 		t.f.jobs.enqueued, t.f.encounters.finished = t.f.jobs.enqueued[:jobs], t.f.encounters.finished[:finished]
-		t.f.encounters.started = t.f.encounters.started[:started]
+		t.f.encounters.started, t.f.jobs.agentJoins = t.f.encounters.started[:started], t.f.jobs.agentJoins[:agentJoins]
 	}
 	return err
 }
@@ -426,10 +428,23 @@ func (p *fakeProvider) Participants(ctx context.Context, room string) ([]string,
 	return p.in, p.listErr
 }
 
-// fakeJobs records the window-close jobs enqueued in a transaction.
+// fakeJobs records the window-close jobs and the agent's joins enqueued in a transaction.
 type fakeJobs struct {
-	err      error
-	enqueued []string
+	err        error
+	agentErr   error
+	enqueued   []string
+	agentJoins []string
+}
+
+func (j *fakeJobs) EnqueueAgentJoin(ctx context.Context, sessionID, org string) error {
+	if ctx.Value(txKey{}) == nil {
+		return errors.New("EnqueueAgentJoin outside a transaction")
+	}
+	if j.agentErr != nil {
+		return j.agentErr
+	}
+	j.agentJoins = append(j.agentJoins, sessionID+" "+org)
+	return nil
 }
 
 func (j *fakeJobs) EnqueueWindowClose(ctx context.Context, sessionID, org string, at time.Time) error {
@@ -460,7 +475,7 @@ func (e *fakeEncounters) Start(ctx context.Context, agent, appointmentID string,
 		return encounter.Encounter{}, e.startErr
 	}
 	e.started = append(e.started, fmt.Sprintf("%s %s %s in %s", agent, appointmentID, at.Format(time.RFC3339Nano), e.repo.clinic))
-	return encounter.Encounter{AppointmentID: appointmentID, PeriodStart: at, Status: encounter.StatusInProgress}, nil
+	return encounter.Encounter{ID: encounterA, AppointmentID: appointmentID, PeriodStart: at, Status: encounter.StatusInProgress}, nil
 }
 
 func (e *fakeEncounters) Finish(ctx context.Context, agent, appointmentID string, at time.Time, patientJoined bool) error {
@@ -534,6 +549,7 @@ func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error
 type fixture struct {
 	consents      *fakeConsents
 	jobs          *fakeJobs
+	listener      *fakeListener
 	encounters    *fakeEncounters
 	appts         *fakeAppointments
 	repo          *fakeRepository
@@ -564,14 +580,14 @@ func newFixture(at time.Time) *fixture {
 		}},
 		repo:     &fakeRepository{sessions: map[string]videosession.Session{}},
 		provider: &fakeProvider{}, patients: &fakePatients{}, practitioners: &fakePractitioners{}, audit: &fakeAuditor{},
-		jobs: &fakeJobs{}, consents: &fakeConsents{},
+		jobs: &fakeJobs{}, consents: &fakeConsents{}, listener: &fakeListener{},
 	}
 	f.encounters = &fakeEncounters{repo: f.repo}
 	f.appts.repo = f.repo
 	f.svc = videosession.NewService(videosession.Ports{
 		Repo: f.repo, Provider: f.provider, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: at},
 		Appointments: f.appts, Patients: f.patients, Practitioners: f.practitioners, PublicURL: publicURL,
-		Jobs: f.jobs, Encounters: f.encounters, Consents: f.consents,
+		Jobs: f.jobs, Encounters: f.encounters, Consents: f.consents, Listener: f.listener,
 	})
 	return f
 }
@@ -607,4 +623,45 @@ func patientRead(c appointment.Caller) auditevent.AuditEvent {
 	e := joinEvent(c, "Patient/"+patientA, auditevent.OutcomeSuccess)
 	e.Subtype.Code, e.Action = auditevent.CodeRead, auditevent.ActionRead
 	return e
+}
+
+// fakeListener is the agent's connection to a room: it records the URL and token it was given, hands over the
+// tracks of in, and closes them on Leave.
+type fakeListener struct {
+	err    error
+	onJoin func() // runs once connected: what commits while the agent connects
+	tracks chan videosession.RemoteAudio
+	joined []string
+	in     []videosession.RemoteAudio
+	left   int
+	mu     sync.Mutex
+}
+
+func (l *fakeListener) Listen(_ context.Context, url, token string) (videosession.Listening, error) {
+	if l.err != nil {
+		return videosession.Listening{}, l.err
+	}
+	l.joined = append(l.joined, url+" "+token)
+	if l.onJoin != nil {
+		l.onJoin()
+	}
+	l.tracks = make(chan videosession.RemoteAudio, len(l.in))
+	for _, a := range l.in {
+		l.tracks <- a
+	}
+	var once sync.Once
+	return videosession.Listening{Tracks: l.tracks, Leave: func() {
+		once.Do(func() {
+			l.mu.Lock()
+			l.left++
+			l.mu.Unlock()
+			close(l.tracks)
+		})
+	}}, nil
+}
+
+func (l *fakeListener) leaves() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.left
 }

@@ -61,8 +61,19 @@ type Provider interface {
 	ParseWebhook(body []byte, authorization string) (Event, error)
 }
 
+// Listener connects the transcription agent to a room (LiveKit, repository_livekit.go). Errors carry no room,
+// identity or token.
+type Listener interface {
+	// Listen joins the room at url with the agent's token and hands over each remote participant's audio track,
+	// decoded to 16 kHz PCM. A track whose frames are not read in time loses them; it never holds up the call.
+	Listen(ctx context.Context, url, token string) (Listening, error)
+}
+
 // Jobs enqueues the session's jobs in the transaction in ctx (River, repository_river.go).
 type Jobs interface {
 	// EnqueueWindowClose enqueues consultation_window_close for the session of the clinic org, to run at at.
 	EnqueueWindowClose(ctx context.Context, sessionID, org string, at time.Time) error
+	// EnqueueAgentJoin enqueues transcription_join for the session of the clinic org, on the transcription
+	// queue that cmd/agent works.
+	EnqueueAgentJoin(ctx context.Context, sessionID, org string) error
 }

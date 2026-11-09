@@ -11,12 +11,14 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/stt"
 )
 
-// Recognizer gives every stream the results of Results, in order, or fails Stream with Err when set.
+// Recognizer gives every stream the results of Results, in order, or fails Stream with Err when set. With
+// DiscardAudio its streams keep none of the audio they are sent (for a long-running fake, as in cmd/agent).
 type Recognizer struct {
-	Err     error
-	Results []stt.Result
-	streams []*Stream
-	mu      sync.Mutex
+	Err          error
+	Results      []stt.Result
+	streams      []*Stream
+	mu           sync.Mutex
+	DiscardAudio bool
 }
 
 // Stream opens a stream that plays the script.
@@ -28,7 +30,7 @@ func (r *Recognizer) Stream(ctx context.Context, cfg stt.Config) (stt.Stream, er
 	for _, res := range r.Results {
 		results <- res
 	}
-	s := &Stream{Config: cfg, ctx: ctx, results: results, closed: make(chan struct{})}
+	s := &Stream{Config: cfg, ctx: ctx, results: results, closed: make(chan struct{}), discard: r.DiscardAudio}
 	r.mu.Lock()
 	r.streams = append(r.streams, s)
 	r.mu.Unlock()
@@ -51,6 +53,7 @@ type Stream struct {
 	audio   []byte
 	mu      sync.Mutex
 	isDone  bool
+	discard bool
 }
 
 // Send records the audio.
@@ -60,7 +63,9 @@ func (s *Stream) Send(pcm []byte) error {
 	if s.isDone {
 		return stt.ErrClosed
 	}
-	s.audio = append(s.audio, pcm...)
+	if !s.discard {
+		s.audio = append(s.audio, pcm...)
+	}
 	return nil
 }
 

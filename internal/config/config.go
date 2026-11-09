@@ -199,3 +199,42 @@ func LoadClamd() (Clamd, error) {
 	}
 	return Clamd{Addr: addr}, nil
 }
+
+// STTEngine names a speech-to-text engine of the transcription agent (cmd/agent).
+type STTEngine string
+
+// The engines. The fake is the default: it plays placeholder captions and sends no audio anywhere. Azure is a
+// processor (docs/privacy/processors.md) and is not enabled with real patient audio until its DPA, an EU region
+// and zero data retention are in writing (docs/plans/consult-intelligence.md "Gates").
+const (
+	STTFake  STTEngine = "fake"
+	STTAzure STTEngine = "azure"
+)
+
+// STT holds the transcription agent's speech-to-text settings. Load never reads them; only cmd/agent calls
+// LoadSTT. The Azure key comes from the secret store, never from a committed file.
+type STT struct {
+	Engine      STTEngine // STT_ENGINE: fake (the default) or azure
+	AzureRegion string    // AZURE_SPEECH_REGION, required for azure; pkg/stt/azure accepts EU regions only
+	AzureKey    string    // AZURE_SPEECH_KEY, required for azure
+}
+
+// LoadSTT reads the speech-to-text settings from the environment. Errors name the variable, never a value.
+func LoadSTT() (STT, error) {
+	s := STT{Engine: STTEngine(os.Getenv("STT_ENGINE"))}
+	switch s.Engine {
+	case "", STTFake:
+		return STT{Engine: STTFake}, nil
+	case STTAzure:
+	default:
+		return STT{}, errors.New("config: STT_ENGINE is neither fake nor azure")
+	}
+	s.AzureRegion, s.AzureKey = os.Getenv("AZURE_SPEECH_REGION"), os.Getenv("AZURE_SPEECH_KEY")
+	if s.AzureRegion == "" {
+		return STT{}, errors.New("config: AZURE_SPEECH_REGION is required for STT_ENGINE=azure")
+	}
+	if s.AzureKey == "" {
+		return STT{}, errors.New("config: AZURE_SPEECH_KEY is required for STT_ENGINE=azure")
+	}
+	return s, nil
+}

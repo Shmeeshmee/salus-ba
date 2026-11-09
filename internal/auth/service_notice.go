@@ -14,9 +14,30 @@ import (
 // account's language fields"). The read is audited with the job as agent, also when the account is unknown
 // (ErrNotFound). Errors carry no address.
 func (s *Service) AccountEmail(ctx context.Context, agent, id string) (email, language string, err error) {
+	a, err := s.accountFor(ctx, agent, id)
+	if err != nil {
+		return "", "", fmt.Errorf("auth: account e-mail: %w", err)
+	}
+	return a.Email, languageOf(a), nil
+}
+
+// AccountLanguage returns only the language of the account id, for the transcription agent (SAL-4), which
+// recognises the patient's speech in it: the chosen language, else the one its client last matched, else "".
+// The read is audited with agent as the agent, also when the account is unknown (ErrNotFound).
+func (s *Service) AccountLanguage(ctx context.Context, agent, id string) (string, error) {
+	a, err := s.accountFor(ctx, agent, id)
+	if err != nil {
+		return "", fmt.Errorf("auth: account language: %w", err)
+	}
+	return languageOf(a), nil
+}
+
+// accountFor reads the account id for the job agent, audited with the agent, also when it is unknown
+// (ErrNotFound).
+func (s *Service) accountFor(ctx context.Context, agent, id string) (Account, error) {
 	var a Account
 	var missing bool
-	err = s.tx.WithTx(ctx, func(ctx context.Context) error {
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
 		a, err = s.repo.ByID(ctx, id)
 		if missing = errors.Is(err, ErrNotFound); err != nil && !missing {
@@ -31,13 +52,17 @@ func (s *Service) AccountEmail(ctx context.Context, agent, id string) (email, la
 	})
 	switch {
 	case err != nil:
-		return "", "", fmt.Errorf("auth: account e-mail: %w", err)
+		return Account{}, err
 	case missing:
-		return "", "", ErrNotFound
+		return Account{}, ErrNotFound
 	}
-	language = a.Language
-	if language == "" {
-		language = a.DetectedLanguage
+	return a, nil
+}
+
+// languageOf is the account's chosen language, else the one its client last matched.
+func languageOf(a Account) string {
+	if a.Language != "" {
+		return a.Language
 	}
-	return a.Email, language, nil
+	return a.DetectedLanguage
 }
