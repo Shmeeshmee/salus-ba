@@ -46,9 +46,14 @@ To run a command no target covers: `docker compose -f deployments/docker-compose
 LiveKit runs in compose (`deployments/livekit.yaml`, ADR 0006), with its built-in TURN. To hold a call between
 the practitioner on the web and the patient on mobile:
 
-1. `make up` and `make web-dev`. Create a clinic with `make salusctl args="create-clinic -name <name>
-   -admin-email <e-mail>"`; its admin and practitioner accept their invites (the e-mails are in Mailpit on 8025)
-   and the practitioner opens availability. The patient registers in the app, consents to the clinic and books a
+1. `make up` and `make web-dev`. Create a clinic, with a synthetic name and e-mail in place of the capitals:
+
+   ```sh
+   make salusctl args="create-clinic -name NAME -admin-email E-MAIL"
+   ```
+
+   Its admin and practitioner accept their invites (the e-mails are in Mailpit on 8025) and the practitioner
+   opens availability. The patient registers in the app, consents to the clinic and books a
    slot; the join opens 10 minutes before its start. `test/e2e/booking_test.go` does the same through the API.
    Use synthetic names and e-mails only.
 2. The practitioner signs in at http://localhost:5173, opens the appointment and selects "Join consultation".
