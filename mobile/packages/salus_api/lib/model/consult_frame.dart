@@ -142,6 +142,8 @@ class ConsultFrame {
 }
 
 enum ConsultFrameTypeEnum {
+  transcript._(r'transcript'),
+  suggestion._(r'suggestion'),
   draft._(r'draft'),
   cursor._(r'cursor'),
   ;
@@ -207,6 +209,10 @@ class ConsultFrameTypeEnumTypeTransformer {
     }
     if (data != null) {
       switch (data) {
+        case r'transcript':
+          return ConsultFrameTypeEnum.transcript;
+        case r'suggestion':
+          return ConsultFrameTypeEnum.suggestion;
         case r'draft':
           return ConsultFrameTypeEnum.draft;
         case r'cursor':

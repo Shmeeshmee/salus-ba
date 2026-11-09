@@ -150,17 +150,19 @@ func (h *HTTPHandler) forward(r *http.Request, conn *websocket.Conn, c appointme
 	}
 }
 
-// send writes the entry's cursor frame and then its envelope.
+// send writes the entry's cursor frame and then its envelope, each within writeWait.
 func (h *HTTPHandler) send(conn *websocket.Conn, e Entry) error {
 	frame, err := wire.Encode(CursorType, CursorVersion, Cursor{ID: e.ID})
 	if err != nil {
 		return err
 	}
-	_ = conn.SetWriteDeadline(h.clock.Now().Add(writeWait))
-	if err := conn.WriteMessage(websocket.TextMessage, frame); err != nil {
-		return err
+	for _, f := range [][]byte{frame, e.Envelope} {
+		_ = conn.SetWriteDeadline(h.clock.Now().Add(writeWait))
+		if err := conn.WriteMessage(websocket.TextMessage, f); err != nil {
+			return err
+		}
 	}
-	return conn.WriteMessage(websocket.TextMessage, e.Envelope)
+	return nil
 }
 
 // discard reads the client's frames, which carry nothing but control frames (pongs, the close), until the

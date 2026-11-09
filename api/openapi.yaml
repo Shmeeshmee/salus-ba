@@ -3368,10 +3368,20 @@ components:
           draft: "#/components/schemas/DraftMessage"
     ConsultFrame:
       description: >-
-        One text frame of GET /encounters/{id}/events: a live message, or the cursor sent before each one.
+        One text frame of GET /encounters/{id}/events: a live message (one of ConsultMessage's), or the cursor
+        sent before each one, told apart by `type`.
       oneOf:
-        - {$ref: "#/components/schemas/ConsultMessage"}
+        - {$ref: "#/components/schemas/TranscriptMessage"}
+        - {$ref: "#/components/schemas/SuggestionMessage"}
+        - {$ref: "#/components/schemas/DraftMessage"}
         - {$ref: "#/components/schemas/CursorMessage"}
+      discriminator:
+        propertyName: type
+        mapping:
+          transcript: "#/components/schemas/TranscriptMessage"
+          suggestion: "#/components/schemas/SuggestionMessage"
+          draft: "#/components/schemas/DraftMessage"
+          cursor: "#/components/schemas/CursorMessage"
     CursorMessage:
       type: object
       description: Sent before each live message, with the stream id of its entry, which a client resumes after.

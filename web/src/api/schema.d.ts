@@ -1527,11 +1527,14 @@ export interface components {
         };
         /** @description One live message of a consultation, told apart by `type`. */
         ConsultMessage: components["schemas"]["TranscriptMessage"] | components["schemas"]["SuggestionMessage"] | components["schemas"]["DraftMessage"];
-        /** @description One text frame of GET /encounters/{id}/events: a live message, or the cursor sent before each one. */
-        ConsultFrame: components["schemas"]["ConsultMessage"] | components["schemas"]["CursorMessage"];
+        /** @description One text frame of GET /encounters/{id}/events: a live message (one of ConsultMessage's), or the cursor sent before each one, told apart by `type`. */
+        ConsultFrame: components["schemas"]["TranscriptMessage"] | components["schemas"]["SuggestionMessage"] | components["schemas"]["DraftMessage"] | components["schemas"]["CursorMessage"];
         /** @description Sent before each live message, with the stream id of its entry, which a client resumes after. */
         CursorMessage: {
-            /** @constant */
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
             type: "cursor";
             /** @constant */
             version: 1;

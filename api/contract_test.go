@@ -161,7 +161,10 @@ func TestConsultFrames_AreTheMessagesAndTheCursor(t *testing.T) {
 		refs = append(refs, o.Ref)
 	}
 	slices.Sort(refs)
-	if want := []string{"#/components/schemas/ConsultMessage", "#/components/schemas/CursorMessage"}; !slices.Equal(refs, want) {
+	// Flat, so the generators give each message its own payload type (a nested oneOf left the Dart model with
+	// the cursor's payload only).
+	if want := []string{"#/components/schemas/CursorMessage", "#/components/schemas/DraftMessage", "#/components/schemas/SuggestionMessage",
+		"#/components/schemas/TranscriptMessage"}; !slices.Equal(refs, want) {
 		t.Errorf("ConsultFrame is one of %v, want %v", refs, want)
 	}
 	if items := s["Transcript"].Properties["segments"].Items; items == nil || items.Ref != "#/components/schemas/TranscriptEvent" {
