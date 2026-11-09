@@ -242,9 +242,11 @@ function SuggestionCard({ s, onChange, onSources }: { s: SuggestionEvent; onChan
       </p>
       <p className="suggestion-text">{s.text}</p>
       <div className="suggestion-actions">
-        <button type="button" className="quiet" onClick={onSources}>
-          {t('consultation.live.sources', { count: s.source_segment_ids.length })}
-        </button>
+        {s.source_segment_ids.length > 0 && (
+          <button type="button" className="quiet" onClick={onSources}>
+            {t('consultation.live.sources', { count: s.source_segment_ids.length })}
+          </button>
+        )}
         <button type="button" className="quiet" onClick={() => onChange(pinned ? 'shown' : 'pinned')}>
           {t(pinned ? 'consultation.live.unpin' : 'consultation.live.pin')}
         </button>

@@ -53,13 +53,14 @@ export function decodeMessage(frame: string): ConsultMessage | undefined {
 
 // shapes check the payload fields this page reads, so a malformed frame is dropped rather than breaking the page.
 const str = (v: unknown) => typeof v === 'string'
+const time = (v: unknown) => typeof v === 'string' && !Number.isNaN(Date.parse(v))
 const strs = (v: unknown) => Array.isArray(v) && v.every(str)
 const oneOf = (v: unknown, values: string[]) => typeof v === 'string' && values.includes(v)
 const shapes = new Map<string, (p: Record<string, unknown>) => boolean>([
   [
     'transcript',
     (p) =>
-      str(p.segment_id) && oneOf(p.speaker, ['practitioner', 'patient']) && str(p.lang) && str(p.original) && str(p.translation) && typeof p.is_final === 'boolean' && str(p.ts_start),
+      str(p.segment_id) && oneOf(p.speaker, ['practitioner', 'patient']) && str(p.lang) && str(p.original) && str(p.translation) && typeof p.is_final === 'boolean' && time(p.ts_start),
   ],
   [
     'suggestion',

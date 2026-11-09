@@ -283,6 +283,13 @@ describe('ConsultPanels: suggestions', () => {
     expect(scrolled).toEqual([lines[1]])
   })
 
+  it('offers no source link for a suggestion without sources', () => {
+    const { emit } = renderPanels()
+    emit(suggestion({ id: 'x', source_segment_ids: [] }))
+    fireEvent.click(tab(/Suggestions/))
+    expect(screen.queryByRole('button', { name: /source/ })).toBeNull()
+  })
+
   it('names a single source line in the singular', () => {
     const { emit } = renderPanels()
     emit(suggestion({ id: 'x', source_segment_ids: ['s1'] }))
