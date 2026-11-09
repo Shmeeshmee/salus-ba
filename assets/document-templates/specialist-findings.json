@@ -1,0 +1,33 @@
+{
+  "note": "Placeholder wording for development, a draft for the doctor partner to review: not reviewed medical content. Status draft until a clinic's doctor has checked every label and instruction. Seeded by salusctl document-templates seed.",
+  "template": {
+    "title": "Nalaz specijaliste (primjer za pregled)",
+    "language": "bs",
+    "status": "draft",
+    "typeCode": "11488-4",
+    "fields": [
+      {"key": "reason", "type": "text", "label": "Razlog pregleda", "instruction": "Zašto je pacijent došao, njegovim riječima, kratko.", "required": true},
+      {"key": "history", "type": "text", "label": "Anamneza", "instruction": "Tegobe, njihovo trajanje i tok, kako ih pacijent opisuje."},
+      {"key": "findings", "type": "text", "label": "Nalaz", "instruction": "Šta je ljekar utvrdio tokom pregleda, samo ono što je rečeno u razgovoru.", "required": true},
+      {"key": "diagnosis", "type": "coded", "label": "Dijagnoza (MKB-10)", "instruction": "Šifra MKB-10 samo ako ju je ljekar izgovorio ili jasno naveo dijagnozu."},
+      {"key": "tests", "type": "list", "label": "Preporučene pretrage", "instruction": "Svaka pretraga koju je ljekar preporučio, jedna po redu."},
+      {"key": "therapy", "type": "text", "label": "Terapija i preporuke", "instruction": "Lijekovi, doze i savjeti koje je ljekar dao."},
+      {"key": "control", "type": "date", "label": "Kontrolni pregled", "instruction": "Datum kontrole ako je dogovoren."}
+    ],
+    "translations": [
+      {
+        "language": "en",
+        "title": "Specialist findings report (example for review)",
+        "fields": {
+          "reason": {"label": "Reason for the visit", "instruction": "Why the patient came, in their words, briefly."},
+          "history": {"label": "History", "instruction": "Complaints, how long and how they developed, as the patient describes them."},
+          "findings": {"label": "Findings", "instruction": "What the practitioner established during the consultation, only what was said."},
+          "diagnosis": {"label": "Diagnosis (ICD-10)", "instruction": "The ICD-10 code only if the practitioner said it or clearly named the diagnosis."},
+          "tests": {"label": "Recommended tests", "instruction": "Each test the practitioner recommended, one per line."},
+          "therapy": {"label": "Treatment and advice", "instruction": "Medicines, doses and advice the practitioner gave."},
+          "control": {"label": "Follow-up visit", "instruction": "The date of the follow-up if one was agreed."}
+        }
+      }
+    ]
+  }
+}

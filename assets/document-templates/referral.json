@@ -1,0 +1,31 @@
+{
+  "note": "Placeholder wording for development, a draft for the doctor partner to review: not reviewed medical content. Status draft until a clinic's doctor has checked every label and instruction. Seeded by salusctl document-templates seed.",
+  "template": {
+    "title": "Uputnica (primjer za pregled)",
+    "language": "bs",
+    "status": "draft",
+    "typeCode": "57133-1",
+    "fields": [
+      {"key": "specialty", "type": "text", "label": "Upućuje se", "instruction": "Specijalnost ili ustanova kojoj se pacijent upućuje.", "required": true},
+      {"key": "reason", "type": "text", "label": "Razlog upućivanja", "instruction": "Zašto ljekar upućuje pacijenta, kako je rekao u razgovoru.", "required": true},
+      {"key": "diagnosis", "type": "coded", "label": "Radna dijagnoza (MKB-10)", "instruction": "Šifra MKB-10 samo ako ju je ljekar izgovorio ili jasno naveo dijagnozu."},
+      {"key": "history", "type": "text", "label": "Kratka anamneza", "instruction": "Najvažnije tegobe i njihovo trajanje."},
+      {"key": "tests_done", "type": "list", "label": "Urađene pretrage", "instruction": "Pretrage koje su već urađene, jedna po redu."},
+      {"key": "urgency", "type": "text", "label": "Hitnost", "instruction": "Koliko je hitno, samo ako je ljekar to rekao."}
+    ],
+    "translations": [
+      {
+        "language": "en",
+        "title": "Referral (example for review)",
+        "fields": {
+          "specialty": {"label": "Referred to", "instruction": "The specialty or institution the patient is referred to."},
+          "reason": {"label": "Reason for referral", "instruction": "Why the practitioner refers the patient, as they said in the consultation."},
+          "diagnosis": {"label": "Working diagnosis (ICD-10)", "instruction": "The ICD-10 code only if the practitioner said it or clearly named the diagnosis."},
+          "history": {"label": "Brief history", "instruction": "The main complaints and how long they have lasted."},
+          "tests_done": {"label": "Tests done", "instruction": "Tests already done, one per line."},
+          "urgency": {"label": "Urgency", "instruction": "How urgent it is, only if the practitioner said so."}
+        }
+      }
+    ]
+  }
+}

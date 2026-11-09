@@ -5,6 +5,7 @@
 //	salusctl reset-mfa <account-id>                             a staff member who lost their device
 //	salusctl terminology import <seed.jsonl | terms.csv>        the term list's seed or the curator's edits
 //	salusctl terminology export -o <terms.csv> [-status draft|reviewed]   the term list for the curator
+//	salusctl document-templates seed -clinic <id> <template.json>...      the dev seed of placeholder templates
 //
 // It prints opaque ids only, never an e-mail. The terminology commands are not audited: the terms are reference
 // data with no personal data (docs/terminology/SPEC.md §4).
@@ -22,6 +23,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
+	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/terminology"
@@ -30,7 +32,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
-const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | terminology import|export"
+const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | terminology import|export | document-templates seed"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -44,10 +46,11 @@ func main() {
 
 // services are what the commands call, on the owner's connection.
 type services struct {
-	tx       *postgres.Transactor
-	clinics  *organization.Service
-	accounts *auth.Service
-	terms    *terminology.Curator
+	tx        *postgres.Transactor
+	clinics   *organization.Service
+	accounts  *auth.Service
+	terms     *terminology.Curator
+	templates *composition.Service
 }
 
 func run(ctx context.Context, args []string, stdout io.Writer) error {
@@ -76,12 +79,16 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 			Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Jobs: auth.NewRiverJobs(jobs),
 		}),
 		terms: terminology.NewCurator(terminology.NewPostgresCurationRepository(pool), tx, clock.System{}),
+		// Only SeedTemplate is asked of the documents: it needs the repository, the audit and the clock.
+		templates: composition.NewService(composition.Ports{Repo: composition.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}}),
 	}
 	switch args[0] {
 	case "create-clinic":
 		return s.createClinic(ctx, args[1:], stdout)
 	case "terminology":
 		return s.terminologyCommand(ctx, args[1:], stdout)
+	case "document-templates":
+		return s.templatesCommand(ctx, args[1:], stdout)
 	case "reset-mfa":
 		if len(args) != 2 {
 			return errors.New(usage)

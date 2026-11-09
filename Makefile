@@ -18,7 +18,7 @@ GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./.
 GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
 .PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream turn-check livekit-turn-cert lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
-	terminology-fetch terminology-import terminology-export \
+	terminology-fetch terminology-import terminology-export document-templates-seed \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
@@ -176,6 +176,12 @@ terminology-fetch: tools-image
 ## owner (salusctl terminology import; docs/terminology/SPEC.md §3 "Curation")
 terminology-import: tools-image
 	$(GO) go run ./cmd/salusctl terminology import $(or $(file),assets/terminology/seed.jsonl)
+
+## document-templates-seed clinic=<organization-id>: the two placeholder document templates
+## (assets/document-templates: a specialist findings report and a referral, drafts for the doctor partner to review)
+## into a clinic of the compose Postgres, once (salusctl document-templates seed)
+document-templates-seed: tools-image
+	$(GO) go run ./cmd/salusctl document-templates seed -clinic $(clinic) assets/document-templates/specialist-findings.json assets/document-templates/referral.json
 
 ## terminology-export out=<path> [status=draft]: write the terms as the curator's CSV (salusctl terminology export),
 ## to a path under the repository

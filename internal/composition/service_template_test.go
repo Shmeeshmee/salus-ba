@@ -114,3 +114,27 @@ func TestTemplates_ListsTheClinicsTemplatesToItsStaff(t *testing.T) {
 		t.Errorf("Templates(down) = %v, want the failure", err)
 	}
 }
+
+// The operator seeds a template into a clinic once: a second seed of the same title creates nothing. The write
+// is audited with the operator as its agent; invalid content is refused.
+func TestSeedTemplate_CreatesTheTemplateOnce(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	got, created, err := f.svc.SeedTemplate(t.Context(), "salusctl", clinicA, content())
+	if err != nil || !created || got.OrganizationID != clinicA || got.Status != composition.TemplateDraft {
+		t.Fatalf("SeedTemplate() = %+v, %v, %v", got, created, err)
+	}
+	again, created, err := f.svc.SeedTemplate(t.Context(), "salusctl", clinicA, content())
+	if err != nil || created || again.ID != got.ID || len(f.repo.templates) != 1 {
+		t.Errorf("SeedTemplate() again = %+v, %v, %v; want the same template, not created", again, created, err)
+	}
+	if len(f.audit.events) != 1 || f.audit.events[0].AgentName != "salusctl" || f.audit.events[0].OrganizationID != clinicA ||
+		f.audit.events[0].Action != auditevent.ActionCreate {
+		t.Errorf("audit = %+v", f.audit.events)
+	}
+	c := content()
+	c.Fields = nil
+	if _, _, err := f.svc.SeedTemplate(t.Context(), "salusctl", clinicA, c); !errors.Is(err, composition.ErrInvalidTemplate) {
+		t.Errorf("SeedTemplate(invalid) = %v, want ErrInvalidTemplate", err)
+	}
+}

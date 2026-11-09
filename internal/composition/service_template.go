@@ -91,6 +91,45 @@ func (s *Service) UpdateTemplate(ctx context.Context, c appointment.Caller, id s
 	return out, wrapErr("update template", err, refused)
 }
 
+// SeedTemplate stores the template in the clinic org for the operator agent (salusctl's dev seed), once: a
+// template of the clinic with the same title is returned instead, with false. ErrInvalidTemplate for content
+// ValidateTemplate refuses. The write is audited with the agent.
+func (s *Service) SeedTemplate(ctx context.Context, agent, org string, in TemplateContent) (Template, bool, error) {
+	if err := ValidateTemplate(in); err != nil {
+		return Template{}, false, err
+	}
+	var out Template
+	created := false
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.Repo.SetClinic(ctx, org); err != nil {
+			return err
+		}
+		all, err := s.Repo.Templates(ctx)
+		if err != nil {
+			return err
+		}
+		if i := slices.IndexFunc(all, func(t Template) bool { return t.Title == in.Title }); i >= 0 {
+			out = all[i]
+			return nil
+		}
+		in.Translations = sorted(in.Translations)
+		if out, err = s.Repo.InsertTemplate(ctx, org, in, s.Clock.Now()); err != nil {
+			return err
+		}
+		created = true
+		return s.Audit.Record(ctx, auditevent.AuditEvent{
+			Type:        auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
+			Subtype:     auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: auditevent.CodeCreate},
+			Purpose:     auditevent.Coding{System: auditevent.SystemActReason, Code: auditevent.CodeHOPERAT},
+			Action:      auditevent.ActionCreate,
+			AgentName:   agent,
+			EntityName:  "document_template",
+			EntityCount: 1, OrganizationID: org,
+		})
+	})
+	return out, created, wrapErr("seed template", err, nil)
+}
+
 // editable is the refusal of an edit of the template id at version with in, or a failure.
 func (s *Service) editable(ctx context.Context, id string, in TemplateContent, version int32) (refused, failed error) {
 	cur, err := s.Repo.Template(ctx, id, true)
