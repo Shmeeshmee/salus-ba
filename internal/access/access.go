@@ -163,6 +163,14 @@ func RequestsQuestionnaire(v Viewer, f Facts, a Visit) bool {
 	return v.Role == RolePractitioner && staffOf(v, f) && ofPractitioner(v, a) && f.Consent.Active
 }
 
+// ConsultationRecord reports whether viewer may follow and read what was said in the consultation of
+// appointment a: its live stream and its transcript (docs/plans/consult-intelligence.md "Access"). Its
+// practitioner, with an active consent; nobody else, and nobody after a revocation, also for a consultation
+// that started before it. The patient's own copy comes with the export feature.
+func ConsultationRecord(v Viewer, f Facts, a Visit) bool {
+	return v.Role == RolePractitioner && staffOf(v, f) && ofPractitioner(v, a) && f.Consent.Active
+}
+
 // self reports whether v is the patient the facts are about.
 func self(v Viewer, f Facts) bool {
 	return v.Role == RolePatient && v.Patient != "" && v.Patient == f.Patient

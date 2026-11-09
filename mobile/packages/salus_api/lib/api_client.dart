@@ -230,12 +230,18 @@ class ApiClient {
           return Consent.fromJson(value);
         case 'ConsentList':
           return ConsentList.fromJson(value);
+        case 'ConsultFrame':
+          return ConsultFrame.fromJson(value);
         case 'ConsultMessage':
           return ConsultMessage.fromJson(value);
         case 'ConsultationJoin':
           return ConsultationJoin.fromJson(value);
         case 'ConsultationStatus':
           return ConsultationStatus.fromJson(value);
+        case 'Cursor':
+          return Cursor.fromJson(value);
+        case 'CursorMessage':
+          return CursorMessage.fromJson(value);
         case 'DraftEvent':
           return DraftEvent.fromJson(value);
         case 'DraftField':
@@ -326,6 +332,8 @@ class ApiClient {
           return TermLanguageTypeTransformer().decode(value);
         case 'TermList':
           return TermList.fromJson(value);
+        case 'Transcript':
+          return Transcript.fromJson(value);
         case 'TranscriptEvent':
           return TranscriptEvent.fromJson(value);
         case 'TranscriptMessage':

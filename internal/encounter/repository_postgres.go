@@ -82,6 +82,21 @@ func (r *postgresRepository) ByID(ctx context.Context, id string) (Encounter, er
 	return toEncounter(row), nil
 }
 
+func (r *postgresRepository) Organization(ctx context.Context, id string) (string, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return "", ErrNotFound
+	}
+	org, err := r.q(ctx).EncounterOrganization(ctx, u)
+	switch {
+	case err != nil:
+		return "", err
+	case !org.Valid:
+		return "", ErrNotFound
+	}
+	return org.String(), nil
+}
+
 func (r *postgresRepository) Search(ctx context.Context, f Filter) ([]Encounter, error) {
 	var p encounterdb.SearchEncountersParams
 	if (f.AppointmentID != "" && p.AppointmentID.Scan(f.AppointmentID) != nil) || (f.PatientID != "" && p.PatientID.Scan(f.PatientID) != nil) {

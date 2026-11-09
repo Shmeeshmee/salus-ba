@@ -63,6 +63,18 @@ func (q *Queries) EncounterByID(ctx context.Context, id pgtype.UUID) (Encounter,
 	return i, err
 }
 
+const encounterOrganization = `-- name: EncounterOrganization :one
+SELECT encounter_organization($1::uuid)::uuid AS organization_id
+`
+
+// The clinic of an encounter whatever the scope (migration 00033), null for an unknown id.
+func (q *Queries) EncounterOrganization(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, encounterOrganization, id)
+	var organization_id pgtype.UUID
+	err := row.Scan(&organization_id)
+	return organization_id, err
+}
+
 const finishEncounter = `-- name: FinishEncounter :one
 UPDATE encounter
 SET status = 'finished', period_end = $1, updated_at = $1, version_id = version_id + 1
