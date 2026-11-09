@@ -289,6 +289,27 @@ type Consent struct {
 	Status         string
 }
 
+type DocumentDraft struct {
+	ID          pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	EncounterID pgtype.UUID
+	TemplateID  pgtype.UUID
+	VersionID   int32
+	Status      string
+	Fields      []byte
+}
+
+type DocumentTemplate struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Title          string
+	Fields         []byte
+}
+
 type Encounter struct {
 	ID                 pgtype.UUID
 	CreatedAt          pgtype.Timestamptz
@@ -493,6 +514,19 @@ type Slot struct {
 	Period         pgtype.Range[pgtype.Timestamptz]
 }
 
+type Suggestion struct {
+	ID               pgtype.UUID
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+	EncounterID      pgtype.UUID
+	VersionID        int32
+	Confidence       float32
+	Type             string
+	Status           string
+	Text             string
+	SourceSegmentIds []pgtype.UUID
+}
+
 type Term struct {
 	ID           pgtype.UUID
 	CreatedAt    pgtype.Timestamptz
@@ -515,6 +549,18 @@ type TermLabel struct {
 	Language  TermLanguage
 	Preferred bool
 	Label     string
+}
+
+type TranscriptSegment struct {
+	ID          pgtype.UUID
+	CreatedAt   pgtype.Timestamptz
+	TsStart     pgtype.Timestamptz
+	TsEnd       pgtype.Timestamptz
+	EncounterID pgtype.UUID
+	Speaker     string
+	Lang        string
+	Original    string
+	Translation string
 }
 
 type VideoSession struct {
