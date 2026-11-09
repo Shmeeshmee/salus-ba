@@ -129,7 +129,8 @@ func (a *Assistant) Step(ctx context.Context, s *Session) error {
 	return a.run(ctx, s)
 }
 
-// take adds the entry's final transcript line to the window; anything else is skipped. A line seen already
+// take adds the entry's final transcript line of the session's encounter to the window; anything else (another
+// encounter's line, misrouted to this stream, included) is skipped. A line seen already
 // (a final event again) replaces its earlier version and is not new.
 func (s *Session) take(envelope []byte) {
 	env, err := wire.Decode(envelope)
@@ -137,7 +138,7 @@ func (s *Session) take(envelope []byte) {
 		return
 	}
 	var e transcript.Event
-	if json.Unmarshal(env.Payload, &e) != nil || !e.IsFinal || e.Validate() != nil {
+	if json.Unmarshal(env.Payload, &e) != nil || !e.IsFinal || e.EncounterID != s.encounterID || e.Validate() != nil {
 		return
 	}
 	u := llm.Utterance{ID: e.SegmentID, Speaker: string(e.Speaker), Text: e.Original}

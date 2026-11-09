@@ -493,7 +493,8 @@ func TestStep_LogsAFailedModelAndReturnsAFailedRead(t *testing.T) {
 	}
 }
 
-// What is not a final transcript line is skipped: other messages, undecodable entries, invalid events.
+// What is not a final transcript line of the stream's encounter is skipped: other messages, undecodable entries,
+// invalid events, another encounter's line.
 func TestStep_SkipsWhatIsNotAFinalLine(t *testing.T) {
 	x := newAssist(t)
 	x.live.add(encounterID, []byte("not an envelope"))
@@ -502,6 +503,11 @@ func TestStep_SkipsWhatIsNotAFinalLine(t *testing.T) {
 	x.live.add(encounterID, encode(t, transcript.MessageType, 2, transcript.Event{}))
 	x.live.add(encounterID, encode(t, transcript.MessageType, transcript.MessageVersion, transcript.Event{EncounterID: encounterID, IsFinal: true}))
 	x.live.add(encounterID, nil)
+	misrouted := transcript.Event{
+		EncounterID: unknownID, SegmentID: seg(98), Speaker: transcript.SpeakerPatient, Lang: "bs", Original: spokenWords,
+		IsFinal: true, TsStart: t0, TsEnd: t0,
+	}
+	x.live.add(encounterID, encode(t, transcript.MessageType, transcript.MessageVersion, misrouted)) // another encounter's
 	for n := 1; n < suggestion.RunEveryLines; n++ {
 		x.say(t, n, true)
 	}
