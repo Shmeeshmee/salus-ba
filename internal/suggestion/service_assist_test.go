@@ -15,6 +15,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/suggestion"
 	"github.com/Shmeeshmee/salus/internal/transcript"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 	"github.com/Shmeeshmee/salus/pkg/llm"
 	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
@@ -544,8 +545,9 @@ func TestRun_FollowsTheStreamsItHolds(t *testing.T) {
 		defer close(done)
 		x.a.Run(ctx, "this member")
 	}()
-	deadline := time.Now().Add(5 * time.Second)
-	for len(x.published()) == 0 && time.Now().Before(deadline) {
+	wall := clock.System{}
+	deadline := wall.Now().Add(5 * time.Second)
+	for len(x.published()) == 0 && wall.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}
 	cancel()

@@ -1390,3 +1390,44 @@ producers; losing it loses live captions, never the stored transcript.
 | An entry written twice, or a crashed worker's entry lost | Consumer group, at-least-once; segments by their event id, suggestions by theirs, so a repeat adds no row (tested); an unacknowledged entry is claimed again after 30 s |
 | What was said in a log line | The consumer logs the stream key, the entry id, the type and the reason only; the gateway the encounter id (tested for the synthetic text) |
 | The lookup function discloses more than the clinic | Owned by a role with two columns of `encounter` and no other privilege; `EXECUTE` for `salus_app` only (tested) |
+
+### D (SAL-7): the live suggestions worker, and dismissing and pinning
+
+**Processing added.** The suggestions worker (`worker.Suggestions` in `cmd/worker`, `suggestion.Assistant`) reads
+each consultation's stream, keeps the latest 30 final lines in memory, and sends them with the texts of the
+suggestions already shown to the model behind `llm.Suggester`, in the clinic's default language. What comes back is
+checked (a known type, confidence 0 to 1, sources among the lines sent, a text of 1 to 300 characters), stored in
+`suggestion` and put on the stream for the practitioner. The practitioner dismisses, pins or unpins a suggestion
+over the event stream's WebSocket; the status is stored. No new table or field: `suggestion` already holds what was
+suggested, from which lines, and what the practitioner did with it (P0). Redis holds one lease key per encounter
+(`suggest:<encounter_id>:lease`, the worker member's random name, 30 s TTL): no personal data.
+
+**Purpose and lawful basis.** As P0: AI assistance for the practitioner's care of the patient in the consultation
+(Art. 9(2)(h)), under the owner's interim consent decision (plan, "Gates", pending `docs/legal/BRIEF.md` Q16): the
+worker suggests only while the patient's care consent with the clinic is active, and stops at once on its
+withdrawal (checked before every model call and again before every store). A suggestion is labelled as AI
+assistance in the event (`origin: "ai"`) and never presented as a diagnosis.
+
+**Processors.** None new: the engine is the in-memory fake (it suggests nothing) until the model adapter of SAL-5 is
+merged and enabled, which needs its DPA and its entry in `processors.md` first.
+
+**Access.** The worker is a system path (the encounter's clinic scope, row-level security). A status change has the
+stream's rule (`access.ConsultationRecord`: the encounter's practitioner with an active consent) and only a
+suggestion of that encounter.
+
+**Audit.** The worker's read of the shown suggestions before each run and each suggestion it stores (agent
+`suggestions_worker`, `HOPERAT`), refusals too; every status change by the practitioner (update, `TREAT`), refused
+ones too.
+
+**Retention.** Unchanged: `suggestion` is `keep` with the record; the lease expires on its own.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A suggestion made or shown after a revocation | Consent checked before the model call and before each store; nothing is published before it is stored (tested) |
+| A dismissed suggestion comes back | The stored suggestions decide, any status, by their words (a rewording sharing three words in four is the same); the model is also told them (tested, the real database included) |
+| A stale event sets an older status back | The stream consumer never changes a stored status; only the practitioner's path does, before publishing (tested) |
+| The model's output shows something wrong or unsourced | Validated against the contract; dropped items are counted, not shown (tested) |
+| What was said or suggested in a log line | The worker logs encounter ids, counts and reasons; a failed model call is logged without its error, which may echo the input (tested for the synthetic text) |
+| A status change for another encounter's suggestion | The update is keyed by the encounter and the id together; another's is `not_found` (tested on the database and through api.New) |

@@ -128,10 +128,10 @@ func TestConsultMessages_AreTheEnvelopesTheGoPackagesSend(t *testing.T) {
 		payload string
 		version int
 	}{
-		"TranscriptMessage": {transcript.MessageType, "TranscriptEvent", transcript.MessageVersion},
-		"SuggestionMessage": {suggestion.MessageType, "SuggestionEvent", suggestion.MessageVersion},
-		"DraftMessage":      {composition.MessageType, "DraftEvent", composition.MessageVersion},
-		"CursorMessage":     {transcript.CursorType, "Cursor", transcript.CursorVersion},
+		"TranscriptMessage":       {transcript.MessageType, "TranscriptEvent", transcript.MessageVersion},
+		"SuggestionMessage":       {suggestion.MessageType, "SuggestionEvent", suggestion.MessageVersion},
+		"DraftMessage":            {composition.MessageType, "DraftEvent", composition.MessageVersion},
+		"CursorMessage":           {transcript.CursorType, "Cursor", transcript.CursorVersion},
 		"SuggestionStatusMessage": {suggestion.StatusMessageType, "SuggestionStatus", suggestion.StatusMessageVersion},
 		"CommandErrorMessage":     {transcript.CommandErrorType, "CommandError", transcript.CommandErrorVersion},
 	} {

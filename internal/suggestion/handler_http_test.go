@@ -70,12 +70,12 @@ func TestCommand_AnswersAFailureWithItsCode(t *testing.T) {
 // Another type or version, or a payload that is not the status change, is refused before anything is called.
 func TestCommand_RefusesWhatIsNotAStatusChange(t *testing.T) {
 	for name, tt := range map[string]struct {
-		env  wire.Envelope
 		want string
+		env  wire.Envelope
 	}{
-		"another type":    {command(t, "draft_sign", 1, `{}`), `{"command":"draft_sign","error":"unknown_command"}`},
-		"another version": {command(t, "suggestion_status", 2, `{}`), `{"command":"suggestion_status","error":"unknown_command"}`},
-		"not an object":   {command(t, "suggestion_status", 1, `"dismissed"`), `{"command":"suggestion_status","error":"invalid"}`},
+		"another type":    {`{"command":"draft_sign","error":"unknown_command"}`, command(t, "draft_sign", 1, `{}`)},
+		"another version": {`{"command":"suggestion_status","error":"unknown_command"}`, command(t, "suggestion_status", 2, `{}`)},
+		"not an object":   {`{"command":"suggestion_status","error":"invalid"}`, command(t, "suggestion_status", 1, `"dismissed"`)},
 	} {
 		svc := &stubStatuses{}
 		got := suggestion.NewCommandHandler(svc, slog.New(slog.DiscardHandler)).Command(t.Context(), pract, encounterID, tt.env)

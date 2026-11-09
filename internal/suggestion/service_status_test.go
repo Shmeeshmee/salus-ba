@@ -111,10 +111,10 @@ func TestSetStatus_RefusesAnInvalidChange(t *testing.T) {
 // encounter is not found: each refusal is audited, nothing is stored or published.
 func TestSetStatus_RefusesWhomTheStreamRefusesAndAnotherEncountersSuggestion(t *testing.T) {
 	for name, tt := range map[string]struct {
+		want      error
 		records   fakeRecords
 		encounter string
 		id        string // disclosed
-		want      error
 	}{
 		"a revoked consent":    {records: fakeRecords{err: transcript.ErrConsentRequired, id: encounterID}, encounter: encounterID, id: encounterID, want: suggestion.ErrConsentRequired},
 		"another practitioner": {records: fakeRecords{err: transcript.ErrForbidden, id: encounterID}, encounter: encounterID, id: encounterID, want: suggestion.ErrForbidden},

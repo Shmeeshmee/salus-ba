@@ -213,3 +213,60 @@ templates when `actions` changes). Nothing in `api/openapi.yaml` was added for t
 - "Generating…" can clear early when a regenerate replays an unchanged draft (Copilot, PR #34, declined there):
   the page then shows the previous draft until the new one arrives. The fix depends on how SAL-8 versions a
   redraft over SAL-6's replay; for SAL-8/SAL-10.
+
+## D (SAL-7): the live suggestions worker, and dismissing and pinning
+
+Branch `sal-7-suggest`, 2026-11-09.
+
+**Built.**
+
+- `suggestion.Assistant` (`service_assist.go`, `service_assist_run.go`): the rules of the live suggestions (plan,
+  "Decisions taken for D"): the window, the pace, the validation of the model's output, the repeats and the
+  throttle; `Run` follows every stream whose lease the member holds. `suggestion.NewRedisLive` (streams, XRANGE,
+  the lease) and `NewRedisPublisher`.
+- `worker.Suggestions` in `cmd/worker`, beside the stream consumer, on the `llmtest` fake (no suggestions).
+- `suggestion.Service.SetStatus` (the practitioner's path, under `transcript.Service.Allowed`, audited, then
+  published) and `suggestion.CommandHandler`; the gateway (`transcript.HTTPHandler`) hands the client's text
+  frames to `transcript.Commands` and serialises its writes.
+- `suggestion.Event.Origin` (`ai`) and the 300-character text bound; `llm.SuggestRequest.Shown`.
+- `api/openapi.yaml`: `SuggestionEvent.origin`, `ConsultCommand`, `SuggestionStatusMessage`, `SuggestionStatus`,
+  `CommandErrorMessage`, `CommandError` (in `ConsultFrame`), with the generated clients.
+- The stream consumer's `Record` stores a suggestion once and changes nothing after (SAL-6's note: an old event
+  delivered again set an older status back).
+
+**For SAL-9 / the web wiring.** `setSuggestionStatus(id, status)` is a text frame on the open event stream:
+`{"type":"suggestion_status","version":1,"payload":{"id":"<suggestion id>","status":"dismissed"}}` (or `pinned`, or
+`shown` to unpin). Success: the suggestion with its new status arrives on the stream, to every open view. Failure:
+`{"type":"command_error","version":1,"payload":{"command":"suggestion_status","id":"<id>","error":"<code>"}}`, codes
+in `CommandError`. `decodeMessage` drops the `command_error` frame as an unknown type today; the wiring needs to read
+it to put a status back (W14).
+
+**Tests seen failing first.** Compile errors for each new type and method first (`suggestion.OriginAI`,
+`Service.SetStatus`, `Assistant`, `transcript.Commands`, `transcript.Service.Allowed`, `NewRedisLive`,
+`worker.NewSuggestions`), then, for example: `stored {... Status:pinned ...}, want the first event as it was` and two
+audit events for one (the consumer's insert-only `Record`); `audited 3, want 2` in the consumer's database test;
+`told the model [...] were shown` in a different order than the fake's (fixed in the test: the order is not a rule);
+the contract tests on the missing schemas.
+
+**Measurements** (`make bench-suggest`, i7-14700HX, compose Postgres and Redis, the stream consumer running, the
+model answering at once with six suggestions of which three are new): the worker's own cost of one window, from
+reading the stream (a fresh session reading 330 entries: 30 final lines after ten partials each) to the third
+suggestion published, through the encounter lookup, the consent, the audited read of what was shown, the clinic's
+language, three audited stores and three publishes. 200 windows a run, 3 runs:
+
+| p50 | p95 | p99 | max |
+| --- | --- | --- | --- |
+| 23.1 to 23.5 ms | 31.5 to 33.5 ms | 34.8 to 38.9 ms | 75 to 90 ms |
+
+At most one run per encounter every 5 s: under 0.5% of the time per consultation (most of it waiting on Postgres
+and Redis), besides the model's own.
+In steady state a step reads only the entries since the last one. Not optimised: no claim needs it yet.
+
+**Decisions (agent decisions, for the owner to review).** In the plan, "Decisions taken for D". Also:
+
+- The window's text is each line's original, not its translation: what was said, in the language it was said in.
+- A run that finds the consent withdrawn sends nothing and waits for new lines (none come once the agent has left).
+- The `command_error` code and the suggestion's id go back to the client; nothing else of the failure.
+
+**Left.** The engine (SAL-5's adapter, once merged: the composition root switches to its config). The web wiring of
+`setSuggestionStatus` and of `command_error` (SAL-9's page, a later PR). An undo for a dismissal (SAL-9's list).
