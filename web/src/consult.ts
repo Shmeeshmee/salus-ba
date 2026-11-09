@@ -96,7 +96,7 @@ export function apply(state: ConsultState, m: ConsultMessage): ConsultState {
   switch (m.type) {
     case 'transcript': {
       const segments = upsert(state.segments, m.payload, (s) => s.segment_id)
-      segments.sort((a, b) => a.ts_start.localeCompare(b.ts_start))
+      segments.sort((a, b) => started(a) - started(b))
       return { ...state, segments, caption: captionAfter(state, m.payload) }
     }
     case 'suggestion':
@@ -111,7 +111,13 @@ export function apply(state: ConsultState, m: ConsultMessage): ConsultState {
 function captionAfter(state: ConsultState, s: TranscriptEvent): string | undefined {
   if (s.speaker !== 'patient') return state.caption
   const current = captionOf(state)
-  return !current || s.ts_start >= current.ts_start ? s.segment_id : state.caption
+  return !current || started(s) >= started(current) ? s.segment_id : state.caption
+}
+
+// started is the instant a segment started. Its text is not comparable: a date-time may carry any offset
+// (api/openapi.yaml). decodeMessage has already refused a ts_start that is not a time.
+function started(s: TranscriptEvent): number {
+  return Date.parse(s.ts_start)
 }
 
 function upsert<T>(list: T[], item: T, key: (t: T) => string): T[] {

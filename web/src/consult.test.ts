@@ -53,6 +53,13 @@ describe('apply: the transcript', () => {
     expect(state.segments.map((s) => s.segment_id)).toEqual(['early', 'late'])
   })
 
+  // A date-time may carry any offset (api/openapi.yaml): 10:00:01+02:00 is 08:00:01Z, before 09:00:00Z, although its
+  // text sorts after it (Copilot, PR #34).
+  it('orders segments by the instant they started, whatever offset their times are written in', () => {
+    const state = fold(segment({ segment_id: 'later', ts_start: '2026-11-09T09:00:00Z' }), segment({ segment_id: 'earlier', ts_start: '2026-11-09T10:00:01+02:00' }))
+    expect(state.segments.map((s) => s.segment_id)).toEqual(['earlier', 'later'])
+  })
+
   it('is the same after a replay of the same messages', () => {
     const messages = [segment({ segment_id: 'a' }), suggestion({ id: 's' }), draft({ draft_id: 'd' })]
     expect(fold(...messages, ...messages)).toEqual(fold(...messages))
@@ -74,6 +81,14 @@ describe('captionOf', () => {
       segment({ segment_id: 'p1', ts_start: '2026-11-09T09:00:01Z', is_final: false }),
       segment({ segment_id: 'p2', ts_start: '2026-11-09T09:00:05Z', is_final: false }),
       segment({ segment_id: 'p1', ts_start: '2026-11-09T09:00:01Z', is_final: true }),
+    )
+    expect(captionOf(state)?.segment_id).toBe('p2')
+  })
+
+  it('stays on the later segment when an earlier one written in another offset is revised late', () => {
+    const state = fold(
+      segment({ segment_id: 'p2', ts_start: '2026-11-09T09:00:00Z', is_final: false }),
+      segment({ segment_id: 'p1', ts_start: '2026-11-09T10:00:01+02:00', is_final: true }),
     )
     expect(captionOf(state)?.segment_id).toBe('p2')
   })
