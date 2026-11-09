@@ -12,14 +12,21 @@ import (
 
 // fakeRepo records the search it was asked and returns its terms or its error.
 type fakeRepo struct {
-	err   error
-	got   *terminology.Search
-	terms []terminology.Term
+	err           error
+	got           *terminology.Search
+	glossaryQuery *terminology.GlossaryQuery
+	terms         []terminology.Term
+	glossary      []terminology.GlossaryEntry
 }
 
 func (f *fakeRepo) Search(_ context.Context, s terminology.Search) ([]terminology.Term, error) {
 	f.got = &s
 	return f.terms, f.err
+}
+
+func (f *fakeRepo) Glossary(_ context.Context, q terminology.GlossaryQuery) ([]terminology.GlossaryEntry, error) {
+	f.glossaryQuery = &q
+	return f.glossary, f.err
 }
 
 // fakeLanguages is the callers' UI languages by account id, counting the reads.

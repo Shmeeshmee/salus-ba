@@ -11,6 +11,8 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/migrations"
+	"github.com/Shmeeshmee/salus/pkg/llm"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 	"github.com/Shmeeshmee/salus/pkg/stt/stttest"
@@ -28,6 +30,7 @@ func setStack(t *testing.T) {
 	t.Setenv("LIVEKIT_API_KEY", os.Getenv("TEST_LIVEKIT_API_KEY"))
 	t.Setenv("LIVEKIT_API_SECRET", os.Getenv("TEST_LIVEKIT_API_SECRET"))
 	t.Setenv("STT_ENGINE", "")
+	t.Setenv("LLM_ENGINE", "")
 }
 
 // The agent starts its River client on the transcription queue, with the fake engine by default, and stops
@@ -38,7 +41,7 @@ func TestRun_StartsWithTheFakeEngineAndStopsCleanly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run() error = %v, want nil after the context ends", err)
 	}
-	for _, msg := range []string{`"msg":"started"`, `"stt_engine":"fake"`, `"msg":"stopped"`} {
+	for _, msg := range []string{`"msg":"started"`, `"stt_engine":"fake"`, `"llm_engine":"fake"`, `"msg":"stopped"`} {
 		if !strings.Contains(logs, msg) {
 			t.Errorf("logs lack %s:\n%s", msg, logs)
 		}
@@ -68,6 +71,22 @@ func TestRun_StartsWithAzureInAnEURegion(t *testing.T) {
 	logs, err := runUntilStarted(t)
 	if err != nil || !strings.Contains(logs, `"stt_engine":"azure"`) || strings.Contains(logs, "marker") {
 		t.Errorf("run() = %v, logs:\n%s\nwant started with azure, without the key", err, logs)
+	}
+}
+
+// With Anthropic's API and its key the agent starts; nothing is sent until a final segment needs translating.
+// Without the key it refuses to start. Neither says the key.
+func TestRun_StartsWithAnthropicOnlyWithItsKey(t *testing.T) {
+	setStack(t)
+	t.Setenv("LLM_ENGINE", "anthropic")
+	t.Setenv("ANTHROPIC_API_KEY", "llm-key-marker")
+	logs, err := runUntilStarted(t)
+	if err != nil || !strings.Contains(logs, `"llm_engine":"anthropic"`) || strings.Contains(logs, "marker") {
+		t.Errorf("run() = %v, logs:\n%s\nwant started with anthropic, without the key", err, logs)
+	}
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	if err := run(t.Context(), &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "ANTHROPIC_API_KEY") {
+		t.Errorf("without the key: run() = %v, want the missing setting named", err)
 	}
 }
 
@@ -122,6 +141,21 @@ func runUntilStarted(t *testing.T) (string, error) {
 	cancel()
 	err := <-done
 	return logs.String(), err
+}
+
+// The default translator keeps no calls: a consultation of hours holds no more memory than its first line.
+func TestNewTranslator_TheFakeKeepsNoCalls(t *testing.T) {
+	tr, err := newTranslator(config.LLM{Engine: config.LLMFake})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake, ok := tr.(*llmtest.Translator)
+	if !ok {
+		t.Fatalf("the default translator is %T, want the fake", tr)
+	}
+	if _, err := fake.Translate(t.Context(), llm.TranslateRequest{Text: "placeholder", From: "tr", To: "bs"}); err != nil || len(fake.Calls()) != 0 {
+		t.Errorf("the fake translated (%v) and kept %d calls, want none", err, len(fake.Calls()))
+	}
 }
 
 // The default engine keeps no audio: a consultation of hours holds no more memory than its placeholder script.

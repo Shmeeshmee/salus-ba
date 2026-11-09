@@ -27,7 +27,9 @@ const (
 )
 
 // Event is one segment as it is recognised: partial ones revise each other under the same SegmentID until the
-// final one. Lang is the language it was spoken in (BCP 47); Translation is empty until it is translated.
+// final one. Lang is the language it was spoken in (BCP 47); Translation is empty until it is translated, and
+// stays empty for a partial segment and for one said in the listener's language. TranslationFailed marks a final
+// segment that should have been translated and was not (SAL-5): its original is published and stored alone.
 type Event struct {
 	TsStart     time.Time `json:"ts_start"`
 	TsEnd       time.Time `json:"ts_end"`
@@ -38,6 +40,8 @@ type Event struct {
 	Original    string    `json:"original"`
 	Translation string    `json:"translation"`
 	IsFinal     bool      `json:"is_final"`
+	// TranslationFailed is left out of the JSON when false: the smallest change to the P0 contract.
+	TranslationFailed bool `json:"translation_failed,omitempty"`
 }
 
 // Validate checks the event is one the contract allows; the error names the first wrong field.

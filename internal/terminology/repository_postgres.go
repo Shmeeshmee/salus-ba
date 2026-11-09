@@ -62,6 +62,21 @@ func (r *postgresRepository) Search(ctx context.Context, s Search) ([]Term, erro
 	return terms, nil
 }
 
+func (r *postgresRepository) Glossary(ctx context.Context, q GlossaryQuery) ([]GlossaryEntry, error) {
+	rows, err := r.q(ctx).GlossaryTerms(ctx, terminologydb.GlossaryTermsParams{
+		MaxTerms: q.Limit, Candidates: q.Candidates,
+		SourceLanguage: terminologydb.TermLanguage(q.From), TargetLanguage: terminologydb.TermLanguage(q.To),
+	})
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]GlossaryEntry, len(rows))
+	for i, row := range rows {
+		entries[i] = GlossaryEntry{Source: row.Source, Target: row.Target}
+	}
+	return entries, nil
+}
+
 func (r *postgresRepository) CreateFromSeed(ctx context.Context, t Term) (bool, error) {
 	id, err := r.q(ctx).CreateSeedTerm(ctx, terminologydb.CreateSeedTermParams{
 		Category: terminologydb.TermCategory(t.Category), Rank: t.Rank, WikidataID: text(t.WikidataID),

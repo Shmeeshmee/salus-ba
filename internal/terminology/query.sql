@@ -92,3 +92,26 @@ ORDER BY t.category, t.rank DESC, t.id;
 
 -- name: CountTermsByCategory :many
 SELECT category, count(*)::integer AS terms FROM term GROUP BY category ORDER BY category;
+
+-- name: GlossaryTerms :many
+-- The terms with a label in the line's language equal to one of the line's candidate phrases, both folded, each
+-- by its longest label found (the preferred one of a length), with its label in the target language (the
+-- preferred one, else the first alphabetically); none without one. The most common first. One index lookup
+-- (term_label_language_folded) per candidate.
+WITH found AS (
+    SELECT DISTINCT ON (l.term_id) l.term_id, l.label
+    FROM (SELECT DISTINCT term_fold(c) AS folded FROM unnest(@candidates::text[]) AS c) AS c
+    JOIN term_label l ON l.language = @source_language::term_language AND term_fold(l.label) = c.folded
+    ORDER BY l.term_id, char_length(l.label) DESC, l.preferred DESC, l.label
+), target AS (
+    SELECT DISTINCT ON (l.term_id) l.term_id, l.label
+    FROM term_label l
+    WHERE l.language = @target_language::term_language AND l.term_id IN (SELECT term_id FROM found)
+    ORDER BY l.term_id, l.preferred DESC, l.label
+)
+SELECT f.label::text AS source, tl.label::text AS target
+FROM found f
+JOIN target tl ON tl.term_id = f.term_id
+JOIN term t ON t.id = f.term_id
+ORDER BY t.rank DESC, t.id
+LIMIT @max_terms;

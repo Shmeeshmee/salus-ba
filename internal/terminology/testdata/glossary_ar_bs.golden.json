@@ -1,0 +1,15 @@
+{
+  "line": "أعاني من صداع شديد وحمى منذ ثلاثة أيام.",
+  "from": "ar",
+  "to": "bs",
+  "glossary": [
+    {
+      "source": "حمى",
+      "target": "groznica"
+    },
+    {
+      "source": "صداع",
+      "target": "glavobolja"
+    }
+  ]
+}

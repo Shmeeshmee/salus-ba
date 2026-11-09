@@ -3502,7 +3502,14 @@ components:
           type: string
         translation:
           type: string
-          description: Into the other participant's language; empty until it is translated.
+          description: >-
+            Into the other participant's language; empty until it is translated. Partial segments and segments
+            said in the other participant's language are not translated.
+        translation_failed:
+          type: boolean
+          description: >-
+            Present and true on a final segment that should have been translated and was not: the original is
+            all there is. Absent otherwise.
         is_final:
           type: boolean
         ts_start:

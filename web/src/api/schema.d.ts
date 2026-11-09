@@ -1630,8 +1630,10 @@ export interface components {
             /** @description The language the segment was spoken in, a BCP 47 tag. */
             lang: string;
             original: string;
-            /** @description Into the other participant's language; empty until it is translated. */
+            /** @description Into the other participant's language; empty until it is translated. Partial segments and segments said in the other participant's language are not translated. */
             translation: string;
+            /** @description Present and true on a final segment that should have been translated and was not: the original is all there is. Absent otherwise. */
+            translation_failed?: boolean;
             is_final: boolean;
             /** Format: date-time */
             ts_start: string;

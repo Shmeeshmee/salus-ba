@@ -84,6 +84,67 @@ func (q *Queries) DeleteLabels(ctx context.Context, termID pgtype.UUID) error {
 	return err
 }
 
+const glossaryTerms = `-- name: GlossaryTerms :many
+WITH found AS (
+    SELECT DISTINCT ON (l.term_id) l.term_id, l.label
+    FROM (SELECT DISTINCT term_fold(c) AS folded FROM unnest($2::text[]) AS c) AS c
+    JOIN term_label l ON l.language = $3::term_language AND term_fold(l.label) = c.folded
+    ORDER BY l.term_id, char_length(l.label) DESC, l.preferred DESC, l.label
+), target AS (
+    SELECT DISTINCT ON (l.term_id) l.term_id, l.label
+    FROM term_label l
+    WHERE l.language = $4::term_language AND l.term_id IN (SELECT term_id FROM found)
+    ORDER BY l.term_id, l.preferred DESC, l.label
+)
+SELECT f.label::text AS source, tl.label::text AS target
+FROM found f
+JOIN target tl ON tl.term_id = f.term_id
+JOIN term t ON t.id = f.term_id
+ORDER BY t.rank DESC, t.id
+LIMIT $1
+`
+
+type GlossaryTermsParams struct {
+	MaxTerms       int32
+	Candidates     []string
+	SourceLanguage TermLanguage
+	TargetLanguage TermLanguage
+}
+
+type GlossaryTermsRow struct {
+	Source string
+	Target string
+}
+
+// The terms with a label in the line's language equal to one of the line's candidate phrases, both folded, each
+// by its longest label found (the preferred one of a length), with its label in the target language (the
+// preferred one, else the first alphabetically); none without one. The most common first. One index lookup
+// (term_label_language_folded) per candidate.
+func (q *Queries) GlossaryTerms(ctx context.Context, arg GlossaryTermsParams) ([]GlossaryTermsRow, error) {
+	rows, err := q.db.Query(ctx, glossaryTerms,
+		arg.MaxTerms,
+		arg.Candidates,
+		arg.SourceLanguage,
+		arg.TargetLanguage,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GlossaryTermsRow
+	for rows.Next() {
+		var i GlossaryTermsRow
+		if err := rows.Scan(&i.Source, &i.Target); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertLabels = `-- name: InsertLabels :exec
 INSERT INTO term_label (term_id, language, label, preferred)
 SELECT $1::uuid, unnest($2::text[])::term_language, unnest($3::text[]), unnest($4::boolean[])

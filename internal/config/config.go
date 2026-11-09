@@ -238,3 +238,46 @@ func LoadSTT() (STT, error) {
 	}
 	return s, nil
 }
+
+// LLMEngine names the language model of the consultation pipeline: translation (SAL-5), suggestions (SAL-7)
+// and drafting (SAL-8), the pkg/llm ports.
+type LLMEngine string
+
+// The engines. The fake is the default: it sends no text anywhere. Anthropic's Claude API (pkg/llm/anthropic) is
+// a processor (docs/privacy/processors.md) and is not enabled with real patient data until its DPA, zero data
+// retention and the plan's EU region condition are met (docs/plans/consult-intelligence.md "Gates").
+const (
+	LLMFake      LLMEngine = "fake"
+	LLMAnthropic LLMEngine = "anthropic"
+)
+
+// defaultLLMModel is the Claude model when LLM_MODEL is not set.
+const defaultLLMModel = "claude-opus-5-5"
+
+// LLM holds the language model's settings. Load never reads them; only a command's main calls LoadLLM. The key
+// comes from the secret store, never from a committed file.
+type LLM struct {
+	Engine       LLMEngine // LLM_ENGINE: fake (the default) or anthropic
+	AnthropicKey string    // ANTHROPIC_API_KEY, required for anthropic
+	Model        string    // LLM_MODEL, for anthropic: claude-opus-5-5 when unset
+}
+
+// LoadLLM reads the language model's settings from the environment; for the fake, none but the engine. Errors
+// name the variable, never a value.
+func LoadLLM() (LLM, error) {
+	switch LLMEngine(os.Getenv("LLM_ENGINE")) {
+	case "", LLMFake:
+		return LLM{Engine: LLMFake}, nil
+	case LLMAnthropic:
+	default:
+		return LLM{}, errors.New("config: LLM_ENGINE is neither fake nor anthropic")
+	}
+	l := LLM{Engine: LLMAnthropic, AnthropicKey: os.Getenv("ANTHROPIC_API_KEY"), Model: os.Getenv("LLM_MODEL")}
+	if l.AnthropicKey == "" {
+		return LLM{}, errors.New("config: ANTHROPIC_API_KEY is required for LLM_ENGINE=anthropic")
+	}
+	if l.Model == "" {
+		l.Model = defaultLLMModel
+	}
+	return l, nil
+}
