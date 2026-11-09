@@ -100,7 +100,7 @@ CREATE TABLE document_draft (
     template_id uuid NOT NULL REFERENCES document_template (id),
     version_id integer DEFAULT 1 NOT NULL,
     status text DEFAULT 'preliminary' NOT NULL CHECK (status IN ('preliminary', 'final', 'entered-in-error')),
-    fields jsonb DEFAULT '[]' NOT NULL CHECK (jsonb_typeof(fields) = 'array')
+    fields jsonb NOT NULL CHECK (jsonb_typeof(fields) = 'array' AND jsonb_array_length(fields) >= 1)
 );
 
 -- An encounter's drafts.

@@ -46,7 +46,7 @@ func seedConsult(t *testing.T, owner *pgxpool.Pool) consultRows {
 			g AS (INSERT INTO suggestion (encounter_id, type, text, confidence, source_segment_ids)
 				SELECT $1, 'question', 'Placeholder question', 0.5, ARRAY[id] FROM s)
 			INSERT INTO document_draft (encounter_id, template_id, fields)
-			SELECT e.id, t.id, '[]' FROM encounter e JOIN document_template t ON t.organization_id = e.organization_id
+			SELECT e.id, t.id, '[{"key":"a","missing":true}]' FROM encounter e JOIN document_template t ON t.organization_id = e.organization_id
 			WHERE e.id = $1`, e)
 		if err != nil {
 			t.Fatal(err)
@@ -67,7 +67,8 @@ func insertConsultRow(table, encounter, template string) func(ctx context.Contex
 			_, err = db.Exec(ctx, `INSERT INTO suggestion (encounter_id, type, text, confidence, source_segment_ids)
 				VALUES ($1, 'term', 'Placeholder term', 0.9, ARRAY[gen_random_uuid()])`, encounter)
 		case "document_draft":
-			_, err = db.Exec(ctx, `INSERT INTO document_draft (encounter_id, template_id) VALUES ($1, $2)`, encounter, template)
+			_, err = db.Exec(ctx, `INSERT INTO document_draft (encounter_id, template_id, fields)
+				VALUES ($1, $2, '[{"key":"a","missing":true}]')`, encounter, template)
 		}
 		return err
 	}
@@ -200,7 +201,7 @@ func TestConsultTables_TheAppRoleWritesOnlyWhatThePipelineNeeds(t *testing.T) {
 	}
 	for _, stmt := range []string{
 		"UPDATE suggestion SET status = 'pinned', updated_at = now(), version_id = version_id + 1",
-		"UPDATE document_draft SET status = 'final', fields = '[]', updated_at = now(), version_id = version_id + 1",
+		"UPDATE document_draft SET status = 'final', fields = '[{\"key\":\"a\",\"value\":\"b\"}]', updated_at = now(), version_id = version_id + 1",
 		"UPDATE document_template SET title = 'Placeholder title', fields = '[{\"key\":\"a\",\"label\":\"b\"}]', updated_at = now(), version_id = version_id + 1",
 	} {
 		if err := asApp(t, app, scope, exec(stmt)); err != nil {
@@ -253,7 +254,9 @@ func TestConsultTables_HoldAConsistentState(t *testing.T) {
 			VALUES ($1, 'term', '', 0.5, ARRAY[gen_random_uuid()])`, []any{e}},
 		{"an unknown suggestion status", `INSERT INTO suggestion (encounter_id, type, text, confidence, source_segment_ids, status)
 			VALUES ($1, 'term', 'x', 0.5, ARRAY[gen_random_uuid()], 'accepted')`, []any{e}},
-		{"an unknown draft status", `INSERT INTO document_draft (encounter_id, template_id, status) VALUES ($1, $2, 'draft')`, []any{e, tpl}},
+		{"an unknown draft status", `INSERT INTO document_draft (encounter_id, template_id, status, fields)
+			VALUES ($1, $2, 'draft', '[{"key":"a","missing":true}]')`, []any{e, tpl}},
+		{"a draft with no field", `INSERT INTO document_draft (encounter_id, template_id, fields) VALUES ($1, $2, '[]')`, []any{e, tpl}},
 		{"draft fields no array", `INSERT INTO document_draft (encounter_id, template_id, fields) VALUES ($1, $2, '{}')`, []any{e, tpl}},
 		{"a template without fields", `INSERT INTO document_template (organization_id, title, fields) VALUES ($1, 'x', '[]')`, []any{clinicA}},
 		{"a template fields no array", `INSERT INTO document_template (organization_id, title, fields) VALUES ($1, 'x', '{}')`, []any{clinicA}},

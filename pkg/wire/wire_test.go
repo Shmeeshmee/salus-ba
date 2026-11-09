@@ -39,6 +39,24 @@ func TestEncode_RefusesAnEnvelopeWithoutATypeOrVersion(t *testing.T) {
 	}
 }
 
+// A payload that marshals to null makes an envelope Decode refuses, so Encode refuses it too.
+func TestEncode_RefusesAPayloadThatMarshalsToNull(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		payload any
+		name    string
+	}{
+		{name: "nil"},
+		{name: "a nil pointer", payload: (*struct{})(nil)},
+		{name: "a nil map", payload: map[string]string(nil)},
+		{name: "a nil slice", payload: []string(nil)},
+	} {
+		if _, err := wire.Encode("transcript", 1, tt.payload); !errors.Is(err, wire.ErrInvalid) {
+			t.Errorf("%s: err = %v, want ErrInvalid", tt.name, err)
+		}
+	}
+}
+
 func TestEncode_ReturnsThePayloadsMarshalError(t *testing.T) {
 	t.Parallel()
 	if _, err := wire.Encode("transcript", 1, make(chan int)); err == nil || errors.Is(err, wire.ErrInvalid) {

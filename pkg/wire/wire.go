@@ -30,6 +30,9 @@ func Encode(typ string, version int, payload any) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("wire: marshal %s payload: %w", typ, err)
 	}
+	if string(p) == "null" {
+		return nil, ErrInvalid
+	}
 	b := make([]byte, 0, len(`{"type":"","version":,"payload":}`)+len(typ)+4+len(p))
 	b = append(b, `{"type":"`...)
 	b = append(b, typ...)
