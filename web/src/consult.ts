@@ -33,7 +33,6 @@ export interface ConsultActions {
   sign(draftId: string, fields: { key: string; value: string }[]): Promise<DraftEvent>
 }
 
-const types = new Set(['transcript', 'suggestion', 'draft'])
 
 // decodeMessage reads one frame of the live source. A frame that is not an envelope, or one of a type or
 // version this page does not know, is dropped, so a newer server does not break an open page.
@@ -46,9 +45,37 @@ export function decodeMessage(frame: string): ConsultMessage | undefined {
   }
   if (typeof m !== 'object' || m === null || Array.isArray(m)) return undefined
   const { type, version, payload } = m as Record<string, unknown>
-  if (typeof type !== 'string' || !types.has(type) || version !== 1) return undefined
+  const shape = typeof type === 'string' ? shapes.get(type) : undefined
+  if (!shape || version !== 1) return undefined
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined
-  return m as ConsultMessage
+  return shape(payload as Record<string, unknown>) ? (m as ConsultMessage) : undefined
+}
+
+// shapes check the payload fields this page reads, so a malformed frame is dropped rather than breaking the page.
+const str = (v: unknown) => typeof v === 'string'
+const strs = (v: unknown) => Array.isArray(v) && v.every(str)
+const oneOf = (v: unknown, values: string[]) => typeof v === 'string' && values.includes(v)
+const shapes = new Map<string, (p: Record<string, unknown>) => boolean>([
+  [
+    'transcript',
+    (p) =>
+      str(p.segment_id) && oneOf(p.speaker, ['practitioner', 'patient']) && str(p.lang) && str(p.original) && str(p.translation) && typeof p.is_final === 'boolean' && str(p.ts_start),
+  ],
+  [
+    'suggestion',
+    (p) => str(p.id) && oneOf(p.type, ['diagnosis', 'question', 'red_flag', 'term']) && str(p.text) && strs(p.source_segment_ids) && oneOf(p.status, ['shown', 'dismissed', 'pinned']),
+  ],
+  [
+    'draft',
+    (p) =>
+      str(p.draft_id) && str(p.template_id) && oneOf(p.status, ['preliminary', 'final', 'entered-in-error']) && Array.isArray(p.fields) && p.fields.every(field),
+  ],
+])
+
+function field(f: unknown): boolean {
+  if (typeof f !== 'object' || f === null) return false
+  const { key, value, missing, source_segment_ids } = f as Record<string, unknown>
+  return str(key) && str(value) && typeof missing === 'boolean' && (source_segment_ids === undefined || strs(source_segment_ids))
 }
 
 // ConsultState is what the page has received: segments in the order they started, suggestions and drafts

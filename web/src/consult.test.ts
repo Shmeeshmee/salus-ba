@@ -20,6 +20,13 @@ describe('decodeMessage', () => {
     ['a later version', '{"type":"transcript","version":2,"payload":{}}'],
     ['an array', '[]'],
     ['an array payload', '{"type":"transcript","version":1,"payload":[]}'],
+    ['a transcript payload without its fields', '{"type":"transcript","version":1,"payload":{}}'],
+    ['a transcript with an unknown speaker', JSON.stringify({ ...segment(), payload: { ...segment().payload, speaker: 'doctor' } })],
+    ['a transcript without a start time', JSON.stringify({ ...segment(), payload: { ...segment().payload, ts_start: undefined } })],
+    ['a suggestion without its sources', JSON.stringify({ ...suggestion(), payload: { ...suggestion().payload, source_segment_ids: undefined } })],
+    ['a suggestion of an unknown status', JSON.stringify({ ...suggestion(), payload: { ...suggestion().payload, status: 'hidden' } })],
+    ['a draft without fields', JSON.stringify({ ...draft(), payload: { ...draft().payload, fields: undefined } })],
+    ['a draft with a field without a key', JSON.stringify({ ...draft(), payload: { ...draft().payload, fields: [{ value: '', missing: true }] } })],
   ])('drops %s', (_, frame) => {
     expect(decodeMessage(frame)).toBeUndefined()
   })

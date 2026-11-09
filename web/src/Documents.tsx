@@ -47,7 +47,7 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
   if (templates.list.length === 0) return <p className="muted">{t('consultation.live.noTemplates')}</p>
 
   const template = templates.list.find((x) => x.id === chosen)
-  const current = drafts.findLast((d) => d.template_id === chosen && d.status !== 'entered-in-error')
+  const current = latest(drafts, chosen)
   const generating = waiting?.template === chosen && waiting.before === current
   const draft = generating ? undefined : current
 
@@ -133,6 +133,15 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
       )}
     </div>
   )
+}
+
+// latest is the template's last draft not entered in error (a loop, as Array.prototype.findLast is missing in
+// some browsers the app supports).
+function latest(drafts: DraftEvent[], template: string): DraftEvent | undefined {
+  for (let i = drafts.length - 1; i >= 0; i--) {
+    if (drafts[i].template_id === template && drafts[i].status !== 'entered-in-error') return drafts[i]
+  }
+  return undefined
 }
 
 type ActionsProps = {
