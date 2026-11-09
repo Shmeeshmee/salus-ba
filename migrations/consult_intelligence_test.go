@@ -165,6 +165,7 @@ func TestDocumentTemplate_OnlyItsClinicsScopeSeesAndWritesIt(t *testing.T) {
 		{name: "clinic A", scope: map[string]string{"app.organization_id": clinicA}, want: sorted(c.templates[clinicA])},
 		{name: "patient A with clinic A set", scope: map[string]string{"app.patient_id": c.patients[0].patient, "app.organization_id": clinicA}},
 		{name: "account A with clinic A set", scope: map[string]string{"app.account_id": c.patients[0].account, "app.organization_id": clinicA}},
+		{name: "a video room with clinic A set", scope: map[string]string{"app.organization_id": clinicA, "app.video_room": "r_" + c.a.aFuture}},
 	} {
 		if got := idsIn(t, app, tt.scope, "SELECT id::text FROM document_template"); !slices.Equal(got, tt.want) {
 			t.Errorf("%s: sees %v, want %v", tt.name, got, tt.want)
@@ -182,6 +183,10 @@ func TestDocumentTemplate_OnlyItsClinicsScopeSeesAndWritesIt(t *testing.T) {
 	}
 	if err := asApp(t, app, map[string]string{"app.organization_id": clinicA}, insert(clinicB)); sqlState(err) != "42501" {
 		t.Errorf("clinic A adds clinic B's template: %v, want SQLSTATE 42501", err)
+	}
+	room := map[string]string{"app.organization_id": clinicA, "app.video_room": "r_" + c.a.aFuture}
+	if err := asApp(t, app, room, insert(clinicA)); sqlState(err) != "42501" {
+		t.Errorf("a video room with clinic A set adds a template: %v, want SQLSTATE 42501", err)
 	}
 }
 

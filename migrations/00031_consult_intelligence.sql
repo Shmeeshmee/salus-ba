@@ -86,6 +86,7 @@ ALTER TABLE document_template ENABLE ROW LEVEL SECURITY;
 CREATE POLICY document_template_clinic ON document_template
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.video_room', true), '') IS NULL
            AND organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
 
 -- Whose a template is never changes; nothing is deleted while a draft may reference it.
