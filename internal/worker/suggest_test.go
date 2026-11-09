@@ -68,7 +68,7 @@ func TestSuggestions_ShowsWhatIsNewAndNeverWhatWasDismissed(t *testing.T) {
 	}
 	say(1, suggestion.RunEveryLines)
 	c.waitRows(t, 1, "SELECT count(*) FROM suggestion WHERE encounter_id = $1 AND text = $2 AND status = 'shown'", c.encounter, suggested)
-	if got := c.published(t); len(got) != 1 || got[0].Text != suggested || got[0].Origin != suggestion.OriginAI {
+	if got := c.waitPublished(t, 1); len(got) != 1 || got[0].Text != suggested || got[0].Origin != suggestion.OriginAI {
 		t.Fatalf("published %+v, want the suggestion, labelled as AI", got)
 	}
 	if _, err := c.db.owner.Exec(t.Context(), "UPDATE suggestion SET status = 'dismissed' WHERE encounter_id = $1", c.encounter); err != nil {
@@ -78,7 +78,7 @@ func TestSuggestions_ShowsWhatIsNewAndNeverWhatWasDismissed(t *testing.T) {
 	say(suggestion.RunEveryLines+1, 2*suggestion.RunEveryLines)
 	c.waitRows(t, 1, "SELECT count(*) FROM suggestion WHERE encounter_id = $1 AND type = 'red_flag'", c.encounter)
 	c.waitRows(t, 2, "SELECT count(*) FROM suggestion WHERE encounter_id = $1", c.encounter)
-	if got := c.published(t); len(got) != 2 || got[1].Type != suggestion.TypeRedFlag {
+	if got := c.waitPublished(t, 2); len(got) != 2 || got[1].Type != suggestion.TypeRedFlag {
 		t.Errorf("published %+v, want the red flag only after the first", got)
 	}
 	c.waitRows(t, 2, `SELECT count(*) FROM audit_event WHERE agent_name = 'suggestions_worker' AND action = 'C' AND outcome = 0`)
@@ -87,6 +87,19 @@ func TestSuggestions_ShowsWhatIsNewAndNeverWhatWasDismissed(t *testing.T) {
 			t.Errorf("the log holds %q:\n%s", s, c.log.String())
 		}
 	}
+}
+
+// waitPublished waits until the stream holds n suggestion events, for at most ten seconds, and returns them: a
+// suggestion is stored before it is published, so its row comes first.
+func (c consultStream) waitPublished(t *testing.T, n int) []suggestion.Event {
+	t.Helper()
+	deadline := wallNow().Add(10 * time.Second)
+	got := c.published(t)
+	for len(got) < n && wallNow().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+		got = c.published(t)
+	}
+	return got
 }
 
 // published is the suggestion events on the encounter's stream, in order.
