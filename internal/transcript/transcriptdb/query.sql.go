@@ -12,20 +12,21 @@ import (
 )
 
 const insertSegment = `-- name: InsertSegment :execrows
-INSERT INTO transcript_segment (id, encounter_id, speaker, lang, original, translation, ts_start, ts_end)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO transcript_segment (id, encounter_id, speaker, lang, original, translation, translation_failed, ts_start, ts_end)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 ON CONFLICT (id) DO NOTHING
 `
 
 type InsertSegmentParams struct {
-	ID          pgtype.UUID
-	EncounterID pgtype.UUID
-	Speaker     string
-	Lang        string
-	Original    string
-	Translation string
-	TsStart     pgtype.Timestamptz
-	TsEnd       pgtype.Timestamptz
+	ID                pgtype.UUID
+	EncounterID       pgtype.UUID
+	Speaker           string
+	Lang              string
+	Original          string
+	Translation       string
+	TranslationFailed bool
+	TsStart           pgtype.Timestamptz
+	TsEnd             pgtype.Timestamptz
 }
 
 // A final segment under the id of its live events; one delivered again inserts nothing (no row).
@@ -37,6 +38,7 @@ func (q *Queries) InsertSegment(ctx context.Context, arg InsertSegmentParams) (i
 		arg.Lang,
 		arg.Original,
 		arg.Translation,
+		arg.TranslationFailed,
 		arg.TsStart,
 		arg.TsEnd,
 	)
@@ -47,21 +49,22 @@ func (q *Queries) InsertSegment(ctx context.Context, arg InsertSegmentParams) (i
 }
 
 const segmentsByEncounter = `-- name: SegmentsByEncounter :many
-SELECT id, encounter_id, speaker, lang, original, translation, ts_start, ts_end
+SELECT id, encounter_id, speaker, lang, original, translation, translation_failed, ts_start, ts_end
 FROM transcript_segment
 WHERE encounter_id = $1
 ORDER BY ts_start, id
 `
 
 type SegmentsByEncounterRow struct {
-	ID          pgtype.UUID
-	EncounterID pgtype.UUID
-	Speaker     string
-	Lang        string
-	Original    string
-	Translation string
-	TsStart     pgtype.Timestamptz
-	TsEnd       pgtype.Timestamptz
+	ID                pgtype.UUID
+	EncounterID       pgtype.UUID
+	Speaker           string
+	Lang              string
+	Original          string
+	Translation       string
+	TranslationFailed bool
+	TsStart           pgtype.Timestamptz
+	TsEnd             pgtype.Timestamptz
 }
 
 // An encounter's transcript in the order it was said; the scope decides whether it is seen.
@@ -81,6 +84,7 @@ func (q *Queries) SegmentsByEncounter(ctx context.Context, encounterID pgtype.UU
 			&i.Lang,
 			&i.Original,
 			&i.Translation,
+			&i.TranslationFailed,
 			&i.TsStart,
 			&i.TsEnd,
 		); err != nil {
