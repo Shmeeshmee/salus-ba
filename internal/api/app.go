@@ -199,6 +199,7 @@ func newConsultation(pool *pgxpool.Pool, lk config.LiveKit, jobs *river.Client[p
 
 // consultPorts are what the consultation's record is built on: its transcript and its documents.
 type consultPorts struct {
+	drafter    llm.Drafter // config.LoadLLM's engine (cmd/api)
 	pool       *pgxpool.Pool
 	rdb        *goredis.Client
 	audit      *auditevent.Service
@@ -207,7 +208,6 @@ type consultPorts struct {
 	consents   *consent.Service
 	kek        *envelope.KEK
 	files      config.ObjectStore
-	drafter    llm.Drafter // config.LoadLLM's engine (cmd/api)
 }
 
 // newConsultRecord builds the encounter's live events (its Redis Stream), its stored transcript, and its
