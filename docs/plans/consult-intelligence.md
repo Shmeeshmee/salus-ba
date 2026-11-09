@@ -168,7 +168,7 @@ after-revocation rule apply unchanged; the clinic scope only. A patient's access
 | Status changes | Over the event stream's WebSocket: `suggestion_status` (`{id, status}`, `shown` to unpin) in the wire envelope (`ConsultCommand` in `api/openapi.yaml`), under the stream's rule (`transcript.Service.Allowed`), audited, only a suggestion of the encounter. Stored first, then the suggestion with its status published on the stream. Success is answered by that event; a failure by a `command_error` frame |
 | Stale statuses | The stream consumer (SAL-6) no longer changes a stored suggestion's status: every status is stored by its producer (the worker, the practitioner) before its event is published, so an old event delivered again cannot set an older status back |
 | Label | `origin: "ai"` on every suggestion event, required by the contract: whatever shows one labels it as AI assistance |
-| Engine | The `llmtest` fake (no suggestions) until SAL-5's adapter is merged and chosen by config |
+| Engine | `config.LoadLLM` (SAL-5): `LLM_ENGINE=fake` (the default: `llmtest.Suggester` keeping no calls, suggesting nothing) or `anthropic` (not enabled before its DPA). The adapter puts `SuggestRequest.Shown` in a `<shown>` block, as data |
 | Consent | The owner's interim decision applies: suggestions only while the patient's care consent with the clinic is active, checked before each model call and each store |
 
 ## Work packages

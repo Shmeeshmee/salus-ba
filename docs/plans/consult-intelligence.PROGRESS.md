@@ -350,5 +350,12 @@ In steady state a step reads only the entries since the last one. Not optimised:
 - A run that finds the consent withdrawn sends nothing and waits for new lines (none come once the agent has left).
 - The `command_error` code and the suggestion's id go back to the client; nothing else of the failure.
 
-**Left.** The engine (SAL-5's adapter, once merged: the composition root switches to its config). The web wiring of
+**After SAL-5's merge** (main merged in, 2026-11-09). `cmd/worker` takes its model from `config.LoadLLM`: the fake
+keeping no calls by default (`DiscardCalls`, tested), Anthropic's adapter with its key; the compose worker sets
+`LLM_ENGINE: fake`. `pkg/llm/anthropic`'s Suggest sends `Shown` in a `<shown>` block, escaped, marked as data in the
+system prompt (golden request updated, the test seen failing first on the golden's difference). A race in the
+worker's database test, seen once after the merge (the stream was read between a suggestion's store and its
+publish), fixed by waiting for the published events; 5 runs in a row pass.
+
+**Left.** The web wiring of
 `setSuggestionStatus` and of `command_error` (SAL-9's page, a later PR). An undo for a dismissal (SAL-9's list).

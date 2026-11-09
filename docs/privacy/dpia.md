@@ -1443,8 +1443,9 @@ worker suggests only while the patient's care consent with the clinic is active,
 withdrawal (checked before every model call and again before every store). A suggestion is labelled as AI
 assistance in the event (`origin: "ai"`) and never presented as a diagnosis.
 
-**Processors.** None new: the engine is the in-memory fake (it suggests nothing) until the model adapter of SAL-5 is
-merged and enabled, which needs its DPA and its entry in `processors.md` first.
+**Processors.** None new: `LLM_ENGINE=fake` (the default) suggests nothing and sends nothing. The Anthropic adapter
+(SAL-5's entry in `processors.md`) is merged and not enabled; enabled, it would receive the window and the texts of
+the suggestions already shown, no name or id of a person.
 
 **Access.** The worker is a system path (the encounter's clinic scope, row-level security). A status change has the
 stream's rule (`access.ConsultationRecord`: the encounter's practitioner with an active consent) and only a
