@@ -357,6 +357,7 @@ p.hint.join { margin-bottom: 20px; }
 .side-panel .note { margin: 0; font-size: 13px; color: var(--color-text-muted); }
 .side-panel .quiet { padding: 4px 8px; font-size: 13px; }
 .side-panel p { margin: 0; }
+.call-side .side-ended { margin: 0; padding: 14px 16px; }
 .transcript-panel { padding: 0; overflow: hidden; }
 .transcript { position: relative; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
 .transcript .empty { padding: 14px 16px 0; }
@@ -381,6 +382,7 @@ p.hint.join { margin-bottom: 20px; }
 .draft-field label { font-size: 14px; font-weight: 600; }
 .draft-field textarea { width: 100%; }
 .draft-field.missing textarea { border-style: dashed; }
+.draft-field textarea[aria-invalid='true'] { border-color: var(--color-error); }
 .draft-field .flag { font-size: 12px; color: var(--color-text-muted); }
 .draft-field .quiet { margin-left: -8px; }
 .draft-signed { margin: 0; display: grid; gap: 10px; }

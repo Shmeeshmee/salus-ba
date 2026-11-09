@@ -26,6 +26,9 @@ export default defineConfig({
       '/fhir': apiUrl,
       // The consultation's live events (a WebSocket) and its transcript; no screen of the app is under /encounters.
       '/encounters': { target: apiUrl, ws: true },
+      // The documents drafted in the call (SAL-8): the clinic's templates and a draft's sign; no screen is under either.
+      '/document-templates': apiUrl,
+      '/drafts': apiUrl,
     },
   },
   test: {

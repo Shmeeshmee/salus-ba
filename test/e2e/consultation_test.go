@@ -44,9 +44,11 @@ func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIs
 	startAt(t, appt.ID, 5*time.Minute)
 	recordSynthetic(t, clinic, p, appt.ID)
 
+	template := newDocumentTemplate(t, clinic)
+
 	patient := connect(t, p.api, appt.ID, true)
 	recordInLiveKitLog(t, "room", patient.room.Name())
-	browser := startPractitionerInBrowser(t, clinic, p, appt.ID, patient.join.URL)
+	browser := startPractitionerInBrowser(t, clinic, p, appt.ID, patient.join.URL, template)
 
 	eventually(t, "the Encounter in progress once the practitioner joined", func() bool {
 		return browser.running(t) && encounterOf(t, p, appt.ID).Status == "in-progress"
@@ -281,7 +283,22 @@ type browser struct {
 // web app with the password and a TOTP code, joins the appointment's consultation, checks the patient is seen and
 // heard, and waits for the test's signal to end it. livekitURL is the join answer's URL, which the spec forwards
 // to the compose LiveKit as Docker forwards it on a developer's host.
-func startPractitionerInBrowser(t *testing.T, clinic *bookableClinic, p *patient, appointmentID, livekitURL string) *browser {
+// newDocumentTemplate makes a synthetic English template in the clinic, one required field and one optional, and
+// returns its title.
+func newDocumentTemplate(t *testing.T, clinic *bookableClinic) string {
+	t.Helper()
+	title := "Placeholder e2e findings " + suffix(t)
+	clinic.practitioner.must(http.StatusCreated, http.MethodPost, "/document-templates", map[string]any{
+		"title": title, "language": "en", "status": "draft", "typeCode": "11488-4",
+		"fields": []map[string]any{
+			{"key": "reason", "type": "text", "label": "Placeholder reason", "required": true},
+			{"key": "plan", "type": "text", "label": "Placeholder plan", "required": false},
+		},
+	}, nil)
+	return title
+}
+
+func startPractitionerInBrowser(t *testing.T, clinic *bookableClinic, p *patient, appointmentID, livekitURL, template string) *browser {
 	t.Helper()
 	b := &browser{done: make(chan struct{}), output: &bytes.Buffer{}, signal: filepath.Join(t.TempDir(), "end")}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -295,6 +312,7 @@ func startPractitionerInBrowser(t *testing.T, clinic *bookableClinic, p *patient
 		"E2E_PATIENT_NAME="+p.name,
 		"E2E_LIVEKIT_PUBLIC_URL="+livekitURL,
 		"E2E_END_SIGNAL="+b.signal,
+		"E2E_TEMPLATE_TITLE="+template,
 	)
 	cmd.Stdout, cmd.Stderr = b.output, b.output
 	if err := cmd.Start(); err != nil {

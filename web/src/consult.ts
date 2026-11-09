@@ -14,25 +14,41 @@ export type SuggestionEvent = components['schemas']['SuggestionEvent']
 export type DraftEvent = components['schemas']['DraftEvent']
 export type DraftField = components['schemas']['DraftField']
 
-// Template is a clinic's document template: its fields by key, with the label the practitioner reads.
-export type Template = { id: string; title: string; fields: { key: string; label: string }[] }
+// Template is a clinic's document template as the page shows it: its title and its fields' labels in language,
+// one the template is written or translated in, and which fields a sign needs.
+export type Template = { id: string; title: string; language: string; fields: { key: string; label: string; required: boolean }[] }
+
+// End is why a live source stopped for good: the patient withdrew their consent (consent_required), or the
+// practitioner may no longer follow the consultation (forbidden, not_found).
+export type End = 'consent_required' | 'forbidden' | 'not_found'
 
 // LiveSource delivers the messages of an appointment's consultation: every message of it so far, then each
-// new one as it comes. subscribe returns the function that closes the subscription.
+// new one as it comes, until onEnd says it has stopped. subscribe returns the function that closes the
+// subscription.
 export interface LiveSource {
-  subscribe(appointmentId: string, onMessage: (message: ConsultMessage) => void): () => void
+  subscribe(appointmentId: string, onMessage: (message: ConsultMessage) => void, onEnd?: (end: End) => void): () => void
 }
 
-// ConsultActions are what the practitioner does: set a suggestion's status, list the clinic's templates,
-// generate (or regenerate) a template's draft, whose result arrives on the live source, and sign a draft with
-// the fields as the practitioner left them, which answers with the signed draft.
+// ConsultActions are what the practitioner does: set a suggestion's status, list the clinic's templates in a
+// language, generate (or regenerate) a template's draft in the language it was listed in, which answers with the
+// stored draft, and sign a draft, as it was read, with the fields as the practitioner left them, which answers
+// with the signed draft or fails with SignRefused.
 export interface ConsultActions {
   setSuggestionStatus(id: string, status: SuggestionEvent['status']): Promise<void>
-  templates(): Promise<Template[]>
-  generate(appointmentId: string, templateId: string): Promise<void>
-  sign(draftId: string, fields: { key: string; value: string }[]): Promise<DraftEvent>
+  templates(language: string): Promise<Template[]>
+  generate(appointmentId: string, templateId: string, language: string): Promise<DraftEvent>
+  sign(draft: DraftEvent, fields: { key: string; value: string }[]): Promise<DraftEvent>
 }
 
+// SignRefused is a sign refused because required fields are empty; keys names them.
+export class SignRefused extends Error {
+  readonly keys: string[]
+
+  constructor(keys: string[]) {
+    super('required fields are empty')
+    this.keys = keys
+  }
+}
 
 // decodeMessage reads one frame of the live source. A frame that is not an envelope, or one of a type or
 // version this page does not know, is dropped, so a newer server does not break an open page.
@@ -52,6 +68,7 @@ export function decodeMessage(frame: string): ConsultMessage | undefined {
 }
 
 // shapes check the payload fields this page reads, so a malformed frame is dropped rather than breaking the page.
+// A suggestion is shown only as what its origin says it is, AI assistance (SAL-7).
 const str = (v: unknown) => typeof v === 'string'
 const time = (v: unknown) => typeof v === 'string' && !Number.isNaN(Date.parse(v))
 const strs = (v: unknown) => Array.isArray(v) && v.every(str)
@@ -64,7 +81,7 @@ const shapes = new Map<string, (p: Record<string, unknown>) => boolean>([
   ],
   [
     'suggestion',
-    (p) => str(p.id) && oneOf(p.type, ['diagnosis', 'question', 'red_flag', 'term']) && str(p.text) && strs(p.source_segment_ids) && oneOf(p.status, ['shown', 'dismissed', 'pinned']),
+    (p) => str(p.id) && oneOf(p.type, ['diagnosis', 'question', 'red_flag', 'term']) && str(p.text) && strs(p.source_segment_ids) && oneOf(p.status, ['shown', 'dismissed', 'pinned']) && p.origin === 'ai',
   ],
   [
     'draft',
@@ -101,8 +118,13 @@ export function apply(state: ConsultState, m: ConsultMessage): ConsultState {
     }
     case 'suggestion':
       return { ...state, suggestions: upsert(state.suggestions, m.payload, (s) => s.id) }
-    case 'draft':
+    case 'draft': {
+      // A draft's older version (a late event, a replay) never replaces a newer one: a redraft and a sign each
+      // make the next version.
+      const known = state.drafts.find((d) => d.draft_id === m.payload.draft_id)
+      if (known && (known.version_id ?? 0) > (m.payload.version_id ?? 0)) return state
       return { ...state, drafts: upsert(state.drafts, m.payload, (d) => d.draft_id) }
+    }
   }
 }
 
@@ -131,9 +153,33 @@ export function captionOf(state: ConsultState): TranscriptEvent | undefined {
   return state.segments.find((s) => s.segment_id === state.caption)
 }
 
-// useConsult follows the appointment's live source while active, folding every message into the state.
+// Live is the page's view of its live source: what it has received, and why it stopped, if it has.
+type Live = { state: ConsultState; end?: End }
+
+// Event is a message to fold in, the source's end, or the subscription's close, which clears that end.
+type Event = ConsultMessage | { type: 'end'; end: End } | { type: 'closed' }
+
+// follow folds an event into the view. An end drops everything received, and nothing that comes after it (a
+// late frame, an answer in flight) is taken: the page may no longer show it.
+function follow(live: Live, e: Event): Live {
+  if (e.type === 'end') return { state: empty, end: e.end }
+  if (e.type === 'closed') return live.end ? { state: live.state } : live
+  if (live.end) return live
+  return { ...live, state: apply(live.state, e) }
+}
+
+// useConsult follows the appointment's live source while active, folding every message into the state,
+// until the source ends. The end is forgotten once the subscription closes (the practitioner left), so it is
+// gone before the page is back in the call.
 export function useConsult(live: LiveSource | undefined, appointmentId: string, active: boolean) {
-  const [state, dispatch] = useReducer(apply, empty)
-  useEffect(() => (live && active ? live.subscribe(appointmentId, dispatch) : undefined), [live, appointmentId, active])
-  return [state, dispatch] as const
+  const [view, dispatch] = useReducer(follow, { state: empty })
+  useEffect(() => {
+    if (!live || !active) return
+    const close = live.subscribe(appointmentId, dispatch, (end) => dispatch({ type: 'end', end }))
+    return () => {
+      close()
+      dispatch({ type: 'closed' })
+    }
+  }, [live, appointmentId, active])
+  return [view.state, dispatch, view.end] as const
 }

@@ -79,7 +79,7 @@
   "live.inProgress": "U tijeku",
   "live.latest": "Prikaži najnovije",
   "live.suggestionsNote": {
-    "defaultMessage": "Prijedlozi su poticaji izvedeni iz transkripta, a ne dijagnoza. Svaka je odluka vaša.",
+    "defaultMessage": "AI prijedlozi su poticaji izvedeni iz transkripta, a ne dijagnoza. Svaka je odluka vaša.",
     "description": "legal"
   },
   "live.kind.diagnosis": "Prijedlog: dijagnoza koju treba razmotriti",
@@ -107,6 +107,7 @@
   "live.signQuestion": "Potpisati ovaj dokument?",
   "live.signFinal": "Nakon potpisivanja dokument je konačan i više se ne može mijenjati.",
   "live.signEmpty": "{count, plural, one {# polje je prazno i ostaje prazno.} few {# polja su prazna i ostaju prazna.} other {# polja je prazno i ostaje prazno.}}",
+  "live.requiredEmpty": "{count, plural, one {# obvezno polje je prazno. Ispunite ga prije potpisivanja.} few {# obvezna polja su prazna. Ispunite ih prije potpisivanja.} other {# obveznih polja je prazno. Ispunite ih prije potpisivanja.}}",
   "live.keepEditing": "Nastavi uređivati",
   "live.regenerateQuestion": "Ponovno generirati nacrt?",
   "live.regenerateReplaces": "Vaše izmjene polja zamjenjuje novi nacrt iz transkripta.",

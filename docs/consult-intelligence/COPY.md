@@ -29,8 +29,9 @@ string since the languages feature.
 - W8: "Show the latest" (`latest`): offered when new lines arrive while the practitioner has scrolled up.
 
 ### Suggestions
-- W9 (`suggestionsNote`, tagged `legal`): "Suggestions are prompts drawn from the transcript, not a diagnosis.
-  Every decision is yours."
+- W9 (`suggestionsNote`, tagged `legal`): "AI suggestions are prompts drawn from the transcript, not a diagnosis.
+  Every decision is yours." (changed by the owner, 2026-11-09, so that the page labels a suggestion as AI
+  assistance; was "Suggestions are prompts drawn from the transcript, not a diagnosis. Every decision is yours.")
 - W10, the label above each suggestion, one per kind (`kind.diagnosis`, `kind.question`, `kind.red_flag`,
   `kind.term`): "Suggestion: a diagnosis to consider", "Suggestion: a question to ask", "Suggestion: a red flag to
   check", "Suggestion: a term to explain".
@@ -57,6 +58,23 @@ string since the languages feature.
   (`regenerateReplaces`), with "Regenerate" and "Keep editing".
 - W23: "Signed. This document is final." (`signed`), "The document could not be signed. Try again."
   (`signFailed`)
+
+### Added in the wiring follow-up to #34 (approved by the owner, 2026-11-09)
+- W24 (`requiredEmpty`): "[count] required field is empty. Fill it in before you sign." / "[count] required fields
+  are empty. Fill them in before you sign.": shown instead of the sign confirmation while a field the template
+  marks required is empty (SAL-8 refuses such a sign, `422 required_missing`), and when the server refuses a sign
+  for that reason; the empty required fields are marked (`aria-invalid`, a red border). Approved as drafted by the
+  owner, 2026-11-09; the bs, hr, sr-Latn and sr-Cyrl texts stay drafts for a native speaker's check.
+
+### Reused on the call page, pending the owner's review (2026-11-09, the wiring follow-up to #34)
+No new string. When the live stream ends for good, the panel beside the video shows, instead of its tabs, an
+existing approved string of the consultation screens: `consultation.peerWithdrewConsent` (tagged `legal`) when the
+patient withdrew their consent, and `consultation.notAvailable` when the practitioner may no longer follow the
+consultation. A line whose translation failed (SAL-5) shows its original, as one still awaiting its translation:
+marking it ("translation unavailable") would need a new string, left for the owner to decide.
+
+The AI label (SAL-7's contract: whatever shows a suggestion labels it as AI assistance): closed by the owner,
+2026-11-09, by W9's new wording above; the page shows only suggestions whose `origin` is `ai`, below W9.
 
 Template titles and field labels are the clinic's own text, from its templates (`document_template`), not copy.
 Every medical line in the tests and fakes (`web/src/test/fakeConsult.ts`) is a labelled placeholder
