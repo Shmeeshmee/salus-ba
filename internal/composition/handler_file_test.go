@@ -26,3 +26,16 @@ func TestDecodeSeed_ReadsTheTemplateOfASeedFile(t *testing.T) {
 const templateJSON = `{"title":"T","language":"bs","status":"draft","typeCode":"57133-1",
 	"fields":[{"key":"a","type":"text","label":"L","required":true}],
 	"translations":[{"language":"en","title":"T","fields":{"a":{"label":"L"}}}]}`
+
+// A seed file is exactly one JSON object: anything after it is refused.
+func TestDecodeSeed_RefusesTrailingData(t *testing.T) {
+	t.Parallel()
+	for _, trailing := range []string{`{}`, `x`, `{"note":"y"}`} {
+		if _, err := composition.DecodeSeed(strings.NewReader(`{"note":"x","template":` + templateJSON + `}` + trailing)); !errors.Is(err, composition.ErrInvalidSeed) {
+			t.Errorf("DecodeSeed(… %s) = %v, want ErrInvalidSeed", trailing, err)
+		}
+	}
+	if _, err := composition.DecodeSeed(strings.NewReader(`{"note":"x","template":` + templateJSON + "}\n")); err != nil {
+		t.Errorf("DecodeSeed(with a final newline) = %v", err)
+	}
+}

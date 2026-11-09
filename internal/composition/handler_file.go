@@ -10,7 +10,8 @@ import (
 var ErrInvalidSeed = errors.New("composition: not a seed template file")
 
 // DecodeSeed reads a seed template file (assets/document-templates, salusctl document-templates seed): a note
-// saying what the template is and who is to review it, and the template as SaveDocumentTemplateRequest has it.
+// saying what the template is and who is to review it, and the template as SaveDocumentTemplateRequest has it;
+// exactly one JSON object.
 // Its content is checked by the service.
 func DecodeSeed(r io.Reader) (TemplateContent, error) {
 	var file struct {
@@ -26,7 +27,7 @@ func DecodeSeed(r io.Reader) (TemplateContent, error) {
 	}
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&file); err != nil || file.Template == nil || blank(file.Note) {
+	if err := dec.Decode(&file); err != nil || dec.Decode(&struct{}{}) != io.EOF || file.Template == nil || blank(file.Note) {
 		return TemplateContent{}, ErrInvalidSeed
 	}
 	t := file.Template

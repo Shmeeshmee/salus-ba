@@ -115,3 +115,27 @@ func TestRead_NotFound(t *testing.T) {
 		t.Errorf("Composition(down) = %v, want the failure", err)
 	}
 }
+
+// A refused read is audited on the resource the caller asked for, as other refusals are: also when it is not
+// found, and also for a DocumentReference read as its PDF.
+func TestRead_RefusalsAreAuditedOnTheResourceAskedFor(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	d := f.drafted(t)
+	signed, err := f.svc.Sign(t.Context(), pract, d.ID, values(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.audit.events = nil
+	_, _ = f.svc.Composition(t.Context(), pract2, d.ID)
+	_, _ = f.svc.Provenance(t.Context(), admin, signed.ProvenanceID)
+	_, _, _ = f.svc.PDF(t.Context(), pract2, signed.DocumentReferenceID)
+	_, _ = f.svc.Composition(t.Context(), pract, unknownID)
+	want := []string{
+		"read 4 Composition/" + d.ID, "read 4 Provenance/" + signed.ProvenanceID,
+		"read 4 DocumentReference/" + signed.DocumentReferenceID, "read 4 Composition/" + unknownID,
+	}
+	if got := f.codes(); !slices.Equal(got, want) {
+		t.Errorf("audit = %q, want %q", got, want)
+	}
+}

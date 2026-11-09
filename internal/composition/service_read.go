@@ -8,6 +8,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/pkg/envelope"
+	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
 
 // Document is a draft with its encounter, which gives its FHIR resources their subject, author and custodian.
@@ -94,7 +95,7 @@ type readCloser struct {
 }
 
 // read finds a draft by find and returns it with its encounter when the caller may read it, audited as a read
-// of the resource typ/id.
+// of the resource typ/id, a refusal too.
 func (s *Service) read(ctx context.Context, c appointment.Caller, typ, id string, find func(ctx context.Context, id string) (Draft, error)) (Document, error) {
 	var out Document
 	var refused error
@@ -102,7 +103,10 @@ func (s *Service) read(ctx context.Context, c appointment.Caller, typ, id string
 		e := entry{c: c, interaction: auditevent.CodeRead}
 		d, enc, err := s.reach(ctx, c, id, find)
 		if refused = refusal(err); refused != nil {
-			e.reference, e.outcome = encounterRef(enc.ID), auditevent.OutcomeMinorFailure
+			e.outcome = auditevent.OutcomeMinorFailure
+			if fhir.IsUUID(id) { // the resource asked for, as other refusals are audited; not an arbitrary path
+				e.reference = typ + "/" + id
+			}
 			return s.record(ctx, e)
 		}
 		if err != nil {
