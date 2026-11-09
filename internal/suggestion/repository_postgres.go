@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Shmeeshmee/salus/internal/suggestion/suggestiondb"
@@ -20,31 +21,67 @@ func NewPostgresRepository(db postgres.Querier) Repository {
 	return &postgresRepository{db: db}
 }
 
-func (r *postgresRepository) Save(ctx context.Context, e Event) (Saved, error) {
+var errNotUUID = errors.New("suggestion: an id is not a UUID")
+
+func (r *postgresRepository) Insert(ctx context.Context, e Event) (bool, error) {
 	var id, enc pgtype.UUID
 	if id.Scan(e.ID) != nil || enc.Scan(e.EncounterID) != nil {
-		return SavedUnchanged, errors.New("suggestion: an id is not a UUID")
+		return false, errNotUUID
 	}
 	sources := make([]pgtype.UUID, len(e.SourceSegmentIDs))
 	for i, s := range e.SourceSegmentIDs {
 		if sources[i].Scan(s) != nil {
-			return SavedUnchanged, errors.New("suggestion: a source segment id is not a UUID")
+			return false, errNotUUID
 		}
 	}
-	q := suggestiondb.New(postgres.Conn(ctx, r.db))
-	n, err := q.InsertSuggestion(ctx, suggestiondb.InsertSuggestionParams{
+	n, err := suggestiondb.New(postgres.Conn(ctx, r.db)).InsertSuggestion(ctx, suggestiondb.InsertSuggestionParams{
 		ID: id, EncounterID: enc, Type: string(e.Type), Text: e.Text, Confidence: e.Confidence, SourceSegmentIds: sources,
 		Status: string(e.Status),
 	})
+	return n == 1, err
+}
+
+func (r *postgresRepository) SetStatus(ctx context.Context, encounterID, id string, status Status) (Event, bool, error) {
+	var sid, enc pgtype.UUID
+	if sid.Scan(id) != nil || enc.Scan(encounterID) != nil {
+		return Event{}, false, ErrNotFound
+	}
+	row, err := suggestiondb.New(postgres.Conn(ctx, r.db)).UpdateSuggestionStatus(ctx, suggestiondb.UpdateSuggestionStatusParams{
+		ID: sid, EncounterID: enc, Status: string(status),
+	})
 	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Event{}, false, ErrNotFound
 	case err != nil:
-		return SavedUnchanged, err
-	case n == 1:
-		return SavedCreated, nil
+		return Event{}, false, err
 	}
-	n, err = q.UpdateSuggestionStatus(ctx, suggestiondb.UpdateSuggestionStatusParams{Status: string(e.Status), ID: id, EncounterID: enc})
-	if err != nil || n == 0 {
-		return SavedUnchanged, err
+	return event(row.ID, row.EncounterID, row.Type, row.Text, string(status), row.Confidence, row.SourceSegmentIds), row.Changed, nil
+}
+
+func (r *postgresRepository) ByEncounter(ctx context.Context, encounterID string) ([]Event, error) {
+	var enc pgtype.UUID
+	if enc.Scan(encounterID) != nil {
+		return nil, errNotUUID
 	}
-	return SavedUpdated, nil
+	rows, err := suggestiondb.New(postgres.Conn(ctx, r.db)).SuggestionsByEncounter(ctx, enc)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Event, len(rows))
+	for i, row := range rows {
+		out[i] = event(row.ID, row.EncounterID, row.Type, row.Text, row.Status, row.Confidence, row.SourceSegmentIds)
+	}
+	return out, nil
+}
+
+// event maps a row to its event.
+func event(id, enc pgtype.UUID, typ, text, status string, confidence float32, sources []pgtype.UUID) Event {
+	e := Event{
+		ID: id.String(), EncounterID: enc.String(), Type: Type(typ), Text: text, Status: Status(status), Origin: OriginAI,
+		Confidence: confidence, SourceSegmentIDs: make([]string, len(sources)),
+	}
+	for i, s := range sources {
+		e.SourceSegmentIDs[i] = s.String()
+	}
+	return e
 }

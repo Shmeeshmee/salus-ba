@@ -145,6 +145,7 @@ enum ConsultFrameTypeEnum {
   transcript._(r'transcript'),
   suggestion._(r'suggestion'),
   draft._(r'draft'),
+  commandError._(r'command_error'),
   cursor._(r'cursor'),
   ;
 
@@ -215,6 +216,8 @@ class ConsultFrameTypeEnumTypeTransformer {
           return ConsultFrameTypeEnum.suggestion;
         case r'draft':
           return ConsultFrameTypeEnum.draft;
+        case r'command_error':
+          return ConsultFrameTypeEnum.commandError;
         case r'cursor':
           return ConsultFrameTypeEnum.cursor;
         default:

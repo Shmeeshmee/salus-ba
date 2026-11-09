@@ -8,7 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/migrations"
+	"github.com/Shmeeshmee/salus/pkg/llm"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 )
@@ -30,6 +33,52 @@ func TestRun_StartsRiverAndStopsCleanly(t *testing.T) {
 		if !strings.Contains(logs, msg) {
 			t.Errorf("logs lack %s:\n%s", msg, logs)
 		}
+	}
+}
+
+// The suggestions' model is the one config.LoadLLM chooses: the fake by default, Anthropic's API only with its
+// key, which no log line holds.
+func TestRun_StartsWithTheConfiguredLanguageModel(t *testing.T) {
+	for _, tt := range []struct {
+		env  map[string]string
+		want string
+	}{
+		{map[string]string{"LLM_ENGINE": ""}, `"llm_engine":"fake"`},
+		{map[string]string{"LLM_ENGINE": "anthropic", "ANTHROPIC_API_KEY": "llm-key-marker"}, `"llm_engine":"anthropic"`},
+	} {
+		dbURL := pgtest.NewDatabaseURL(t)
+		t.Setenv("DATABASE_URL", pgtest.AppURL(t, dbURL))
+		t.Setenv("RETENTION_DATABASE_URL", pgtest.RetentionURL(t, dbURL))
+		t.Setenv("REDIS_URL", redistest.URL(t))
+		setLiveKit(t)
+		setFiles(t)
+		for k, v := range tt.env {
+			t.Setenv(k, v)
+		}
+		logs, err := runUntilStarted(t)
+		if err != nil || !strings.Contains(logs, tt.want) || strings.Contains(logs, "marker") {
+			t.Errorf("%v: run() = %v, logs:\n%s\nwant %s, without the key", tt.env, err, logs, tt.want)
+		}
+	}
+	t.Setenv("LLM_ENGINE", "anthropic")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	if err := run(t.Context(), &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "ANTHROPIC_API_KEY") {
+		t.Errorf("anthropic without its key: run() = %v, want the missing setting named", err)
+	}
+}
+
+// The default suggester keeps no calls: a worker running for months holds no more memory than its first run.
+func TestNewSuggester_TheFakeKeepsNoCalls(t *testing.T) {
+	s, err := newSuggester(config.LLM{Engine: config.LLMFake})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake, ok := s.(*llmtest.Suggester)
+	if !ok {
+		t.Fatalf("the default suggester is %T, want the fake", s)
+	}
+	if _, err := fake.Suggest(t.Context(), llm.SuggestRequest{Lang: "bs"}); err != nil || len(fake.Calls()) != 0 {
+		t.Errorf("the fake suggested (%v) and kept %d calls, want none", err, len(fake.Calls()))
 	}
 }
 

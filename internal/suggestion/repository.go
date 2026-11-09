@@ -2,23 +2,15 @@ package suggestion
 
 import "context"
 
-// Saved is what a Save did.
-type Saved int
-
-// The outcomes of a Save.
-const (
-	// SavedUnchanged: the suggestion is stored already with that status (an event delivered again).
-	SavedUnchanged Saved = iota
-	// SavedCreated: the suggestion was new and is stored.
-	SavedCreated
-	// SavedUpdated: the stored suggestion took the event's status.
-	SavedUpdated
-)
-
 // Repository stores the suggestions (suggestion). Row-level security shows a transaction the suggestions of
 // the encounters its clinic's scope shows; the encounter's service sets the scope.
 type Repository interface {
-	// Save stores the suggestion of e under its ID when it is new; when it is stored already for e's
-	// encounter, it takes e's status and nothing else (what was suggested, and from what, never changes).
-	Save(ctx context.Context, e Event) (Saved, error)
+	// Insert stores the suggestion of e under its ID unless one with that id is stored already, and reports
+	// whether this call stored it. What was suggested, and from what, never changes.
+	Insert(ctx context.Context, e Event) (bool, error)
+	// SetStatus sets the status of the encounter's suggestion id and returns it, and whether this call changed
+	// it; ErrNotFound for no such suggestion of the encounter in the scope.
+	SetStatus(ctx context.Context, encounterID, id string, status Status) (Event, bool, error)
+	// ByEncounter returns the encounter's suggestions, oldest first.
+	ByEncounter(ctx context.Context, encounterID string) ([]Event, error)
 }

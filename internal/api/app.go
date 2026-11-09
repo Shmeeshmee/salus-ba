@@ -31,6 +31,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot"
+	"github.com/Shmeeshmee/salus/internal/suggestion"
 	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/internal/transcript"
 	"github.com/Shmeeshmee/salus/internal/videosession"
@@ -195,14 +196,19 @@ func newConsultation(pool *pgxpool.Pool, lk config.LiveKit, jobs *river.Client[p
 }
 
 // newTranscripts builds the handler of the encounter's live events (its Redis Stream on rdb) and of its stored
-// transcript, for its practitioner.
+// transcript, for its practitioner, with the suggestions' statuses they set on the stream.
 func newTranscripts(pool *pgxpool.Pool, rdb *goredis.Client, audit *auditevent.Service, tx *postgres.Transactor, encounters *encounter.Service,
 	consents *consent.Service, caller func(ctx context.Context) (appointment.Caller, bool, error), log *slog.Logger,
 ) *transcript.HTTPHandler {
-	return transcript.NewHTTPHandler(transcript.NewService(transcript.Ports{
+	transcripts := transcript.NewService(transcript.Ports{
 		Repo: transcript.NewPostgresRepository(pool), Stream: transcript.NewRedisStream(rdb), Encounters: encounters, Consents: consents,
 		Audit: audit, Tx: tx,
-	}), caller, clock.System{}, log)
+	})
+	suggestions := suggestion.NewService(suggestion.Ports{
+		Repo: suggestion.NewPostgresRepository(pool), Encounters: encounters, Consents: consents, Records: transcripts,
+		Publisher: suggestion.NewRedisPublisher(rdb), Audit: audit, Tx: tx,
+	})
+	return transcript.NewHTTPHandler(transcripts, suggestion.NewCommandHandler(suggestions, log), caller, clock.System{}, log)
 }
 
 // s3PageSize is the object store listing's page, S3's largest.

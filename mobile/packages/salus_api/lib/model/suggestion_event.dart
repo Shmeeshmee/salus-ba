@@ -17,6 +17,7 @@ class SuggestionEvent {
     required this.encounterId,
     required this.type,
     required this.text,
+    required this.origin,
     required this.confidence,
     this.sourceSegmentIds = const [],
     required this.status,
@@ -26,9 +27,13 @@ class SuggestionEvent {
 
   String encounterId;
 
+  /// What the suggestion prompts: a diagnosis to consider (not one made), a question to ask, a red flag to check, or a term to explain.
   SuggestionEventTypeEnum type;
 
   String text;
+
+  /// Always `ai`, an AI model's suggestion, shown as AI assistance.
+  SuggestionEventOriginEnum origin;
 
   /// Minimum value: 0
   /// Maximum value: 1
@@ -46,6 +51,7 @@ class SuggestionEvent {
           other.encounterId == encounterId &&
           other.type == type &&
           other.text == text &&
+          other.origin == origin &&
           other.confidence == confidence &&
           _deepEquality.equals(other.sourceSegmentIds, sourceSegmentIds) &&
           other.status == status;
@@ -57,13 +63,14 @@ class SuggestionEvent {
       (encounterId.hashCode) +
       (type.hashCode) +
       (text.hashCode) +
+      (origin.hashCode) +
       (confidence.hashCode) +
       (sourceSegmentIds.hashCode) +
       (status.hashCode);
 
   @override
   String toString() =>
-      'SuggestionEvent[id=$id, encounterId=$encounterId, type=$type, text=$text, confidence=$confidence, sourceSegmentIds=$sourceSegmentIds, status=$status]';
+      'SuggestionEvent[id=$id, encounterId=$encounterId, type=$type, text=$text, origin=$origin, confidence=$confidence, sourceSegmentIds=$sourceSegmentIds, status=$status]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -71,6 +78,7 @@ class SuggestionEvent {
     json[r'encounter_id'] = this.encounterId;
     json[r'type'] = this.type;
     json[r'text'] = this.text;
+    json[r'origin'] = this.origin;
     json[r'confidence'] = this.confidence;
     json[r'source_segment_ids'] = this.sourceSegmentIds;
     json[r'status'] = this.status;
@@ -104,6 +112,10 @@ class SuggestionEvent {
             'Required key "SuggestionEvent[text]" is missing from JSON.');
         assert(json[r'text'] != null,
             'Required key "SuggestionEvent[text]" has a null value in JSON.');
+        assert(json.containsKey(r'origin'),
+            'Required key "SuggestionEvent[origin]" is missing from JSON.');
+        assert(json[r'origin'] != null,
+            'Required key "SuggestionEvent[origin]" has a null value in JSON.');
         assert(json.containsKey(r'confidence'),
             'Required key "SuggestionEvent[confidence]" is missing from JSON.');
         assert(json[r'confidence'] != null,
@@ -124,6 +136,7 @@ class SuggestionEvent {
         encounterId: mapValueOfType<String>(json, r'encounter_id')!,
         type: SuggestionEventTypeEnum.fromJson(json[r'type'])!,
         text: mapValueOfType<String>(json, r'text')!,
+        origin: SuggestionEventOriginEnum.fromJson(json[r'origin'])!,
         confidence: num.parse('${json[r'confidence']}'),
         sourceSegmentIds: json[r'source_segment_ids'] is Iterable
             ? (json[r'source_segment_ids'] as Iterable)
@@ -191,12 +204,14 @@ class SuggestionEvent {
     'encounter_id',
     'type',
     'text',
+    'origin',
     'confidence',
     'source_segment_ids',
     'status',
   };
 }
 
+/// What the suggestion prompts: a diagnosis to consider (not one made), a question to ask, a red flag to check, or a term to explain.
 enum SuggestionEventTypeEnum {
   diagnosis._(r'diagnosis'),
   question._(r'question'),
@@ -284,6 +299,87 @@ class SuggestionEventTypeEnumTypeTransformer {
 
   /// The singleton instance of this transformer.
   static SuggestionEventTypeEnumTypeTransformer? _instance;
+}
+
+/// Always `ai`, an AI model's suggestion, shown as AI assistance.
+enum SuggestionEventOriginEnum {
+  ai._(r'ai'),
+  ;
+
+  /// Instantiate a new enum with the provided value.
+  const SuggestionEventOriginEnum._(this._value);
+
+  /// The underlying value of this enum member.
+  final String _value;
+
+  @override
+  String toString() => _value;
+
+  /// Encodes this enum as a value suitable for JSON.
+  String toJson() => _value;
+
+  /// Returns the instance of [SuggestionEventOriginEnum] that was successfully decoded
+  /// from the passed [value] on success, null otherwise.
+  static SuggestionEventOriginEnum? fromJson(dynamic value) =>
+      SuggestionEventOriginEnumTypeTransformer().decode(value);
+
+  /// Returns a [List] containing instances of [SuggestionEventOriginEnum]
+  /// that were successfully decoded from the passed [JSON][json].
+  static List<SuggestionEventOriginEnum> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final result = <SuggestionEventOriginEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = SuggestionEventOriginEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [SuggestionEventOriginEnum] to String,
+/// and [decode] dynamic data back to [SuggestionEventOriginEnum].
+class SuggestionEventOriginEnumTypeTransformer {
+  factory SuggestionEventOriginEnumTypeTransformer() =>
+      _instance ??= const SuggestionEventOriginEnumTypeTransformer._();
+
+  const SuggestionEventOriginEnumTypeTransformer._();
+
+  String encode(SuggestionEventOriginEnum data) => data._value;
+
+  /// Returns the instance of [SuggestionEventOriginEnum] that was successfully decoded
+  /// from the passed [data] value on success, null otherwise.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  SuggestionEventOriginEnum? decode(dynamic data, {bool allowNull = true}) {
+    if (data is SuggestionEventOriginEnum) {
+      return data;
+    }
+    if (data != null) {
+      switch (data) {
+        case r'ai':
+          return SuggestionEventOriginEnum.ai;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// The singleton instance of this transformer.
+  static SuggestionEventOriginEnumTypeTransformer? _instance;
 }
 
 enum SuggestionEventStatusEnum {

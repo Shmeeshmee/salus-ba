@@ -224,12 +224,18 @@ class ApiClient {
           return Binary.fromJson(value);
         case 'BookAppointmentRequest':
           return BookAppointmentRequest.fromJson(value);
+        case 'CommandError':
+          return CommandError.fromJson(value);
+        case 'CommandErrorMessage':
+          return CommandErrorMessage.fromJson(value);
         case 'ConfirmRequest':
           return ConfirmRequest.fromJson(value);
         case 'Consent':
           return Consent.fromJson(value);
         case 'ConsentList':
           return ConsentList.fromJson(value);
+        case 'ConsultCommand':
+          return ConsultCommand.fromJson(value);
         case 'ConsultFrame':
           return ConsultFrame.fromJson(value);
         case 'ConsultMessage':
@@ -320,6 +326,10 @@ class ApiClient {
           return SuggestionEvent.fromJson(value);
         case 'SuggestionMessage':
           return SuggestionMessage.fromJson(value);
+        case 'SuggestionStatus':
+          return SuggestionStatus.fromJson(value);
+        case 'SuggestionStatusMessage':
+          return SuggestionStatusMessage.fromJson(value);
         case 'Term':
           return Term.fromJson(value);
         case 'TermCategory':

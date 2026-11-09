@@ -44,23 +44,95 @@ func (q *Queries) InsertSuggestion(ctx context.Context, arg InsertSuggestionPara
 	return result.RowsAffected(), nil
 }
 
-const updateSuggestionStatus = `-- name: UpdateSuggestionStatus :execrows
-UPDATE suggestion
-SET status = $1, updated_at = now(), version_id = version_id + 1
-WHERE id = $2 AND encounter_id = $3 AND status <> $1
+const suggestionsByEncounter = `-- name: SuggestionsByEncounter :many
+SELECT id, encounter_id, type, text, confidence, source_segment_ids, status
+FROM suggestion
+WHERE encounter_id = $1
+ORDER BY created_at, id
+`
+
+type SuggestionsByEncounterRow struct {
+	ID               pgtype.UUID
+	EncounterID      pgtype.UUID
+	Type             string
+	Text             string
+	Confidence       float32
+	SourceSegmentIds []pgtype.UUID
+	Status           string
+}
+
+// The encounter's suggestions, oldest first.
+func (q *Queries) SuggestionsByEncounter(ctx context.Context, encounterID pgtype.UUID) ([]SuggestionsByEncounterRow, error) {
+	rows, err := q.db.Query(ctx, suggestionsByEncounter, encounterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SuggestionsByEncounterRow
+	for rows.Next() {
+		var i SuggestionsByEncounterRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EncounterID,
+			&i.Type,
+			&i.Text,
+			&i.Confidence,
+			&i.SourceSegmentIds,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateSuggestionStatus = `-- name: UpdateSuggestionStatus :one
+WITH current AS (
+    SELECT s.id FROM suggestion s WHERE s.id = $1 AND s.encounter_id = $2 FOR UPDATE
+), updated AS (
+    UPDATE suggestion u
+    SET status = $3, updated_at = now(), version_id = u.version_id + 1
+    FROM current
+    WHERE u.id = current.id AND u.status <> $3
+    RETURNING u.id
+)
+SELECT s.id, s.encounter_id, s.type, s.text, s.confidence, s.source_segment_ids, (SELECT count(*) FROM updated) > 0 AS changed
+FROM suggestion s JOIN current ON current.id = s.id
 `
 
 type UpdateSuggestionStatusParams struct {
-	Status      string
 	ID          pgtype.UUID
 	EncounterID pgtype.UUID
+	Status      string
 }
 
-// What the practitioner did with a stored suggestion of the encounter; the same status again changes nothing.
-func (q *Queries) UpdateSuggestionStatus(ctx context.Context, arg UpdateSuggestionStatusParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateSuggestionStatus, arg.Status, arg.ID, arg.EncounterID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+type UpdateSuggestionStatusRow struct {
+	ID               pgtype.UUID
+	EncounterID      pgtype.UUID
+	Type             string
+	Text             string
+	Confidence       float32
+	SourceSegmentIds []pgtype.UUID
+	Changed          bool
+}
+
+// What the practitioner did with a stored suggestion of the encounter, and whether it changed: the same status
+// again changes nothing (changed is false). No row for no such suggestion of the encounter.
+func (q *Queries) UpdateSuggestionStatus(ctx context.Context, arg UpdateSuggestionStatusParams) (UpdateSuggestionStatusRow, error) {
+	row := q.db.QueryRow(ctx, updateSuggestionStatus, arg.ID, arg.EncounterID, arg.Status)
+	var i UpdateSuggestionStatusRow
+	err := row.Scan(
+		&i.ID,
+		&i.EncounterID,
+		&i.Type,
+		&i.Text,
+		&i.Confidence,
+		&i.SourceSegmentIds,
+		&i.Changed,
+	)
+	return i, err
 }

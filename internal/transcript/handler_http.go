@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -23,7 +24,8 @@ const (
 	pingEvery = 25 * time.Second
 	pongWait  = 60 * time.Second
 	writeWait = 10 * time.Second
-	// readLimit bounds a frame from the client, which has nothing to send but control frames.
+	// readLimit bounds a frame from the client: a command (a suggestion's status) is about a hundred bytes. A
+	// frame over it ends the socket.
 	readLimit = 512
 )
 
@@ -40,11 +42,39 @@ type Transcripts interface {
 	Next(ctx context.Context, c appointment.Caller, encounterID, after string) ([]Entry, error)
 }
 
+// Commands handles a message the client sends on the event stream (ConsultCommand in api/openapi.yaml), in the
+// wire envelope, for the signed-in caller and the stream's encounter, and returns the frame to answer with, or
+// nil for none. It checks the caller's access itself, and audits.
+type Commands interface {
+	Command(ctx context.Context, c appointment.Caller, encounterID string, env wire.Envelope) []byte
+}
+
+// The type and version of the frame that answers a client's message that failed (CommandErrorMessage).
+const (
+	CommandErrorType    = "command_error"
+	CommandErrorVersion = 1
+)
+
+// CommandError is the payload of a command_error frame: the type of the client's message ("" when it was no
+// envelope), the id it named when it named one, and the error's code.
+type CommandError struct {
+	Command string `json:"command"`
+	ID      string `json:"id,omitempty"`
+	Error   string `json:"error"`
+}
+
+// CommandErrorFrame is the command_error frame of e.
+func CommandErrorFrame(e CommandError) []byte {
+	b, _ := wire.Encode(CommandErrorType, CommandErrorVersion, e) // a struct of strings always encodes
+	return b
+}
+
 // HTTPHandler serves the transcript's JSON API (api/openapi.yaml): the encounter's live events over a
 // WebSocket and its stored transcript. Errors are {"error": "<code>"}; internal error text goes to the log
 // only, and no log line holds an envelope or anything said.
 type HTTPHandler struct {
-	svc Transcripts
+	svc      Transcripts
+	commands Commands // nil: every message is an unknown command
 	// caller is who is signed in for the request, and false for nobody (internal/api).
 	caller   func(ctx context.Context) (appointment.Caller, bool, error)
 	clock    clock.Clock // for the socket's deadlines and pings
@@ -52,9 +82,10 @@ type HTTPHandler struct {
 	upgrader websocket.Upgrader
 }
 
-// NewHTTPHandler returns the handler on svc; clk times the socket's deadlines and pings.
-func NewHTTPHandler(svc Transcripts, caller func(ctx context.Context) (appointment.Caller, bool, error), clk clock.Clock, log *slog.Logger) *HTTPHandler {
-	return &HTTPHandler{svc: svc, caller: caller, clock: clk, log: log, upgrader: websocket.Upgrader{CheckOrigin: sameOrigin}}
+// NewHTTPHandler returns the handler on svc, handing the client's messages to commands; clk times the socket's
+// deadlines and pings.
+func NewHTTPHandler(svc Transcripts, commands Commands, caller func(ctx context.Context) (appointment.Caller, bool, error), clk clock.Clock, log *slog.Logger) *HTTPHandler {
+	return &HTTPHandler{svc: svc, commands: commands, caller: caller, clock: clk, log: log, upgrader: websocket.Upgrader{CheckOrigin: sameOrigin}}
 }
 
 // Routes declares the transcript's export on mux.
@@ -117,12 +148,34 @@ func (h *HTTPHandler) events(w http.ResponseWriter, r *http.Request) {
 	h.forward(r, conn, c, id, after)
 }
 
+// socket is the connection with its writes made one at a time: the stream's frames and the commands' answers
+// come from two goroutines. Control frames (WriteControl) need no lock.
+type socket struct {
+	conn *websocket.Conn
+	mu   sync.Mutex
+}
+
+// write writes each frame as a text message, each within writeWait of clk's now.
+func (s *socket) write(clk clock.Clock, frames ...[]byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, f := range frames {
+		_ = s.conn.SetWriteDeadline(clk.Now().Add(writeWait))
+		if err := s.conn.WriteMessage(websocket.TextMessage, f); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // forward sends each entry after the cursor as a cursor frame and then its envelope's bytes unchanged, until
-// the client leaves or Next refuses, which closes the socket with the reason.
+// the client leaves or Next refuses, which closes the socket with the reason; meanwhile the client's messages
+// go to the commands.
 func (h *HTTPHandler) forward(r *http.Request, conn *websocket.Conn, c appointment.Caller, id, after string) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	go h.discard(conn, cancel)
+	sock := &socket{conn: conn}
+	go h.receive(ctx, sock, c, id, cancel)
 	pinged := h.clock.Now()
 	for {
 		entries, err := h.svc.Next(ctx, c, id, after)
@@ -135,7 +188,7 @@ func (h *HTTPHandler) forward(r *http.Request, conn *websocket.Conn, c appointme
 		}
 		for _, e := range entries {
 			if e.Envelope != nil {
-				if err := h.send(conn, e); err != nil {
+				if err := h.send(sock, e); err != nil {
 					return
 				}
 			}
@@ -151,32 +204,49 @@ func (h *HTTPHandler) forward(r *http.Request, conn *websocket.Conn, c appointme
 }
 
 // send writes the entry's cursor frame and then its envelope, each within writeWait.
-func (h *HTTPHandler) send(conn *websocket.Conn, e Entry) error {
+func (h *HTTPHandler) send(sock *socket, e Entry) error {
 	frame, err := wire.Encode(CursorType, CursorVersion, Cursor{ID: e.ID})
 	if err != nil {
 		return err
 	}
-	for _, f := range [][]byte{frame, e.Envelope} {
-		_ = conn.SetWriteDeadline(h.clock.Now().Add(writeWait))
-		if err := conn.WriteMessage(websocket.TextMessage, f); err != nil {
-			return err
-		}
-	}
-	return nil
+	return sock.write(h.clock, frame, e.Envelope)
 }
 
-// discard reads the client's frames, which carry nothing but control frames (pongs, the close), until the
-// connection fails or the client goes silent past pongWait; then it cancels the stream.
-func (h *HTTPHandler) discard(conn *websocket.Conn, cancel context.CancelFunc) {
+// receive reads the client's frames until the connection fails, a frame is over readLimit, or the client goes
+// silent past pongWait; then it cancels the stream. Each text frame is a command: decoded from its envelope and
+// handed to the commands, whose answer goes back on the socket.
+func (h *HTTPHandler) receive(ctx context.Context, sock *socket, c appointment.Caller, id string, cancel context.CancelFunc) {
 	defer cancel()
+	conn := sock.conn
 	conn.SetReadLimit(readLimit)
 	_ = conn.SetReadDeadline(h.clock.Now().Add(pongWait))
 	conn.SetPongHandler(func(string) error { return conn.SetReadDeadline(h.clock.Now().Add(pongWait)) })
 	for {
-		if _, _, err := conn.NextReader(); err != nil {
+		typ, msg, err := conn.ReadMessage()
+		if err != nil {
 			return
 		}
+		if typ != websocket.TextMessage {
+			continue
+		}
+		if answer := h.command(ctx, c, id, msg); answer != nil {
+			if err := sock.write(h.clock, answer); err != nil {
+				return
+			}
+		}
 	}
+}
+
+// command is the answer to the client's message msg, or nil.
+func (h *HTTPHandler) command(ctx context.Context, c appointment.Caller, id string, msg []byte) []byte {
+	env, err := wire.Decode(msg)
+	switch {
+	case err != nil:
+		return CommandErrorFrame(CommandError{Error: "invalid_message"})
+	case h.commands == nil:
+		return CommandErrorFrame(CommandError{Command: env.Type, Error: "unknown_command"})
+	}
+	return h.commands.Command(ctx, c, id, env)
 }
 
 // close ends the socket for err: the end of access with its reason, anything else logged as internal.

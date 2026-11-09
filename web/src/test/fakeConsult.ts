@@ -37,6 +37,7 @@ export function suggestion(p: Partial<SuggestionEvent> = {}): ConsultMessage {
       confidence: 0.5,
       source_segment_ids: ['a1000000-0000-4000-8000-000000000001'],
       status: 'shown',
+      origin: 'ai',
       ...p,
     },
   }

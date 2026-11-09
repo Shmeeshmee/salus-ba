@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/Shmeeshmee/salus/internal/suggestion"
@@ -24,6 +25,7 @@ func valid() suggestion.Event {
 		Confidence:       0.75,
 		SourceSegmentIDs: []string{segmentID},
 		Status:           suggestion.StatusShown,
+		Origin:           suggestion.OriginAI,
 	}
 }
 
@@ -35,7 +37,7 @@ func TestEvent_EncodesToTheContractsJSON(t *testing.T) {
 	}
 	// Key order follows the struct, laid out for govet's fieldalignment; JSON gives it no meaning.
 	want := `{"id":"` + suggestionID + `","encounter_id":"` + encounterID + `","type":"question",` +
-		`"text":"Placeholder question to ask","status":"shown","source_segment_ids":["` + segmentID + `"],"confidence":0.75}`
+		`"text":"Placeholder question to ask","status":"shown","origin":"ai","source_segment_ids":["` + segmentID + `"],"confidence":0.75}`
 	if string(got) != want {
 		t.Errorf("json =\n%s\nwant\n%s", got, want)
 	}
@@ -53,6 +55,7 @@ func TestEvent_ValidateAcceptsAValidEvent(t *testing.T) {
 		"no confidence":     func(e *suggestion.Event) { e.Confidence = 0 },
 		"full confidence":   func(e *suggestion.Event) { e.Confidence = 1 },
 		"from two segments": func(e *suggestion.Event) { e.SourceSegmentIDs = append(e.SourceSegmentIDs, suggestionID) },
+		"the longest text":  func(e *suggestion.Event) { e.Text = strings.Repeat("ž", suggestion.MaxTextLength) },
 	} {
 		e := valid()
 		change(&e)
@@ -75,6 +78,9 @@ func TestEvent_ValidateRefusesAnInvalidEvent(t *testing.T) {
 		"no source":             func(e *suggestion.Event) { e.SourceSegmentIDs = nil },
 		"a source no UUID":      func(e *suggestion.Event) { e.SourceSegmentIDs = []string{segmentID, "s2"} },
 		"an unknown status":     func(e *suggestion.Event) { e.Status = "accepted" },
+		"a text too long":       func(e *suggestion.Event) { e.Text = strings.Repeat("ž", suggestion.MaxTextLength+1) },
+		"no origin":             func(e *suggestion.Event) { e.Origin = "" },
+		"a practitioner origin": func(e *suggestion.Event) { e.Origin = "practitioner" },
 	} {
 		e := valid()
 		change(&e)

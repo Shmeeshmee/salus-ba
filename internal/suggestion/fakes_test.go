@@ -5,12 +5,15 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/Shmeeshmee/salus/internal/access"
+	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/suggestion"
+	"github.com/Shmeeshmee/salus/internal/transcript"
 )
 
 // Synthetic ids.
@@ -52,32 +55,67 @@ func inTx(ctx context.Context) error {
 // fakeRepository holds the suggestions by id, written only in a clinic's scope: what was suggested never
 // changes, its status does.
 type fakeRepository struct {
-	f    *fixture
-	err  error
-	rows map[string]suggestion.Event
+	f          *fixture
+	err        error
+	failInsert error // Insert's alone
+	rows       map[string]suggestion.Event
 }
 
-func (r *fakeRepository) Save(ctx context.Context, e suggestion.Event) (suggestion.Saved, error) {
+func (r *fakeRepository) Insert(ctx context.Context, e suggestion.Event) (bool, error) {
 	if err := inTx(ctx); err != nil {
-		return 0, err
+		return false, err
 	}
 	if r.err != nil {
-		return 0, r.err
+		return false, r.err
+	}
+	if r.failInsert != nil {
+		return false, r.failInsert
 	}
 	if r.f.scope == "" {
-		return 0, errors.New("write outside a clinic's scope")
+		return false, errors.New("write outside a clinic's scope")
 	}
-	got, ok := r.rows[e.ID]
-	switch {
-	case !ok:
-		r.rows[e.ID] = e
-		return suggestion.SavedCreated, nil
-	case got.EncounterID != e.EncounterID || got.Status == e.Status:
-		return suggestion.SavedUnchanged, nil
+	if _, ok := r.rows[e.ID]; ok {
+		return false, nil
 	}
-	got.Status = e.Status
-	r.rows[e.ID] = got
-	return suggestion.SavedUpdated, nil
+	r.rows[e.ID] = e
+	return true, nil
+}
+
+func (r *fakeRepository) SetStatus(ctx context.Context, encounterID, id string, status suggestion.Status) (suggestion.Event, bool, error) {
+	if err := inTx(ctx); err != nil {
+		return suggestion.Event{}, false, err
+	}
+	if r.err != nil {
+		return suggestion.Event{}, false, r.err
+	}
+	got, ok := r.rows[id]
+	if !ok || r.f.scope == "" || got.EncounterID != encounterID {
+		return suggestion.Event{}, false, suggestion.ErrNotFound
+	}
+	changed := got.Status != status
+	got.Status = status
+	r.rows[id] = got
+	return got, changed, nil
+}
+
+// ByEncounter gives the encounter's suggestions in the order of their ids (the fake keeps no time).
+func (r *fakeRepository) ByEncounter(ctx context.Context, encounterID string) ([]suggestion.Event, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	if r.err != nil {
+		return nil, r.err
+	}
+	if r.f.scope == "" {
+		return nil, errors.New("read outside a clinic's scope")
+	}
+	var out []suggestion.Event
+	for _, id := range slices.Sorted(maps.Keys(r.rows)) {
+		if e := r.rows[id]; e.EncounterID == encounterID {
+			out = append(out, e)
+		}
+	}
+	return out, nil
 }
 
 // fakeEncounters gives encounter A (patient A, clinic A) to the system path, scoping the transaction to its
@@ -134,7 +172,58 @@ func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error
 	return nil
 }
 
+// fakeRecords is the stream's rule (transcript.Service.Allowed): refused with err, else the encounter's
+// practitioner may act on encounter A, scoping the transaction to its clinic; it checks it runs in a
+// transaction.
+type fakeRecords struct {
+	f   *fixture
+	err error
+	id  string // the encounter disclosed with err
+}
+
+func (r *fakeRecords) Allowed(ctx context.Context, _ appointment.Caller, id string) (string, error) {
+	if err := inTx(ctx); err != nil {
+		return "", err
+	}
+	if r.err != nil {
+		return r.id, r.err
+	}
+	if id != encounterID {
+		return "", transcript.ErrNotFound
+	}
+	r.f.scope = clinicA
+	return id, nil
+}
+
+// fakePublisher records what was published, by encounter.
+type fakePublisher struct {
+	err       error
+	published []published
+	mu        sync.Mutex
+	inTx      bool // a publish was made inside a transaction
+}
+
+type published struct {
+	encounterID string
+	envelope    []byte
+}
+
+func (p *fakePublisher) Publish(ctx context.Context, encounterID string, envelope []byte) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if ctx.Value(txKey{}) != nil {
+		p.inTx = true
+	}
+	if p.err != nil {
+		return p.err
+	}
+	p.published = append(p.published, published{encounterID, slices.Clone(envelope)})
+	return nil
+}
+
 type fixture struct {
+	records    *fakeRecords
+	publisher  *fakePublisher
 	repo       *fakeRepository
 	encounters *fakeEncounters
 	consents   *fakeConsents
@@ -145,10 +234,13 @@ type fixture struct {
 
 // newFixture is clinic A's encounter A of patient A, with an active consent.
 func newFixture() *fixture {
-	f := &fixture{consents: &fakeConsents{state: access.Consent{Active: true}}, audit: &fakeAuditor{}}
+	f := &fixture{consents: &fakeConsents{state: access.Consent{Active: true}}, audit: &fakeAuditor{}, publisher: &fakePublisher{}}
 	f.repo = &fakeRepository{f: f, rows: map[string]suggestion.Event{}}
 	f.encounters = &fakeEncounters{f: f}
-	f.svc = suggestion.NewService(suggestion.Ports{Repo: f.repo, Encounters: f.encounters, Consents: f.consents, Audit: f.audit, Tx: fakeTransactor{f: f}})
+	f.records = &fakeRecords{f: f}
+	f.svc = suggestion.NewService(suggestion.Ports{Repo: f.repo, Encounters: f.encounters, Consents: f.consents, Audit: f.audit, Tx: fakeTransactor{f: f},
+		Records: f.records, Publisher: f.publisher,
+	})
 	return f
 }
 

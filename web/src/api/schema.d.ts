@@ -700,7 +700,7 @@ export interface paths {
         };
         /**
          * The consultation's live events, over a WebSocket
-         * @description A WebSocket (RFC 6455) upgrade: the encounter's Redis Stream, live, to the encounter's practitioner only, with the patient's active consent (not the clinic's admin, not the patient). Every entry of the stream is sent as two text frames: a `cursor` message with the entry's stream id, then the entry's message (`ConsultMessage`) exactly as its producer wrote it; together they are `ConsultFrame`. A client keeps the id of a cursor once the message after it has arrived, and on reconnecting passes it as `after`: it gets every entry after that one, in order, then the live ones, with no gap and no duplicate. Without `after` it gets every entry still on the stream (the stream is capped and expires after the encounter; the stored transcript is `GET /encounters/{id}/transcript`). The handshake must come from the API's own origin, or carry no Origin (no browser). Access is checked again after every read of the stream: when it ends (a revocation, a cancellation) nothing more is sent and the socket closes within a second, with code 4403 and reason `consent_required` or `forbidden`, or 4404 `not_found`; 1011 on a server error. The client sends nothing but control frames. Each subscription is audited as an operation on the encounter, also when refused.
+         * @description A WebSocket (RFC 6455) upgrade: the encounter's Redis Stream, live, to the encounter's practitioner only, with the patient's active consent (not the clinic's admin, not the patient). Every entry of the stream is sent as two text frames: a `cursor` message with the entry's stream id, then the entry's message (`ConsultMessage`) exactly as its producer wrote it; together they are `ConsultFrame`. A client keeps the id of a cursor once the message after it has arrived, and on reconnecting passes it as `after`: it gets every entry after that one, in order, then the live ones, with no gap and no duplicate. Without `after` it gets every entry still on the stream (the stream is capped and expires after the encounter; the stored transcript is `GET /encounters/{id}/transcript`). The handshake must come from the API's own origin, or carry no Origin (no browser). Access is checked again after every read of the stream: when it ends (a revocation, a cancellation) nothing more is sent and the socket closes within a second, with code 4403 and reason `consent_required` or `forbidden`, or 4404 `not_found`; 1011 on a server error. Each subscription is audited as an operation on the encounter, also when refused. The client may send text frames of `ConsultCommand` (at most 512 bytes; a longer frame ends the socket): a `suggestion_status` message dismisses, pins or unpins a suggestion of the encounter, under the same rule, audited, refusals included. It is answered with nothing on success (the suggestion with its new status comes on the stream, to every open view), and with a `command_error` frame otherwise.
          */
         get: operations["followConsultationEvents"];
         put?: never;
@@ -1528,7 +1528,48 @@ export interface components {
         /** @description One live message of a consultation, told apart by `type`. */
         ConsultMessage: components["schemas"]["TranscriptMessage"] | components["schemas"]["SuggestionMessage"] | components["schemas"]["DraftMessage"];
         /** @description One text frame of GET /encounters/{id}/events: a live message (one of ConsultMessage's), or the cursor sent before each one, told apart by `type`. */
-        ConsultFrame: components["schemas"]["TranscriptMessage"] | components["schemas"]["SuggestionMessage"] | components["schemas"]["DraftMessage"] | components["schemas"]["CursorMessage"];
+        ConsultFrame: components["schemas"]["TranscriptMessage"] | components["schemas"]["SuggestionMessage"] | components["schemas"]["DraftMessage"] | components["schemas"]["CommandErrorMessage"] | components["schemas"]["CursorMessage"];
+        /** @description A text frame the client sends on GET /encounters/{id}/events, told apart by `type`. */
+        ConsultCommand: components["schemas"]["SuggestionStatusMessage"];
+        /** @description The practitioner dismisses, pins or unpins (`shown`) a suggestion of the stream's encounter. */
+        SuggestionStatusMessage: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "suggestion_status";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["SuggestionStatus"];
+        };
+        SuggestionStatus: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "shown" | "dismissed" | "pinned";
+        };
+        /** @description Answers a client's message that failed; nothing changed. */
+        CommandErrorMessage: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "command_error";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["CommandError"];
+        };
+        CommandError: {
+            /** @description The failed message's `type`; empty when it was no envelope. */
+            command: string;
+            /** @description The suggestion the message named, when it named one. */
+            id?: string;
+            /**
+             * @description `invalid_message`: no envelope; `unknown_command`: a type or version the server does not take; `invalid`: a payload or status the contract does not allow; `not_found`: no such suggestion of the encounter, or an encounter the caller may not see; `consent_required`: after a revocation; `forbidden`: not the encounter's practitioner; `internal`: a server error.
+             * @enum {string}
+             */
+            error: "invalid_message" | "unknown_command" | "invalid" | "not_found" | "consent_required" | "forbidden" | "internal";
+        };
         /** @description Sent before each live message, with the stream id of its entry, which a client resumes after. */
         CursorMessage: {
             /**
@@ -1599,15 +1640,23 @@ export interface components {
             /** Format: date-time */
             ts_end: string;
         };
-        /** @description A suggestion for the practitioner only, citing the segments it came from; a prompt, never a diagnosis. Pushed when shown and on every change of its status. */
+        /** @description AI assistance for the practitioner only: a suggestion from a language model, citing the segments it came from; a prompt the practitioner may ignore, never a diagnosis. Whatever shows one labels it as AI assistance (`origin`). Pushed when shown and on every change of its status. */
         SuggestionEvent: {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
             encounter_id: string;
-            /** @enum {string} */
+            /**
+             * @description What the suggestion prompts: a diagnosis to consider (not one made), a question to ask, a red flag to check, or a term to explain.
+             * @enum {string}
+             */
             type: "diagnosis" | "question" | "red_flag" | "term";
             text: string;
+            /**
+             * @description Always `ai`, an AI model's suggestion, shown as AI assistance.
+             * @enum {string}
+             */
+            origin: "ai";
             confidence: number;
             source_segment_ids: string[];
             /** @enum {string} */

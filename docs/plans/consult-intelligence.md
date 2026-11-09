@@ -62,7 +62,7 @@ LiveKit room audio (one track per participant)
 | --- | --- |
 | Stream entry | One field, `envelope` (`transcript.StreamField`), holding the wire envelope's bytes: `XADD consult:<encounter_id>:events * envelope <bytes>`. A shared contract every producer (SAL-4, SAL-7, SAL-8) writes |
 | Consumer | A Redis Streams consumer group (`consult_stream`) in `cmd/worker`, beside River, not a River job: the producers write Redis, not Postgres, so there is no transaction to enqueue a job in, and a job per entry would add a Postgres write before the real one. Streams are found by `SCAN TYPE stream` once a second (no registry to keep in step with the producers); a failed or orphaned entry is claimed again after 30 s. At least once; the writes are idempotent (segment and suggestion ids from the events) |
-| Writes | Final segments to `transcript_segment`, suggestions to `suggestion` (a later event changes only the status), each through its own domain's service, in the encounter's clinic scope (`encounter_organization`, migration 00033), only with the patient's active consent. Drafts are left to SAL-8 |
+| Writes | Final segments to `transcript_segment`, suggestions to `suggestion` (a later event changes only the status; changed by SAL-7: a later event changes nothing, see D), each through its own domain's service, in the encounter's clinic scope (`encounter_organization`, migration 00033), only with the patient's active consent. Drafts are left to SAL-8 |
 | Gateway | `GET /encounters/{id}/events`, a WebSocket (gorilla/websocket: already in the module graph through the LiveKit SDK, at the same version, and it hijacks through `http.ResponseController`, which the access log's writer supports). Each entry goes out as a `cursor` frame with its stream id and then the envelope's bytes unchanged; the client keeps a cursor once the message after it has arrived and resumes with `?after=`, so a drop between the two frames repeats nothing and loses nothing. Without `after`, every entry still on the stream |
 | Who | The encounter's practitioner with an active consent (`access.ConsultationRecord`); no admin, no patient. The rule is checked again after every read of the stream (at least once a second), so a revocation ends the stream at once |
 | Origin | The upgrade must come from the API's own origin (or no Origin: no browser). The web app calls the API on its own origin; the cookie is `SameSite=Strict` and a WebSocket cannot send `X-Salus-CSRF` |
@@ -73,7 +73,7 @@ LiveKit room audio (one track per participant)
 | Event | `type`, `version` | Fields |
 | --- | --- | --- |
 | `transcript.Event` (TranscriptEvent) | `transcript`, 1 | `encounter_id`, `segment_id`, `speaker` (`practitioner` \| `patient`), `lang` (BCP 47), `original`, `translation`, `is_final`, `ts_start`, `ts_end` |
-| `suggestion.Event` (SuggestionEvent) | `suggestion`, 1 | `id`, `encounter_id`, `type` (`diagnosis` \| `question` \| `red_flag` \| `term`), `text`, `confidence` (0 to 1), `source_segment_ids` (at least one), `status` (`shown` \| `dismissed` \| `pinned`) |
+| `suggestion.Event` (SuggestionEvent) | `suggestion`, 1 | `id`, `encounter_id`, `type` (`diagnosis` \| `question` \| `red_flag` \| `term`), `text` (1 to 300 characters, SAL-7), `confidence` (0 to 1), `source_segment_ids` (at least one), `status` (`shown` \| `dismissed` \| `pinned`), `origin` (`ai`, SAL-7) |
 | `composition.Event` (DraftEvent) | `draft`, 1 | `draft_id`, `encounter_id`, `template_id`, `status` (`preliminary` \| `final` \| `entered-in-error`), `fields[]`: `key`, `value`, `source_segment_ids`, `missing` |
 
 The JSON shapes are also in `api/openapi.yaml` (`components.schemas`), from which `make gen-clients` generates
@@ -153,6 +153,23 @@ after-revocation rule apply unchanged; the clinic scope only. A patient's access
 | Audit | No AuditEvent for the translation or the glossary: like the speech-to-text, in-memory processing inside the agent's session; the stored segment's write is audited (SAL-6) |
 | Consent | The owner's interim decision applies unchanged: translation runs inside the agent, which is in the room only while the care Consent is active; a removal cancels pending translations |
 | Engine | `LLM_ENGINE=fake` (default: marks a line with its target language, sends nothing) or `anthropic` (`ANTHROPIC_API_KEY`, `LLM_MODEL`, default `claude-opus-5-5`): `pkg/llm/anthropic`, the Messages API with structured outputs for translation, suggestions and drafting, plain net/http. Merged, not enabled: see "Gates" and `docs/privacy/processors.md` (the API offers no EU region today) |
+
+## Decisions taken for D (SAL-7, 2026-11-09; agent decisions, for the owner to review)
+
+| Topic | Decision |
+| --- | --- |
+| Where | `cmd/worker`, beside SAL-6's consumer (`worker.Suggestions`, `suggestion.Assistant`), not `cmd/agent`: it reads the stream like the consumer, needs Postgres for what was shown, and keeps the agent to audio and text. Not a consumer group: a group splits one stream's entries between the members, and a window needs them all. Each stream is followed by one worker member at a time, holding a Redis lease (`suggest:<encounter_id>:lease`, 30 s, renewed every second); it reads the stream with XRANGE from its first entry |
+| Pace | A run every 5 new final lines (`RunEveryLines`) or once 20 s have passed with at least one (`RunEvery`), whichever first, and never within 5 s of the last (`MinGap`). A partial is not a line; a final event of a line seen already replaces it and is not new |
+| Window | The latest 30 final lines (`WindowLines`), each its original text and speaker, in the clinic's default language (the practitioner's, SAL-4) |
+| Validation | A type of the four, confidence 0 to 1, at least one source and every one a line of the window sent, a text of 1 to 300 characters after trimming (`MaxTextLength`, now also in `Event.Validate` and the contract). The rest is dropped and counted in the log, without text |
+| Repeats | The encounter's stored suggestions decide (any status): a new one whose words share at least three in four with one shown, dismissed or pinned (Jaccard 0.75), or with one picked before it in the run, is not shown. The model is told the texts shown (`llm.SuggestRequest.Shown`, additive) |
+| Throttle | At most 3 new suggestions a run (`MaxPerRun`), the most confident first, besides `MinGap` |
+| Order | Stored (audited, consent checked) and then published, so a status change always finds it and nothing unstored is shown. A failed publish is logged; the stored one counts as shown |
+| Status changes | Over the event stream's WebSocket: `suggestion_status` (`{id, status}`, `shown` to unpin) in the wire envelope (`ConsultCommand` in `api/openapi.yaml`), under the stream's rule (`transcript.Service.Allowed`), audited, only a suggestion of the encounter. Stored first, then the suggestion with its status published on the stream. Success is answered by that event; a failure by a `command_error` frame |
+| Stale statuses | The stream consumer (SAL-6) no longer changes a stored suggestion's status: every status is stored by its producer (the worker, the practitioner) before its event is published, so an old event delivered again cannot set an older status back |
+| Label | `origin: "ai"` on every suggestion event, required by the contract: whatever shows one labels it as AI assistance |
+| Engine | `config.LoadLLM` (SAL-5): `LLM_ENGINE=fake` (the default: `llmtest.Suggester` keeping no calls, suggesting nothing) or `anthropic` (not enabled before its DPA). The adapter puts `SuggestRequest.Shown` in a `<shown>` block, as data |
+| Consent | The owner's interim decision applies: suggestions only while the patient's care consent with the clinic is active, checked before each model call and each store |
 
 ## Work packages
 

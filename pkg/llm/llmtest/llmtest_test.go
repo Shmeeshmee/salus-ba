@@ -95,7 +95,8 @@ func TestSuggester_ReturnsACopyOfItsSuggestionsAndRecordsTheCall(t *testing.T) {
 	t.Parallel()
 	want := []llm.Suggestion{{Kind: "question", Text: "placeholder question", Confidence: 0.5, SourceIDs: []string{"s1"}}}
 	s := &llmtest.Suggester{Suggestions: want}
-	got, err := s.Suggest(t.Context(), llm.SuggestRequest{Lang: "bs", Transcript: transcript()})
+	shown := []string{"placeholder shown before"}
+	got, err := s.Suggest(t.Context(), llm.SuggestRequest{Lang: "bs", Transcript: transcript(), Shown: shown})
 	if err != nil || len(got) != 1 || got[0].Text != want[0].Text {
 		t.Fatalf("Suggest() = %+v, %v; want %+v", got, err, want)
 	}
@@ -103,7 +104,9 @@ func TestSuggester_ReturnsACopyOfItsSuggestionsAndRecordsTheCall(t *testing.T) {
 	if s.Suggestions[0].SourceIDs[0] != "s1" {
 		t.Error("the caller's change reached the fake's script")
 	}
-	if calls := s.Calls(); len(calls) != 1 || calls[0].Lang != "bs" || len(calls[0].Transcript) != 2 {
+	shown[0] = "changed"
+	if calls := s.Calls(); len(calls) != 1 || calls[0].Lang != "bs" || len(calls[0].Transcript) != 2 ||
+		!slices.Equal(calls[0].Shown, []string{"placeholder shown before"}) {
 		t.Errorf("Calls() = %+v", calls)
 	}
 }
