@@ -6,13 +6,16 @@
 package pdfdoc
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/signintech/gopdf"
 	"golang.org/x/image/font/gofont/gobold"
 	"golang.org/x/image/font/gofont/goregular"
+	"golang.org/x/image/font/sfnt"
 )
 
 // Document is what Render writes.
@@ -47,8 +50,40 @@ type page struct {
 	bottom float64
 }
 
-// Render returns the document as PDF.
+// ErrUnsupported is returned for a text with a letter the fonts lack, which the PDF would otherwise leave out
+// silently. It names no text.
+var ErrUnsupported = errors.New("pdfdoc: a letter the fonts do not have")
+
+// Supported reports whether the fonts set every letter of s (line breaks and other control characters aside),
+// in both the regular and the bold face.
+func Supported(s string) bool {
+	var buf sfnt.Buffer
+	for _, data := range [][]byte{goregular.TTF, gobold.TTF} {
+		f, err := sfnt.Parse(data)
+		if err != nil {
+			return false
+		}
+		for _, r := range s {
+			if unicode.IsControl(r) {
+				continue
+			}
+			if i, err := f.GlyphIndex(&buf, r); err != nil || i == 0 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// Render returns the document as PDF, or ErrUnsupported when a text has a letter the fonts lack.
 func Render(d Document) ([]byte, error) {
+	texts := append([]string{d.Title}, d.Meta...)
+	for _, s := range d.Sections {
+		texts = append(append(append(texts, s.Heading), s.Paragraphs...), s.Items...)
+	}
+	if !Supported(strings.Join(texts, "\n")) {
+		return nil, ErrUnsupported
+	}
 	pdf := &gopdf.GoPdf{}
 	pdf.Start(gopdf.Config{PageSize: *gopdf.PageSizeA4})
 	pdf.SetInfo(gopdf.PdfInfo{Title: d.Title, Producer: "Salus", CreationDate: d.Created})

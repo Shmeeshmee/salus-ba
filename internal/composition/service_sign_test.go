@@ -129,6 +129,8 @@ func TestSign_Refusals(t *testing.T) {
 			version: 1, want: composition.ErrInvalidValues, keys: []string{"findings"}},
 		"no date": {c: pract, values: edit(func(v []composition.Value) []composition.Value { v[3].Value = "soon"; return v }),
 			version: 1, want: composition.ErrInvalidValues, keys: []string{"control"}},
+		"a letter the PDF lacks": {c: pract, values: edit(func(v []composition.Value) []composition.Value { v[2].Value = "日本"; return v }),
+			version: 1, want: composition.ErrInvalidValues, keys: []string{"tests"}},
 		"required left empty": {c: pract, values: edit(func(v []composition.Value) []composition.Value { v[1].Value = " "; return v }),
 			version: 1, want: composition.ErrRequiredMissing, keys: []string{"findings"}},
 		"the admin":            {c: admin, values: values(), version: 1, want: composition.ErrForbidden},

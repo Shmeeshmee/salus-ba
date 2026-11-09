@@ -76,18 +76,19 @@ func TestGenerate_ADraftedValueWithoutValidSourcesIsMissing(t *testing.T) {
 		key   string
 		want  composition.Field // Key is filled in
 	}{
-		"no sources":       {llm.DraftField{Value: "Placeholder"}, "findings", composition.Field{Missing: true}},
-		"an unknown line":  {llm.DraftField{Value: "Placeholder", SourceIDs: []string{seg1, unknownID}}, "findings", composition.Field{Missing: true}},
-		"not a UUID":       {llm.DraftField{Value: "Placeholder", SourceIDs: []string{"s1"}}, "findings", composition.Field{Missing: true}},
-		"a blank value":    {llm.DraftField{Value: " ", SourceIDs: []string{seg1}}, "findings", composition.Field{Missing: true}},
-		"marked missing":   {llm.DraftField{Value: "Placeholder", SourceIDs: []string{seg1}, Missing: true}, "findings", composition.Field{Missing: true}},
-		"a long value":     {llm.DraftField{Value: strings.Repeat("x", 10001), SourceIDs: []string{seg1}}, "findings", composition.Field{Missing: true}},
-		"no date":          {llm.DraftField{Value: "next week", SourceIDs: []string{seg1}}, "control", composition.Field{Missing: true}},
-		"a date":           {llm.DraftField{Value: " 2030-02-01 ", SourceIDs: []string{seg1}}, "control", composition.Field{Value: "2030-02-01", SourceSegmentIDs: []string{seg1}}},
-		"no code":          {llm.DraftField{Value: "a cold", SourceIDs: []string{seg1}}, "diagnosis", composition.Field{Missing: true}},
-		"a code":           {llm.DraftField{Value: "j06.9", SourceIDs: []string{seg1, seg2, seg1}}, "diagnosis", composition.Field{Value: "J06.9", SourceSegmentIDs: []string{seg1, seg2}}},
-		"a blank list":     {llm.DraftField{Value: "\n \n", SourceIDs: []string{seg2}}, "tests", composition.Field{Missing: true}},
-		"a list with gaps": {llm.DraftField{Value: " one \n\n two", SourceIDs: []string{seg2}}, "tests", composition.Field{Value: "one\ntwo", SourceSegmentIDs: []string{seg2}}},
+		"no sources":             {llm.DraftField{Value: "Placeholder"}, "findings", composition.Field{Missing: true}},
+		"an unknown line":        {llm.DraftField{Value: "Placeholder", SourceIDs: []string{seg1, unknownID}}, "findings", composition.Field{Missing: true}},
+		"not a UUID":             {llm.DraftField{Value: "Placeholder", SourceIDs: []string{"s1"}}, "findings", composition.Field{Missing: true}},
+		"a blank value":          {llm.DraftField{Value: " ", SourceIDs: []string{seg1}}, "findings", composition.Field{Missing: true}},
+		"marked missing":         {llm.DraftField{Value: "Placeholder", SourceIDs: []string{seg1}, Missing: true}, "findings", composition.Field{Missing: true}},
+		"a long value":           {llm.DraftField{Value: strings.Repeat("x", 10001), SourceIDs: []string{seg1}}, "findings", composition.Field{Missing: true}},
+		"a letter the PDF lacks": {llm.DraftField{Value: "Placeholder 日本", SourceIDs: []string{seg1}}, "findings", composition.Field{Missing: true}},
+		"no date":                {llm.DraftField{Value: "next week", SourceIDs: []string{seg1}}, "control", composition.Field{Missing: true}},
+		"a date":                 {llm.DraftField{Value: " 2030-02-01 ", SourceIDs: []string{seg1}}, "control", composition.Field{Value: "2030-02-01", SourceSegmentIDs: []string{seg1}}},
+		"no code":                {llm.DraftField{Value: "a cold", SourceIDs: []string{seg1}}, "diagnosis", composition.Field{Missing: true}},
+		"a code":                 {llm.DraftField{Value: "j06.9", SourceIDs: []string{seg1, seg2, seg1}}, "diagnosis", composition.Field{Value: "J06.9", SourceSegmentIDs: []string{seg1, seg2}}},
+		"a blank list":           {llm.DraftField{Value: "\n \n", SourceIDs: []string{seg2}}, "tests", composition.Field{Missing: true}},
+		"a list with gaps":       {llm.DraftField{Value: " one \n\n two", SourceIDs: []string{seg2}}, "tests", composition.Field{Value: "one\ntwo", SourceSegmentIDs: []string{seg2}}},
 	} {
 		f := newFixture(t)
 		tpl := f.template(t)

@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 	"github.com/Shmeeshmee/salus/pkg/llm"
+	"github.com/Shmeeshmee/salus/pkg/pdfdoc"
 	"github.com/Shmeeshmee/salus/pkg/wire"
 )
 
@@ -187,7 +188,7 @@ func cite(ids []string, known map[string]bool) ([]string, bool) {
 
 // normalise returns the value as its field's type stores it, and false when it is not one: text trimmed; a
 // list's non-blank lines, trimmed; a date as YYYY-MM-DD; an ICD-10 code upper-cased. Blank or longer than
-// maxValue is never a value.
+// maxValue, or with a letter the PDF cannot set, is never a value.
 func normalise(t FieldType, v string) (string, bool) {
 	v = strings.TrimSpace(v)
 	switch t {
@@ -208,7 +209,7 @@ func normalise(t FieldType, v string) (string, bool) {
 			return "", false
 		}
 	}
-	return v, v != "" && chars(v) <= maxValue
+	return v, v != "" && chars(v) <= maxValue && pdfdoc.Supported(v)
 }
 
 // publish pushes the draft's event on its encounter's stream; a failure loses only the live push (the page

@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/Shmeeshmee/salus/pkg/pdfdoc"
 )
 
 // The limits of a template.
@@ -33,11 +35,11 @@ func chars(s string) int { return utf8.RuneCountInString(s) }
 
 // ValidateTemplate checks a template's content: a title, a known original language, status and LOINC type; 1 to
 // 50 fields, each a key of lowercase letters, digits and underscores (once), a known type, a label and an
-// instruction within their limits; each translation a known language other than the original, once, complete
+// instruction within their limits; every text one the PDF can set (pdfdoc.Supported); each translation a known language other than the original, once, complete
 // (its title, every field's label, and an instruction exactly where the original has one) and naming no other
 // field. It returns an *InvalidTemplateError, or nil.
 func ValidateTemplate(c TemplateContent) error {
-	whole := blank(c.Title) || chars(c.Title) > maxTitle || !knownLanguage(c.Language) ||
+	whole := blank(c.Title) || chars(c.Title) > maxTitle || !pdfdoc.Supported(c.Title) || !knownLanguage(c.Language) ||
 		(c.Status != TemplateDraft && c.Status != TemplateActive) || !loincPattern.MatchString(c.TypeCode) ||
 		len(c.Fields) == 0 || len(c.Fields) > maxFields
 	var bad []string
@@ -50,7 +52,7 @@ func ValidateTemplate(c TemplateContent) error {
 	}
 	langs := map[string]bool{c.Language: true}
 	for _, tr := range c.Translations {
-		if !knownLanguage(tr.Language) || langs[tr.Language] || blank(tr.Title) || chars(tr.Title) > maxTitle {
+		if !knownLanguage(tr.Language) || langs[tr.Language] || blank(tr.Title) || chars(tr.Title) > maxTitle || !pdfdoc.Supported(tr.Title) {
 			whole = true
 		}
 		langs[tr.Language] = true
@@ -77,7 +79,7 @@ func validField(f TemplateField) bool {
 	default:
 		return false
 	}
-	return keyPattern.MatchString(f.Key) && !blank(f.Label) && chars(f.Label) <= maxLabel && chars(f.Instruction) <= maxInstruction
+	return keyPattern.MatchString(f.Key) && validTexts(f.Label, f.Instruction)
 }
 
 // translated reports whether every translation has the field's texts: a label, and an instruction exactly
@@ -85,10 +87,14 @@ func validField(f TemplateField) bool {
 func translated(f TemplateField, ts []Translation) bool {
 	for _, tr := range ts {
 		texts, ok := tr.Fields[f.Key]
-		if !ok || blank(texts.Label) || chars(texts.Label) > maxLabel || chars(texts.Instruction) > maxInstruction ||
-			blank(texts.Instruction) != blank(f.Instruction) {
+		if !ok || !validTexts(texts.Label, texts.Instruction) || blank(texts.Instruction) != blank(f.Instruction) {
 			return false
 		}
 	}
 	return true
+}
+
+// validTexts reports whether a field's label and instruction are within their limits and the PDF sets them.
+func validTexts(label, instruction string) bool {
+	return !blank(label) && chars(label) <= maxLabel && chars(instruction) <= maxInstruction && pdfdoc.Supported(label+instruction)
 }

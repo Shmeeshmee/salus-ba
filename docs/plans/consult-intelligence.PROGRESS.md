@@ -237,7 +237,10 @@ Branch `sal-8-draft`, 2026-11-09.
 types and methods; the migration's tests on the missing columns, table and index (`a second open draft: <nil>, want
 unique_violation`); the purger's on the PDF's key (`Purge() = 4, want 3`); the contract test on `version_id` and the
 new schemas (`no schema DraftValue`); the CapabilityStatement's on the three new resources; Arabic templates
-(`an Arabic translation: ValidateTemplate() = <nil>`). The existing migration test that inserted a second open draft
+(`an Arabic translation: ValidateTemplate() = <nil>`). A coverage test of `pkg/pdfdoc` found that gopdf leaves out a letter
+its font lacks without an error (`meta: Render() = nil, want an error`): `pdfdoc.Supported` now checks every text, and
+the template, the drafted values and the signed values are held to it (a sign with such a letter was a 500 before:
+`Sign() = composition: sign: pdfdoc: a letter the fonts do not have, want composition: invalid values`). The existing migration test that inserted a second open draft
 for the same encounter and template now inserts a final one (the new rule), keeping what it checks: the clinic's
 write scope. The golden FHIR files failed the HL7 validator once (`cmp-1` on a section with only an `emptyReason`)
 and were fixed by giving such a section a dash as its narrative.

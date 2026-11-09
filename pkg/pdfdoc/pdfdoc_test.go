@@ -2,6 +2,7 @@ package pdfdoc_test
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -67,5 +68,46 @@ func TestRender_WrapsAndBreaksPages(t *testing.T) {
 	}
 	if pages(b) < 3 {
 		t.Errorf("pages = %d, want at least 3", pages(b))
+	}
+}
+
+// A paragraph's lines each start a line; a blank line keeps its space; list items carry the bullet.
+func TestRender_LinesAndItems(t *testing.T) {
+	t.Parallel()
+	d := doc()
+	d.Sections[0].Paragraphs = []string{"one\n\ntwo"}
+	d.Sections[1].Items = []string{strings.Repeat("Placeholder item that is long enough to wrap ", 5)}
+	if _, err := pdfdoc.Render(d); err != nil {
+		t.Errorf("Render() = %v", err)
+	}
+}
+
+// A letter the Go fonts do not have is an error, not a blank in a signed document.
+func TestRender_RefusesALetterTheFontsLack(t *testing.T) {
+	t.Parallel()
+	for name, change := range map[string]func(*pdfdoc.Document){
+		"title":   func(d *pdfdoc.Document) { d.Title = "مرحبا" },
+		"meta":    func(d *pdfdoc.Document) { d.Meta = []string{"日本"} },
+		"heading": func(d *pdfdoc.Document) { d.Sections[0].Heading = "日本" },
+		"text":    func(d *pdfdoc.Document) { d.Sections[0].Paragraphs = []string{"日本"} },
+		"item":    func(d *pdfdoc.Document) { d.Sections[1].Items = []string{"日本"} },
+	} {
+		d := doc()
+		change(&d)
+		if _, err := pdfdoc.Render(d); !errors.Is(err, pdfdoc.ErrUnsupported) || strings.ContainsAny(err.Error(), "日م") {
+			t.Errorf("%s: Render() = %v, want ErrUnsupported naming no text", name, err)
+		}
+	}
+}
+
+// Supported tells a text the fonts set from one they do not, so a caller can refuse it before rendering.
+func TestSupported_TheGoFontsLetters(t *testing.T) {
+	t.Parallel()
+	for s, want := range map[string]bool{
+		"Placeholder čćđšž ČĆĐŠŽ ћирилица ğışİ äöüß àéèç — • 0-9 \n": true, "": true, "mixed 日本": false, "مرحبا": false, "\U0001F600": false,
+	} {
+		if got := pdfdoc.Supported(s); got != want {
+			t.Errorf("Supported(%q) = %v, want %v", s, got, want)
+		}
 	}
 }
