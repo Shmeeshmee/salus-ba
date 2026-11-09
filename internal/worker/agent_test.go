@@ -18,6 +18,10 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/stt/stttest"
 )
 
+// listener is the agent's listener on the compose LiveKit, built before any test runs: NewLiveKitListener
+// silences the SDK's package logger, which other tests' connections read.
+var listener = videosession.NewLiveKitListener()
+
 // watched is the compose LiveKit's listener, reporting each time the agent is out of a room.
 type watched struct {
 	videosession.Listener
@@ -104,7 +108,7 @@ func TestTranscriptionJoin_JoinsTheRoomAndLeavesWhenTheConsentIsRevoked(t *testi
 	db := newLogins(t)
 	b := seedBooking(t, db.owner)
 	c := openConsultation(t, db, b)
-	w := &watched{Listener: videosession.NewLiveKitListener(), out: make(chan struct{}, 2)}
+	w := &watched{Listener: listener, out: make(chan struct{}, 2)}
 
 	if ended, logs := runAgentJob(t, db, w, c.session); ended != river.EventKindJobCompleted || w.joined() != 1 {
 		t.Fatalf("transcription_join ended %s with %d joins, want completed with 1:\n%s", ended, w.joined(), logs)

@@ -30,6 +30,10 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
+// listener is the agent's listener, built before any test runs: NewLiveKitListener silences the SDK's package
+// logger, which the parallel tests' connections read.
+var listener = videosession.NewLiveKitListener()
+
 // The compose LiveKit (deployments/livekit.yaml), reached from the tools container. Like the databases, the
 // tests fail without it; they never skip.
 type livekitServer struct {
@@ -673,7 +677,7 @@ func TestListen_HandsOverEachMicrophoneDecodedTo16kHzUntilTheAgentIsRemoved(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	l, err := videosession.NewLiveKitListener().Listen(t.Context(), strings.Replace(lk.url, "http", "ws", 1), token)
+	l, err := listener.Listen(t.Context(), strings.Replace(lk.url, "http", "ws", 1), token)
 	if err != nil {
 		t.Fatalf("Listen() = %v", err)
 	}
@@ -734,7 +738,7 @@ func TestListen_LogsNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	l, err := videosession.NewLiveKitListener().Listen(t.Context(), lk.url, token)
+	l, err := listener.Listen(t.Context(), lk.url, token)
 	if err != nil {
 		t.Fatalf("Listen() = %v", err)
 	}
@@ -804,7 +808,7 @@ func BenchmarkListen_FrameLatency(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	l, err := videosession.NewLiveKitListener().Listen(b.Context(), lk.url, token)
+	l, err := listener.Listen(b.Context(), lk.url, token)
 	if err != nil {
 		b.Fatal(err)
 	}

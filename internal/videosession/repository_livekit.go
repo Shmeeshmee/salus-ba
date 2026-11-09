@@ -178,6 +178,10 @@ func failed(op string, err error) error {
 // frameBuffer is how many decoded frames (20 ms each) a track keeps for a slow reader before it drops them.
 const frameBuffer = 50
 
+// trackBuffer is how many tracks wait for the agent to take them; past it one is not heard (a room has two
+// people, each with one microphone, and their reconnections).
+const trackBuffer = 16
+
 // pcmRate is the rate the agent's audio is decoded to: 16 kHz, what speech-to-text engines take.
 const pcmRate = 16000
 
@@ -198,7 +202,7 @@ func NewLiveKitListener() Listener {
 // Listen connects to the room at url (ws:// or http://) with the agent's token. It does not wait on ctx: the
 // SDK's connection has its own timeout.
 func (livekitListener) Listen(_ context.Context, url, token string) (Listening, error) {
-	l := &listening{tracks: make(chan RemoteAudio, 4)}
+	l := &listening{tracks: make(chan RemoteAudio, trackBuffer)}
 	cb := lksdk.NewRoomCallback()
 	cb.OnTrackSubscribed = func(track *webrtc.TrackRemote, _ *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
 		if track.Kind() != webrtc.RTPCodecTypeAudio {
@@ -233,15 +237,20 @@ type listening struct {
 	ended  bool
 }
 
-// hand hands a track over unless the agent is out of the room.
+// hand hands a track over unless the agent is out of the room or trackBuffer tracks wait already: it never
+// blocks, so neither LiveKit's callback nor end waits on a slow reader.
 func (l *listening) hand(a RemoteAudio) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.ended {
 		return false
 	}
-	l.tracks <- a
-	return true
+	select {
+	case l.tracks <- a:
+		return true
+	default:
+		return false
+	}
 }
 
 // end closes the tracks once: the agent is out of the room.
