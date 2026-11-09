@@ -57,6 +57,7 @@ export function decodeMessage(frame: string): ConsultMessage | undefined {
 }
 
 // shapes check the payload fields this page reads, so a malformed frame is dropped rather than breaking the page.
+// A suggestion is shown only as what its origin says it is, AI assistance (SAL-7).
 const str = (v: unknown) => typeof v === 'string'
 const time = (v: unknown) => typeof v === 'string' && !Number.isNaN(Date.parse(v))
 const strs = (v: unknown) => Array.isArray(v) && v.every(str)
@@ -69,7 +70,7 @@ const shapes = new Map<string, (p: Record<string, unknown>) => boolean>([
   ],
   [
     'suggestion',
-    (p) => str(p.id) && oneOf(p.type, ['diagnosis', 'question', 'red_flag', 'term']) && str(p.text) && strs(p.source_segment_ids) && oneOf(p.status, ['shown', 'dismissed', 'pinned']),
+    (p) => str(p.id) && oneOf(p.type, ['diagnosis', 'question', 'red_flag', 'term']) && str(p.text) && strs(p.source_segment_ids) && oneOf(p.status, ['shown', 'dismissed', 'pinned']) && p.origin === 'ai',
   ],
   [
     'draft',
@@ -139,24 +140,28 @@ export function captionOf(state: ConsultState): TranscriptEvent | undefined {
 // Live is the page's view of its live source: what it has received, and why it stopped, if it has.
 type Live = { state: ConsultState; end?: End }
 
-// Event is a message to fold in, the source's end, or a new subscription, which clears that end.
-type Event = ConsultMessage | { type: 'end'; end: End } | { type: 'subscribed' }
+// Event is a message to fold in, the source's end, or the subscription's close, which clears that end.
+type Event = ConsultMessage | { type: 'end'; end: End } | { type: 'closed' }
 
 // follow folds an event into the view. An end drops everything received: the page may no longer show it.
 function follow(live: Live, e: Event): Live {
   if (e.type === 'end') return { state: empty, end: e.end }
-  if (e.type === 'subscribed') return live.end ? { state: live.state } : live
+  if (e.type === 'closed') return live.end ? { state: live.state } : live
   return { ...live, state: apply(live.state, e) }
 }
 
 // useConsult follows the appointment's live source while active, folding every message into the state,
-// until the source ends.
+// until the source ends. The end is forgotten once the subscription closes (the practitioner left), so it is
+// gone before the page is back in the call.
 export function useConsult(live: LiveSource | undefined, appointmentId: string, active: boolean) {
   const [view, dispatch] = useReducer(follow, { state: empty })
   useEffect(() => {
     if (!live || !active) return
-    dispatch({ type: 'subscribed' })
-    return live.subscribe(appointmentId, dispatch, (end) => dispatch({ type: 'end', end }))
+    const close = live.subscribe(appointmentId, dispatch, (end) => dispatch({ type: 'end', end }))
+    return () => {
+      close()
+      dispatch({ type: 'closed' })
+    }
   }, [live, appointmentId, active])
   return [view.state, dispatch, view.end] as const
 }

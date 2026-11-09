@@ -214,6 +214,55 @@ templates when `actions` changes). Nothing in `api/openapi.yaml` was added for t
   the page then shows the previous draft until the new one arrives. The fix depends on how SAL-8 versions a
   redraft over SAL-6's replay; for SAL-8/SAL-10.
 
+### 2026-11-09: wired to the real backend (branch `sal-9-wire`, the follow-up to #34)
+
+What was built (web and the e2e journey; no Go, API or migration change):
+
+- `web/src/live.ts`, `consultSocket({ fhir })`: the live source and the actions of one call page, sharing its one
+  socket. The encounter comes from `GET /fhir/R4/Encounter?appointment=<id>` (it starts with the practitioner's
+  join, so an empty search is tried again); then `GET /encounters/<id>/events` on the page's own origin. A cursor
+  is kept once the message after it has arrived (a `command_error` frame does not count) and a reconnect passes it
+  as `after`, so nothing is lost or repeated. Close codes 4403 `consent_required` / `forbidden` and 4404
+  `not_found` end the source for good; anything else (1006, 1011, a refused handshake) is retried after 1, 2, 5,
+  then every 10 s, back to 1 s once a frame arrives.
+- Dismiss, pin and unpin (SAL-7): `setSuggestionStatus` sends `suggestion_status` on the open socket and is done
+  when the suggestion comes back with that status; its `command_error`, or the socket closing first, fails it, and
+  the page puts the status back with W14 (as built in #34). No socket open: it fails at once. `decodeMessage` now
+  drops a suggestion whose `origin` is not `ai`, so the page shows only what it labels as a suggestion (W9, W10);
+  that no approved string names AI is left open for the owner in COPY.md.
+- `LiveSource.subscribe` takes an `onEnd(end)`; `useConsult` keeps the end. `App.tsx` builds the socket once per
+  call page and passes it to `CallScreen`.
+- `translation_failed` (SAL-5): the page shows the original of such a line, in its language, as it shows a line
+  awaiting its translation (tested); no new string.
+- Drafting (SAL-8) is not wired yet: `templates()` answers none, so the Documents tab says W16 "This clinic has no
+  document templates yet." until SAL-8 is merged into this branch.
+- e2e: `test/e2e/web/consultation.spec.ts` now waits for the patient's placeholder line of the fake speech engine
+  in the transcript beside the video: the tone in the room, the agent, SAL-4's fake engine, the stream, SAL-6's
+  gateway and the page, through the real stack. The fake model suggests nothing, so suggestions are not proved
+  end to end.
+
+Tests seen failing first: `live.test.ts` (14, the module missing; then mutations: a cursor kept on its own frame
+fails the reconnect and command_error tests, a reconnect after an end fails the three end tests), four new in
+`CallScreen.test.tsx` (the panel's end state, a rejoin after an end), and the e2e journey (`element(s) not found`
+for the transcript line before `App.tsx` wired the socket). The `translation_failed` tests passed at once: the
+behaviour was already there.
+
+No performance claim is made, so nothing was measured.
+
+**Decisions (2026-11-09, agent decision, for the owner to review).**
+
+- **An end drops what the page has.** On 4403 or 4404 the page clears the transcript, the suggestions, the drafts
+  and the captions it holds in memory, and the panel shows one line instead of its tabs: for `consent_required` the
+  approved `consultation.peerWithdrewConsent` ("The patient withdrew consent for this clinic, so the consultation
+  has ended."), for `forbidden` and `not_found` `consultation.notAvailable` ("This consultation is not
+  available."). Existing strings, no new one (COPY.md). The server already refuses the stream and the export after
+  a revocation; showing what was received before it is the open question SAL-6 recorded for the owner and legal,
+  and the page takes the stricter side until it is answered. A rejoin subscribes again from nothing.
+- **A refused handshake is retried.** A browser cannot tell a 403 handshake from a dropped connection (both close
+  1006), so the page retries, at most every 10 s; each attempt is audited server side as a refused subscription.
+  The open socket's 4403 (a revocation during the call) is the common case and stops it.
+- **No timeout on a command**: it is answered by its event or its error, or failed when the socket closes.
+
 ## B (SAL-5): translation of the final segments, and the Anthropic Claude API adapter
 
 Branch `sal-5-translate`, 2026-11-09.

@@ -30,6 +30,8 @@ describe('decodeMessage', () => {
     ['a transcript without a start time', JSON.stringify({ ...segment(), payload: { ...segment().payload, ts_start: undefined } })],
     ['a transcript whose start time is not a time', JSON.stringify({ ...segment(), payload: { ...segment().payload, ts_start: 'soon' } })],
     ['a suggestion without its sources', JSON.stringify({ ...suggestion(), payload: { ...suggestion().payload, source_segment_ids: undefined } })],
+    ['a suggestion without its AI origin', JSON.stringify({ ...suggestion(), payload: { ...suggestion().payload, origin: undefined } })],
+    ['a suggestion of another origin', JSON.stringify({ ...suggestion(), payload: { ...suggestion().payload, origin: 'practitioner' } })],
     ['a suggestion of an unknown status', JSON.stringify({ ...suggestion(), payload: { ...suggestion().payload, status: 'hidden' } })],
     ['a draft without fields', JSON.stringify({ ...draft(), payload: { ...draft().payload, fields: undefined } })],
     ['a draft with a field without a key', JSON.stringify({ ...draft(), payload: { ...draft().payload, fields: [{ value: '', missing: true }] } })],

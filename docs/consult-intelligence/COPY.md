@@ -58,6 +58,18 @@ string since the languages feature.
 - W23: "Signed. This document is final." (`signed`), "The document could not be signed. Try again."
   (`signFailed`)
 
+### Reused on the call page, pending the owner's review (2026-11-09, the wiring follow-up to #34)
+No new string. When the live stream ends for good, the panel beside the video shows, instead of its tabs, an
+existing approved string of the consultation screens: `consultation.peerWithdrewConsent` (tagged `legal`) when the
+patient withdrew their consent, and `consultation.notAvailable` when the practitioner may no longer follow the
+consultation. A line whose translation failed (SAL-5) shows its original, as one still awaiting its translation:
+marking it ("translation unavailable") would need a new string, left for the owner to decide.
+
+Open for the owner: the contract (SAL-7) says whatever shows a suggestion labels it as AI assistance. The page
+shows only suggestions whose `origin` is `ai`, each under its W10 label and below W9, but no approved string names
+AI. A wording that does (for example W9 as "AI suggestions are prompts drawn from the transcript, not a diagnosis.
+Every decision is yours.") is the owner's to approve; nothing was changed.
+
 Template titles and field labels are the clinic's own text, from its templates (`document_template`), not copy.
 Every medical line in the tests and fakes (`web/src/test/fakeConsult.ts`) is a labelled placeholder
 ("Placeholder reason", "Placeholder suggestion text"), never real clinical wording.
