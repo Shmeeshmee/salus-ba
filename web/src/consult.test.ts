@@ -68,6 +68,15 @@ describe('captionOf', () => {
     expect(captionOf(state)?.original).toBe('revised')
   })
 
+  it('stays on the later segment when an earlier one is revised late', () => {
+    const state = fold(
+      segment({ segment_id: 'p1', ts_start: '2026-11-09T09:00:01Z', is_final: false }),
+      segment({ segment_id: 'p2', ts_start: '2026-11-09T09:00:05Z', is_final: false }),
+      segment({ segment_id: 'p1', ts_start: '2026-11-09T09:00:01Z', is_final: true }),
+    )
+    expect(captionOf(state)?.segment_id).toBe('p2')
+  })
+
   it('is nothing before the patient has spoken', () => {
     expect(captionOf(fold(segment({ speaker: 'practitioner' })))).toBeUndefined()
   })

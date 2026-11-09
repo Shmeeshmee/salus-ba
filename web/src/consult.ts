@@ -96,13 +96,21 @@ export function apply(state: ConsultState, m: ConsultMessage): ConsultState {
     case 'transcript': {
       const segments = upsert(state.segments, m.payload, (s) => s.segment_id)
       segments.sort((a, b) => a.ts_start.localeCompare(b.ts_start))
-      return { ...state, segments, caption: m.payload.speaker === 'patient' ? m.payload.segment_id : state.caption }
+      return { ...state, segments, caption: captionAfter(state, m.payload) }
     }
     case 'suggestion':
       return { ...state, suggestions: upsert(state.suggestions, m.payload, (s) => s.id) }
     case 'draft':
       return { ...state, drafts: upsert(state.drafts, m.payload, (d) => d.draft_id) }
   }
+}
+
+// captionAfter is the caption once segment s has come: s if the patient said it, no earlier than the caption's
+// segment started; otherwise the caption stays, so a late revision of an earlier line does not bring it back.
+function captionAfter(state: ConsultState, s: TranscriptEvent): string | undefined {
+  if (s.speaker !== 'patient') return state.caption
+  const current = captionOf(state)
+  return !current || s.ts_start >= current.ts_start ? s.segment_id : state.caption
 }
 
 function upsert<T>(list: T[], item: T, key: (t: T) => string): T[] {
