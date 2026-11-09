@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import { AppointmentDetail } from './AppointmentDetail'
@@ -274,7 +274,8 @@ describe('AppointmentDetail', () => {
 
       await vi.waitFor(() => expect(answer).toBeDefined())
       await vi.waitFor(() => expect(fake.requests.some((r) => new URL(r.url).pathname === `/fhir/R4/Appointment/${id}`)).toBe(true))
-      await new Promise((done) => setTimeout(done, 20))
+      // Every answered request, its body and React's updates settle within these turns; the status stays open.
+      for (let turn = 0; turn < 10; turn++) await act(async () => {})
       expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
       expect(screen.queryByRole('region', { name: 'Questionnaires' })).toBeNull()
 
