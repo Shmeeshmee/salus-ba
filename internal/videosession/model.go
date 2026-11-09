@@ -190,3 +190,59 @@ type WindowCloseArgs struct {
 
 // Kind names the job in river_job.
 func (WindowCloseArgs) Kind() string { return "consultation_window_close" }
+
+// QueueTranscription is the queue of the transcription agent's jobs; only cmd/agent works it.
+const QueueTranscription = "transcription"
+
+// AgentJoinArgs is the transcription_join job on the transcription queue (SAL-4), enqueued with every join of a
+// person into an open consultation the practitioner has joined: the agent joins the session's room unless it is
+// in it already. Opaque ids only.
+type AgentJoinArgs struct {
+	SessionID      string `json:"session_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (AgentJoinArgs) Kind() string { return "transcription_join" }
+
+// AgentTicket is what the transcription agent needs to join a session's room and transcribe it: the join, the
+// Encounter its transcript belongs to, the appointment, and the room's identities of its patient and its
+// practitioner, which tell the speakers apart. The identities are random and opaque, never logged.
+type AgentTicket struct {
+	Join                 Join
+	EncounterID          string
+	AppointmentID        string
+	PatientIdentity      string
+	PractitionerIdentity string
+}
+
+// AudioTrack is the microphone of one person in the consultation, decoded for the transcription agent: Frames
+// are 16 kHz 16-bit little-endian mono PCM, about 20 ms each, closed when the track ends or the agent is out of
+// the room.
+type AudioTrack struct {
+	Frames <-chan []byte
+	Role   Role
+}
+
+// AgentCall is the transcription agent in a session's room (AgentListen): each person's audio track as it is
+// published, on Tracks, which is closed once the agent is out of the room (removed when the patient's access
+// ended, the room deleted at the end, or after Leave). The caller reads Tracks until it is closed.
+type AgentCall struct {
+	Tracks        <-chan AudioTrack
+	Leave         func() // disconnects the agent; repeated, it does nothing
+	EncounterID   string
+	AppointmentID string
+}
+
+// RemoteAudio is a remote participant's audio track as the Listener hears it, by the participant's identity.
+type RemoteAudio struct {
+	Frames   <-chan []byte
+	Identity string
+}
+
+// Listening is the agent connected to a room (Listener): the remote audio tracks, closed once it is out of
+// the room, and how to leave.
+type Listening struct {
+	Tracks <-chan RemoteAudio
+	Leave  func()
+}

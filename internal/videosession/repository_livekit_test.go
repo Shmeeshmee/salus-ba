@@ -1,6 +1,7 @@
 package videosession_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -8,6 +9,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log"
+	"math"
 	"os"
 	"slices"
 	"strings"
@@ -16,8 +19,12 @@ import (
 
 	"github.com/livekit/protocol/auth"
 	"github.com/livekit/protocol/livekit"
+	protologger "github.com/livekit/protocol/logger"
 	"github.com/livekit/protocol/utils/protojson"
 	lksdk "github.com/livekit/server-sdk-go/v2"
+	"github.com/pion/webrtc/v4"
+	"github.com/pion/webrtc/v4/pkg/media"
+	"github.com/tphakala/go-opus/opus"
 
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -74,7 +81,8 @@ func (s livekitServer) connect(t *testing.T, token string) (*lksdk.Room, <-chan 
 	gone := make(chan lksdk.DisconnectionReason, 1)
 	cb := lksdk.NewRoomCallback()
 	cb.OnDisconnectedWithReason = func(r lksdk.DisconnectionReason) { gone <- r }
-	room, err := lksdk.ConnectToRoomWithToken(strings.Replace(s.url, "http", "ws", 1), token, cb, lksdk.WithAutoSubscribe(false))
+	room, err := lksdk.ConnectToRoomWithToken(strings.Replace(s.url, "http", "ws", 1), token, cb, lksdk.WithAutoSubscribe(false),
+		lksdk.WithLogger(protologger.GetDiscardLogger())) // so TestListen_LogsNothing hears only the agent
 	if err != nil {
 		return nil, gone
 	}
@@ -558,5 +566,217 @@ func TestParseWebhook_ReadsAnAgentsEventsAsOther(t *testing.T) {
 		if err != nil || got != want {
 			t.Errorf("ParseWebhook(%s of an agent) = %+v, %v; want %+v", kind, got, err, want)
 		}
+	}
+}
+
+// publishTone publishes a synthetic 440 Hz tone (never a recording) as the room's microphone until the test ends:
+// Opus at 48 kHz, as browsers and phones send it, or G.711 µ-law at 8 kHz, as the e2e participant does.
+func publishTone(t *testing.T, room *lksdk.Room, codec string) {
+	t.Helper()
+	capability := webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2}
+	if codec == webrtc.MimeTypePCMU {
+		capability = webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypePCMU, ClockRate: 8000, Channels: 1}
+	}
+	track, err := lksdk.NewLocalSampleTrack(capability)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := room.LocalParticipant.PublishTrack(track, &lksdk.TrackPublicationOptions{Source: livekit.TrackSource_MICROPHONE}); err != nil {
+		t.Fatalf("publish the tone: %v", err)
+	}
+	frame := toneFrames(t, codec)
+	ctx, stop := context.WithCancel(context.Background())
+	t.Cleanup(stop)
+	go func() {
+		tick := time.NewTicker(20 * time.Millisecond)
+		defer tick.Stop()
+		for n := 0; ; n++ {
+			if err := track.WriteSample(media.Sample{Data: frame(n), Duration: 20 * time.Millisecond}, nil); err != nil {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+			}
+		}
+	}()
+}
+
+// toneFrames gives the n-th 20 ms frame of a 440 Hz tone in the codec (Opus from go-opus's encoder, which codes
+// CELT only; the decoder takes SILK and hybrid too, checked by its RFC 6716 vectors).
+func toneFrames(t *testing.T, codec string) func(n int) []byte {
+	t.Helper()
+	if codec == webrtc.MimeTypePCMU {
+		return func(n int) []byte {
+			b := make([]byte, 160)
+			for i := range b {
+				b[i] = mulawOf(int16(8000 * math.Sin(2*math.Pi*440*float64(n*160+i)/8000)))
+			}
+			return b
+		}
+	}
+	enc, err := opus.NewEncoder(opus.EncoderConfig{SampleRate: 48000, Channels: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return func(n int) []byte {
+		pcm := make([]int16, 960)
+		for i := range pcm {
+			pcm[i] = int16(8000 * math.Sin(2*math.Pi*440*float64(n*960+i)/48000))
+		}
+		packet := make([]byte, 1276)
+		k, err := enc.Encode(pcm, packet)
+		if err != nil {
+			return nil
+		}
+		return packet[:k]
+	}
+}
+
+// mulawOf is the G.711 µ-law code of a sample.
+func mulawOf(sample int16) byte {
+	const bias, clip = 0x84, 32635
+	v, sign := int(sample), byte(0)
+	if v < 0 {
+		v, sign = -v, 0x80
+	}
+	v = min(v, clip) + bias
+	exp := 7
+	for mask := 0x4000; v&mask == 0 && exp > 0; mask >>= 1 {
+		exp--
+	}
+	return ^(sign | byte(exp<<4) | byte((v>>(exp+3))&0x0f))
+}
+
+// pitch is the frequency of a tone in 16 kHz PCM, from its zero crossings.
+func pitch(pcm []byte) float64 {
+	crossings, prev := 0, int16(0)
+	for i := 0; i+1 < len(pcm); i += 2 {
+		s := int16(uint16(pcm[i]) | uint16(pcm[i+1])<<8)
+		if (prev < 0) != (s < 0) {
+			crossings++
+		}
+		prev = s
+	}
+	return float64(crossings) / 2 / (float64(len(pcm)/2) / 16000)
+}
+
+// The agent hears each person's microphone in the room, Opus or G.711, decoded to 16 kHz 16-bit mono PCM in
+// 20 ms frames, by their identity; when it is removed from the room the tracks end (SAL-4).
+func TestListen_HandsOverEachMicrophoneDecodedTo16kHzUntilTheAgentIsRemoved(t *testing.T) {
+	t.Parallel()
+	lk := newLiveKitServer(t)
+	name := lk.room(t)
+	p := lk.provider()
+	token, err := p.Token(videosession.Grant{Room: name, Identity: "a_listen", ValidFor: time.Minute, Agent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, err := videosession.NewLiveKitListener().Listen(t.Context(), strings.Replace(lk.url, "http", "ws", 1), token)
+	if err != nil {
+		t.Fatalf("Listen() = %v", err)
+	}
+	t.Cleanup(l.Leave)
+	for identity, codec := range map[string]string{"p_opus": webrtc.MimeTypeOpus, "p_pcmu": webrtc.MimeTypePCMU} {
+		pt, err := p.Token(videosession.Grant{Room: name, Identity: identity, ValidFor: time.Minute})
+		if err != nil {
+			t.Fatal(err)
+		}
+		room, _ := lk.connect(t, pt)
+		if room == nil {
+			t.Fatalf("%s did not connect", identity)
+		}
+		publishTone(t, room, codec)
+	}
+
+	heard := map[string][]byte{}
+	var tracks []videosession.RemoteAudio
+	deadline := time.After(20 * time.Second)
+	for len(heard) < 2 {
+		select {
+		case a := <-l.Tracks:
+			var pcm []byte
+			for range 50 { // a second
+				f, ok := <-a.Frames
+				if !ok {
+					t.Fatalf("%s's track ended early", a.Identity)
+				}
+				if len(f) != 640 {
+					t.Fatalf("%s: a frame of %d bytes, want 640 (20 ms at 16 kHz, 16-bit mono)", a.Identity, len(f))
+				}
+				pcm = append(pcm, f...)
+			}
+			heard[a.Identity] = pcm
+			tracks = append(tracks, a)
+		case <-deadline:
+			t.Fatalf("heard %d tracks within 20 s, want 2", len(heard))
+		}
+	}
+	for identity, pcm := range heard {
+		if f := pitch(pcm[len(pcm)/2:]); f < 400 || f > 480 {
+			t.Errorf("%s: a tone of %.0f Hz, want 440", identity, f)
+		}
+	}
+
+	if err := p.RemoveParticipant(t.Context(), name, "a_listen"); err != nil {
+		t.Fatal(err)
+	}
+	ended := make(chan struct{})
+	go func() {
+		for a := range l.Tracks {
+			tracks = append(tracks, a)
+		}
+		for _, a := range tracks {
+			for range a.Frames { //nolint:revive // drained until the track ends
+			}
+		}
+		close(ended)
+	}()
+	select {
+	case <-ended:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the agent's tracks did not end within 15 s of its removal")
+	}
+}
+
+// The agent's connection logs nothing: LiveKit's SDK and WebRTC stack print the room, the identities and the
+// connection's addresses to the standard logger by default (SPEC.md §2: rooms and identities are never logged).
+// Not parallel, so it owns the standard logger while it runs.
+func TestListen_LogsNothing(t *testing.T) {
+	var logs bytes.Buffer
+	prev := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(prev) })
+
+	lk := newLiveKitServer(t)
+	name := lk.room(t)
+	p := lk.provider()
+	token, err := p.Token(videosession.Grant{Room: name, Identity: "a_quiet", ValidFor: time.Minute, Agent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, err := videosession.NewLiveKitListener().Listen(t.Context(), lk.url, token)
+	if err != nil {
+		t.Fatalf("Listen() = %v", err)
+	}
+	pt, err := p.Token(videosession.Grant{Room: name, Identity: "p_quiet", ValidFor: time.Minute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	room, _ := lk.connect(t, pt)
+	if room == nil {
+		t.Fatal("the publisher did not connect")
+	}
+	publishTone(t, room, webrtc.MimeTypeOpus)
+	select {
+	case a := <-l.Tracks:
+		<-a.Frames
+	case <-time.After(20 * time.Second):
+		t.Fatal("no track within 20 s")
+	}
+	l.Leave()
+	if logs.Len() != 0 {
+		t.Errorf("the connection logged %d bytes, want none; the first line: %s", logs.Len(), strings.SplitN(logs.String(), "\n", 2)[0])
 	}
 }

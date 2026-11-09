@@ -42,7 +42,8 @@ func (s *Service) HandleWebhook(ctx context.Context, body []byte, authorization 
 // the end deleted it. The practitioner's first join starts the Encounter at LiveKit's join time. The patient's access is checked again on every join (consent active,
 // appointment booked) and, when it is gone, they are removed from the room after the commit, audited
 // (removeFromRoom): a second guard behind the token's check, for a token issued just before a revocation or a
-// cancellation committed.
+// cancellation committed. Every join of a person with access, once the practitioner has joined, asks the
+// transcription agent in (askAgentIn).
 func (s *Service) joined(ctx context.Context, e Event) error {
 	now := s.Clock.Now()
 	var session Session
@@ -71,17 +72,21 @@ func (s *Service) joined(ctx context.Context, e Event) error {
 			}
 		}
 		if role == RolePatient {
-			remove, reason, err = s.accessGone(ctx, session.AppointmentID)
-			return err
+			if remove, reason, err = s.accessGone(ctx, session.AppointmentID); err != nil || remove {
+				return err
+			}
+			return s.askAgentIn(ctx, joined)
 		}
-		if !changed {
-			return nil
+		if changed {
+			_, err = s.Encounters.Start(ctx, agentWebhook, session.AppointmentID, e.At)
+			if errors.Is(err, encounter.ErrNotFound) { // the clinic's scope no longer shows the appointment
+				return nil
+			}
+			if err != nil {
+				return err
+			}
 		}
-		_, err = s.Encounters.Start(ctx, agentWebhook, session.AppointmentID, e.At)
-		if errors.Is(err, encounter.ErrNotFound) { // the clinic's scope no longer shows the appointment
-			return nil
-		}
-		return err
+		return s.askAgentIn(ctx, joined)
 	})
 	switch {
 	case err != nil:
@@ -92,6 +97,16 @@ func (s *Service) joined(ctx context.Context, e Event) error {
 		return nil
 	}
 	return s.removeFromRoom(ctx, agentWebhook, session, reason)
+}
+
+// askAgentIn enqueues the transcription agent's join of the session, in the transaction in ctx, once its
+// practitioner has joined (SAL-4): the transcript belongs to the Encounter that join started. Every join asks
+// again, so an agent that lost the room (a restart) comes back with the next one; it joins a session once.
+func (s *Service) askAgentIn(ctx context.Context, session Session) error {
+	if session.PractitionerJoinedAt.IsZero() {
+		return nil
+	}
+	return s.Jobs.EnqueueAgentJoin(ctx, session.ID, session.OrganizationID)
 }
 
 // left ends the session when a participant left or the room finished after the window closed, as the

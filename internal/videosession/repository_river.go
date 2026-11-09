@@ -31,3 +31,15 @@ func (j *riverJobs) EnqueueWindowClose(ctx context.Context, sessionID, org strin
 	}
 	return nil
 }
+
+func (j *riverJobs) EnqueueAgentJoin(ctx context.Context, sessionID, org string) error {
+	tx, ok := postgres.Tx(ctx)
+	if !ok {
+		return postgres.ErrNoTx
+	}
+	args := AgentJoinArgs{SessionID: sessionID, OrganizationID: org}
+	if _, err := j.client.InsertTx(ctx, tx, args, &river.InsertOpts{Queue: QueueTranscription}); err != nil {
+		return fmt.Errorf("videosession: enqueue %s: %w", args.Kind(), err)
+	}
+	return nil
+}

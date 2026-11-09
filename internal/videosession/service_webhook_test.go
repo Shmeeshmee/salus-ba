@@ -350,3 +350,59 @@ func TestHandleWebhook_FailsOnABodyThatIsNotAnEvent(t *testing.T) {
 		t.Errorf("HandleWebhook() = %v, want the parse error", err)
 	}
 }
+
+// Every join of a person into an open consultation the practitioner has joined asks the transcription agent
+// in (SAL-4): a transcription_join job for the session, in the join's transaction. Repeats and reconnects ask
+// again; the agent joins once per session. A patient whose access is gone, a join before the practitioner's
+// (no Encounter yet), and a join after the end ask nothing.
+func TestHandleWebhook_AsksTheAgentInOnceThePractitionerJoined(t *testing.T) {
+	session := "5e000000-0000-4000-8000-000000000001 " + clinicA
+	for _, tc := range []struct {
+		setup func(f *fixture)
+		name  string
+		who   string
+		want  []string
+	}{
+		{name: "the practitioner's join", who: "p_practitioner", want: []string{session}},
+		{name: "the patient's join after the practitioner's", who: "p_patient", want: []string{session}, setup: func(f *fixture) {
+			s := f.session()
+			s.PractitionerJoinedAt = start
+			f.repo.sessions[apptA] = s
+		}},
+		{name: "the patient's join before the practitioner's", who: "p_patient"},
+		{name: "a patient whose consent is revoked", who: "p_patient", setup: func(f *fixture) {
+			s := f.session()
+			s.PractitionerJoinedAt = start
+			f.repo.sessions[apptA] = s
+			f.consents.revoked = true
+		}},
+		{name: "a join after the end", who: "p_practitioner", setup: func(f *fixture) {
+			s := f.session()
+			s.EndedAt, s.EndReason = now, videosession.EndPractitioner
+			f.repo.sessions[apptA] = s
+		}},
+	} {
+		f := opened(now, time.Time{}, time.Time{})
+		if tc.setup != nil {
+			tc.setup(f)
+		}
+		if _, err := deliver(t, f, joined(tc.who)); err != nil {
+			t.Fatalf("%s: HandleWebhook() = %v", tc.name, err)
+		}
+		if !slices.Equal(f.jobs.agentJoins, tc.want) {
+			t.Errorf("%s: agent joins %v, want %v", tc.name, f.jobs.agentJoins, tc.want)
+		}
+	}
+}
+
+// A failed enqueue fails the webhook, so LiveKit delivers it again; the join is not recorded meanwhile.
+func TestHandleWebhook_FailsWhenTheAgentCannotBeAskedIn(t *testing.T) {
+	f := opened(now, time.Time{}, time.Time{})
+	f.jobs.agentErr = errBackend
+	if _, err := deliver(t, f, joined("p_practitioner")); !errors.Is(err, errBackend) {
+		t.Fatalf("HandleWebhook() = %v, want the jobs' error", err)
+	}
+	if s := f.session(); !s.PractitionerJoinedAt.IsZero() {
+		t.Errorf("session %+v; want the join rolled back", s)
+	}
+}
