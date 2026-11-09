@@ -79,6 +79,25 @@ func TestStream_RecvEndsWithTheContext(t *testing.T) {
 	}
 }
 
+// Closed audio and a done context at once: the context's error, every time (select alone picks either).
+func TestStream_RecvPrefersTheContextOverTheClosedAudio(t *testing.T) {
+	t.Parallel()
+	for range 200 {
+		ctx, cancel := context.WithCancel(t.Context())
+		s, err := (&stttest.Recognizer{}).Stream(ctx, stt.Config{Lang: "bs", SampleRate: 16000})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.CloseSend(); err != nil {
+			t.Fatal(err)
+		}
+		cancel()
+		if _, err := s.Recv(); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Recv() = %v, want context.Canceled", err)
+		}
+	}
+}
+
 func TestStream_RecordsTheAudioAndTheConfigAndRefusesAudioAfterClose(t *testing.T) {
 	t.Parallel()
 	r := &stttest.Recognizer{}

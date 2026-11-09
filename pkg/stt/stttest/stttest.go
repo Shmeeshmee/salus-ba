@@ -86,6 +86,9 @@ func (s *Stream) Recv() (stt.Result, error) {
 	}
 	select {
 	case <-s.closed:
+		if err := s.ctx.Err(); err != nil { // both ready: select picks either, the context wins
+			return stt.Result{}, err
+		}
 		return stt.Result{}, io.EOF
 	case <-s.ctx.Done():
 		return stt.Result{}, s.ctx.Err()
