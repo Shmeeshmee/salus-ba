@@ -10,6 +10,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/migrations"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
+	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 )
 
 func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
@@ -18,6 +19,7 @@ func TestRun_StartsRiverAndStopsCleanly(t *testing.T) {
 	dbURL := pgtest.NewDatabaseURL(t)
 	t.Setenv("DATABASE_URL", pgtest.AppURL(t, dbURL))
 	t.Setenv("RETENTION_DATABASE_URL", pgtest.RetentionURL(t, dbURL))
+	t.Setenv("REDIS_URL", redistest.URL(t))
 	setLiveKit(t)
 	setFiles(t)
 	logs, err := runUntilStarted(t)
@@ -42,6 +44,22 @@ func TestRun_FailsWithoutTheRetentionDatabaseURL(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "RETENTION_DATABASE_URL") {
 		t.Fatalf("run() error = %v, want one naming RETENTION_DATABASE_URL", err)
+	}
+}
+
+// The consultations' stream consumer reads Redis; without it the worker does not start.
+func TestRun_FailsWithoutTheRedisURL(t *testing.T) {
+	dbURL := pgtest.NewDatabaseURL(t)
+	t.Setenv("DATABASE_URL", pgtest.AppURL(t, dbURL))
+	t.Setenv("RETENTION_DATABASE_URL", pgtest.RetentionURL(t, dbURL))
+	t.Setenv("REDIS_URL", "")
+	setLiveKit(t)
+	setFiles(t)
+
+	err := run(t.Context(), &bytes.Buffer{})
+
+	if err == nil || !strings.Contains(err.Error(), "REDIS_URL") {
+		t.Fatalf("run() error = %v, want one naming REDIS_URL", err)
 	}
 }
 
