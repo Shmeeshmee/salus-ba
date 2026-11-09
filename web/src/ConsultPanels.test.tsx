@@ -12,6 +12,10 @@ const id = 'e1000000-0000-4000-8000-000000000001'
 const zone = 'Europe/Sarajevo'
 
 let scrolled: Element[]
+const scrollIntoView = Element.prototype.scrollIntoView
+afterEach(() => {
+  Element.prototype.scrollIntoView = scrollIntoView
+})
 beforeEach(() => {
   scrolled = []
   // jsdom has no layout, so scrollIntoView is missing; the test records which element was brought into view.

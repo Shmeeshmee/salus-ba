@@ -11,6 +11,10 @@ const id = 'e1000000-0000-4000-8000-000000000001'
 const summary = templates[0]
 
 let scrolled: Element[]
+const scrollIntoView = Element.prototype.scrollIntoView
+afterEach(() => {
+  Element.prototype.scrollIntoView = scrollIntoView
+})
 beforeEach(() => {
   scrolled = []
   Element.prototype.scrollIntoView = function (this: Element) {
