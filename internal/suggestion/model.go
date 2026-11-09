@@ -7,6 +7,7 @@ package suggestion
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
@@ -38,14 +39,26 @@ const (
 	StatusPinned    Status = "pinned"
 )
 
+// Origin says where a suggestion comes from. There is one: an AI model. Every suggestion carries it, so whatever
+// shows one labels it as AI assistance, never as a diagnosis.
+type Origin string
+
+// OriginAI is a suggestion from a language model (llm.Suggester): AI assistance for the practitioner.
+const OriginAI Origin = "ai"
+
+// MaxTextLength bounds a suggestion's text, in characters: a prompt to glance at during a consultation, not a
+// paragraph.
+const MaxTextLength = 300
+
 // Event is a suggestion as it is pushed to the practitioner, first shown, then again on every change of its
-// status. Confidence is the model's, from 0 to 1.
+// status. Confidence is the model's, from 0 to 1. Origin is always OriginAI.
 type Event struct {
 	ID               string   `json:"id"`
 	EncounterID      string   `json:"encounter_id"`
 	Type             Type     `json:"type"`
 	Text             string   `json:"text"`
 	Status           Status   `json:"status"`
+	Origin           Origin   `json:"origin"`
 	SourceSegmentIDs []string `json:"source_segment_ids"`
 	Confidence       float32  `json:"confidence"`
 }
@@ -59,7 +72,7 @@ func (e Event) Validate() error {
 		return invalid("encounter_id")
 	case e.Type != TypeDiagnosis && e.Type != TypeQuestion && e.Type != TypeRedFlag && e.Type != TypeTerm:
 		return invalid("type")
-	case strings.TrimSpace(e.Text) == "":
+	case strings.TrimSpace(e.Text) == "" || utf8.RuneCountInString(e.Text) > MaxTextLength:
 		return invalid("text")
 	case !(e.Confidence >= 0 && e.Confidence <= 1): // NaN fails both
 		return invalid("confidence")
@@ -67,6 +80,8 @@ func (e Event) Validate() error {
 		return invalid("source_segment_ids")
 	case e.Status != StatusShown && e.Status != StatusDismissed && e.Status != StatusPinned:
 		return invalid("status")
+	case e.Origin != OriginAI:
+		return invalid("origin")
 	}
 	return nil
 }

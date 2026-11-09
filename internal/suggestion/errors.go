@@ -15,6 +15,9 @@ var (
 	// ErrConsentRequired is returned when the patient's consent with the clinic is not active: nothing is
 	// written after a revocation.
 	ErrConsentRequired = errors.New("suggestion: consent required")
+	// ErrForbidden is returned to a caller who sees the encounter but may not act on its suggestions: anyone but
+	// its practitioner.
+	ErrForbidden = errors.New("suggestion: forbidden")
 )
 
 func invalid(field string) error { return fmt.Errorf("%w: %s", ErrInvalid, field) }

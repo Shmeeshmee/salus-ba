@@ -75,6 +75,7 @@ func TestLiveEvents_MatchTheirGoTypes(t *testing.T) {
 			"type": {string(suggestion.TypeDiagnosis), string(suggestion.TypeQuestion), string(suggestion.TypeRedFlag),
 				string(suggestion.TypeTerm)},
 			"status": {string(suggestion.StatusShown), string(suggestion.StatusDismissed), string(suggestion.StatusPinned)},
+			"origin": {string(suggestion.OriginAI)},
 		}},
 		"DraftEvent": {composition.Event{}, map[string][]string{
 			"status": {string(composition.StatusPreliminary), string(composition.StatusFinal), string(composition.StatusEnteredInError)},

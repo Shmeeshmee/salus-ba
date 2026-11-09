@@ -3457,17 +3457,27 @@ components:
     SuggestionEvent:
       type: object
       description: >-
-        A suggestion for the practitioner only, citing the segments it came from; a prompt, never a diagnosis.
-        Pushed when shown and on every change of its status.
-      required: [id, encounter_id, type, text, confidence, source_segment_ids, status]
+        AI assistance for the practitioner only: a suggestion from a language model, citing the segments it came
+        from; a prompt the practitioner may ignore, never a diagnosis. Whatever shows one labels it as AI
+        assistance (`origin`). Pushed when shown and on every change of its status.
+      required: [id, encounter_id, type, text, confidence, source_segment_ids, status, origin]
       properties:
         id: {type: string, format: uuid}
         encounter_id: {type: string, format: uuid}
         type:
           type: string
           enum: [diagnosis, question, red_flag, term]
+          description: >-
+            What the suggestion prompts: a diagnosis to consider (not one made), a question to ask, a red flag to
+            check, or a term to explain.
         text:
           type: string
+          minLength: 1
+          maxLength: 300
+        origin:
+          type: string
+          enum: [ai]
+          description: Always `ai`, an AI model's suggestion, shown as AI assistance.
         confidence:
           type: number
           minimum: 0

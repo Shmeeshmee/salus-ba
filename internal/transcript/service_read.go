@@ -102,6 +102,31 @@ func (s *Service) Next(ctx context.Context, c appointment.Caller, encounterID, a
 	return entries, nil
 }
 
+// Allowed checks Export's rule for another domain acting on what the stream shows, in the transaction in ctx
+// (joining it, scoped to the caller), and returns the encounter's id as far as the caller may know it ("" when
+// the appointment does not show it), with Export's refusals: ErrNotFound, ErrConsentRequired or ErrForbidden.
+// Unaudited: the caller audits its own action, refusals included.
+func (s *Service) Allowed(ctx context.Context, c appointment.Caller, encounterID string) (string, error) {
+	var id string
+	var refused error
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		var err error
+		id, err = s.allowed(ctx, c, encounterID)
+		refused = refusal(err)
+		if refused != nil {
+			return nil
+		}
+		return err
+	})
+	switch {
+	case err != nil:
+		return "", fmt.Errorf("transcript: allowed: %w", err)
+	case refused != nil:
+		return id, refused
+	}
+	return id, nil
+}
+
 // errRefused wraps a refusal with the encounter it discloses ("" for none).
 type errRefused struct {
 	err error

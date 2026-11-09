@@ -22,9 +22,10 @@ func TestRecord_StoresANewSuggestion(t *testing.T) {
 	checkEvents(t, "new", f.audit, systemEvent(auditevent.CodeCreate, auditevent.OutcomeSuccess, 1))
 }
 
-// A later event of the same suggestion changes its status only (what was suggested never changes), audited as
-// an update; an event delivered again changes nothing and is not audited again.
-func TestRecord_UpdatesTheStatusAndIsIdempotent(t *testing.T) {
+// A later event of a stored suggestion changes nothing (SAL-7): whoever changed its status (the practitioner,
+// through SetStatus) stored it before the event was published, so a stale event delivered again after a newer
+// one cannot set an older status back. An event delivered again is not audited again.
+func TestRecord_StoresOnceAndALaterEventChangesNothing(t *testing.T) {
 	f := newFixture()
 	pinned := valid()
 	pinned.Status, pinned.Text = suggestion.StatusPinned, "Placeholder text changed"
@@ -33,11 +34,10 @@ func TestRecord_UpdatesTheStatusAndIsIdempotent(t *testing.T) {
 			t.Fatalf("Record() error = %v", err)
 		}
 	}
-	if got := f.repo.rows[suggestionID]; got.Status != suggestion.StatusPinned || got.Text != valid().Text {
-		t.Errorf("stored %+v, want the first text, pinned", got)
+	if got := f.repo.rows[suggestionID]; got.Status != suggestion.StatusShown || got.Text != valid().Text {
+		t.Errorf("stored %+v, want the first event as it was", got)
 	}
-	checkEvents(t, "updates", f.audit,
-		systemEvent(auditevent.CodeCreate, auditevent.OutcomeSuccess, 1), systemEvent(auditevent.CodeUpdate, auditevent.OutcomeSuccess, 1))
+	checkEvents(t, "once", f.audit, systemEvent(auditevent.CodeCreate, auditevent.OutcomeSuccess, 1))
 }
 
 func TestRecord_RefusesAnInvalidEvent(t *testing.T) {

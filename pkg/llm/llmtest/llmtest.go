@@ -47,6 +47,7 @@ type Suggester struct {
 func (f *Suggester) Suggest(_ context.Context, req llm.SuggestRequest) ([]llm.Suggestion, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	req.Transcript, req.Shown = slices.Clone(req.Transcript), slices.Clone(req.Shown)
 	f.calls = append(f.calls, req)
 	if f.Err != nil {
 		return nil, f.Err

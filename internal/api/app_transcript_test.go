@@ -65,7 +65,7 @@ func (s streamApp) add(t *testing.T, n int) []byte {
 	if n%3 == 2 {
 		env, err = wire.Encode(suggestion.MessageType, suggestion.MessageVersion, suggestion.Event{
 			ID: "5a000000-0000-4000-8000-" + segment[24:], EncounterID: s.encounter, Type: suggestion.TypeQuestion,
-			Text: "Placeholder question " + itoa(n), Status: suggestion.StatusShown, SourceSegmentIDs: []string{segment}, Confidence: 0.5,
+			Text: "Placeholder question " + itoa(n), Status: suggestion.StatusShown, Origin: suggestion.OriginAI, SourceSegmentIDs: []string{segment}, Confidence: 0.5,
 		})
 	} else {
 		start := time.Date(2030, 1, 7, 9, 0, n, 0, time.UTC)

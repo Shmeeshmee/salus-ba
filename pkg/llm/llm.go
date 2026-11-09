@@ -25,10 +25,13 @@ type Utterance struct {
 	Text    string
 }
 
-// SuggestRequest is a transcript, and the language to write the suggestions in.
+// SuggestRequest is a transcript, the language to write the suggestions in, and the texts of the suggestions
+// already shown from it (dismissed and pinned ones included): none of them, nor one saying the same, is to be
+// suggested again.
 type SuggestRequest struct {
 	Lang       string
 	Transcript []Utterance
+	Shown      []string
 }
 
 // Suggestion is one suggestion: its kind (a name the caller defines), its text, how confident the model is

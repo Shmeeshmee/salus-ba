@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Shmeeshmee/salus/internal/access"
+	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 )
@@ -32,11 +33,26 @@ type Consents interface {
 	State(ctx context.Context, patientID, organizationID string) (access.Consent, error)
 }
 
+// Records checks the encounter's stream's rule for a caller, in the transaction in ctx: the encounter's
+// practitioner with an active consent (transcript.Service.Allowed). It returns the encounter's id as far as the
+// caller may know it, and transcript.ErrNotFound, ErrConsentRequired or ErrForbidden for a refusal.
+type Records interface {
+	Allowed(ctx context.Context, c appointment.Caller, encounterID string) (string, error)
+}
+
+// Publisher puts an envelope on the encounter's stream (transcript.StreamKey), where the practitioner's views
+// and the stream consumer read it.
+type Publisher interface {
+	Publish(ctx context.Context, encounterID string, envelope []byte) error
+}
+
 // Ports are the Service's dependencies.
 type Ports struct {
 	Repo       Repository
 	Encounters Encounters
 	Consents   Consents
+	Records    Records
+	Publisher  Publisher
 	Audit      Auditor
 	Tx         Transactor
 }
@@ -55,9 +71,9 @@ func NewService(p Ports) *Service {
 const entityName = "suggestion"
 
 // Record stores the suggestion event e for the agent (the stream consumer, which has only the event), in the
-// encounter's clinic scope: a new suggestion is stored, a later event of it changes its status only, and each
-// write is audited. It is idempotent: an event delivered again (the stream delivers at least once) changes
-// nothing and is not audited again. ErrInvalid for an event the contract does not allow, ErrNotFound for an
+// encounter's clinic scope: a new suggestion is stored and the write audited. A later event of a stored one
+// changes nothing: its status was stored by whoever changed it (SetStatus) before the event was published, so an
+// old event delivered again (the stream delivers at least once) cannot set an older status back. ErrInvalid for an event the contract does not allow, ErrNotFound for an
 // encounter the clinic's scope does not show, and ErrConsentRequired, audited, once the patient's consent with
 // the clinic is no longer active.
 func (s *Service) Record(ctx context.Context, agent string, e Event) error {
@@ -78,16 +94,11 @@ func (s *Service) Record(ctx context.Context, agent string, e Event) error {
 			refused = ErrConsentRequired
 			return s.Audit.Record(ctx, systemEvent(agent, enc, auditevent.CodeCreate, auditevent.OutcomeMinorFailure, 0))
 		}
-		saved, err := s.Repo.Save(ctx, e)
-		switch {
-		case err != nil:
+		created, err := s.Repo.Insert(ctx, e)
+		if err != nil || !created {
 			return err
-		case saved == SavedCreated:
-			return s.Audit.Record(ctx, systemEvent(agent, enc, auditevent.CodeCreate, auditevent.OutcomeSuccess, 1))
-		case saved == SavedUpdated:
-			return s.Audit.Record(ctx, systemEvent(agent, enc, auditevent.CodeUpdate, auditevent.OutcomeSuccess, 1))
 		}
-		return nil
+		return s.Audit.Record(ctx, systemEvent(agent, enc, auditevent.CodeCreate, auditevent.OutcomeSuccess, 1))
 	})
 	switch {
 	case errors.Is(err, encounter.ErrNotFound):
