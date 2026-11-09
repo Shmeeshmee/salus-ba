@@ -67,8 +67,9 @@ func insertConsultRow(table, encounter, template string) func(ctx context.Contex
 			_, err = db.Exec(ctx, `INSERT INTO suggestion (encounter_id, type, text, confidence, source_segment_ids)
 				VALUES ($1, 'term', 'Placeholder term', 0.9, ARRAY[gen_random_uuid()])`, encounter)
 		case "document_draft":
-			_, err = db.Exec(ctx, `INSERT INTO document_draft (encounter_id, template_id, fields)
-				VALUES ($1, $2, '[{"key":"a","missing":true}]')`, encounter, template)
+			// Final: the seeded draft is the encounter's one open draft of the template (00036).
+			_, err = db.Exec(ctx, `INSERT INTO document_draft (encounter_id, template_id, status, fields)
+				VALUES ($1, $2, 'final', '[{"key":"a","missing":true}]')`, encounter, template)
 		}
 		return err
 	}
