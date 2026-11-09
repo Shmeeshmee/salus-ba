@@ -41,8 +41,8 @@ func seedConsult(t *testing.T, owner *pgxpool.Pool) consultRows {
 	}
 	for _, e := range c.encounters {
 		_, err := owner.Exec(t.Context(), `WITH s AS (
-				INSERT INTO transcript_segment (encounter_id, speaker, lang, original, translation, ts_start, ts_end)
-				VALUES ($1, 'patient', 'bs', 'Placeholder original', '[de] Placeholder original', now(), now()) RETURNING id),
+				INSERT INTO transcript_segment (id, encounter_id, speaker, lang, original, translation, ts_start, ts_end)
+				VALUES (gen_random_uuid(), $1, 'patient', 'bs', 'Placeholder original', '[de] Placeholder original', now(), now()) RETURNING id),
 			g AS (INSERT INTO suggestion (encounter_id, type, text, confidence, source_segment_ids)
 				SELECT $1, 'question', 'Placeholder question', 0.5, ARRAY[id] FROM s)
 			INSERT INTO document_draft (encounter_id, template_id, fields)
@@ -61,8 +61,8 @@ func insertConsultRow(table, encounter, template string) func(ctx context.Contex
 		var err error
 		switch table {
 		case "transcript_segment":
-			_, err = db.Exec(ctx, `INSERT INTO transcript_segment (encounter_id, speaker, lang, original, ts_start, ts_end)
-				VALUES ($1, 'doctor', 'de', 'Placeholder original', now(), now())`, encounter)
+			_, err = db.Exec(ctx, `INSERT INTO transcript_segment (id, encounter_id, speaker, lang, original, ts_start, ts_end)
+				VALUES (gen_random_uuid(), $1, 'doctor', 'de', 'Placeholder original', now(), now())`, encounter)
 		case "suggestion":
 			_, err = db.Exec(ctx, `INSERT INTO suggestion (encounter_id, type, text, confidence, source_segment_ids)
 				VALUES ($1, 'term', 'Placeholder term', 0.9, ARRAY[gen_random_uuid()])`, encounter)
@@ -241,14 +241,14 @@ func TestConsultTables_HoldAConsistentState(t *testing.T) {
 		stmt string
 		args []any
 	}{
-		{"an unknown speaker", `INSERT INTO transcript_segment (encounter_id, speaker, lang, original, ts_start, ts_end)
-			VALUES ($1, 'practitioner', 'bs', 'x', now(), now())`, []any{e}},
-		{"no lang", `INSERT INTO transcript_segment (encounter_id, speaker, lang, original, ts_start, ts_end)
-			VALUES ($1, 'doctor', '', 'x', now(), now())`, []any{e}},
-		{"a blank original", `INSERT INTO transcript_segment (encounter_id, speaker, lang, original, ts_start, ts_end)
-			VALUES ($1, 'doctor', 'bs', ' ', now(), now())`, []any{e}},
-		{"an end before the start", `INSERT INTO transcript_segment (encounter_id, speaker, lang, original, ts_start, ts_end)
-			VALUES ($1, 'doctor', 'bs', 'x', now(), now() - interval '1 second')`, []any{e}},
+		{"an unknown speaker", `INSERT INTO transcript_segment (id, encounter_id, speaker, lang, original, ts_start, ts_end)
+			VALUES (gen_random_uuid(), $1, 'practitioner', 'bs', 'x', now(), now())`, []any{e}},
+		{"no lang", `INSERT INTO transcript_segment (id, encounter_id, speaker, lang, original, ts_start, ts_end)
+			VALUES (gen_random_uuid(), $1, 'doctor', '', 'x', now(), now())`, []any{e}},
+		{"a blank original", `INSERT INTO transcript_segment (id, encounter_id, speaker, lang, original, ts_start, ts_end)
+			VALUES (gen_random_uuid(), $1, 'doctor', 'bs', ' ', now(), now())`, []any{e}},
+		{"an end before the start", `INSERT INTO transcript_segment (id, encounter_id, speaker, lang, original, ts_start, ts_end)
+			VALUES (gen_random_uuid(), $1, 'doctor', 'bs', 'x', now(), now() - interval '1 second')`, []any{e}},
 		{"an unknown suggestion type", `INSERT INTO suggestion (encounter_id, type, text, confidence, source_segment_ids)
 			VALUES ($1, 'treatment', 'x', 0.5, ARRAY[gen_random_uuid()])`, []any{e}},
 		{"a confidence over 1", `INSERT INTO suggestion (encounter_id, type, text, confidence, source_segment_ids)
@@ -276,5 +276,29 @@ func TestConsultTables_HoldAConsistentState(t *testing.T) {
 	if err := owner.QueryRow(t.Context(), `SELECT d.status || '/' || s.status FROM document_draft d, suggestion s
 		WHERE d.encounter_id = $1 AND s.encounter_id = $1`, e).Scan(&status); err != nil || status != "preliminary/shown" {
 		t.Errorf("defaults = %q, %v; want a preliminary draft and a shown suggestion", status, err)
+	}
+}
+
+// A stored segment keeps the segment_id of its live events, which suggestions cite: the id comes from the
+// event, never from the database.
+func TestTranscriptSegment_TakesItsIDFromTheEvent(t *testing.T) {
+	t.Parallel()
+	owner, _ := pgtest.NewAppDatabase(t)
+	c := seedConsult(t, owner)
+	e := c.encounters[c.a.aPast]
+
+	_, err := owner.Exec(t.Context(), `INSERT INTO transcript_segment (encounter_id, speaker, lang, original, ts_start, ts_end)
+		VALUES ($1, 'doctor', 'bs', 'x', now(), now())`, e)
+	if sqlState(err) != "23502" {
+		t.Errorf("a segment without its segment_id: %v, want not_null_violation (23502)", err)
+	}
+	const id = "6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b"
+	var got string
+	if err := owner.QueryRow(t.Context(), `INSERT INTO transcript_segment (id, encounter_id, speaker, lang, original, ts_start, ts_end)
+		VALUES ($1, $2, 'doctor', 'bs', 'x', now(), now()) RETURNING id::text`, id, e).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != id {
+		t.Errorf("stored id = %s, want the event's %s", got, id)
 	}
 }

@@ -18,7 +18,7 @@
 -- Retention: keep, with the clinical record, like encounter (internal/retention).
 
 CREATE TABLE transcript_segment (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    id uuid NOT NULL PRIMARY KEY,
     created_at timestamptz DEFAULT now() NOT NULL,
     ts_start timestamptz NOT NULL,
     ts_end timestamptz NOT NULL,
