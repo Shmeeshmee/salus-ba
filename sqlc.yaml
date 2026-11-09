@@ -139,3 +139,11 @@ sql:
         package: transcriptdb
         out: internal/transcript/transcriptdb
         sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/suggestion/query.sql
+    gen:
+      go:
+        package: suggestiondb
+        out: internal/suggestion/suggestiondb
+        sql_package: pgx/v5
