@@ -126,6 +126,27 @@ describe('Documents: the draft', () => {
   })
 })
 
+describe('Documents: two templates', () => {
+  it("keeps each draft's edits to itself when the practitioner switches templates", async () => {
+    const { emit } = await generated()
+    fireEvent.change(field('Placeholder reason'), { target: { value: 'Placeholder typed reason' } })
+
+    const select = screen.getByRole('combobox', { name: 'Template' })
+    fireEvent.change(select, { target: { value: templates[1].id } })
+    emit(
+      draft({
+        draft_id: 'c1000000-0000-4000-8000-000000000002',
+        template_id: templates[1].id,
+        fields: [{ key: 'reason', value: 'Placeholder other reason', missing: false, source_segment_ids: ['s'] }],
+      }),
+    )
+    expect((await screen.findByRole('textbox', { name: 'reason' }) as HTMLTextAreaElement).value).toBe('Placeholder other reason')
+
+    fireEvent.change(select, { target: { value: summary.id } })
+    expect(field('Placeholder reason').value).toBe('Placeholder typed reason')
+  })
+})
+
 describe('Documents: regenerate', () => {
   it('regenerates at once when nothing was edited, and shows the new draft when it arrives', async () => {
     const { emit, generated: calls } = await generated()

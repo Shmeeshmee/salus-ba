@@ -26,7 +26,8 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
   const [chosen, setChosen] = useState('')
   // waiting is the template being generated and its draft before, until a newer one arrives.
   const [waiting, setWaiting] = useState<{ template: string; before?: DraftEvent }>()
-  const [edits, setEdits] = useState<Record<string, string>>({})
+  // edits are the practitioner's field values by draft, then by field key, so no edit reaches another draft.
+  const [edits, setEdits] = useState<Record<string, Record<string, string>>>({})
   const [asking, setAsking] = useState<Asking>()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
@@ -54,7 +55,7 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
   async function generate() {
     setAsking(undefined)
     setError(undefined)
-    setEdits({})
+    if (current) setEdits((e) => without(e, current.draft_id))
     setWaiting({ template: chosen, before: current })
     try {
       await actions.generate(appointmentId, chosen)
@@ -70,10 +71,10 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
     try {
       const signed = await actions.sign(
         d.draft_id,
-        d.fields.map((f) => ({ key: f.key, value: edits[f.key] ?? f.value })),
+        d.fields.map((f) => ({ key: f.key, value: edits[d.draft_id]?.[f.key] ?? f.value })),
       )
       dispatch({ type: 'draft', version: 1, payload: signed })
-      setEdits({})
+      setEdits((e) => without(e, d.draft_id))
     } catch {
       setError(t('consultation.live.signFailed'))
     }
@@ -82,6 +83,7 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
   }
 
   const labels = new Map(template?.fields.map((f) => [f.key, f.label]))
+  const own = (draft && edits[draft.draft_id]) ?? {}
 
   return (
     <div className="documents">
@@ -116,16 +118,16 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
               key={f.key}
               field={f}
               label={labels.get(f.key) ?? f.key}
-              edited={edits[f.key]}
-              onEdit={(value) => setEdits((e) => ({ ...e, [f.key]: value }))}
+              edited={own[f.key]}
+              onEdit={(value) => setEdits((e) => ({ ...e, [draft.draft_id]: { ...e[draft.draft_id], [f.key]: value } }))}
               onSources={onSources}
             />
           ))}
           <DraftActions
             asking={asking}
             busy={busy}
-            empty={draft.fields.filter((f) => (edits[f.key] ?? f.value).trim() === '').length}
-            onAsk={(a) => (a === 'regenerate' && Object.keys(edits).length === 0 ? void generate() : setAsking(a))}
+            empty={draft.fields.filter((f) => (own[f.key] ?? f.value).trim() === '').length}
+            onAsk={(a) => (a === 'regenerate' && Object.keys(own).length === 0 ? void generate() : setAsking(a))}
             onSign={() => void sign(draft)}
             onRegenerate={() => void generate()}
           />
@@ -133,6 +135,13 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
       )}
     </div>
   )
+}
+
+// without is edits less one draft's.
+function without(edits: Record<string, Record<string, string>>, draftId: string) {
+  const rest = { ...edits }
+  delete rest[draftId]
+  return rest
 }
 
 // latest is the template's last draft not entered in error (a loop, as Array.prototype.findLast is missing in
