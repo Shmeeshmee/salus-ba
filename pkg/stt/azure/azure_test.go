@@ -16,11 +16,15 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/stt"
 	"github.com/Shmeeshmee/salus/pkg/stt/azure"
 )
 
 var _ stt.Recognizer = (*azure.Recognizer)(nil)
+
+// stamp is the time the recognizer's clock gives: every message carries it as its X-Timestamp.
+var stamp = time.Date(2026, 11, 9, 9, 30, 0, 123_000_000, time.UTC)
 
 // key is a synthetic subscription key; no real credential is used anywhere in these tests.
 const key = "synthetic-test-key-0123456789"
@@ -52,7 +56,7 @@ func newService(t *testing.T, script ...string) *service {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		s.serve(conn)
 	}))
 	t.Cleanup(s.srv.Close)
@@ -122,7 +126,7 @@ func (s *service) dialer() *websocket.Dialer {
 
 func newRecognizer(t *testing.T, s *service) *azure.Recognizer {
 	t.Helper()
-	r, err := azure.New(azure.Config{Region: "westeurope", Key: key}, s.dialer())
+	r, err := azure.New(azure.Config{Region: "westeurope", Key: key}, s.dialer(), clock.Fixed{T: stamp})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +153,7 @@ func TestNew_RefusesARegionOutsideTheEUAndAMissingKey(t *testing.T) {
 		"a region with dot": {Region: "westeurope.evil.example", Key: key},
 		"no key":            {Region: "westeurope"},
 	} {
-		_, err := azure.New(cfg, &websocket.Dialer{})
+		_, err := azure.New(cfg, &websocket.Dialer{}, clock.System{})
 		if !errors.Is(err, azure.ErrConfig) {
 			t.Errorf("%s: New() = %v, want ErrConfig", name, err)
 			continue
@@ -158,7 +162,7 @@ func TestNew_RefusesARegionOutsideTheEUAndAMissingKey(t *testing.T) {
 			t.Errorf("%s: the error %q holds a value", name, err)
 		}
 	}
-	if _, err := azure.New(azure.Config{Region: "westeurope", Key: key}, nil); !errors.Is(err, azure.ErrConfig) {
+	if _, err := azure.New(azure.Config{Region: "westeurope", Key: key}, nil, clock.System{}); !errors.Is(err, azure.ErrConfig) {
 		t.Errorf("New() without a dialer = %v, want ErrConfig", err)
 	}
 }
@@ -166,7 +170,7 @@ func TestNew_RefusesARegionOutsideTheEUAndAMissingKey(t *testing.T) {
 func TestNew_AcceptsEveryEURegion(t *testing.T) {
 	t.Parallel()
 	for _, region := range []string{"westeurope", "northeurope", "germanywestcentral", "francecentral", "swedencentral"} {
-		if _, err := azure.New(azure.Config{Region: region, Key: key}, &websocket.Dialer{}); err != nil {
+		if _, err := azure.New(azure.Config{Region: region, Key: key}, &websocket.Dialer{}, clock.System{}); err != nil {
 			t.Errorf("New(%s) = %v, want nil", region, err)
 		}
 	}
@@ -234,7 +238,7 @@ func TestStream_SendsTheConfigTheWAVHeaderTheAudioAndTheEnd(t *testing.T) {
 		binary.LittleEndian.Uint16(h[22:24]) != 1 || binary.LittleEndian.Uint32(h[24:28]) != 16000 || binary.LittleEndian.Uint16(h[34:36]) != 16 {
 		t.Errorf("WAV header = %v, want 44 bytes of RIFF/WAVE, mono, 16 kHz, 16 bits", h)
 	}
-	if header.headers["x-requestid"] != cfg.headers["x-requestid"] || len(cfg.headers["x-requestid"]) != 32 || cfg.headers["x-timestamp"] == "" {
+	if header.headers["x-requestid"] != cfg.headers["x-requestid"] || len(cfg.headers["x-requestid"]) != 32 || cfg.headers["x-timestamp"] != "2026-11-09T09:30:00.123Z" {
 		t.Errorf("request ids %q and %q, timestamp %q: want one 32-hex id and a timestamp", cfg.headers["x-requestid"], header.headers["x-requestid"], cfg.headers["x-timestamp"])
 	}
 

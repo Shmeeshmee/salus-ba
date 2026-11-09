@@ -25,6 +25,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/stt"
 )
 
@@ -63,14 +64,15 @@ type Config struct {
 
 // Recognizer opens Azure recognition streams.
 type Recognizer struct {
+	clock    clock.Clock
 	dialer   *websocket.Dialer
 	endpoint string
 	key      string
 }
 
-// New returns a Recognizer for cfg that connects with dialer. It refuses a region outside the EU, a missing
-// key and a missing dialer; the error names the setting, never its value.
-func New(cfg Config, dialer *websocket.Dialer) (*Recognizer, error) {
+// New returns a Recognizer for cfg that connects with dialer and stamps its messages by clk. It refuses a region
+// outside the EU, a missing key and a missing dialer; the error names the setting, never its value.
+func New(cfg Config, dialer *websocket.Dialer, clk clock.Clock) (*Recognizer, error) {
 	switch {
 	case !euRegions[cfg.Region]:
 		return nil, fmt.Errorf("%w: the region is not an EU region", ErrConfig)
@@ -80,6 +82,7 @@ func New(cfg Config, dialer *websocket.Dialer) (*Recognizer, error) {
 		return nil, fmt.Errorf("%w: the dialer is missing", ErrConfig)
 	}
 	return &Recognizer{
+		clock:    clk,
 		dialer:   dialer,
 		endpoint: "wss://" + cfg.Region + ".stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1",
 		key:      cfg.Key,
@@ -105,7 +108,7 @@ func (r *Recognizer) Stream(ctx context.Context, cfg stt.Config) (stt.Stream, er
 		return nil, fmt.Errorf("%w: connect: %w", ErrService, err)
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	s := &stream{conn: conn, ctx: ctx, cancel: cancel, lang: cfg.Lang, requestID: newID(), results: make(chan result, resultBuffer)}
+	s := &stream{conn: conn, ctx: ctx, cancel: cancel, clock: r.clock, lang: cfg.Lang, requestID: newID(), results: make(chan result, resultBuffer)}
 	go func() {
 		<-ctx.Done()
 		_ = conn.Close()
@@ -124,6 +127,7 @@ const resultBuffer = 64
 // stream is one connection's recognition.
 type stream struct {
 	ctx       context.Context
+	clock     clock.Clock
 	conn      *websocket.Conn
 	cancel    context.CancelFunc
 	results   chan result
@@ -220,7 +224,7 @@ func (s *stream) writeAudio(body []byte, first bool) error {
 // headers are a message's headers, each ended by CRLF.
 func (s *stream) headers(path, contentType string) string {
 	h := "Path: " + path + "\r\nX-RequestId: " + s.requestID + "\r\nX-Timestamp: " +
-		time.Now().UTC().Format("2006-01-02T15:04:05.000Z") + "\r\n" //nolint:forbidigo // a protocol header, not a business rule
+		s.clock.Now().UTC().Format("2006-01-02T15:04:05.000Z") + "\r\n"
 	if contentType != "" {
 		h += "Content-Type: " + contentType + "\r\n"
 	}

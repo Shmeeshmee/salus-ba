@@ -632,8 +632,8 @@ type fakeListener struct {
 	onJoin func() // runs once connected: what commits while the agent connects
 	tracks chan videosession.RemoteAudio
 	joined []string
-	left   int
 	in     []videosession.RemoteAudio
+	left   int
 	mu     sync.Mutex
 }
 

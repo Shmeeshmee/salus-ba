@@ -3,21 +3,121 @@ package main
 import (
 	"bytes"
 	"context"
+	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/Shmeeshmee/salus/migrations"
+	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
+	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 )
 
-func TestRun_LogsStartAndStopAndReturnsWhenCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	var logs bytes.Buffer
+func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
 
-	if err := run(ctx, &logs); err != nil {
-		t.Fatalf("run() error = %v, want nil", err)
+// setStack points the agent at a fresh database, the compose Redis and LiveKit, with the fake engine.
+func setStack(t *testing.T) {
+	t.Helper()
+	t.Setenv("DATABASE_URL", pgtest.AppURL(t, pgtest.NewDatabaseURL(t)))
+	t.Setenv("REDIS_URL", redistest.URL(t))
+	t.Setenv("LIVEKIT_URL", os.Getenv("TEST_LIVEKIT_URL"))
+	t.Setenv("LIVEKIT_PUBLIC_URL", "ws://localhost:7880")
+	t.Setenv("LIVEKIT_API_KEY", os.Getenv("TEST_LIVEKIT_API_KEY"))
+	t.Setenv("LIVEKIT_API_SECRET", os.Getenv("TEST_LIVEKIT_API_SECRET"))
+	t.Setenv("STT_ENGINE", "")
+}
+
+// The agent starts its River client on the transcription queue, with the fake engine by default, and stops
+// cleanly when its context ends.
+func TestRun_StartsWithTheFakeEngineAndStopsCleanly(t *testing.T) {
+	setStack(t)
+	logs, err := runUntilStarted(t)
+	if err != nil {
+		t.Fatalf("run() error = %v, want nil after the context ends", err)
 	}
-	for _, msg := range []string{`"msg":"started"`, `"msg":"stopped"`} {
-		if !strings.Contains(logs.String(), msg) {
-			t.Errorf("logs lack %s:\n%s", msg, logs.String())
+	for _, msg := range []string{`"msg":"started"`, `"stt_engine":"fake"`, `"msg":"stopped"`} {
+		if !strings.Contains(logs, msg) {
+			t.Errorf("logs lack %s:\n%s", msg, logs)
 		}
 	}
+}
+
+// Azure only in an EU region: without one, or with another, the agent refuses to start, and never says the key.
+func TestRun_RefusesAzureOutsideTheEU(t *testing.T) {
+	for _, region := range []string{"", "eastus"} {
+		setStack(t)
+		t.Setenv("STT_ENGINE", "azure")
+		t.Setenv("AZURE_SPEECH_REGION", region)
+		t.Setenv("AZURE_SPEECH_KEY", "speech-key-marker")
+		err := run(t.Context(), &bytes.Buffer{})
+		if err == nil || strings.Contains(err.Error(), "marker") {
+			t.Errorf("region %q: run() = %v, want a refusal without the key", region, err)
+		}
+	}
+}
+
+// With Azure in an EU region the agent starts; nothing connects to Azure until a call has audio.
+func TestRun_StartsWithAzureInAnEURegion(t *testing.T) {
+	setStack(t)
+	t.Setenv("STT_ENGINE", "azure")
+	t.Setenv("AZURE_SPEECH_REGION", "westeurope")
+	t.Setenv("AZURE_SPEECH_KEY", "speech-key-marker")
+	logs, err := runUntilStarted(t)
+	if err != nil || !strings.Contains(logs, `"stt_engine":"azure"`) || strings.Contains(logs, "marker") {
+		t.Errorf("run() = %v, logs:\n%s\nwant started with azure, without the key", err, logs)
+	}
+}
+
+func TestRun_FailsWithoutConfig(t *testing.T) {
+	for _, name := range []string{"DATABASE_URL", "REDIS_URL", "LIVEKIT_API_SECRET"} {
+		setStack(t)
+		t.Setenv(name, "")
+		if err := run(t.Context(), &bytes.Buffer{}); err == nil {
+			t.Errorf("without %s: run() error = nil, want a config error", name)
+		}
+	}
+}
+
+// syncBuffer collects run's log output; run writes it while the test reads it.
+type syncBuffer struct {
+	buf bytes.Buffer
+	mu  sync.Mutex
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// runUntilStarted runs run until it logs "started", then cancels it and returns its error and logs.
+func runUntilStarted(t *testing.T) (string, error) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	logs := &syncBuffer{}
+	done := make(chan error, 1)
+	go func() { done <- run(ctx, logs) }()
+	deadline := time.After(15 * time.Second)
+	for !strings.Contains(logs.String(), `"msg":"started"`) {
+		select {
+		case err := <-done:
+			return logs.String(), err
+		case <-deadline:
+			cancel()
+			err := <-done
+			t.Fatalf("run did not log started within 15 s (error after cancel: %v):\n%s", err, logs.String())
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	cancel()
+	err := <-done
+	return logs.String(), err
 }

@@ -100,8 +100,8 @@ func TestScheduler_EnqueuesThePeriodicJobOnceWithTwoClientsRunning(t *testing.T)
 }
 
 // The scheduler leads, so River's rescuer runs in it: it retries a stuck job only of a kind it knows, and
-// discards the others. It knows every kind the worker and the notifier work.
-func TestScheduler_KnowsEveryKindTheWorkerAndTheNotifierWork(t *testing.T) {
+// discards the others. It knows every kind the worker, the notifier and the agent work.
+func TestScheduler_KnowsEveryKindTheWorkerTheNotifierAndTheAgentWork(t *testing.T) {
 	t.Parallel()
 	_, app := pgtest.NewAppDatabase(t)
 	client, err := NewScheduler(app, slog.New(slog.DiscardHandler))
@@ -113,7 +113,7 @@ func TestScheduler_KnowsEveryKindTheWorkerAndTheNotifierWork(t *testing.T) {
 		NoopArgs{}, RetentionApplyArgs{}, schedule.SlotsGenerateArgs{}, consent.RevokedArgs{}, auth.InviteEmailArgs{},
 		appointment.BookedEmailArgs{}, appointment.CancelledEmailArgs{}, appointment.ReminderEmailArgs{}, appointment.AccessEndArgs{},
 		videosession.WindowCloseArgs{}, appointment.QuestionnaireRequestArgs{}, appointment.QuestionnaireDiscardArgs{},
-		binary.ScanArgs{}, binary.DiscardArgs{},
+		binary.ScanArgs{}, binary.DiscardArgs{}, videosession.AgentJoinArgs{},
 	} {
 		var unknown *river.UnknownJobKindError
 		if _, err := client.Insert(t.Context(), args, nil); errors.As(err, &unknown) || err != nil {

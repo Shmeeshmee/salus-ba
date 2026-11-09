@@ -200,7 +200,7 @@ func NewLiveKitListener() Listener {
 func (livekitListener) Listen(_ context.Context, url, token string) (Listening, error) {
 	l := &listening{tracks: make(chan RemoteAudio, 4)}
 	cb := lksdk.NewRoomCallback()
-	cb.ParticipantCallback.OnTrackSubscribed = func(track *webrtc.TrackRemote, _ *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
+	cb.OnTrackSubscribed = func(track *webrtc.TrackRemote, _ *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
 		if track.Kind() != webrtc.RTPCodecTypeAudio {
 			return
 		}
@@ -222,13 +222,12 @@ func (livekitListener) Listen(_ context.Context, url, token string) (Listening, 
 	if err != nil {
 		return Listening{}, failed("listen", err)
 	}
-	l.room = room
-	return Listening{Tracks: l.tracks, Leave: func() { room.Disconnect(); l.end() }}, nil
+	var once sync.Once
+	return Listening{Tracks: l.tracks, Leave: func() { once.Do(func() { room.Disconnect(); l.end() }) }}, nil
 }
 
 // listening hands the room's tracks over until the agent is out of it.
 type listening struct {
-	room   *lksdk.Room
 	tracks chan RemoteAudio
 	mu     sync.Mutex
 	ended  bool

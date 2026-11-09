@@ -690,29 +690,7 @@ func TestListen_HandsOverEachMicrophoneDecodedTo16kHzUntilTheAgentIsRemoved(t *t
 		publishTone(t, room, codec)
 	}
 
-	heard := map[string][]byte{}
-	var tracks []videosession.RemoteAudio
-	deadline := time.After(20 * time.Second)
-	for len(heard) < 2 {
-		select {
-		case a := <-l.Tracks:
-			var pcm []byte
-			for range 50 { // a second
-				f, ok := <-a.Frames
-				if !ok {
-					t.Fatalf("%s's track ended early", a.Identity)
-				}
-				if len(f) != 640 {
-					t.Fatalf("%s: a frame of %d bytes, want 640 (20 ms at 16 kHz, 16-bit mono)", a.Identity, len(f))
-				}
-				pcm = append(pcm, f...)
-			}
-			heard[a.Identity] = pcm
-			tracks = append(tracks, a)
-		case <-deadline:
-			t.Fatalf("heard %d tracks within 20 s, want 2", len(heard))
-		}
-	}
+	heard, tracks := hear(t, l, 2)
 	for identity, pcm := range heard {
 		if f := pitch(pcm[len(pcm)/2:]); f < 400 || f > 480 {
 			t.Errorf("%s: a tone of %.0f Hz, want 440", identity, f)
@@ -779,4 +757,34 @@ func TestListen_LogsNothing(t *testing.T) {
 	if logs.Len() != 0 {
 		t.Errorf("the connection logged %d bytes, want none; the first line: %s", logs.Len(), strings.SplitN(logs.String(), "\n", 2)[0])
 	}
+}
+
+// hear reads a second of audio from each of the first n tracks, checking each frame is 20 ms of 16 kHz 16-bit
+// mono PCM, and returns the audio by identity and the tracks.
+func hear(t *testing.T, l videosession.Listening, n int) (map[string][]byte, []videosession.RemoteAudio) {
+	t.Helper()
+	heard := map[string][]byte{}
+	var tracks []videosession.RemoteAudio
+	deadline := time.After(20 * time.Second)
+	for len(heard) < n {
+		select {
+		case a := <-l.Tracks:
+			var pcm []byte
+			for range 50 {
+				f, ok := <-a.Frames
+				if !ok {
+					t.Fatalf("%s's track ended early", a.Identity)
+				}
+				if len(f) != 640 {
+					t.Fatalf("%s: a frame of %d bytes, want 640 (20 ms at 16 kHz, 16-bit mono)", a.Identity, len(f))
+				}
+				pcm = append(pcm, f...)
+			}
+			heard[a.Identity] = pcm
+			tracks = append(tracks, a)
+		case <-deadline:
+			t.Fatalf("heard %d tracks within 20 s, want %d", len(heard), n)
+		}
+	}
+	return heard, tracks
 }
