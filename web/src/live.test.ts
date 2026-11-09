@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { newApiClient } from './api/client'
 import { newFhirClient } from './api/fhir'
-import type { ConsultMessage } from './consult'
+import { SignRefused, type ConsultMessage, type DraftEvent } from './consult'
 import { consultSocket, type End } from './live'
-import { fakeFetch, fhirJSON } from './test/fakeFetch'
-import { segment, suggestion } from './test/fakeConsult'
+import { apiError, fakeFetch, fhirJSON, type Route } from './test/fakeFetch'
+import { draft, segment, suggestion } from './test/fakeConsult'
 
 const appointment = 'e1000000-0000-4000-8000-000000000001'
 const encounter = 'e2000000-0000-4000-8000-000000000001'
@@ -41,11 +42,14 @@ class FakeSocket {
 
 const cursor = (id: string) => ({ type: 'cursor', version: 1, payload: { id } })
 
-function setup(searches: (() => Response)[] = [() => fhirJSON(found)]) {
+const draftsGet = `GET /encounters/${encounter}/drafts`
+
+function setup(searches: (() => Response)[] = [() => fhirJSON(found)], routes: Record<string, Route> = {}) {
   const sockets: FakeSocket[] = []
   let n = 0
-  const fake = fakeFetch({ [search]: () => searches[Math.min(n++, searches.length - 1)]() })
+  const fake = fakeFetch({ [search]: () => searches[Math.min(n++, searches.length - 1)](), [draftsGet]: () => Response.json({ drafts: [] }), ...routes })
   const { live, actions } = consultSocket({
+    api: newApiClient(fake.fetch),
     fhir: newFhirClient(fake.fetch),
     open: (url) => {
       const s = new FakeSocket(url)
@@ -72,6 +76,7 @@ describe('consultSocket: the live source', () => {
     await socketOpened(sockets)
 
     expect(new URL(requests[0].url).searchParams.get('appointment')).toBe(appointment)
+    expect(new URL(requests[0].url).pathname).toBe('/fhir/R4/Encounter')
     const url = new URL(sockets[0].url)
     expect(url.protocol).toBe('ws:')
     expect(url.host).toBe(location.host)
@@ -156,7 +161,7 @@ describe('consultSocket: the live source', () => {
     expect(requests).toHaveLength(2)
     await vi.advanceTimersByTimeAsync(2000)
     await socketOpened(sockets)
-    expect(requests).toHaveLength(3)
+    expect(requests.filter((r) => new URL(r.url).pathname === '/fhir/R4/Encounter')).toHaveLength(3)
   })
 
   it('closes the socket when unsubscribed, and neither delivers nor reconnects after', async () => {
@@ -246,5 +251,115 @@ describe('consultSocket: a suggestion status', () => {
     const pinning = s.actions.setSuggestionStatus(id, 'pinned')
     s.sockets[0].end(1006)
     await expect(pinning).rejects.toThrow()
+  })
+})
+
+describe('consultSocket: the stored drafts', () => {
+  it('delivers the drafts the encounter already has, once its encounter is found', async () => {
+    const stored = draft({ version_id: 4 }).payload as DraftEvent
+    const { subscribe, got, sockets } = setup(undefined, { [draftsGet]: () => Response.json({ drafts: [stored] }) })
+    subscribe()
+    await socketOpened(sockets)
+
+    await vi.waitFor(() => expect(got).toEqual([{ type: 'draft', version: 1, payload: stored }]))
+  })
+
+  it('goes on following the stream when they cannot be read', async () => {
+    const { subscribe, got, sockets } = setup(undefined, { [draftsGet]: () => apiError(500, 'internal') })
+    subscribe()
+    await socketOpened(sockets)
+    sockets[0].open()
+    sockets[0].frame(cursor('1-0'), segment())
+    await vi.waitFor(() => expect(got).toHaveLength(1))
+  })
+})
+
+describe('consultSocket: documents', () => {
+  const template = (p: Record<string, unknown>) => ({
+    id: 'd1000000-0000-4000-8000-000000000001',
+    title: 'Placeholder izvještaj',
+    language: 'bs',
+    status: 'draft',
+    typeCode: '11488-4',
+    fields: [
+      { key: 'reason', type: 'text', label: 'Placeholder razlog', required: true },
+      { key: 'plan', type: 'list', label: 'Placeholder plan', required: false },
+    ],
+    translations: [{ language: 'en', title: 'Placeholder report', fields: { reason: { label: 'Placeholder reason' }, plan: { label: 'Placeholder plan EN' } } }],
+    lastUpdated: '2026-11-09T09:00:00Z',
+    versionId: 1,
+    ...p,
+  })
+
+  it("lists the clinic's templates in the language asked for where they have it, and in their own otherwise", async () => {
+    const { actions } = setup(undefined, {
+      'GET /document-templates': () => Response.json({ templates: [template({}), template({ id: 'd1000000-0000-4000-8000-000000000002', language: 'hr', title: 'Placeholder nalaz', translations: [] })] }),
+    })
+
+    expect(await actions.templates('en')).toEqual([
+      { id: 'd1000000-0000-4000-8000-000000000001', title: 'Placeholder report', language: 'en', fields: [{ key: 'reason', label: 'Placeholder reason', required: true }, { key: 'plan', label: 'Placeholder plan EN', required: false }] },
+      { id: 'd1000000-0000-4000-8000-000000000002', title: 'Placeholder nalaz', language: 'hr', fields: [{ key: 'reason', label: 'Placeholder razlog', required: true }, { key: 'plan', label: 'Placeholder plan', required: false }] },
+    ])
+    expect((await actions.templates('bs'))[0]).toMatchObject({ title: 'Placeholder izvještaj', language: 'bs' })
+  })
+
+  it('fails when the templates cannot be listed', async () => {
+    const { actions } = setup(undefined, { 'GET /document-templates': () => apiError(500, 'internal') })
+    await expect(actions.templates('en')).rejects.toThrow()
+  })
+
+  it("drafts on the appointment's encounter in the language given and answers with the stored draft", async () => {
+    const stored = draft({ version_id: 2 }).payload as DraftEvent
+    const { actions, requests } = setup(undefined, { [`POST /encounters/${encounter}/drafts`]: () => Response.json(stored) })
+
+    expect(await actions.generate(appointment, 'd1000000-0000-4000-8000-000000000001', 'en')).toEqual(stored)
+    const post = requests.find((r) => r.method === 'POST')!
+    expect(post.headers.get('X-Salus-CSRF')).toBe('1')
+    expect(await post.json()).toEqual({ templateId: 'd1000000-0000-4000-8000-000000000001', language: 'en' })
+  })
+
+  it.each([
+    ['the drafting model is unavailable', () => fhirJSON(found), () => apiError(503, 'drafting_unavailable')],
+    ['the appointment has no encounter', () => fhirJSON(none), () => Response.json({})],
+  ])('fails to draft when %s', async (_, searched, posted) => {
+    const { actions } = setup([searched], { [`POST /encounters/${encounter}/drafts`]: posted })
+    await expect(actions.generate(appointment, 'd1000000-0000-4000-8000-000000000001', 'en')).rejects.toThrow()
+  })
+
+  const signPost = 'POST /drafts/c1000000-0000-4000-8000-000000000001/sign'
+  const fields = [
+    { key: 'reason', value: 'Placeholder typed reason' },
+    { key: 'plan', value: '' },
+  ]
+
+  it('signs the draft as it was read, with If-Match its version, and answers with the signed draft', async () => {
+    const read = draft({ version_id: 3 }).payload as DraftEvent
+    const signed = { ...read, status: 'final', version_id: 4 }
+    const { actions, requests } = setup(undefined, { [signPost]: () => Response.json(signed) })
+
+    expect(await actions.sign(read, fields)).toEqual(signed)
+    const post = requests[0]
+    expect(post.headers.get('If-Match')).toBe('W/"3"')
+    expect(post.headers.get('X-Salus-CSRF')).toBe('1')
+    expect(await post.json()).toEqual({ fields })
+  })
+
+  it('fails with the required fields it names when a required field is empty', async () => {
+    const { actions } = setup(undefined, { [signPost]: () => Response.json({ error: 'required_missing', keys: ['reason'] }, { status: 422 }) })
+
+    const refused = await actions.sign(draft().payload as DraftEvent, fields).catch((e: unknown) => e)
+    expect(refused).toBeInstanceOf(SignRefused)
+    expect((refused as SignRefused).keys).toEqual(['reason'])
+  })
+
+  it.each([
+    ['a redraft since it was read', 412, 'version_mismatch'],
+    ['a value of the wrong type', 422, 'invalid_values'],
+    ['it is signed already', 409, 'not_preliminary'],
+  ])('fails, not as a missing field, when %s', async (_, status, code) => {
+    const { actions } = setup(undefined, { [signPost]: () => Response.json({ error: code, keys: [] }, { status }) })
+    const refused = await actions.sign(draft().payload as DraftEvent, fields).catch((e: unknown) => e)
+    expect(refused).toBeInstanceOf(Error)
+    expect(refused).not.toBeInstanceOf(SignRefused)
   })
 })

@@ -107,6 +107,7 @@
   "live.signQuestion": "Sign this document?",
   "live.signFinal": "Once signed, it is final and can no longer be edited.",
   "live.signEmpty": "{count, plural, one {# field is empty and stays empty.} other {# fields are empty and stay empty.}}",
+  "live.requiredEmpty": "{count, plural, one {# required field is empty. Fill it in before you sign.} other {# required fields are empty. Fill them in before you sign.}}",
   "live.keepEditing": "Keep editing",
   "live.regenerateQuestion": "Regenerate the draft?",
   "live.regenerateReplaces": "Your changes to its fields are replaced by a new draft from the transcript.",

@@ -14,8 +14,9 @@ export type SuggestionEvent = components['schemas']['SuggestionEvent']
 export type DraftEvent = components['schemas']['DraftEvent']
 export type DraftField = components['schemas']['DraftField']
 
-// Template is a clinic's document template: its fields by key, with the label the practitioner reads.
-export type Template = { id: string; title: string; fields: { key: string; label: string }[] }
+// Template is a clinic's document template as the page shows it: its title and its fields' labels in language,
+// one the template is written or translated in, and which fields a sign needs.
+export type Template = { id: string; title: string; language: string; fields: { key: string; label: string; required: boolean }[] }
 
 // End is why a live source stopped for good: the patient withdrew their consent (consent_required), or the
 // practitioner may no longer follow the consultation (forbidden, not_found).
@@ -28,16 +29,26 @@ export interface LiveSource {
   subscribe(appointmentId: string, onMessage: (message: ConsultMessage) => void, onEnd?: (end: End) => void): () => void
 }
 
-// ConsultActions are what the practitioner does: set a suggestion's status, list the clinic's templates,
-// generate (or regenerate) a template's draft, whose result arrives on the live source, and sign a draft with
-// the fields as the practitioner left them, which answers with the signed draft.
+// ConsultActions are what the practitioner does: set a suggestion's status, list the clinic's templates in a
+// language, generate (or regenerate) a template's draft in the language it was listed in, which answers with the
+// stored draft, and sign a draft, as it was read, with the fields as the practitioner left them, which answers
+// with the signed draft or fails with SignRefused.
 export interface ConsultActions {
   setSuggestionStatus(id: string, status: SuggestionEvent['status']): Promise<void>
-  templates(): Promise<Template[]>
-  generate(appointmentId: string, templateId: string): Promise<void>
-  sign(draftId: string, fields: { key: string; value: string }[]): Promise<DraftEvent>
+  templates(language: string): Promise<Template[]>
+  generate(appointmentId: string, templateId: string, language: string): Promise<DraftEvent>
+  sign(draft: DraftEvent, fields: { key: string; value: string }[]): Promise<DraftEvent>
 }
 
+// SignRefused is a sign refused because required fields are empty; keys names them.
+export class SignRefused extends Error {
+  readonly keys: string[]
+
+  constructor(keys: string[]) {
+    super('required fields are empty')
+    this.keys = keys
+  }
+}
 
 // decodeMessage reads one frame of the live source. A frame that is not an envelope, or one of a type or
 // version this page does not know, is dropped, so a newer server does not break an open page.
@@ -107,8 +118,13 @@ export function apply(state: ConsultState, m: ConsultMessage): ConsultState {
     }
     case 'suggestion':
       return { ...state, suggestions: upsert(state.suggestions, m.payload, (s) => s.id) }
-    case 'draft':
+    case 'draft': {
+      // A draft's older version (a late event, a replay) never replaces a newer one: a redraft and a sign each
+      // make the next version.
+      const known = state.drafts.find((d) => d.draft_id === m.payload.draft_id)
+      if (known && (known.version_id ?? 0) > (m.payload.version_id ?? 0)) return state
       return { ...state, drafts: upsert(state.drafts, m.payload, (d) => d.draft_id) }
+    }
   }
 }
 

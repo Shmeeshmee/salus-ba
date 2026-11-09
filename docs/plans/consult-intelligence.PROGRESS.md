@@ -210,9 +210,8 @@ templates when `actions` changes). Nothing in `api/openapi.yaml` was added for t
   mobile), out of SAL-9's scope by the owner's decision of 2026-11-09.
 - Native-speaker review of the drafted bs, hr and sr strings, and the lawyer's review of W9 in each language.
 - An undo for a dismissed suggestion, and showing a suggestion's confidence, if the owner wants either.
-- "Generating…" can clear early when a regenerate replays an unchanged draft (Copilot, PR #34, declined there):
-  the page then shows the previous draft until the new one arrives. The fix depends on how SAL-8 versions a
-  redraft over SAL-6's replay; for SAL-8/SAL-10.
+- ~~"Generating…" can clear early when a regenerate replays an unchanged draft (Copilot, PR #34)~~: fixed in the
+  wiring follow-up, below.
 
 ### 2026-11-09: wired to the real backend (branch `sal-9-wire`, the follow-up to #34)
 
@@ -234,12 +233,29 @@ What was built (web and the e2e journey; no Go, API or migration change):
   call page and passes it to `CallScreen`.
 - `translation_failed` (SAL-5): the page shows the original of such a line, in its language, as it shows a line
   awaiting its translation (tested); no new string.
-- Drafting (SAL-8) is not wired yet: `templates()` answers none, so the Documents tab says W16 "This clinic has no
-  document templates yet." until SAL-8 is merged into this branch.
+- Documents (SAL-8, after main with #39 was merged in): `templates(language)` is `GET /document-templates`, each
+  template's title and labels in the UI language where it is written or translated in it, in its own otherwise;
+  `generate` is `POST /encounters/<id>/drafts` with that language and answers with the stored draft; `sign` is
+  `POST /drafts/<id>/sign` with `If-Match: W/"<version_id>"` of the draft as the page read it; a `422
+  required_missing` fails as `SignRefused` with its `keys`. On subscribing, once the encounter is found,
+  `GET /encounters/<id>/drafts` delivers the drafts the (capped) stream may no longer hold. The Vite dev server
+  proxies `/document-templates` and `/drafts`.
+- **Required fields.** A field the template marks required and the practitioner left empty blocks the sign: Sign
+  then shows W24 (new, pending the owner, COPY.md) instead of the confirmation and marks the field; the same when
+  the server refuses with `required_missing`. Optional empty fields are signed empty after the confirmation (W21).
+- **"Generating…" (Copilot on #34), fixed at its cause.** It cleared on the first draft event of the template that
+  was not the draft shown before, so a replay of the previous version (or any new object for it) cleared it. Now
+  it ends only with the generation's own answer, the stored draft, which the page folds in; and `apply` never
+  replaces a draft with an older `version_id`, so a late or replayed event of the previous version cannot bring
+  it back after the redraft. Tested first (`keeps generating through an event of the previous draft...`, `never
+  replaces a draft with an older version`); the guard's removal fails both.
 - e2e: `test/e2e/web/consultation.spec.ts` now waits for the patient's placeholder line of the fake speech engine
   in the transcript beside the video: the tone in the room, the agent, SAL-4's fake engine, the stream, SAL-6's
-  gateway and the page, through the real stack. The fake model suggests nothing, so suggestions are not proved
-  end to end.
+  gateway and the page, through the real stack. Then, on a synthetic template the Go test creates (one required
+  field, one optional), it generates a draft with the fake model (every field missing), is stopped by W24, fills
+  the required field, signs and sees the document final. It failed first on the missing proxy of
+  `/document-templates` (no template picker). The fake model suggests nothing, so suggestions are not proved end
+  to end.
 
 Tests seen failing first: `live.test.ts` (14, the module missing; then mutations: a cursor kept on its own frame
 fails the reconnect and command_error tests, a reconnect after an end fails the three end tests), four new in
@@ -262,6 +278,10 @@ No performance claim is made, so nothing was measured.
   1006), so the page retries, at most every 10 s; each attempt is audited server side as a refused subscription.
   The open socket's 4403 (a revocation during the call) is the common case and stops it.
 - **No timeout on a command**: it is answered by its event or its error, or failed when the socket closes.
+- **The draft's language** is the UI language when the template is written or translated in it, else the
+  template's own; the labels the page shows are in that same language.
+- **A refused sign other than `required_missing`** (`version_mismatch` after a redraft, `not_preliminary`,
+  `invalid_values`) shows W23 "could not be signed"; the newer draft comes on the stream.
 
 ## B (SAL-5): translation of the final segments, and the Anthropic Claude API adapter
 

@@ -114,6 +114,13 @@ describe('apply: suggestions and drafts', () => {
     ])
   })
 
+  it('never replaces a draft with an older version of it, a late event or a replay', () => {
+    const v2 = draft({ draft_id: 'd', version_id: 2, fields: [{ key: 'reason', value: 'Placeholder redrafted', missing: false, source_segment_ids: ['s'] }] })
+    const state = fold(draft({ draft_id: 'd', version_id: 1 }), v2, draft({ draft_id: 'd', version_id: 1 }))
+    expect(state.drafts).toEqual([v2.payload])
+    expect(fold(v2, draft({ draft_id: 'd', status: 'final', version_id: 3 })).drafts[0].status).toBe('final')
+  })
+
   it('keeps the latest version of every draft', () => {
     const state = fold(draft({ draft_id: 'd', status: 'preliminary' }), draft({ draft_id: 'd', status: 'final' }))
     expect(state.drafts.map((d) => [d.draft_id, d.status])).toEqual([['d', 'final']])

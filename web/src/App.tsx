@@ -151,7 +151,7 @@ const questionnairePath = /^\/questionnaires\/([^/]+)$/
 
 // Call is the call page with the consultation's live source and actions, built once for the page (live.ts).
 function Call({ api, fhir, id }: Clients & { id: string }) {
-  const consult = useMemo(() => consultSocket({ fhir }), [fhir])
+  const consult = useMemo(() => consultSocket({ api, fhir }), [api, fhir])
   return <CallScreen api={api} id={id} consult={consult} />
 }
 

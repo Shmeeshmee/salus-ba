@@ -30,6 +30,24 @@ test('the practitioner signs in, joins from the appointment, sees and hears the 
   const line = transcript.getByRole('listitem').filter({ hasText: 'Placeholder caption from the test speech engine' })
   await expect(line.getByText('Patient', { exact: true })).toBeVisible({ timeout: 30_000 })
 
+  // Drafting (SAL-8) on the fake model, which leaves every field missing: the required field blocks the sign until
+  // the practitioner fills it in; then the document is signed (W15 to W24).
+  await side.getByRole('tab', { name: 'Documents' }).click()
+  await side.getByRole('combobox', { name: 'Template' }).selectOption({ label: required('E2E_TEMPLATE_TITLE') })
+  await side.getByRole('button', { name: 'Generate' }).click()
+  const reason = side.getByRole('textbox', { name: 'Placeholder reason' })
+  await expect(reason).toHaveValue('')
+  await expect(side.getByText('Not covered in the conversation yet')).toHaveCount(2)
+  await side.getByRole('button', { name: 'Sign' }).click()
+  await expect(side.getByRole('alert')).toHaveText('1 required field is empty. Fill it in before you sign.')
+  await reason.fill('Placeholder reason typed in the e2e journey')
+  await side.getByRole('button', { name: 'Sign' }).click()
+  const ask = side.getByRole('alertdialog', { name: 'Sign this document?' })
+  await expect(ask.getByText('1 field is empty and stays empty.')).toBeVisible()
+  await ask.getByRole('button', { name: 'Sign' }).click()
+  await expect(side.getByText('Signed. This document is final.')).toBeVisible()
+  await expect(side.getByText('Placeholder reason typed in the e2e journey')).toBeVisible()
+
   // The Go test checks the Encounter is in progress, then signals the end.
   await expect.poll(() => existsSync(required('E2E_END_SIGNAL')), { timeout: 60_000 }).toBe(true)
   await page.getByRole('button', { name: 'End consultation' }).click() // W19

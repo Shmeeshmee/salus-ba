@@ -1,6 +1,6 @@
 import { useEffect, useId, useState, type Dispatch } from 'react'
-import type { ConsultActions, ConsultMessage, DraftEvent, DraftField, Template } from './consult'
-import { useT } from './i18n/useT'
+import { SignRefused, type ConsultActions, type ConsultMessage, type DraftEvent, type DraftField, type Template } from './consult'
+import { useLanguage, useT } from './i18n/useT'
 import { Alert, Confirm } from './ui'
 
 type Props = {
@@ -17,15 +17,20 @@ type Templates = { state: 'loading' } | { state: 'failed' } | { state: 'ready'; 
 type Asking = 'sign' | 'regenerate'
 
 // Documents drafts a clinic document during the call: pick a template, generate it from the transcript, read the
-// filled fields with their sources and the flags on what the conversation has not covered, edit, and sign. The
-// draft arrives on the live source (and again on every change); the edits stay on this page until it is signed.
+// filled fields with their sources and the flags on what the conversation has not covered, edit, and sign. A
+// generation answers with the stored draft, which also comes on the live source (and again on every change); the
+// edits stay on this page until it is signed. A sign needs every required field filled.
 export function Documents({ appointmentId, drafts, dispatch, actions, onSources }: Props) {
   const t = useT()
+  const { language } = useLanguage()
   const id = useId()
   const [templates, setTemplates] = useState<Templates>({ state: 'loading' })
   const [chosen, setChosen] = useState('')
-  // waiting is the template being generated and its draft before, until a newer one arrives.
-  const [waiting, setWaiting] = useState<{ template: string; before?: DraftEvent }>()
+  // waiting is the template being generated, until the generation answers: an event of its draft meanwhile may
+  // be the previous version (a replay), so only the answer ends it.
+  const [waiting, setWaiting] = useState<string>()
+  // refused are the required fields a sign found empty, by key.
+  const [refused, setRefused] = useState<string[]>([])
   // edits are the practitioner's field values by draft, then by field key, so no edit reaches another draft.
   const [edits, setEdits] = useState<Record<string, Record<string, string>>>({})
   const [asking, setAsking] = useState<Asking>()
@@ -34,14 +39,14 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
 
   useEffect(() => {
     let open = true
-    actions.templates().then(
+    actions.templates(language).then(
       (list) => open && setTemplates({ state: 'ready', list }),
       () => open && setTemplates({ state: 'failed' }),
     )
     return () => {
       open = false
     }
-  }, [actions])
+  }, [actions, language])
 
   if (templates.state === 'loading') return <p className="muted">{t('consultation.live.loadingTemplates')}</p>
   if (templates.state === 'failed') return <p className="muted">{t('consultation.live.templatesFailed')}</p>
@@ -49,34 +54,35 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
 
   const template = templates.list.find((x) => x.id === chosen)
   const current = latest(drafts, chosen)
-  const generating = waiting?.template === chosen && waiting.before === current
+  const generating = waiting === chosen
   const draft = generating ? undefined : current
 
   async function generate() {
+    if (!template) return
     setAsking(undefined)
     setError(undefined)
+    setRefused([])
     if (current) setEdits((e) => without(e, current.draft_id))
-    setWaiting({ template: chosen, before: current })
+    setWaiting(template.id)
     try {
-      await actions.generate(appointmentId, chosen)
+      const stored = await actions.generate(appointmentId, template.id, template.language)
+      dispatch({ type: 'draft', version: 1, payload: stored })
     } catch {
-      setWaiting(undefined)
       setError(t('consultation.live.generateFailed'))
     }
+    setWaiting((w) => (w === template.id ? undefined : w))
   }
 
   async function sign(d: DraftEvent) {
     setBusy(true)
     setError(undefined)
     try {
-      const signed = await actions.sign(
-        d.draft_id,
-        d.fields.map((f) => ({ key: f.key, value: edits[d.draft_id]?.[f.key] ?? f.value })),
-      )
+      const signed = await actions.sign(d, d.fields.map((f) => ({ key: f.key, value: valueOf(d, f) })))
       dispatch({ type: 'draft', version: 1, payload: signed })
       setEdits((e) => without(e, d.draft_id))
-    } catch {
-      setError(t('consultation.live.signFailed'))
+    } catch (e) {
+      if (e instanceof SignRefused) setRefused(e.keys)
+      else setError(t('consultation.live.signFailed'))
     }
     setBusy(false)
     setAsking(undefined)
@@ -84,6 +90,21 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
 
   const labels = new Map(template?.fields.map((f) => [f.key, f.label]))
   const own = (draft && edits[draft.draft_id]) ?? {}
+  const valueOf = (d: DraftEvent, f: DraftField) => edits[d.draft_id]?.[f.key] ?? f.value
+  const blank = (f: DraftField) => (own[f.key] ?? f.value).trim() === ''
+  const required = new Set([...(template?.fields.filter((f) => f.required).map((f) => f.key) ?? []), ...refused])
+  // unfilled are the required fields of the draft still empty: they block a sign.
+  const unfilled = new Set(draft?.fields.filter((f) => required.has(f.key) && blank(f)).map((f) => f.key))
+  const shownUnfilled = new Set([...unfilled].filter((k) => refused.includes(k)))
+
+  function ask(a: Asking | undefined) {
+    if (a === 'sign' && unfilled.size > 0) {
+      setRefused([...unfilled])
+      return
+    }
+    if (a === 'regenerate' && Object.keys(own).length === 0) return void generate()
+    setAsking(a)
+  }
 
   return (
     <div className="documents">
@@ -103,7 +124,7 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
           </button>
         )}
       </div>
-      <Alert message={error} />
+      <Alert message={error ?? (shownUnfilled.size > 0 ? t('consultation.live.requiredEmpty', { count: shownUnfilled.size }) : undefined)} />
       {generating && (
         <p className="muted" role="status">
           {t('consultation.live.generating')}
@@ -119,6 +140,7 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
               field={f}
               label={labels.get(f.key) ?? f.key}
               edited={own[f.key]}
+              invalid={shownUnfilled.has(f.key)}
               onEdit={(value) => setEdits((e) => ({ ...e, [draft.draft_id]: { ...e[draft.draft_id], [f.key]: value } }))}
               onSources={onSources}
             />
@@ -126,8 +148,8 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
           <DraftActions
             asking={asking}
             busy={busy}
-            empty={draft.fields.filter((f) => (own[f.key] ?? f.value).trim() === '').length}
-            onAsk={(a) => (a === 'regenerate' && Object.keys(own).length === 0 ? void generate() : setAsking(a))}
+            empty={draft.fields.filter(blank).length}
+            onAsk={ask}
             onSign={() => void sign(draft)}
             onRegenerate={() => void generate()}
           />
@@ -203,11 +225,19 @@ function DraftActions({ asking, busy, empty, onAsk, onSign, onRegenerate }: Acti
   )
 }
 
-type FieldProps = { field: DraftField; label: string; edited?: string; onEdit: (value: string) => void; onSources: (ids: string[]) => void }
+type FieldProps = {
+  field: DraftField
+  label: string
+  edited?: string
+  invalid: boolean
+  onEdit: (value: string) => void
+  onSources: (ids: string[]) => void
+}
 
 // FieldEdit is one field of the draft. Once the practitioner types in it, its sources and its flag no longer
 // describe it, so both go.
-function FieldEdit({ field, label, edited, onEdit, onSources }: FieldProps) {
+// invalid marks a required field a sign found empty.
+function FieldEdit({ field, label, edited, invalid, onEdit, onSources }: FieldProps) {
   const t = useT()
   const id = useId()
   const value = edited ?? field.value
@@ -216,7 +246,14 @@ function FieldEdit({ field, label, edited, onEdit, onSources }: FieldProps) {
   return (
     <div className={missing ? 'draft-field missing' : 'draft-field'}>
       <label htmlFor={id}>{label}</label>
-      <textarea id={id} rows={2} value={value} aria-describedby={missing ? `${id}-flag` : undefined} onChange={(e) => onEdit(e.target.value)} />
+      <textarea
+        id={id}
+        rows={2}
+        value={value}
+        aria-invalid={invalid || undefined}
+        aria-describedby={missing ? `${id}-flag` : undefined}
+        onChange={(e) => onEdit(e.target.value)}
+      />
       {missing && (
         <p className="flag" id={`${id}-flag`}>
           {t('consultation.live.missing')}

@@ -1,5 +1,8 @@
+import type { components } from './api/schema'
+import type { ApiClient } from './api/client'
 import type { Bundle, FhirClient } from './api/fhir'
-import { decodeMessage, type ConsultActions, type End, type LiveSource, type SuggestionEvent } from './consult'
+import { attempt } from './api/result'
+import { decodeMessage, SignRefused, type ConsultActions, type DraftEvent, type End, type LiveSource, type SuggestionEvent, type Template } from './consult'
 
 export type { End } from './consult'
 
@@ -7,7 +10,8 @@ export type { End } from './consult'
 // GET /encounters/{id}/events (SAL-6, api/openapi.yaml). Its frames alternate a cursor with the stream entry's id
 // and the entry's message; the page keeps a cursor once the message after it has arrived and resumes after it,
 // so a reconnect neither loses nor repeats a message. The practitioner's commands (SAL-7) go out on the same
-// socket. Nothing here logs, and no text of a message leaves the page.
+// socket; the documents (SAL-8) are the JSON API's templates, drafts and sign. Nothing here logs, and no text of a
+// message leaves the page.
 
 // retry is how long to wait before the next attempt to find the encounter or to connect, by failures in a row.
 const retry = [1000, 2000, 5000, 10_000]
@@ -18,15 +22,28 @@ const ends: Record<string, End> = { '4403 consent_required': 'consent_required',
 type Pending = { id: string; status: SuggestionEvent['status']; resolve: () => void; reject: (e: Error) => void }
 
 type Options = {
+  api: ApiClient
   fhir: Pick<FhirClient, 'get'>
   // open makes the socket; a test passes a fake.
   open?: (url: string) => WebSocket
 }
 
 // consultSocket is the live source and the actions of one call page, which share its one socket.
-export function consultSocket({ fhir, open = (url) => new WebSocket(url) }: Options): { live: LiveSource; actions: ConsultActions } {
+export function consultSocket({ api, fhir, open = (url) => new WebSocket(url) }: Options): { live: LiveSource; actions: ConsultActions } {
   let current: WebSocket | undefined
   let pending: Pending[] = []
+  // found is the encounter of each appointment once known; it does not change.
+  const found = new Map<string, string>()
+
+  // encounterOf is the appointment's encounter, or undefined while there is none.
+  async function encounterOf(appointmentId: string): Promise<string | undefined> {
+    const known = found.get(appointmentId)
+    if (known) return known
+    const bundle = await fhir.get<Bundle<{ id: string }>>(`Encounter?appointment=${encodeURIComponent(appointmentId)}`)
+    const id = bundle.entry?.[0]?.resource.id
+    if (id) found.set(appointmentId, id)
+    return id
+  }
 
   function settle(match: (p: Pending) => boolean, error?: Error) {
     const [done, rest] = [pending.filter(match), pending.filter((p) => !match(p))]
@@ -50,16 +67,19 @@ export function consultSocket({ fhir, open = (url) => new WebSocket(url) }: Opti
       }
 
       async function find() {
-        let encounter: string | undefined
-        try {
-          const found = await fhir.get<Bundle<{ id: string }>>(`Encounter?appointment=${encodeURIComponent(appointmentId)}`)
-          encounter = found.entry?.[0]?.resource.id
-        } catch {
-          // retried below, like an encounter not started yet
-        }
+        const encounter = await encounterOf(appointmentId).catch(() => undefined) // a failure is retried, like none yet
         if (stopped) return
-        if (encounter) connect(encounter)
-        else later(() => void find())
+        if (!encounter) return later(() => void find())
+        connect(encounter)
+        void stored(encounter)
+      }
+
+      // stored delivers the drafts the encounter has, which the stream may no longer hold (it is capped). A
+      // failure leaves the stream's.
+      async function stored(encounter: string) {
+        const res = await attempt(api.GET('/encounters/{id}/drafts', { params: { path: { id: encounter } } }))
+        if (!res.ok || stopped) return
+        for (const d of res.data.drafts) onMessage({ type: 'draft', version: 1, payload: d })
       }
 
       function connect(encounter: string) {
@@ -123,10 +143,29 @@ export function consultSocket({ fhir, open = (url) => new WebSocket(url) }: Opti
         ws.send(JSON.stringify({ type: 'suggestion_status', version: 1, payload: { id, status } }))
       })
     },
-    // The drafting endpoints (SAL-8) are not wired yet: no templates, so nothing can be generated or signed.
-    templates: async () => [],
-    generate: () => Promise.reject(new Error('drafting is not available')),
-    sign: () => Promise.reject(new Error('drafting is not available')),
+    async templates(language) {
+      const res = await attempt(api.GET('/document-templates'))
+      if (!res.ok) throw new Error('templates not listed')
+      return res.data.templates.map((t) => inLanguage(t, language))
+    },
+    async generate(appointmentId, templateId, language) {
+      const encounter = await encounterOf(appointmentId)
+      if (!encounter) throw new Error('no encounter')
+      const res = await attempt(
+        api.POST('/encounters/{id}/drafts', { params: { path: { id: encounter } }, body: { templateId, language: language as Language } }),
+      )
+      if (!res.ok) throw new Error('not drafted')
+      return res.data
+    },
+    async sign(draft, fields) {
+      const { data, error, response } = await api.POST('/drafts/{id}/sign', {
+        params: { path: { id: draft.draft_id }, header: { 'If-Match': `W/"${draft.version_id ?? 0}"` } },
+        body: { fields },
+      })
+      if (response.ok && data) return data as DraftEvent
+      if (response.status === 422 && error && 'keys' in error && error.error === 'required_missing') throw new SignRefused(error.keys)
+      throw new Error('not signed')
+    },
   }
 
   return { live, actions }
@@ -148,4 +187,19 @@ function parse(data: string): Frame | undefined {
   if (type === 'cursor' && typeof payload.id === 'string') return { type: 'cursor', id: payload.id }
   if (type === 'command_error') return { type: 'command_error', id: typeof payload.id === 'string' ? payload.id : undefined }
   return { type: 'other' }
+}
+
+type DocumentTemplate = components['schemas']['DocumentTemplate']
+type Language = components['schemas']['Language']
+
+// inLanguage is the template as the page shows it: in language where it is written or translated in it, in its
+// own language otherwise.
+function inLanguage(t: DocumentTemplate, language: string): Template {
+  const translation = t.language === language ? undefined : t.translations.find((x) => x.language === language)
+  return {
+    id: t.id,
+    title: translation?.title ?? t.title,
+    language: translation?.language ?? t.language,
+    fields: t.fields.map((f) => ({ key: f.key, label: translation?.fields[f.key]?.label ?? f.label, required: f.required })),
+  }
 }

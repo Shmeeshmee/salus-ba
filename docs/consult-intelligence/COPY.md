@@ -58,6 +58,13 @@ string since the languages feature.
 - W23: "Signed. This document is final." (`signed`), "The document could not be signed. Try again."
   (`signFailed`)
 
+### Pending the owner's approval (2026-11-09, the wiring follow-up to #34)
+- W24 (`requiredEmpty`): "[count] required field is empty. Fill it in before you sign." / "[count] required fields
+  are empty. Fill them in before you sign.": shown instead of the sign confirmation while a field the template
+  marks required is empty (SAL-8 refuses such a sign, `422 required_missing`), and when the server refuses a sign
+  for that reason; the empty required fields are marked (`aria-invalid`, a red border). New, because no approved
+  string says why a sign cannot go ahead; drafted in bs, hr, sr-Latn and sr-Cyrl.
+
 ### Reused on the call page, pending the owner's review (2026-11-09, the wiring follow-up to #34)
 No new string. When the live stream ends for good, the panel beside the video shows, instead of its tabs, an
 existing approved string of the consultation screens: `consultation.peerWithdrewConsent` (tagged `legal`) when the
