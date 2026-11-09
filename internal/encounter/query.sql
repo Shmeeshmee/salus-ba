@@ -35,3 +35,7 @@ FROM encounter
 WHERE (sqlc.narg(appointment_id)::uuid IS NULL OR appointment_id = sqlc.narg(appointment_id)::uuid)
   AND (sqlc.narg(patient_id)::uuid IS NULL OR patient_id = sqlc.narg(patient_id)::uuid)
 ORDER BY period_start, id;
+
+-- name: EncounterOrganization :one
+-- The clinic of an encounter whatever the scope (migration 00033), null for an unknown id.
+SELECT encounter_organization(@id::uuid)::uuid AS organization_id;
