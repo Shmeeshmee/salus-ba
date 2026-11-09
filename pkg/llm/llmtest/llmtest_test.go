@@ -1,10 +1,13 @@
 package llmtest_test
 
 import (
+	"context"
 	"errors"
+	"reflect"
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Shmeeshmee/salus/pkg/llm"
 	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
@@ -28,13 +31,43 @@ func transcript() []llm.Utterance {
 func TestTranslator_MarksTheTextWithTheTargetLanguageAndRecordsTheCall(t *testing.T) {
 	t.Parallel()
 	tr := &llmtest.Translator{}
-	req := llm.TranslateRequest{Text: "placeholder", From: "bs", To: "de"}
+	req := llm.TranslateRequest{Text: "placeholder", From: "bs", To: "de", Glossary: []llm.Term{{Source: "glavobolja", Target: "Kopfschmerz"}}}
 	got, err := tr.Translate(t.Context(), req)
 	if err != nil || got != "[de] placeholder" {
 		t.Errorf("Translate() = %q, %v; want %q", got, err, "[de] placeholder")
 	}
-	if calls := tr.Calls(); !slices.Equal(calls, []llm.TranslateRequest{req}) {
+	if calls := tr.Calls(); !reflect.DeepEqual(calls, []llm.TranslateRequest{req}) {
 		t.Errorf("Calls() = %+v", calls)
+	}
+	req.Glossary[0].Target = "changed by the caller"
+	if calls := tr.Calls(); calls[0].Glossary[0].Target != "Kopfschmerz" {
+		t.Errorf("the recorded glossary changed with the caller's: %+v", calls[0].Glossary)
+	}
+}
+
+// Failures fails that many calls first, then translates: a model that recovers.
+func TestTranslator_FailsItsFirstFailuresCalls(t *testing.T) {
+	t.Parallel()
+	tr := &llmtest.Translator{Failures: 2}
+	req := llm.TranslateRequest{Text: "placeholder", From: "tr", To: "bs"}
+	for i := range 2 {
+		if _, err := tr.Translate(t.Context(), req); !errors.Is(err, llmtest.ErrScripted) {
+			t.Errorf("call %d: %v, want %v", i+1, err, llmtest.ErrScripted)
+		}
+	}
+	if got, err := tr.Translate(t.Context(), req); err != nil || got != "[bs] placeholder" {
+		t.Errorf("third call = %q, %v; want the translation", got, err)
+	}
+}
+
+// Delay holds every call that long, or until its context ends.
+func TestTranslator_WaitsItsDelayOrTheContext(t *testing.T) {
+	t.Parallel()
+	tr := &llmtest.Translator{Delay: time.Hour}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
+	defer cancel()
+	if _, err := tr.Translate(ctx, llm.TranslateRequest{Text: "x", To: "bs"}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("Translate() = %v, want the context's deadline", err)
 	}
 }
 

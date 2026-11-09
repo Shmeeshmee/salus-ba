@@ -87,3 +87,20 @@ type CategoryCount struct {
 	Category string
 	Terms    int
 }
+
+// GlossaryQuery is what a line's glossary looks up: the phrases of the line that may be terms (Candidates),
+// matched against the labels in From, case and accents aside, each found term with its label in To; at most
+// Limit of them.
+type GlossaryQuery struct {
+	From       string
+	To         string
+	Candidates []string
+	Limit      int32
+}
+
+// GlossaryEntry is a term found in a line: its label as the line's language has it, and its preferred label in
+// the language the line is translated into.
+type GlossaryEntry struct {
+	Source string
+	Target string
+}

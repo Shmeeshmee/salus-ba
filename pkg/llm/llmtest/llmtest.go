@@ -4,26 +4,52 @@ package llmtest
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/Shmeeshmee/salus/pkg/llm"
 )
 
-// Translator returns the text marked with the target language: "[de] text".
+// ErrScripted is the error of a Translator's scripted Failures.
+var ErrScripted = errors.New("llmtest: scripted failure")
+
+// Translator returns the text marked with the target language: "[de] text". It fails its first Failures calls
+// with ErrScripted, and holds every call for Delay (or until its context ends) before it answers.
 type Translator struct {
-	Err   error
-	calls []llm.TranslateRequest
-	mu    sync.Mutex
+	Err      error
+	calls    []llm.TranslateRequest
+	Failures int
+	Delay    time.Duration
+	mu       sync.Mutex
 }
 
 // Translate records the request and marks its text.
-func (f *Translator) Translate(_ context.Context, req llm.TranslateRequest) (string, error) {
+func (f *Translator) Translate(ctx context.Context, req llm.TranslateRequest) (string, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
+	req.Glossary = slices.Clone(req.Glossary)
 	f.calls = append(f.calls, req)
-	if f.Err != nil {
-		return "", f.Err
+	fail := f.Failures > 0
+	if fail {
+		f.Failures--
+	}
+	err, delay := f.Err, f.Delay
+	f.mu.Unlock()
+	if delay > 0 {
+		t := time.NewTimer(delay)
+		defer t.Stop()
+		select {
+		case <-t.C:
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+	}
+	switch {
+	case err != nil:
+		return "", err
+	case fail:
+		return "", ErrScripted
 	}
 	return "[" + req.To + "] " + req.Text, nil
 }
