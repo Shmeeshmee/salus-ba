@@ -50,7 +50,9 @@ ALTER TABLE document_draft
     ADD COLUMN pdf_wrapped_key bytea,
     -- A signature is whole or absent.
     ADD CONSTRAINT document_draft_signature CHECK (num_nulls(signed_at, pdf_size, signer_role_id, document_reference_id,
-        provenance_id, pdf_kek_id, pdf_sha1, pdf_wrapped_key) IN (0, 8));
+        provenance_id, pdf_kek_id, pdf_sha1, pdf_wrapped_key) IN (0, 8)),
+    -- A signed draft is no longer open (preliminary), so the open-draft index never counts it.
+    ADD CONSTRAINT document_draft_signed_not_open CHECK (status <> 'preliminary' OR signed_at IS NULL);
 
 -- The open draft of an encounter's template, which a regeneration replaces.
 CREATE UNIQUE INDEX document_draft_open ON document_draft (encounter_id, template_id) WHERE status = 'preliminary';

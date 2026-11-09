@@ -41,6 +41,11 @@ func TestDocumentDrafting_HoldsAConsistentState(t *testing.T) {
 		{"a type code no LOINC code", `UPDATE document_template SET type_code = 'referral' WHERE id = $1`, []any{tpl}},
 		{"translation texts no object", `INSERT INTO document_template_translation (template_id, language, texts) VALUES ($1, 'en', '[]')`, []any{tpl}},
 		{"a signature without its document", `UPDATE document_draft SET signed_at = now() WHERE encounter_id = $1`, []any{e}},
+		// The open-draft index counts a preliminary draft as open: a signed one must not stay preliminary.
+		{"a signed preliminary draft", `UPDATE document_draft SET signed_at = now(), pdf_size = 1, document_reference_id = gen_random_uuid(),
+			provenance_id = gen_random_uuid(), signer_role_id = (SELECT practitioner_role_id FROM encounter WHERE id = $1),
+			pdf_kek_id = 'k1', pdf_sha1 = decode(repeat('00', 20), 'hex'), pdf_wrapped_key = '\x00'
+			WHERE encounter_id = $1 AND status = 'preliminary'`, []any{e}},
 	} {
 		if _, err := owner.Exec(t.Context(), tt.stmt, tt.args...); sqlState(err) != "23514" {
 			t.Errorf("%s: %v, want check_violation (23514)", tt.name, err)
