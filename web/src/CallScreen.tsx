@@ -3,6 +3,8 @@ import type { ApiClient } from './api/client'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
 import { liveKit, type CallEvent, type Media, type Peer, type Room, type Settings } from './call'
+import { captionOf, useConsult, type ConsultActions, type LiveSource, type TranscriptEvent } from './consult'
+import { Captions, ConsultSide } from './ConsultPanels'
 import { joinMessage } from './consultation'
 import { DeviceCheck } from './DeviceCheck'
 import { useT } from './i18n/useT'
@@ -28,13 +30,20 @@ const goneOf: Partial<Record<NonNullable<Status['reason']>, Gone>> = { consent_w
 
 const nobody: Peer = { present: false, camera: false, microphone: false }
 
-type Props = { api: ApiClient; id: string; media?: Media }
+// Consult is the consultation's live source and actions (consult.ts). Without it, as until the gateway (SAL-6)
+// and the drafting backend (SAL-8) are wired in, the call page shows no live panels at all.
+type Consult = { live: LiveSource; actions: ConsultActions }
+
+type Props = { api: ApiClient; id: string; media?: Media; consult?: Consult }
+
+// The practitioner's own time zone, for the times of the transcript's lines.
+const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
 // CallScreen is the practitioner's video consultation (SPEC §2 "Client states"): the device check, joining,
 // waiting for the patient, the call, reconnecting, and the end. The token comes from our API on every join and
 // rejoin; the server decides whether one is issued. Events of a room this screen has left are ignored
 // (generation), so a late event of an old connection changes nothing.
-export function CallScreen({ api, id, media = liveKit }: Props) {
+export function CallScreen({ api, id, media = liveKit, consult }: Props) {
   const t = useT()
   const [phase, setPhase] = useState<Phase>({ name: 'check' })
   const [room, setRoom] = useState<Room>()
@@ -50,6 +59,7 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
   const settings = useRef<Settings>({ camera: false, microphone: false })
   const present = useRef(false)
   const params = { params: { path: { id } } }
+  const [live, dispatch] = useConsult(consult?.live, id, phase.name === 'call' || phase.name === 'reconnecting')
 
   useEffect(() => () => void room?.leave(), [room])
   // Unmounting makes every connection still in flight late, so a room that connects afterwards is left.
@@ -221,46 +231,59 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
   }
 
   return (
-    <section className="call">
-      <Stage room={room} peer={peer} name={peerName} gone={gone} reconnecting={phase.name === 'reconnecting'} cameraOn={local.camera} agent={agent} />
-      <Notice message={reconnected ? t('consultation.reconnected') : undefined} />
-      <div className="call-controls">
-        <button
-          type="button"
-          className={`round${local.microphone ? '' : ' off'}`}
-          aria-label={t(local.microphone ? 'consultation.mute' : 'consultation.unmute')}
-          title={t(local.microphone ? 'consultation.mute' : 'consultation.unmute')}
-          disabled={!room}
-          onClick={() => toggle('microphone')}
-        >
-          <MicrophoneIcon off={!local.microphone} />
-        </button>
-        <button
-          type="button"
-          className={`round${local.camera ? '' : ' off'}`}
-          aria-label={t(local.camera ? 'consultation.cameraOff' : 'consultation.cameraOn')}
-          title={t(local.camera ? 'consultation.cameraOff' : 'consultation.cameraOn')}
-          disabled={!room || !cameraUsable}
-          onClick={() => toggle('camera')}
-        >
-          <CameraIcon off={!local.camera} />
-        </button>
-        <button type="button" className="leave" onClick={leave}>
-          <LeaveIcon />
-          {t('consultation.leave')}
-        </button>
-        <EndConsultation patientJoined={patientJoined} onEnd={end} />
+    <section className={consult ? 'call with-side' : 'call'}>
+      <div className="call-main">
+        <Stage
+          room={room}
+          peer={peer}
+          name={peerName}
+          gone={gone}
+          reconnecting={phase.name === 'reconnecting'}
+          cameraOn={local.camera}
+          agent={agent}
+          caption={consult && captionOf(live)}
+        />
+        <Notice message={reconnected ? t('consultation.reconnected') : undefined} />
+        <div className="call-controls">
+          <button
+            type="button"
+            className={`round${local.microphone ? '' : ' off'}`}
+            aria-label={t(local.microphone ? 'consultation.mute' : 'consultation.unmute')}
+            title={t(local.microphone ? 'consultation.mute' : 'consultation.unmute')}
+            disabled={!room}
+            onClick={() => toggle('microphone')}
+          >
+            <MicrophoneIcon off={!local.microphone} />
+          </button>
+          <button
+            type="button"
+            className={`round${local.camera ? '' : ' off'}`}
+            aria-label={t(local.camera ? 'consultation.cameraOff' : 'consultation.cameraOn')}
+            title={t(local.camera ? 'consultation.cameraOff' : 'consultation.cameraOn')}
+            disabled={!room || !cameraUsable}
+            onClick={() => toggle('camera')}
+          >
+            <CameraIcon off={!local.camera} />
+          </button>
+          <button type="button" className="leave" onClick={leave}>
+            <LeaveIcon />
+            {t('consultation.leave')}
+          </button>
+          <EndConsultation patientJoined={patientJoined} onEnd={end} />
+        </div>
       </div>
+      {consult && <ConsultSide appointmentId={id} state={live} dispatch={dispatch} actions={consult.actions} zone={zone} />}
     </section>
   )
 }
 
-type StageProps = { room?: Room; peer: Peer; name: string; gone?: Gone; reconnecting: boolean; cameraOn: boolean; agent: boolean }
+type StageProps = { room?: Room; peer: Peer; name: string; gone?: Gone; reconnecting: boolean; cameraOn: boolean; agent: boolean; caption?: TranscriptEvent }
 
 // Stage is the other person's video, large, with this side's own camera small in a corner. LiveKit's tracks are
 // put into the two video elements by the room. Lines that need the patient's name are left out without one.
-// While the transcription agent is in the room, a line says so (SPEC §2 "Changed for SAL-3").
-function Stage({ room, peer, name, gone, reconnecting, cameraOn, agent }: StageProps) {
+// While the transcription agent is in the room, a line says so (SPEC §2 "Changed for SAL-3"). The captions of
+// what the patient says are the one live element on the video, in a band along its lower edge (SAL-9).
+function Stage({ room, peer, name, gone, reconnecting, cameraOn, agent, caption }: StageProps) {
   const t = useT()
   const remote = useRef<HTMLVideoElement>(null)
   const own = useRef<HTMLVideoElement>(null)
@@ -280,6 +303,7 @@ function Stage({ room, peer, name, gone, reconnecting, cameraOn, agent }: StageP
           {t('consultation.transcriptionOn')}
         </p>
       )}
+      {peer.present && <Captions caption={caption} />}
       <video ref={own} className={cameraOn ? 'own' : 'own hidden'} muted playsInline autoPlay />
       {reconnecting && (
         <p className="reconnecting" role="status">
