@@ -228,6 +228,17 @@ describe('consultSocket: a suggestion status', () => {
     await expect(dismissing).rejects.toThrow()
   })
 
+  it('fails every command waiting on a command_error that names no suggestion, as the server does not take them', async () => {
+    const { sockets, actions } = await connected()
+    const pinning = actions.setSuggestionStatus(id, 'pinned')
+    const dismissing = actions.setSuggestionStatus('b1000000-0000-4000-8000-000000000002', 'dismissed')
+
+    sockets[0].frame({ type: 'command_error', version: 1, payload: { command: 'suggestion_status', error: 'unknown_command' } })
+
+    await expect(pinning).rejects.toThrow()
+    await expect(dismissing).rejects.toThrow()
+  })
+
   it('does not take a command_error frame for a message after a cursor', async () => {
     const { sockets, actions } = await connected()
     void actions.setSuggestionStatus(id, 'dismissed').catch(() => undefined)

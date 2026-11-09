@@ -101,7 +101,8 @@ export function consultSocket({ api, fhir, open = (url) => new WebSocket(url) }:
             return
           }
           if (frame?.type === 'command_error') {
-            settle((p) => p.id === frame.id, new Error('command refused'))
+            // One that names no suggestion (an unknown or unreadable command) is taken as refusing them all.
+            settle((p) => frame.id === undefined || p.id === frame.id, new Error('command refused'))
             return
           }
           if (cursor) after = cursor
