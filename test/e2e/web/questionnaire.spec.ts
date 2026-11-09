@@ -77,6 +77,18 @@ async function drag(page: Page, from: Locator, to: Locator) {
   await page.mouse.move(a.x, a.y + 10, { steps: 5 })
   await page.mouse.move(b.x, b.y, { steps: 20 })
   await page.mouse.up()
+  await dragOver(page)
+}
+
+// dragOver waits until a click reaches the app again. A drop does not end dnd-kit's guard at once: from the start of a
+// drag until 50 ms after the drop, a click anywhere on the page is stopped in the capture phase, so the click that ends
+// a drag does not also press what is under the pointer (@dnd-kit/core 6.3.1, AbstractPointerSensor.detach removes the
+// guard on a setTimeout of 50 ms). A click inside those 50 ms is lost without an error (CI flake: the closed card stayed
+// open). A timer of the same delay set after the drop runs after dnd-kit's, since timers of equal delay run in the order
+// they were set (HTML, timer initialisation steps), so when it fires the guard is gone. Update dndGuardMs with dnd-kit.
+const dndGuardMs = 50
+async function dragOver(page: Page) {
+  await page.evaluate((ms) => new Promise<void>((done) => setTimeout(done, ms)), dndGuardMs)
 }
 
 async function box(l: Locator): Promise<{ x: number; y: number }> {

@@ -21,7 +21,7 @@ var errDown = errors.New("model down")
 func transcript() []llm.Utterance {
 	return []llm.Utterance{
 		{ID: "s1", Speaker: "patient", Text: "placeholder complaint"},
-		{ID: "s2", Speaker: "doctor", Text: "placeholder question"},
+		{ID: "s2", Speaker: "practitioner", Text: "placeholder question"},
 	}
 }
 

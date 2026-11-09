@@ -50,7 +50,7 @@ func TestEvent_ValidateAcceptsAValidEvent(t *testing.T) {
 	for name, change := range map[string]func(*transcript.Event){
 		"final":                 func(*transcript.Event) {},
 		"partial":               func(e *transcript.Event) { e.IsFinal = false },
-		"the doctor":            func(e *transcript.Event) { e.Speaker = transcript.SpeakerDoctor },
+		"the practitioner":      func(e *transcript.Event) { e.Speaker = transcript.SpeakerPractitioner },
 		"not translated yet":    func(e *transcript.Event) { e.Translation = "" },
 		"a region subtag":       func(e *transcript.Event) { e.Lang = "sr-Latn-BA" },
 		"a three-letter lang":   func(e *transcript.Event) { e.Lang = "gsw" },
@@ -71,7 +71,7 @@ func TestEvent_ValidateRefusesAnInvalidEvent(t *testing.T) {
 		"no encounter":          func(e *transcript.Event) { e.EncounterID = "" },
 		"an encounter no UUID":  func(e *transcript.Event) { e.EncounterID = "Encounter/1" },
 		"no segment":            func(e *transcript.Event) { e.SegmentID = "" },
-		"an unknown speaker":    func(e *transcript.Event) { e.Speaker = "practitioner" },
+		"an unknown speaker":    func(e *transcript.Event) { e.Speaker = "doctor" },
 		"no speaker":            func(e *transcript.Event) { e.Speaker = "" },
 		"no lang":               func(e *transcript.Event) { e.Lang = "" },
 		"a lang with a space":   func(e *transcript.Event) { e.Lang = "b s" },

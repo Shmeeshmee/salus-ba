@@ -1524,7 +1524,7 @@ export interface components {
             /** Format: uuid */
             segment_id: string;
             /** @enum {string} */
-            speaker: "doctor" | "patient";
+            speaker: "practitioner" | "patient";
             /** @description The language the segment was spoken in, a BCP 47 tag. */
             lang: string;
             original: string;

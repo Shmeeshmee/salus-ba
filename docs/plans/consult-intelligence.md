@@ -53,14 +53,14 @@ LiveKit room audio (one track per participant)
 | Ports | `pkg/stt`, `pkg/llm`, `pkg/tts`, each with a fake package (`stttest`, `llmtest`, `ttstest`) |
 | Tables | Singular, like the rest of the schema: `transcript_segment`, `suggestion`, `document_template`, `document_draft` |
 | Domains | `transcript` and `suggestion` in context `consultation`; `composition` (FHIR `Composition`: a draft is a Composition with status `preliminary`) in context `clinical`, owning templates and drafts |
-| Speaker | `doctor` or `patient`, as the ticket names them |
+| Speaker | `practitioner` or `patient`, as FHIR and the rest of the codebase name them (renamed from the ticket's `doctor` by the owner, 2026-11-09; migration 00032) |
 | Stream key | `consult:<encounter_id>:events`, from `transcript.StreamKey` |
 
 ## Contracts (P0)
 
 | Event | `type`, `version` | Fields |
 | --- | --- | --- |
-| `transcript.Event` (TranscriptEvent) | `transcript`, 1 | `encounter_id`, `segment_id`, `speaker` (`doctor` \| `patient`), `lang` (BCP 47), `original`, `translation`, `is_final`, `ts_start`, `ts_end` |
+| `transcript.Event` (TranscriptEvent) | `transcript`, 1 | `encounter_id`, `segment_id`, `speaker` (`practitioner` \| `patient`), `lang` (BCP 47), `original`, `translation`, `is_final`, `ts_start`, `ts_end` |
 | `suggestion.Event` (SuggestionEvent) | `suggestion`, 1 | `id`, `encounter_id`, `type` (`diagnosis` \| `question` \| `red_flag` \| `term`), `text`, `confidence` (0 to 1), `source_segment_ids` (at least one), `status` (`shown` \| `dismissed` \| `pinned`) |
 | `composition.Event` (DraftEvent) | `draft`, 1 | `draft_id`, `encounter_id`, `template_id`, `status` (`preliminary` \| `final` \| `entered-in-error`), `fields[]`: `key`, `value`, `source_segment_ids`, `missing` |
 
