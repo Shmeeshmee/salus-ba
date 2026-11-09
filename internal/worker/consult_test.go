@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/suggestion"
 	"github.com/Shmeeshmee/salus/internal/transcript"
 	"github.com/Shmeeshmee/salus/internal/worker"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 	"github.com/Shmeeshmee/salus/pkg/wire"
 )
@@ -99,13 +100,13 @@ const (
 // waitRows waits until the query counts want, for at most ten seconds.
 func (c consultStream) waitRows(t *testing.T, want int, q string, args ...any) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := wallNow().Add(10 * time.Second)
 	var n int
 	for {
 		if err := c.db.owner.QueryRow(t.Context(), q, args...).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
-		if n == want || time.Now().After(deadline) {
+		if n == want || wallNow().After(deadline) {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -119,8 +120,8 @@ func (c consultStream) waitRows(t *testing.T, want int, q string, args ...any) {
 func (c consultStream) waitDrained(t *testing.T, entries int64) {
 	t.Helper()
 	key := transcript.StreamKey(c.encounter)
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
+	deadline := wallNow().Add(10 * time.Second)
+	for wallNow().Before(deadline) {
 		groups, err := c.rdb.XInfoGroups(t.Context(), key).Result()
 		if err == nil && len(groups) == 1 && groups[0].EntriesRead == entries && groups[0].Pending == 0 {
 			return
@@ -194,3 +195,6 @@ func TestConsultStream_StoresNothingAfterARevocation(t *testing.T) {
 	c.waitRows(t, 0, "SELECT count(*) FROM suggestion")
 	c.waitRows(t, 2, `SELECT count(*) FROM audit_event WHERE agent_name = 'consult_stream' AND outcome = 4`)
 }
+
+// wallNow is the real time, for the waits of a test against real servers.
+func wallNow() time.Time { return clock.System{}.Now() }

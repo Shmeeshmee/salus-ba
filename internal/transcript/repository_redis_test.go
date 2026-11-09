@@ -9,6 +9,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/Shmeeshmee/salus/internal/transcript"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 )
 
@@ -58,10 +59,10 @@ func TestRedisStream_ReadWaitsForTheNextEntry(t *testing.T) {
 	rdb := redistest.NewClient(t)
 	s := transcript.NewRedisStream(rdb)
 
-	began := time.Now()
+	began := wallNow()
 	got, err := s.Read(t.Context(), encounterID, "0", 200*time.Millisecond)
-	if err != nil || len(got) != 0 || time.Since(began) < 150*time.Millisecond {
-		t.Errorf("Read(no stream) = %v, %v after %v; want none after the wait", got, err, time.Since(began))
+	if err != nil || len(got) != 0 || wallNow().Sub(began) < 150*time.Millisecond {
+		t.Errorf("Read(no stream) = %v, %v after %v; want none after the wait", got, err, wallNow().Sub(began))
 	}
 
 	done := make(chan []transcript.Entry, 1)
@@ -121,3 +122,6 @@ func TestRedisStream_ReadFailsWhenRedisFails(t *testing.T) {
 		t.Error("Read() error = nil, want the connection's")
 	}
 }
+
+// wallNow is the real time, for the waits of a test against real servers.
+func wallNow() time.Time { return clock.System{}.Now() }

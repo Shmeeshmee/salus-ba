@@ -11,6 +11,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/redis"
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 )
@@ -44,9 +45,9 @@ func (s *seen) values() []string {
 // waitFor waits until cond holds, for at most five seconds.
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := wallNow().Add(5 * time.Second)
 	for !cond() {
-		if time.Now().After(deadline) {
+		if wallNow().After(deadline) {
 			t.Fatalf("timed out waiting for %s", what)
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -62,7 +63,7 @@ func xadd(t *testing.T, rdb *goredis.Client, key, v string) {
 
 func group(rdb *goredis.Client, consumer string) *redis.Group {
 	return &redis.Group{
-		Client: rdb, Pattern: "consult:*:events", Name: "store", Consumer: consumer,
+		Client: rdb, Clock: clock.System{}, Pattern: "consult:*:events", Name: "store", Consumer: consumer,
 		Block: 50 * time.Millisecond, MinIdle: 200 * time.Millisecond,
 	}
 }
@@ -134,10 +135,10 @@ func TestGroup_HandlesAFailedEntryAgainAfterMinIdle(t *testing.T) {
 	s := &seen{failOnce: map[string]bool{"a1": true}, failed: map[string]bool{}}
 	xadd(t, rdb, "consult:a:events", "a1")
 	xadd(t, rdb, "consult:a:events", "a2")
-	began := time.Now()
+	began := wallNow()
 	run(t, group(rdb, "c1"), s.handle)
 	waitFor(t, "a1 handled again", func() bool { return slices.Contains(s.values(), "consult:a:events a1") })
-	if took := time.Since(began); took < 200*time.Millisecond {
+	if took := wallNow().Sub(began); took < 200*time.Millisecond {
 		t.Errorf("handled again after %v, want after MinIdle", took)
 	}
 	if got := s.values(); !slices.Equal(got, []string{"consult:a:events a2", "consult:a:events a1"}) {
@@ -197,3 +198,6 @@ func TestGroup_ReportsRedisErrorsAndKeepsGoing(t *testing.T) {
 		t.Errorf("reported %d errors in 2s with a 50ms back-off, want a few", errs)
 	}
 }
+
+// wallNow is the real time, for the waits of a test against real servers.
+func wallNow() time.Time { return clock.System{}.Now() }

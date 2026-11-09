@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/httpx"
 	"github.com/Shmeeshmee/salus/pkg/wire"
 )
@@ -46,13 +47,14 @@ type HTTPHandler struct {
 	svc Transcripts
 	// caller is who is signed in for the request, and false for nobody (internal/api).
 	caller   func(ctx context.Context) (appointment.Caller, bool, error)
+	clock    clock.Clock // for the socket's deadlines and pings
 	log      *slog.Logger
 	upgrader websocket.Upgrader
 }
 
-// NewHTTPHandler returns the handler on svc.
-func NewHTTPHandler(svc Transcripts, caller func(ctx context.Context) (appointment.Caller, bool, error), log *slog.Logger) *HTTPHandler {
-	return &HTTPHandler{svc: svc, caller: caller, log: log, upgrader: websocket.Upgrader{CheckOrigin: sameOrigin}}
+// NewHTTPHandler returns the handler on svc; clk times the socket's deadlines and pings.
+func NewHTTPHandler(svc Transcripts, caller func(ctx context.Context) (appointment.Caller, bool, error), clk clock.Clock, log *slog.Logger) *HTTPHandler {
+	return &HTTPHandler{svc: svc, caller: caller, clock: clk, log: log, upgrader: websocket.Upgrader{CheckOrigin: sameOrigin}}
 }
 
 // Routes declares the transcript's export on mux.
@@ -120,8 +122,8 @@ func (h *HTTPHandler) events(w http.ResponseWriter, r *http.Request) {
 func (h *HTTPHandler) forward(r *http.Request, conn *websocket.Conn, c appointment.Caller, id, after string) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	go discard(conn, cancel)
-	pinged := time.Now()
+	go h.discard(conn, cancel)
+	pinged := h.clock.Now()
 	for {
 		entries, err := h.svc.Next(ctx, c, id, after)
 		if ctx.Err() != nil {
@@ -133,28 +135,28 @@ func (h *HTTPHandler) forward(r *http.Request, conn *websocket.Conn, c appointme
 		}
 		for _, e := range entries {
 			if e.Envelope != nil {
-				if err := send(conn, e); err != nil {
+				if err := h.send(conn, e); err != nil {
 					return
 				}
 			}
 			after = e.ID
 		}
-		if time.Since(pinged) >= pingEvery {
-			if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeWait)); err != nil {
+		if now := h.clock.Now(); now.Sub(pinged) >= pingEvery {
+			if err := conn.WriteControl(websocket.PingMessage, nil, now.Add(writeWait)); err != nil {
 				return
 			}
-			pinged = time.Now()
+			pinged = now
 		}
 	}
 }
 
 // send writes the entry's cursor frame and then its envelope.
-func send(conn *websocket.Conn, e Entry) error {
+func (h *HTTPHandler) send(conn *websocket.Conn, e Entry) error {
 	frame, err := wire.Encode(CursorType, CursorVersion, Cursor{ID: e.ID})
 	if err != nil {
 		return err
 	}
-	_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
+	_ = conn.SetWriteDeadline(h.clock.Now().Add(writeWait))
 	if err := conn.WriteMessage(websocket.TextMessage, frame); err != nil {
 		return err
 	}
@@ -163,11 +165,11 @@ func send(conn *websocket.Conn, e Entry) error {
 
 // discard reads the client's frames, which carry nothing but control frames (pongs, the close), until the
 // connection fails or the client goes silent past pongWait; then it cancels the stream.
-func discard(conn *websocket.Conn, cancel context.CancelFunc) {
+func (h *HTTPHandler) discard(conn *websocket.Conn, cancel context.CancelFunc) {
 	defer cancel()
 	conn.SetReadLimit(readLimit)
-	_ = conn.SetReadDeadline(time.Now().Add(pongWait))
-	conn.SetPongHandler(func(string) error { return conn.SetReadDeadline(time.Now().Add(pongWait)) })
+	_ = conn.SetReadDeadline(h.clock.Now().Add(pongWait))
+	conn.SetPongHandler(func(string) error { return conn.SetReadDeadline(h.clock.Now().Add(pongWait)) })
 	for {
 		if _, _, err := conn.NextReader(); err != nil {
 			return
@@ -188,7 +190,7 @@ func (h *HTTPHandler) close(r *http.Request, conn *websocket.Conn, id string, er
 	default:
 		h.log.ErrorContext(r.Context(), "event stream failed", "route", r.Pattern, "encounter_id", id, "error", err)
 	}
-	_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason), time.Now().Add(writeWait))
+	_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason), h.clock.Now().Add(writeWait))
 }
 
 // sameOrigin reports whether the handshake comes from the API's own origin, or from no browser (no Origin):

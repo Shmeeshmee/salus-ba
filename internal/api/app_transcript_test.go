@@ -37,7 +37,7 @@ type streamApp struct {
 func newStreamApp(t *testing.T) streamApp {
 	t.Helper()
 	c := newConsultationApp(t)
-	now := clock.System{}.Now()
+	now := wallNow()
 	appt := c.book(t, now.Add(-5*time.Minute))
 	expectHTTP(t, c.d.practitioner, http.MethodPost, "/appointments/"+appt+"/consultation/join", http.StatusOK, `"token"`)
 	c.joined(t, appt, "practitioner", now.Add(-time.Minute).UTC().Truncate(time.Second))
@@ -86,7 +86,8 @@ func (s streamApp) add(t *testing.T, n int) []byte {
 func itoa(n int) string { return strconv.Itoa(n) }
 
 // dialEvents opens the encounter's event stream as cl, from the API's own origin, after the cursor.
-func (s streamApp) dialEvents(t *testing.T, cl *client, after string) (*websocket.Conn, *http.Response, error) {
+// The status is the handshake's answer (0 when there was none).
+func (s streamApp) dialEvents(t *testing.T, cl *client, after string) (*websocket.Conn, int, error) {
 	t.Helper()
 	url := "ws" + strings.TrimPrefix(s.srv.URL, "http") + "/encounters/" + s.encounter + "/events"
 	if after != "" {
@@ -97,10 +98,12 @@ func (s streamApp) dialEvents(t *testing.T, cl *client, after string) (*websocke
 	if conn != nil {
 		t.Cleanup(func() { _ = conn.Close() })
 	}
-	if res != nil && res.Body != nil {
+	status := 0
+	if res != nil {
+		status = res.StatusCode
 		_ = res.Body.Close()
 	}
-	return conn, res, err
+	return conn, status, err
 }
 
 // frame is one forwarded entry: its cursor and its envelope.
@@ -112,7 +115,7 @@ type frame struct {
 // next reads the next forwarded entry: a cursor frame, then the envelope it announces.
 func next(t *testing.T, conn *websocket.Conn) (frame, error) {
 	t.Helper()
-	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	_ = conn.SetReadDeadline(wallNow().Add(5 * time.Second))
 	_, c, err := conn.ReadMessage()
 	if err != nil {
 		return frame{}, err
@@ -237,8 +240,8 @@ func TestNew_RefusesTheEventStreamToAnyoneButTheEncountersPractitioner(t *testin
 		{name: "the clinic's admin", cl: s.d.admin, status: http.StatusForbidden},
 		{name: "a stranger", cl: s.stranger, status: http.StatusNotFound},
 	} {
-		if _, res, err := s.dialEvents(t, tt.cl, ""); err == nil || res == nil || res.StatusCode != tt.status {
-			t.Errorf("%s: dial = %v, %v; want %d", tt.name, res, err, tt.status)
+		if _, status, err := s.dialEvents(t, tt.cl, ""); err == nil || status != tt.status {
+			t.Errorf("%s: dial = %d, %v; want %d", tt.name, status, err, tt.status)
 		}
 	}
 	if n := s.count(t, `SELECT count(*) FROM audit_event WHERE subtype_code = 'operation' AND action = 'E' AND outcome = 4`); n != 3 {
@@ -260,21 +263,21 @@ func TestNew_EndsTheEventStreamAtOnceOnARevocation(t *testing.T) {
 			t.Fatal(err)
 		}
 		expectHTTP(t, s.d.patient, http.MethodPost, "/consents/"+s.consent+"/revoke", http.StatusOK)
-		revoked := time.Now()
+		revoked := wallNow()
 		if !idle {
 			s.add(t, 1)
 		}
-		_ = conn.SetReadDeadline(time.Now().Add(3 * transcript.RecheckEvery))
+		_ = conn.SetReadDeadline(wallNow().Add(3 * transcript.RecheckEvery))
 		_, msg, err := conn.ReadMessage()
 		var closed *websocket.CloseError
 		if !errors.As(err, &closed) || closed.Code != 4403 || closed.Text != "consent_required" {
 			t.Errorf("idle %v: after the revocation read %s, %v; want close 4403 consent_required", idle, msg, err)
 		}
-		if took := time.Since(revoked); took > 2*transcript.RecheckEvery {
+		if took := wallNow().Sub(revoked); took > 2*transcript.RecheckEvery {
 			t.Errorf("idle %v: closed %v after the revocation, want within %v", idle, took, 2*transcript.RecheckEvery)
 		}
-		if _, res, err := s.dialEvents(t, s.d.practitioner, ""); err == nil || res == nil || res.StatusCode != http.StatusForbidden {
-			t.Errorf("idle %v: dial after the revocation = %v, %v; want 403", idle, res, err)
+		if _, status, err := s.dialEvents(t, s.d.practitioner, ""); err == nil || status != http.StatusForbidden {
+			t.Errorf("idle %v: dial after the revocation = %d, %v; want 403", idle, status, err)
 		}
 	}
 }
@@ -306,3 +309,6 @@ func TestNew_ExportsTheTranscriptToTheEncountersPractitioner(t *testing.T) {
 		t.Errorf("audited %d exports of two segments, want 1", n)
 	}
 }
+
+// wallNow is the real time, for the waits of a test against real servers.
+func wallNow() time.Time { return clock.System{}.Now() }

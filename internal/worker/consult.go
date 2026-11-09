@@ -65,7 +65,7 @@ func NewConsultStream(pool *pgxpool.Pool, rdb *goredis.Client, log *slog.Logger)
 		log: log,
 	}
 	c.group = &redis.Group{
-		Client: rdb, Pattern: transcript.StreamKey("*"), Name: consultAgent, Consumer: consultAgent + "-" + strings.ToLower(rand.Text()),
+		Client: rdb, Clock: clock.System{}, Pattern: transcript.StreamKey("*"), Name: consultAgent, Consumer: consultAgent + "-" + strings.ToLower(rand.Text()),
 		Block: consultBlock, MinIdle: consultMinIdle,
 		OnError: func(err error) { log.Error("consult stream failed", "error", err) },
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/transcript"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
 // next is one scripted answer of the stub's Next.
@@ -72,7 +74,7 @@ func newServer(t *testing.T, svc *stubTranscripts, caller func(context.Context) 
 		svc.afters = make(chan string, 100)
 	}
 	mux := http.NewServeMux()
-	h := transcript.NewHTTPHandler(svc, caller, slog.New(slog.DiscardHandler))
+	h := transcript.NewHTTPHandler(svc, caller, clock.System{}, slog.New(slog.DiscardHandler))
 	h.Routes(mux)
 	h.StreamRoutes(mux)
 	srv := httptest.NewServer(mux)
@@ -81,23 +83,32 @@ func newServer(t *testing.T, svc *stubTranscripts, caller func(context.Context) 
 }
 
 // dial opens the encounter's event stream on srv as the web app does: from its own origin.
-func dial(t *testing.T, srv *httptest.Server, query string) (*websocket.Conn, *http.Response, error) {
+// The status is the handshake's answer (0 when there was none).
+func dial(t *testing.T, srv *httptest.Server, query string) (*websocket.Conn, int, error) {
 	t.Helper()
 	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/encounters/" + encounterID + "/events" + query
-	conn, res, err := websocket.DefaultDialer.DialContext(t.Context(), url, http.Header{"Origin": {srv.URL}})
+	return dialWith(t, url, http.Header{"Origin": {srv.URL}})
+}
+
+// dialWith dials url with header, and returns the connection, the handshake's status (0 for none) and the error.
+func dialWith(t *testing.T, url string, header http.Header) (*websocket.Conn, int, error) {
+	t.Helper()
+	conn, res, err := websocket.DefaultDialer.DialContext(t.Context(), url, header)
 	if conn != nil {
 		t.Cleanup(func() { _ = conn.Close() })
 	}
-	if res != nil && res.Body != nil {
+	status := 0
+	if res != nil {
+		status = res.StatusCode
 		_ = res.Body.Close()
 	}
-	return conn, res, err
+	return conn, status, err
 }
 
 // read reads the next frame within a second.
 func read(t *testing.T, conn *websocket.Conn) (int, []byte, error) {
 	t.Helper()
-	_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+	_ = conn.SetReadDeadline(wallNow().Add(time.Second))
 	return conn.ReadMessage()
 }
 
@@ -188,15 +199,8 @@ func TestEvents_RefusesTheUpgradeBeforeSubscribing(t *testing.T) {
 		if name == "an invalid cursor" {
 			svc.subscribeErr = transcript.ErrInvalidCursor
 		}
-		conn, res, err := websocket.DefaultDialer.DialContext(t.Context(), tt.url, tt.header)
-		if conn != nil {
-			_ = conn.Close()
-		}
-		if err == nil || res == nil || res.StatusCode != tt.status {
-			t.Errorf("%s: dial = %v, %v; want %d", name, res, err, tt.status)
-		}
-		if res != nil {
-			_ = res.Body.Close()
+		if _, status, err := dialWith(t, tt.url, tt.header); err == nil || status != tt.status {
+			t.Errorf("%s: dial = %d, %v; want %d", name, status, err, tt.status)
 		}
 		svc.subscribeErr = nil
 	}
@@ -204,18 +208,11 @@ func TestEvents_RefusesTheUpgradeBeforeSubscribing(t *testing.T) {
 		t.Errorf("subscribed %d times, want 1", len(svc.subscribed))
 	}
 
-	res, err := srv.Client().Get(srv.URL + "/encounters/" + encounterID + "/events")
-	if err != nil {
-		t.Fatal(err)
+	if status, _ := get(t, srv, "/encounters/"+encounterID+"/events"); status != http.StatusBadRequest {
+		t.Errorf("GET without the handshake = %d, want 400", status)
 	}
-	_ = res.Body.Close()
-	if res.StatusCode != http.StatusBadRequest {
-		t.Errorf("GET without the handshake = %d, want 400", res.StatusCode)
-	}
-	if conn, _, err := websocket.DefaultDialer.DialContext(t.Context(), url, nil); err != nil {
+	if _, _, err := dialWith(t, url, nil); err != nil {
 		t.Errorf("dial without Origin = %v, want the upgrade", err)
-	} else {
-		_ = conn.Close()
 	}
 }
 
@@ -231,9 +228,8 @@ func TestEvents_AnswersARefusedSubscriptionWithItsStatus(t *testing.T) {
 		{err: errors.New("the database is down"), status: http.StatusInternalServerError},
 	} {
 		srv := newServer(t, &stubTranscripts{subscribeErr: tt.err}, signedIn)
-		_, res, err := dial(t, srv, "")
-		if err == nil || res == nil || res.StatusCode != tt.status {
-			t.Errorf("%v: dial = %v, %v; want %d", tt.err, res, err, tt.status)
+		if _, status, err := dial(t, srv, ""); err == nil || status != tt.status {
+			t.Errorf("%v: dial = %d, %v; want %d", tt.err, status, err, tt.status)
 		}
 	}
 }
@@ -259,25 +255,21 @@ func TestEvents_EndsWhenTheClientCloses(t *testing.T) {
 func TestExport_AnswersTheTranscript(t *testing.T) {
 	e := valid()
 	srv := newServer(t, &stubTranscripts{export: []transcript.Event{e}}, signedIn)
-	res, err := srv.Client().Get(srv.URL + "/encounters/" + encounterID + "/transcript")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = res.Body.Close() }()
-	var body bytes.Buffer
-	_, _ = body.ReadFrom(res.Body)
+	status, res := get(t, srv, "/encounters/"+encounterID+"/transcript")
 	want := `{"segments":[{"ts_start":"2026-11-08T09:30:00Z","ts_end":"2026-11-08T09:30:01.5Z","encounter_id":"` + encounterID +
 		`","segment_id":"` + segmentID + `","speaker":"patient","lang":"bs","original":"placeholder original",` +
 		`"translation":"[de] placeholder original","is_final":true}]}` + "\n"
-	if res.StatusCode != http.StatusOK || body.String() != want || res.Header.Get("Cache-Control") != "no-store" ||
-		res.Header.Get("Content-Type") != "application/json" {
-		t.Errorf("GET transcript = %d %s %v;\nwant 200 %s, no-store", res.StatusCode, body.String(), res.Header, want)
+	if status != http.StatusOK || res.Body.String() != want || res.Header().Get("Cache-Control") != "no-store" ||
+		res.Header().Get("Content-Type") != "application/json" {
+		t.Errorf("GET transcript = %d %s %v;\nwant 200 %s, no-store", status, res.Body, res.Header(), want)
 	}
 }
 
 func TestExport_AnswersARefusalWithItsStatus(t *testing.T) {
 	nobody := func(context.Context) (appointment.Caller, bool, error) { return appointment.Caller{}, false, nil }
-	broken := func(context.Context) (appointment.Caller, bool, error) { return appointment.Caller{}, false, errBackend }
+	broken := func(context.Context) (appointment.Caller, bool, error) {
+		return appointment.Caller{}, false, errBackend
+	}
 	for _, tt := range []struct {
 		err    error
 		caller func(context.Context) (appointment.Caller, bool, error)
@@ -292,15 +284,27 @@ func TestExport_AnswersARefusalWithItsStatus(t *testing.T) {
 		{caller: signedIn, err: errBackend, status: http.StatusInternalServerError, body: `{"error":"internal error"}`},
 	} {
 		srv := newServer(t, &stubTranscripts{exportErr: tt.err}, tt.caller)
-		res, err := srv.Client().Get(srv.URL + "/encounters/" + encounterID + "/transcript")
-		if err != nil {
-			t.Fatal(err)
-		}
-		var body bytes.Buffer
-		_, _ = body.ReadFrom(res.Body)
-		_ = res.Body.Close()
-		if res.StatusCode != tt.status || strings.TrimSpace(body.String()) != tt.body {
-			t.Errorf("%v: GET transcript = %d %s, want %d %s", tt.err, res.StatusCode, body.String(), tt.status, tt.body)
+		status, res := get(t, srv, "/encounters/"+encounterID+"/transcript")
+		if status != tt.status || strings.TrimSpace(res.Body.String()) != tt.body {
+			t.Errorf("%v: GET transcript = %d %s, want %d %s", tt.err, status, res.Body, tt.status, tt.body)
 		}
 	}
+}
+
+// get sends a plain GET of path to srv and returns its status, with its headers and body recorded.
+func get(t *testing.T, srv *httptest.Server, path string) (int, *httptest.ResponseRecorder) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	rec := httptest.NewRecorder()
+	maps.Copy(rec.Header(), res.Header)
+	_, _ = rec.Body.ReadFrom(res.Body)
+	return res.StatusCode, rec
 }

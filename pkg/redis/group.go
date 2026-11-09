@@ -6,6 +6,8 @@ import (
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
+
+	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
 // groupPage is the most entries one read or one claim hands to the handler.
@@ -18,6 +20,8 @@ const groupPage = 100
 // idempotent. A stream found late is read from its first entry.
 type Group struct {
 	Client *goredis.Client
+	// Clock times the sweeps for new streams and pending entries.
+	Clock clock.Clock
 	// OnError is told of a failed Redis call, after which Run waits Block and goes on; nil ignores it.
 	OnError  func(error)
 	Pattern  string // SCAN MATCH pattern of the stream keys
@@ -40,7 +44,7 @@ func (g *Group) Run(ctx context.Context, handle Handler) {
 	var streams []string
 	var swept time.Time
 	for ctx.Err() == nil {
-		if time.Since(swept) >= g.Block {
+		if g.Clock.Now().Sub(swept) >= g.Block {
 			var err error
 			if streams, err = g.discover(ctx, known); err != nil {
 				g.fail(ctx, err)
@@ -50,7 +54,7 @@ func (g *Group) Run(ctx context.Context, handle Handler) {
 				g.fail(ctx, err)
 				continue
 			}
-			swept = time.Now()
+			swept = g.Clock.Now()
 		}
 		if len(streams) == 0 {
 			wait(ctx, g.Block)

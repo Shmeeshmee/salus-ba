@@ -89,6 +89,8 @@ Class | Method | HTTP request | Description
 *ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
 *ConsentsApi* | [**revokeConsent**](doc//ConsentsApi.md#revokeconsent) | **POST** /consents/{id}/revoke | Revoke a consent
 *ConsultationApi* | [**endConsultation**](doc//ConsultationApi.md#endconsultation) | **POST** /appointments/{id}/consultation/end | End an appointment's video consultation
+*ConsultationApi* | [**exportTranscript**](doc//ConsultationApi.md#exporttranscript) | **GET** /encounters/{id}/transcript | The consultation's stored transcript
+*ConsultationApi* | [**followConsultationEvents**](doc//ConsultationApi.md#followconsultationevents) | **GET** /encounters/{id}/events | The consultation's live events, over a WebSocket
 *ConsultationApi* | [**getConsultation**](doc//ConsultationApi.md#getconsultation) | **GET** /appointments/{id}/consultation | Where an appointment's video consultation stands
 *ConsultationApi* | [**joinConsultation**](doc//ConsultationApi.md#joinconsultation) | **POST** /appointments/{id}/consultation/join | A token to join an appointment's video consultation
 *ConsultationApi* | [**receiveLiveKitWebhook**](doc//ConsultationApi.md#receivelivekitwebhook) | **POST** /webhooks/livekit | LiveKit's webhook
@@ -135,9 +137,12 @@ Class | Method | HTTP request | Description
  - [ConfirmRequest](doc//ConfirmRequest.md)
  - [Consent](doc//Consent.md)
  - [ConsentList](doc//ConsentList.md)
+ - [ConsultFrame](doc//ConsultFrame.md)
  - [ConsultMessage](doc//ConsultMessage.md)
  - [ConsultationJoin](doc//ConsultationJoin.md)
  - [ConsultationStatus](doc//ConsultationStatus.md)
+ - [Cursor](doc//Cursor.md)
+ - [CursorMessage](doc//CursorMessage.md)
  - [DraftEvent](doc//DraftEvent.md)
  - [DraftField](doc//DraftField.md)
  - [DraftMessage](doc//DraftMessage.md)
@@ -183,6 +188,7 @@ Class | Method | HTTP request | Description
  - [TermLabels](doc//TermLabels.md)
  - [TermLanguage](doc//TermLanguage.md)
  - [TermList](doc//TermList.md)
+ - [Transcript](doc//Transcript.md)
  - [TranscriptEvent](doc//TranscriptEvent.md)
  - [TranscriptMessage](doc//TranscriptMessage.md)
  - [Unavailable](doc//Unavailable.md)

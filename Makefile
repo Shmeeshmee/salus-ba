@@ -17,7 +17,7 @@ TEST_SERVICES := postgres redis mailpit livekit objectstore clamd
 GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...
 GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology turn-check livekit-turn-cert lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream turn-check livekit-turn-cert lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	terminology-fetch terminology-import terminology-export \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
@@ -76,6 +76,12 @@ bench-questionnaire-http: up tools-image
 ## (docs/attachments/PROGRESS.md, package 2.1). Not part of make test.
 bench-binary-http: tools-image
 	$(GO) go test -tags loadtest -count=1 -v -run TestBinaryHTTPReadings ./internal/api/
+
+## bench-consult-stream: the WebSocket gateway's XADD-to-frame latency and a reconnect's replay through api.New, and
+## one stream-discovery sweep over 100,000 keys (docs/plans/consult-intelligence.PROGRESS.md, SAL-6). Not part of make test.
+bench-consult-stream: tools-image
+	$(GO) sh -c "go test -tags loadtest -count=1 -v -run TestTranscriptStreamLatency ./internal/api/ && \
+		go test -tags loadtest -count=1 -v -run TestGroupDiscoveryCost ./pkg/redis/"
 
 ## bench-terminology: the terminology search through the service on a database loaded with the seed, 50 searches at
 ## a time, with its p95 (docs/terminology/SPEC.md §3 "Search": under 15 ms; PROGRESS.md, package 1.1)

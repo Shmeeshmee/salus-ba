@@ -35,9 +35,12 @@ lib/model/book_appointment_request.dart
 lib/model/confirm_request.dart
 lib/model/consent.dart
 lib/model/consent_list.dart
+lib/model/consult_frame.dart
 lib/model/consult_message.dart
 lib/model/consultation_join.dart
 lib/model/consultation_status.dart
+lib/model/cursor.dart
+lib/model/cursor_message.dart
 lib/model/draft_event.dart
 lib/model/draft_field.dart
 lib/model/draft_message.dart
@@ -83,6 +86,7 @@ lib/model/term_codes.dart
 lib/model/term_labels.dart
 lib/model/term_language.dart
 lib/model/term_list.dart
+lib/model/transcript.dart
 lib/model/transcript_event.dart
 lib/model/transcript_message.dart
 lib/model/unavailable.dart

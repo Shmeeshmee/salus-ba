@@ -1585,6 +1585,104 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /encounters/{id}/events:
+    get:
+      operationId: followConsultationEvents
+      summary: The consultation's live events, over a WebSocket
+      description: >-
+        A WebSocket (RFC 6455) upgrade: the encounter's Redis Stream, live, to the encounter's practitioner only,
+        with the patient's active consent (not the clinic's admin, not the patient). Every entry of the stream
+        is sent as two text frames: a `cursor` message with the entry's stream id, then the entry's message
+        (`ConsultMessage`) exactly as its producer wrote it; together they are `ConsultFrame`. A client keeps the
+        id of a cursor once the message after it has arrived, and on reconnecting passes it as `after`: it gets
+        every entry after that one, in order, then the live ones, with no gap and no duplicate. Without `after`
+        it gets every entry still on the stream (the stream is capped and expires after the encounter; the
+        stored transcript is `GET /encounters/{id}/transcript`). The handshake must come from the API's own
+        origin, or carry no Origin (no browser). Access is checked again after every read of the stream: when
+        it ends (a revocation, a cancellation) nothing more is sent and the socket closes within a second, with
+        code 4403 and reason `consent_required` or `forbidden`, or 4404 `not_found`; 1011 on a server error. The
+        client sends nothing but control frames. Each subscription is audited as an operation on the
+        encounter, also when refused.
+      tags: [consultation]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/EncounterID"
+        - name: after
+          in: query
+          required: false
+          description: The stream id of the last entry received (`<milliseconds>-<sequence>`), or `0` for all.
+          schema:
+            type: string
+            pattern: "^(0|[0-9]+-[0-9]+)$"
+      responses:
+        "101":
+          description: >-
+            Switching protocols: the WebSocket, carrying `ConsultFrame` text frames.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ConsultFrame"}
+        "400":
+          description: "`websocket_required`: no WebSocket handshake; `invalid_cursor`: `after` is no stream id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: >-
+            `origin`: the handshake comes from another origin; `consent_required`: the encounter's practitioner
+            after the patient revoked their consent; `forbidden`: anyone else who sees the encounter.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such encounter the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /encounters/{id}/transcript:
+    get:
+      operationId: exportTranscript
+      summary: The consultation's stored transcript
+      description: >-
+        Every final segment of the encounter's transcript, in the order it was said, with its translation, as
+        `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent
+        only; the patient's own copy comes with the export feature. Not cached. Audited as a read with the
+        number of segments, also when refused.
+      tags: [consultation]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/EncounterID"
+      responses:
+        "200":
+          description: The transcript.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Transcript"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: >-
+            `consent_required`: the encounter's practitioner after the patient revoked their consent;
+            `forbidden`: anyone else who sees the encounter.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such encounter the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /questionnaire-responses/{id}/answers:
     parameters:
       - $ref: "#/components/parameters/QuestionnaireResponseID"
@@ -2055,6 +2153,14 @@ components:
       name: id
       in: path
       required: true
+      schema:
+        type: string
+        format: uuid
+    EncounterID:
+      name: id
+      in: path
+      required: true
+      description: The encounter's id (FHIR Encounter.id).
       schema:
         type: string
         format: uuid
@@ -3260,6 +3366,35 @@ components:
           transcript: "#/components/schemas/TranscriptMessage"
           suggestion: "#/components/schemas/SuggestionMessage"
           draft: "#/components/schemas/DraftMessage"
+    ConsultFrame:
+      description: >-
+        One text frame of GET /encounters/{id}/events: a live message, or the cursor sent before each one.
+      oneOf:
+        - {$ref: "#/components/schemas/ConsultMessage"}
+        - {$ref: "#/components/schemas/CursorMessage"}
+    CursorMessage:
+      type: object
+      description: Sent before each live message, with the stream id of its entry, which a client resumes after.
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: cursor}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/Cursor"}
+    Cursor:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          description: The entry's stream id, `<milliseconds>-<sequence>`.
+    Transcript:
+      type: object
+      required: [segments]
+      properties:
+        segments:
+          type: array
+          description: The stored final segments in the order they were said.
+          items: {$ref: "#/components/schemas/TranscriptEvent"}
     TranscriptMessage:
       type: object
       required: [type, version, payload]
