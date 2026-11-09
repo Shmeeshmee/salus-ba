@@ -24,6 +24,8 @@ export default defineConfig({
       // /questionnaires and /questionnaires/<id> are also screens of the app: only their writes go to the API.
       '/questionnaires': { target: apiUrl, bypass: (req) => (req.method === 'GET' ? '/index.html' : undefined) },
       '/fhir': apiUrl,
+      // The consultation's live events (a WebSocket) and its transcript; no screen of the app is under /encounters.
+      '/encounters': { target: apiUrl, ws: true },
     },
   },
   test: {

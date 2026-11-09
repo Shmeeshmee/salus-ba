@@ -1,6 +1,7 @@
-// Command worker runs the River background jobs of the default queue and the scan queue. It logs in as
-// salus_app (DATABASE_URL), and as salus_retention (RETENTION_DATABASE_URL) for the retention_apply job alone;
-// the binary jobs reach the object store and clamd (config.LoadObjectStore, config.LoadClamd).
+// Command worker runs the River background jobs of the default queue and the scan queue, and the consultations'
+// stream consumer (worker.ConsultStream, on REDIS_URL), which stores what the encounters' Redis Streams carry. It
+// logs in as salus_app (DATABASE_URL), and as salus_retention (RETENTION_DATABASE_URL) for the retention_apply
+// job alone; the binary jobs reach the object store and clamd (config.LoadObjectStore, config.LoadClamd).
 package main
 
 import (
@@ -23,6 +24,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/clamd"
 	"github.com/Shmeeshmee/salus/pkg/envelope"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
+	"github.com/Shmeeshmee/salus/pkg/redis"
 )
 
 // stopTimeout is how long running jobs get to finish after a stop signal.
@@ -58,6 +60,11 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if err != nil {
 		return err
 	}
+	rdb, err := redis.Open(ctx, cfg.RedisURL) // the consultations' streams
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rdb.Close() }()
 	pool, err := postgres.Open(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
@@ -76,10 +83,16 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if err := client.Start(context.WithoutCancel(ctx)); err != nil {
 		return err
 	}
+	consumed := make(chan struct{})
+	go func() {
+		defer close(consumed)
+		worker.NewConsultStream(pool, rdb, log).Run(ctx)
+	}()
 	log.Info("started")
 
 	<-ctx.Done()
 	log.Info("shutting down")
+	<-consumed // it stops within one read; an entry it had not acknowledged is written again later
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stopTimeout)
 	defer cancel()
 	if err := client.Stop(stopCtx); err != nil {

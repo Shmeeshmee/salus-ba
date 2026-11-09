@@ -691,6 +691,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/encounters/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The consultation's live events, over a WebSocket
+         * @description A WebSocket (RFC 6455) upgrade: the encounter's Redis Stream, live, to the encounter's practitioner only, with the patient's active consent (not the clinic's admin, not the patient). Every entry of the stream is sent as two text frames: a `cursor` message with the entry's stream id, then the entry's message (`ConsultMessage`) exactly as its producer wrote it; together they are `ConsultFrame`. A client keeps the id of a cursor once the message after it has arrived, and on reconnecting passes it as `after`: it gets every entry after that one, in order, then the live ones, with no gap and no duplicate. Without `after` it gets every entry still on the stream (the stream is capped and expires after the encounter; the stored transcript is `GET /encounters/{id}/transcript`). The handshake must come from the API's own origin, or carry no Origin (no browser). Access is checked again after every read of the stream: when it ends (a revocation, a cancellation) nothing more is sent and the socket closes within a second, with code 4403 and reason `consent_required` or `forbidden`, or 4404 `not_found`; 1011 on a server error. The client sends nothing but control frames. Each subscription is audited as an operation on the encounter, also when refused.
+         */
+        get: operations["followConsultationEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/encounters/{id}/transcript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The consultation's stored transcript
+         * @description Every final segment of the encounter's transcript, in the order it was said, with its translation, as `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent only; the patient's own copy comes with the export feature. Not cached. Audited as a read with the number of segments, also when refused.
+         */
+        get: operations["exportTranscript"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/questionnaire-responses/{id}/answers": {
         parameters: {
             query?: never;
@@ -1487,6 +1527,27 @@ export interface components {
         };
         /** @description One live message of a consultation, told apart by `type`. */
         ConsultMessage: components["schemas"]["TranscriptMessage"] | components["schemas"]["SuggestionMessage"] | components["schemas"]["DraftMessage"];
+        /** @description One text frame of GET /encounters/{id}/events: a live message (one of ConsultMessage's), or the cursor sent before each one, told apart by `type`. */
+        ConsultFrame: components["schemas"]["TranscriptMessage"] | components["schemas"]["SuggestionMessage"] | components["schemas"]["DraftMessage"] | components["schemas"]["CursorMessage"];
+        /** @description Sent before each live message, with the stream id of its entry, which a client resumes after. */
+        CursorMessage: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "cursor";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["Cursor"];
+        };
+        Cursor: {
+            /** @description The entry's stream id, `<milliseconds>-<sequence>`. */
+            id: string;
+        };
+        Transcript: {
+            /** @description The stored final segments in the order they were said. */
+            segments: components["schemas"]["TranscriptEvent"][];
+        };
         TranscriptMessage: {
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -1798,6 +1859,8 @@ export interface components {
         /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
         IfMatch: string;
         AppointmentID: string;
+        /** @description The encounter's id (FHIR Encounter.id). */
+        EncounterID: string;
     };
     requestBodies: never;
     headers: never;
@@ -3695,6 +3758,105 @@ export interface operations {
             };
             /** @description `language_unavailable`: the questionnaire is neither written nor completely translated in it. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    followConsultationEvents: {
+        parameters: {
+            query?: {
+                /** @description The stream id of the last entry received (`<milliseconds>-<sequence>`), or `0` for all. */
+                after?: string;
+            };
+            header?: never;
+            path: {
+                /** @description The encounter's id (FHIR Encounter.id). */
+                id: components["parameters"]["EncounterID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Switching protocols: the WebSocket, carrying `ConsultFrame` text frames. */
+            101: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsultFrame"];
+                };
+            };
+            /** @description `websocket_required`: no WebSocket handshake; `invalid_cursor`: `after` is no stream id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `origin`: the handshake comes from another origin; `consent_required`: the encounter's practitioner after the patient revoked their consent; `forbidden`: anyone else who sees the encounter. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such encounter the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    exportTranscript: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The encounter's id (FHIR Encounter.id). */
+                id: components["parameters"]["EncounterID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The transcript. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transcript"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `consent_required`: the encounter's practitioner after the patient revoked their consent; `forbidden`: anyone else who sees the encounter. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such encounter the caller may see. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

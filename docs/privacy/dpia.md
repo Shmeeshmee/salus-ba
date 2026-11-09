@@ -1321,3 +1321,50 @@ template a row belongs to, and deletes nothing (tested).
 | A transcript written after a revocation | No room scope on these tables; the service checks the active consent before each write (from SAL-4) |
 | Transcript text in logs or errors | Validation errors name the field, never its value (tested) |
 | A suggestion read as a diagnosis | Shown to the practitioner only, labelled as a suggestion, citing its segments; what they did with it is kept |
+
+### C (SAL-6): stream storage, the WebSocket gateway and the transcript export
+
+**Processing added.** Three things, all on the encounter's Redis Stream (`consult:<encounter_id>:events`, entries
+`{envelope: <wire envelope>}`):
+
+- The stream consumer (`worker.ConsultStream`, in `cmd/worker`) stores what the stream carries: final segments into
+  `transcript_segment` (partial ones stay on the stream only), suggestions into `suggestion` with their latest
+  status. Drafts are SAL-8's and left alone. It has only the encounter's id: `encounter_organization(uuid)`
+  (migration 00033, a `SECURITY DEFINER` function owned by `salus_encounter_lookup`, which reads two columns of
+  `encounter`) gives it the clinic, and nothing else; the write then runs in that clinic's scope under the tables'
+  row-level security.
+- `GET /encounters/{id}/events`, a WebSocket that forwards the stream's envelopes unchanged, each after a cursor
+  frame with its stream id, to the encounter's practitioner.
+- `GET /encounters/{id}/transcript`, the stored segments, to the encounter's practitioner.
+
+No new personal field; the tables are P0's.
+
+**Purpose and lawful basis.** As P0: the care of the patient in the consultation (Art. 9(2)(h)); the consent
+question for translation, suggestions and drafting stays open (P0's note), and nothing here sends data anywhere new:
+the stream, the api, the worker and Postgres are ours.
+
+**Access.** `access.ConsultationRecord`: the appointment's practitioner with the patient's active consent, nobody
+else (not the clinic's admin, not the patient, whose copy comes with the export feature). After a revocation the
+practitioner keeps the encounter at the name level, but neither the stream nor the transcript, also for a
+consultation that started before it. The gateway checks access again after every read of the stream: a revocation
+closes the socket (`4403 consent_required`) and nothing more leaves, within a second on an idle stream (tested).
+The consumer stores nothing once the consent is not active. The upgrade must come from the API's own origin: the
+session cookie is `SameSite=Strict` and a WebSocket cannot send `X-Salus-CSRF`, so the origin is the cross-site
+check.
+
+**Audit.** Every stored segment and suggestion (agent `consult_stream`, `HOPERAT`, `Encounter/<id>`, the table as
+`entity.name`), every refused write, every subscription to the stream (operation, action `E`) and every export
+(read, with the number of segments), refused ones too.
+
+**Retention.** Unchanged: the tables' `keep` rules. The stream is transport (ADR 0005): capped and expired by its
+producers; losing it loses live captions, never the stored transcript.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A transcript or suggestion written or shown after a revocation | Consent checked before every write and after every stream read (tested against the database and through api.New) |
+| A cross-site page opens the stream with the practitioner's cookie | The handshake's Origin must be the API's own (tested, a sibling origin included) |
+| An entry written twice, or a crashed worker's entry lost | Consumer group, at-least-once; segments by their event id, suggestions by theirs, so a repeat adds no row (tested); an unacknowledged entry is claimed again after 30 s |
+| What was said in a log line | The consumer logs the stream key, the entry id, the type and the reason only; the gateway the encounter id (tested for the synthetic text) |
+| The lookup function discloses more than the clinic | Owned by a role with two columns of `encounter` and no other privilege; `EXECUTE` for `salus_app` only (tested) |

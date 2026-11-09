@@ -121,7 +121,7 @@ func benchPartial(b *testing.B, r stt.Recognizer) {
 	rdb := redistest.NewClient(b)
 	calls := newCalls()
 	languages := &fakeLanguages{patient: "bs", clinic: "bs"}
-	svc := transcript.NewService(transcript.Ports{
+	svc := transcript.NewLive(transcript.LivePorts{
 		Calls: calls, Appointments: languages, Accounts: languages, Clinics: languages,
 		Publisher: transcript.NewRedisPublisher(rdb), Recognizer: r, Clock: clock.System{},
 		Log: slog.New(slog.DiscardHandler),

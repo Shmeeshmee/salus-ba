@@ -56,6 +56,18 @@ LiveKit room audio (one track per participant)
 | Speaker | `practitioner` or `patient`, as FHIR and the rest of the codebase name them (renamed from the ticket's `doctor` by the owner, 2026-11-09; migration 00032) |
 | Stream key | `consult:<encounter_id>:events`, from `transcript.StreamKey` |
 
+## Decisions taken for C (SAL-6, 2026-11-09; agent decisions, for the owner to review)
+
+| Topic | Decision |
+| --- | --- |
+| Stream entry | One field, `envelope` (`transcript.StreamField`), holding the wire envelope's bytes: `XADD consult:<encounter_id>:events * envelope <bytes>`. A shared contract every producer (SAL-4, SAL-7, SAL-8) writes |
+| Consumer | A Redis Streams consumer group (`consult_stream`) in `cmd/worker`, beside River, not a River job: the producers write Redis, not Postgres, so there is no transaction to enqueue a job in, and a job per entry would add a Postgres write before the real one. Streams are found by `SCAN TYPE stream` once a second (no registry to keep in step with the producers); a failed or orphaned entry is claimed again after 30 s. At least once; the writes are idempotent (segment and suggestion ids from the events) |
+| Writes | Final segments to `transcript_segment`, suggestions to `suggestion` (a later event changes only the status), each through its own domain's service, in the encounter's clinic scope (`encounter_organization`, migration 00033), only with the patient's active consent. Drafts are left to SAL-8 |
+| Gateway | `GET /encounters/{id}/events`, a WebSocket (gorilla/websocket: already in the module graph through the LiveKit SDK, at the same version, and it hijacks through `http.ResponseController`, which the access log's writer supports). Each entry goes out as a `cursor` frame with its stream id and then the envelope's bytes unchanged; the client keeps a cursor once the message after it has arrived and resumes with `?after=`, so a drop between the two frames repeats nothing and loses nothing. Without `after`, every entry still on the stream |
+| Who | The encounter's practitioner with an active consent (`access.ConsultationRecord`); no admin, no patient. The rule is checked again after every read of the stream (at least once a second), so a revocation ends the stream at once |
+| Origin | The upgrade must come from the API's own origin (or no Origin: no browser). The web app calls the API on its own origin; the cookie is `SameSite=Strict` and a WebSocket cannot send `X-Salus-CSRF` |
+| Export | `GET /encounters/{id}/transcript`, plain JSON (`{"segments": [TranscriptEvent]}`), not FHIR: the plan and the CapabilityStatement name no FHIR resource for the transcript. Same rule as the stream |
+
 ## Contracts (P0)
 
 | Event | `type`, `version` | Fields |

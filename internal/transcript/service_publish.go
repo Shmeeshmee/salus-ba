@@ -15,7 +15,7 @@ import (
 // else why it stopped. start is when its audio started: a result's offsets are from there. Partial results revise
 // one segment until its final one; the next result starts a new segment. A result without words is skipped; one
 // the stream does not take is logged, by its field, and skipped.
-func (s *Service) publish(ctx context.Context, c call, sp speaker, start time.Time, stream stt.Stream) error {
+func (s *Live) publish(ctx context.Context, c call, sp speaker, start time.Time, stream stt.Stream) error {
 	segment := newID()
 	for {
 		res, err := stream.Recv()

@@ -37,7 +37,7 @@ type Video struct {
 // transcription it hands the transcription_join jobs to, on pool (salus_app). The agent hears the calls through
 // video, recognises them with recognizer and puts the events on rdb's streams. cmd/agent stops the client, then
 // the transcription.
-func NewAgent(pool *pgxpool.Pool, rdb *goredis.Client, video Video, recognizer stt.Recognizer, log *slog.Logger) (*river.Client[pgx.Tx], *transcript.Service, error) {
+func NewAgent(pool *pgxpool.Pool, rdb *goredis.Client, video Video, recognizer stt.Recognizer, log *slog.Logger) (*river.Client[pgx.Tx], *transcript.Live, error) {
 	if rdb == nil || video.Provider == nil || video.Listener == nil || video.URL == "" || recognizer == nil {
 		return nil, nil, errors.New("worker: the agent needs Redis, the video provider, its listener and URL, and a recognizer")
 	}
@@ -56,7 +56,7 @@ func NewAgent(pool *pgxpool.Pool, rdb *goredis.Client, video Video, recognizer s
 		Repo: videosession.NewPostgresRepository(pool), Provider: video.Provider, Listener: video.Listener, Audit: audit, Tx: tx,
 		Clock: clk, Encounters: encounters, Appointments: appointments, Consents: consents, PublicURL: video.URL,
 	})
-	live := transcript.NewService(transcript.Ports{
+	live := transcript.NewLive(transcript.LivePorts{
 		Calls: sessions, Appointments: appointments, Clinics: organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk),
 		Accounts:  auth.NewService(auth.Ports{Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
 		Publisher: transcript.NewRedisPublisher(rdb), Recognizer: recognizer, Clock: clk, Log: log,
@@ -72,7 +72,7 @@ func NewAgent(pool *pgxpool.Pool, rdb *goredis.Client, video Video, recognizer s
 
 // addAgentWorkers registers the transcription queue's job; the scheduler registers it with no transcription,
 // like addDefaultWorkers.
-func addAgentWorkers(workers *river.Workers, live *transcript.Service, log *slog.Logger) {
+func addAgentWorkers(workers *river.Workers, live *transcript.Live, log *slog.Logger) {
 	river.AddWorker(workers, &transcriptionJoinWorker{live: live, log: log})
 }
 
@@ -82,7 +82,7 @@ func addAgentWorkers(workers *river.Workers, live *transcript.Service, log *slog
 // and the next join asks again. It logs the session's id and the outcome, nothing else.
 type transcriptionJoinWorker struct {
 	river.WorkerDefaults[videosession.AgentJoinArgs]
-	live *transcript.Service
+	live *transcript.Live
 	log  *slog.Logger
 }
 

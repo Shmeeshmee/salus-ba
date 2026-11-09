@@ -97,6 +97,148 @@ class ConsultationApi {
     return null;
   }
 
+  /// The consultation's stored transcript
+  ///
+  /// Every final segment of the encounter's transcript, in the order it was said, with its translation, as `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent only; the patient's own copy comes with the export feature. Not cached. Audited as a read with the number of segments, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The encounter's id (FHIR Encounter.id).
+  Future<Response> exportTranscriptWithHttpInfo(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/encounters/{id}/transcript'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The consultation's stored transcript
+  ///
+  /// Every final segment of the encounter's transcript, in the order it was said, with its translation, as `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent only; the patient's own copy comes with the export feature. Not cached. Audited as a read with the number of segments, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The encounter's id (FHIR Encounter.id).
+  Future<Transcript?> exportTranscript(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await exportTranscriptWithHttpInfo(
+      id,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'Transcript',
+      ) as Transcript;
+    }
+    return null;
+  }
+
+  /// The consultation's live events, over a WebSocket
+  ///
+  /// A WebSocket (RFC 6455) upgrade: the encounter's Redis Stream, live, to the encounter's practitioner only, with the patient's active consent (not the clinic's admin, not the patient). Every entry of the stream is sent as two text frames: a `cursor` message with the entry's stream id, then the entry's message (`ConsultMessage`) exactly as its producer wrote it; together they are `ConsultFrame`. A client keeps the id of a cursor once the message after it has arrived, and on reconnecting passes it as `after`: it gets every entry after that one, in order, then the live ones, with no gap and no duplicate. Without `after` it gets every entry still on the stream (the stream is capped and expires after the encounter; the stored transcript is `GET /encounters/{id}/transcript`). The handshake must come from the API's own origin, or carry no Origin (no browser). Access is checked again after every read of the stream: when it ends (a revocation, a cancellation) nothing more is sent and the socket closes within a second, with code 4403 and reason `consent_required` or `forbidden`, or 4404 `not_found`; 1011 on a server error. The client sends nothing but control frames. Each subscription is audited as an operation on the encounter, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The encounter's id (FHIR Encounter.id).
+  ///
+  /// * [String] after:
+  ///   The stream id of the last entry received (`<milliseconds>-<sequence>`), or `0` for all.
+  Future<Response> followConsultationEventsWithHttpInfo(
+    String id, {
+    String? after,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/encounters/{id}/events'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (after != null) {
+      queryParams.addAll(_queryParams('', 'after', after));
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The consultation's live events, over a WebSocket
+  ///
+  /// A WebSocket (RFC 6455) upgrade: the encounter's Redis Stream, live, to the encounter's practitioner only, with the patient's active consent (not the clinic's admin, not the patient). Every entry of the stream is sent as two text frames: a `cursor` message with the entry's stream id, then the entry's message (`ConsultMessage`) exactly as its producer wrote it; together they are `ConsultFrame`. A client keeps the id of a cursor once the message after it has arrived, and on reconnecting passes it as `after`: it gets every entry after that one, in order, then the live ones, with no gap and no duplicate. Without `after` it gets every entry still on the stream (the stream is capped and expires after the encounter; the stored transcript is `GET /encounters/{id}/transcript`). The handshake must come from the API's own origin, or carry no Origin (no browser). Access is checked again after every read of the stream: when it ends (a revocation, a cancellation) nothing more is sent and the socket closes within a second, with code 4403 and reason `consent_required` or `forbidden`, or 4404 `not_found`; 1011 on a server error. The client sends nothing but control frames. Each subscription is audited as an operation on the encounter, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The encounter's id (FHIR Encounter.id).
+  ///
+  /// * [String] after:
+  ///   The stream id of the last entry received (`<milliseconds>-<sequence>`), or `0` for all.
+  Future<void> followConsultationEvents(
+    String id, {
+    String? after,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await followConsultationEventsWithHttpInfo(
+      id,
+      after: after,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+  }
+
   /// Where an appointment's video consultation stands
   ///
   /// The state of the consultation (`not_started` before anyone asked for a token, `open` while its room exists, `ended`), when the patient and the practitioner first joined, when and why it ended, and why the patient was removed. For the appointment's patient, its practitioner and the clinic's admin, as they may see the appointment (after a revocation, a past one too); and for its practitioner once they joined the room, also after a revocation hid the appointment from the clinic. The clients read `reason` when the other side leaves or the room closes. Not cached. Audited as a read of the appointment, also when refused.

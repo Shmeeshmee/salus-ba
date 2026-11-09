@@ -335,3 +335,29 @@ func TestRequestsQuestionnaire_OverEveryRoleConsentAppointmentAndClinic(t *testi
 		}
 	}
 }
+
+// ConsultationRecord: what was said in the consultation of appointment a (its live stream and its transcript,
+// docs/plans/consult-intelligence.md "Access") is the appointment's practitioner's with an active consent, and
+// nobody else's: not the clinic's admin, and not after a revocation, even for a consultation that started
+// before it (CLAUDE.md "Revocation takes effect immediately"). The patient's own copy comes with the export.
+func TestConsultationRecord_OverEveryRoleConsentAppointmentAndClinic(t *testing.T) {
+	want := map[string]bool{
+		"practitioner/active/past/match":   true,
+		"practitioner/active/future/match": true,
+	}
+	seen := map[string]bool{}
+	each(func(key string, v access.Viewer, f access.Facts) {
+		if len(f.Visits) == 0 {
+			return
+		}
+		seen[key] = true
+		if got := access.ConsultationRecord(v, f, f.Visits[0]); got != want[key] {
+			t.Errorf("ConsultationRecord(%s) = %v, want %v", key, got, want[key])
+		}
+	})
+	for key := range want {
+		if !seen[key] {
+			t.Errorf("expectation %q is no combination", key)
+		}
+	}
+}

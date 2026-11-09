@@ -64,11 +64,35 @@ func (e Event) Validate() error {
 // StreamKey is the Redis Stream of every live event of an encounter's consultation.
 func StreamKey(encounterID string) string { return "consult:" + encounterID + ":events" }
 
-// The stream's entries (SAL-4): each holds one wire.Envelope, as bytes, under StreamField. The stream is capped
-// at about StreamMaxLen entries (XADD MAXLEN ~) and expires StreamTTL after its last entry, so it is gone half an
-// hour after the consultation's last event: Redis is transport, transcript_segment the record (ADR 0005).
+// StreamField is the one field of a stream entry, holding the event's wire envelope: XADD <StreamKey> *
+// envelope <bytes>. Every producer (the agent, the suggestions, the drafting) writes it; the consumer that
+// stores the events and the WebSocket gateway read it.
+const StreamField = "envelope"
+
+// The type and version of the cursor frame the WebSocket gateway sends before each envelope it forwards: its
+// payload is the stream id of the entry whose envelope follows (Cursor), which a client resumes after.
 const (
-	StreamField  = "envelope"
+	CursorType    = "cursor"
+	CursorVersion = 1
+)
+
+// Cursor is the payload of a cursor frame (CursorMessage in api/openapi.yaml).
+type Cursor struct {
+	ID string `json:"id"`
+}
+
+// Entry is one entry of an encounter's stream: its id, Redis's "<milliseconds>-<sequence>", and the bytes of
+// its envelope, which go to the practitioner unchanged and undecoded. Envelope is nil for an entry without
+// StreamField.
+type Entry struct {
+	ID       string
+	Envelope []byte
+}
+
+// The stream's bounds (SAL-4): the agent caps it at about StreamMaxLen entries (XADD MAXLEN ~) and sets it to
+// expire StreamTTL after its last entry, so it is gone half an hour after the consultation's last event: Redis
+// is transport, transcript_segment the record (ADR 0005).
+const (
 	StreamMaxLen = 10000
 	StreamTTL    = 30 * time.Minute
 )

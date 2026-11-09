@@ -152,6 +152,19 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (encounter.Encount
 	return encounter.Encounter{}, encounter.ErrNotFound
 }
 
+// Organization gives the clinic of any encounter, whatever the scope, as encounter_organization does.
+func (r *fakeRepository) Organization(_ context.Context, id string) (string, error) {
+	if r.err != nil {
+		return "", r.err
+	}
+	for _, e := range r.encounters {
+		if e.ID == id {
+			return e.OrganizationID, nil
+		}
+	}
+	return "", encounter.ErrNotFound
+}
+
 func (r *fakeRepository) Search(ctx context.Context, f encounter.Filter) ([]encounter.Encounter, error) {
 	if err := inTx(ctx); err != nil {
 		return nil, err
