@@ -12,6 +12,11 @@ describe('decodeMessage', () => {
     expect(decodeMessage(JSON.stringify(d))).toEqual(d)
   })
 
+  it('reads a transcript line whose translation failed (SAL-5)', () => {
+    const m = segment({ translation: '', translation_failed: true })
+    expect(decodeMessage(JSON.stringify(m))).toEqual(m)
+  })
+
   it.each([
     ['not JSON', 'not json'],
     ['no payload', '{"type":"transcript","version":1}'],

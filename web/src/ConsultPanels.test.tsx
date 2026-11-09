@@ -75,6 +75,18 @@ describe('ConsultPanels: captions', () => {
     expect(screen.queryByRole('tooltip')).toBeNull()
   })
 
+  it('shows the original of a line whose translation failed, in its language, as the transcript does', () => {
+    const { emit } = renderPanels()
+    emit(segment({ original: 'Placeholder not translated', translation: '', translation_failed: true, lang: 'de' }))
+
+    const caption = within(screen.getByRole('group', { name: 'Captions' })).getByText('Placeholder not translated')
+    expect(caption.getAttribute('lang')).toBe('de')
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    const line = within(screen.getByRole('list', { name: 'Transcript' })).getByRole('listitem')
+    expect(within(line).getByText('Placeholder not translated').getAttribute('lang')).toBe('de')
+    expect(line.querySelectorAll('p')).toHaveLength(2) // who and when, and the original once
+  })
+
   it("does not caption the practitioner's own words", () => {
     const { emit } = renderPanels()
     emit(segment({ speaker: 'practitioner', original: 'Placeholder own words' }))

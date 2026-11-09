@@ -357,6 +357,7 @@ p.hint.join { margin-bottom: 20px; }
 .side-panel .note { margin: 0; font-size: 13px; color: var(--color-text-muted); }
 .side-panel .quiet { padding: 4px 8px; font-size: 13px; }
 .side-panel p { margin: 0; }
+.call-side .side-ended { margin: 0; padding: 14px 16px; }
 .transcript-panel { padding: 0; overflow: hidden; }
 .transcript { position: relative; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
 .transcript .empty { padding: 14px 16px 0; }

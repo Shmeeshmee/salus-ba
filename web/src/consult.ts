@@ -17,10 +17,15 @@ export type DraftField = components['schemas']['DraftField']
 // Template is a clinic's document template: its fields by key, with the label the practitioner reads.
 export type Template = { id: string; title: string; fields: { key: string; label: string }[] }
 
+// End is why a live source stopped for good: the patient withdrew their consent (consent_required), or the
+// practitioner may no longer follow the consultation (forbidden, not_found).
+export type End = 'consent_required' | 'forbidden' | 'not_found'
+
 // LiveSource delivers the messages of an appointment's consultation: every message of it so far, then each
-// new one as it comes. subscribe returns the function that closes the subscription.
+// new one as it comes, until onEnd says it has stopped. subscribe returns the function that closes the
+// subscription.
 export interface LiveSource {
-  subscribe(appointmentId: string, onMessage: (message: ConsultMessage) => void): () => void
+  subscribe(appointmentId: string, onMessage: (message: ConsultMessage) => void, onEnd?: (end: End) => void): () => void
 }
 
 // ConsultActions are what the practitioner does: set a suggestion's status, list the clinic's templates,
@@ -131,9 +136,27 @@ export function captionOf(state: ConsultState): TranscriptEvent | undefined {
   return state.segments.find((s) => s.segment_id === state.caption)
 }
 
-// useConsult follows the appointment's live source while active, folding every message into the state.
+// Live is the page's view of its live source: what it has received, and why it stopped, if it has.
+type Live = { state: ConsultState; end?: End }
+
+// Event is a message to fold in, the source's end, or a new subscription, which clears that end.
+type Event = ConsultMessage | { type: 'end'; end: End } | { type: 'subscribed' }
+
+// follow folds an event into the view. An end drops everything received: the page may no longer show it.
+function follow(live: Live, e: Event): Live {
+  if (e.type === 'end') return { state: empty, end: e.end }
+  if (e.type === 'subscribed') return live.end ? { state: live.state } : live
+  return { ...live, state: apply(live.state, e) }
+}
+
+// useConsult follows the appointment's live source while active, folding every message into the state,
+// until the source ends.
 export function useConsult(live: LiveSource | undefined, appointmentId: string, active: boolean) {
-  const [state, dispatch] = useReducer(apply, empty)
-  useEffect(() => (live && active ? live.subscribe(appointmentId, dispatch) : undefined), [live, appointmentId, active])
-  return [state, dispatch] as const
+  const [view, dispatch] = useReducer(follow, { state: empty })
+  useEffect(() => {
+    if (!live || !active) return
+    dispatch({ type: 'subscribed' })
+    return live.subscribe(appointmentId, dispatch, (end) => dispatch({ type: 'end', end }))
+  }, [live, appointmentId, active])
+  return [view.state, dispatch, view.end] as const
 }

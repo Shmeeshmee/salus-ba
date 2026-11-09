@@ -1,4 +1,4 @@
-import type { ConsultActions, ConsultMessage, DraftEvent, LiveSource, SuggestionEvent, Template, TranscriptEvent } from '../consult'
+import type { ConsultActions, ConsultMessage, DraftEvent, End, LiveSource, SuggestionEvent, Template, TranscriptEvent } from '../consult'
 
 // The in-memory stand-ins for the live source and the consultation's actions (consult.ts), and builders of the
 // P0 envelopes. Every text is synthetic and labelled as a placeholder; no line is real medical wording.
@@ -74,18 +74,21 @@ export const templates: Template[] = [
   { id: 'd1000000-0000-4000-8000-000000000002', title: 'Placeholder referral', fields: [{ key: 'to', label: 'Placeholder referred to' }] },
 ]
 
-// fakeLive is a live source the test drives: emit delivers a message to every open subscription.
+// fakeLive is a live source the test drives: emit delivers a message to every open subscription, end stops them.
 export function fakeLive() {
   const listeners = new Set<(m: ConsultMessage) => void>()
+  const enders = new Set<(e: End) => void>()
   const opened: string[] = []
   let closed = 0
   const live: LiveSource = {
-    subscribe(appointmentId, onMessage) {
+    subscribe(appointmentId, onMessage, onEnd) {
       opened.push(appointmentId)
       listeners.add(onMessage)
+      if (onEnd) enders.add(onEnd)
       return () => {
         closed++
         listeners.delete(onMessage)
+        if (onEnd) enders.delete(onEnd)
       }
     },
   }
@@ -95,6 +98,9 @@ export function fakeLive() {
     closed: () => closed,
     emit: (...messages: ConsultMessage[]) => {
       for (const m of messages) for (const l of listeners) l(m)
+    },
+    end: (e: End) => {
+      for (const l of enders) l(e)
     },
   }
 }
