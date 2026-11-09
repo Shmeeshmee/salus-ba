@@ -32,6 +32,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/internal/terminology"
+	"github.com/Shmeeshmee/salus/internal/transcript"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -106,6 +107,11 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies)
 	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners)
+	// The encounter's live events (its Redis Stream) and its stored transcript, for its practitioner.
+	transcripts := transcript.NewHTTPHandler(transcript.NewService(transcript.Ports{
+		Repo: transcript.NewPostgresRepository(pool), Stream: transcript.NewRedisStream(rdb), Encounters: encounters, Consents: consents,
+		Audit: audit, Tx: tx,
+	}), appointmentCaller(accounts, patients), log)
 	questionnaireAPI, streams := questionnaireRoutes(questionnairePorts{
 		pool: pool, audit: audit, tx: tx, jobs: jobs, roles: roles, clinics: clinics, accounts: accounts, appointments: appointments, patients: patients,
 		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
@@ -134,8 +140,9 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			terminology.NewHTTPHandler(terminology.NewService(terminology.NewPostgresRepository(pool), uiLanguage(accounts)), terminologyCaller(accounts), log).Routes,
+			transcripts.Routes,
 		}, questionnaireAPI...),
-		Streams: streams,
+		Streams: append(streams, transcripts.StreamRoutes),
 		Timeout: RequestTimeout,
 	})
 	return &App{Handler: h, pool: pool, redis: rdb}, nil

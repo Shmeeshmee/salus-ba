@@ -45,12 +45,13 @@ type consultationApp struct {
 	lk        config.LiveKit
 	consent   string // the patient's consent with the clinic
 	patientID string // the patient's profile
+	redisURL  string // the api's Redis, which carries the encounters' streams
 }
 
 func newConsultationApp(t *testing.T) consultationApp {
 	t.Helper()
 	cfg := testConfig(t)
-	c := consultationApp{log: &syncBuffer{}, lk: composeLiveKitConfig(t)}
+	c := consultationApp{log: &syncBuffer{}, lk: composeLiveKitConfig(t), redisURL: cfg.RedisURL}
 	app, err := api.New(t.Context(), cfg, c.lk, testObjectStore(t), slog.New(slog.NewJSONHandler(c.log, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)

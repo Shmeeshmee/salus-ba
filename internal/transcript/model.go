@@ -69,6 +69,18 @@ func StreamKey(encounterID string) string { return "consult:" + encounterID + ":
 // stores the events and the WebSocket gateway read it.
 const StreamField = "envelope"
 
+// The type and version of the cursor frame the WebSocket gateway sends before each envelope it forwards: its
+// payload is the stream id of the entry whose envelope follows (Cursor), which a client resumes after.
+const (
+	CursorType    = "cursor"
+	CursorVersion = 1
+)
+
+// Cursor is the payload of a cursor frame (CursorMessage in api/openapi.yaml).
+type Cursor struct {
+	ID string `json:"id"`
+}
+
 // Entry is one entry of an encounter's stream: its id, Redis's "<milliseconds>-<sequence>", and the bytes of
 // its envelope, which go to the practitioner unchanged and undecoded. Envelope is nil for an entry without
 // StreamField.
