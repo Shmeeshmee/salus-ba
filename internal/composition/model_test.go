@@ -102,3 +102,26 @@ func TestMessage_IsTheDraftTypeVersion1(t *testing.T) {
 		t.Errorf("message = %q v%d, want draft v1", composition.MessageType, composition.MessageVersion)
 	}
 }
+
+// A draft's event carries its version, which a sign names, and its fields without their template texts.
+func TestDraft_EventCarriesTheVersionAndTheFields(t *testing.T) {
+	t.Parallel()
+	d := composition.Draft{
+		ID: draftID, EncounterID: encounterID, TemplateID: templateID, Status: composition.StatusPreliminary, VersionID: 3,
+		Fields: []composition.DraftField{{
+			Field: composition.Field{Key: "plan", Missing: true}, Type: composition.FieldText, Label: "Placeholder label", Required: true,
+		}},
+	}
+	got, err := json.Marshal(d.Event())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"draft_id":"` + draftID + `","encounter_id":"` + encounterID + `","template_id":"` + templateID + `",` +
+		`"status":"preliminary","fields":[{"key":"plan","value":"","missing":true}],"version_id":3}`
+	if string(got) != want {
+		t.Errorf("json =\n%s\nwant\n%s", got, want)
+	}
+	if composition.ObjectKey(draftID) != "composition/"+draftID {
+		t.Errorf("ObjectKey() = %q", composition.ObjectKey(draftID))
+	}
+}

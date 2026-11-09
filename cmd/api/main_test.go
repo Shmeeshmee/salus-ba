@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/config"
+	"github.com/Shmeeshmee/salus/pkg/llm"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 )
@@ -178,5 +181,24 @@ func TestRun_FailsWithoutTheObjectStoreSettings(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "BINARY_KEK") {
 		t.Fatalf("run() error = %v, want one naming BINARY_KEK", err)
+	}
+}
+
+// The default drafter keeps no calls: an api running for months holds no more memory than its first draft. The
+// Anthropic engine needs its key.
+func TestNewDrafter_TheFakeKeepsNoCallsAndAnthropicNeedsItsKey(t *testing.T) {
+	d, err := newDrafter(config.LLM{Engine: config.LLMFake})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake, ok := d.(*llmtest.Drafter)
+	if !ok {
+		t.Fatalf("the default drafter is %T, want the fake", d)
+	}
+	if _, err := fake.Draft(t.Context(), llm.DraftRequest{Lang: "bs", Fields: []llm.FieldSpec{{Key: "a", Label: "L"}}}); err != nil || len(fake.Calls()) != 0 {
+		t.Errorf("the fake drafted (%v) and kept %d calls, want none", err, len(fake.Calls()))
+	}
+	if _, err := newDrafter(config.LLM{Engine: config.LLMAnthropic, Model: "m"}); err == nil {
+		t.Error("anthropic without a key: newDrafter() = nil, want an error")
 	}
 }

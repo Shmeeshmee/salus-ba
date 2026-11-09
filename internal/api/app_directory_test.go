@@ -65,7 +65,7 @@ func TestNew_ServesTheDirectoryOverFHIRToStaffOfTheClinicAndAuditsIt(t *testing.
 	owner := ownerPool(t, cfg)
 	count := openDB(t, cfg)
 	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL) // row-level security on, as in production
-	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

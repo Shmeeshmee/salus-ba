@@ -147,3 +147,11 @@ sql:
         package: suggestiondb
         out: internal/suggestion/suggestiondb
         sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/composition/query.sql
+    gen:
+      go:
+        package: compositiondb
+        out: internal/composition/compositiondb
+        sql_package: pgx/v5

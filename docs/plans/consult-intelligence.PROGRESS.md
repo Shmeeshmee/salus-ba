@@ -408,3 +408,65 @@ publish), fixed by waiting for the published events; 5 runs in a row pass.
 
 **Left.** The web wiring of
 `setSuggestionStatus` and of `command_error` (SAL-9's page, a later PR). An undo for a dismissal (SAL-9's list).
+
+## E (SAL-8): document templates and the drafting service
+
+Branch `sal-8-draft`, 2026-11-09.
+
+**Built.** Decisions in the plan, "E (SAL-8)".
+
+- Migration 00036: a template's language, status and LOINC type; `document_template_translation`; a draft's drafted
+  texts and its signature (DocumentReference, Provenance, the PDF's size, SHA-1 and wrapped key); one open draft per
+  encounter and template.
+- `composition.Service`: templates (`Templates`, `CreateTemplate`, `UpdateTemplate`, `SeedTemplate`), `Generate`,
+  `Sign`, `Drafts`, `Composition`, `DocumentReference`, `Provenance`, `PDF`. `pkg/pdfdoc` renders the PDF.
+- `llm.FieldSpec` gains `Type`, `Instruction`, `Required` (additive; the fake records its own copy of a request).
+- JSON API (`api/openapi.yaml`, clients regenerated): `GET/POST /document-templates`, `PUT /document-templates/{id}`,
+  `POST/GET /encounters/{id}/drafts`, `POST /drafts/{id}/sign`, `GET /document-references/{id}/content`;
+  `version_id` on `DraftEvent`. FHIR reads of `Composition`, `DocumentReference`, `Provenance` (CapabilityStatement,
+  golden files validated with `make fhir-validate`).
+- Wired in `api.New` with the drafter `cmd/api` takes from `config.LoadLLM` (after main, with SAL-5, was merged in:
+  the fake `llmtest.Drafter{DiscardCalls: true}` by default; SAL-5's Anthropic adapter now sends each field's type,
+  required flag and instruction and keeps only values of the field's type, golden request updated); `make document-templates-seed clinic=<id>`; `make bench-drafting`.
+- The attachments' purger keeps object keys that are no binary id (the PDFs are under `composition/`).
+
+**Tests seen failing first.** Each behaviour's test failed before its code: most as compile errors for the new
+types and methods; the migration's tests on the missing columns, table and index (`a second open draft: <nil>, want
+unique_violation`); the purger's on the PDF's key (`Purge() = 4, want 3`); the contract test on `version_id` and the
+new schemas (`no schema DraftValue`); the CapabilityStatement's on the three new resources; Arabic templates
+(`an Arabic translation: ValidateTemplate() = <nil>`). A coverage test of `pkg/pdfdoc` found that gopdf leaves out a letter
+its font lacks without an error (`meta: Render() = nil, want an error`): `pdfdoc.Supported` now checks every text, and
+the template, the drafted values and the signed values are held to it (a sign with such a letter was a 500 before:
+`Sign() = composition: sign: pdfdoc: a letter the fonts do not have, want composition: invalid values`). The existing migration test that inserted a second open draft
+for the same encounter and template now inserts a final one (the new rule), keeping what it checks: the clinic's
+write scope. The golden FHIR files failed the HL7 validator once (`cmp-1` on a section with only an `emptyReason`)
+and were fixed by giving such a section a dash as its narrative.
+
+**Measurements** (`make bench-drafting`, compose Postgres, Redis and Garage on the dev machine, 2026-11-09):
+
+| What | Result |
+| --- | --- |
+| `POST /encounters/{id}/drafts` through api.New, 360 stored segments, fake model answering at once, 50 runs | p50 7.4 to 8.2 ms, p95 10.4 to 12.4 ms, max 16 ms (two runs) |
+| `POST /drafts/{id}/sign` (PDF rendered, encrypted, put to Garage, final transaction), 50 runs | p50 18.2 to 18.3 ms, p95 22.0 to 22.9 ms, max 24 ms (two runs) |
+| The request to the model for a 30-minute consultation (360 segments of about 130 characters, 7 fields) | 74 KB as JSON, 46,080 characters of transcript text |
+
+`pdfdoc.Supported` (`go test -bench Supported ./pkg/pdfdoc/`, both fonts parsed per call, a 500-character value): 22 µs
+per call, 3 runs, so about 0.15 ms for a seven-field draft. Kept as it is rather than parsing the fonts once into
+package state (PR #39 review).
+
+Our path is about 10 ms of the 15 s target. What only a run with real credentials can measure: the model's time
+to answer a request of this size (some 12,000 to 15,000 input tokens by the usual 3 to 4 characters per token for
+these languages, an estimate; the engine's tokenizer gives the real count) and the network to its EU endpoint,
+and the quality of the fields it fills (blocked on SAL-5's adapter and the DPA).
+
+**Left.**
+- The PDF names no patient, practitioner or clinic and shows the signing time in UTC: which identifiers a signed
+  document must carry (and the clinic's time zone) is for the owner and the doctor partner, and needs the patient's
+  and practitioner's names through their services (audited reads).
+- A coded field is checked by its form only; a link to the term list (`terminology`) and a FHIR `Condition` for a
+  diagnosis come with the clinical feature.
+- Discarding a draft (`entered-in-error`) and amending a signed document: not in the ticket.
+- An orphan PDF if the api dies between the put and the commit: its key is never stored, so it cannot be read, but
+  nothing deletes it yet (the attachments' purger now leaves `composition/` alone).
+- The web wiring of `templates()`, `generate`, `sign` (SAL-9's page): a later PR. `sign` there sends no `If-Match`
+  yet; the draft's `version_id` is now on every event for it.

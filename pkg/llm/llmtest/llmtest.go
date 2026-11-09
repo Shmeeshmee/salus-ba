@@ -115,6 +115,7 @@ func (f *Drafter) Draft(_ context.Context, req llm.DraftRequest) ([]llm.DraftFie
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if !f.DiscardCalls {
+		req.Fields, req.Transcript = slices.Clone(req.Fields), slices.Clone(req.Transcript)
 		f.calls = append(f.calls, req)
 	}
 	if f.Err != nil {

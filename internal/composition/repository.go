@@ -1,0 +1,57 @@
+package composition
+
+import (
+	"context"
+	"io"
+	"time"
+)
+
+// Repository stores the templates (document_template, document_template_translation) and the drafts
+// (document_draft). Row-level security shows a transaction the templates of the clinic set by SetClinic, and
+// the drafts of the encounters that scope shows (with an active consent or, after a revocation, for an
+// appointment that started before it).
+type Repository interface {
+	// SetClinic scopes the rest of the transaction in ctx to the clinic id.
+	SetClinic(ctx context.Context, id string) error
+	// Templates returns the scope's templates, by title, each with its translations.
+	Templates(ctx context.Context) ([]Template, error)
+	// Template returns the template with its translations, locked until the transaction ends when lock is
+	// set, or ErrTemplateNotFound (also outside the scope, or for an id that is no UUID).
+	Template(ctx context.Context, id string, lock bool) (Template, error)
+	// InsertTemplate stores a new template of the clinic org with its translations, at at, as version 1.
+	InsertTemplate(ctx context.Context, org string, c TemplateContent, at time.Time) (Template, error)
+	// UpdateTemplate replaces the content of the template id and its translations, at at, as its next version.
+	UpdateTemplate(ctx context.Context, id string, c TemplateContent, at time.Time) (Template, error)
+	// SaveDraft stores d as the encounter's open (preliminary) draft of its template, at at: a new one, or the
+	// open one's fields, language, title and type replaced as its next version. It reports whether it created
+	// one.
+	SaveDraft(ctx context.Context, d Draft, at time.Time) (Draft, bool, error)
+	// Draft returns the draft, locked until the transaction ends when lock is set, or ErrNotFound (also outside
+	// the scope, or for an id that is no UUID).
+	Draft(ctx context.Context, id string, lock bool) (Draft, error)
+	// ByDocumentReference and ByProvenance return the signed draft whose DocumentReference or Provenance has
+	// the id, or ErrNotFound.
+	ByDocumentReference(ctx context.Context, id string) (Draft, error)
+	ByProvenance(ctx context.Context, id string) (Draft, error)
+	// Drafts returns the encounter's drafts, oldest first.
+	Drafts(ctx context.Context, encounterID string) ([]Draft, error)
+	// Sign stores d's fields, status final and signature, at at, as the version after d.VersionID.
+	Sign(ctx context.Context, d Draft, at time.Time) (Draft, error)
+}
+
+// Store holds the signed documents' encrypted PDFs in the object store (binary.Store, ADR 0010), under
+// ObjectKey. It never sees a plaintext byte. Calls to it stay outside every transaction.
+type Store interface {
+	// Put stores exactly size bytes read from r under key.
+	Put(ctx context.Context, key string, r io.Reader, size int64) error
+	// GetRange returns the bytes from offset from to offset to of the object at key, both inclusive.
+	GetRange(ctx context.Context, key string, from, to int64) (io.ReadCloser, error)
+	// Delete removes the object at key; a key that holds no object is not an error.
+	Delete(ctx context.Context, key string) error
+}
+
+// Publisher puts a draft's event on its encounter's Redis Stream (transcript's Publisher: transcript.StreamKey,
+// under transcript.StreamField). Errors carry no event.
+type Publisher interface {
+	Publish(ctx context.Context, encounterID string, envelope []byte) error
+}

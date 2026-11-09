@@ -257,25 +257,48 @@ func TestSuggest_SendsTheTranscriptAndReturnsTheValidSuggestions(t *testing.T) {
 	golden(t, filepath.Join("testdata", "suggest.golden.json"), indent(t, reqs[0].body))
 }
 
-// Drafting: the fields and the transcript go in the prompt (testdata/draft.golden.json); the answer is one field
-// per requested field, in order: the model's value with its sources from the transcript, else missing (a field
-// it left out, marked missing, or filled without a source it could cite).
+// Drafting: the fields with their types, required flags and instructions, and the transcript, go in the prompt
+// (testdata/draft.golden.json); the answer is one field per requested field, in order: the model's value with its
+// sources from the transcript, of its field's type, else missing (a field it left out, marked missing, filled
+// without a source it could cite, or with a value not of its type: a date that is no YYYY-MM-DD, a code that is no
+// ICD-10 code, a list with no item). A list keeps its non-blank lines, a code is upper-cased.
 func TestDraft_SendsTheFieldsAndReturnsOnePerField(t *testing.T) {
 	t.Parallel()
+	const s1, s2 = "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
 	srv := newServer(t)
 	srv.reply(`{"fields":[
-		{"key":"complaint","value":"Placeholder headache, three days","missing":false,"source_ids":["11111111-1111-4111-8111-111111111111"]},
+		{"key":"complaint","value":"Placeholder headache, three days","missing":false,"source_ids":["`+s1+`"]},
 		{"key":"history","value":"","missing":true,"source_ids":[]},
 		{"key":"plan","value":"Placeholder plan","missing":false,"source_ids":["99999999-9999-4999-8999-999999999999"]},
-		{"key":"unknown","value":"not asked for","missing":false,"source_ids":["11111111-1111-4111-8111-111111111111"]}
+		{"key":"tests","value":" one \n\n two ","missing":false,"source_ids":["`+s2+`"]},
+		{"key":"control","value":"next week","missing":false,"source_ids":["`+s2+`"]},
+		{"key":"diagnosis","value":"r51","missing":false,"source_ids":["`+s1+`"]},
+		{"key":"code","value":"a headache","missing":false,"source_ids":["`+s1+`"]},
+		{"key":"when","value":"2030-02-01","missing":false,"source_ids":["`+s2+`"]},
+		{"key":"unknown","value":"not asked for","missing":false,"source_ids":["`+s1+`"]}
 	]}`, "end_turn")
-	fields := []llm.FieldSpec{{Key: "complaint", Label: "Main complaint"}, {Key: "history", Label: "History"}, {Key: "plan", Label: "Plan"}, {Key: "allergies", Label: "Allergies"}}
+	fields := []llm.FieldSpec{
+		{Key: "complaint", Label: "Main complaint", Type: llm.FieldText, Instruction: "Placeholder: in the patient's words.", Required: true},
+		{Key: "history", Label: "History", Type: llm.FieldText},
+		{Key: "plan", Label: "Plan", Type: llm.FieldText},
+		{Key: "allergies", Label: "Allergies", Type: llm.FieldList, Required: true},
+		{Key: "tests", Label: "Tests", Type: llm.FieldList},
+		{Key: "control", Label: "Control", Type: llm.FieldDate},
+		{Key: "diagnosis", Label: "Diagnosis", Type: llm.FieldCoded, Instruction: "Placeholder: only if said."},
+		{Key: "code", Label: "Code", Type: llm.FieldCoded},
+		{Key: "when", Label: "When", Type: llm.FieldDate},
+	}
 	got, err := srv.client(t).Draft(t.Context(), llm.DraftRequest{Lang: "bs", Fields: fields, Transcript: transcript()})
 	want := []llm.DraftField{
-		{Key: "complaint", Value: "Placeholder headache, three days", SourceIDs: []string{"11111111-1111-4111-8111-111111111111"}},
+		{Key: "complaint", Value: "Placeholder headache, three days", SourceIDs: []string{s1}},
 		{Key: "history", Missing: true},
 		{Key: "plan", Missing: true},
 		{Key: "allergies", Missing: true},
+		{Key: "tests", Value: "one\ntwo", SourceIDs: []string{s2}},
+		{Key: "control", Missing: true},
+		{Key: "diagnosis", Value: "R51", SourceIDs: []string{s1}},
+		{Key: "code", Missing: true},
+		{Key: "when", Value: "2030-02-01", SourceIDs: []string{s2}},
 	}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Draft() = %+v, %v;\nwant %+v", got, err, want)

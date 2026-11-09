@@ -17,8 +17,8 @@ TEST_SERVICES := postgres redis mailpit livekit objectstore clamd
 GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...
 GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-suggest turn-check livekit-turn-cert lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
-	terminology-fetch terminology-import terminology-export \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-suggest bench-drafting turn-check livekit-turn-cert lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+	terminology-fetch terminology-import terminology-export document-templates-seed \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
 
@@ -90,6 +90,12 @@ bench-questionnaire-http: up tools-image
 ## (docs/attachments/PROGRESS.md, package 2.1). Not part of make test.
 bench-binary-http: tools-image
 	$(GO) go test -tags loadtest -count=1 -v -run TestBinaryHTTPReadings ./internal/api/
+
+## bench-drafting: the drafting's and the signing's own time through api.New with the fake model, and the size of
+## a 30-minute consultation's request to the model (docs/plans/consult-intelligence.PROGRESS.md, SAL-8). Not part of make test.
+bench-drafting: tools-image
+	$(GO) sh -c "go test -tags loadtest -count=1 -v -run TestDraftingLatency ./internal/api/ && \
+		go test -tags loadtest -count=1 -v -run TestDraftRequestShape ./internal/composition/"
 
 ## bench-consult-stream: the WebSocket gateway's XADD-to-frame latency and a reconnect's replay through api.New, and
 ## one stream-discovery sweep over 100,000 keys (docs/plans/consult-intelligence.PROGRESS.md, SAL-6). Not part of make test.
@@ -188,6 +194,12 @@ terminology-fetch: tools-image
 ## owner (salusctl terminology import; docs/terminology/SPEC.md §3 "Curation")
 terminology-import: tools-image
 	$(GO) go run ./cmd/salusctl terminology import $(or $(file),assets/terminology/seed.jsonl)
+
+## document-templates-seed clinic=<organization-id>: the two placeholder document templates
+## (assets/document-templates: a specialist findings report and a referral, drafts for the doctor partner to review)
+## into a clinic of the compose Postgres, once (salusctl document-templates seed)
+document-templates-seed: tools-image
+	$(GO) go run ./cmd/salusctl document-templates seed -clinic $(clinic) assets/document-templates/specialist-findings.json assets/document-templates/referral.json
 
 ## terminology-export out=<path> [status=draft]: write the terms as the curator's CSV (salusctl terminology export),
 ## to a path under the repository

@@ -96,6 +96,13 @@ Class | Method | HTTP request | Description
 *ConsultationApi* | [**receiveLiveKitWebhook**](doc//ConsultationApi.md#receivelivekitwebhook) | **POST** /webhooks/livekit | LiveKit's webhook
 *DirectoryApi* | [**listSpecialties**](doc//DirectoryApi.md#listspecialties) | **GET** /specialties | List the specialties a role can have
 *DirectoryApi* | [**setPractitionerRoleSpecialty**](doc//DirectoryApi.md#setpractitionerrolespecialty) | **PUT** /practitioner-roles/{id}/specialty | Set a practitioner role's specialty
+*DocumentsApi* | [**createDocumentTemplate**](doc//DocumentsApi.md#createdocumenttemplate) | **POST** /document-templates | Create a document template
+*DocumentsApi* | [**downloadDocument**](doc//DocumentsApi.md#downloaddocument) | **GET** /document-references/{id}/content | A signed document's PDF
+*DocumentsApi* | [**generateDraft**](doc//DocumentsApi.md#generatedraft) | **POST** /encounters/{id}/drafts | Draft a document from the transcript
+*DocumentsApi* | [**listDocumentTemplates**](doc//DocumentsApi.md#listdocumenttemplates) | **GET** /document-templates | The clinic's document templates
+*DocumentsApi* | [**listDrafts**](doc//DocumentsApi.md#listdrafts) | **GET** /encounters/{id}/drafts | The encounter's drafts
+*DocumentsApi* | [**signDraft**](doc//DocumentsApi.md#signdraft) | **POST** /drafts/{id}/sign | Sign a draft
+*DocumentsApi* | [**updateDocumentTemplate**](doc//DocumentsApi.md#updatedocumenttemplate) | **PUT** /document-templates/{id} | Edit a document template
 *HealthApi* | [**getHealth**](doc//HealthApi.md#gethealth) | **GET** /healthz | Liveness
 *HealthApi* | [**getReadiness**](doc//HealthApi.md#getreadiness) | **GET** /readyz | Readiness
 *InvitesApi* | [**acceptInvite**](doc//InvitesApi.md#acceptinvite) | **POST** /invites/accept | Accept an invite
@@ -146,16 +153,25 @@ Class | Method | HTTP request | Description
  - [ConsultationStatus](doc//ConsultationStatus.md)
  - [Cursor](doc//Cursor.md)
  - [CursorMessage](doc//CursorMessage.md)
+ - [DocumentFieldTexts](doc//DocumentFieldTexts.md)
+ - [DocumentTemplate](doc//DocumentTemplate.md)
+ - [DocumentTemplateField](doc//DocumentTemplateField.md)
+ - [DocumentTemplateTranslation](doc//DocumentTemplateTranslation.md)
+ - [DocumentTemplates](doc//DocumentTemplates.md)
  - [DraftEvent](doc//DraftEvent.md)
  - [DraftField](doc//DraftField.md)
  - [DraftMessage](doc//DraftMessage.md)
+ - [DraftValue](doc//DraftValue.md)
+ - [Drafts](doc//Drafts.md)
  - [EnrolRequest](doc//EnrolRequest.md)
  - [Enrolment](doc//Enrolment.md)
  - [Error](doc//Error.md)
+ - [GenerateDraftRequest](doc//GenerateDraftRequest.md)
  - [GrantConsentRequest](doc//GrantConsentRequest.md)
  - [Invite](doc//Invite.md)
  - [InviteList](doc//InviteList.md)
  - [InviteRequest](doc//InviteRequest.md)
+ - [KeyedError](doc//KeyedError.md)
  - [Language](doc//Language.md)
  - [LiveKitWebhookEvent](doc//LiveKitWebhookEvent.md)
  - [LoginRequest](doc//LoginRequest.md)
@@ -174,11 +190,13 @@ Class | Method | HTTP request | Description
  - [RoleSpecialty](doc//RoleSpecialty.md)
  - [SaveAnswersRequest](doc//SaveAnswersRequest.md)
  - [SaveAvailabilityRequest](doc//SaveAvailabilityRequest.md)
+ - [SaveDocumentTemplateRequest](doc//SaveDocumentTemplateRequest.md)
  - [SavePatientRequest](doc//SavePatientRequest.md)
  - [SaveQuestionnaireRequest](doc//SaveQuestionnaireRequest.md)
  - [SetAppointmentStatusRequest](doc//SetAppointmentStatusRequest.md)
  - [SetRoleQuestionnaireRequest](doc//SetRoleQuestionnaireRequest.md)
  - [SetSpecialtyRequest](doc//SetSpecialtyRequest.md)
+ - [SignDraftRequest](doc//SignDraftRequest.md)
  - [Specialty](doc//Specialty.md)
  - [SpecialtyList](doc//SpecialtyList.md)
  - [StartQuestionnaireRequest](doc//StartQuestionnaireRequest.md)
