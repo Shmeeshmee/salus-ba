@@ -218,7 +218,7 @@ class TranscriptEvent {
 }
 
 enum TranscriptEventSpeakerEnum {
-  doctor._(r'doctor'),
+  practitioner._(r'practitioner'),
   patient._(r'patient'),
   ;
 
@@ -283,8 +283,8 @@ class TranscriptEventSpeakerEnumTypeTransformer {
     }
     if (data != null) {
       switch (data) {
-        case r'doctor':
-          return TranscriptEventSpeakerEnum.doctor;
+        case r'practitioner':
+          return TranscriptEventSpeakerEnum.practitioner;
         case r'patient':
           return TranscriptEventSpeakerEnum.patient;
         default:

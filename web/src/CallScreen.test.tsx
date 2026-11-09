@@ -478,7 +478,9 @@ describe('CallScreen: the end', () => {
     expect(screen.getByText('The appointment is marked as fulfilled.')).toBeTruthy()
     expect(paths(requests)).toContain(endPost)
     expectCsrfOnWrites(requests)
-    expect(last().left).toBe(true)
+    // The room is left in the cleanup of the effect on `room` (CallScreen), which React runs after the commit that
+    // shows the heading: on a slow runner the heading is found first (CI, PR #33). Wait for the effect, not the tick.
+    await vi.waitFor(() => expect(last().left).toBe(true))
   })
 
   it('counts a patient who joined before this connection when asking to confirm', async () => {

@@ -69,7 +69,7 @@ func TestLiveEvents_MatchTheirGoTypes(t *testing.T) {
 		enums map[string][]string
 	}{
 		"TranscriptEvent": {transcript.Event{}, map[string][]string{
-			"speaker": {string(transcript.SpeakerDoctor), string(transcript.SpeakerPatient)},
+			"speaker": {string(transcript.SpeakerPractitioner), string(transcript.SpeakerPatient)},
 		}},
 		"SuggestionEvent": {suggestion.Event{}, map[string][]string{
 			"type": {string(suggestion.TypeDiagnosis), string(suggestion.TypeQuestion), string(suggestion.TypeRedFlag),

@@ -3292,7 +3292,7 @@ components:
         segment_id: {type: string, format: uuid}
         speaker:
           type: string
-          enum: [doctor, patient]
+          enum: [practitioner, patient]
         lang:
           type: string
           description: The language the segment was spoken in, a BCP 47 tag.

@@ -22,8 +22,8 @@ type Speaker string
 
 // The speakers.
 const (
-	SpeakerDoctor  Speaker = "doctor"
-	SpeakerPatient Speaker = "patient"
+	SpeakerPractitioner Speaker = "practitioner"
+	SpeakerPatient      Speaker = "patient"
 )
 
 // Event is one segment as it is recognised: partial ones revise each other under the same SegmentID until the
@@ -47,7 +47,7 @@ func (e Event) Validate() error {
 		return invalid("encounter_id")
 	case !fhir.IsUUID(e.SegmentID):
 		return invalid("segment_id")
-	case e.Speaker != SpeakerDoctor && e.Speaker != SpeakerPatient:
+	case e.Speaker != SpeakerPractitioner && e.Speaker != SpeakerPatient:
 		return invalid("speaker")
 	case !validLang(e.Lang):
 		return invalid("lang")
