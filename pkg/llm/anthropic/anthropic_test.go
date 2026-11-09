@@ -227,7 +227,8 @@ func transcript() []llm.Utterance {
 	}
 }
 
-// Suggestions: the transcript with its ids goes in the prompt (testdata/suggest.golden.json); of the
+// Suggestions: the transcript with its ids, and the suggestions shown already (SAL-7), go in the prompt
+// (testdata/suggest.golden.json); of the
 // suggestions the model returns only those of a known kind, with text, a confidence from 0 to 1 and sources from
 // the transcript come back.
 func TestSuggest_SendsTheTranscriptAndReturnsTheValidSuggestions(t *testing.T) {
@@ -242,7 +243,8 @@ func TestSuggest_SendsTheTranscriptAndReturnsTheValidSuggestions(t *testing.T) {
 		{"kind":"term","text":"no source","confidence":0.5,"source_ids":[]},
 		{"kind":"diagnosis","text":"unknown source","confidence":0.5,"source_ids":["33333333-3333-4333-8333-333333333333"]}
 	]}`, "end_turn")
-	got, err := srv.client(t).Suggest(t.Context(), llm.SuggestRequest{Lang: "bs", Transcript: transcript()})
+	got, err := srv.client(t).Suggest(t.Context(), llm.SuggestRequest{Lang: "bs", Transcript: transcript(),
+		Shown: []string{"Placeholder question shown before", "Placeholder <term> shown before"}})
 	want := []llm.Suggestion{
 		{Kind: "question", Text: "Placeholder question", Confidence: 0.7, SourceIDs: []string{"11111111-1111-4111-8111-111111111111"}},
 		{Kind: "red_flag", Text: "Placeholder flag", Confidence: 0.4, SourceIDs: []string{"11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"}},
