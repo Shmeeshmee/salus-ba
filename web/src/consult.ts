@@ -159,10 +159,12 @@ type Live = { state: ConsultState; end?: End }
 // Event is a message to fold in, the source's end, or the subscription's close, which clears that end.
 type Event = ConsultMessage | { type: 'end'; end: End } | { type: 'closed' }
 
-// follow folds an event into the view. An end drops everything received: the page may no longer show it.
+// follow folds an event into the view. An end drops everything received, and nothing that comes after it (a
+// late frame, an answer in flight) is taken: the page may no longer show it.
 function follow(live: Live, e: Event): Live {
   if (e.type === 'end') return { state: empty, end: e.end }
   if (e.type === 'closed') return live.end ? { state: live.state } : live
+  if (live.end) return live
   return { ...live, state: apply(live.state, e) }
 }
 

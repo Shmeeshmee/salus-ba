@@ -488,6 +488,20 @@ describe('CallScreen: the live panels', () => {
     expect(screen.queryByRole('group', { name: 'Captions' })).toBeNull()
   })
 
+  it('takes nothing more once the stream has ended, so nothing dropped comes back after a rejoin', async () => {
+    const live = fakeLive()
+    await inCall({ live })
+    act(() => live.end('consent_required'))
+
+    act(() => live.emit(segment({ original: 'Placeholder late line' }))) // a late frame or answer after the end
+    fireEvent.click(button('Leave'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Join again' }))
+    await screen.findByRole('button', { name: 'Leave' })
+
+    expect(screen.queryByText('Placeholder late line')).toBeNull()
+    expect(screen.getByText('The transcript appears here as the conversation goes on.')).toBeTruthy()
+  })
+
   it('follows the stream again, from nothing, after the practitioner rejoins', async () => {
     const live = fakeLive()
     await inCall({ live })

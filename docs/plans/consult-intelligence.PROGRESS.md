@@ -273,7 +273,8 @@ No performance claim is made, so nothing was measured.
   has ended."), for `forbidden` and `not_found` `consultation.notAvailable` ("This consultation is not
   available."). Existing strings, no new one (COPY.md). The server already refuses the stream and the export after
   a revocation; showing what was received before it is the open question SAL-6 recorded for the owner and legal,
-  and the page takes the stricter side until it is answered. A rejoin subscribes again from nothing.
+  and the page takes the stricter side until it is answered. Nothing that arrives after the end (a late frame, the
+  stored drafts' answer, a generation's answer) is taken (Copilot, #40). A rejoin subscribes again from nothing.
 - **A refused handshake is retried.** A browser cannot tell a 403 handshake from a dropped connection (both close
   1006), so the page retries, at most every 10 s; each attempt is audited server side as a refused subscription.
   The open socket's 4403 (a revocation during the call) is the common case and stops it.
