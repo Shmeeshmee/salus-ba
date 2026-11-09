@@ -249,8 +249,8 @@ and were fixed by giving such a section a dash as its narrative.
 
 | What | Result |
 | --- | --- |
-| `POST /encounters/{id}/drafts` through api.New, 360 stored segments, fake model answering at once, 50 runs | p50 7.4 ms, p95 10.4 ms, max 16 ms |
-| `POST /drafts/{id}/sign` (PDF rendered, encrypted, put to Garage, final transaction), 50 runs | p50 18.2 ms, p95 22.0 ms, max 23.5 ms |
+| `POST /encounters/{id}/drafts` through api.New, 360 stored segments, fake model answering at once, 50 runs | p50 7.4 to 8.2 ms, p95 10.4 to 12.4 ms, max 16 ms (two runs) |
+| `POST /drafts/{id}/sign` (PDF rendered, encrypted, put to Garage, final transaction), 50 runs | p50 18.2 to 18.3 ms, p95 22.0 to 22.9 ms, max 24 ms (two runs) |
 | The request to the model for a 30-minute consultation (360 segments of about 130 characters, 7 fields) | 74 KB as JSON, 46,080 characters of transcript text |
 
 Our path is about 10 ms of the 15 s target. What only a run with real credentials can measure: the model's time
