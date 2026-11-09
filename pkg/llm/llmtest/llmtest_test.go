@@ -161,3 +161,16 @@ func TestTranslator_KeepsNoCallsWithDiscardCalls(t *testing.T) {
 		t.Errorf("Translate() = %q, %v with %d calls kept; want the translation and none", got, err, len(tr.Calls()))
 	}
 }
+
+// The Suggester and Drafter keep no calls with DiscardCalls either, for a long-running fake engine.
+func TestSuggesterAndDrafter_KeepNoCallsWithDiscardCalls(t *testing.T) {
+	t.Parallel()
+	s := &llmtest.Suggester{DiscardCalls: true, Suggestions: []llm.Suggestion{{Kind: "question", Text: "placeholder", SourceIDs: []string{"s1"}}}}
+	if got, err := s.Suggest(t.Context(), llm.SuggestRequest{Lang: "bs", Transcript: transcript()}); err != nil || len(got) != 1 || len(s.Calls()) != 0 {
+		t.Errorf("Suggest() = %+v, %v with %d calls kept; want the suggestion and none", got, err, len(s.Calls()))
+	}
+	d := &llmtest.Drafter{DiscardCalls: true}
+	if got, err := d.Draft(t.Context(), llm.DraftRequest{Lang: "bs", Fields: []llm.FieldSpec{{Key: "k", Label: "L"}}}); err != nil || len(got) != 1 || len(d.Calls()) != 0 {
+		t.Errorf("Draft() = %+v, %v with %d calls kept; want one field and none", got, err, len(d.Calls()))
+	}
+}

@@ -64,19 +64,23 @@ func (f *Translator) Calls() []llm.TranslateRequest {
 	return slices.Clone(f.calls)
 }
 
-// Suggester returns Suggestions on every call.
+// Suggester returns Suggestions on every call. With DiscardCalls it keeps none of its calls (for a long-running
+// fake engine).
 type Suggester struct {
-	Err         error
-	Suggestions []llm.Suggestion
-	calls       []llm.SuggestRequest
-	mu          sync.Mutex
+	Err          error
+	Suggestions  []llm.Suggestion
+	calls        []llm.SuggestRequest
+	mu           sync.Mutex
+	DiscardCalls bool
 }
 
 // Suggest records the request and returns a copy of Suggestions.
 func (f *Suggester) Suggest(_ context.Context, req llm.SuggestRequest) ([]llm.Suggestion, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.calls = append(f.calls, req)
+	if !f.DiscardCalls {
+		f.calls = append(f.calls, req)
+	}
 	if f.Err != nil {
 		return nil, f.Err
 	}
@@ -96,18 +100,22 @@ func (f *Suggester) Calls() []llm.SuggestRequest {
 }
 
 // Drafter fills each requested field from Fields by its key, and marks a field it has no entry for missing.
+// With DiscardCalls it keeps none of its calls (for a long-running fake engine).
 type Drafter struct {
-	Err    error
-	Fields map[string]llm.DraftField
-	calls  []llm.DraftRequest
-	mu     sync.Mutex
+	Err          error
+	Fields       map[string]llm.DraftField
+	calls        []llm.DraftRequest
+	mu           sync.Mutex
+	DiscardCalls bool
 }
 
 // Draft records the request and returns one field per requested field, in order.
 func (f *Drafter) Draft(_ context.Context, req llm.DraftRequest) ([]llm.DraftField, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.calls = append(f.calls, req)
+	if !f.DiscardCalls {
+		f.calls = append(f.calls, req)
+	}
 	if f.Err != nil {
 		return nil, f.Err
 	}

@@ -227,7 +227,9 @@ Branch `sal-5-translate`, 2026-11-09.
 - `terminology.Service.Glossary` (the reference domain's service, not its repository) and its query on the index
   `term_label_language_folded` (migration 00034). `llm.TranslateRequest.Glossary` (`llm.Term`), additive; the
   `llmtest.Translator` records it and can fail (`Failures`), wait (`Delay`) or keep nothing (`DiscardCalls`, the
-  agent's default engine).
+  agent's default engine). The `Suggester` and `Drafter` fakes take `DiscardCalls` too: a fake wired as a
+  long-running process's default engine (SAL-7, SAL-8) is built with it, so it keeps no unbounded state (tested
+  for the agent's: `TestNewTranslator_TheFakeKeepsNoCalls`).
 - Shared contract, the smallest: `translation_failed`, optional on TranscriptEvent (Go `omitempty`,
   `api/openapi.yaml`, the generated TypeScript and Dart clients, the contract test) and stored
   (`transcript_segment.translation_failed`, migration 00034). Nobody who sends or reads the event had to change.
