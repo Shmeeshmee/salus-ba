@@ -12,7 +12,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/composition"
 )
 
-const templatesUsage = "usage: salusctl document-templates seed -clinic <organization-id> <template.json>..."
+const templatesUsage = "usage: salusctl document-templates seed -clinic <organization-id> <template.json> [<template.json>]"
 
 // templatesCommand runs `salusctl document-templates seed`: the dev seed of placeholder document templates
 // (assets/document-templates) into a clinic, each once, as drafts for the clinic's doctor to review.

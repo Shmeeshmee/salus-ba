@@ -218,11 +218,11 @@ type Draft struct {
 // DraftField is a field of a draft as stored in document_draft.fields: the event's field with the template
 // field's type, label, instruction and required flag as they were drafted.
 type DraftField struct {
-	Field
 	Type        FieldType `json:"type"`
 	Label       string    `json:"label"`
 	Instruction string    `json:"instruction,omitempty"`
-	Required    bool      `json:"required"`
+	Field
+	Required bool `json:"required"`
 }
 
 // PDF is the stored rendering of a signed draft: its plaintext size and SHA-1, and the data key of its

@@ -746,7 +746,7 @@ export interface paths {
         put?: never;
         /**
          * Create a document template
-         * @description Creates a template of the caller's clinic as version 1. Staff of the clinic. A translation must be complete: its title, every field's label, and an instruction exactly where the original has one. The answer carries the version as its ETag. Audited, also when refused.
+         * @description Creates a template of the caller's clinic as version 1. Staff of the clinic. A translation must be complete: its title, every field's label, and an instruction exactly where the original has one. Any language of the enum but Arabic, whose script the PDF does not set yet. The answer carries the version as its ETag. Audited, also when refused.
          */
         post: operations["createDocumentTemplate"];
         delete?: never;

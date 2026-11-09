@@ -20,7 +20,6 @@ import (
 type stubDocuments struct {
 	err       error
 	templates []composition.Template
-	draft     composition.Draft
 	pdf       []byte
 	got       struct {
 		id      string
@@ -29,6 +28,7 @@ type stubDocuments struct {
 		values  []composition.Value
 		version int32
 	}
+	draft composition.Draft
 }
 
 func (s *stubDocuments) Templates(context.Context, appointment.Caller) ([]composition.Template, error) {
@@ -94,7 +94,7 @@ func serve(t *testing.T, svc *stubDocuments, signedIn bool, method, target, body
 	h := composition.NewHTTPHandler(svc, func(context.Context) (appointment.Caller, bool, error) { return pract, signedIn, nil }, slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
 	h.Routes(mux)
-	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), method, target, strings.NewReader(body))
 	for k, v := range header {
 		req.Header.Set(k, v)
 	}
@@ -111,8 +111,9 @@ func TestHTTP_ListsTheTemplates(t *testing.T) {
 			ID, Title, Language, Status, TypeCode, LastUpdated string
 			Fields                                             []composition.TemplateField
 			Translations                                       []struct {
-				Language, Title string
-				Fields          map[string]composition.FieldTexts
+				Fields   map[string]composition.FieldTexts
+				Language string
+				Title    string
 			}
 			VersionID int32
 		}
@@ -147,13 +148,14 @@ func TestHTTP_WritesATemplate(t *testing.T) {
 		t.Errorf("PUT = %d %s, got %+v", w.Code, w.Body, svc.got)
 	}
 	for name, tt := range map[string]struct {
-		method, body string
-		header       map[string]string
+		header map[string]string
+		method string
+		body   string
 	}{
-		"no If-Match":     {"PUT", body, nil},
-		"a broken body":   {"POST", "{", nil},
-		"an unknown key":  {"POST", `{"title":"T","other":1}`, nil},
-		"trailing tokens": {"POST", body + "{}", nil},
+		"no If-Match":     {nil, "PUT", body},
+		"a broken body":   {nil, "POST", "{"},
+		"an unknown key":  {nil, "POST", `{"title":"T","other":1}`},
+		"trailing tokens": {nil, "POST", body + "{}"},
 	} {
 		target := "/document-templates"
 		if tt.method == "PUT" {
@@ -206,22 +208,22 @@ func TestHTTP_MapsTheErrors(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		err    error
-		status int
 		body   string
+		status int
 	}{
-		{composition.ErrNotFound, 404, `{"error":"not_found"}`},
-		{composition.ErrForbidden, 403, `{"error":"forbidden"}`},
-		{composition.ErrConsentRequired, 403, `{"error":"consent_required"}`},
-		{composition.ErrTemplateNotFound, 404, `{"error":"template_not_found"}`},
-		{composition.ErrLanguageUnavailable, 422, `{"error":"language_unavailable"}`},
-		{composition.ErrVersionMismatch, 412, `{"error":"version_mismatch"}`},
-		{composition.ErrNotPreliminary, 409, `{"error":"not_preliminary"}`},
-		{composition.ErrDraftingUnavailable, 503, `{"error":"drafting_unavailable"}`},
-		{&composition.InvalidTemplateError{Keys: []string{"a"}}, 422, `{"error":"invalid_template","keys":["a"]}`},
-		{&composition.InvalidTemplateError{}, 422, `{"error":"invalid_template","keys":[]}`},
-		{&composition.FieldsError{Err: composition.ErrInvalidValues, Keys: []string{"b"}}, 422, `{"error":"invalid_values","keys":["b"]}`},
-		{&composition.FieldsError{Err: composition.ErrRequiredMissing, Keys: []string{"c"}}, 422, `{"error":"required_missing","keys":["c"]}`},
-		{errBackend, 500, `{"error":"internal error"}`},
+		{composition.ErrNotFound, `{"error":"not_found"}`, 404},
+		{composition.ErrForbidden, `{"error":"forbidden"}`, 403},
+		{composition.ErrConsentRequired, `{"error":"consent_required"}`, 403},
+		{composition.ErrTemplateNotFound, `{"error":"template_not_found"}`, 404},
+		{composition.ErrLanguageUnavailable, `{"error":"language_unavailable"}`, 422},
+		{composition.ErrVersionMismatch, `{"error":"version_mismatch"}`, 412},
+		{composition.ErrNotPreliminary, `{"error":"not_preliminary"}`, 409},
+		{composition.ErrDraftingUnavailable, `{"error":"drafting_unavailable"}`, 503},
+		{&composition.InvalidTemplateError{Keys: []string{"a"}}, `{"error":"invalid_template","keys":["a"]}`, 422},
+		{&composition.InvalidTemplateError{}, `{"error":"invalid_template","keys":[]}`, 422},
+		{&composition.FieldsError{Err: composition.ErrInvalidValues, Keys: []string{"b"}}, `{"error":"invalid_values","keys":["b"]}`, 422},
+		{&composition.FieldsError{Err: composition.ErrRequiredMissing, Keys: []string{"c"}}, `{"error":"required_missing","keys":["c"]}`, 422},
+		{errBackend, `{"error":"internal error"}`, 500},
 	} {
 		svc := stubbed()
 		svc.err = tt.err

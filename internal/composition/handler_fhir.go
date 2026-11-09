@@ -78,9 +78,9 @@ type attester struct {
 }
 
 type section struct {
-	Title       string                `json:"title"`
 	Text        *narrative            `json:"text,omitempty"`
 	EmptyReason *fhir.CodeableConcept `json:"emptyReason,omitempty"`
+	Title       string                `json:"title"`
 }
 
 type narrative struct {
@@ -207,8 +207,8 @@ type provenanceJSON struct {
 }
 
 type agent struct {
-	Type fhir.CodeableConcept `json:"type"`
 	Who  fhir.Reference       `json:"who"`
+	Type fhir.CodeableConcept `json:"type"`
 }
 
 // provenanceOf is the signature as an R4 Provenance: the signer legally authenticated the Composition's signed

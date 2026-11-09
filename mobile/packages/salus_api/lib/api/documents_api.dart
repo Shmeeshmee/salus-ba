@@ -18,7 +18,7 @@ class DocumentsApi {
 
   /// Create a document template
   ///
-  /// Creates a template of the caller's clinic as version 1. Staff of the clinic. A translation must be complete: its title, every field's label, and an instruction exactly where the original has one. The answer carries the version as its ETag. Audited, also when refused.
+  /// Creates a template of the caller's clinic as version 1. Staff of the clinic. A translation must be complete: its title, every field's label, and an instruction exactly where the original has one. Any language of the enum but Arabic, whose script the PDF does not set yet. The answer carries the version as its ETag. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -63,7 +63,7 @@ class DocumentsApi {
 
   /// Create a document template
   ///
-  /// Creates a template of the caller's clinic as version 1. Staff of the clinic. A translation must be complete: its title, every field's label, and an instruction exactly where the original has one. The answer carries the version as its ETag. Audited, also when refused.
+  /// Creates a template of the caller's clinic as version 1. Staff of the clinic. A translation must be complete: its title, every field's label, and an instruction exactly where the original has one. Any language of the enum but Arabic, whose script the PDF does not set yet. The answer carries the version as its ETag. Audited, also when refused.
   ///
   /// Parameters:
   ///

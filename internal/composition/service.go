@@ -119,10 +119,10 @@ func (s *Service) allowed(ctx context.Context, c appointment.Caller, encounterID
 // entry is one audit event of the drafting: who, the interaction on which resource ("" when none is
 // disclosed) or, for a template (no FHIR resource), on the document_template table, and the outcome.
 type entry struct {
-	c           appointment.Caller
 	org         string
 	interaction string
 	reference   string
+	c           appointment.Caller
 	outcome     auditevent.Outcome
 	template    bool
 }

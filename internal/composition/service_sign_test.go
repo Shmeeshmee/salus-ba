@@ -112,12 +112,12 @@ func TestSign_Refusals(t *testing.T) {
 		return change(values())
 	}
 	for name, tt := range map[string]struct {
-		c       appointment.Caller
-		id      string // "" for the draft
-		values  []composition.Value
-		version int32
 		want    error
+		id      string
+		c       appointment.Caller
+		values  []composition.Value
 		keys    []string
+		version int32
 	}{
 		"a stale version": {c: pract, values: values(), version: 2, want: composition.ErrVersionMismatch},
 		"a field left out": {c: pract, values: edit(func(v []composition.Value) []composition.Value { return v[1:] }),

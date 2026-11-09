@@ -237,9 +237,9 @@ func (r *fakeRepository) check(ctx context.Context) error {
 type fakeEncounters struct {
 	err         error
 	f           *fixture
-	enc         encounter.Encounter
 	attendances map[string][]appointment.Attendance
 	calls       map[string]int
+	enc         encounter.Encounter
 }
 
 func (e *fakeEncounters) Access(ctx context.Context, c appointment.Caller, id string) (encounter.Encounter, appointment.Attendance, error) {

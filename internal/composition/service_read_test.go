@@ -24,13 +24,13 @@ func TestDrafts_ReadsTheEncountersDraftsForItsPractitioner(t *testing.T) {
 		t.Errorf("audit = %q", codes)
 	}
 	for name, tt := range map[string]struct {
-		c    appointment.Caller
-		id   string
 		want error
+		id   string
+		c    appointment.Caller
 	}{
-		"admin":   {admin, encA, composition.ErrForbidden},
-		"patient": {me, encA, composition.ErrForbidden},
-		"unknown": {pract, unknownID, composition.ErrNotFound},
+		"admin":   {composition.ErrForbidden, encA, admin},
+		"patient": {composition.ErrForbidden, encA, me},
+		"unknown": {composition.ErrNotFound, unknownID, pract},
 	} {
 		if _, err := f.svc.Drafts(t.Context(), tt.c, tt.id); !errors.Is(err, tt.want) {
 			t.Errorf("%s: Drafts() = %v, want %v", name, err, tt.want)

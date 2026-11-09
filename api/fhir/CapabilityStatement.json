@@ -12,7 +12,7 @@
   "rest": [
     {
       "mode": "server",
-      "documentation": "The clinic directory, patients, consents, appointments and their consultations, the clinic's questionnaires and the patients' answers to them. A signed-in session is a bearer token or the web app's cookie. The public directory (Organization?listed=true, a listed clinic's PractitionerRole search, Schedule and Slot) needs no session and is not audited. Every other interaction needs a session, shows a caller only what the access rules allow (anything else is 404) and is audited. Search values that are dates are instants with an offset, prefixed ge or lt. Any search parameter not listed here gives 400. Also GET /fhir/R4/metadata.",
+      "documentation": "The clinic directory, patients, consents, appointments and their consultations, the clinic's questionnaires and the patients' answers to them, and the documents written in a consultation. A signed-in session is a bearer token or the web app's cookie. The public directory (Organization?listed=true, a listed clinic's PractitionerRole search, Schedule and Slot) needs no session and is not audited. Every other interaction needs a session, shows a caller only what the access rules allow (anything else is 404) and is audited. Search values that are dates are instants with an offset, prefixed ge or lt. Any search parameter not listed here gives 400. Also GET /fhir/R4/metadata.",
       "resource": [
         {
           "type": "Organization",

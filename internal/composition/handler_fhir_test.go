@@ -41,8 +41,8 @@ func assertGolden(t *testing.T, name string, got []byte) {
 // stubReader answers every read with doc, or err, and keeps the id asked for.
 type stubReader struct {
 	err error
-	doc composition.Document
 	id  string
+	doc composition.Document
 }
 
 func (s *stubReader) Composition(_ context.Context, _ appointment.Caller, id string) (composition.Document, error) {
@@ -130,13 +130,13 @@ func TestFHIR_Errors(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		err    error
-		status int
 		code   string
+		status int
 	}{
-		{composition.ErrNotFound, 404, `"code":"not-found"`},
-		{composition.ErrForbidden, 403, `"code":"forbidden"`},
-		{composition.ErrConsentRequired, 403, `"code":"forbidden"`},
-		{errBackend, 500, `"code":"exception"`},
+		{composition.ErrNotFound, `"code":"not-found"`, 404},
+		{composition.ErrForbidden, `"code":"forbidden"`, 403},
+		{composition.ErrConsentRequired, `"code":"forbidden"`, 403},
+		{errBackend, `"code":"exception"`, 500},
 	} {
 		rec := getFHIR(t, &stubReader{err: tt.err}, true, "/fhir/R4/Provenance/"+provA)
 		if rec.Code != tt.status || !strings.Contains(rec.Body.String(), tt.code) || !strings.Contains(rec.Body.String(), "OperationOutcome") {

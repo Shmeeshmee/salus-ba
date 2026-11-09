@@ -169,15 +169,15 @@ func TestGenerate_WritesInALanguageTheTemplateHas(t *testing.T) {
 func TestGenerate_OnlyTheEncountersPractitionerWithConsentDrafts(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {
-		c    appointment.Caller
-		id   string
 		want error
+		id   string
 		ref  string
+		c    appointment.Caller
 	}{
-		"admin":                {admin, encA, composition.ErrForbidden, "Encounter/" + encA},
-		"another practitioner": {pract2, encA, composition.ErrForbidden, "Encounter/" + encA},
-		"the patient":          {me, encA, composition.ErrForbidden, "Encounter/" + encA},
-		"an unknown encounter": {pract, unknownID, composition.ErrNotFound, ""},
+		"admin":                {composition.ErrForbidden, encA, "Encounter/" + encA, admin},
+		"another practitioner": {composition.ErrForbidden, encA, "Encounter/" + encA, pract2},
+		"the patient":          {composition.ErrForbidden, encA, "Encounter/" + encA, me},
+		"an unknown encounter": {composition.ErrNotFound, unknownID, "", pract},
 	} {
 		f := newFixture(t)
 		tpl := f.template(t)
