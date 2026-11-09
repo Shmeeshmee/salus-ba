@@ -22,6 +22,14 @@ test('the practitioner signs in, joins from the appointment, sees and hears the 
   await expect(page.getByText(`${patient} is muted`)).toHaveCount(0)
   await expect.poll(() => inboundAudioPackets(page), { timeout: 30_000 }).toBeGreaterThan(0)
 
+  // The transcription agent hears the tone and the fake speech engine says its placeholder line, which reaches the
+  // page over the encounter's event stream (SAL-6): the patient's line in the transcript beside the video
+  // (docs/consult-intelligence/COPY.md W1, W2, W5).
+  const side = page.getByRole('complementary', { name: 'Transcript, suggestions and documents' })
+  const transcript = side.getByRole('list', { name: 'Transcript' })
+  const line = transcript.getByRole('listitem').filter({ hasText: 'Placeholder caption from the test speech engine' })
+  await expect(line.getByText('Patient', { exact: true })).toBeVisible({ timeout: 30_000 })
+
   // The Go test checks the Encounter is in progress, then signals the end.
   await expect.poll(() => existsSync(required('E2E_END_SIGNAL')), { timeout: 60_000 }).toBe(true)
   await page.getByRole('button', { name: 'End consultation' }).click() // W19
