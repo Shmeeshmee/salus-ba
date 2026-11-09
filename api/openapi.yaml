@@ -3377,8 +3377,9 @@ components:
         - {$ref: "#/components/schemas/TranscriptMessage"}
         - {$ref: "#/components/schemas/SuggestionMessage"}
         - {$ref: "#/components/schemas/DraftMessage"}
-        - {$ref: "#/components/schemas/CursorMessage"}
+        # The cursor last: the Dart generator gives the flat model the last variant's payload, as before SAL-7.
         - {$ref: "#/components/schemas/CommandErrorMessage"}
+        - {$ref: "#/components/schemas/CursorMessage"}
       discriminator:
         propertyName: type
         mapping:

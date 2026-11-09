@@ -1528,7 +1528,7 @@ export interface components {
         /** @description One live message of a consultation, told apart by `type`. */
         ConsultMessage: components["schemas"]["TranscriptMessage"] | components["schemas"]["SuggestionMessage"] | components["schemas"]["DraftMessage"];
         /** @description One text frame of GET /encounters/{id}/events: a live message (one of ConsultMessage's), or the cursor sent before each one, told apart by `type`. */
-        ConsultFrame: components["schemas"]["TranscriptMessage"] | components["schemas"]["SuggestionMessage"] | components["schemas"]["DraftMessage"] | components["schemas"]["CursorMessage"] | components["schemas"]["CommandErrorMessage"];
+        ConsultFrame: components["schemas"]["TranscriptMessage"] | components["schemas"]["SuggestionMessage"] | components["schemas"]["DraftMessage"] | components["schemas"]["CommandErrorMessage"] | components["schemas"]["CursorMessage"];
         /** @description A text frame the client sends on GET /encounters/{id}/events, told apart by `type`. */
         ConsultCommand: components["schemas"]["SuggestionStatusMessage"];
         /** @description The practitioner dismisses, pins or unpins (`shown`) a suggestion of the stream's encounter. */
