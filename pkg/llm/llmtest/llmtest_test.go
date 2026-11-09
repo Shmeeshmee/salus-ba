@@ -177,3 +177,31 @@ func TestSuggesterAndDrafter_KeepNoCallsWithDiscardCalls(t *testing.T) {
 		t.Errorf("Draft() = %+v, %v with %d calls kept; want one field and none", got, err, len(d.Calls()))
 	}
 }
+
+// A field's type, instruction and required flag reach the fake as the caller sent them, and the recorded
+// request is the caller's own copy: a later change to the caller's slice does not alter it.
+func TestDrafter_RecordsEachFieldsTypeInstructionAndRequiredFlag(t *testing.T) {
+	t.Parallel()
+	d := &llmtest.Drafter{}
+	fields := []llm.FieldSpec{
+		{Key: "findings", Label: "Placeholder label", Type: llm.FieldText, Instruction: "Placeholder instruction", Required: true},
+		{Key: "next", Label: "Placeholder label", Type: llm.FieldDate},
+	}
+	if _, err := d.Draft(t.Context(), llm.DraftRequest{Lang: "bs", Fields: fields, Transcript: transcript()}); err != nil {
+		t.Fatal(err)
+	}
+	want := slices.Clone(fields)
+	fields[0].Instruction = "changed"
+	if calls := d.Calls(); len(calls) != 1 || !slices.Equal(calls[0].Fields, want) {
+		t.Errorf("Calls() = %+v, want the fields %+v", calls, want)
+	}
+}
+
+// The field types are the four a template knows.
+func TestFieldTypes_AreTextListDateAndCoded(t *testing.T) {
+	t.Parallel()
+	got := []llm.FieldType{llm.FieldText, llm.FieldList, llm.FieldDate, llm.FieldCoded}
+	if !slices.Equal(got, []llm.FieldType{"text", "list", "date", "coded"}) {
+		t.Errorf("field types = %q", got)
+	}
+}

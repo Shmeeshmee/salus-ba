@@ -60,7 +60,7 @@ func TestNew_ServesQuestionnaireResponsesUnderTheAccessRuleAndAuditsIt(t *testin
 	owner := ownerPool(t, cfg)
 	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)
 	var log syncBuffer
-	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), slog.New(slog.NewTextHandler(&log, nil)))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.NewTextHandler(&log, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -266,7 +266,7 @@ func TestNew_RefusesQuestionnaireChangesOnACancelledAppointment(t *testing.T) {
 	cfg := testConfig(t)
 	owner := ownerPool(t, cfg)
 	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)
-	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

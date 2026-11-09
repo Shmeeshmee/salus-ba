@@ -16,6 +16,7 @@ tables:
   consent: {owner: consent, personal_data: true}
   document_draft: {owner: composition, personal_data: true}
   document_template: {owner: composition, personal_data: false}
+  document_template_translation: {owner: composition, personal_data: false}
   encounter: {owner: encounter, personal_data: true}
   invite: {owner: auth, personal_data: true}
   organization: {owner: organization, personal_data: false}

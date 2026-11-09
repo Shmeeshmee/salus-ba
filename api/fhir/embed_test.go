@@ -74,18 +74,21 @@ func TestCapabilityStatement_ListsExactlyTheInteractionsServed(t *testing.T) {
 		got[r.Type] = s
 	}
 	want := map[string]string{
-		"Appointment":      "read search-type param:patient:reference param:practitioner:reference param:date:date param:status:token ",
-		"Consent":          "read ",
-		"Encounter":        "read search-type param:appointment:reference param:patient:reference param:practitioner:reference ",
-		"Organization":     "read update search-type param:listed:token versioning:versioned-update",
-		"Patient":          "read ",
-		"Practitioner":     "read ",
-		"PractitionerRole": "read search-type param:organization:reference include:PractitionerRole:practitioner ",
-		"Questionnaire":    "read search-type param:url:uri param:version:token param:status:token ",
+		"Appointment":       "read search-type param:patient:reference param:practitioner:reference param:date:date param:status:token ",
+		"Composition":       "read ",
+		"Consent":           "read ",
+		"DocumentReference": "read ",
+		"Encounter":         "read search-type param:appointment:reference param:patient:reference param:practitioner:reference ",
+		"Organization":      "read update search-type param:listed:token versioning:versioned-update",
+		"Patient":           "read ",
+		"Practitioner":      "read ",
+		"PractitionerRole":  "read search-type param:organization:reference include:PractitionerRole:practitioner ",
+		"Questionnaire":     "read search-type param:url:uri param:version:token param:status:token ",
 		"QuestionnaireResponse": "read search-type param:appointment:reference param:patient:reference param:status:token " +
 			"include:QuestionnaireResponse:questionnaire ",
-		"Schedule": "read search-type param:actor:reference ",
-		"Slot":     "search-type param:schedule:reference param:start:date param:status:token ",
+		"Provenance": "read ",
+		"Schedule":   "read search-type param:actor:reference ",
+		"Slot":       "search-type param:schedule:reference param:start:date param:status:token ",
 	}
 	if len(got) != len(want) {
 		t.Errorf("resources = %v, want %v", got, want)

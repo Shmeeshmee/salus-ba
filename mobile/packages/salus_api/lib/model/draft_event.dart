@@ -18,6 +18,7 @@ class DraftEvent {
     required this.templateId,
     required this.status,
     this.fields = const [],
+    this.versionId,
   });
 
   String draftId;
@@ -31,6 +32,15 @@ class DraftEvent {
   /// In the template's order.
   List<DraftField> fields;
 
+  /// The draft's version (Composition meta.versionId): what a sign names in If-Match, and by which a page tells a redraft from a replay. Absent only in events from before SAL-8.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? versionId;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -39,7 +49,8 @@ class DraftEvent {
           other.encounterId == encounterId &&
           other.templateId == templateId &&
           other.status == status &&
-          _deepEquality.equals(other.fields, fields);
+          _deepEquality.equals(other.fields, fields) &&
+          other.versionId == versionId;
 
   @override
   int get hashCode =>
@@ -48,11 +59,12 @@ class DraftEvent {
       (encounterId.hashCode) +
       (templateId.hashCode) +
       (status.hashCode) +
-      (fields.hashCode);
+      (fields.hashCode) +
+      (versionId == null ? 0 : versionId!.hashCode);
 
   @override
   String toString() =>
-      'DraftEvent[draftId=$draftId, encounterId=$encounterId, templateId=$templateId, status=$status, fields=$fields]';
+      'DraftEvent[draftId=$draftId, encounterId=$encounterId, templateId=$templateId, status=$status, fields=$fields, versionId=$versionId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -61,6 +73,11 @@ class DraftEvent {
     json[r'template_id'] = this.templateId;
     json[r'status'] = this.status;
     json[r'fields'] = this.fields;
+    if (this.versionId != null) {
+      json[r'version_id'] = this.versionId;
+    } else {
+      json[r'version_id'] = null;
+    }
     return json;
   }
 
@@ -104,6 +121,7 @@ class DraftEvent {
         templateId: mapValueOfType<String>(json, r'template_id')!,
         status: DraftEventStatusEnum.fromJson(json[r'status'])!,
         fields: DraftField.listFromJson(json[r'fields']),
+        versionId: mapValueOfType<int>(json, r'version_id'),
       );
     }
     return null;

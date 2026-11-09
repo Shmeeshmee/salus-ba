@@ -1686,6 +1686,293 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /document-templates:
+    get:
+      operationId: listDocumentTemplates
+      summary: The clinic's document templates
+      description: >-
+        The caller's clinic's templates (a referral, a findings report), by title, with their translations. Staff
+        of the clinic, practitioners and admins alike. Not audited: a template holds no personal data.
+      tags: [documents]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The templates.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DocumentTemplates"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/DocumentForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      operationId: createDocumentTemplate
+      summary: Create a document template
+      description: >-
+        Creates a template of the caller's clinic as version 1. Staff of the clinic. A translation must be
+        complete: its title, every field's label, and an instruction exactly where the original has one. Any
+        language of the enum but Arabic, whose script the PDF does not set yet. The answer carries the version as
+        its ETag. Audited, also when refused.
+      tags: [documents]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SaveDocumentTemplateRequest"}
+      responses:
+        "201":
+          $ref: "#/components/responses/DocumentTemplate"
+        "400":
+          $ref: "#/components/responses/DocumentInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/DocumentForbidden"
+        "422":
+          $ref: "#/components/responses/InvalidDocumentTemplate"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /document-templates/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    put:
+      operationId: updateDocumentTemplate
+      summary: Edit a document template
+      description: >-
+        Replaces the template's content and translations as its next version. Send If-Match with the version
+        read. Drafts keep the texts they were drafted with. Staff of the clinic. Audited, also when refused.
+      tags: [documents]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SaveDocumentTemplateRequest"}
+      responses:
+        "200":
+          $ref: "#/components/responses/DocumentTemplate"
+        "400":
+          $ref: "#/components/responses/DocumentInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/DocumentForbidden"
+        "404":
+          description: "`template_not_found`: the clinic has no such template."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_mismatch`: the template changed since it was read."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422":
+          $ref: "#/components/responses/InvalidDocumentTemplate"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /encounters/{id}/drafts:
+    parameters:
+      - $ref: "#/components/parameters/EncounterID"
+    post:
+      operationId: generateDraft
+      summary: Draft a document from the transcript
+      description: >-
+        Drafts (or redrafts) a template from the encounter's stored transcript so far, during or after the call,
+        and answers with the draft once it is stored; it is also pushed on the encounter's event stream as a
+        `DraftMessage`. The model fills the fields, each filled field citing the transcript segments it came
+        from; a value without sources, citing a segment the transcript does not have, or not of its field's type
+        is not kept, and the field stays missing. A redraft replaces the open draft of the template as its next
+        version. Without a transcript every field is missing. For the encounter's practitioner with the patient's
+        active consent only (checked again once the model answered). Audited, also when refused.
+      tags: [documents]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/GenerateDraftRequest"}
+      responses:
+        "200":
+          $ref: "#/components/responses/Draft"
+        "400":
+          $ref: "#/components/responses/DocumentInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/DocumentRecordForbidden"
+        "404":
+          description: >-
+            `not_found`: no such encounter the caller may see; `template_not_found`: the clinic has no such
+            template.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422":
+          description: "`language_unavailable`: the template has neither its original nor a translation in the language asked for."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          description: "`drafting_unavailable`: the drafting model failed or took too long; nothing was stored."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+    get:
+      operationId: listDrafts
+      summary: The encounter's drafts
+      description: >-
+        Every draft of the encounter, oldest first, preliminary or final, for the encounter's practitioner with
+        the patient's active consent; what a page reads when the event stream has expired. Audited, also when
+        refused.
+      tags: [documents]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The drafts.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Drafts"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/DocumentRecordForbidden"
+        "404":
+          description: "`not_found`: no such encounter the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /drafts/{id}/sign:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: The draft's id (FHIR Composition.id).
+        schema: {type: string, format: uuid}
+    post:
+      operationId: signDraft
+      summary: Sign a draft
+      description: >-
+        Signs the draft, as it was read (If-Match), with the value the practitioner left in every field: a value
+        as drafted keeps its sources, an edited or typed one has none, an empty one is missing. The draft becomes
+        the final FHIR Composition, attested by the encounter's practitioner; its PDF is stored encrypted as a
+        DocumentReference, and a Provenance records the signature. The final draft is pushed on the event
+        stream. For the encounter's practitioner with the patient's active consent only. Audited, also when
+        refused.
+      tags: [documents]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SignDraftRequest"}
+      responses:
+        "200":
+          $ref: "#/components/responses/Draft"
+        "400":
+          $ref: "#/components/responses/DocumentInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/DocumentRecordForbidden"
+        "404":
+          description: "`not_found`: no such draft the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`not_preliminary`: the draft is already signed or discarded."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_mismatch`: the draft changed since it was read (a redraft)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422":
+          description: >-
+            `invalid_values`: a value of no field, a field without or with two values, or a value not of its
+            field's type; `required_missing`: a required field left empty. `keys` names the fields.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/KeyedError"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /document-references/{id}/content:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: The signed document's FHIR DocumentReference.id.
+        schema: {type: string, format: uuid}
+    get:
+      operationId: downloadDocument
+      summary: A signed document's PDF
+      description: >-
+        The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a
+        download. For the encounter's practitioner with the patient's active consent only. Audited as a read of
+        the DocumentReference, also when refused.
+      tags: [documents]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The PDF.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+            Content-Disposition: {schema: {type: string}}
+          content:
+            application/pdf:
+              schema: {type: string, format: binary}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/DocumentRecordForbidden"
+        "404":
+          description: "`not_found`: no such signed document the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /questionnaire-responses/{id}/answers:
     parameters:
       - $ref: "#/components/parameters/QuestionnaireResponseID"
@@ -2168,6 +2455,43 @@ components:
         type: string
         format: uuid
   responses:
+    DocumentTemplate:
+      description: The template; its ETag is its version.
+      headers:
+        ETag: {schema: {type: string}}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/DocumentTemplate"}
+    Draft:
+      description: The draft; its ETag is its version.
+      headers:
+        ETag: {schema: {type: string}}
+        Cache-Control: {schema: {type: string, const: no-store}}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/DraftEvent"}
+    DocumentInvalidRequest:
+      description: "`invalid_request`: no or an unreadable If-Match where one is needed, or a body that is not the request, or over 1 MiB."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    DocumentForbidden:
+      description: "`forbidden`: a patient."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    DocumentRecordForbidden:
+      description: >-
+        `consent_required`: the encounter's practitioner after the patient revoked their consent; `forbidden`:
+        anyone else who sees the encounter.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    InvalidDocumentTemplate:
+      description: "`invalid_template`: the template breaks a rule; `keys` names the offending fields (none for the template as a whole)."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/KeyedError"}
     Unauthenticated:
       description: "`unauthenticated`: no valid session."
       content:
@@ -3569,6 +3893,12 @@ components:
           minItems: 1
           description: In the template's order.
           items: {$ref: "#/components/schemas/DraftField"}
+        version_id:
+          type: integer
+          format: int32
+          description: >-
+            The draft's version (Composition meta.versionId): what a sign names in If-Match, and by which a page
+            tells a redraft from a replay. Absent only in events from before SAL-8.
     DraftField:
       type: object
       description: >-
@@ -3585,3 +3915,122 @@ components:
           items: {type: string, format: uuid}
         missing:
           type: boolean
+    DocumentTemplate:
+      type: object
+      description: >-
+        A clinic's document template (no personal data): its fields in its original language, and its
+        translations. `status` draft marks wording the clinic has not reviewed yet (the seeded examples are
+        placeholders); both statuses can be drafted from.
+      required: [id, title, language, status, typeCode, fields, translations, lastUpdated, versionId]
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string}
+        language: {$ref: "#/components/schemas/Language"}
+        status:
+          type: string
+          enum: [draft, active]
+        typeCode:
+          type: string
+          description: The LOINC code of the document type (Composition.type), e.g. 11488-4 consult note, 57133-1 referral note.
+        fields:
+          type: array
+          items: {$ref: "#/components/schemas/DocumentTemplateField"}
+        translations:
+          type: array
+          items: {$ref: "#/components/schemas/DocumentTemplateTranslation"}
+        lastUpdated: {type: string, format: date-time}
+        versionId: {type: integer, format: int32}
+    DocumentTemplateField:
+      type: object
+      description: >-
+        One field: its key (lowercase letters, digits and underscores, stable across languages), its type (a list
+        is one item per line, a date YYYY-MM-DD, a coded term one ICD-10 code), the label and instruction the
+        model and the practitioner read, and whether the document needs it (a required field is never guessed:
+        it stays missing until the transcript covers it, and a sign needs it).
+      required: [key, type, label, required]
+      properties:
+        key: {type: string, pattern: "^[a-z][a-z0-9_]{0,39}$"}
+        type:
+          type: string
+          enum: [text, list, date, coded]
+        label: {type: string, maxLength: 200}
+        instruction: {type: string, maxLength: 1000}
+        required: {type: boolean}
+    DocumentTemplateTranslation:
+      type: object
+      required: [language, title, fields]
+      properties:
+        language: {$ref: "#/components/schemas/Language"}
+        title: {type: string}
+        fields:
+          type: object
+          description: Each field's texts by key; every field, and an instruction exactly where the original has one.
+          additionalProperties: {$ref: "#/components/schemas/DocumentFieldTexts"}
+    DocumentFieldTexts:
+      type: object
+      required: [label]
+      properties:
+        label: {type: string}
+        instruction: {type: string}
+    DocumentTemplates:
+      type: object
+      required: [templates]
+      properties:
+        templates:
+          type: array
+          items: {$ref: "#/components/schemas/DocumentTemplate"}
+    SaveDocumentTemplateRequest:
+      type: object
+      required: [title, language, status, typeCode, fields]
+      properties:
+        title: {type: string, maxLength: 200}
+        language: {$ref: "#/components/schemas/Language"}
+        status:
+          type: string
+          enum: [draft, active]
+        typeCode: {type: string, pattern: "^[0-9]{1,7}-[0-9]$"}
+        fields:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: {$ref: "#/components/schemas/DocumentTemplateField"}
+        translations:
+          type: array
+          items: {$ref: "#/components/schemas/DocumentTemplateTranslation"}
+    GenerateDraftRequest:
+      type: object
+      required: [templateId]
+      properties:
+        templateId: {type: string, format: uuid}
+        language:
+          $ref: "#/components/schemas/Language"
+          description: The language to write in; the template's original language when absent.
+    Drafts:
+      type: object
+      required: [drafts]
+      properties:
+        drafts:
+          type: array
+          items: {$ref: "#/components/schemas/DraftEvent"}
+    SignDraftRequest:
+      type: object
+      required: [fields]
+      properties:
+        fields:
+          type: array
+          description: One value per field of the draft, as the practitioner left it; empty for none.
+          items: {$ref: "#/components/schemas/DraftValue"}
+    DraftValue:
+      type: object
+      required: [key, value]
+      properties:
+        key: {type: string}
+        value: {type: string}
+    KeyedError:
+      type: object
+      required: [error, keys]
+      properties:
+        error: {type: string}
+        keys:
+          type: array
+          items: {type: string}

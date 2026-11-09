@@ -3,6 +3,8 @@ package binary
 import (
 	"context"
 	"time"
+
+	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
 
 // Purger is the retention job's applier for "binary" (internal/retention: delete, 24 h), built on the retention
@@ -18,10 +20,11 @@ func NewPurger(repo Repository, store Store) *Purger {
 	return &Purger{repo: repo, store: store}
 }
 
-// Purge deletes the rejected rows scanned before before, then every object written before before that has no
-// row (a deleted or rejected file's ciphertext, an upload that never reached its answer), and counts both. An
-// upload stores its object before its row, so a younger object without a row may be an upload in progress and
-// is kept.
+// Purge deletes the rejected rows scanned before before, then every object written before before whose key
+// is a binary id (a UUID; other keys, such as composition's PDFs under composition/, are another owner's) and
+// that has no row (a deleted or rejected file's ciphertext, an upload that never reached its answer), and
+// counts both. An upload stores its object before its row, so a younger object without a row may be an upload
+// in progress and is kept.
 func (p *Purger) Purge(ctx context.Context, before time.Time) (int64, error) {
 	n, err := p.repo.DeleteRejectedBefore(ctx, before)
 	if err != nil {
@@ -37,7 +40,7 @@ func (p *Purger) Purge(ctx context.Context, before time.Time) (int64, error) {
 			rows[id] = true
 		}
 		for _, key := range keys {
-			if rows[key] {
+			if rows[key] || !fhir.IsUUID(key) { // a key that is no binary id is another owner's object
 				continue
 			}
 			if err := p.store.Delete(ctx, key); err != nil {

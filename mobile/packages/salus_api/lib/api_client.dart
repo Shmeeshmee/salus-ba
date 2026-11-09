@@ -248,18 +248,34 @@ class ApiClient {
           return Cursor.fromJson(value);
         case 'CursorMessage':
           return CursorMessage.fromJson(value);
+        case 'DocumentFieldTexts':
+          return DocumentFieldTexts.fromJson(value);
+        case 'DocumentTemplate':
+          return DocumentTemplate.fromJson(value);
+        case 'DocumentTemplateField':
+          return DocumentTemplateField.fromJson(value);
+        case 'DocumentTemplateTranslation':
+          return DocumentTemplateTranslation.fromJson(value);
+        case 'DocumentTemplates':
+          return DocumentTemplates.fromJson(value);
         case 'DraftEvent':
           return DraftEvent.fromJson(value);
         case 'DraftField':
           return DraftField.fromJson(value);
         case 'DraftMessage':
           return DraftMessage.fromJson(value);
+        case 'DraftValue':
+          return DraftValue.fromJson(value);
+        case 'Drafts':
+          return Drafts.fromJson(value);
         case 'EnrolRequest':
           return EnrolRequest.fromJson(value);
         case 'Enrolment':
           return Enrolment.fromJson(value);
         case 'Error':
           return Error.fromJson(value);
+        case 'GenerateDraftRequest':
+          return GenerateDraftRequest.fromJson(value);
         case 'GrantConsentRequest':
           return GrantConsentRequest.fromJson(value);
         case 'Invite':
@@ -268,6 +284,8 @@ class ApiClient {
           return InviteList.fromJson(value);
         case 'InviteRequest':
           return InviteRequest.fromJson(value);
+        case 'KeyedError':
+          return KeyedError.fromJson(value);
         case 'Language':
           return LanguageTypeTransformer().decode(value);
         case 'LiveKitWebhookEvent':
@@ -304,6 +322,8 @@ class ApiClient {
           return SaveAnswersRequest.fromJson(value);
         case 'SaveAvailabilityRequest':
           return SaveAvailabilityRequest.fromJson(value);
+        case 'SaveDocumentTemplateRequest':
+          return SaveDocumentTemplateRequest.fromJson(value);
         case 'SavePatientRequest':
           return SavePatientRequest.fromJson(value);
         case 'SaveQuestionnaireRequest':
@@ -314,6 +334,8 @@ class ApiClient {
           return SetRoleQuestionnaireRequest.fromJson(value);
         case 'SetSpecialtyRequest':
           return SetSpecialtyRequest.fromJson(value);
+        case 'SignDraftRequest':
+          return SignDraftRequest.fromJson(value);
         case 'Specialty':
           return Specialty.fromJson(value);
         case 'SpecialtyList':

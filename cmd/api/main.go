@@ -16,7 +16,11 @@ import (
 	_ "time/tzdata" // the clinics' time zones, independent of the runtime image
 
 	"github.com/Shmeeshmee/salus/internal/api"
+	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/config"
+	"github.com/Shmeeshmee/salus/pkg/llm"
+	"github.com/Shmeeshmee/salus/pkg/llm/anthropic"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/middleware"
 )
 
@@ -51,7 +55,16 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if err != nil {
 		return err
 	}
-	app, err := api.New(ctx, cfg, lk, files, log)
+	// The language model that drafts documents: the fake by default, Anthropic's API off until its DPA.
+	model, err := config.LoadLLM()
+	if err != nil {
+		return err
+	}
+	drafter, err := newDrafter(model)
+	if err != nil {
+		return err
+	}
+	app, err := api.New(ctx, cfg, lk, files, drafter, log)
 	if err != nil {
 		return err
 	}
@@ -89,4 +102,14 @@ func run(ctx context.Context, logOut io.Writer) error {
 	}
 	log.Info("stopped")
 	return nil
+}
+
+// newDrafter is the configured language model for drafting: the fake (keeping no calls, every field missing), or
+// Anthropic's Claude API (not to be enabled before its DPA, docs/privacy/processors.md), whose client's timeout
+// leaves the drafting's own (composition.DraftTimeout) to bound a call.
+func newDrafter(model config.LLM) (llm.Drafter, error) {
+	if model.Engine != config.LLMAnthropic {
+		return &llmtest.Drafter{DiscardCalls: true}, nil
+	}
+	return anthropic.New(anthropic.Config{Key: model.AnthropicKey, Model: model.Model}, &http.Client{Timeout: composition.DraftTimeout + 5*time.Second})
 }
