@@ -731,6 +731,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/document-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's document templates
+         * @description The caller's clinic's templates (a referral, a findings report), by title, with their translations. Staff of the clinic, practitioners and admins alike. Not audited: a template holds no personal data.
+         */
+        get: operations["listDocumentTemplates"];
+        put?: never;
+        /**
+         * Create a document template
+         * @description Creates a template of the caller's clinic as version 1. Staff of the clinic. A translation must be complete: its title, every field's label, and an instruction exactly where the original has one. The answer carries the version as its ETag. Audited, also when refused.
+         */
+        post: operations["createDocumentTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/document-templates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Edit a document template
+         * @description Replaces the template's content and translations as its next version. Send If-Match with the version read. Drafts keep the texts they were drafted with. Staff of the clinic. Audited, also when refused.
+         */
+        put: operations["updateDocumentTemplate"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/encounters/{id}/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The encounter's id (FHIR Encounter.id). */
+                id: components["parameters"]["EncounterID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The encounter's drafts
+         * @description Every draft of the encounter, oldest first, preliminary or final, for the encounter's practitioner with the patient's active consent; what a page reads when the event stream has expired. Audited, also when refused.
+         */
+        get: operations["listDrafts"];
+        put?: never;
+        /**
+         * Draft a document from the transcript
+         * @description Drafts (or redrafts) a template from the encounter's stored transcript so far, during or after the call, and answers with the draft once it is stored; it is also pushed on the encounter's event stream as a `DraftMessage`. The model fills the fields, each filled field citing the transcript segments it came from; a value without sources, citing a segment the transcript does not have, or not of its field's type is not kept, and the field stays missing. A redraft replaces the open draft of the template as its next version. Without a transcript every field is missing. For the encounter's practitioner with the patient's active consent only (checked again once the model answered). Audited, also when refused.
+         */
+        post: operations["generateDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/drafts/{id}/sign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The draft's id (FHIR Composition.id). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign a draft
+         * @description Signs the draft, as it was read (If-Match), with the value the practitioner left in every field: a value as drafted keeps its sources, an edited or typed one has none, an empty one is missing. The draft becomes the final FHIR Composition, attested by the encounter's practitioner; its PDF is stored encrypted as a DocumentReference, and a Provenance records the signature. The final draft is pushed on the event stream. For the encounter's practitioner with the patient's active consent only. Audited, also when refused.
+         */
+        post: operations["signDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/document-references/{id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The signed document's FHIR DocumentReference.id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * A signed document's PDF
+         * @description The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a download. For the encounter's practitioner with the patient's active consent only. Audited as a read of the DocumentReference, also when refused.
+         */
+        get: operations["downloadDocument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/questionnaire-responses/{id}/answers": {
         parameters: {
             query?: never;
@@ -1623,6 +1742,11 @@ export interface components {
             status: "preliminary" | "final" | "entered-in-error";
             /** @description In the template's order. */
             fields: components["schemas"]["DraftField"][];
+            /**
+             * Format: int32
+             * @description The draft's version (Composition meta.versionId): what a sign names in If-Match, and by which a page tells a redraft from a replay. Absent only in events from before SAL-8.
+             */
+            version_id?: number;
         };
         /** @description One field by its template key. A filled field has a value and the segments it came from (none when the practitioner typed it); a missing one has neither. */
         DraftField: {
@@ -1631,8 +1755,136 @@ export interface components {
             source_segment_ids?: string[];
             missing: boolean;
         };
+        /** @description A clinic's document template (no personal data): its fields in its original language, and its translations. `status` draft marks wording the clinic has not reviewed yet (the seeded examples are placeholders); both statuses can be drafted from. */
+        DocumentTemplate: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            language: components["schemas"]["Language"];
+            /** @enum {string} */
+            status: "draft" | "active";
+            /** @description The LOINC code of the document type (Composition.type), e.g. 11488-4 consult note, 57133-1 referral note. */
+            typeCode: string;
+            fields: components["schemas"]["DocumentTemplateField"][];
+            translations: components["schemas"]["DocumentTemplateTranslation"][];
+            /** Format: date-time */
+            lastUpdated: string;
+            /** Format: int32 */
+            versionId: number;
+        };
+        /** @description One field: its key (lowercase letters, digits and underscores, stable across languages), its type (a list is one item per line, a date YYYY-MM-DD, a coded term one ICD-10 code), the label and instruction the model and the practitioner read, and whether the document needs it (a required field is never guessed: it stays missing until the transcript covers it, and a sign needs it). */
+        DocumentTemplateField: {
+            key: string;
+            /** @enum {string} */
+            type: "text" | "list" | "date" | "coded";
+            label: string;
+            instruction?: string;
+            required: boolean;
+        };
+        DocumentTemplateTranslation: {
+            language: components["schemas"]["Language"];
+            title: string;
+            /** @description Each field's texts by key; every field, and an instruction exactly where the original has one. */
+            fields: {
+                [key: string]: components["schemas"]["DocumentFieldTexts"];
+            };
+        };
+        DocumentFieldTexts: {
+            label: string;
+            instruction?: string;
+        };
+        DocumentTemplates: {
+            templates: components["schemas"]["DocumentTemplate"][];
+        };
+        SaveDocumentTemplateRequest: {
+            title: string;
+            language: components["schemas"]["Language"];
+            /** @enum {string} */
+            status: "draft" | "active";
+            typeCode: string;
+            fields: components["schemas"]["DocumentTemplateField"][];
+            translations?: components["schemas"]["DocumentTemplateTranslation"][];
+        };
+        GenerateDraftRequest: {
+            /** Format: uuid */
+            templateId: string;
+            /** @description The language to write in; the template's original language when absent. */
+            language?: components["schemas"]["Language"];
+        };
+        Drafts: {
+            drafts: components["schemas"]["DraftEvent"][];
+        };
+        SignDraftRequest: {
+            /** @description One value per field of the draft, as the practitioner left it; empty for none. */
+            fields: components["schemas"]["DraftValue"][];
+        };
+        DraftValue: {
+            key: string;
+            value: string;
+        };
+        KeyedError: {
+            error: string;
+            keys: string[];
+        };
     };
     responses: {
+        /** @description The template; its ETag is its version. */
+        DocumentTemplate: {
+            headers: {
+                ETag?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["DocumentTemplate"];
+            };
+        };
+        /** @description The draft; its ETag is its version. */
+        Draft: {
+            headers: {
+                ETag?: string;
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["DraftEvent"];
+            };
+        };
+        /** @description `invalid_request`: no or an unreadable If-Match where one is needed, or a body that is not the request, or over 1 MiB. */
+        DocumentInvalidRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `forbidden`: a patient. */
+        DocumentForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `consent_required`: the encounter's practitioner after the patient revoked their consent; `forbidden`: anyone else who sees the encounter. */
+        DocumentRecordForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `invalid_template`: the template breaks a rule; `keys` names the offending fields (none for the template as a whole). */
+        InvalidDocumentTemplate: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["KeyedError"];
+            };
+        };
         /** @description `unauthenticated`: no valid session. */
         Unauthenticated: {
             headers: {
@@ -3856,6 +4108,290 @@ export interface operations {
                 };
             };
             /** @description `not_found`: no such encounter the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listDocumentTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The templates. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentTemplates"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DocumentForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createDocumentTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveDocumentTemplateRequest"];
+            };
+        };
+        responses: {
+            201: components["responses"]["DocumentTemplate"];
+            400: components["responses"]["DocumentInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DocumentForbidden"];
+            422: components["responses"]["InvalidDocumentTemplate"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateDocumentTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveDocumentTemplateRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["DocumentTemplate"];
+            400: components["responses"]["DocumentInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DocumentForbidden"];
+            /** @description `template_not_found`: the clinic has no such template. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_mismatch`: the template changed since it was read. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["InvalidDocumentTemplate"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listDrafts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The encounter's id (FHIR Encounter.id). */
+                id: components["parameters"]["EncounterID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The drafts. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Drafts"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DocumentRecordForbidden"];
+            /** @description `not_found`: no such encounter the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    generateDraft: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The encounter's id (FHIR Encounter.id). */
+                id: components["parameters"]["EncounterID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateDraftRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Draft"];
+            400: components["responses"]["DocumentInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DocumentRecordForbidden"];
+            /** @description `not_found`: no such encounter the caller may see; `template_not_found`: the clinic has no such template. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `language_unavailable`: the template has neither its original nor a translation in the language asked for. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            /** @description `drafting_unavailable`: the drafting model failed or took too long; nothing was stored. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    signDraft: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description The draft's id (FHIR Composition.id). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignDraftRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Draft"];
+            400: components["responses"]["DocumentInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DocumentRecordForbidden"];
+            /** @description `not_found`: no such draft the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_preliminary`: the draft is already signed or discarded. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_mismatch`: the draft changed since it was read (a redraft). */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `invalid_values`: a value of no field, a field without or with two values, or a value not of its field's type; `required_missing`: a required field left empty. `keys` names the fields. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeyedError"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    downloadDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The signed document's FHIR DocumentReference.id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DocumentRecordForbidden"];
+            /** @description `not_found`: no such signed document the caller may see. */
             404: {
                 headers: {
                     [name: string]: unknown;

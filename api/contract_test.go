@@ -80,7 +80,12 @@ func TestLiveEvents_MatchTheirGoTypes(t *testing.T) {
 			"status": {string(composition.StatusPreliminary), string(composition.StatusFinal), string(composition.StatusEnteredInError)},
 		}},
 		"DraftField": {composition.Field{}, nil},
-		"Cursor":     {transcript.Cursor{}, nil},
+		"DocumentTemplateField": {composition.TemplateField{}, map[string][]string{
+			"type": {string(composition.FieldText), string(composition.FieldList), string(composition.FieldDate), string(composition.FieldCoded)},
+		}},
+		"DocumentFieldTexts": {composition.FieldTexts{}, nil},
+		"DraftValue":         {composition.Value{}, nil},
+		"Cursor":             {transcript.Cursor{}, nil},
 	} {
 		sch, ok := s[name]
 		if !ok {
