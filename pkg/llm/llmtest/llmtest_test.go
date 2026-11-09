@@ -2,6 +2,7 @@ package llmtest_test
 
 import (
 	"errors"
+	"reflect"
 	"slices"
 	"sync"
 	"testing"
@@ -145,5 +146,19 @@ func TestFieldTypes_AreTextListDateAndCoded(t *testing.T) {
 	got := []llm.FieldType{llm.FieldText, llm.FieldList, llm.FieldDate, llm.FieldCoded}
 	if !slices.Equal(got, []llm.FieldType{"text", "list", "date", "coded"}) {
 		t.Errorf("field types = %q", got)
+	}
+}
+
+// EmptyDrafter, the api's default until an engine is configured, marks every field missing and keeps nothing
+// of a request, so a long-lived process does not grow with each draft.
+func TestEmptyDrafter_MarksEveryFieldMissingAndKeepsNothing(t *testing.T) {
+	t.Parallel()
+	var d llm.Drafter = llmtest.EmptyDrafter{}
+	got, err := d.Draft(t.Context(), llm.DraftRequest{Fields: []llm.FieldSpec{{Key: "a"}, {Key: "b"}}, Transcript: transcript()})
+	if err != nil || len(got) != 2 || got[0].Key != "a" || !got[0].Missing || got[0].Value != "" || got[0].SourceIDs != nil || got[1].Key != "b" || !got[1].Missing {
+		t.Errorf("Draft() = %+v, %v", got, err)
+	}
+	if size := reflect.TypeFor[llmtest.EmptyDrafter]().Size(); size != 0 {
+		t.Errorf("EmptyDrafter holds %d bytes, want none", size)
 	}
 }

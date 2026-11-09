@@ -209,15 +209,15 @@ type consultPorts struct {
 
 // newConsultRecord builds the encounter's live events (its Redis Stream), its stored transcript, and its
 // documents (templates, drafting, signing, the signed PDF and their FHIR reads), for its practitioner; it
-// returns their routes and the stream's. The drafting runs on the llmtest fake until an engine is configured
-// (SAL-5): every field missing.
+// returns their routes and the stream's. The drafting runs on llmtest.EmptyDrafter, which keeps nothing of a
+// request, until an engine is configured (SAL-5): every field missing.
 func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointment.Caller, bool, error), fhirBase string, log *slog.Logger) (routes []func(*http.ServeMux), stream func(*http.ServeMux)) {
 	transcripts := transcript.NewService(transcript.Ports{
 		Repo: transcript.NewPostgresRepository(p.pool), Stream: transcript.NewRedisStream(p.rdb), Encounters: p.encounters, Consents: p.consents,
 		Audit: p.audit, Tx: p.tx,
 	})
 	documents := composition.NewService(composition.Ports{
-		Repo: composition.NewPostgresRepository(p.pool), Encounters: p.encounters, Transcripts: transcripts, Drafter: &llmtest.Drafter{},
+		Repo: composition.NewPostgresRepository(p.pool), Encounters: p.encounters, Transcripts: transcripts, Drafter: llmtest.EmptyDrafter{},
 		Store:     binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, p.files.Endpoint, p.files.Region, p.files.Bucket, p.files.AccessKeyID, p.files.SecretAccessKey, s3PageSize),
 		Publisher: transcript.NewRedisPublisher(p.rdb), Audit: p.audit, Tx: p.tx, Clock: clock.System{}, KEK: p.kek, Log: log,
 	})

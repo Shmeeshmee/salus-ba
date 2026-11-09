@@ -102,3 +102,16 @@ func (f *Drafter) Calls() []llm.DraftRequest {
 	defer f.mu.Unlock()
 	return slices.Clone(f.calls)
 }
+
+// EmptyDrafter marks every requested field missing and keeps nothing of a request: the default of a
+// long-lived process until a drafting engine is configured (Drafter records every call, for tests).
+type EmptyDrafter struct{}
+
+// Draft returns one missing field per requested field, in order.
+func (EmptyDrafter) Draft(_ context.Context, req llm.DraftRequest) ([]llm.DraftField, error) {
+	out := make([]llm.DraftField, len(req.Fields))
+	for i, spec := range req.Fields {
+		out[i] = llm.DraftField{Key: spec.Key, Missing: true}
+	}
+	return out, nil
+}
