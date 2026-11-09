@@ -213,3 +213,57 @@ templates when `actions` changes). Nothing in `api/openapi.yaml` was added for t
 - "Generating…" can clear early when a regenerate replays an unchanged draft (Copilot, PR #34, declined there):
   the page then shows the previous draft until the new one arrives. The fix depends on how SAL-8 versions a
   redraft over SAL-6's replay; for SAL-8/SAL-10.
+
+## E (SAL-8): document templates and the drafting service
+
+Branch `sal-8-draft`, 2026-11-09.
+
+**Built.** Decisions in the plan, "E (SAL-8)".
+
+- Migration 00036: a template's language, status and LOINC type; `document_template_translation`; a draft's drafted
+  texts and its signature (DocumentReference, Provenance, the PDF's size, SHA-1 and wrapped key); one open draft per
+  encounter and template.
+- `composition.Service`: templates (`Templates`, `CreateTemplate`, `UpdateTemplate`, `SeedTemplate`), `Generate`,
+  `Sign`, `Drafts`, `Composition`, `DocumentReference`, `Provenance`, `PDF`. `pkg/pdfdoc` renders the PDF.
+- `llm.FieldSpec` gains `Type`, `Instruction`, `Required` (additive; the fake records its own copy of a request).
+- JSON API (`api/openapi.yaml`, clients regenerated): `GET/POST /document-templates`, `PUT /document-templates/{id}`,
+  `POST/GET /encounters/{id}/drafts`, `POST /drafts/{id}/sign`, `GET /document-references/{id}/content`;
+  `version_id` on `DraftEvent`. FHIR reads of `Composition`, `DocumentReference`, `Provenance` (CapabilityStatement,
+  golden files validated with `make fhir-validate`).
+- Wired in `api.New` on the `llmtest` drafter; `make document-templates-seed clinic=<id>`; `make bench-drafting`.
+- The attachments' purger keeps object keys that are no binary id (the PDFs are under `composition/`).
+
+**Tests seen failing first.** Each behaviour's test failed before its code: most as compile errors for the new
+types and methods; the migration's tests on the missing columns, table and index (`a second open draft: <nil>, want
+unique_violation`); the purger's on the PDF's key (`Purge() = 4, want 3`); the contract test on `version_id` and the
+new schemas (`no schema DraftValue`); the CapabilityStatement's on the three new resources; Arabic templates
+(`an Arabic translation: ValidateTemplate() = <nil>`). The existing migration test that inserted a second open draft
+for the same encounter and template now inserts a final one (the new rule), keeping what it checks: the clinic's
+write scope. The golden FHIR files failed the HL7 validator once (`cmp-1` on a section with only an `emptyReason`)
+and were fixed by giving such a section a dash as its narrative.
+
+**Measurements** (`make bench-drafting`, compose Postgres, Redis and Garage on the dev machine, 2026-11-09):
+
+| What | Result |
+| --- | --- |
+| `POST /encounters/{id}/drafts` through api.New, 360 stored segments, fake model answering at once, 50 runs | p50 7.4 ms, p95 10.4 ms, max 16 ms |
+| `POST /drafts/{id}/sign` (PDF rendered, encrypted, put to Garage, final transaction), 50 runs | p50 18.2 ms, p95 22.0 ms, max 23.5 ms |
+| The request to the model for a 30-minute consultation (360 segments of about 130 characters, 7 fields) | 74 KB as JSON, 46,080 characters of transcript text |
+
+Our path is about 10 ms of the 15 s target. What only a run with real credentials can measure: the model's time
+to answer a request of this size (some 12,000 to 15,000 input tokens by the usual 3 to 4 characters per token for
+these languages, an estimate; the engine's tokenizer gives the real count) and the network to its EU endpoint,
+and the quality of the fields it fills (blocked on SAL-5's adapter and the DPA).
+
+**Left.**
+- The PDF names no patient, practitioner or clinic and shows the signing time in UTC: which identifiers a signed
+  document must carry (and the clinic's time zone) is for the owner and the doctor partner, and needs the patient's
+  and practitioner's names through their services (audited reads).
+- A coded field is checked by its form only; a link to the term list (`terminology`) and a FHIR `Condition` for a
+  diagnosis come with the clinical feature.
+- Discarding a draft (`entered-in-error`) and amending a signed document: not in the ticket.
+- An orphan PDF if the api dies between the put and the commit: its key is never stored, so it cannot be read, but
+  nothing deletes it yet (the attachments' purger now leaves `composition/` alone).
+- The web wiring of `templates()`, `generate`, `sign` (SAL-9's page): a later PR. `sign` there sends no `If-Match`
+  yet; the draft's `version_id` is now on every event for it.
+- The real drafting engine (SAL-5) and its prompt for the new `FieldSpec` fields, once SAL-5 is merged.

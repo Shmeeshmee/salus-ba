@@ -23,7 +23,9 @@ var (
 	loincPattern = regexp.MustCompile(`^[0-9]{1,7}-[0-9]$`)
 )
 
-func knownLanguage(tag string) bool { return slices.Contains(languages, tag) }
+// knownLanguage reports whether a template may be written in the language tag: any of the enum's but Arabic,
+// whose joined, right-to-left script the PDF (pkg/pdfdoc) does not set.
+func knownLanguage(tag string) bool { return tag != "ar" && slices.Contains(languages, tag) }
 
 func blank(s string) bool { return strings.TrimSpace(s) == "" }
 

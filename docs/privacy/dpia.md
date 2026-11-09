@@ -1390,3 +1390,41 @@ producers; losing it loses live captions, never the stored transcript.
 | An entry written twice, or a crashed worker's entry lost | Consumer group, at-least-once; segments by their event id, suggestions by theirs, so a repeat adds no row (tested); an unacknowledged entry is claimed again after 30 s |
 | What was said in a log line | The consumer logs the stream key, the entry id, the type and the reason only; the gateway the encounter id (tested for the synthetic text) |
 | The lookup function discloses more than the clinic | Owned by a role with two columns of `encounter` and no other privilege; `EXECUTE` for `salus_app` only (tested) |
+
+### E (SAL-8): document templates, drafting and signing
+
+**Processing added.** The encounter's practitioner drafts a document from a clinic template: the stored transcript
+(final segments, as said) and the template's fields go to the drafting port (`llm.Drafter`); today only the
+in-memory fake implements it, so nothing leaves the stack. The draft (`document_draft`, P0's table) keeps each
+field's value with the segments it came from; signing adds the final Composition, a PDF of it in the object store
+(encrypted per file with `pkg/envelope`, as attachments are) and the signature's Provenance. New personal fields:
+`document_draft.signed_at`, `signer_role_id` (who signed, when: the practitioner's accountability for the record)
+and the PDF's size, SHA-1 and wrapped key (to serve and verify the PDF). `document_template_translation` holds no
+personal data.
+
+**Purpose and lawful basis.** The care of the patient (Art. 9(2)(h)): the practitioner's documentation of the
+consultation. Drafting follows the owner's interim consent decision: only while the patient's care consent with the
+clinic is active.
+
+**Access.** `access.ConsultationRecord`: the encounter's practitioner with the patient's active consent, in the
+clinic's scope; checked again after the model answers and before a signature is committed, so a revocation stores
+nothing more. Templates: staff of the clinic.
+
+**Audit.** Every draft written (`create`/`update`, `Composition/<id>`), every signature (the Composition's update,
+the DocumentReference's and the Provenance's creation), every read of a draft list, a Composition, a
+DocumentReference, a Provenance or the PDF, and every refusal. The transcript read for a draft is audited by
+`transcript`. Template writes are audited with `entity.name` `document_template`.
+
+**Retention.** `document_draft` is `keep` (P0); the PDF lives as long as its row's wrapped key (deleting the row makes
+the object unreadable). An object whose commit failed is unreadable and not yet deleted (PROGRESS, "Left").
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A model's value presented as said when it was not | A value is kept only when it cites segments of the transcript and is of its field's type; otherwise the field is missing; the practitioner edits and signs, an edited value loses its sources (tested) |
+| A required field guessed | Never filled without sources; a sign with a required field empty is refused (tested) |
+| A document written or read after a revocation | Access checked before and after the model's call and the PDF's put, and on every read (tested) |
+| Field values or transcript text in logs | Logs carry ids and the error only; errors name field keys, never values (tested for a publish failure) |
+| The PDF readable from the object store | Encrypted with a per-file key wrapped by the KEK; the store sees ciphertext only |
+| Patient text to a hosted model without a DPA | Only the fake is wired; SAL-5's adapter is off by default and gated on its DPA |
