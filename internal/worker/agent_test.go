@@ -146,4 +146,13 @@ func TestNewAgent_NeedsItsDependencies(t *testing.T) {
 	if _, _, err := worker.NewAgent(newLogins(t).app, nil, worker.Video{}, nil, slog.New(slog.DiscardHandler)); err == nil {
 		t.Error("NewAgent() without Redis, video or a recognizer = nil error")
 	}
+	// Without the pool or the logger too (Copilot on #36): an error, not a panic later.
+	app, rdb, log := newLogins(t).app, redistest.NewClient(t), slog.New(slog.DiscardHandler)
+	video := worker.Video{Provider: liveKit(t), Listener: listener, URL: os.Getenv("TEST_LIVEKIT_URL")}
+	if _, _, err := worker.NewAgent(nil, rdb, video, &stttest.Recognizer{}, log); err == nil {
+		t.Error("NewAgent() without the pool = nil error")
+	}
+	if _, _, err := worker.NewAgent(app, rdb, video, &stttest.Recognizer{}, nil); err == nil {
+		t.Error("NewAgent() without a logger = nil error")
+	}
 }

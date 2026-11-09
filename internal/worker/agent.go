@@ -38,8 +38,8 @@ type Video struct {
 // video, recognises them with recognizer and puts the events on rdb's streams. cmd/agent stops the client, then
 // the transcription.
 func NewAgent(pool *pgxpool.Pool, rdb *goredis.Client, video Video, recognizer stt.Recognizer, log *slog.Logger) (*river.Client[pgx.Tx], *transcript.Live, error) {
-	if rdb == nil || video.Provider == nil || video.Listener == nil || video.URL == "" || recognizer == nil {
-		return nil, nil, errors.New("worker: the agent needs Redis, the video provider, its listener and URL, and a recognizer")
+	if pool == nil || rdb == nil || video.Provider == nil || video.Listener == nil || video.URL == "" || recognizer == nil || log == nil {
+		return nil, nil, errors.New("worker: the agent needs the pool, Redis, the video provider, its listener and URL, a recognizer and a logger")
 	}
 	clk := clock.System{}
 	tx := postgres.NewTransactor(pool)
