@@ -538,6 +538,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded.';
 
   @override
+  String get transcriptionOn => 'Transcription is on';
+
+  @override
   String get toFillIn => 'To fill in';
 
   @override

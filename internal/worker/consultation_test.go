@@ -218,8 +218,10 @@ func TestConsultationAccessEnd_EndsTheCancelledConsultation(t *testing.T) {
 	}
 	// Each run asks LiveKit the same (what is gone stays gone); the database changes once.
 	removed, deleted := p.calls()
-	if want := c.room + " " + c.patientIdentity; !slices.Equal(removed, []string{want, want}) || !slices.Equal(deleted, []string{c.room, c.room}) {
-		t.Errorf("removed %v, deleted %v; want the patient removed and the room deleted on each run", removed, deleted)
+	// The agent is removed with the patient (docs/consultation/SPEC.md §2 "Changed for SAL-3").
+	patient, agent := c.room+" "+c.patientIdentity, c.room+" "+agentOf(c.room)
+	if !slices.Equal(removed, []string{patient, agent, patient, agent}) || !slices.Equal(deleted, []string{c.room, c.room}) {
+		t.Errorf("removed %v, deleted %v; want the patient and the agent removed and the room deleted on each run", removed, deleted)
 	}
 	var reason, encounter, appt string
 	if err := db.owner.QueryRow(t.Context(), `SELECT
@@ -269,11 +271,15 @@ func TestConsentRevoked_RemovesThePatientFromTheConsultations(t *testing.T) {
 	// Each run asks LiveKit the same (what is gone stays gone); the database changes once.
 	removed, deleted := p.calls()
 	slices.Sort(removed)
-	want := []string{c.room + " " + c.patientIdentity, c.room + " " + c.patientIdentity, future.room + " " + future.patientIdentity,
-		future.room + " " + future.patientIdentity}
+	var want []string // the patient and the agent (SPEC.md §2 "Changed for SAL-3") from both rooms, on each run
+	for range 2 {
+		for _, room := range []struct{ name, patient string }{{c.room, c.patientIdentity}, {future.room, future.patientIdentity}} {
+			want = append(want, room.name+" "+room.patient, room.name+" "+agentOf(room.name))
+		}
+	}
 	slices.Sort(want)
 	if !slices.Equal(removed, want) || !slices.Equal(deleted, []string{future.room, future.room}) {
-		t.Errorf("removed %v, deleted %v; want the patient removed from both rooms and only the cancelled appointment's room %s deleted, on each run",
+		t.Errorf("removed %v, deleted %v; want the patient and the agent removed from both rooms and only the cancelled appointment's room %s deleted, on each run",
 			removed, deleted, future.room)
 	}
 	var started, cancelled string
@@ -392,3 +398,6 @@ func TestConsentRevoked_AuditsTheRemovalOfThePatientOnce(t *testing.T) {
 		t.Errorf("%d audit events of the removal, want 1", n)
 	}
 }
+
+// agentOf is the agent identity of the room (videosession: a_ and the room's random part).
+func agentOf(room string) string { return "a_" + strings.TrimPrefix(room, "r_") }

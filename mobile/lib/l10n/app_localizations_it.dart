@@ -543,6 +543,9 @@ class AppLocalizationsIt extends AppLocalizations {
       'Per partecipare alla videovisita, Salus ha bisogno di accedere alla fotocamera e al microfono. La visita non viene registrata.';
 
   @override
+  String get transcriptionOn => 'Trascrizione attiva';
+
+  @override
   String get toFillIn => 'Da compilare';
 
   @override

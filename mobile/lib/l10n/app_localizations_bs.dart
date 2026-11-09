@@ -542,6 +542,9 @@ class AppLocalizationsBs extends AppLocalizations {
       'Da biste se pridružili video konsultaciji, Salus treba pristup vašoj kameri i mikrofonu. Konsultacija se ne snima.';
 
   @override
+  String get transcriptionOn => 'Transkripcija je uključena';
+
+  @override
   String get toFillIn => 'Za popunjavanje';
 
   @override

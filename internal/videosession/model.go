@@ -5,7 +5,10 @@
 // (repository_livekit.go), and its types never leave that file. Every token issued or refused is audited.
 package videosession
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Role is what the caller is in the consultation.
 type Role string
@@ -14,6 +17,7 @@ type Role string
 const (
 	RolePatient      Role = "patient"
 	RolePractitioner Role = "practitioner"
+	RoleAgent        Role = "agent" // the transcription agent (cmd/agent), not a person: subscribes only
 )
 
 // EndReason is why a session ended.
@@ -70,11 +74,13 @@ type Room struct {
 }
 
 // Grant is what a join token allows: joining the one room as the identity, for ValidFor. Nothing else is
-// granted (the provider: camera and microphone, subscribing, no data, no name, no metadata).
+// granted (the provider: camera and microphone, subscribing, no data, no name, no metadata). An Agent grant
+// joins as a participant of kind agent that only subscribes (SPEC.md §2 "Changed for SAL-3").
 type Grant struct {
 	Room     string
 	Identity string
 	ValidFor time.Duration
+	Agent    bool
 }
 
 // Join is what a participant needs to join: the LiveKit URL for clients, the token and its expiry, the other
@@ -106,6 +112,12 @@ type Status struct {
 	State                State
 	EndReason            EndReason
 	Reason               Reason // why it ended or the patient was removed; empty when neither
+}
+
+// agentIdentity is the session's agent identity: a_ and its room's random part, so the agent's identity is
+// fixed for the session (a reconnect replaces its earlier connection) with nothing stored for it.
+func (s Session) agentIdentity() string {
+	return "a_" + strings.TrimPrefix(s.Room, "r_")
 }
 
 // status is the session's Status.

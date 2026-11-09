@@ -1,6 +1,6 @@
-import { DisconnectReason } from 'livekit-client'
+import { DisconnectReason, Track, type RemoteParticipant } from 'livekit-client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { endingOf, levelOf, liveKit, problemOf } from './call'
+import { agentIn, endingOf, levelOf, liveKit, peerOf, problemOf } from './call'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -75,5 +75,35 @@ describe('levelOf', () => {
     expect(levelOf(loud)).toBeLessThanOrEqual(1)
     const soft = Uint8Array.from({ length: 32 }, (_, i) => (i % 2 ? 120 : 136))
     expect(levelOf(soft)).toBeCloseTo(8 / 128, 5)
+  })
+})
+
+// participant is a stand-in for livekit-client's RemoteParticipant: whether it is an agent, and its published
+// sources with whether each is muted.
+function participant(isAgent: boolean, sources: Partial<Record<Track.Source, boolean>> = {}): RemoteParticipant {
+  const getTrackPublication = (source: Track.Source) => (source in sources ? { isMuted: sources[source] } : undefined)
+  return { isAgent, getTrackPublication } as unknown as RemoteParticipant
+}
+
+describe('peerOf', () => {
+  it('is the other person, never the agent, whatever the order LiveKit lists them in', () => {
+    const agent = participant(true, { [Track.Source.Microphone]: false })
+    const patient = participant(false, { [Track.Source.Camera]: false, [Track.Source.Microphone]: true })
+
+    expect(peerOf([agent, patient])).toEqual({ present: true, camera: true, microphone: false })
+    expect(peerOf([patient, agent])).toEqual({ present: true, camera: true, microphone: false })
+  })
+
+  it('is nobody when only the agent is in the room', () => {
+    expect(peerOf([participant(true)])).toEqual({ present: false, camera: false, microphone: false })
+    expect(peerOf([])).toEqual({ present: false, camera: false, microphone: false })
+  })
+})
+
+describe('agentIn', () => {
+  it('says whether an agent is in the room', () => {
+    expect(agentIn([participant(false), participant(true)])).toBe(true)
+    expect(agentIn([participant(false)])).toBe(false)
+    expect(agentIn([])).toBe(false)
   })
 })

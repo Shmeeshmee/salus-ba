@@ -553,6 +553,9 @@ class AppLocalizationsFr extends AppLocalizations {
       'Pour rejoindre la consultation vidéo, Salus a besoin de votre caméra et de votre micro. La consultation n’est pas enregistrée.';
 
   @override
+  String get transcriptionOn => 'Transcription activée';
+
+  @override
   String get toFillIn => 'À remplir';
 
   @override

@@ -707,6 +707,10 @@
   "@whyCameraAndMicrophone": {
     "description": "[legal] M35: Android, before the system permission prompt."
   },
+  "transcriptionOn": "Transcription is on",
+  "@transcriptionOn": {
+    "description": "M36: while the transcription agent is in the call. Proposed, waiting for the owner (consultation COPY.md)."
+  },
   "toFillIn": "To fill in",
   "@toFillIn": {
     "description": "M1."

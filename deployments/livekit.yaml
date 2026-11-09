@@ -8,7 +8,16 @@
 # ICE (docs/consultation/PROGRESS.md, package 1): no node_ip and no external IP lookup, so LiveKit offers its
 # container address, which clients on the compose network (the Go tests, e2e) reach directly; and the
 # loopback candidate, which a browser on the host reaches through the published 127.0.0.1:7882/udp and
-# 7881/tcp. Production sets node_ip, TLS and TURN (SPEC.md §8).
+# 7881/tcp. Production sets node_ip and TLS on signalling (SPEC.md §8).
+#
+# TURN (SPEC.md §2 "Changed for SAL-3", PROGRESS.md package 10): LiveKit's built-in TURN, for networks that block
+# UDP (hotel Wi-Fi): TLS on 443 and UDP on 3478, offered to every client with short-lived credentials. Its
+# domain is turn.salus.test (LiveKit wants a dotted name; .test is reserved, RFC 6761), the livekit service's
+# alias on the compose network and the name of the local certificate in deployments/livekit-turn (synthetic,
+# `make livekit-turn-cert`); `make turn-check` proves a call through it with UDP blocked. The TURN ports are not
+# published on the host: a host browser or a phone is offered turns:turn.salus.test:443, which it cannot
+# resolve, and connects as before. Production: TURN/TLS on 443 under
+# LiveKit's public domain with the provider's certificate (SPEC.md §8).
 port: 7880
 bind_addresses: ["0.0.0.0"]
 rtc:
@@ -16,6 +25,17 @@ rtc:
   udp_port: 7882
   use_external_ip: false
   enable_loopback_candidate: true
+turn:
+  enabled: true
+  domain: turn.salus.test
+  tls_port: 443
+  udp_port: 3478
+  cert_file: /etc/livekit-turn/turn.crt
+  key_file: /etc/livekit-turn/turn.key
+  # LiveKit's TURN refuses to relay to a private address unless listed here. Locally the SFU's own address is
+  # on the compose network, which Docker takes from 172.16.0.0/12; only UDP relays exist (LiveKit rejects TCP
+  # ones). Production's node IP is public and lists nothing.
+  allow_restricted_peer_cidrs: ["172.16.0.0/12"]
 keys:
   devkey: local-only-synthetic-livekit-secret-0123456789
 webhook:

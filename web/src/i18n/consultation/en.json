@@ -65,5 +65,6 @@
   "patientDidNotJoin": "Patient did not join",
   "practitionerJoinedAt": "Practitioner joined at {time}",
   "practitionerDidNotJoin": "Practitioner did not join",
-  "timePassed": "The time to join this consultation has passed."
+  "timePassed": "The time to join this consultation has passed.",
+  "transcriptionOn": "Transcription is on"
 }

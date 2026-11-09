@@ -829,6 +829,39 @@ values). This is SPEC §2 "LiveKit logs", now checked on every run and in CI.
 `remoteAddress` and `localAddress` (IP and port) and its SDK and browser; in production a client's IP is personal
 data. Recorded for the owner with the production LiveKit setup (SPEC §8).
 
+### SAL-3: the transcription agent's grant and TURN (packages 9 to 11)
+
+**Processing added.** None of patient data yet. TURN (LiveKit's built-in, TLS on 443 and UDP on 3478) relays a
+call's media when a network blocks UDP; the media stays DTLS-SRTP encrypted end to end between each client and
+the SFU, the relay sees only ciphertext, and the TURN server is LiveKit itself, so no new processor. TURN
+credentials are LiveKit's short-lived ones, per connection. `videosession.Service.AgentJoin` can give the
+transcription agent (`cmd/agent`, self-hosted) a 5-minute subscribe-only token for a consultation's room; nothing
+calls it yet, and `cmd/agent` is still a stub, so no audio reaches any agent today.
+
+**Transparency.** The agent is not hidden: both apps show "Transcription is on" while it is in the room, and it
+is never mistaken for the other person (tested on web and mobile). A hidden agent was considered and refused by
+the owner: the patient could not have known.
+
+**Access.** The agent's token needs the same as a person's: the session open and inside its window, the
+appointment booked and the patient's consent with the clinic active; refused otherwise, and every request is
+audited (`transcription_agent`, `HOPERAT`). It grants no publishing, no data channel, no name or metadata; its
+identity is derived from the room's random name, so LiveKit learns nothing new. When the patient's access ends
+(revocation, cancellation), the agent is removed from the room with them.
+
+**Open before anything calls the agent (SAL-1).** The lawful basis for transcribing a consultation and whether it
+needs its own granular `Consent` (SPEC §4); the speech-to-text engine, and its DPA and `processors.md` entry if
+hosted; retention of any transcript; and the permission text "The consultation is not recorded" (COPY.md), which
+must change once a transcript is kept.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A listener in the call the patient does not know about | The agent is a visible participant of kind agent; both apps show W41 / M36 while it is in the room (tested) |
+| The agent stays after the patient's access ends | Removed with the patient on every removal path (tested in unit, api and worker tests) |
+| The agent publishes or injects data into the call | Its grant has no publish and no data permission (tested against the compose LiveKit's token claims) |
+| TURN as a relay into the private network | LiveKit relays UDP only and to private addresses only where `allow_restricted_peer_cidrs` allows; locally the compose network only, in production nothing |
+
 ## Questionnaires (`docs/questionnaire`)
 
 ### Package 3: questionnaire responses and the access rule

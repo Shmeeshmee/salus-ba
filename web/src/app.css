@@ -299,6 +299,10 @@ p.hint.join { margin-bottom: 20px; }
 .stage-text h2 { margin-bottom: 8px; }
 .stage-text p { margin: 0; color: var(--color-text-muted); }
 .stage .badge { position: absolute; left: 12px; top: 12px; margin: 0; padding: 4px 10px; border-radius: 999px; background: var(--color-surface); border: 1px solid var(--color-border-strong); font-size: 13px; }
+.stage .transcription { position: absolute; right: 12px; top: 12px; display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 4px 10px; border-radius: 999px; background: var(--color-surface); border: 1px solid var(--color-border-strong); font-size: 13px; animation: transcription-in .2s ease-out; }
+.stage .transcription .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-mint); }
+@keyframes transcription-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .stage .transcription { animation: none; } }
 .stage .own {
   position: absolute;
   right: 12px;

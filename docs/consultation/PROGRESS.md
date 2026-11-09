@@ -12,6 +12,9 @@
 | 7 Mobile | done, 2026-11-05 | `consultation(7)` |
 | 7.1 Owner changes after package 6 | done, 2026-11-05 | `consultation(7.1)` |
 | 8 End-to-end | done, 2026-11-05 | `consultation(8)` |
+| 9 Agent grant (SAL-3) | done, 2026-11-08 | `consultation(9)` |
+| 10 TURN (SAL-3) | done, 2026-11-08 | `consultation(10)` |
+| 11 Clients: the transcription indicator (SAL-3) | done, 2026-11-08 | `consultation(11)` |
 
 ## Decisions
 
@@ -284,6 +287,14 @@
   text go to "Up next".
 
 ## Waiting on people
+
+- SAL-3, for the owner: W41 / M36 "Transcription is on" (COPY.md, proposed); and, with SAL-1, the permission
+  text "The consultation is not recorded", which must change once a transcript is kept.
+- SAL-3, for SAL-1's SPEC and legal review: the lawful basis for transcribing (SPEC §4), when the agent joins and
+  who starts it, the speech-to-text engine (and its DPA if hosted). Nothing calls `AgentJoin` until then.
+- SAL-3, open question: production sizing (SPEC §8), from a load test on the chosen host.
+- SAL-3: TURN from a real browser and phone, once there is a staging domain with a public certificate (locally
+  only `make turn-check` proves it, by the owner's choice).
 
 - Before production: `SPEC.md` §8 (LiveKit domain, TLS, TURN, keys, node IP; retention and lawful basis;
   localisation).
@@ -1273,3 +1284,56 @@ The suite signs in about 9 times per run from one IP, against the login limit of
 (`ratelimit:*`) in the compose Redis before each run; the production limit is unchanged. Red first: with the
 counter raised past the limit after a run, `make e2e` failed with `POST /auth/login = 429` in every journey;
 with the reset, the same state passed.
+
+### 2026-11-08 — packages 9 to 11: the agent grant, TURN, the clients' indicator (SAL-3)
+
+Jira SAL-3 (epic SAL-1), branch `sal-3-livekit`. Most of SAL-3 was already built by packages 1 to 8 (LiveKit in
+compose on the existing Redis, the token endpoint with one room per appointment, so per `Encounter`, the web and
+mobile call screens). The owner decided the rest on 2026-11-08: the agent grant goes to `cmd/agent` (not a
+separate `cmd/consult`), visible as a participant of kind agent with an indicator in both apps rather than hidden;
+TURN is proven by an automated test only. SPEC §2 "Changed for SAL-3".
+
+**What was built.**
+- Package 10: LiveKit's built-in TURN in `deployments/livekit.yaml` (TLS 443, UDP 3478, domain `turn.salus.test`,
+  the compose alias; `allow_restricted_peer_cidrs` for the compose network, since LiveKit's TURN refuses private
+  peers by default and the SFU's address is on it). `scripts/livekit-turn-cert.sh` (`make livekit-turn-cert`)
+  writes the synthetic certificate; the CA's key is never kept. `make turn-check`: the `turn-check` service
+  (tools image, now with `iptables`; `NET_ADMIN`) blocks UDP and 7881/tcp in its own container and runs
+  `test/turn` (tag `turn`) as the host user, trusting the local CA through `SSL_CERT_DIR`.
+- Package 9: `Grant.Agent` (kind agent, subscribe only), `Participants` without agents, agents' webhook events as
+  `EventOther`, `Service.AgentJoin`, `RoleAgent`, the agent removed with the patient. No migration, no API change.
+- Package 11: web and mobile pick the other person among the participants that are not agents (before, both took
+  the first remote participant, which an agent could have been), and show W41 / M36 while an agent is in the room.
+
+**Tests seen failing first.**
+- `TestToken_TheAgentJoinsARoomForTwoAndIsNoParticipant`: `the agent did not join the room for two` (the token was
+  a person's, refused by `max_participants: 2`). With the kind agent it joins and a third person is still refused:
+  LiveKit does not count an agent, so the cap stays at 2.
+- `make turn-check` before TURN: `TestCall_ConnectsThroughTURNOverTLS` failed, `heard map[] through TURN`, every
+  participant `could not connect after timeout`; `TestCall_DoesNotConnectWithoutTURN` passed, so the block holds.
+  With TURN on, LiveKit refused the domain `livekit` (`TURN domain is not correct`), then relayed nothing: every
+  candidate pair to the relay `failed` until `allow_restricted_peer_cidrs` let it reach the SFU on the compose
+  network.
+- `AgentJoin` tests (service), web `peerOf` / `agentIn` and the screen's indicator, mobile `Remote` / `peerOf` /
+  `agentIn` and `AgentChanged`: each failed to compile or render before the code (`agentIn is not a function`,
+  `Method not found: 'Remote'`).
+- The full suite after package 9: `TestHandleWebhook_RemovesAPatientJoiningAfterARevocation` (api),
+  `TestConsentRevoked_RemovesThePatientFromTheConsultations` and `TestConsultationAccessEnd_EndsTheCancelledConsultation`
+  (worker) saw the agent's removal beside the patient's; their expectations now name both, on purpose.
+
+**Checks.** `make turn-check`: both tests pass; through TURN both subscribers heard the patient in 6.2 s, the
+no-TURN case waits out its three 15 s connection timeouts. `make lint`: 0 issues in both modules; migrations
+unchanged (`scripts/check-migrations.sh`, run on the host: a worktree's git is not mounted in the container).
+`make test`: pass. `make archcheck`: pass. `make cover`: `videosession` 94.9%, total 94.3%. Web: lint, typecheck,
+439 tests, build: pass. Mobile: analyze no issues, 322 tests pass. `make e2e` (in the `salus-sal3` project) with TURN on: every journey
+passes, the two consultation journeys included (6.2 s and 2.0 s); LiveKit's log (972 lines) holds none of the
+run's 22 synthetic values.
+
+**Compose and worktrees.** Every worktree runs as the compose project `salus`, and `livekit.yaml` is bind-mounted
+from the worktree that last started it, so two sessions on different branches recreate LiveKit for each other.
+This session ran its checks as the project `salus-sal3` with the host ports dropped, except one early run that
+recreated the shared `salus` LiveKit and Mailpit containers.
+
+**Dev stack left.** No migration. New: `deployments/livekit-turn/` (synthetic certificate), the `iptables` package
+in `salus-tools:dev`, and a `salus-sal3` compose project with its volumes (`docker compose -p salus-sal3 down -v`
+removes it).

@@ -152,6 +152,7 @@
   "consultationNotAvailable": "Questa visita non è disponibile.",
   "cannotConnect": "Impossibile avviare la connessione video. Controlli la connessione e riprovi.",
   "whyCameraAndMicrophone": "Per partecipare alla videovisita, Salus ha bisogno di accedere alla fotocamera e al microfono. La visita non viene registrata.",
+  "transcriptionOn": "Trascrizione attiva",
   "toFillIn": "Da compilare",
   "inProgress": "In corso",
   "submittedStatus": "Inviato",

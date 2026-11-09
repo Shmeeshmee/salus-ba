@@ -152,6 +152,7 @@
   "consultationNotAvailable": "Ova konsultacija nije dostupna.",
   "cannotConnect": "Video vezu nije bilo moguće pokrenuti. Provjerite internet vezu i pokušajte ponovo.",
   "whyCameraAndMicrophone": "Da biste se pridružili video konsultaciji, Salus treba pristup vašoj kameri i mikrofonu. Konsultacija se ne snima.",
+  "transcriptionOn": "Transkripcija je uključena",
   "toFillIn": "Za popunjavanje",
   "inProgress": "U toku",
   "submittedStatus": "Poslan",

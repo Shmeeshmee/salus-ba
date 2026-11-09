@@ -145,12 +145,16 @@ services:
     command: ["/usr/local/bin/agent"]
 
   # Video (ADR 0006), configured by livekit.yaml: the synthetic dev key pair, rooms created only by the api, JSON
-  # logs, and the ICE settings for clients on the host and on the compose network. Published on 127.0.0.1 for
-  # a local browser: signalling on 7880, media on 7882/udp and 7881/tcp.
+  # logs, the ICE settings for clients on the host and on the compose network, and TURN (TLS on 443, UDP on 3478,
+  # on the compose network only). Published on 127.0.0.1 for a local browser: signalling on 7880, media on
+  # 7882/udp and 7881/tcp.
   livekit:
     image: livekit/livekit-server:v1.13.11
     command: ["--config", "/etc/livekit.yaml"]
-    volumes: ["./livekit.yaml:/etc/livekit.yaml:ro"]
+    volumes: ["./livekit.yaml:/etc/livekit.yaml:ro", "./livekit-turn:/etc/livekit-turn:ro"]
+    networks:
+      default:
+        aliases: [turn.salus.test] # the TURN domain of livekit.yaml and its local certificate
     ports:
       - "127.0.0.1:${SALUS_LIVEKIT_PORT:-7880}:7880"
       - "127.0.0.1:7881:7881"
@@ -274,6 +278,30 @@ services:
       livekit: {condition: service_healthy}
       objectstore: {condition: service_healthy}
       clamd: {condition: service_healthy}
+
+  # `make turn-check` (docs/consultation/PROGRESS.md, package 10): the tools image with NET_ADMIN, so
+  # scripts/turn-check.sh can block UDP and LiveKit's ICE/TCP port in this container only, then run test/turn as
+  # the host user. It trusts the local TURN CA (deployments/livekit-turn/ca) beside the system roots.
+  turn-check:
+    profiles: [tools]
+    image: salus-tools:dev
+    user: "0:0"
+    cap_add: [NET_ADMIN]
+    working_dir: /src
+    command: ["bash", "scripts/turn-check.sh"]
+    environment:
+      HOST_UID: ${HOST_UID:-1000}
+      HOST_GID: ${HOST_GID:-1000}
+      SSL_CERT_DIR: /etc/ssl/certs:/src/deployments/livekit-turn/ca
+      TEST_LIVEKIT_URL: http://livekit:7880
+      TEST_LIVEKIT_API_KEY: devkey
+      TEST_LIVEKIT_API_SECRET: local-only-synthetic-livekit-secret-0123456789
+    volumes:
+      - ..:/src
+      - gomod:/cache/gomod
+      - gobuild:/cache/gobuild
+    depends_on:
+      livekit: {condition: service_healthy}
 
   # The end-to-end runner: `make e2e` (build/package/playwright.Dockerfile). The Go journeys reach the API,
   # Mailpit, Postgres (salusctl and the appointment's start, as the owner) and LiveKit on the compose network; the

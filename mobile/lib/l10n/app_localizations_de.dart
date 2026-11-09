@@ -555,6 +555,9 @@ class AppLocalizationsDe extends AppLocalizations {
       'Für die Teilnahme an der Videosprechstunde benötigt Salus Zugriff auf Ihre Kamera und Ihr Mikrofon. Die Sprechstunde wird nicht aufgezeichnet.';
 
   @override
+  String get transcriptionOn => 'Transkription ist aktiv';
+
+  @override
   String get toFillIn => 'Auszufüllen';
 
   @override

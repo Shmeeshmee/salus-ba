@@ -118,7 +118,8 @@ func (s *Service) removePatient(ctx context.Context, agent string, session Sessi
 // the room, the removal and its reason ("" records none) are stored and audited first, in the room's scope, so
 // no removal goes unaudited and the other side can read why once the patient is gone; one who is not there
 // (gone already: a repeat) is not removed, and nothing is stored or audited. LiveKit is asked to remove them
-// either way, outside any transaction.
+// either way, outside any transaction, and the agent with them (SPEC.md §2 "Changed for SAL-3"): it may not stay
+// to listen once the patient's access is gone.
 func (s *Service) removeFromRoom(ctx context.Context, agent string, session Session, reason Reason) error {
 	in, err := s.Provider.Participants(ctx, session.Room)
 	if err != nil {
@@ -140,5 +141,8 @@ func (s *Service) removeFromRoom(ctx context.Context, agent string, session Sess
 			return err
 		}
 	}
-	return s.Provider.RemoveParticipant(ctx, session.Room, session.PatientIdentity)
+	if err := s.Provider.RemoveParticipant(ctx, session.Room, session.PatientIdentity); err != nil {
+		return err
+	}
+	return s.Provider.RemoveParticipant(ctx, session.Room, session.agentIdentity())
 }

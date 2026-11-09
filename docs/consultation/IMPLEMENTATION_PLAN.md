@@ -232,6 +232,35 @@ participant is disconnected (waited for as a condition), and their next join req
 After both: LiveKit's log holds none of the run's synthetic names, e-mails or appointment ids.
 Checks: all of the above, `make e2e` twice in a row.
 
+### 9. Agent grant (SAL-3)
+
+`videosession`: `Grant.Agent` (kind `agent`, subscribe only, in `repository_livekit.go`); `Participants` lists
+people only; an agent's webhook events are `EventOther`; `Service.AgentJoin(sessionID, org)` with the join's
+rules, audited; the agent removed with the patient. SPEC §2 "Changed for SAL-3".
+Tests: the grant's claims; on the compose LiveKit, the agent joins a room for two beside both people, a third
+person does not, and `Participants` omits the agent; the webhook reads an agent's events as other; `AgentJoin`
+per rule, audited, room created outside the transaction; the agent removed with the patient (unit, and the api
+and worker integration tests).
+Checks: Go.
+
+### 10. TURN (SAL-3)
+
+`deployments/livekit.yaml`: LiveKit's built-in TURN (TLS on 443, UDP on 3478, domain `turn.salus.test`, the
+livekit service's compose alias), with a synthetic certificate from `scripts/livekit-turn-cert.sh` (`make
+livekit-turn-cert`) and `allow_restricted_peer_cidrs` for the compose network only. `make turn-check`: the
+`turn-check` service (tools image with `iptables`, `NET_ADMIN`) blocks UDP and 7881/tcp in its own container and
+runs `test/turn` (tag `turn`) as the host user. Tests: no subscriber hears a synthetic Opus track without TURN;
+with relay-only ICE, the practitioner and a subscribe-only agent both do.
+Checks: Go, `make turn-check`.
+
+### 11. Clients: the transcription indicator (SAL-3)
+
+Web (`call.ts`, `CallScreen.tsx`) and mobile (`call.dart`, `call_screen.dart`): the other person is the first
+remote participant that is not an agent; an `agent` event drives W41 / M36 "Transcription is on" while an agent is
+in the room. Tests: the peer is never the agent in either order; the indicator appears and goes with the agent and
+on a lost connection.
+Checks: Web, Mobile.
+
 ## Definition of done
 
 Every package committed, `PROGRESS.md` complete, all check sets pass locally and in CI on the PR into `main`.

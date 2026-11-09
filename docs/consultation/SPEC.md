@@ -245,6 +245,34 @@ Changed after package 6 (2026-11-05, owner):
 - `livekit-client` (web) and `livekit_client` (mobile) log at a level that never prints a token or the
   signalling URL with it to the console.
 
+Changed for SAL-3 (2026-11-08, owner; Jira SAL-3, epic SAL-1 "Live Consult Intelligence"):
+
+- **TURN.** LiveKit's built-in TURN is on in compose: TLS on 443 and UDP on 3478, under `turn.salus.test` (the
+  livekit service's alias on the compose network, with a synthetic local certificate in
+  `deployments/livekit-turn/`). `make turn-check` proves it: with UDP and LiveKit's ICE/TCP port blocked, a call
+  does not connect without TURN and does through TURN over TLS on 443. The TURN ports are not published on the
+  host, so a local browser or phone does not use TURN; checking TURN from a real browser and phone waits for a
+  staging domain with a public certificate (owner: "automated test only").
+- **The agent grant.** `videosession.Service.AgentJoin(sessionID, org)` gives the transcription agent
+  (`cmd/agent`, ADR 0006; not a separate `cmd/consult`) a 5-minute token for the session's room: kind `agent`,
+  `roomJoin` and `canSubscribe` only, no publishing, no data, no name or metadata. It is called in-process with the
+  opaque ids a job carries; there is no HTTP endpoint for it. It needs what a person's join needs: the session open
+  and inside its window, the appointment booked, the patient's consent with the clinic active; every outcome is
+  audited (agent `transcription_agent`, `HOPERAT`). Its identity is `a_` and the room's random part, so nothing
+  new is stored and no migration is needed.
+- **Visible, not hidden.** The agent is not a hidden participant. Both apps show "Transcription is on" (W41,
+  M36) while a participant of kind `agent` is in the room, and never treat it as the other person (a hidden
+  participant cannot be seen by the clients, and the API would have had to be polled; owner's choice).
+- **Still one-to-one.** LiveKit does not count an agent toward `max_participants` (tested against the compose
+  LiveKit), so rooms stay at two people and a third person is still refused. `Participants` lists people only,
+  so the agent never keeps a room "occupied" when the window closes; its webhook events have no effect.
+- **Removal.** Whenever the patient is removed from a room (revocation, cancellation, the webhook's re-check), the
+  agent is removed with them, after the commit, unaudited (it is not a person).
+- **Not decided here (SAL-1's SPEC):** when the agent joins and who starts it; the speech-to-text engine and, if
+  hosted, its DPA; the lawful basis for transcribing (§4); and the patient permission text, which says "The
+  consultation is not recorded" (COPY.md, ADR 0006) and must be reviewed before any transcript is kept.
+  Nothing calls `AgentJoin` yet; `cmd/agent` is still a stub.
+
 ## 3. The LiveKit Go SDK
 
 The settled decision is to use the official server SDK (`github.com/livekit/server-sdk-go/v2`, with
@@ -265,6 +293,9 @@ comes from the same SDK. Pinned exact in `go.mod`, versions recorded in `PROGRES
 - Live audio and video pass through our LiveKit server and are not stored (ADR 0006). TURN relays encrypted
   media only.
 - Audit: as in accounts (Art. 5(2), 32).
+- The transcription agent (SAL-3) receives the call's audio once it joins. Building the grant processes nothing
+  (nothing calls it), but the basis for transcribing a consultation, and whether it needs its own granular
+  `Consent`, is **open for SAL-1's SPEC and legal review** before anything calls `AgentJoin`.
 
 ## 5. Personal data
 
@@ -296,7 +327,7 @@ Retention (defaults, **need a legal decision before production**):
 ## 6. Out of scope
 
 Recording, screen sharing, in-call chat, more than two participants, push notifications, in-person
-appointments, live transcription (and any work in `cmd/agent`), a practitioner joining from mobile, a patient
+appointments, live transcription (`cmd/agent` is still a stub; only the agent's grant is built, SAL-3), a practitioner joining from mobile, a patient
 joining from the web, break-glass, `Provenance`, FHIR writes to `Encounter`, network-quality indicators beyond
 "reconnecting", bandwidth settings, call-quality analytics.
 
@@ -318,8 +349,16 @@ joining from the web, break-glass, `Provenance`, FHIR writes to `Encounter`, net
 
 ## 8. Before production
 
+- **Production sizing (open question, SAL-3).** Not measured. To decide with the hosting provider, from a load
+  test of LiveKit on the chosen machine (LiveKit's `lk load-test`, figures into `PROGRESS.md`): concurrent
+  consultations at the peak (2 people, 2 audio and 2 video tracks each way, plus one subscribe-only agent per
+  transcribed call); the share of calls relayed through TURN, which carry each stream twice through the server
+  (in and out of the relay); egress bandwidth per call at the video resolution we allow; CPU per call for the
+  SFU; whether one node suffices or rooms need LiveKit's Redis-routed multi-node setup (compose already shares
+  Redis); and where the agent runs (beside LiveKit or apart), which depends on SAL-1's speech-to-text engine.
 - LiveKit's public domain, TLS (`wss://`) on the signalling port, and TURN over TLS (443) for networks that
-  block UDP; certificates and the domain chosen with the hosting provider.
+  block UDP; certificates and the domain chosen with the hosting provider. Locally TURN is on and tested
+  (SAL-3); production needs the public domain and certificate, and no `allow_restricted_peer_cidrs`.
 - The LiveKit API key and secret in the secret store; the dev pair never leaves compose.
 - LiveKit's node IP and ports for the deployed network (compose uses the container network).
 - Retention of `video_session` and `encounter`, and the lawful basis (§4): legal decision.

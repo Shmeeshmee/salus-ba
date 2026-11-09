@@ -17,7 +17,7 @@ TEST_SERVICES := postgres redis mailpit livekit objectstore clamd
 GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...
 GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology turn-check livekit-turn-cert lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	terminology-fetch terminology-import terminology-export \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
@@ -81,6 +81,15 @@ bench-binary-http: tools-image
 ## a time, with its p95 (docs/terminology/SPEC.md §3 "Search": under 15 ms; PROGRESS.md, package 1.1)
 bench-terminology: tools-image
 	$(GO) go test -run '^$$' -bench 'BenchmarkSearch' -benchtime=2000x -count=3 ./internal/terminology
+
+## turn-check: a call through the compose LiveKit with UDP and its ICE/TCP port blocked: it does not connect
+## without TURN, and does through TURN over TLS on 443 (docs/consultation/PROGRESS.md, package 10). Not part of make test.
+turn-check: tools-image
+	$(COMPOSE) run --rm -T turn-check
+
+## livekit-turn-cert: write a new local TURN/TLS certificate for the compose LiveKit into deployments/livekit-turn/
+livekit-turn-cert: tools-image
+	$(GO) bash scripts/livekit-turn-cert.sh
 
 ## lint: gofmt, go vet, golangci-lint (both modules), the migration immutability check, and the catalog check
 ## (the e-mail templates)

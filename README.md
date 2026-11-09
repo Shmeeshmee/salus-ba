@@ -35,11 +35,37 @@ toolchain in a container, with versions pinned in `build/package/`, `deployments
 | `make down` | Stop the containers (volumes and caches are kept) |
 
 Local stack ports, all on 127.0.0.1: API 8080 (`/healthz`, `/readyz`, `/fhir/R4/metadata`), Mailpit web UI
-8025, LiveKit 7880 (dev mode, key `devkey`, secret `secret`), Vite 5173, landing page 8090, landing Vite 5174. If another project holds one, set
+8025, LiveKit 7880 (`deployments/livekit.yaml`, the synthetic key pair `devkey`), Vite 5173, landing page 8090, landing Vite 5174. If another project holds one, set
 the matching `SALUS_*_PORT` from `configs/.env.example` in `deployments/.env` (git-ignored). Postgres and
 Redis publish no port; use `make psql`.
 
 To run a command no target covers: `docker compose -f deployments/docker-compose.yml run --rm tools <command>`.
+
+## A video consultation locally
+
+LiveKit runs in compose (`deployments/livekit.yaml`, ADR 0006), with its built-in TURN. To hold a call between
+the practitioner on the web and the patient on mobile:
+
+1. `make up` and `make web-dev`. Create a clinic, with a synthetic name and e-mail in place of the capitals:
+
+   ```sh
+   make salusctl args="create-clinic -name NAME -admin-email E-MAIL"
+   ```
+
+   Its admin and practitioner accept their invites (the e-mails are in Mailpit on 8025) and the practitioner
+   opens availability. The patient registers in the app, consents to the clinic and books a
+   slot; the join opens 10 minutes before its start. `test/e2e/booking_test.go` does the same through the API.
+   Use synthetic names and e-mails only.
+2. The practitioner signs in at http://localhost:5173, opens the appointment and selects "Join consultation".
+3. The patient runs the app (below), opens "My appointments" and selects "Join consultation".
+
+The browser on the host reaches LiveKit on 127.0.0.1: signalling on 7880, media on 7882/udp or 7881/tcp. TURN
+(TLS on 443, UDP on 3478) is on the compose network only, under `turn.salus.test` with a synthetic certificate in
+`deployments/livekit-turn/`; a host browser or phone cannot resolve that name and connects directly as before.
+`make turn-check` proves TURN: it blocks UDP and LiveKit's ICE/TCP port in its own container, shows that a call
+does not connect without TURN, and that it does through TURN over TLS on 443 (`test/turn`). `make
+livekit-turn-cert` writes a new local certificate. Production TURN needs LiveKit's public domain and a real
+certificate (docs/consultation/SPEC.md §8).
 
 ## Mobile on a device or emulator
 

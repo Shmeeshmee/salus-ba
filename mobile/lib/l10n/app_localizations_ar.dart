@@ -543,6 +543,9 @@ class AppLocalizationsAr extends AppLocalizations {
       'للانضمام إلى استشارة الفيديو، يحتاج Salus إلى الكاميرا والميكروفون. لا يتم تسجيل الاستشارة.';
 
   @override
+  String get transcriptionOn => 'النسخ النصي مفعّل';
+
+  @override
   String get toFillIn => 'بانتظار التعبئة';
 
   @override

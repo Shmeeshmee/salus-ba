@@ -152,6 +152,7 @@
   "consultationNotAvailable": "Diese Sprechstunde ist nicht verfügbar.",
   "cannotConnect": "Die Videoverbindung konnte nicht hergestellt werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
   "whyCameraAndMicrophone": "Für die Teilnahme an der Videosprechstunde benötigt Salus Zugriff auf Ihre Kamera und Ihr Mikrofon. Die Sprechstunde wird nicht aufgezeichnet.",
+  "transcriptionOn": "Transkription ist aktiv",
   "toFillIn": "Auszufüllen",
   "inProgress": "In Bearbeitung",
   "submittedStatus": "Abgesendet",

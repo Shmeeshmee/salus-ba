@@ -65,5 +65,6 @@
   "patientDidNotJoin": "Pacijent se nije pridružio",
   "practitionerJoinedAt": "Doktor se pridružio u {time}",
   "practitionerDidNotJoin": "Doktor se nije pridružio",
-  "timePassed": "Vrijeme za pridruživanje ovoj konsultaciji je isteklo."
+  "timePassed": "Vrijeme za pridruživanje ovoj konsultaciji je isteklo.",
+  "transcriptionOn": "Transkripcija je uključena"
 }

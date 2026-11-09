@@ -14,6 +14,7 @@ enum _Phase { check, joining, call, reconnecting, lost, ended }
 
 const _nobody = Peer(present: false, camera: false, microphone: false);
 const _ink = Color(0xFF0E1512);
+const _mint = Color(0xFF34D399); // the web app's --color-mint: the transcription badge's dot
 
 /// The patient's video consultation (docs/consultation/SPEC.md "Client states"): the device check, joining,
 /// waiting for the practitioner, the call, reconnecting, and the end. The token comes from our API on every join
@@ -39,6 +40,7 @@ class _CallScreenState extends State<CallScreen> {
   ({String? title, String line})? _end;
   Room? _room;
   var _peer = _nobody;
+  var _agent = false;
   var _peerName = '';
   var _seen = false;
   var _settings = const Settings(camera: false, microphone: false);
@@ -168,6 +170,8 @@ class _CallScreenState extends State<CallScreen> {
           _peer = peer;
           if (peer.present) _seen = true;
         });
+      case AgentChanged(:final present):
+        setState(() => _agent = present);
       case Reconnecting():
         setState(() {
           _phase = _Phase.reconnecting;
@@ -186,6 +190,7 @@ class _CallScreenState extends State<CallScreen> {
     setState(() {
       _room = null;
       _peer = _nobody;
+      _agent = false;
     });
     switch (ending) {
       case Ending.replaced:
@@ -302,6 +307,9 @@ class _CallScreenState extends State<CallScreen> {
             ),
             if (_peer.present && !_peer.microphone && name.isNotEmpty)
               PositionedDirectional(start: 12, top: 12, child: _badge(context.t.peerMuted(name))),
+            // While the transcription agent is in the room, a badge says so (SPEC.md "Changed for SAL-3").
+            if (room != null && _agent)
+              PositionedDirectional(end: 12, top: 12, child: Semantics(liveRegion: true, child: _transcriptionBadge(context.t.transcriptionOn))),
             if (room != null && _settings.camera)
               PositionedDirectional(
                 end: 12,
@@ -322,6 +330,24 @@ class _CallScreenState extends State<CallScreen> {
       ),
     );
   }
+
+  static Widget _transcriptionBadge(String text) => DecoratedBox(
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 6,
+        children: [
+          const DecoratedBox(
+            decoration: BoxDecoration(color: _mint, shape: BoxShape.circle),
+            child: SizedBox(width: 8, height: 8),
+          ),
+          Text(text),
+        ],
+      ),
+    ),
+  );
 
   static Widget _badge(String text) => DecoratedBox(
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),

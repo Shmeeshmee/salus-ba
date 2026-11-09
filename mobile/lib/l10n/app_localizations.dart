@@ -1026,6 +1026,12 @@ abstract class AppLocalizations {
   /// **'To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded.'**
   String get whyCameraAndMicrophone;
 
+  /// M36: while the transcription agent is in the call. Proposed, waiting for the owner (consultation COPY.md).
+  ///
+  /// In en, this message translates to:
+  /// **'Transcription is on'**
+  String get transcriptionOn;
+
   /// M1.
   ///
   /// In en, this message translates to:

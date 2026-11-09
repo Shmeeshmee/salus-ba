@@ -542,6 +542,9 @@ class AppLocalizationsSr extends AppLocalizations {
       'Да бисте се укључили у видео-консултацију, Salus треба приступ вашој камери и микрофону. Консултација се не снима.';
 
   @override
+  String get transcriptionOn => 'Транскрипција је укључена';
+
+  @override
   String get toFillIn => 'За попуњавање';
 
   @override
@@ -1486,6 +1489,9 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
       'Да бисте се укључили у видео-консултацију, Salus треба приступ вашој камери и микрофону. Консултација се не снима.';
 
   @override
+  String get transcriptionOn => 'Транскрипција је укључена';
+
+  @override
   String get toFillIn => 'За попуњавање';
 
   @override
@@ -2428,6 +2434,9 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   @override
   String get whyCameraAndMicrophone =>
       'Da biste se uključili u video-konsultaciju, Salus treba pristup vašoj kameri i mikrofonu. Konsultacija se ne snima.';
+
+  @override
+  String get transcriptionOn => 'Transkripcija je uključena';
 
   @override
   String get toFillIn => 'Za popunjavanje';

@@ -242,6 +242,27 @@ describe('CallScreen: in the call', () => {
     expect(screen.getByText('Ada Example is muted')).toBeTruthy()
   })
 
+  it('says transcription is on while the agent is in the room, and not before or after', async () => {
+    const { last } = await inCall()
+    act(() => last().emit(peer(true)))
+    expect(screen.queryByText('Transcription is on')).toBeNull()
+
+    act(() => last().emit({ type: 'agent', present: true }))
+    expect(screen.getByRole('status', { name: 'Transcription is on' })).toBeTruthy()
+
+    act(() => last().emit({ type: 'agent', present: false }))
+    expect(screen.queryByText('Transcription is on')).toBeNull()
+  })
+
+  it('stops saying transcription is on once the connection is lost', async () => {
+    const { last } = await inCall()
+    act(() => last().emit({ type: 'agent', present: true }))
+
+    act(() => last().emit({ type: 'disconnected', ending: 'lost' }))
+
+    expect(screen.queryByText('Transcription is on')).toBeNull()
+  })
+
   it('turns the microphone and the camera off and on', async () => {
     const { last } = await inCall()
 

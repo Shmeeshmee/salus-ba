@@ -152,6 +152,7 @@
   "consultationNotAvailable": "Bu görüşmeye erişilemiyor.",
   "cannotConnect": "Görüntülü bağlantı başlatılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.",
   "whyCameraAndMicrophone": "Görüntülü görüşmeye katılmak için Salus'un kameranıza ve mikrofonunuza erişmesi gerekir. Görüşme kaydedilmez.",
+  "transcriptionOn": "Transkripsiyon açık",
   "toFillIn": "Doldurulacak",
   "inProgress": "Devam ediyor",
   "submittedStatus": "Gönderildi",

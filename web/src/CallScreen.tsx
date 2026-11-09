@@ -39,6 +39,7 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
   const [phase, setPhase] = useState<Phase>({ name: 'check' })
   const [room, setRoom] = useState<Room>()
   const [peer, setPeer] = useState<Peer>(nobody)
+  const [agent, setAgent] = useState(false)
   const [peerName, setPeerName] = useState('')
   const [gone, setGone] = useState<Gone>()
   const [local, setLocal] = useState({ camera: false, microphone: false })
@@ -111,6 +112,7 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
 
   function onEvent(e: CallEvent) {
     if (e.type === 'peer') return onPeer(e.peer)
+    if (e.type === 'agent') return setAgent(e.present)
     if (e.type === 'reconnecting') {
       setReconnected(false)
       return setPhase({ name: 'reconnecting' })
@@ -122,6 +124,7 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
     if (e.ending === 'left') return
     setRoom(undefined)
     setPeer(nobody)
+    setAgent(false)
     if (e.ending === 'replaced') {
       generation.current++
       return setPhase({ name: 'left', otherTab: true })
@@ -159,6 +162,7 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
     generation.current++
     setRoom(undefined)
     setPeer(nobody)
+    setAgent(false)
     setPhase({ name: 'left' })
   }
 
@@ -218,7 +222,7 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
 
   return (
     <section className="call">
-      <Stage room={room} peer={peer} name={peerName} gone={gone} reconnecting={phase.name === 'reconnecting'} cameraOn={local.camera} />
+      <Stage room={room} peer={peer} name={peerName} gone={gone} reconnecting={phase.name === 'reconnecting'} cameraOn={local.camera} agent={agent} />
       <Notice message={reconnected ? t('consultation.reconnected') : undefined} />
       <div className="call-controls">
         <button
@@ -251,11 +255,12 @@ export function CallScreen({ api, id, media = liveKit }: Props) {
   )
 }
 
-type StageProps = { room?: Room; peer: Peer; name: string; gone?: Gone; reconnecting: boolean; cameraOn: boolean }
+type StageProps = { room?: Room; peer: Peer; name: string; gone?: Gone; reconnecting: boolean; cameraOn: boolean; agent: boolean }
 
 // Stage is the other person's video, large, with this side's own camera small in a corner. LiveKit's tracks are
 // put into the two video elements by the room. Lines that need the patient's name are left out without one.
-function Stage({ room, peer, name, gone, reconnecting, cameraOn }: StageProps) {
+// While the transcription agent is in the room, a line says so (SPEC §2 "Changed for SAL-3").
+function Stage({ room, peer, name, gone, reconnecting, cameraOn, agent }: StageProps) {
   const t = useT()
   const remote = useRef<HTMLVideoElement>(null)
   const own = useRef<HTMLVideoElement>(null)
@@ -269,6 +274,12 @@ function Stage({ room, peer, name, gone, reconnecting, cameraOn }: StageProps) {
         {peer.present && !peer.camera && name && <p>{t('consultation.peerCameraOff', { name })}</p>}
       </div>
       {peer.present && !peer.microphone && name && <p className="badge">{t('consultation.peerMuted', { name })}</p>}
+      {agent && (
+        <p className="transcription" role="status" aria-label={t('consultation.transcriptionOn')}>
+          <span className="dot" aria-hidden="true" />
+          {t('consultation.transcriptionOn')}
+        </p>
+      )}
       <video ref={own} className={cameraOn ? 'own' : 'own hidden'} muted playsInline autoPlay />
       {reconnecting && (
         <p className="reconnecting" role="status">

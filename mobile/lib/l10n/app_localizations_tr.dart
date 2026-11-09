@@ -540,6 +540,9 @@ class AppLocalizationsTr extends AppLocalizations {
       'Görüntülü görüşmeye katılmak için Salus\'un kameranıza ve mikrofonunuza erişmesi gerekir. Görüşme kaydedilmez.';
 
   @override
+  String get transcriptionOn => 'Transkripsiyon açık';
+
+  @override
   String get toFillIn => 'Doldurulacak';
 
   @override

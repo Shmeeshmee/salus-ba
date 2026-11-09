@@ -152,6 +152,7 @@
   "consultationNotAvailable": "Cette consultation n’est pas disponible.",
   "cannotConnect": "La connexion vidéo n’a pas pu être établie. Vérifiez votre connexion et réessayez.",
   "whyCameraAndMicrophone": "Pour rejoindre la consultation vidéo, Salus a besoin de votre caméra et de votre micro. La consultation n’est pas enregistrée.",
+  "transcriptionOn": "Transcription activée",
   "toFillIn": "À remplir",
   "inProgress": "En cours",
   "submittedStatus": "Envoyé",
