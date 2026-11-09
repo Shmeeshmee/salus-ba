@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/Shmeeshmee/salus/internal/access"
@@ -54,9 +55,10 @@ func inTx(ctx context.Context) error {
 // fakeRepository holds the suggestions by id, written only in a clinic's scope: what was suggested never
 // changes, its status does.
 type fakeRepository struct {
-	f    *fixture
-	err  error
-	rows map[string]suggestion.Event
+	f          *fixture
+	err        error
+	failInsert error // Insert's alone
+	rows       map[string]suggestion.Event
 }
 
 func (r *fakeRepository) Insert(ctx context.Context, e suggestion.Event) (bool, error) {
@@ -65,6 +67,9 @@ func (r *fakeRepository) Insert(ctx context.Context, e suggestion.Event) (bool, 
 	}
 	if r.err != nil {
 		return false, r.err
+	}
+	if r.failInsert != nil {
+		return false, r.failInsert
 	}
 	if r.f.scope == "" {
 		return false, errors.New("write outside a clinic's scope")
@@ -194,6 +199,7 @@ func (r *fakeRecords) Allowed(ctx context.Context, _ appointment.Caller, id stri
 type fakePublisher struct {
 	err       error
 	published []published
+	mu        sync.Mutex
 	inTx      bool // a publish was made inside a transaction
 }
 
@@ -203,6 +209,8 @@ type published struct {
 }
 
 func (p *fakePublisher) Publish(ctx context.Context, encounterID string, envelope []byte) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if ctx.Value(txKey{}) != nil {
 		p.inTx = true
 	}

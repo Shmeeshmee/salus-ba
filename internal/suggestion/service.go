@@ -109,12 +109,15 @@ func (s *Service) Record(ctx context.Context, agent string, e Event) error {
 	return refused
 }
 
-// systemEvent is the agent's audit event of interaction (a create or an update) on count suggestions of the
+// systemEvent is the agent's audit event of interaction (a read, a create or an update) on count suggestions of the
 // encounter, for operations.
 func systemEvent(agent string, enc encounter.Encounter, interaction string, outcome auditevent.Outcome, count int64) auditevent.AuditEvent {
 	action := auditevent.ActionCreate
-	if interaction == auditevent.CodeUpdate {
+	switch interaction {
+	case auditevent.CodeUpdate:
 		action = auditevent.ActionUpdate
+	case auditevent.CodeRead:
+		action = auditevent.ActionRead
 	}
 	return auditevent.AuditEvent{
 		Type:            auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},

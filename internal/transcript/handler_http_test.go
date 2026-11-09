@@ -70,11 +70,17 @@ func signedIn(context.Context) (appointment.Caller, bool, error) { return pract,
 
 func newServer(t *testing.T, svc *stubTranscripts, caller func(context.Context) (appointment.Caller, bool, error)) *httptest.Server {
 	t.Helper()
+	return newServerWith(t, svc, nil, caller)
+}
+
+// newServerWith is newServer with the commands the client's messages go to.
+func newServerWith(t *testing.T, svc *stubTranscripts, commands transcript.Commands, caller func(context.Context) (appointment.Caller, bool, error)) *httptest.Server {
+	t.Helper()
 	if svc.afters == nil {
 		svc.afters = make(chan string, 100)
 	}
 	mux := http.NewServeMux()
-	h := transcript.NewHTTPHandler(svc, caller, clock.System{}, slog.New(slog.DiscardHandler))
+	h := transcript.NewHTTPHandler(svc, commands, caller, clock.System{}, slog.New(slog.DiscardHandler))
 	h.Routes(mux)
 	h.StreamRoutes(mux)
 	srv := httptest.NewServer(mux)
