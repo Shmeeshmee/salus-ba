@@ -210,3 +210,6 @@ templates when `actions` changes). Nothing in `api/openapi.yaml` was added for t
   mobile), out of SAL-9's scope by the owner's decision of 2026-11-09.
 - Native-speaker review of the drafted bs, hr and sr strings, and the lawyer's review of W9 in each language.
 - An undo for a dismissed suggestion, and showing a suggestion's confidence, if the owner wants either.
+- "Generating…" can clear early when a regenerate replays an unchanged draft (Copilot, PR #34, declined there):
+  the page then shows the previous draft until the new one arrives. The fix depends on how SAL-8 versions a
+  redraft over SAL-6's replay; for SAL-8/SAL-10.
