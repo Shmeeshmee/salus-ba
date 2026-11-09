@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type KeyboardEvent } from 'react'
 import type { ConsultActions, ConsultMessage, ConsultState, SuggestionEvent, TranscriptEvent } from './consult'
 import { Documents } from './Documents'
 import { useFormat, useT } from './i18n/useT'
@@ -68,9 +68,10 @@ export function ConsultSide({ appointmentId, state, dispatch, actions, zone }: S
     setCited((c) => ({ ids, at: c.at + 1 }))
   }
 
-  function key(e: React.KeyboardEvent) {
+  function key(e: KeyboardEvent) {
     const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
     if (!step) return
+    e.preventDefault()
     const next = tabs[(tabs.indexOf(tab) + step + tabs.length) % tabs.length]
     setTab(next)
     document.getElementById(`${id}-${next}-tab`)?.focus()

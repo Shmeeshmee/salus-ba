@@ -19,6 +19,7 @@ describe('decodeMessage', () => {
     ['an unknown type', '{"type":"dubbing","version":1,"payload":{}}'],
     ['a later version', '{"type":"transcript","version":2,"payload":{}}'],
     ['an array', '[]'],
+    ['an array payload', '{"type":"transcript","version":1,"payload":[]}'],
   ])('drops %s', (_, frame) => {
     expect(decodeMessage(frame)).toBeUndefined()
   })

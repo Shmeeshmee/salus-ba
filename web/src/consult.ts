@@ -47,7 +47,7 @@ export function decodeMessage(frame: string): ConsultMessage | undefined {
   if (typeof m !== 'object' || m === null || Array.isArray(m)) return undefined
   const { type, version, payload } = m as Record<string, unknown>
   if (typeof type !== 'string' || !types.has(type) || version !== 1) return undefined
-  if (typeof payload !== 'object' || payload === null) return undefined
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined
   return m as ConsultMessage
 }
 

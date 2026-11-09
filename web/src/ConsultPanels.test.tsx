@@ -107,6 +107,20 @@ function sized(list: HTMLElement, top: number) {
   Object.defineProperty(list, 'scrollTop', { configurable: true, writable: true, value: top })
 }
 
+describe('ConsultPanels: the tabs', () => {
+  it('moves between tabs with the arrow keys, without scrolling the page', () => {
+    renderPanels()
+
+    expect(fireEvent.keyDown(tab('Transcript'), { key: 'ArrowRight' })).toBe(false) // the default was prevented
+    expect(tab('Suggestions').getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(tab('Suggestions'))
+    fireEvent.keyDown(tab('Suggestions'), { key: 'ArrowLeft' })
+    fireEvent.keyDown(tab('Transcript'), { key: 'ArrowLeft' })
+    expect(tab('Documents').getAttribute('aria-selected')).toBe('true')
+    expect(fireEvent.keyDown(tab('Documents'), { key: 'Enter' })).toBe(true)
+  })
+})
+
 describe('ConsultPanels: the transcript', () => {
   it('says it is empty until someone speaks', () => {
     renderPanels()
