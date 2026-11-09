@@ -101,7 +101,9 @@ func (s *Service) signable(ctx context.Context, c appointment.Caller, id string,
 	return Draft{}, encounter.Encounter{}, refused, s.record(ctx, e)
 }
 
-func (s *Service) lockedDraft(ctx context.Context, id string) (Draft, error) { return s.Repo.Draft(ctx, id, true) }
+func (s *Service) lockedDraft(ctx context.Context, id string) (Draft, error) {
+	return s.Repo.Draft(ctx, id, true)
+}
 
 // reach finds a draft by find in the caller's clinic and checks the caller may reach its encounter: the
 // encounter as far as the caller may know it with a refusal (errRefused).

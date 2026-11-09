@@ -226,8 +226,14 @@ func TestDrafts_SaveReplaceAndSign(t *testing.T) {
 		t.Errorf("Sign() again = %v, want ErrVersionMismatch", err)
 	}
 	for name, read := range map[string]func(context.Context, composition.Repository) error{
-		"draft":     func(ctx context.Context, r composition.Repository) error { _, err := r.Draft(ctx, got.ID, true); return err },
-		"reference": func(ctx context.Context, r composition.Repository) error { _, err := r.ByDocumentReference(ctx, "x"); return err },
+		"draft": func(ctx context.Context, r composition.Repository) error {
+			_, err := r.Draft(ctx, got.ID, true)
+			return err
+		},
+		"reference": func(ctx context.Context, r composition.Repository) error {
+			_, err := r.ByDocumentReference(ctx, "x")
+			return err
+		},
 		"provenance": func(ctx context.Context, r composition.Repository) error {
 			_, err := r.ByProvenance(ctx, signed.ProvenanceID)
 			return err

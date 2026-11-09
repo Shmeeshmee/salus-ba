@@ -108,7 +108,9 @@ func (f *fixture) openPDF(t *testing.T, d composition.Draft) []byte {
 // encounter's practitioner, a draft the caller does not see, and after a revocation.
 func TestSign_Refusals(t *testing.T) {
 	t.Parallel()
-	edit := func(change func([]composition.Value) []composition.Value) []composition.Value { return change(values()) }
+	edit := func(change func([]composition.Value) []composition.Value) []composition.Value {
+		return change(values())
+	}
 	for name, tt := range map[string]struct {
 		c       appointment.Caller
 		id      string // "" for the draft

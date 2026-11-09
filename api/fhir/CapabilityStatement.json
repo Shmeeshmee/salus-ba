@@ -154,6 +154,21 @@
           ]
         },
         {
+          "type": "Composition",
+          "interaction": [{ "code": "read" }],
+          "documentation": "A document drafted during a consultation from one of the clinic's templates: preliminary while it is drafted and edited, final once the encounter's practitioner signed it (attester, mode legal). Each field of the template is a section, its value the narrative; a field with no value has an emptyReason. Read by the encounter's practitioner only, while the patient's consent is active; anyone else gets 403 or 404. No create or update: drafts are written and signed through the JSON API."
+        },
+        {
+          "type": "DocumentReference",
+          "interaction": [{ "code": "read" }],
+          "documentation": "The PDF of a signed Composition (context.related), linked to its Encounter; the attachment's url is the JSON API's download of the PDF. Read under the Composition's rule."
+        },
+        {
+          "type": "Provenance",
+          "interaction": [{ "code": "read" }],
+          "documentation": "Who signed a Composition and when: its targets are the Composition's signed version and its DocumentReference. Read under the Composition's rule."
+        },
+        {
           "type": "Questionnaire",
           "interaction": [{ "code": "read" }, { "code": "search-type" }],
           "documentation": "A version of one of the clinic's questionnaires: draft, active (published, never changed again) or retired. Read and search: staff of the clinic, and a patient the versions their own questionnaire responses answer; anyone else gets 404 on a read; a search gives staff of another clinic nothing, and a patient without a profile 403. No create or update: questionnaires are built through the JSON API. Help text is a child display item with the questionnaire-itemControl extension, code help.",

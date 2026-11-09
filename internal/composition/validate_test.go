@@ -55,23 +55,29 @@ func TestValidateTemplate_RefusesAnInvalidTemplateNamingTheFields(t *testing.T) 
 		change func(*composition.TemplateContent)
 		keys   []string
 	}{
-		"a blank title":          {func(c *composition.TemplateContent) { c.Title = " " }, nil},
-		"a long title":           {func(c *composition.TemplateContent) { c.Title = long }, nil},
-		"an unknown language":    {func(c *composition.TemplateContent) { c.Language = "xx" }, nil},
-		"an unknown status":      {func(c *composition.TemplateContent) { c.Status = "retired" }, nil},
-		"a type no LOINC code":   {func(c *composition.TemplateContent) { c.TypeCode = "referral" }, nil},
-		"no fields":              {func(c *composition.TemplateContent) { c.Fields, c.Translations = nil, nil }, nil},
-		"a key no identifier":    {func(c *composition.TemplateContent) { c.Fields[1].Key = "Tests!" }, []string{"Tests!"}},
-		"a key twice":            {func(c *composition.TemplateContent) { c.Fields[1].Key = "findings" }, []string{"findings"}},
-		"an unknown type":        {func(c *composition.TemplateContent) { c.Fields[2].Type = "number" }, []string{"control"}},
-		"a blank label":          {func(c *composition.TemplateContent) { c.Fields[0].Label = "" }, []string{"findings"}},
-		"a long label":           {func(c *composition.TemplateContent) { c.Fields[3].Label = long }, []string{"diagnosis"}},
-		"a long instruction":     {func(c *composition.TemplateContent) { c.Fields[0].Instruction = strings.Repeat("x", 1001) }, []string{"findings"}},
-		"a translation's label":  {func(c *composition.TemplateContent) { c.Translations[0].Fields["tests"] = composition.FieldTexts{} }, []string{"tests"}},
-		"a translation missing":  {func(c *composition.TemplateContent) { delete(c.Translations[0].Fields, "control") }, []string{"control"}},
-		"an instruction extra":   {func(c *composition.TemplateContent) { c.Translations[0].Fields["tests"] = composition.FieldTexts{Label: "x", Instruction: "y"} }, []string{"tests"}},
-		"an instruction lacking": {func(c *composition.TemplateContent) { c.Translations[0].Fields["findings"] = composition.FieldTexts{Label: "x"} }, []string{"findings"}},
-		"an unknown key":         {func(c *composition.TemplateContent) { c.Translations[0].Fields["other"] = composition.FieldTexts{Label: "x"} }, nil},
+		"a blank title":         {func(c *composition.TemplateContent) { c.Title = " " }, nil},
+		"a long title":          {func(c *composition.TemplateContent) { c.Title = long }, nil},
+		"an unknown language":   {func(c *composition.TemplateContent) { c.Language = "xx" }, nil},
+		"an unknown status":     {func(c *composition.TemplateContent) { c.Status = "retired" }, nil},
+		"a type no LOINC code":  {func(c *composition.TemplateContent) { c.TypeCode = "referral" }, nil},
+		"no fields":             {func(c *composition.TemplateContent) { c.Fields, c.Translations = nil, nil }, nil},
+		"a key no identifier":   {func(c *composition.TemplateContent) { c.Fields[1].Key = "Tests!" }, []string{"Tests!"}},
+		"a key twice":           {func(c *composition.TemplateContent) { c.Fields[1].Key = "findings" }, []string{"findings"}},
+		"an unknown type":       {func(c *composition.TemplateContent) { c.Fields[2].Type = "number" }, []string{"control"}},
+		"a blank label":         {func(c *composition.TemplateContent) { c.Fields[0].Label = "" }, []string{"findings"}},
+		"a long label":          {func(c *composition.TemplateContent) { c.Fields[3].Label = long }, []string{"diagnosis"}},
+		"a long instruction":    {func(c *composition.TemplateContent) { c.Fields[0].Instruction = strings.Repeat("x", 1001) }, []string{"findings"}},
+		"a translation's label": {func(c *composition.TemplateContent) { c.Translations[0].Fields["tests"] = composition.FieldTexts{} }, []string{"tests"}},
+		"a translation missing": {func(c *composition.TemplateContent) { delete(c.Translations[0].Fields, "control") }, []string{"control"}},
+		"an instruction extra": {func(c *composition.TemplateContent) {
+			c.Translations[0].Fields["tests"] = composition.FieldTexts{Label: "x", Instruction: "y"}
+		}, []string{"tests"}},
+		"an instruction lacking": {func(c *composition.TemplateContent) {
+			c.Translations[0].Fields["findings"] = composition.FieldTexts{Label: "x"}
+		}, []string{"findings"}},
+		"an unknown key": {func(c *composition.TemplateContent) {
+			c.Translations[0].Fields["other"] = composition.FieldTexts{Label: "x"}
+		}, nil},
 		"a blank title translated": {func(c *composition.TemplateContent) { c.Translations[0].Title = "" }, nil},
 		"the original translated":  {func(c *composition.TemplateContent) { c.Translations[0].Language = "bs" }, nil},
 		"a language twice": {func(c *composition.TemplateContent) {

@@ -53,7 +53,9 @@ func TestRead_TheSignedDocumentsResources(t *testing.T) {
 	}
 	f.audit.events = nil
 	for name, read := range map[string]func(c appointment.Caller) (composition.Document, error){
-		"Composition/" + d.ID: func(c appointment.Caller) (composition.Document, error) { return f.svc.Composition(t.Context(), c, d.ID) },
+		"Composition/" + d.ID: func(c appointment.Caller) (composition.Document, error) {
+			return f.svc.Composition(t.Context(), c, d.ID)
+		},
 		"DocumentReference/" + signed.DocumentReferenceID: func(c appointment.Caller) (composition.Document, error) {
 			return f.svc.DocumentReference(t.Context(), c, signed.DocumentReferenceID)
 		},
