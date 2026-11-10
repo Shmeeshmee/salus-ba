@@ -286,6 +286,22 @@ describe('CallScreen: in the call', () => {
     expect(screen.queryByText('Transcription is on')).toBeNull()
   })
 
+  // Copilot on #49: a status read for a connection the screen has left changes nothing.
+  it('ignores a status that answers after the practitioner left and joined again', async () => {
+    const answers: ((r: Response) => void)[] = []
+    const { last } = await inCall({ routes: { [statusGet]: () => new Promise<Response>((resolve) => answers.push(resolve)) } })
+    act(() => last().emit({ type: 'agent', present: false }))
+    await vi.waitFor(() => expect(answers.length).toBeGreaterThanOrEqual(2))
+    const stale = answers.splice(0)
+    fireEvent.click(button('Leave'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Join again' }))
+    await screen.findByRole('button', { name: 'Leave' })
+    await vi.waitFor(() => expect(answers.length).toBe(1))
+    await act(async () => answers[0](Response.json({ ...open, transcription: true })))
+    await act(async () => stale.forEach((answer) => answer(Response.json(open))))
+    expect(screen.queryByText(/Transcription is off/)).toBeNull()
+  })
+
   it('says nothing of transcription while the patient has agreed and the agent is on its way', async () => {
     await inCall({ routes: { [statusGet]: () => Response.json({ ...open, transcription: true }) } })
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Leave' })).toBeTruthy())

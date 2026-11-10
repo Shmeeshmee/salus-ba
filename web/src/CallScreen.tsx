@@ -78,10 +78,13 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
     return () => clearTimeout(timer)
   }, [reconnected])
 
+  // readStatus reads the consultation's status; whether it is transcribed is kept only while the screen is still
+  // on the connection it was read for (generation), so a late answer after leaving changes nothing.
   async function readStatus(): Promise<Status | undefined> {
+    const gen = generation.current
     const res = await attempt(api.GET('/appointments/{id}/consultation', params))
     if (!res.ok) return undefined
-    setTranscribed(res.data.transcription === true)
+    if (gen === generation.current) setTranscribed(res.data.transcription === true)
     return res.data
   }
 
