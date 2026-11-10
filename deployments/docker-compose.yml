@@ -3,6 +3,8 @@
 # starts the stack only. Postgres and Redis publish no host ports: everything reaches them on the compose
 # network (`make psql` opens a client). Published ports bind to 127.0.0.1 and can be moved with the SALUS_*_PORT
 # variables in deployments/.env (see configs/.env.example) when another project holds the defaults.
+# Every long-running service has `restart: unless-stopped`, so the stack comes back after a host reboot; the
+# one-shot migrate and the profile toolchains do not.
 name: salus
 
 x-app: &app
@@ -58,6 +60,7 @@ services:
       POSTGRES_PASSWORD: salus # local only; synthetic data only
       POSTGRES_DB: salus
     volumes: [postgres:/var/lib/postgresql]
+    restart: unless-stopped
     # Over TCP, as every client connects: on a fresh volume the image first runs a setup server on its Unix
     # socket only, then restarts; a socket check passed during setup and migrate failed to connect.
     healthcheck:
@@ -71,6 +74,7 @@ services:
     # Temporary state only (ADR 0005): nothing is written to disk. 256 logical databases so redistest can
     # give each parallel test its own.
     command: ["redis-server", "--save", "", "--appendonly", "no", "--databases", "256"]
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 1s
@@ -171,6 +175,7 @@ services:
     networks:
       default:
         aliases: [turn.salus.test] # the TURN domain of livekit.yaml and its local certificate
+    restart: unless-stopped
     ports:
       - "127.0.0.1:${SALUS_LIVEKIT_PORT:-7880}:7880"
       - "127.0.0.1:7881:7881"
@@ -229,6 +234,7 @@ services:
   mailpit:
     image: axllent/mailpit:v1.33.0
     ports: ["127.0.0.1:${SALUS_MAILPIT_PORT:-8025}:8025"]
+    restart: unless-stopped
 
   # Marketing landing page (landing/): the prerendered React app on nginx, 127.0.0.1:8090. Fonts are bundled,
   # so the page makes no third-party request. `make landing` starts it alone.
