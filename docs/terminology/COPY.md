@@ -27,3 +27,12 @@ Written by a package during the unattended run of 2026-11-07; approved by the ow
   "Close".
 - T15 `terminology.language.bs`, `.hr`, `.srLatn`, `.srCyrl` (cell captions and T11's `{language}`, beside T3's
   "Latin" and "English"): "Bosnian", "Croatian", "Serbian (Latin)", "Serbian (Cyrillic)".
+
+## Added by SAL-13, waiting for the owner's approval
+
+- T16 `terminology.explainNote` (web, under a term's explanation in its tooltip; `legal`): "Informational, not a
+  diagnosis". Beside it, until a reviewer approved the explanation, T8 "Not reviewed yet" (reused).
+- Mobile (`mobile/lib/l10n`, all ten languages): `termExplanationNote` ("Informational, not a diagnosis", `[legal]`),
+  `termNotReviewed` ("Not reviewed yet"), `termClose` ("Close", the explanation dialog's button).
+- The 2,160 explanations themselves (`assets/terminology/explanations.draft.jsonl`) are the doctor partner's to
+  review, in the review panel.

@@ -143,17 +143,54 @@ The review panel in `web/` (`/term-review`), built on the contract of 00037 (doc
 - **Concurrency.** A write locks its term (`SELECT … FOR UPDATE`) and checks the version read: 412
   `version_conflict` when the entry changed.
 
+### Explanations (SAL-13)
+
+Plain-language explanations of the terms, shown where a term is said or written: the practitioner's live transcript,
+captions and Documents panel in `web/`, the patient's signed documents and transcript copy in `mobile/`. Decided by the
+owner 2026-11-10 (docs/plans/v1-finish.md "Decisions"); the rest by SAL-13, recorded in its PR.
+
+- **The drafts.** `assets/terminology/explanations.draft.jsonl`: 216 common terms (the 300 most common by `rank`, less
+  everyday body parts, chemicals, social events and sensitive topics a tooltip should not explain, plus the tonsil)
+  in each of the ten app languages, written by Claude in the SAL-13 session, one or two plain sentences each,
+  informational only (no advice, no diagnosis). `salusctl terminology import-explanations <file>` (run by `make
+  terminology-import`) adds each one a term does not have yet as `unreviewed` with no reviewer, through the review
+  panel's repository methods, so they land in the review queue; it never overwrites one that is there. No language
+  model is called at runtime and no processor is added. `assets/terminology/README.md` lists the selection and the
+  points the translators were unsure of, for the doctor partner.
+- **Tagging.** A text is tagged by the glossary's matching (`terminology.Service.Tag`, the same phrases as `Glossary`:
+  one to three words equal to a label in the text's language, case and accents aside, the last word with up to three
+  more letters), in its own language, only for terms with an explanation; overlapping terms leave the one that
+  starts first, of those the longest. A span is the UTF-16 offsets of the words, as JavaScript and Dart index
+  strings. An overlay only: no stored text and no signed document is changed, and the spans are never stored.
+- **Where the texts are tagged.** Where they are read, under their own access rule, so no text travels anywhere new:
+  - the live transcript: the agent tags each final line, its original in the speaker's language and its
+    translation in the listener's, before it publishes it (`TranscriptEvent.terms`); a failure publishes the line
+    without terms;
+  - the stored transcript (`GET /encounters/{id}/transcript`, the patient's copy): tagged as it is read, each line's
+    language from its stored tag (Serbian's script from its letters, as the speech locale is one for both);
+  - a document: `GET /compositions/{id}/terms`, per field and line as the Composition's narrative has them, under the
+    Composition's rule and audited as its read.
+- **The explanations.** `GET /terminology/explanations?language=` gives every term's explanation in the viewer's
+  language, else in English, for any signed-in account (a patient's too); one that needs changes is not given. Reference
+  data: no patient data is sent, nothing is audited, cached by the browser for five minutes. The page looks the
+  tagged terms up in it.
+- **On screen.** Web: a dotted underline and a tooltip on hover and on focus (in the captions, whose text is clipped
+  to two lines, the caption's own tooltip lists its terms); mobile: a tap opens a dialog. Each explanation is labelled
+  "Informational, not a diagnosis", with "Not reviewed yet" until a reviewer approved it; an English fallback carries
+  its language.
+
 ### Out of this feature (Up next, §6)
 
-Picking questionnaire answer options from the terminology (coded answers), patient-facing explanations,
-transcription vocabulary, clinical-note autocomplete, a curator screen in the app, clinic-added terms, FHIR
+Picking questionnaire answer options from the terminology (coded answers), transcription vocabulary, clinical-note autocomplete, a curator screen in the app, clinic-added terms, FHIR
 `CodeSystem`/`ValueSet` `$expand`.
 
 ## 4. Personal data
 
 The search text is not stored or logged. Since 00037 and SAL-14 the tables hold staff data: the reviewer's account
 id on the entries they reviewed (`reviewed_by`) and the reviewer permission (`term_reviewer`), for accountability of
-the shared term list (docs/privacy/dpia.md, "Medical terminology"). No patient data.
+the shared term list (docs/privacy/dpia.md, "Medical terminology"). No patient data is stored. Tagging (SAL-13) reads a
+transcript line or a document's line where it is already read, under that read's access rule, and returns the spans in
+the same answer; the text is never logged, stored or put into an error, and the spans are not stored.
 
 ## 5. Acceptance walk
 
@@ -171,7 +208,6 @@ the shared term list (docs/privacy/dpia.md, "Medical terminology"). No patient d
 ## 6. Up next
 
 - Coded questionnaire answers from the terminology (`answerOption.valueCoding`, ICD-10 or Wikidata system).
-- Explanations for patients in their language.
 - A medical vocabulary for the speech-to-text engine of the transcription feature.
 - A curator screen in the app, replacing the spreadsheet round trip: the review panel (§3 "Review", SAL-14) covers
   labels and explanations; codes, categories and new terms stay the spreadsheet's.
