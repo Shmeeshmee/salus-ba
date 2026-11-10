@@ -37,8 +37,7 @@ Chromium ships no Bosnian locale data, so `Intl` with `bs` renders "2026 M11 10,
 - Unit tests (Vitest) for the formatter in all five staff languages; an e2e check in Chromium with Bosnian
   selected (`test/e2e/web`).
 - The Flutter app (`intl`) is checked for the same gap: `intl` ships its own locale data rather than the
-  browser's, so it is fixed only if a
-  test shows the same problem.
+  browser's, so it is fixed only if a test shows the same problem.
 
 ## Running in parallel
 
