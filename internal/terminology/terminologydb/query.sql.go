@@ -169,7 +169,8 @@ func (q *Queries) InsertLabels(ctx context.Context, arg InsertLabelsParams) erro
 }
 
 const listTerms = `-- name: ListTerms :many
-SELECT t.id, t.reviewed_at, t.rank, t.category, t.review_status, t.wikidata_id, t.icd10, t.ta98, t.atc, t.pcs, t.note,
+SELECT t.id, t.reviewed_at, t.reviewed_by, t.rank, t.category, t.review_status, t.wikidata_id, t.icd10, t.ta98, t.atc,
+       t.pcs, t.note,
        coalesce(l.languages, '{}')::text[] AS label_languages,
        coalesce(l.labels, '{}')::text[] AS labels,
        coalesce(l.preferred, '{}')::boolean[] AS label_preferred
@@ -194,6 +195,7 @@ type ListTermsParams struct {
 type ListTermsRow struct {
 	ID             pgtype.UUID
 	ReviewedAt     pgtype.Timestamptz
+	ReviewedBy     pgtype.UUID
 	Rank           int32
 	Category       TermCategory
 	ReviewStatus   string
@@ -222,6 +224,7 @@ func (q *Queries) ListTerms(ctx context.Context, arg ListTermsParams) ([]ListTer
 		if err := rows.Scan(
 			&i.ID,
 			&i.ReviewedAt,
+			&i.ReviewedBy,
 			&i.Rank,
 			&i.Category,
 			&i.ReviewStatus,
@@ -365,8 +368,9 @@ const updateTerm = `-- name: UpdateTerm :execrows
 UPDATE term
 SET category = $1, rank = $2, wikidata_id = $3, icd10 = $4,
     ta98 = $5, atc = $6, pcs = $7, review_status = $8,
-    reviewed_at = $9, note = $10, updated_at = $11
-WHERE id = $12
+    reviewed_at = $9, reviewed_by = $10, note = $11,
+    updated_at = $12
+WHERE id = $13
 `
 
 type UpdateTermParams struct {
@@ -379,6 +383,7 @@ type UpdateTermParams struct {
 	Pcs          pgtype.Text
 	ReviewStatus string
 	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
 	Note         pgtype.Text
 	UpdatedAt    pgtype.Timestamptz
 	ID           pgtype.UUID
@@ -395,6 +400,7 @@ func (q *Queries) UpdateTerm(ctx context.Context, arg UpdateTermParams) (int64, 
 		arg.Pcs,
 		arg.ReviewStatus,
 		arg.ReviewedAt,
+		arg.ReviewedBy,
 		arg.Note,
 		arg.UpdatedAt,
 		arg.ID,

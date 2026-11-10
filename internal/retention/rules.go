@@ -90,7 +90,20 @@ func Rules() []Rule {
 			Keep:  day, // after scanned_at of a rejected row; after an object's last write
 			Then:  ThenDelete,
 		},
-	}, consultIntelligenceRules()...)
+	}, append(consultIntelligenceRules(), termReviewRules()...)...)
+}
+
+// termReviewRules are the rules of the term list's reviews (docs/plans/v1-finish.md "Contract"): the reference
+// data itself holds nothing personal; reviewed_by names the reviewer's account (owner, 2026-11-10).
+func termReviewRules() []Rule {
+	basis := "Accountability for the reviewed medical term list the clinics work with (GDPR Art. 5(2), Art. 6(1)(f)): " +
+		"who approved or flagged an entry, as an account id; kept with the term while the account exists, the reference " +
+		"cleared with the account's erasure (subject-rights feature); needs a legal decision before production"
+	return []Rule{
+		{Table: "term", Basis: basis, Then: ThenKeep},
+		{Table: "term_translation", Basis: basis, Then: ThenKeep},
+		{Table: "term_explanation", Basis: basis, Then: ThenKeep},
+	}
 }
 
 // consultIntelligenceRules are the rules of the consultation's transcript, suggestions and drafts

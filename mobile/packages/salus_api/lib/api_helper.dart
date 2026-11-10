@@ -68,6 +68,9 @@ String parameterToString(dynamic value) {
   if (value is Language) {
     return LanguageTypeTransformer().encode(value).toString();
   }
+  if (value is ReviewStatus) {
+    return ReviewStatusTypeTransformer().encode(value).toString();
+  }
   if (value is TermCategory) {
     return TermCategoryTypeTransformer().encode(value).toString();
   }

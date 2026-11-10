@@ -2908,9 +2908,8 @@ components:
         id: {type: string, format: uuid}
         category: {$ref: "#/components/schemas/TermCategory"}
         reviewStatus:
-          type: string
-          enum: [draft, reviewed]
-          description: "`draft` until the curator has reviewed the term (the UI marks it \"Not reviewed yet\")."
+          allOf: [{$ref: "#/components/schemas/ReviewStatus"}]
+          description: "Anything but `approved` is marked \"Not reviewed yet\" in the UI."
         codes: {$ref: "#/components/schemas/TermCodes"}
         labels:
           type: array
@@ -2918,6 +2917,51 @@ components:
             One entry per requested language that has a label, in the order requested. A language with no label
             is absent: gaps are never filled by machine translation.
           items: {$ref: "#/components/schemas/TermLabels"}
+    ReviewStatus:
+      type: string
+      enum: [unreviewed, approved, needs_changes]
+      description: >-
+        Where a term, a translation or an explanation is in its review (docs/plans/v1-finish.md "Contract"): one
+        status for all three. Editing an approved entry sets it back to `unreviewed`.
+    Review:
+      type: object
+      required: [status]
+      properties:
+        status: {$ref: "#/components/schemas/ReviewStatus"}
+        reviewedBy:
+          type: string
+          format: uuid
+          description: The account that last set the status; absent when the curator's file set it or before the first review.
+        reviewedAt:
+          type: string
+          format: date-time
+          description: When it was last approved or marked as needing changes; kept when the entry goes back to unreviewed.
+        note: {type: string, description: "The reviewer's note, e.g. what needs to change."}
+    TermTranslation:
+      type: object
+      required: [termId, language, review, versionId, lastUpdated]
+      description: >-
+        The review of a term's labels in one language. A term and language with labels and no translation stored is
+        unreviewed.
+      properties:
+        termId: {type: string, format: uuid}
+        language: {$ref: "#/components/schemas/TermLanguage"}
+        review: {$ref: "#/components/schemas/Review"}
+        versionId: {type: integer, format: int32, minimum: 1, description: "For If-Match on an edit."}
+        lastUpdated: {type: string, format: date-time}
+    TermExplanation:
+      type: object
+      required: [termId, language, text, review, versionId, lastUpdated]
+      description: >-
+        A short plain-language explanation of a term in an app language, for patients and staff: informational,
+        never a diagnosis (CLAUDE.md "Copy"), and labelled as such wherever it is shown.
+      properties:
+        termId: {type: string, format: uuid}
+        language: {$ref: "#/components/schemas/Language"}
+        text: {type: string, minLength: 1, maxLength: 500}
+        review: {$ref: "#/components/schemas/Review"}
+        versionId: {type: integer, format: int32, minimum: 1, description: "For If-Match on an edit."}
+        lastUpdated: {type: string, format: date-time}
     TermList:
       type: object
       required: [terms]

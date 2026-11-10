@@ -68,13 +68,15 @@ DELETE FROM term_label WHERE term_id = @term_id;
 UPDATE term
 SET category = @category, rank = @rank, wikidata_id = sqlc.narg(wikidata_id), icd10 = sqlc.narg(icd10),
     ta98 = sqlc.narg(ta98), atc = sqlc.narg(atc), pcs = sqlc.narg(pcs), review_status = @review_status,
-    reviewed_at = sqlc.narg(reviewed_at), note = sqlc.narg(note), updated_at = @updated_at
+    reviewed_at = sqlc.narg(reviewed_at), reviewed_by = sqlc.narg(reviewed_by), note = sqlc.narg(note),
+    updated_at = @updated_at
 WHERE id = @id;
 
 -- name: ListTerms :many
 -- One term (id) or every term of a review status (any when null), each with its labels in every language as three
 -- parallel arrays, by language in the enum's order, preferred first, then alphabetically.
-SELECT t.id, t.reviewed_at, t.rank, t.category, t.review_status, t.wikidata_id, t.icd10, t.ta98, t.atc, t.pcs, t.note,
+SELECT t.id, t.reviewed_at, t.reviewed_by, t.rank, t.category, t.review_status, t.wikidata_id, t.icd10, t.ta98, t.atc,
+       t.pcs, t.note,
        coalesce(l.languages, '{}')::text[] AS label_languages,
        coalesce(l.labels, '{}')::text[] AS labels,
        coalesce(l.preferred, '{}')::boolean[] AS label_preferred

@@ -124,7 +124,8 @@ func (r *postgresRepository) UpdateTerm(ctx context.Context, t Term, at time.Tim
 	n, err := r.q(ctx).UpdateTerm(ctx, terminologydb.UpdateTermParams{
 		Category: terminologydb.TermCategory(t.Category), Rank: t.Rank, WikidataID: text(t.WikidataID),
 		Icd10: text(t.ICD10), Ta98: text(t.TA98), Atc: text(t.ATC), Pcs: text(t.PCS), ReviewStatus: t.ReviewStatus,
-		ReviewedAt: pgtype.Timestamptz{Time: t.ReviewedAt, Valid: !t.ReviewedAt.IsZero()}, Note: text(t.Note),
+		ReviewedAt: pgtype.Timestamptz{Time: t.ReviewedAt, Valid: !t.ReviewedAt.IsZero()}, ReviewedBy: uuidOrNull(t.ReviewedBy),
+		Note:      text(t.Note),
 		UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true}, ID: id,
 	})
 	if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) && pgErr.ConstraintName == "term_wikidata_id_key" {
@@ -173,6 +174,9 @@ func listedTerm(row terminologydb.ListTermsRow) Term {
 		WikidataID: row.WikidataID.String, ICD10: row.Icd10.String, TA98: row.Ta98.String, ATC: row.Atc.String,
 		PCS: row.Pcs.String, ReviewStatus: row.ReviewStatus, Note: row.Note.String, Rank: row.Rank,
 	}
+	if row.ReviewedBy.Valid {
+		t.ReviewedBy = row.ReviewedBy.String()
+	}
 	for j, label := range row.Labels {
 		t.Labels = append(t.Labels, Label{Language: row.LabelLanguages[j], Text: label, Preferred: row.LabelPreferred[j]})
 	}
@@ -182,4 +186,13 @@ func listedTerm(row terminologydb.ListTermsRow) Term {
 // text is s as a nullable column: NULL when empty.
 func text(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: s != ""}
+}
+
+// uuidOrNull is id as a nullable uuid: null when empty or not a UUID.
+func uuidOrNull(id string) pgtype.UUID {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return pgtype.UUID{}
+	}
+	return u
 }

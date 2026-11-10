@@ -12,6 +12,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/suggestion"
+	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/internal/transcript"
 )
 
@@ -191,5 +192,24 @@ func TestConsultFrames_AreTheMessagesAndTheCursor(t *testing.T) {
 	}
 	if items := s["Transcript"].Properties["segments"].Items; items == nil || items.Ref != "#/components/schemas/TranscriptEvent" {
 		t.Errorf("Transcript.segments items = %+v, want a TranscriptEvent reference", items)
+	}
+}
+
+// One review status for terms, translations and explanations (00037): the schema's enum is the Go constants, and
+// the term, the review and the explanation all use it.
+func TestReviewStatus_IsTheTerminologysOne(t *testing.T) {
+	t.Parallel()
+	s := schemas(t)
+	want := []string{terminology.ReviewUnreviewed, terminology.ReviewApproved, terminology.ReviewNeedsChanges}
+	if got := s["ReviewStatus"].Enum; !slices.Equal(got, want) {
+		t.Errorf("ReviewStatus enum = %v, want %v", got, want)
+	}
+	if ref := s["Review"].Properties["status"].Ref; ref != "#/components/schemas/ReviewStatus" {
+		t.Errorf("Review.status = %q, want the ReviewStatus schema", ref)
+	}
+	for _, name := range []string{"TermTranslation", "TermExplanation"} {
+		if ref := s[name].Properties["review"].Ref; ref != "#/components/schemas/Review" {
+			t.Errorf("%s.review = %q, want the Review schema", name, ref)
+		}
 	}
 }

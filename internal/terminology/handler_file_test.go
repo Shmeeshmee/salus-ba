@@ -36,12 +36,12 @@ func TestDecodeSeed(t *testing.T) {
 var csvTerms = []terminology.Term{
 	{
 		ReviewedAt: time.Date(2026, 11, 5, 10, 0, 0, 0, time.UTC), ID: "00000000-0000-4000-8000-000000000001",
-		Category: "anatomy", WikidataID: "Q9368", TA98: "A05.8.01.001", ReviewStatus: "reviewed", Rank: 180,
+		Category: "anatomy", WikidataID: "Q9368", TA98: "A05.8.01.001", ReviewStatus: "approved", Rank: 180,
 		Labels: labels("la", "hepar", "la", "iecur", "la", "jecur", "sr-Cyrl", "јетра", "en", "liver"),
 	},
 	{
 		ID: "00000000-0000-4000-8000-000000000002", Category: "drug", WikidataID: "Q180809", ATC: "A11HA05",
-		ReviewStatus: "draft", Note: "Check the Latin, then mark reviewed.", Rank: 40,
+		ReviewStatus: "unreviewed", Note: "Check the Latin, then mark reviewed.", Rank: 40,
 		Labels: labels("en", "-(+)-biotin", "en", "vitamin B7, biotin"),
 	},
 }
@@ -60,8 +60,8 @@ func TestEncodeCSV(t *testing.T) {
 	}
 
 	want := "\ufeff" + csvNote + csvHeader +
-		"00000000-0000-4000-8000-000000000001,anatomy,Q9368,,A05.8.01.001,,,180,hepar,,,,јетра,liver,,,,,,iecur | jecur,,,,,,,,,,,reviewed,\n" +
-		"00000000-0000-4000-8000-000000000002,drug,Q180809,,,A11HA05,,40,,,,,,'-(+)-biotin,,,,,,,,,,,\"vitamin B7, biotin\",,,,,,draft,\"Check the Latin, then mark reviewed.\"\n"
+		"00000000-0000-4000-8000-000000000001,anatomy,Q9368,,A05.8.01.001,,,180,hepar,,,,јетра,liver,,,,,,iecur | jecur,,,,,,,,,,,approved,\n" +
+		"00000000-0000-4000-8000-000000000002,drug,Q180809,,,A11HA05,,40,,,,,,'-(+)-biotin,,,,,,,,,,,\"vitamin B7, biotin\",,,,,,unreviewed,\"Check the Latin, then mark reviewed.\"\n"
 	if out.String() != want {
 		t.Errorf("EncodeCSV =\n%s\nwant\n%s", out.String(), want)
 	}
@@ -104,7 +104,7 @@ func TestDecodeCSV_TakesTheColumnsInAnyOrderAndRefusesABadRow(t *testing.T) {
 		return strings.Join(out, ",")
 	}
 	file := strings.Join(reversed, ",") + "\n" +
-		cells(map[string]string{"id": "i1", "category": "symptom", "rank": "7", "en": "fever", "en synonyms": " pyrexia |  | high temperature ", "review_status": "reviewed"}) + "\n" +
+		cells(map[string]string{"id": "i1", "category": "symptom", "rank": "7", "en": "fever", "en synonyms": " pyrexia |  | high temperature ", "review_status": "approved"}) + "\n" +
 		cells(map[string]string{"id": "i2", "rank": "seven"}) + "\n" +
 		"i3,too,few\n" +
 		cells(map[string]string{"id": "i4", "category": "symptom"}) + "\n"
@@ -112,7 +112,7 @@ func TestDecodeCSV_TakesTheColumnsInAnyOrderAndRefusesABadRow(t *testing.T) {
 	rows, refused, err := terminology.DecodeCSV(strings.NewReader(file))
 
 	want := []terminology.ImportRow{
-		{Line: 2, Term: terminology.Term{ID: "i1", Category: "symptom", Rank: 7, ReviewStatus: "reviewed", Labels: labels("en", "fever", "en", "pyrexia", "en", "high temperature")}},
+		{Line: 2, Term: terminology.Term{ID: "i1", Category: "symptom", Rank: 7, ReviewStatus: "approved", Labels: labels("en", "fever", "en", "pyrexia", "en", "high temperature")}},
 		{Line: 5, Term: terminology.Term{ID: "i4", Category: "symptom", Labels: []terminology.Label{}}},
 	}
 	wantRefused := []terminology.RowError{{ID: "i2", Line: 3, Reason: "rank: not a whole number"}, {Line: 4, Reason: "3 cells, the header has 32"}}
@@ -123,14 +123,14 @@ func TestDecodeCSV_TakesTheColumnsInAnyOrderAndRefusesABadRow(t *testing.T) {
 
 // csvNote is the curator's note EncodeCSV writes before the header (owner's answer, 2026-11-08).
 const csvNote = `"# For the curator: anatomy Latin follows Terminologia Anatomica (TA98), e.g. ""hepar"", not ""iecur"". ` +
-	`Fill in missing Bosnian, Croatian and Serbian terms, such as ""čir"". Set review_status to reviewed when a ` +
+	`Fill in missing Bosnian, Croatian and Serbian terms, such as ""čir"". Set review_status to approved when a ` +
 	`row is checked. The import skips the lines that start with #."` + "\n"
 
 // A spreadsheet saves the note back quoted or not, padded with empty cells; the import skips it wherever the
 // first cell starts with # before the header, and counts its line.
 func TestDecodeCSV_SkipsTheNoteLinesBeforeTheHeader(t *testing.T) {
 	t.Parallel()
-	row := "i1,symptom,,,,,,7,,,,,,fever,,,,,,,,,,,,,,,,,reviewed,"
+	row := "i1,symptom,,,,,,7,,,,,,fever,,,,,,,,,,,,,,,,,approved,"
 	for _, c := range []struct{ name, note string }{
 		{"as exported", csvNote},
 		{"unquoted", "# For the curator: check each row\n"},

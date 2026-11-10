@@ -54,7 +54,8 @@ Reopen only with the owner.
 - **Tables** (owner `terminology`, `personal_data: false`, no retention rule needed):
   - `term`: `id` (uuid), `category` (enum `term_category`: `anatomy`, `diagnosis`, `symptom`, `procedure`,
     `drug`), `wikidata_id`, `icd10`, `ta98`, `atc`, `pcs` (each nullable), `rank` (from the sitelinks),
-    `review_status` (`draft` | `reviewed`), `reviewed_at`, `note` (the curator's, nullable), timestamps.
+    `review_status` (`draft` | `reviewed`; since 00037 `unreviewed` | `approved` | `needs_changes`, with `reviewed_by`:
+    docs/plans/v1-finish.md "Contract"), `reviewed_at`, `note` (the curator's, nullable), timestamps.
   - `term_label`: `term_id`, `language` (enum `term_language`: `la` plus the ten app languages), `label`,
     `preferred` (one preferred label per term and language), primary key (`term_id`, `language`, `label`).
 - **Search**: Postgres `pg_trgm` and `unaccent` (through an immutable wrapper so it can be indexed): typing
@@ -66,16 +67,20 @@ Reopen only with the owner.
   search at 50 concurrent (the palette debounces 150 ms; owner's answer, 2026-11-08, was 15 ms); measured
   2026-11-08 with the language ranking: 17.1–18.5 ms (3.9 ms alone), recorded in `PROGRESS.md`.
 - **Read-only for the app.** Grants to `salus_app`: `SELECT` only. Writes go through `salusctl` as the owner.
+  Changed by the owner, 2026-11-10: a reviewer (a platform permission granted by the operator) edits and reviews in
+  the app (SAL-14, docs/plans/v1-finish.md "Decisions").
 
 ### Curation
 
 - **Round trip through a spreadsheet**, no curator role in the app (yet):
   `salusctl terminology export` writes a CSV (one row per term: id, category, codes, rank, the preferred label
   per language, synonyms per language, review status, note); the partner edits it in Google Sheets or Excel
-  (fixes labels, fills Latin, sets `reviewed`, writes notes); `salusctl terminology import` applies it:
-  upsert by id, labels replaced, `reviewed_at` set when a row turns `reviewed`. Idempotent; an unknown column
+  (fixes labels, fills Latin, sets `approved` or `needs_changes`, writes notes); `salusctl terminology import` applies it:
+  upsert by id, labels replaced, `reviewed_at` set when a row turns `approved` or `needs_changes`. Idempotent; an unknown column
   or an id that doesn't exist is refused for that row and reported, the rest applied.
-- **No personal data** in the file or the tables: no reviewer name, only the date.
+- **No personal data** in the file or the tables: no reviewer name, only the date. Changed by the owner,
+  2026-11-10: the tables hold the reviewer's account id (`reviewed_by`, retention `keep`); the file still names no
+  one (docs/plans/v1-finish.md "Decisions").
 
 ### API and UI
 
@@ -88,7 +93,7 @@ Reopen only with the owner.
 - **The cheatsheet**: a search palette opened with Ctrl+K (⌘K on macOS) or the search button in the header,
   on every staff screen. Results show the Latin term, the UI-language term and English; "More languages"
   opens the others; codes behind a tooltip; a copy button on each label; a "Not reviewed yet" mark on draft
-  terms. Keyboard first: arrows, Enter copies the preferred label in the UI language, Escape closes.
+  terms (since 00037: every term not `approved`). Keyboard first: arrows, Enter copies the preferred label in the UI language, Escape closes.
 
 ### Out of this feature (Up next, §6)
 

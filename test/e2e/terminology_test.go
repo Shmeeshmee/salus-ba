@@ -40,7 +40,7 @@ func TestTerminology_APractitionerFindsATermAndAPatientIsRefused(t *testing.T) {
 	if header.Get("Cache-Control") != "no-store" {
 		t.Errorf("Cache-Control = %q, want no-store (the URL holds the search text)", header.Get("Cache-Control"))
 	}
-	want := foundTerm{ID: term.id, Category: "symptom", ReviewStatus: "draft", Labels: []foundLabels{
+	want := foundTerm{ID: term.id, Category: "symptom", ReviewStatus: "unreviewed", Labels: []foundLabels{
 		{Language: "la", Preferred: term.latin, Synonyms: []string{}},
 		{Language: "hr", Preferred: term.croatian, Synonyms: []string{}},
 		{Language: "en", Preferred: term.english, Synonyms: []string{}},
@@ -89,7 +89,7 @@ func TestTerminology_TheCuratorsRoundTrip(t *testing.T) {
 	term := newSyntheticTerm(t)
 	dir := t.TempDir()
 
-	header, row := exportedRow(t, filepath.Join(dir, "drafts.csv"), "draft", term.id)
+	header, row := exportedRow(t, filepath.Join(dir, "drafts.csv"), "unreviewed", term.id)
 	col := func(name string) int {
 		i := slices.Index(header, name)
 		if i < 0 {
@@ -97,12 +97,12 @@ func TestTerminology_TheCuratorsRoundTrip(t *testing.T) {
 		}
 		return i
 	}
-	if row[col("la")] != term.latin || row[col("hr")] != term.croatian || row[col("review_status")] != "draft" {
+	if row[col("la")] != term.latin || row[col("hr")] != term.croatian || row[col("review_status")] != "unreviewed" {
 		t.Fatalf("the exported row: la %q, hr %q, review_status %q; want the synthetic term as a draft", row[col("la")], row[col("hr")], row[col("review_status")])
 	}
 
 	corrected := "Zyntheticum correctum " + term.suffix
-	row[col("la")], row[col("review_status")], row[col("note")] = corrected, "reviewed", "Placeholder curator note"
+	row[col("la")], row[col("review_status")], row[col("note")] = corrected, "approved", "Placeholder curator note"
 	unknown := slices.Clone(row)
 	unknown[col("id")] = "00000000-0000-4000-8000-" + term.suffix + "0000"
 	edited := filepath.Join(dir, "edited.csv")
@@ -114,10 +114,10 @@ func TestTerminology_TheCuratorsRoundTrip(t *testing.T) {
 
 	found, _ := search(t, practitioner, corrected, "la,en")
 	got := firstOf(found)
-	if got.ID != term.id || got.ReviewStatus != "reviewed" || len(got.Labels) == 0 || got.Labels[0].Preferred != corrected {
+	if got.ID != term.id || got.ReviewStatus != "approved" || len(got.Labels) == 0 || got.Labels[0].Preferred != corrected {
 		t.Errorf("searching the corrected label: %+v, want the term reviewed with the corrected Latin label", got)
 	}
-	if _, reviewed := exportedRow(t, filepath.Join(dir, "reviewed.csv"), "reviewed", term.id); reviewed[col("note")] != "Placeholder curator note" {
+	if _, reviewed := exportedRow(t, filepath.Join(dir, "reviewed.csv"), "approved", term.id); reviewed[col("note")] != "Placeholder curator note" {
 		t.Errorf("the reviewed export's note = %q, want the curator's", reviewed[col("note")])
 	}
 

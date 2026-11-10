@@ -52,22 +52,22 @@ func TestHTTPSearch_ReturnsTheMatches(t *testing.T) {
 	t.Parallel()
 	svc := &stubSearcher{matches: []terminology.Match{
 		{Term: terminology.Term{ID: "00000000-0000-4000-8000-000000000001", Category: "anatomy", WikidataID: "Q9368", TA98: "A05.8.01.001",
-			ReviewStatus: "reviewed", ReviewedAt: time.Date(2026, 11, 5, 10, 0, 0, 0, time.UTC), Rank: 100},
+			ReviewStatus: "approved", ReviewedAt: time.Date(2026, 11, 5, 10, 0, 0, 0, time.UTC), Rank: 100},
 			Labels: []terminology.Names{
 				{Language: "la", Preferred: "hepar", Synonyms: []string{"iecur"}},
 				{Language: "hr", Preferred: "jetra", Synonyms: []string{}},
 			}},
-		{Term: terminology.Term{ID: "00000000-0000-4000-8000-000000000002", Category: "diagnosis", ICD10: "K75.9", ATC: "J05", PCS: "0FT00ZZ", ReviewStatus: "draft"},
+		{Term: terminology.Term{ID: "00000000-0000-4000-8000-000000000002", Category: "diagnosis", ICD10: "K75.9", ATC: "J05", PCS: "0FT00ZZ", ReviewStatus: "unreviewed"},
 			Labels: []terminology.Names{}},
 	}}
 
 	rec, _ := serve(t, svc, signedIn(staff), "q=hepar&languages=la,hr&category=anatomy&limit=5")
 
 	want := `{"terms":[` +
-		`{"id":"00000000-0000-4000-8000-000000000001","category":"anatomy","reviewStatus":"reviewed",` +
+		`{"id":"00000000-0000-4000-8000-000000000001","category":"anatomy","reviewStatus":"approved",` +
 		`"codes":{"wikidata":"Q9368","ta98":"A05.8.01.001"},` +
 		`"labels":[{"language":"la","preferred":"hepar","synonyms":["iecur"]},{"language":"hr","preferred":"jetra","synonyms":[]}]},` +
-		`{"id":"00000000-0000-4000-8000-000000000002","category":"diagnosis","reviewStatus":"draft",` +
+		`{"id":"00000000-0000-4000-8000-000000000002","category":"diagnosis","reviewStatus":"unreviewed",` +
 		`"codes":{"icd10":"K75.9","atc":"J05","pcs":"0FT00ZZ"},"labels":[]}]}` + "\n"
 	if rec.Code != http.StatusOK || rec.Body.String() != want {
 		t.Errorf("GET = %d %s\nwant 200 %s", rec.Code, rec.Body, want)

@@ -31,8 +31,10 @@ tables:
   session: {owner: auth, personal_data: true}
   slot: {owner: slot, personal_data: true}
   suggestion: {owner: suggestion, personal_data: true}
-  term: {owner: terminology, personal_data: false}
+  term: {owner: terminology, personal_data: true} # reviewed_by, the reviewer's account (00037)
+  term_explanation: {owner: terminology, personal_data: true} # reviewed_by
   term_label: {owner: terminology, personal_data: false}
+  term_translation: {owner: terminology, personal_data: true} # reviewed_by
   transcript_segment: {owner: transcript, personal_data: true}
   video_session: {owner: videosession, personal_data: true}
   river_job: {owner: river}

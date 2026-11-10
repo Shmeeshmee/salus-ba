@@ -131,6 +131,10 @@ sql:
         package: terminologydb
         out: internal/terminology/terminologydb
         sql_package: pgx/v5
+        # The review_status domain (00037) is text: sqlc reads a domain as an unknown type.
+        overrides:
+          - db_type: review_status
+            go_type: string
   - engine: postgresql
     schema: migrations
     queries: internal/transcript/query.sql

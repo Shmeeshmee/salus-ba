@@ -169,12 +169,12 @@ func TestSearch_TheUILanguageOfTheRanking(t *testing.T) {
 
 func TestSearch_GroupsTheLabelsPerRequestedLanguageInRequestOrder(t *testing.T) {
 	t.Parallel()
-	reviewed := terminology.Term{ID: "t1", Category: "anatomy", WikidataID: "Q9368", TA98: "A05.8.01.001", ReviewStatus: "reviewed", Rank: 100,
+	reviewed := terminology.Term{ID: "t1", Category: "anatomy", WikidataID: "Q9368", TA98: "A05.8.01.001", ReviewStatus: "approved", Rank: 100,
 		Labels: []terminology.Label{ // the repository's order: by language in the enum, preferred first, synonyms alphabetically
 			{Language: "la", Text: "hepar", Preferred: true}, {Language: "la", Text: "iecur"},
 			{Language: "hr", Text: "jetra", Preferred: true},
 		}}
-	unmarked := terminology.Term{ID: "t2", Category: "diagnosis", ICD10: "K25", ReviewStatus: "draft",
+	unmarked := terminology.Term{ID: "t2", Category: "diagnosis", ICD10: "K25", ReviewStatus: "unreviewed",
 		Labels: []terminology.Label{{Language: "en", Text: "gastric ulcer"}, {Language: "en", Text: "stomach ulcer"}}}
 	repo := &fakeRepo{terms: []terminology.Term{reviewed, unmarked}}
 

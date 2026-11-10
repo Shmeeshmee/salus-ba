@@ -79,6 +79,8 @@ lib/model/questionnaire_response.dart
 lib/model/questionnaire_translation.dart
 lib/model/register_request.dart
 lib/model/request_questionnaire_request.dart
+lib/model/review.dart
+lib/model/review_status.dart
 lib/model/role_specialty.dart
 lib/model/save_answers_request.dart
 lib/model/save_availability_request.dart
@@ -100,9 +102,11 @@ lib/model/suggestion_status_message.dart
 lib/model/term.dart
 lib/model/term_category.dart
 lib/model/term_codes.dart
+lib/model/term_explanation.dart
 lib/model/term_labels.dart
 lib/model/term_language.dart
 lib/model/term_list.dart
+lib/model/term_translation.dart
 lib/model/transcript.dart
 lib/model/transcript_event.dart
 lib/model/transcript_message.dart

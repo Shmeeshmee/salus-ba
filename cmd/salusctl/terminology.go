@@ -13,7 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/terminology"
 )
 
-const terminologyUsage = "usage: salusctl terminology import <seed.jsonl | terms.csv> | terminology export -o <terms.csv> [-status draft|reviewed]"
+const terminologyUsage = "usage: salusctl terminology import <seed.jsonl | terms.csv> | terminology export -o <terms.csv> [-status unreviewed|approved|needs_changes]"
 
 // terminologyCommand runs `salusctl terminology import|export` (docs/terminology/SPEC.md §3 "Curation").
 func (s services) terminologyCommand(ctx context.Context, args []string, stdout io.Writer) error {
@@ -97,7 +97,7 @@ func (s services) exportTerms(ctx context.Context, args []string, stdout io.Writ
 	flags := flag.NewFlagSet("terminology export", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	out := flags.String("o", "", "the CSV file to write")
-	status := flags.String("status", "", "draft or reviewed; every term when absent")
+	status := flags.String("status", "", "unreviewed, approved or needs_changes; every term when absent")
 	if err := flags.Parse(args); err != nil || *out == "" || flags.NArg() != 0 {
 		return errors.New(terminologyUsage)
 	}

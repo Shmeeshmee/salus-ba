@@ -555,12 +555,26 @@ type Term struct {
 	ReviewedAt   pgtype.Timestamptz
 	Rank         int32
 	Category     TermCategory
-	ReviewStatus string
+	ReviewStatus interface{}
 	WikidataID   pgtype.Text
 	Icd10        pgtype.Text
 	Ta98         pgtype.Text
 	Atc          pgtype.Text
 	Pcs          pgtype.Text
+	Note         pgtype.Text
+	ReviewedBy   pgtype.UUID
+}
+
+type TermExplanation struct {
+	TermID       pgtype.UUID
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	VersionID    int32
+	Language     TermLanguage
+	ReviewStatus interface{}
+	Text         string
 	Note         pgtype.Text
 }
 
@@ -570,6 +584,17 @@ type TermLabel struct {
 	Language  TermLanguage
 	Preferred bool
 	Label     string
+}
+
+type TermTranslation struct {
+	TermID       pgtype.UUID
+	UpdatedAt    pgtype.Timestamptz
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	VersionID    int32
+	Language     TermLanguage
+	ReviewStatus interface{}
+	Note         pgtype.Text
 }
 
 type TranscriptSegment struct {

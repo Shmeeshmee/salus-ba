@@ -13,6 +13,6 @@ var (
 	ErrTermNotFound = errors.New("terminology: no such term")
 	// ErrDuplicateWikidata is returned when a term would take a Wikidata id another term has.
 	ErrDuplicateWikidata = errors.New("terminology: the Wikidata id belongs to another term")
-	// ErrInvalidStatus is returned for a review status that is neither draft nor reviewed.
+	// ErrInvalidStatus is returned for a review status that is not unreviewed, approved or needs_changes.
 	ErrInvalidStatus = errors.New("terminology: invalid review status")
 )

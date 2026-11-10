@@ -38,7 +38,7 @@ func TestTerminologyImport_LoadsTheSeedOnceAndReportsTheRefusedRows(t *testing.T
 			t.Errorf("output %q: want %q", out.String(), want)
 		}
 	}
-	if n := count(`SELECT count(*) FROM term WHERE review_status = 'draft'`); n != 2 {
+	if n := count(`SELECT count(*) FROM term WHERE review_status = 'unreviewed'`); n != 2 {
 		t.Errorf("%d draft terms, want 2", n)
 	}
 	if n := count(`SELECT count(*) FROM term_label`); n != 5 {
@@ -64,7 +64,7 @@ func TestTerminologyExportImport_RoundTrip(t *testing.T) {
 	csvPath := filepath.Join(t.TempDir(), "terms.csv")
 	var out bytes.Buffer
 
-	if err := run(t.Context(), []string{"terminology", "export", "-o", csvPath, "-status", "draft"}, &out); err != nil {
+	if err := run(t.Context(), []string{"terminology", "export", "-o", csvPath, "-status", "unreviewed"}, &out); err != nil {
 		t.Fatalf("export: %v", err)
 	}
 	if !strings.Contains(out.String(), "terms exported: 2, to "+csvPath) {
@@ -81,7 +81,7 @@ func TestTerminologyExportImport_RoundTrip(t *testing.T) {
 	}
 	// liver: reviewed, its Croatian label filled in (the hr column is the 11th).
 	cells := strings.Split(lines[2], ",")
-	cells[10], cells[len(cells)-2] = "jetra", "reviewed"
+	cells[10], cells[len(cells)-2] = "jetra", "approved"
 	lines[2] = strings.Join(cells, ",")
 	edited := writeFile(t, "terms.csv", strings.Join(lines, "\n"))
 
@@ -93,13 +93,13 @@ func TestTerminologyExportImport_RoundTrip(t *testing.T) {
 		t.Errorf("import the CSV: %q", out.String())
 	}
 	if n := count(`SELECT count(*) FROM term t JOIN term_label l ON l.term_id = t.id
-		WHERE t.wikidata_id = 'Q9368' AND t.review_status = 'reviewed' AND t.reviewed_at IS NOT NULL
+		WHERE t.wikidata_id = 'Q9368' AND t.review_status = 'approved' AND t.reviewed_at IS NOT NULL
 		  AND l.language = 'hr' AND l.label = 'jetra' AND l.preferred`); n != 1 {
 		t.Error("liver is not reviewed with its Croatian label")
 	}
 
 	out.Reset()
-	if err := run(t.Context(), []string{"terminology", "export", "-o", csvPath, "-status", "draft"}, &out); err != nil || !strings.Contains(out.String(), "terms exported: 1,") {
+	if err := run(t.Context(), []string{"terminology", "export", "-o", csvPath, "-status", "unreviewed"}, &out); err != nil || !strings.Contains(out.String(), "terms exported: 1,") {
 		t.Errorf("export the drafts after the review = %v, %q; want one term", err, out.String())
 	}
 }
