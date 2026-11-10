@@ -33,8 +33,9 @@ test('the practitioner signs in, joins from the appointment, sees and hears the 
   // SAL-13: the term the line says (the Go test added it with its explanation) is explained on hover, labelled
   // informational and not reviewed yet; the line itself reads as it was said.
   const label = required('E2E_TERM_LABEL')
-  await expectExplained(page, line.locator('.term', { hasText: label }).first())
-  await expect(line).toContainText('Placeholder caption from the test speech engine')
+  const patientLine = line.filter({ has: page.getByText('Patient', { exact: true }) }) // the practitioner's mic says it too
+  await expectExplained(page, patientLine.locator('.term', { hasText: label }).first())
+  await expect(patientLine).toContainText('Placeholder caption from the test speech engine')
 
   // Drafting (SAL-8) on the fake model, which leaves every field missing: the required field blocks the sign until
   // the practitioner fills it in; then the document is signed (W15 to W24).
