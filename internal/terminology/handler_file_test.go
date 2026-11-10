@@ -41,7 +41,7 @@ var csvTerms = []terminology.Term{
 	},
 	{
 		ID: "00000000-0000-4000-8000-000000000002", Category: "drug", WikidataID: "Q180809", ATC: "A11HA05",
-		ReviewStatus: "unreviewed", Note: "Check the Latin, then mark reviewed.", Rank: 40,
+		ReviewStatus: "unreviewed", Note: "Check the Latin, then mark approved.", Rank: 40,
 		Labels: labels("en", "-(+)-biotin", "en", "vitamin B7, biotin"),
 	},
 }
@@ -61,7 +61,7 @@ func TestEncodeCSV(t *testing.T) {
 
 	want := "\ufeff" + csvNote + csvHeader +
 		"00000000-0000-4000-8000-000000000001,anatomy,Q9368,,A05.8.01.001,,,180,hepar,,,,јетра,liver,,,,,,iecur | jecur,,,,,,,,,,,approved,\n" +
-		"00000000-0000-4000-8000-000000000002,drug,Q180809,,,A11HA05,,40,,,,,,'-(+)-biotin,,,,,,,,,,,\"vitamin B7, biotin\",,,,,,unreviewed,\"Check the Latin, then mark reviewed.\"\n"
+		"00000000-0000-4000-8000-000000000002,drug,Q180809,,,A11HA05,,40,,,,,,'-(+)-biotin,,,,,,,,,,,\"vitamin B7, biotin\",,,,,,unreviewed,\"Check the Latin, then mark approved.\"\n"
 	if out.String() != want {
 		t.Errorf("EncodeCSV =\n%s\nwant\n%s", out.String(), want)
 	}
