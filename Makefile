@@ -154,8 +154,9 @@ arch-gate: tools-image
 ## the Go journeys (the API, Mailpit's API, salusctl built here on the owner's DATABASE_URL, LiveKit), the web
 ## journey in Chromium that the consultation journey starts (test/e2e/web), then the check that LiveKit's log
 ## holds none of the run's synthetic names, e-mails and ids. Each run first clears the login rate-limit counters
-## (ratelimit:*) in the compose Redis: a run signs in about 9 times from one IP, so back-to-back runs would reach
-## the production limit of 30 per 15 minutes. The limit itself is unchanged.
+## (ratelimit:*) in the compose Redis, and each Go journey clears them again before it signs in (clearLoginLimits):
+## every sign-in comes from one IP, and a run signs in more often than the production limit of 30 per 15 minutes
+## allows. The limit itself is unchanged.
 ## The stack runs with deployments/docker-compose.e2e.yml on top: the fake engines play the scripted conversations
 ## of test/testdata/consult (SAL-10), and the consultation pipeline's latency report is written to
 ## /e2e/consult-latency.md (make e2e-report prints it). A later `make up` puts the plain fakes back.

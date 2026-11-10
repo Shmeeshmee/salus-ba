@@ -323,18 +323,6 @@ func (e *events) send(t *testing.T, typ string, payload any) {
 	}
 }
 
-// waitClosed waits up to 30 s for the server to close the stream and returns its close code.
-func (e *events) waitClosed(t *testing.T) int {
-	t.Helper()
-	select {
-	case <-e.closed:
-		return e.closeCode()
-	case <-time.After(30 * time.Second):
-		t.Fatal("the event stream is still open after 30s")
-		return 0
-	}
-}
-
 func (e *events) closeCode() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()

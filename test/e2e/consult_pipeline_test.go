@@ -27,7 +27,8 @@ import (
 // stream to the practitioner's WebSocket and are stored; the suggestions worker suggests from the stored lines, the
 // practitioner pins one and dismisses another; a document is drafted from the transcript, edited and signed. The
 // German journey's practitioner is the web app in Chromium (test/e2e/web/consult-pipeline.spec.ts); the Arabic and
-// Turkish ones are Go participants on the event stream, and the Turkish patient withdraws consent mid-call.
+// Turkish ones are Go participants on the event stream, and the Turkish patient withdraws the transcription
+// consent mid-call.
 
 // bookedIn is the booking confirmation's subject in the patient's language (internal/notification/templates).
 var bookedIn = map[string]string{"de": germanBooked, "ar": "تم حجز موعدك", "tr": "Randevunuz oluşturuldu"}
@@ -37,12 +38,6 @@ const editedValue = "Primjer: vrijednost izmijenjena u e2e testu."
 
 // practitionerLanguage is the practitioner's language: the clinic's default, Bosnian.
 const practitionerLanguage = "bs"
-
-// giveTranscriptionConsent is where the patient agrees to the transcription before the call: SAL-12 adds the
-// separate transcription Consent here, which the agent requires besides the care Consent given at booking.
-func giveTranscriptionConsent(t *testing.T, _ *patient, _ *bookableClinic) {
-	t.Helper()
-}
 
 func TestConsultPipeline_AnArabicPatientAndABosnianPractitioner(t *testing.T) {
 	c := newPipelineCall(t, "ar")
@@ -60,7 +55,7 @@ func TestConsultPipeline_AnArabicPatientAndABosnianPractitioner(t *testing.T) {
 	finished(t, c.p, c.apptID)
 }
 
-func TestConsultPipeline_ATurkishPatientWithdrawsConsentMidCallAndTheAgentLeaves(t *testing.T) {
+func TestConsultPipeline_ATurkishPatientWithdrawsTheTranscriptionMidCallAndTheAgentLeaves(t *testing.T) {
 	c := newPipelineCall(t, "tr")
 	patient, practitioner, voices := c.joinFromGo(t)
 	c.converse(t, voices)
@@ -69,18 +64,26 @@ func TestConsultPipeline_ATurkishPatientWithdrawsConsentMidCallAndTheAgentLeaves
 	c.draftEditAndSign(t)
 	latencies.check(t, c.journey)
 
-	c.revokeCareConsent(t)
-	if reason := patient.waitGone(t); reason != livekit.DisconnectReason_PARTICIPANT_REMOVED {
-		t.Errorf("the patient was disconnected with %v, want PARTICIPANT_REMOVED", reason)
+	// The patient withdraws the transcription consent (SAL-12): the agent leaves at once, the call goes on, and the
+	// document can no longer be drafted from the conversation.
+	consent := c.p.activeConsent("transcription", c.clinic)
+	if consent == "" {
+		t.Fatal("the patient has no active transcription consent with the clinic")
 	}
-	eventually(t, "the agent removed with the patient", func() bool { return !agentIn(practitioner.room) })
-	if code := c.events.waitClosed(t); code != 4403 {
-		t.Errorf("the practitioner's event stream closed with %d, want 4403 consent_required", code)
+	c.p.must(http.StatusOK, http.MethodPost, "/consents/"+consent+"/revoke", nil, nil)
+	eventually(t, "the agent gone, the patient still in", func() bool {
+		return !agentIn(practitioner.room) && len(practitioner.room.GetRemoteParticipants()) == 1
+	})
+	select {
+	case <-patient.gone:
+		t.Fatal("the patient was disconnected by the withdrawal of the transcription")
+	default:
 	}
-	if got := c.clinic.practitioner.do(http.MethodGet, "/encounters/"+c.encounterID+"/transcript", nil, nil); got != http.StatusForbidden {
-		t.Errorf("the transcript after the withdrawal = %d, want 403", got)
+	if got, code := c.clinic.practitioner.refusal(http.MethodPost, "/encounters/"+c.encounterID+"/drafts",
+		map[string]string{"templateId": c.template.id, "language": "bs"}); got != http.StatusForbidden || code != "transcription_consent_required" {
+		t.Errorf("drafting after the withdrawal = %d %q, want 403 transcription_consent_required", got, code)
 	}
-	// The call goes on without the agent: the practitioner stays until they end it.
+
 	c.clinic.practitioner.must(http.StatusOK, http.MethodPost, "/appointments/"+c.apptID+"/consultation/end", nil, nil)
 	if reason := practitioner.waitGone(t); reason != livekit.DisconnectReason_ROOM_DELETED {
 		t.Errorf("the practitioner was disconnected with %v, want ROOM_DELETED (they stay through the withdrawal)", reason)
@@ -123,25 +126,6 @@ func TestConsultPipeline_AGermanPatientAndTheBosnianPractitionerInTheWebApp(t *t
 	finished(t, c.p, c.apptID)
 }
 
-// revokeCareConsent revokes the patient's active consent with the clinic, the one the booking gave.
-func (c *pipelineCall) revokeCareConsent(t *testing.T) {
-	t.Helper()
-	var consents struct {
-		Consents []struct{ ID, OrganizationID, Status string }
-	}
-	c.p.must(http.StatusOK, http.MethodGet, "/me/consents", nil, &consents)
-	var ids []string
-	for _, k := range consents.Consents {
-		if k.OrganizationID == c.clinic.id && k.Status == "active" {
-			ids = append(ids, k.ID)
-		}
-	}
-	if len(ids) != 1 {
-		t.Fatalf("the patient has %d active consents with the clinic, want the one of the booking", len(ids))
-	}
-	c.p.must(http.StatusOK, http.MethodPost, "/consents/"+ids[0]+"/revoke", nil, nil)
-}
-
 // pipelineCall is one journey's consultation.
 type pipelineCall struct {
 	clinic      *bookableClinic
@@ -166,7 +150,7 @@ func newPipelineCall(t *testing.T, language string) *pipelineCall {
 	c.apptID = c.p.bookIn(c.clinic, freeSlots(t, c.p.api, c.clinic.scheduleID)[0], bookedIn[language])
 	recordSynthetic(t, c.clinic, c.p, c.apptID)
 	recordConversation(t, c.conv)
-	giveTranscriptionConsent(t, c.p, c.clinic)
+	c.p.giveTranscriptionConsent(c.clinic) // the app's notice before the call (SAL-12): the agent may join
 	c.template = newScriptedTemplate(t, c.clinic, c.conv)
 	return c
 }

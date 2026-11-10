@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	goredis "github.com/redis/go-redis/v9"
+
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -178,9 +180,31 @@ type login struct {
 
 func (a *api) login(addr string) login {
 	a.t.Helper()
+	clearLoginLimits(a.t)
 	var l login
 	a.must(http.StatusOK, http.MethodPost, "/auth/login", map[string]string{"email": addr, "password": password}, &l)
 	return l
+}
+
+// clearLoginLimits deletes the login rate-limit counters (ratelimit:*) in the compose Redis before a journey signs
+// in, as make e2e does before the run: every sign-in of the suite comes from the playwright container's one IP, and
+// the suite now signs in more often than the production limit of 30 per IP in 15 minutes allows. The limit itself is
+// unchanged, and tested in internal/auth.
+func clearLoginLimits(t *testing.T) {
+	t.Helper()
+	opts, err := goredis.ParseURL(env(t, "E2E_REDIS_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rdb := goredis.NewClient(opts)
+	defer func() { _ = rdb.Close() }()
+	keys, err := rdb.Keys(t.Context(), "ratelimit:*").Result()
+	if err == nil && len(keys) > 0 {
+		err = rdb.Del(t.Context(), keys...).Err()
+	}
+	if err != nil {
+		t.Fatalf("clear the login rate limits: %v", err)
+	}
 }
 
 // account is the Account schema.
