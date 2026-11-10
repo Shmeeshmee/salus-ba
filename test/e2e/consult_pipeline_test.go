@@ -69,9 +69,7 @@ func TestConsultPipeline_ATurkishPatientWithdrawsConsentMidCallAndTheAgentLeaves
 	c.draftEditAndSign(t)
 	latencies.check(t, c.journey)
 
-	var consents struct{ Consents []struct{ ID string } }
-	c.p.must(http.StatusOK, http.MethodGet, "/me/consents", nil, &consents)
-	c.p.must(http.StatusOK, http.MethodPost, "/consents/"+consents.Consents[0].ID+"/revoke", nil, nil)
+	c.revokeCareConsent(t)
 	if reason := patient.waitGone(t); reason != livekit.DisconnectReason_PARTICIPANT_REMOVED {
 		t.Errorf("the patient was disconnected with %v, want PARTICIPANT_REMOVED", reason)
 	}
@@ -123,6 +121,25 @@ func TestConsultPipeline_AGermanPatientAndTheBosnianPractitionerInTheWebApp(t *t
 	}
 	latencies.check(t, c.journey)
 	finished(t, c.p, c.apptID)
+}
+
+// revokeCareConsent revokes the patient's active consent with the clinic, the one the booking gave.
+func (c *pipelineCall) revokeCareConsent(t *testing.T) {
+	t.Helper()
+	var consents struct {
+		Consents []struct{ ID, OrganizationID, Status string }
+	}
+	c.p.must(http.StatusOK, http.MethodGet, "/me/consents", nil, &consents)
+	var ids []string
+	for _, k := range consents.Consents {
+		if k.OrganizationID == c.clinic.id && k.Status == "active" {
+			ids = append(ids, k.ID)
+		}
+	}
+	if len(ids) != 1 {
+		t.Fatalf("the patient has %d active consents with the clinic, want the one of the booking", len(ids))
+	}
+	c.p.must(http.StatusOK, http.MethodPost, "/consents/"+ids[0]+"/revoke", nil, nil)
 }
 
 // pipelineCall is one journey's consultation.
