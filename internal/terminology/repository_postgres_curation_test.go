@@ -134,6 +134,14 @@ func TestUpdateTerm_WritesAndClearsTheReviewer(t *testing.T) {
 	if got := termOf(t, repo, ulcer); got.ReviewedBy != reviewer {
 		t.Errorf("reviewed_by = %q, want %q", got.ReviewedBy, reviewer)
 	}
+	bad := edit
+	bad.ReviewedBy = "not-an-account"
+	if err := repo.UpdateTerm(t.Context(), bad, at); err == nil {
+		t.Error("UpdateTerm with a reviewer that is no UUID = nil, want an error")
+	}
+	if got := termOf(t, repo, ulcer); got.ReviewedBy != reviewer {
+		t.Errorf("reviewed_by = %q after a refused update, want %q kept", got.ReviewedBy, reviewer)
+	}
 	edit.ReviewedBy = ""
 	if err := repo.UpdateTerm(t.Context(), edit, at); err != nil {
 		t.Fatalf("UpdateTerm: %v", err)

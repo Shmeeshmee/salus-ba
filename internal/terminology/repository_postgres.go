@@ -121,10 +121,14 @@ func (r *postgresRepository) UpdateTerm(ctx context.Context, t Term, at time.Tim
 	if err := id.Scan(t.ID); err != nil {
 		return ErrTermNotFound
 	}
+	reviewer, ok := optionalUUID(t.ReviewedBy)
+	if !ok {
+		return errInvalidReviewer
+	}
 	n, err := r.q(ctx).UpdateTerm(ctx, terminologydb.UpdateTermParams{
 		Category: terminologydb.TermCategory(t.Category), Rank: t.Rank, WikidataID: text(t.WikidataID),
 		Icd10: text(t.ICD10), Ta98: text(t.TA98), Atc: text(t.ATC), Pcs: text(t.PCS), ReviewStatus: t.ReviewStatus,
-		ReviewedAt: pgtype.Timestamptz{Time: t.ReviewedAt, Valid: !t.ReviewedAt.IsZero()}, ReviewedBy: uuidOrNull(t.ReviewedBy),
+		ReviewedAt: pgtype.Timestamptz{Time: t.ReviewedAt, Valid: !t.ReviewedAt.IsZero()}, ReviewedBy: reviewer,
 		Note:      text(t.Note),
 		UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true}, ID: id,
 	})
@@ -188,11 +192,14 @@ func text(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: s != ""}
 }
 
-// uuidOrNull is id as a nullable uuid: null when empty or not a UUID.
-func uuidOrNull(id string) pgtype.UUID {
+// errInvalidReviewer is returned for a reviewer that is no account id; the value is not repeated.
+var errInvalidReviewer = errors.New("terminology: reviewed_by is no UUID")
+
+// optionalUUID is id as a nullable uuid, null when empty; false when it is no UUID.
+func optionalUUID(id string) (pgtype.UUID, bool) {
 	var u pgtype.UUID
-	if u.Scan(id) != nil {
-		return pgtype.UUID{}
+	if id == "" {
+		return u, true
 	}
-	return u
+	return u, u.Scan(id) == nil
 }

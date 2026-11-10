@@ -555,7 +555,7 @@ type Term struct {
 	ReviewedAt   pgtype.Timestamptz
 	Rank         int32
 	Category     TermCategory
-	ReviewStatus interface{}
+	ReviewStatus string
 	WikidataID   pgtype.Text
 	Icd10        pgtype.Text
 	Ta98         pgtype.Text
@@ -573,7 +573,7 @@ type TermExplanation struct {
 	ReviewedBy   pgtype.UUID
 	VersionID    int32
 	Language     TermLanguage
-	ReviewStatus interface{}
+	ReviewStatus string
 	Text         string
 	Note         pgtype.Text
 }
@@ -593,7 +593,7 @@ type TermTranslation struct {
 	ReviewedBy   pgtype.UUID
 	VersionID    int32
 	Language     TermLanguage
-	ReviewStatus interface{}
+	ReviewStatus string
 	Note         pgtype.Text
 }
 

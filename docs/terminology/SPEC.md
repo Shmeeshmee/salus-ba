@@ -51,7 +51,9 @@ Reopen only with the owner.
 ### Database
 
 - **Domain `terminology`**, in a new context `reference` (archcheck config and CLAUDE.md list).
-- **Tables** (owner `terminology`, `personal_data: false`, no retention rule needed):
+- **Tables** (owner `terminology`; `personal_data: false` and no retention rule until 00037, which adds
+  `reviewed_by` (staff account ids): `term`, `term_translation` and `term_explanation` are `personal_data: true`
+  with retention `keep`, `term_label` stays `false`; docs/plans/v1-finish.md "Contract"):
   - `term`: `id` (uuid), `category` (enum `term_category`: `anatomy`, `diagnosis`, `symptom`, `procedure`,
     `drug`), `wikidata_id`, `icd10`, `ta98`, `atc`, `pcs` (each nullable), `rank` (from the sitelinks),
     `review_status` (`draft` | `reviewed`; since 00037 `unreviewed` | `approved` | `needs_changes`, with `reviewed_by`:
@@ -78,7 +80,7 @@ Reopen only with the owner.
   (fixes labels, fills Latin, sets `approved` or `needs_changes`, writes notes); `salusctl terminology import` applies it:
   upsert by id, labels replaced, `reviewed_at` set when a row turns `approved` or `needs_changes`. Idempotent; an unknown column
   or an id that doesn't exist is refused for that row and reported, the rest applied.
-- **No personal data** in the file or the tables: no reviewer name, only the date. Changed by the owner,
+- **No personal data** in the file or the tables (until 00037): no reviewer name, only the date. Changed by the owner,
   2026-11-10: the tables hold the reviewer's account id (`reviewed_by`, retention `keep`); the file still names no
   one (docs/plans/v1-finish.md "Decisions").
 
