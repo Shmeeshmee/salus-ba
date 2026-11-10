@@ -96,8 +96,18 @@ func (s *Service) Create(ctx context.Context, name string) (Organization, error)
 // clinic's scope on the transaction in ctx, joining one already there. A clinic that does not exist gives
 // ErrNotFound. Not audited: nothing in a clinic is personal data.
 func (s *Service) DefaultLanguage(ctx context.Context, organizationID string) (string, error) {
+	o, err := s.byID(ctx, organizationID)
+	if err != nil {
+		return "", fmt.Errorf("organization: default language: %w", err)
+	}
+	return o.DefaultLanguage, nil
+}
+
+// byID reads the clinic in its own scope, set on the transaction in ctx (joining one already there), unaudited;
+// ErrNotFound for none.
+func (s *Service) byID(ctx context.Context, organizationID string) (Organization, error) {
 	if organizationID == "" {
-		return "", ErrNotFound
+		return Organization{}, ErrNotFound
 	}
 	var o Organization
 	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
@@ -108,13 +118,18 @@ func (s *Service) DefaultLanguage(ctx context.Context, organizationID string) (s
 		o, err = s.repo.ByID(ctx, organizationID)
 		return err
 	})
-	switch {
-	case errors.Is(err, ErrNotFound):
-		return "", ErrNotFound
-	case err != nil:
-		return "", fmt.Errorf("organization: default language: %w", err)
+	return o, err
+}
+
+// TranscriptCopy tells whether the clinic organizationID gives its patients a copy of their consultations'
+// stored transcripts (PatientTranscriptCopy), for the transcript's rule (access.TranscriptCopy). Read like
+// DefaultLanguage: in the clinic's scope set on the transaction in ctx, unaudited; ErrNotFound for none.
+func (s *Service) TranscriptCopy(ctx context.Context, organizationID string) (bool, error) {
+	o, err := s.byID(ctx, organizationID)
+	if err != nil {
+		return false, fmt.Errorf("organization: transcript copy: %w", err)
 	}
-	return o.DefaultLanguage, nil
+	return o.PatientTranscriptCopy, nil
 }
 
 // ListListed returns the listed clinics, by name: the public directory, for anyone, signed in or not. Not
@@ -213,6 +228,9 @@ func (s *Service) update(ctx context.Context, id string, ch Changes, version int
 	}
 	if ch.DefaultLanguage != nil {
 		next.DefaultLanguage = *ch.DefaultLanguage
+	}
+	if ch.PatientTranscriptCopy != nil {
+		next.PatientTranscriptCopy = *ch.PatientTranscriptCopy
 	}
 	o, err = s.repo.Update(ctx, next, s.clock.Now())
 	if errors.Is(err, ErrConflict) { // changed since the read

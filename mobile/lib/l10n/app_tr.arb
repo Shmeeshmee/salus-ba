@@ -260,5 +260,17 @@
   "questionnaireLanguages": "Şu dillerde mevcut: {languages}. En iyi anladığınız dili seçin.",
   "continueInLanguage": "Şu dilde devam et: {language}",
   "languageUnavailable": "Bu dil artık bu soru formu için mevcut değil. Başka bir dil seçin.",
-  "specialtyAtClinic": "{specialty}, {clinic}"
+  "specialtyAtClinic": "{specialty}, {clinic}",
+  "documents": "Belgeler",
+  "noDocuments": "Bu randevu için henüz imzalanmış belge yok. Sağlık uzmanınız bir belgeyi imzaladığında belge burada görünür.",
+  "documentSignedOn": "İmza tarihi: {date}",
+  "documentLanguage": "Dil: {language}",
+  "sharePdf": "PDF'yi kaydet veya paylaş",
+  "transcript": "Görüşme dökümü",
+  "transcriptNote": "Görüşmenin otomatik olarak yazıya dökülmüş ve çevrilmiş hâli. Hatalar içerebilir.",
+  "transcriptEmpty": "Bu görüşmede yazıya dökülen bir şey yok.",
+  "speakerYou": "Siz",
+  "speakerPractitioner": "Sağlık uzmanı",
+  "shareTranscript": "Dökümü paylaş",
+  "transcriptTranslation": "Çeviri: {text}"
 }

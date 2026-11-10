@@ -168,10 +168,12 @@ export function participant(appt: Appointment, type: 'Patient' | 'Practitioner' 
 export const listedURL = 'https://salus.invalid/fhir/StructureDefinition/organization-listed'
 export const timeZoneURL = 'https://salus.invalid/fhir/StructureDefinition/organization-timezone'
 export const defaultLanguageURL = 'https://salus.invalid/fhir/StructureDefinition/organization-default-language'
+export const transcriptCopyURL = 'https://salus.invalid/fhir/StructureDefinition/organization-patient-transcript-copy'
 export const defaultTimeZone = 'Europe/Sarajevo'
 
-// defaultLanguage is a staff language (docs/i18n/SPEC.md §3 "The clinic's default language"), Bosnian unless set.
-export type ClinicSettings = { name: string; listed: boolean; timeZone: string; defaultLanguage: Language }
+// defaultLanguage is a staff language (docs/i18n/SPEC.md §3 "The clinic's default language"), Bosnian unless set;
+// transcriptCopy whether the patients get a copy of their consultations' transcripts (SAL-17), off unless set.
+export type ClinicSettings = { name: string; listed: boolean; timeZone: string; defaultLanguage: Language; transcriptCopy: boolean }
 
 export function settingsOf(org: Organization): ClinicSettings {
   const ext = (url: string) => org.extension?.find((e) => e.url === url)
@@ -181,11 +183,12 @@ export function settingsOf(org: Organization): ClinicSettings {
     listed: ext(listedURL)?.valueBoolean ?? false,
     timeZone: ext(timeZoneURL)?.valueCode ?? defaultTimeZone,
     defaultLanguage: isStaffLanguage(language) ? language : 'bs',
+    transcriptCopy: ext(transcriptCopyURL)?.valueBoolean ?? false,
   }
 }
 
 export function withSettings(org: Organization, s: ClinicSettings): Organization {
-  const own = [listedURL, timeZoneURL, defaultLanguageURL]
+  const own = [listedURL, timeZoneURL, defaultLanguageURL, transcriptCopyURL]
   const others = (org.extension ?? []).filter((e) => !own.includes(e.url))
   return {
     ...org,
@@ -195,6 +198,7 @@ export function withSettings(org: Organization, s: ClinicSettings): Organization
       { url: listedURL, valueBoolean: s.listed },
       { url: timeZoneURL, valueCode: s.timeZone },
       { url: defaultLanguageURL, valueCode: s.defaultLanguage },
+      { url: transcriptCopyURL, valueBoolean: s.transcriptCopy },
     ],
   }
 }

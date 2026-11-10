@@ -36,7 +36,7 @@ import (
 // TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIsFulfilled: the patient joins first and
 // waits; the practitioner signs in to the web app, joins from the appointment, sees and hears the patient; the
 // Encounter is in-progress; the practitioner ends the consultation, the patient is disconnected, the Encounter is
-// finished and the appointment fulfilled.
+// finished and the appointment fulfilled. The document the practitioner signed in the call is the patient's to open.
 func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIsFulfilled(t *testing.T) {
 	clinic := newBookableClinic(t)
 	p := newPatientWithProfile(t)
@@ -60,6 +60,7 @@ func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIs
 		t.Errorf("the patient was disconnected with %v, want ROOM_DELETED (the practitioner's end deletes the room)", reason)
 	}
 	finished(t, p, appt.ID)
+	patientOpensTheSignedDocument(t, clinic, p, appt.ID, template)
 }
 
 // TestConsultation_ARevocationDuringTheCallRemovesThePatient: both are in the call of an appointment that has

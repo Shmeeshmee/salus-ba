@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ClinicSettings } from './ClinicSettings'
-import { defaultLanguageURL, listedURL, newFhirClient, timeZoneURL, type Organization } from './api/fhir'
+import { defaultLanguageURL, listedURL, newFhirClient, timeZoneURL, transcriptCopyURL, type Organization } from './api/fhir'
 import type { Language } from './i18n/languages'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import { expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, type Route } from './test/fakeFetch'
@@ -131,6 +131,7 @@ describe('ClinicSettings', () => {
       { url: listedURL, valueBoolean: true },
       { url: timeZoneURL, valueCode: 'Europe/Berlin' },
       { url: defaultLanguageURL, valueCode: 'bs' },
+      { url: transcriptCopyURL, valueBoolean: false },
     ])
     expectCsrfOnWrites(requests)
     expect((screen.getByLabelText('List the clinic in the patient app') as HTMLInputElement).checked).toBe(true)
@@ -179,5 +180,37 @@ describe("the clinic's default language", () => {
     expect(screen.getByLabelText('Zadani jezik')).toBeTruthy()
     expect(screen.getByLabelText('Naziv klinike')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Spremi' })).toBeTruthy()
+  })
+})
+
+describe("the patients' transcript copy", () => {
+  const label = 'Give patients a copy of their consultation transcripts'
+
+  it('is off unless the Organization says it is on', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(org) })
+
+    expect(((await screen.findByLabelText(label)) as HTMLInputElement).checked).toBe(false)
+    expect(screen.getByText('Patients can then read the transcripts of their own consultations in the patient app.')).toBeTruthy()
+  })
+
+  it('saves it with the other settings', async () => {
+    const { requests } = renderSettings({
+      [`GET ${path}`]: () => fhirJSON(org),
+      [`PUT ${path}`]: async (r) => fhirJSON({ ...((await r.json()) as Organization), meta: { ...org.meta, versionId: '4' } }),
+    })
+
+    fireEvent.click(await screen.findByLabelText(label))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect((await screen.findByRole('status')).textContent).toBe('Saved.')
+    const put = requests.find((r) => r.method === 'PUT')!
+    expect(((await put.json()) as Organization).extension).toContainEqual({ url: transcriptCopyURL, valueBoolean: true })
+    expect((screen.getByLabelText(label) as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('shows it in Bosnian', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON({ ...org, extension: [...org.extension!, { url: transcriptCopyURL, valueBoolean: true }] }) }, 'bs')
+
+    expect(((await screen.findByLabelText('Omogući pacijentima kopiju transkripta njihovih konsultacija')) as HTMLInputElement).checked).toBe(true)
   })
 })

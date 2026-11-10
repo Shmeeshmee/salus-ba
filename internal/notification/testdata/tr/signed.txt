@@ -1,0 +1,8 @@
+Subject: Randevunuza ait bir belge hazır
+
+Randevunuza ait bir belge hazır.
+Klinik: Synthetic clinic
+Tarih ve saat: 7 Ocak 2030 Pazartesi, saat 10:00 (Europe/Sarajevo)
+
+Belgeyi okumak için Salus uygulamasını açın:
+https://patient.example.test/appointments

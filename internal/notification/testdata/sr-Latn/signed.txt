@@ -1,0 +1,7 @@
+Subject: Dokument sa vašeg termina je spreman
+
+Dokument sa vašeg termina u ustanovi Synthetic clinic je spreman.
+Datum i vrijeme: ponedjeljak, 7. januar 2030. u 10:00 (Europe/Sarajevo)
+
+Da biste ga pročitali, otvorite aplikaciju Salus:
+https://patient.example.test/appointments

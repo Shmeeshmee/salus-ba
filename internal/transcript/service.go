@@ -35,19 +35,26 @@ type Consents interface {
 	State(ctx context.Context, patientID, organizationID string) (access.Consent, error)
 }
 
+// Sharing tells whether a clinic gives its patients a copy of their transcripts (organization.Service).
+type Sharing interface {
+	TranscriptCopy(ctx context.Context, organizationID string) (bool, error)
+}
+
 // Ports are the Service's dependencies.
 type Ports struct {
 	Repo       Repository
 	Stream     Stream
 	Encounters Encounters
 	Consents   Consents
+	Sharing    Sharing
 	Audit      Auditor
 	Tx         Transactor
 }
 
 // Service holds the transcript's rules (docs/plans/consult-intelligence.md): only final segments are stored,
 // once, and only while the patient's consent is active; only the encounter's practitioner, with that consent,
-// follows the encounter's stream and reads its transcript. Every write, read and refusal is audited.
+// follows the encounter's stream and reads its transcript, and its patient reads their copy of the transcript
+// while the clinic shares it (access.TranscriptCopy). Every write, read and refusal is audited.
 type Service struct{ Ports }
 
 // NewService returns a Service on its ports.

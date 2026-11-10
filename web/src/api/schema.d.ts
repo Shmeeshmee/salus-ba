@@ -720,7 +720,7 @@ export interface paths {
         };
         /**
          * The consultation's stored transcript
-         * @description Every final segment of the encounter's transcript, in the order it was said, with its translation, as `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent only; the patient's own copy comes with the export feature. Not cached. Audited as a read with the number of segments, also when refused.
+         * @description Every final segment of the encounter's transcript, in the order it was said, with its translation, as `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent, and for the encounter's patient (their copy, whatever the consent) while the clinic shares transcripts with its patients (the Organization's organization-patient-transcript-copy extension, off by default). Not cached. Audited as a read with the number of segments, also when refused.
          */
         get: operations["exportTranscript"];
         put?: never;
@@ -839,7 +839,7 @@ export interface paths {
         };
         /**
          * A signed document's PDF
-         * @description The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a download. For the encounter's practitioner with the patient's active consent only. Audited as a read of the DocumentReference, also when refused.
+         * @description The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a download. For the encounter's practitioner with the patient's active consent, and for the encounter's patient whatever the consent (their own record). Audited as a read of the DocumentReference, also when refused.
          */
         get: operations["downloadDocument"];
         put?: never;
@@ -4195,7 +4195,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
-            /** @description `consent_required`: the encounter's practitioner after the patient revoked their consent; `forbidden`: anyone else who sees the encounter. */
+            /** @description `consent_required`: the encounter's practitioner after the patient revoked their consent; `forbidden`: the patient while the clinic does not share transcripts, and anyone else who sees the encounter. */
             403: {
                 headers: {
                     [name: string]: unknown;

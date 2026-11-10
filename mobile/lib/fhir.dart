@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:salus_api/api.dart' show ApiClient, QueryParam;
 
+import 'documents.dart';
 import 'questionnaire.dart';
 import 'session.dart';
 
@@ -141,6 +142,21 @@ class Fhir {
 
   /// One questionnaire response, read again.
   Future<Response> questionnaireResponse(String id) async => Response.fromFhir(await _get('QuestionnaireResponse/$id'));
+
+  /// The id of the appointment's Encounter, or null before the consultation has one.
+  Future<String?> encounterOf(String appointmentId) async {
+    final all = await _search('Encounter', [QueryParam('appointment', appointmentId)]);
+    return all.isEmpty ? null : _string(all.first['id']);
+  }
+
+  /// The encounter's signed documents, in the order they were signed (docs/consultation/SPEC.md "Patient documents").
+  Future<List<SignedDocument>> signedDocuments(String encounterId) async => [
+    for (final r in await _search('DocumentReference', [QueryParam('encounter', encounterId)]))
+      SignedDocument.fromFhir(r),
+  ];
+
+  /// A signed document's Composition.
+  Future<DocumentContent> composition(String id) async => DocumentContent.fromFhir(await _get('Composition/$id'));
 
   /// The resources of a searchset: the matches, and the included ones when [includes].
   Future<List<Map<String, dynamic>>> _search(String type, List<QueryParam> query, {bool includes = false}) async {

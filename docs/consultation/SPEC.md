@@ -392,3 +392,22 @@ All eight packages are committed on `feat/consultation`; `make lint`, `make test
 cover` (every package at 80% or more), `make fhir-validate` and `make e2e` pass locally and in CI; `make
 gen-clients` leaves no diff; the web and mobile checks pass; `docs/privacy/` describes what exists;
 `PROGRESS.md` records every package with its failing tests, the SDK versions and the token latency.
+
+## 10. Patient documents (SAL-17, as built 2026-11-10; agent decisions, for the owner to review)
+
+The patient's side of the documents signed in a consultation (`docs/plans/v1-finish.md`, SAL-17), and the
+transcript copy the consult-intelligence plan left to "the export feature".
+
+| Topic | Decision |
+| --- | --- |
+| What the patient sees | The **signed** documents of their own encounters: the final `Composition`, its `DocumentReference` and `Provenance`, and the PDF. Never a preliminary or discarded draft: row-level security (`document_draft_own`, migration 00040) shows the patient's scope final rows only, and the service refuses a non-final one as not found (`access.SignedDocument`) |
+| Consent withdrawal | Does not take a signed document from the patient: it is their own record (GDPR Art. 15), as `access` already gives the patient their own profile, appointments and questionnaire responses whatever the consent. The withdrawal still ends the practitioner's access at once (`ConsultationRecord`, unchanged) |
+| FHIR | `DocumentReference?encounter=<id>` (search-type, added to the CapabilityStatement): the encounter's signed documents, in the order they were signed, to the encounter's practitioner (with an active consent) and its patient. The reads of `Composition`, `DocumentReference`, `Provenance` and `GET /document-references/{id}/content` now also answer the patient. Every search and read is audited, the patient's with purpose `PATRQT` |
+| Language | A signed document is never translated or altered: it is shown in the language it was signed in. "In the patient's language where available" is the order of the list: documents in the app's language first, each other one labelled with its language's own name |
+| Transcript copy | `GET /encounters/{id}/transcript` (JSON, unchanged) also answers the encounter's patient while the clinic shares transcripts with its patients (`access.TranscriptCopy`), whatever the consent. Only the stored transcript: the live stream stays the practitioner's. A clinic that stops sharing takes the in-app copy away; the patient's access right itself is the subject-rights feature's (`datarequest`) |
+| Clinic setting | `organization.patient_transcript_copy`, off by default, set by the clinic's admin in the web app's clinic settings as the Organization extension `organization-patient-transcript-copy` (valueBoolean), like the clinic's other settings (listing, time zone, default language): one model, no JSON endpoint of its own. The patient's scope cannot see the clinic's row, so the setting is the service's check, not the database's |
+| Notification | Each signature enqueues `document_signed_email` (appointment and clinic ids only) in its final transaction; the notifier e-mails the patient, in their language (all ten), that a document of their appointment at the clinic on its date is ready in the app, with the link to the appointments. No title, type, practitioner or content. Push is not wired in the stack: out of scope here |
+| Mobile | A Documents button on every appointment that has started and is not cancelled (the only change to the appointment card); the list; each document as text, a `Text` per field label and per line of its value (SAL-13 adds tap-to-explain on them); its PDF to the device's share sheet (open in a viewer, save to the device's files, send) through `share_plus` 13.3.1, the Flutter Community's plugin (Flutter has no share sheet). The PDF goes through a `salus-document-*` copy in the temporary directory, deleted once the sheet closes and swept at start, with share_plus's own Android copy (`<cache>/share_plus/`). The transcript copy as text, shareable as text |
+
+Personal data: no new personal field. The patient now reads data already kept (signed documents, transcript
+segments); `organization.patient_transcript_copy` is a clinic setting, not personal data. Retention is unchanged.

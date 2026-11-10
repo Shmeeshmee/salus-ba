@@ -20,15 +20,15 @@ import (
 const RecheckEvery = time.Second
 
 // Export returns the encounter's stored transcript, in the order it was said, to its practitioner with the
-// patient's active consent (access.ConsultationRecord), read in the clinic's scope and audited with the number
-// of segments. ErrNotFound to a caller the appointment does not show (audited without the entity),
-// ErrConsentRequired to its practitioner after a revocation and ErrForbidden to anyone else who sees it (both
-// audited). The patient's own copy comes with the export feature.
+// patient's active consent, and to its patient while the clinic shares transcripts with its patients, whatever
+// the consent (access.TranscriptCopy), read in the caller's scope and audited with the number of segments.
+// ErrNotFound to a caller the appointment does not show (audited without the entity), ErrConsentRequired to its
+// practitioner after a revocation and ErrForbidden to anyone else who sees it (both audited).
 func (s *Service) Export(ctx context.Context, c appointment.Caller, encounterID string) ([]Event, error) {
 	var out []Event
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		id, err := s.allowed(ctx, c, encounterID)
+		id, err := s.allowed(ctx, c, encounterID, true)
 		if refused = refusal(err); refused != nil {
 			return s.record(ctx, c, auditevent.CodeRead, id, auditevent.OutcomeMinorFailure, 0)
 		}
@@ -65,7 +65,7 @@ func (s *Service) Subscribe(ctx context.Context, c appointment.Caller, encounter
 	}
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		id, err := s.allowed(ctx, c, encounterID)
+		id, err := s.allowed(ctx, c, encounterID, false)
 		if refused = refusal(err); refused != nil {
 			return s.record(ctx, c, auditevent.CodeOperation, id, auditevent.OutcomeMinorFailure, 0)
 		}
@@ -92,7 +92,7 @@ func (s *Service) Next(ctx context.Context, c appointment.Caller, encounterID, a
 	if err != nil {
 		return nil, fmt.Errorf("transcript: next: %w", err)
 	}
-	_, err = s.allowed(ctx, c, encounterID)
+	_, err = s.allowed(ctx, c, encounterID, false)
 	if refused := refusal(err); refused != nil {
 		return nil, refused
 	}
@@ -111,7 +111,7 @@ func (s *Service) Allowed(ctx context.Context, c appointment.Caller, encounterID
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
-		id, err = s.allowed(ctx, c, encounterID)
+		id, err = s.allowed(ctx, c, encounterID, false)
 		refused = refusal(err)
 		if refused != nil {
 			return nil
@@ -144,10 +144,11 @@ func refusal(err error) error {
 	return nil
 }
 
-// allowed checks that the caller may follow and read what was said in the encounter, in the transaction in ctx
-// (scoped to the caller by it), and returns the encounter's id as far as the caller may know it: "" when the
-// appointment does not show it. A refusal is an errRefused.
-func (s *Service) allowed(ctx context.Context, c appointment.Caller, encounterID string) (string, error) {
+// allowed checks that the caller may follow and read what was said in the encounter, or, with stored, read its
+// stored transcript (the patient's copy too), in the transaction in ctx (scoped to the caller by it), and returns
+// the encounter's id as far as the caller may know it: "" when the appointment does not show it. A refusal is an
+// errRefused.
+func (s *Service) allowed(ctx context.Context, c appointment.Caller, encounterID string, stored bool) (string, error) {
 	e, att, err := s.Encounters.Access(ctx, c, encounterID)
 	switch {
 	case errors.Is(err, encounter.ErrNotFound):
@@ -155,9 +156,15 @@ func (s *Service) allowed(ctx context.Context, c appointment.Caller, encounterID
 	case err != nil:
 		return "", err
 	}
+	shared := false
+	if stored && att.Patient { // only the patient's copy depends on the clinic's setting
+		if shared, err = s.Sharing.TranscriptCopy(ctx, att.Appointment.OrganizationID); err != nil {
+			return "", err
+		}
+	}
 	v, f, visit := rule(c, att)
 	switch {
-	case access.ConsultationRecord(v, f, visit):
+	case access.TranscriptCopy(v, f, visit, shared):
 		return e.ID, nil
 	case att.Practitioner && !att.ConsentActive:
 		return e.ID, errRefused{ErrConsentRequired}
