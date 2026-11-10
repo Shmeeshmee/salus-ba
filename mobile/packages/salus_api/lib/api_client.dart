@@ -258,6 +258,10 @@ class ApiClient {
           return DocumentTemplateTranslation.fromJson(value);
         case 'DocumentTemplates':
           return DocumentTemplates.fromJson(value);
+        case 'DocumentTerms':
+          return DocumentTerms.fromJson(value);
+        case 'DocumentTermsSection':
+          return DocumentTermsSection.fromJson(value);
         case 'DraftEvent':
           return DraftEvent.fromJson(value);
         case 'DraftField':
@@ -274,6 +278,10 @@ class ApiClient {
           return Enrolment.fromJson(value);
         case 'Error':
           return Error.fromJson(value);
+        case 'ExplainedTerm':
+          return ExplainedTerm.fromJson(value);
+        case 'ExplainedTermList':
+          return ExplainedTermList.fromJson(value);
         case 'GenerateDraftRequest':
           return GenerateDraftRequest.fromJson(value);
         case 'GrantConsentRequest':
@@ -384,6 +392,8 @@ class ApiClient {
           return TermReviewProgress.fromJson(value);
         case 'TermReviewProgressLanguagesInner':
           return TermReviewProgressLanguagesInner.fromJson(value);
+        case 'TermSpan':
+          return TermSpan.fromJson(value);
         case 'TermTranslation':
           return TermTranslation.fromJson(value);
         case 'Transcript':
@@ -392,6 +402,8 @@ class ApiClient {
           return TranscriptEvent.fromJson(value);
         case 'TranscriptMessage':
           return TranscriptMessage.fromJson(value);
+        case 'TranscriptTerms':
+          return TranscriptTerms.fromJson(value);
         case 'Unavailable':
           return Unavailable.fromJson(value);
         case 'UpdateMeRequest':

@@ -50,6 +50,8 @@ lib/model/document_template.dart
 lib/model/document_template_field.dart
 lib/model/document_template_translation.dart
 lib/model/document_templates.dart
+lib/model/document_terms.dart
+lib/model/document_terms_section.dart
 lib/model/draft_event.dart
 lib/model/draft_field.dart
 lib/model/draft_message.dart
@@ -58,6 +60,8 @@ lib/model/drafts.dart
 lib/model/enrol_request.dart
 lib/model/enrolment.dart
 lib/model/error.dart
+lib/model/explained_term.dart
+lib/model/explained_term_list.dart
 lib/model/generate_draft_request.dart
 lib/model/grant_consent_request.dart
 lib/model/invite.dart
@@ -113,10 +117,12 @@ lib/model/term_review_entry.dart
 lib/model/term_review_page.dart
 lib/model/term_review_progress.dart
 lib/model/term_review_progress_languages_inner.dart
+lib/model/term_span.dart
 lib/model/term_translation.dart
 lib/model/transcript.dart
 lib/model/transcript_event.dart
 lib/model/transcript_message.dart
+lib/model/transcript_terms.dart
 lib/model/unavailable.dart
 lib/model/update_me_request.dart
 lib/model/verify_request.dart

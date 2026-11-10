@@ -246,3 +246,30 @@ UPDATE term
 SET review_status = @review_status::text, reviewed_at = sqlc.narg(reviewed_at), reviewed_by = sqlc.narg(reviewed_by),
     updated_at = @updated_at
 WHERE id = @id;
+
+-- name: TagCandidates :many
+-- The candidates of the texts being tagged (SAL-13) that equal, both folded, a label in their language of a term
+-- with an explanation, each with the most common such term. One index lookup (term_label_language_folded) per
+-- distinct candidate.
+WITH c AS (
+    SELECT DISTINCT l.language, p.phrase, term_fold(p.phrase) AS folded
+    FROM unnest(@languages::text[]) WITH ORDINALITY AS l (language, n)
+    JOIN unnest(@phrases::text[]) WITH ORDINALITY AS p (phrase, n) ON p.n = l.n
+)
+SELECT DISTINCT ON (c.language, c.phrase) c.language::text AS language, c.phrase::text AS phrase, l.term_id
+FROM c
+JOIN term_label l ON l.language = c.language::term_language AND term_fold(l.label) = c.folded
+JOIN term t ON t.id = l.term_id
+WHERE EXISTS (SELECT FROM term_explanation e WHERE e.term_id = l.term_id)
+ORDER BY c.language, c.phrase, t.rank DESC, t.id;
+
+-- name: ExplanationsIn :many
+-- Each term's explanation in the language, else its English one; one that needs changes is left out.
+SELECT DISTINCT ON (e.term_id) e.term_id, e.language::text AS language, e.updated_at, e.reviewed_at, e.reviewed_by,
+       e.version_id, e.review_status, e.note, e.text
+FROM term_explanation e
+WHERE e.language IN (@language::term_language, 'en') AND e.review_status <> 'needs_changes'
+ORDER BY e.term_id, e.language = @language::term_language DESC;
+
+-- name: TermIDByWikidata :one
+SELECT id FROM term WHERE wikidata_id = @wikidata_id;

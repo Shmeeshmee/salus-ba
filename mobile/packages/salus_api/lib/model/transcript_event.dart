@@ -20,6 +20,7 @@ class TranscriptEvent {
     required this.original,
     required this.translation,
     this.translationFailed,
+    this.terms,
     required this.isFinal,
     required this.tsStart,
     required this.tsEnd,
@@ -48,6 +49,14 @@ class TranscriptEvent {
   ///
   bool? translationFailed;
 
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  TranscriptTerms? terms;
+
   bool isFinal;
 
   DateTime tsStart;
@@ -65,6 +74,7 @@ class TranscriptEvent {
           other.original == original &&
           other.translation == translation &&
           other.translationFailed == translationFailed &&
+          other.terms == terms &&
           other.isFinal == isFinal &&
           other.tsStart == tsStart &&
           other.tsEnd == tsEnd;
@@ -79,13 +89,14 @@ class TranscriptEvent {
       (original.hashCode) +
       (translation.hashCode) +
       (translationFailed == null ? 0 : translationFailed!.hashCode) +
+      (terms == null ? 0 : terms!.hashCode) +
       (isFinal.hashCode) +
       (tsStart.hashCode) +
       (tsEnd.hashCode);
 
   @override
   String toString() =>
-      'TranscriptEvent[encounterId=$encounterId, segmentId=$segmentId, speaker=$speaker, lang=$lang, original=$original, translation=$translation, translationFailed=$translationFailed, isFinal=$isFinal, tsStart=$tsStart, tsEnd=$tsEnd]';
+      'TranscriptEvent[encounterId=$encounterId, segmentId=$segmentId, speaker=$speaker, lang=$lang, original=$original, translation=$translation, translationFailed=$translationFailed, terms=$terms, isFinal=$isFinal, tsStart=$tsStart, tsEnd=$tsEnd]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -99,6 +110,11 @@ class TranscriptEvent {
       json[r'translation_failed'] = this.translationFailed;
     } else {
       json[r'translation_failed'] = null;
+    }
+    if (this.terms != null) {
+      json[r'terms'] = this.terms;
+    } else {
+      json[r'terms'] = null;
     }
     json[r'is_final'] = this.isFinal;
     json[r'ts_start'] = this.tsStart.toUtc().toIso8601String();
@@ -164,6 +180,7 @@ class TranscriptEvent {
         original: mapValueOfType<String>(json, r'original')!,
         translation: mapValueOfType<String>(json, r'translation')!,
         translationFailed: mapValueOfType<bool>(json, r'translation_failed'),
+        terms: TranscriptTerms.fromJson(json[r'terms']),
         isFinal: mapValueOfType<bool>(json, r'is_final')!,
         tsStart: mapDateTime(json, r'ts_start', r'')!,
         tsEnd: mapDateTime(json, r'ts_end', r'')!,

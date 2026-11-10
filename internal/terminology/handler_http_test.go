@@ -22,6 +22,14 @@ type stubSearcher struct {
 	caller  *terminology.Caller
 	search  *terminology.Search
 	matches []terminology.Match
+	// explanations answer Explanations, asked for language
+	explanations []terminology.Explanation
+	language     string
+}
+
+func (s *stubSearcher) Explanations(_ context.Context, language string) ([]terminology.Explanation, error) {
+	s.language = language
+	return s.explanations, s.err
 }
 
 func (s *stubSearcher) Search(_ context.Context, c terminology.Caller, q terminology.Search) ([]terminology.Match, error) {

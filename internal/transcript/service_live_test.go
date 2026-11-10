@@ -163,7 +163,7 @@ func newLiveFixture(t *testing.T, script ...stt.Result) *liveFixture {
 func (f *liveFixture) service(r stt.Recognizer, budget ...time.Duration) *transcript.Live {
 	p := transcript.LivePorts{
 		Calls: f.calls, Appointments: f.languages, Accounts: f.languages, Clinics: f.languages,
-		Publisher: f.publisher, Recognizer: r, Translator: f.translator, Glossary: f.glossary,
+		Publisher: f.publisher, Recognizer: r, Translator: f.translator, Glossary: f.glossary, Terms: f.glossary,
 		Clock: clock.Fixed{T: now}, Retry: time.Millisecond, Log: slog.New(slog.NewJSONHandler(f.logs, nil)),
 	}
 	if len(budget) > 0 {

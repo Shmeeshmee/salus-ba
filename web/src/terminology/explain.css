@@ -1,0 +1,16 @@
+/* The plain-language explanation of a tagged term (SAL-13): the term is marked with a dotted underline, its
+   explanation in a tooltip on hover and on focus. */
+.term { position: relative; display: inline; text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+.term:focus-visible { outline: 2px solid var(--color-mint); outline-offset: 1px; border-radius: 2px; }
+.term [role='tooltip'] {
+  position: absolute; left: 0; top: calc(100% + 4px); z-index: 3; width: max-content; max-width: min(280px, 80vw);
+  display: grid; gap: 4px; padding: 8px 10px; border-radius: 8px; background: var(--color-ink); color: #FFFFFF;
+  font-size: 13px; font-weight: 400; line-height: 1.4; text-align: left; white-space: normal;
+  visibility: hidden; opacity: 0; transition: opacity .12s;
+}
+.term:hover [role='tooltip'], .term:focus [role='tooltip'] { visibility: visible; opacity: 1; }
+.term-mark { text-decoration: underline dotted; text-underline-offset: 3px; }
+.term-note { font-size: 12px; opacity: .8; }
+.term-list { display: grid; gap: 4px; margin-top: 6px; }
+.term-words { font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .term [role='tooltip'] { transition: none; } }

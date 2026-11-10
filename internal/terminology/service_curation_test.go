@@ -20,6 +20,35 @@ type fakeCuration struct {
 	translations []string // the SetTranslationsStatus calls, "<id> <status> <at>"
 	updates      int
 	txs          int
+	// explanations are the stored explanations by "<term id> <language>" (ImportExplanations)
+	explanations map[string]terminology.Explanation
+}
+
+func (f *fakeCuration) TermIDByWikidata(_ context.Context, wikidataID string) (string, error) {
+	if f.err != nil {
+		return "", f.err
+	}
+	for id, t := range f.terms {
+		if t.WikidataID == wikidataID {
+			return id, nil
+		}
+	}
+	return "", terminology.ErrTermNotFound
+}
+
+func (f *fakeCuration) LockEntry(_ context.Context, termID, language string) (terminology.EntryState, error) {
+	if e, ok := f.explanations[termID+" "+language]; ok {
+		return terminology.EntryState{Explanation: &e}, f.err
+	}
+	return terminology.EntryState{}, f.err
+}
+
+func (f *fakeCuration) PutExplanation(_ context.Context, e terminology.Explanation) error {
+	if f.explanations == nil {
+		f.explanations = map[string]terminology.Explanation{}
+	}
+	f.explanations[e.TermID+" "+e.Language] = e
+	return f.err
 }
 
 func newFakeCuration(terms ...terminology.Term) *fakeCuration {

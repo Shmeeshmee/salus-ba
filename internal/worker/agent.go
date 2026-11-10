@@ -59,11 +59,12 @@ func NewAgent(pool *pgxpool.Pool, rdb *goredis.Client, video Video, recognizer s
 		Repo: videosession.NewPostgresRepository(pool), Provider: video.Provider, Listener: video.Listener, Audit: audit, Tx: tx,
 		Clock: clk, Encounters: encounters, Appointments: appointments, Consents: consents, PublicURL: video.URL,
 	})
+	terms := terminology.NewService(terminology.NewPostgresRepository(pool), nil) // the glossary and the tagging only
 	live := transcript.NewLive(transcript.LivePorts{
 		Calls: sessions, Appointments: appointments, Clinics: organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk),
 		Accounts:  auth.NewService(auth.Ports{Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
 		Publisher: transcript.NewRedisPublisher(rdb), Recognizer: recognizer, Clock: clk, Log: log,
-		Translator: translator, Glossary: terminology.NewService(terminology.NewPostgresRepository(pool), nil), // Glossary only
+		Translator: translator, Glossary: terms, Terms: terms,
 	})
 	workers := river.NewWorkers()
 	addAgentWorkers(workers, live, log)

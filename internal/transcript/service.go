@@ -49,6 +49,8 @@ type Ports struct {
 	Sharing    Sharing
 	Audit      Auditor
 	Tx         Transactor
+	// Terms tags the stored transcript as it is read (SAL-13); without it, nothing is tagged.
+	Terms Tagger
 }
 
 // Service holds the transcript's rules (docs/plans/consult-intelligence.md): only final segments are stored,

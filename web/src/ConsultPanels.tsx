@@ -2,6 +2,8 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, typ
 import type { ConsultActions, ConsultMessage, ConsultState, End, SuggestionEvent, TranscriptEvent } from './consult'
 import { Documents } from './Documents'
 import { useFormat, useT } from './i18n/useT'
+import { TermList, TermText } from './terminology/Explain'
+import { explained, useExplain } from './terminology/terms'
 import { Alert } from './ui'
 
 // The call page's live panels (SAL-9): the captions on the patient's video, and beside the video the transcript,
@@ -16,6 +18,7 @@ const captionQuiet = 6000
 export function Captions({ caption }: { caption?: TranscriptEvent }) {
   const t = useT()
   const id = useId()
+  const explain = useExplain()
   const [quiet, setQuiet] = useState<string>()
   const key = caption && `${caption.segment_id}|${caption.is_final}|${caption.translation}`
   useEffect(() => {
@@ -25,15 +28,25 @@ export function Captions({ caption }: { caption?: TranscriptEvent }) {
   }, [caption?.is_final, key])
   if (!caption || quiet === key) return null
   const translated = caption.translation !== ''
+  const text = translated ? caption.translation : caption.original
+  // The caption's explained terms (SAL-13) are marked in it and explained in its tooltip: the caption's text is
+  // clipped to two lines, so a tooltip of each term's own would be cut off.
+  const spans = translated ? caption.terms?.translation : caption.terms?.original
+  const tip = translated || explained(explain, spans)
   return (
     <div className="captions" role="group" aria-label={t('consultation.live.captions')}>
-      <p className="caption tip" tabIndex={0} aria-describedby={translated ? id : undefined}>
+      <p className="caption tip" tabIndex={0} aria-describedby={tip ? id : undefined}>
         <span className="caption-text" lang={translated ? undefined : caption.lang}>
-          {translated ? caption.translation : caption.original}
+          <TermText text={text} spans={spans} markOnly />
         </span>
-        {translated && (
+        {tip && (
           <span role="tooltip" id={id}>
-            {t('consultation.live.original')} <span lang={caption.lang}>{caption.original}</span>
+            {translated && (
+              <span>
+                {t('consultation.live.original')} <span lang={caption.lang}>{caption.original}</span>
+              </span>
+            )}
+            <TermList text={text} spans={spans} />
           </span>
         )}
       </p>
@@ -169,7 +182,9 @@ function Transcript({ segments, cited, zone }: { segments: TranscriptEvent[]; ci
       {segments.length === 0 && <p className="muted empty">{t('consultation.live.transcriptEmpty')}</p>}
       <ol ref={list} className="transcript-lines" aria-label={t('consultation.live.tabTranscript')} onScroll={scrolled}>
         {segments.map((s) => {
-          const [first, second] = s.speaker === 'patient' && s.translation ? [s.translation, s.original] : [s.original, s.translation]
+          const flipped = s.speaker === 'patient' && s.translation !== ''
+          const [first, second] = flipped ? [s.translation, s.original] : [s.original, s.translation]
+          const [firstTerms, secondTerms] = flipped ? [s.terms?.translation, s.terms?.original] : [s.terms?.original, s.terms?.translation]
           const firstLang = first === s.original ? s.lang : undefined
           return (
             <li key={s.segment_id} className={s.is_final ? undefined : 'partial'} aria-current={cited.ids.includes(s.segment_id) || undefined}>
@@ -178,10 +193,12 @@ function Transcript({ segments, cited, zone }: { segments: TranscriptEvent[]; ci
                 <time dateTime={s.ts_start}>{time(new Date(s.ts_start), zone)}</time>
                 {!s.is_final && <span className="sr-only">{t('consultation.live.inProgress')}</span>}
               </p>
-              <p lang={firstLang}>{first}</p>
+              <p lang={firstLang}>
+                <TermText text={first} spans={firstTerms} />
+              </p>
               {second && (
                 <p className="muted" lang={second === s.original ? s.lang : undefined}>
-                  {second}
+                  <TermText text={second} spans={secondTerms} />
                 </p>
               )}
             </li>

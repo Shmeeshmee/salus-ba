@@ -123,6 +123,78 @@ class TerminologyApi {
     return null;
   }
 
+  /// The plain-language explanations of the terms
+  ///
+  /// Every term's plain-language explanation in the viewer's language, else in English (SAL-13, docs/terminology/SPEC.md §3 \"Explanations\"), for the tooltip on the terms that transcripts and documents mark (TermSpan). For any signed-in account, a patient's too. Reference data: no patient data is sent or read, nothing is audited, and the browser may cache it for five minutes. An explanation that needs changes is left out.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [TermLanguage] language (required):
+  ///   The viewer's language, an app language (not Latin).
+  Future<Response> getTermExplanationsWithHttpInfo(
+    TermLanguage language, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/terminology/explanations';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    queryParams.addAll(_queryParams('', 'language', language));
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The plain-language explanations of the terms
+  ///
+  /// Every term's plain-language explanation in the viewer's language, else in English (SAL-13, docs/terminology/SPEC.md §3 \"Explanations\"), for the tooltip on the terms that transcripts and documents mark (TermSpan). For any signed-in account, a patient's too. Reference data: no patient data is sent or read, nothing is audited, and the browser may cache it for five minutes. An explanation that needs changes is left out.
+  ///
+  /// Parameters:
+  ///
+  /// * [TermLanguage] language (required):
+  ///   The viewer's language, an app language (not Latin).
+  Future<ExplainedTermList?> getTermExplanations(
+    TermLanguage language, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getTermExplanationsWithHttpInfo(
+      language,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ExplainedTermList',
+      ) as ExplainedTermList;
+    }
+    return null;
+  }
+
   /// How far the review is in each language
   ///
   /// Per term language, how many terms there are and how many of their entries in that language are approved or need changes (statuses as in listTermReview). Staff only. Not audited.

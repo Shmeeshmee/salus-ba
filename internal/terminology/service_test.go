@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,6 +18,30 @@ type fakeRepo struct {
 	glossaryQuery *terminology.GlossaryQuery
 	terms         []terminology.Term
 	glossary      []terminology.GlossaryEntry
+	// tagged are the terms Tag finds among the candidates it is asked (tagQuery)
+	tagged               []terminology.CandidateTerm
+	tagQuery             []terminology.Candidate
+	explanations         []terminology.Explanation
+	explanationsLanguage string
+}
+
+func (f *fakeRepo) Tag(_ context.Context, candidates []terminology.Candidate) ([]terminology.CandidateTerm, error) {
+	f.tagQuery = candidates
+	if f.err != nil {
+		return nil, f.err
+	}
+	var out []terminology.CandidateTerm
+	for _, t := range f.tagged {
+		if slices.Contains(candidates, terminology.Candidate{Language: t.Language, Phrase: t.Phrase}) {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeRepo) Explanations(_ context.Context, language string) ([]terminology.Explanation, error) {
+	f.explanationsLanguage = language
+	return f.explanations, f.err
 }
 
 func (f *fakeRepo) Search(_ context.Context, s terminology.Search) ([]terminology.Term, error) {

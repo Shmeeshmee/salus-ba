@@ -59,6 +59,7 @@ type LivePorts struct {
 	Recognizer      stt.Recognizer
 	Translator      llm.Translator
 	Glossary        Glossary
+	Terms           Tagger // tags a final line before it is published (SAL-13); without it, nothing is tagged
 	Clock           clock.Clock
 	Log             *slog.Logger
 	Retry           time.Duration

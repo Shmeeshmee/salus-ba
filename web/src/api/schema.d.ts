@@ -850,6 +850,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/compositions/{id}/terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The document's FHIR Composition.id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * The explained terms of a document
+         * @description Where the terms with a plain-language explanation are in a document (SAL-13), per field and line, tagged in the language it was written in: an overlay for the tooltip, the document is never changed. Under the Composition's rule and audited as its read: the encounter's practitioner with the patient's active consent, and the encounter's patient for a signed document only.
+         */
+        get: operations["getDocumentTerms"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/questionnaire-responses/{id}/answers": {
         parameters: {
             query?: never;
@@ -1006,6 +1029,26 @@ export interface paths {
          * @description The cheatsheet's search (docs/terminology/SPEC.md §3 "API and UI"). Matches q against every label of every term in every language, case and accents aside: an exact label first, then a label that starts with q, then a word within trigram distance (later words of a label, misspellings), then the more common term. Each match carries its labels in the requested languages. Staff only (practitioners and admins). Not audited: it reads no patient data. The search text is never logged or stored, and no error repeats it.
          */
         get: operations["searchTerminology"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/terminology/explanations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The plain-language explanations of the terms
+         * @description Every term's plain-language explanation in the viewer's language, else in English (SAL-13, docs/terminology/SPEC.md §3 "Explanations"), for the tooltip on the terms that transcripts and documents mark (TermSpan). For any signed-in account, a patient's too. Reference data: no patient data is sent or read, nothing is audited, and the browser may cache it for five minutes. An explanation that needs changes is left out.
+         */
+        get: operations["getTermExplanations"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1361,6 +1404,33 @@ export interface components {
             versionId: number;
             /** Format: date-time */
             lastUpdated: string;
+        };
+        /** @description A term's plain-language explanation as a viewer reads it (SAL-13): informational, never a diagnosis. Shown with "Not reviewed yet" unless `reviewStatus` is `approved`. */
+        ExplainedTerm: {
+            /** Format: uuid */
+            termId: string;
+            /** @description The language of `text`; English when the viewer's language has no explanation of the term. */
+            language: components["schemas"]["TermLanguage"];
+            text: string;
+            /**
+             * @description An explanation that needs changes is not given.
+             * @enum {string}
+             */
+            reviewStatus: "unreviewed" | "approved";
+        };
+        ExplainedTermList: {
+            /** @description One per term with an explanation in the language or in English, by term id. */
+            explanations: components["schemas"]["ExplainedTerm"][];
+        };
+        DocumentTerms: {
+            /** @description One per field, in the Composition's section order. */
+            sections: components["schemas"]["DocumentTermsSection"][];
+        };
+        /** @description The explained terms of one field: per line of its value, as the Composition's section narrative has them (a paragraph or a list item per line), the spans in that line; no lines for a field left empty. */
+        DocumentTermsSection: {
+            /** @description The field's template key. */
+            key: string;
+            lines: components["schemas"]["TermSpan"][][];
         };
         /** @description A short plain-language explanation of a term in an app language, for patients and staff: informational, never a diagnosis (CLAUDE.md "Copy"), and labelled as such wherever it is shown. */
         TermExplanation: {
@@ -1973,11 +2043,26 @@ export interface components {
             translation: string;
             /** @description Present and true on a final segment that should have been translated and was not: the original is all there is. Absent otherwise. */
             translation_failed?: boolean;
+            terms?: components["schemas"]["TranscriptTerms"];
             is_final: boolean;
             /** Format: date-time */
             ts_start: string;
             /** Format: date-time */
             ts_end: string;
+        };
+        /** @description Where the terms with a plain-language explanation are in a final segment (SAL-13), for the tooltip that explains them: an overlay, the texts are never changed. Present only when a term was found; never stored. */
+        TranscriptTerms: {
+            /** @description In `original`, in the speaker's language. */
+            original?: components["schemas"]["TermSpan"][];
+            /** @description In `translation`, in the listener's language. */
+            translation?: components["schemas"]["TermSpan"][];
+        };
+        /** @description A term found in a text: the UTF-16 offsets [start, end) of the words it was found by (JavaScript and Dart index strings so), and the term, whose explanation getTermExplanations gives. Spans do not overlap. */
+        TermSpan: {
+            /** Format: uuid */
+            term_id: string;
+            start: number;
+            end: number;
         };
         /** @description AI assistance for the practitioner only: a suggestion from a language model, citing the segments it came from; a prompt the practitioner may ignore, never a diagnosis. Whatever shows one labels it as AI assistance (`origin`). Pushed when shown and on every change of its status. */
         SuggestionEvent: {
@@ -4675,6 +4760,42 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    getDocumentTerms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The document's FHIR Composition.id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The terms. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentTerms"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DocumentRecordForbidden"];
+            /** @description `not_found`: no such document the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
     saveQuestionnaireAnswers: {
         parameters: {
             query?: never;
@@ -5029,6 +5150,49 @@ export interface operations {
             };
             /** @description `forbidden`: the caller is not staff of a clinic (a patient). */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getTermExplanations: {
+        parameters: {
+            query: {
+                /** @description The viewer's language, an app language (not Latin). */
+                language: components["schemas"]["TermLanguage"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The explanations. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, max-age=300";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExplainedTermList"];
+                };
+            };
+            /** @description `invalid_request`: no language, Latin or a language the app does not have. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

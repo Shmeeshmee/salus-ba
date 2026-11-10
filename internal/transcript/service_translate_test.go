@@ -21,10 +21,33 @@ type fakeGlossary struct {
 	err     error
 	entries []terminology.GlossaryEntry
 	asked   []glossaryCall
-	mu      sync.Mutex
+	// spans answer Tag, tagged are the texts it was asked, tagErr its failure
+	tagErr error
+	spans  []terminology.Span
+	tagged [][]terminology.Text
+	mu     sync.Mutex
 }
 
 type glossaryCall struct{ text, from, to string }
+
+// Tag answers every call with spans (one list per text, the same for each), recording the texts it was asked
+// (the Tagger port; terminology.Service is both).
+func (g *fakeGlossary) Tag(_ context.Context, texts []terminology.Text) ([][]terminology.Span, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.tagged = append(g.tagged, texts)
+	out := make([][]terminology.Span, len(texts))
+	for i := range texts {
+		out[i] = g.spans
+	}
+	return out, g.tagErr
+}
+
+func (g *fakeGlossary) tagCalls() [][]terminology.Text {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return append([][]terminology.Text(nil), g.tagged...)
+}
 
 func (g *fakeGlossary) Glossary(_ context.Context, text, from, to string) ([]terminology.GlossaryEntry, error) {
 	g.mu.Lock()

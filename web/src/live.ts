@@ -169,6 +169,11 @@ export function consultSocket({ api, fhir, open = (url) => new WebSocket(url) }:
       if (response.status === 422 && error && 'keys' in error && error.error === 'required_missing') throw new SignRefused(error.keys)
       throw new Error('not signed')
     },
+    async terms(draftId) {
+      const res = await attempt(api.GET('/compositions/{id}/terms', { params: { path: { id: draftId } } }))
+      if (!res.ok) throw new Error('terms not read')
+      return res.data
+    },
   }
 
   return { live, actions }

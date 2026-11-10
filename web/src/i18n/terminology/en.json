@@ -26,5 +26,9 @@
   "none": "No terms found. Try fewer letters or another language.",
   "failed": "The search is not available. Try again.",
   "noLabel": "No term in {language} yet",
-  "source": "Terms from Wikidata. Not every term has been reviewed yet."
+  "source": "Terms from Wikidata. Not every term has been reviewed yet.",
+  "explainNote": {
+    "defaultMessage": "Informational, not a diagnosis",
+    "description": "legal"
+  }
 }

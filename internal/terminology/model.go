@@ -222,3 +222,31 @@ type EntryState struct {
 	Labels       []Label
 	Translations []Translation
 }
+
+// Text is a text to tag (SAL-13) and the app language it is written in: a transcript line or a document's line, which
+// is patient data, never logged, stored or put into an error.
+type Text struct {
+	Language string
+	Body     string
+}
+
+// Span is a term found in a text: where, as UTF-16 offsets [Start, End) (the web and the mobile app index strings so),
+// and the term. A span is an overlay on the text: the text itself is never changed.
+type Span struct {
+	TermID string `json:"term_id"`
+	Start  int    `json:"start"`
+	End    int    `json:"end"`
+}
+
+// Candidate is a phrase of a text that may be a term, in the text's language.
+type Candidate struct {
+	Language string
+	Phrase   string
+}
+
+// CandidateTerm is a candidate that names a term, as the repository found it.
+type CandidateTerm struct {
+	Language string
+	Phrase   string
+	TermID   string
+}

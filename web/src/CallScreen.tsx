@@ -5,6 +5,7 @@ import type { components } from './api/schema'
 import { liveKit, type CallEvent, type Media, type Peer, type Room, type Settings } from './call'
 import { captionOf, useConsult, type ConsultActions, type LiveSource, type TranscriptEvent } from './consult'
 import { Captions, ConsultSide } from './ConsultPanels'
+import { ExplanationsProvider } from './terminology/Explain'
 import { joinMessage } from './consultation'
 import { DeviceCheck } from './DeviceCheck'
 import { useT } from './i18n/useT'
@@ -230,7 +231,7 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
       return <Ended status={phase.status} />
   }
 
-  return (
+  const call = (
     <section className={consult ? 'call with-side' : 'call'}>
       <div className="call-main">
         <Stage
@@ -275,6 +276,8 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
       {consult && <ConsultSide appointmentId={id} state={live} dispatch={dispatch} actions={consult.actions} zone={zone} end={ended} />}
     </section>
   )
+  // The live panels' explained terms (SAL-13): the explanations are read once the call page has them.
+  return consult ? <ExplanationsProvider api={api}>{call}</ExplanationsProvider> : call
 }
 
 type StageProps = { room?: Room; peer: Peer; name: string; gone?: Gone; reconnecting: boolean; cameraOn: boolean; agent: boolean; caption?: TranscriptEvent }

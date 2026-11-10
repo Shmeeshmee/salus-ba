@@ -99,6 +99,7 @@ Class | Method | HTTP request | Description
 *DocumentsApi* | [**createDocumentTemplate**](doc//DocumentsApi.md#createdocumenttemplate) | **POST** /document-templates | Create a document template
 *DocumentsApi* | [**downloadDocument**](doc//DocumentsApi.md#downloaddocument) | **GET** /document-references/{id}/content | A signed document's PDF
 *DocumentsApi* | [**generateDraft**](doc//DocumentsApi.md#generatedraft) | **POST** /encounters/{id}/drafts | Draft a document from the transcript
+*DocumentsApi* | [**getDocumentTerms**](doc//DocumentsApi.md#getdocumentterms) | **GET** /compositions/{id}/terms | The explained terms of a document
 *DocumentsApi* | [**listDocumentTemplates**](doc//DocumentsApi.md#listdocumenttemplates) | **GET** /document-templates | The clinic's document templates
 *DocumentsApi* | [**listDrafts**](doc//DocumentsApi.md#listdrafts) | **GET** /encounters/{id}/drafts | The encounter's drafts
 *DocumentsApi* | [**signDraft**](doc//DocumentsApi.md#signdraft) | **POST** /drafts/{id}/sign | Sign a draft
@@ -127,6 +128,7 @@ Class | Method | HTTP request | Description
 *SchedulingApi* | [**getAvailability**](doc//SchedulingApi.md#getavailability) | **GET** /practitioner-roles/{id}/availability | Read a practitioner role's weekly availability
 *SchedulingApi* | [**saveAvailability**](doc//SchedulingApi.md#saveavailability) | **PUT** /practitioner-roles/{id}/availability | Set a practitioner role's weekly availability
 *TerminologyApi* | [**editTermTranslation**](doc//TerminologyApi.md#edittermtranslation) | **PUT** /terminology/terms/{id}/translations/{language} | Edit a term's labels in one language
+*TerminologyApi* | [**getTermExplanations**](doc//TerminologyApi.md#gettermexplanations) | **GET** /terminology/explanations | The plain-language explanations of the terms
 *TerminologyApi* | [**getTermReviewProgress**](doc//TerminologyApi.md#gettermreviewprogress) | **GET** /terminology/review/progress | How far the review is in each language
 *TerminologyApi* | [**listTermReview**](doc//TerminologyApi.md#listtermreview) | **GET** /terminology/review | The review queue of the medical terms in one language
 *TerminologyApi* | [**reviewTermExplanation**](doc//TerminologyApi.md#reviewtermexplanation) | **POST** /terminology/terms/{id}/explanations/{language}/review | Approve a term's explanation, or mark it as needing changes
@@ -164,6 +166,8 @@ Class | Method | HTTP request | Description
  - [DocumentTemplateField](doc//DocumentTemplateField.md)
  - [DocumentTemplateTranslation](doc//DocumentTemplateTranslation.md)
  - [DocumentTemplates](doc//DocumentTemplates.md)
+ - [DocumentTerms](doc//DocumentTerms.md)
+ - [DocumentTermsSection](doc//DocumentTermsSection.md)
  - [DraftEvent](doc//DraftEvent.md)
  - [DraftField](doc//DraftField.md)
  - [DraftMessage](doc//DraftMessage.md)
@@ -172,6 +176,8 @@ Class | Method | HTTP request | Description
  - [EnrolRequest](doc//EnrolRequest.md)
  - [Enrolment](doc//Enrolment.md)
  - [Error](doc//Error.md)
+ - [ExplainedTerm](doc//ExplainedTerm.md)
+ - [ExplainedTermList](doc//ExplainedTermList.md)
  - [GenerateDraftRequest](doc//GenerateDraftRequest.md)
  - [GrantConsentRequest](doc//GrantConsentRequest.md)
  - [Invite](doc//Invite.md)
@@ -227,10 +233,12 @@ Class | Method | HTTP request | Description
  - [TermReviewPage](doc//TermReviewPage.md)
  - [TermReviewProgress](doc//TermReviewProgress.md)
  - [TermReviewProgressLanguagesInner](doc//TermReviewProgressLanguagesInner.md)
+ - [TermSpan](doc//TermSpan.md)
  - [TermTranslation](doc//TermTranslation.md)
  - [Transcript](doc//Transcript.md)
  - [TranscriptEvent](doc//TranscriptEvent.md)
  - [TranscriptMessage](doc//TranscriptMessage.md)
+ - [TranscriptTerms](doc//TranscriptTerms.md)
  - [Unavailable](doc//Unavailable.md)
  - [UpdateMeRequest](doc//UpdateMeRequest.md)
  - [VerifyRequest](doc//VerifyRequest.md)

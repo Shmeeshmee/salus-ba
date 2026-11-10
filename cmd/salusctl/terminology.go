@@ -13,7 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/terminology"
 )
 
-const terminologyUsage = "usage: salusctl terminology import <seed.jsonl | terms.csv> | terminology export -o <terms.csv> [-status unreviewed|approved|needs_changes]"
+const terminologyUsage = "usage: salusctl terminology import <seed.jsonl | terms.csv> | terminology import-explanations <explanations.jsonl> | terminology export -o <terms.csv> [-status unreviewed|approved|needs_changes]"
 
 // terminologyCommand runs `salusctl terminology import|export` (docs/terminology/SPEC.md §3 "Curation").
 func (s services) terminologyCommand(ctx context.Context, args []string, stdout io.Writer) error {
@@ -26,6 +26,11 @@ func (s services) terminologyCommand(ctx context.Context, args []string, stdout 
 			return errors.New(terminologyUsage)
 		}
 		return s.importTerms(ctx, args[1], stdout)
+	case "import-explanations":
+		if len(args) != 2 {
+			return errors.New(terminologyUsage)
+		}
+		return s.importExplanations(ctx, args[1], stdout)
 	case "export":
 		return s.exportTerms(ctx, args[1:], stdout)
 	default:
@@ -76,6 +81,29 @@ func (s services) importTerms(ctx context.Context, path string, stdout io.Writer
 		return fmt.Errorf("terminology import: rows refused: %d; the others are applied", len(report.Refused))
 	}
 	return nil
+}
+
+// importExplanations adds the drafted plain-language explanations (assets/terminology/explanations.draft.jsonl,
+// SAL-13) as unreviewed and prints what it did and the refused rows, which make it fail once the rest is applied.
+func (s services) importExplanations(ctx context.Context, path string, stdout io.Writer) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+	rows, refused, err := terminology.DecodeExplanations(f)
+	if err != nil {
+		return err
+	}
+	report, err := s.terms.ImportExplanations(ctx, rows)
+	report.Refused = append(refused, report.Refused...)
+	if _, werr := io.WriteString(stdout, reportText(report)); err == nil {
+		err = werr
+	}
+	if err == nil && len(report.Refused) > 0 {
+		err = fmt.Errorf("terminology import-explanations: rows refused: %d; the others are applied", len(report.Refused))
+	}
+	return err
 }
 
 // reportText is what an import did, a line per refused row: its line, its id when it has one, and the reason.

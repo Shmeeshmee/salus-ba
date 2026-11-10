@@ -215,15 +215,16 @@ type consultPorts struct {
 // documents (templates, drafting, signing, the signed PDF and their FHIR reads), for its practitioner; it
 // returns their routes and the stream's, with the suggestions' statuses the practitioner sets on the stream.
 func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointment.Caller, bool, error), fhirBase string, log *slog.Logger) (routes []func(*http.ServeMux), stream func(*http.ServeMux)) {
+	terms := terminology.NewService(terminology.NewPostgresRepository(p.pool), nil) // the tagging only (SAL-13)
 	transcripts := transcript.NewService(transcript.Ports{
 		Repo: transcript.NewPostgresRepository(p.pool), Stream: transcript.NewRedisStream(p.rdb), Encounters: p.encounters, Consents: p.consents,
-		Sharing: p.clinics, Audit: p.audit, Tx: p.tx,
+		Sharing: p.clinics, Audit: p.audit, Tx: p.tx, Terms: terms,
 	})
 	documents := composition.NewService(composition.Ports{
 		Repo: composition.NewPostgresRepository(p.pool), Encounters: p.encounters, Transcripts: transcripts, Drafter: p.drafter,
 		Store:     binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, p.files.Endpoint, p.files.Region, p.files.Bucket, p.files.AccessKeyID, p.files.SecretAccessKey, s3PageSize),
 		Publisher: transcript.NewRedisPublisher(p.rdb), Jobs: composition.NewRiverJobs(p.jobs), // a signature enqueues the patient's e-mail
-		Audit: p.audit, Tx: p.tx, Clock: clock.System{}, KEK: p.kek, Log: log,
+		Audit: p.audit, Tx: p.tx, Clock: clock.System{}, KEK: p.kek, Log: log, Tagger: terms,
 	})
 	suggestions := suggestion.NewService(suggestion.Ports{
 		Repo: suggestion.NewPostgresRepository(p.pool), Encounters: p.encounters, Consents: p.consents, Records: transcripts,

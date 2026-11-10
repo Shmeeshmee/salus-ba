@@ -18,6 +18,12 @@ type Repository interface {
 	// preferred one of a length, when several) and its label in q.To, the preferred one, else the first alphabetically. A term without a label in
 	// q.To is left out.
 	Glossary(ctx context.Context, q GlossaryQuery) ([]GlossaryEntry, error)
+	// Tag returns the candidates that equal a label in their language of a term with an explanation (in any
+	// language), case and accents aside, each once with the most common (rank) such term.
+	Tag(ctx context.Context, candidates []Candidate) ([]CandidateTerm, error)
+	// Explanations returns per term with one its explanation in language, else its English one, leaving out an
+	// explanation that needs changes; by term id.
+	Explanations(ctx context.Context, language string) ([]Explanation, error)
 }
 
 // CurationRepository writes the terms: salusctl's, on the owner's connection (salus_app may only read them).
@@ -41,6 +47,12 @@ type CurationRepository interface {
 	Terms(ctx context.Context, status string) ([]Term, error)
 	// CountByCategory returns how many terms each category holds, in the enum's order; an empty one is absent.
 	CountByCategory(ctx context.Context) ([]CategoryCount, error)
+	// TermIDByWikidata returns the id of the term with the Wikidata id; ErrTermNotFound when there is none.
+	TermIDByWikidata(ctx context.Context, wikidataID string) (string, error)
+	// LockEntry and PutExplanation are ReviewRepository's (the review panel's writes, SAL-14), for the import of the
+	// drafted explanations.
+	LockEntry(ctx context.Context, termID, language string) (EntryState, error)
+	PutExplanation(ctx context.Context, e Explanation) error
 }
 
 // ReviewRepository reads the review queue and writes a reviewer's edits and reviews (the review panel, SAL-14), on

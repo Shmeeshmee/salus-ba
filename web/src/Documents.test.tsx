@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ConsultSide } from './ConsultPanels'
 import { useConsult } from './consult'
 import { renderInLanguage } from './i18n/renderInLanguage'
+import { newApiClient } from './api/client'
 import { draft, fakeActions, fakeLive, segment, templates } from './test/fakeConsult'
+import { fakeFetch } from './test/fakeFetch'
+import { ExplanationsProvider } from './terminology/Explain'
+import type { Explanation } from './terminology/terms'
 
 afterEach(cleanup)
 
@@ -30,10 +34,16 @@ function Side({ fake, actions }: { fake: Fake; actions: ReturnType<typeof fakeAc
 }
 
 // openDocuments renders the side panel on the Documents tab.
-function openDocuments(options: Parameters<typeof fakeActions>[0] = {}) {
+function openDocuments(options: Parameters<typeof fakeActions>[0] = {}, explanations: Explanation[] = []) {
   const fake = fakeLive()
   const acts = fakeActions(options)
-  renderInLanguage(<Side fake={fake} actions={acts.actions} />, 'en')
+  const api = newApiClient(fakeFetch({ 'GET /terminology/explanations': () => Response.json({ explanations }) }).fetch)
+  renderInLanguage(
+    <ExplanationsProvider api={api}>
+      <Side fake={fake} actions={acts.actions} />
+    </ExplanationsProvider>,
+    'en',
+  )
   fireEvent.click(screen.getByRole('tab', { name: 'Documents' }))
   return {
     ...fake,
@@ -44,8 +54,8 @@ function openDocuments(options: Parameters<typeof fakeActions>[0] = {}) {
 }
 
 // generated picks the visit summary, generates it and answers with its stored draft.
-async function generated(options: Parameters<typeof fakeActions>[0] = {}) {
-  const docs = openDocuments(options)
+async function generated(options: Parameters<typeof fakeActions>[0] = {}, explanations: Explanation[] = []) {
+  const docs = openDocuments(options, explanations)
   fireEvent.change(await screen.findByRole('combobox', { name: 'Template' }), { target: { value: summary.id } })
   fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
   await screen.findByText('Generating the draft from the transcript…')
@@ -285,5 +295,21 @@ describe('Documents: sign', () => {
     emit(draft({ status: 'final', version_id: 2 }))
     expect(await screen.findByText('Signed. This document is final.')).toBeTruthy()
     expect(screen.queryByRole('textbox')).toBeNull()
+  })
+})
+
+describe('Documents: explained terms', () => {
+  it('explains the tagged terms of a signed document, which is shown as it was signed', async () => {
+    const draftId = 'c1000000-0000-4000-8000-000000000001'
+    const visit: Explanation = { termId: 't-visit', language: 'en', text: 'Placeholder explanation of a visit.', reviewStatus: 'approved' }
+    const terms = { [draftId]: { sections: [{ key: 'reason', lines: [[{ term_id: 't-visit', start: 27, end: 32 }]] }, { key: 'plan', lines: [] }] } }
+    const { emit, termsAsked } = await generated({ terms }, [visit])
+    expect(termsAsked).toEqual([])
+    emit(draft({ status: 'final', version_id: 2 }))
+    const term = await screen.findByText('visit')
+    const tip = document.getElementById(term.getAttribute('aria-describedby')!)!
+    expect(tip.textContent).toBe('Placeholder explanation of a visit.Informational, not a diagnosis')
+    expect(termsAsked).toEqual([draftId])
+    expect(term.closest('dd')!.textContent!.startsWith('Placeholder reason for the visit')).toBe(true)
   })
 })

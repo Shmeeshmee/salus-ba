@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 	"github.com/Shmeeshmee/salus/pkg/httpx"
 )
@@ -27,6 +28,7 @@ type Documents interface {
 	Drafts(ctx context.Context, c appointment.Caller, encounterID string) ([]Draft, error)
 	Sign(ctx context.Context, c appointment.Caller, id string, values []Value, version int32) (Draft, error)
 	PDF(ctx context.Context, c appointment.Caller, id string) (io.ReadCloser, int64, error)
+	Terms(ctx context.Context, c appointment.Caller, id string) ([]SectionTerms, error)
 }
 
 // HTTPHandler serves the templates, the drafting, the signing and the signed PDF of the JSON API
@@ -53,6 +55,7 @@ func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /encounters/{id}/drafts", h.drafts)
 	mux.HandleFunc("POST /drafts/{id}/sign", h.sign)
 	mux.HandleFunc("GET /document-references/{id}/content", h.content)
+	mux.HandleFunc("GET /compositions/{id}/terms", h.terms)
 }
 
 // templateJSON is the DocumentTemplate schema.
@@ -197,6 +200,38 @@ func (h *HTTPHandler) drafts(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	httpx.JSON(w, http.StatusOK, map[string][]Event{"drafts": out})
+}
+
+// sectionTermsJSON is the DocumentTermsSection schema: a field's explained terms, an array per line.
+type sectionTermsJSON struct {
+	Key   string               `json:"key"`
+	Lines [][]terminology.Span `json:"lines"`
+}
+
+// terms answers the explained terms of a document per field and line (SAL-13), under the Composition's rule. The
+// spans describe the document's text, which is patient data: not cached.
+func (h *HTTPHandler) terms(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.signedIn(w, r)
+	if !ok {
+		return
+	}
+	sections, err := h.svc.Terms(r.Context(), c, r.PathValue("id"))
+	if err != nil {
+		h.writeError(w, r, err)
+		return
+	}
+	out := make([]sectionTermsJSON, len(sections))
+	for i, s := range sections {
+		out[i] = sectionTermsJSON{Key: s.Key, Lines: make([][]terminology.Span, len(s.Lines))}
+		for j, l := range s.Lines {
+			out[i].Lines[j] = l
+			if l == nil {
+				out[i].Lines[j] = []terminology.Span{}
+			}
+		}
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	httpx.JSON(w, http.StatusOK, map[string][]sectionTermsJSON{"sections": out})
 }
 
 // sign signs a draft with the practitioner's values; If-Match is the version they read.

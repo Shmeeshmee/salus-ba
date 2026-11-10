@@ -233,6 +233,7 @@ type fixture struct {
 	consents   *fakeConsents
 	clinics    *fakeClinics
 	audit      *fakeAuditor
+	terms      *fakeGlossary // tags the stored transcript as it is read
 	svc        *transcript.Service
 	scope      string // the clinic the current transaction is scoped to
 }
@@ -246,7 +247,7 @@ func newFixture() *fixture {
 		Status: encounter.StatusInProgress, PeriodStart: start,
 	}
 	appt := appointment.Appointment{ID: apptA, OrganizationID: clinicA, PatientID: patientA, PractitionerRoleID: roleA1, Start: start}
-	f := &fixture{stream: &fakeStream{entries: map[string][]transcript.Entry{}}, consents: &fakeConsents{state: access.Consent{Active: true}}, clinics: &fakeClinics{}, audit: &fakeAuditor{}}
+	f := &fixture{stream: &fakeStream{entries: map[string][]transcript.Entry{}}, consents: &fakeConsents{state: access.Consent{Active: true}}, clinics: &fakeClinics{}, audit: &fakeAuditor{}, terms: &fakeGlossary{}}
 	f.repo = &fakeRepository{f: f, segments: map[string]transcript.Event{}}
 	f.encounters = &fakeEncounters{f: f, encounters: map[string]encounter.Encounter{encounterID: enc}, attendance: map[string]appointment.Attendance{
 		practAcc:  {Appointment: appt, Level: access.Full, ConsentActive: true, Practitioner: true},
@@ -256,6 +257,7 @@ func newFixture() *fixture {
 	}}
 	f.svc = transcript.NewService(transcript.Ports{
 		Repo: f.repo, Stream: f.stream, Encounters: f.encounters, Consents: f.consents, Sharing: f.clinics, Audit: f.audit, Tx: fakeTransactor{f: f},
+		Terms: f.terms,
 	})
 	return f
 }

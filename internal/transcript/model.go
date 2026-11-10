@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
 
@@ -42,6 +43,15 @@ type Event struct {
 	IsFinal     bool      `json:"is_final"`
 	// TranslationFailed is left out of the JSON when false: the smallest change to the P0 contract.
 	TranslationFailed bool `json:"translation_failed,omitempty"`
+	// Terms are the explained terms found in a final line (SAL-13), nil when none: an overlay, never stored.
+	Terms *Terms `json:"terms,omitempty"`
+}
+
+// Terms are where the explained terms are in a line's original and in its translation (terminology.Span: UTF-16
+// offsets), for the tooltip that explains them. The texts themselves are not changed.
+type Terms struct {
+	Original    []terminology.Span `json:"original,omitempty"`
+	Translation []terminology.Span `json:"translation,omitempty"`
 }
 
 // Validate checks the event is one the contract allows; the error names the first wrong field.

@@ -77,6 +77,48 @@ func (r *postgresRepository) Glossary(ctx context.Context, q GlossaryQuery) ([]G
 	return entries, nil
 }
 
+func (r *postgresRepository) Tag(ctx context.Context, candidates []Candidate) ([]CandidateTerm, error) {
+	langs, phrases := make([]string, len(candidates)), make([]string, len(candidates))
+	for i, c := range candidates {
+		langs[i], phrases[i] = c.Language, c.Phrase
+	}
+	rows, err := r.q(ctx).TagCandidates(ctx, terminologydb.TagCandidatesParams{Languages: langs, Phrases: phrases})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]CandidateTerm, len(rows))
+	for i, row := range rows {
+		out[i] = CandidateTerm{Language: row.Language, Phrase: row.Phrase, TermID: row.TermID.String()}
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) Explanations(ctx context.Context, language string) ([]Explanation, error) {
+	rows, err := r.q(ctx).ExplanationsIn(ctx, terminologydb.TermLanguage(language))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Explanation, len(rows))
+	for i, e := range rows {
+		out[i] = Explanation{
+			UpdatedAt: e.UpdatedAt.Time.UTC(), TermID: e.TermID.String(), Language: e.Language, Text: e.Text, VersionID: e.VersionID,
+			Review: review(e.ReviewStatus, e.ReviewedAt, e.ReviewedBy, e.Note),
+		}
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) TermIDByWikidata(ctx context.Context, wikidataID string) (string, error) {
+	id, err := r.q(ctx).TermIDByWikidata(ctx, text(wikidataID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrTermNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return id.String(), nil
+}
+
 func (r *postgresRepository) CreateFromSeed(ctx context.Context, t Term) (bool, error) {
 	id, err := r.q(ctx).CreateSeedTerm(ctx, terminologydb.CreateSeedTermParams{
 		Category: terminologydb.TermCategory(t.Category), Rank: t.Rank, WikidataID: text(t.WikidataID),

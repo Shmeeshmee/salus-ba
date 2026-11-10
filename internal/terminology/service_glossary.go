@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf16"
 	"unicode/utf8"
 )
 
@@ -46,32 +47,92 @@ func (s *Service) Glossary(ctx context.Context, text, from, to string) ([]Glossa
 // phrases are the candidate phrases of text, each once, in the order they first occur; with arabic, each phrase
 // also without a proclitic on its first word.
 func phrases(text string, arabic bool) []string {
-	var words []string
-	for _, f := range strings.Fields(text) {
-		if w := strings.TrimFunc(f, notWord); w != "" {
-			words = append(words, w)
-		}
-		if len(words) == glossaryWords {
-			break
-		}
-	}
 	seen := map[string]bool{}
 	var out []string
-	add := func(p string) {
-		if !seen[p] {
-			seen[p] = true
-			out = append(out, p)
+	for _, p := range phraseSpans(words(text, glossaryWords), arabic) {
+		if !seen[p.text] {
+			seen[p.text] = true
+			out = append(out, p.text)
 		}
 	}
-	for i := range words {
-		for n := 1; n <= glossaryPhrase && i+n <= len(words); n++ {
-			last := words[i+n-1]
+	return out
+}
+
+// word is a word of a text, punctuation around it left out, with its place in the text as UTF-16 offsets.
+type word struct {
+	text       string
+	start, end int
+}
+
+// phrase is a candidate phrase and the place in the text of the words it was made from: the whole of its last
+// word, also when the phrase has a shortened form of it.
+type phrase struct {
+	text       string
+	start, end int
+}
+
+// words are the first max words of text: the runs of characters between white space, without the punctuation and
+// symbols around them; a run of only those is no word.
+func words(text string, max int) []word {
+	var out []word
+	var field []rune
+	start, pos := 0, 0
+	flush := func() {
+		lo, hi := 0, len(field)
+		for lo < hi && notWord(field[lo]) {
+			lo++
+		}
+		for hi > lo && notWord(field[hi-1]) {
+			hi--
+		}
+		if lo < hi {
+			s := start + utf16Len(field[:lo])
+			out = append(out, word{text: string(field[lo:hi]), start: s, end: s + utf16Len(field[lo:hi])})
+		}
+		field = field[:0]
+	}
+	for _, r := range text {
+		switch {
+		case !unicode.IsSpace(r):
+			if len(field) == 0 {
+				start = pos
+			}
+			field = append(field, r)
+		case len(field) > 0:
+			if flush(); len(out) == max {
+				return out
+			}
+		}
+		pos += utf16.RuneLen(r)
+	}
+	if len(field) > 0 && len(out) < max {
+		flush()
+	}
+	return out
+}
+
+// utf16Len is the number of UTF-16 code units of rs.
+func utf16Len(rs []rune) int {
+	n := 0
+	for _, r := range rs {
+		n += utf16.RuneLen(r)
+	}
+	return n
+}
+
+// phraseSpans are the candidate phrases of ws, one to three words each, in the order they occur, the whole words
+// before their shortened forms; repeats are kept.
+func phraseSpans(ws []word, arabic bool) []phrase {
+	var out []phrase
+	for i := range ws {
+		for n := 1; n <= glossaryPhrase && i+n <= len(ws); n++ {
+			last := ws[i+n-1].text
 			if n == 1 && utf8.RuneCountInString(last) < glossaryMinWord {
 				continue
 			}
-			heads := []string{strings.Join(words[i:i+n-1], " ")}
-			if bare := withoutProclitic(words[i]); arabic && bare != "" && n > 1 {
-				heads = append(heads, strings.Join(append([]string{bare}, words[i+1:i+n-1]...), " "))
+			heads := []string{joinWords(ws[i : i+n-1])}
+			if bare := withoutProclitic(ws[i].text); arabic && bare != "" && n > 1 {
+				heads = append(heads, strings.TrimSpace(bare+" "+joinWords(ws[i+1:i+n-1])))
 			}
 			lasts := forms(last)
 			if bare := withoutProclitic(last); arabic && bare != "" && n == 1 {
@@ -79,12 +140,21 @@ func phrases(text string, arabic bool) []string {
 			}
 			for _, head := range heads {
 				for _, w := range lasts {
-					add(strings.TrimSpace(head + " " + w))
+					out = append(out, phrase{text: strings.TrimSpace(head + " " + w), start: ws[i].start, end: ws[i+n-1].end})
 				}
 			}
 		}
 	}
 	return out
+}
+
+// joinWords is the words' texts joined with spaces.
+func joinWords(ws []word) string {
+	texts := make([]string, len(ws))
+	for i, w := range ws {
+		texts[i] = w.text
+	}
+	return strings.Join(texts, " ")
 }
 
 // forms are w and w without its last one to three letters, keeping four at least.

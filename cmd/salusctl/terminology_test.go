@@ -119,3 +119,33 @@ func TestTerminology_RejectsAnUnknownCommandOrMissingArguments(t *testing.T) {
 		}
 	}
 }
+
+// The drafted explanations (SAL-13) are imported as unreviewed, without a reviewer, for the seeded terms; a term the
+// list does not have is refused (and fails the command once the rest is applied); a second import keeps them.
+func TestTerminologyImportExplanations_AddsTheDraftsOnce(t *testing.T) {
+	_, count := ownerDB(t)
+	if err := run(t.Context(), []string{"terminology", "import", writeFile(t, "seed.jsonl", strings.Join(strings.Split(seed, "\n")[:2], "\n"))}, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	path := writeFile(t, "explanations.draft.jsonl",
+		`{"wikidata":"Q9368","explanations":{"en":"Placeholder: an organ.","bs":"Placeholder: organ."}}`+"\n"+
+			`{"wikidata":"Q1","explanations":{"en":"Placeholder."}}`+"\n")
+	var out bytes.Buffer
+	err := run(t.Context(), []string{"terminology", "import-explanations", path}, &out)
+	if err == nil || !strings.Contains(err.Error(), "rows refused: 1") {
+		t.Errorf("import = %v, want an error naming the refused row", err)
+	}
+	if want := "created 2, updated 0, unchanged 0, refused 1\nline 2: wikidata: no such term\n"; out.String() != want {
+		t.Errorf("output %q, want %q", out.String(), want)
+	}
+	if n := count(`SELECT count(*) FROM term_explanation WHERE review_status = 'unreviewed' AND reviewed_by IS NULL`); n != 2 {
+		t.Errorf("%d unreviewed explanations without a reviewer, want 2", n)
+	}
+	out.Reset()
+	if err := run(t.Context(), []string{"terminology", "import-explanations", writeFile(t, "again.jsonl", `{"wikidata":"Q9368","explanations":{"en":"Other."}}`)}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(out.String(), "created 0, updated 0, unchanged 1, refused 0") || count(`SELECT count(*) FROM term_explanation WHERE text = 'Other.'`) != 0 {
+		t.Errorf("import again: %q; want nothing changed", out.String())
+	}
+}

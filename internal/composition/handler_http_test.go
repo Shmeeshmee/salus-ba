@@ -29,6 +29,12 @@ type stubDocuments struct {
 		version int32
 	}
 	draft composition.Draft
+	terms []composition.SectionTerms
+}
+
+func (s *stubDocuments) Terms(_ context.Context, _ appointment.Caller, id string) ([]composition.SectionTerms, error) {
+	s.got.id = id
+	return s.terms, s.err
 }
 
 func (s *stubDocuments) Templates(context.Context, appointment.Caller) ([]composition.Template, error) {
