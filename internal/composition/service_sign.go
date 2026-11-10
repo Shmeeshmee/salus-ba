@@ -19,8 +19,9 @@ import (
 // consent: every field takes the value the practitioner left (one value per field; a value as drafted keeps its
 // sources, an edited or typed one has none, an empty one is missing), the draft becomes the final Composition
 // signed now by the appointment's PractitionerRole, its PDF is rendered and stored encrypted in the object
-// store as a DocumentReference, and a Provenance records the signature. The three writes are audited, and the
-// final draft is pushed on the encounter's stream. The access, status and version are checked again once the
+// store as a DocumentReference, and a Provenance records the signature. The three writes are audited, the
+// patient's e-mail that a document is ready is enqueued with them, and the final draft is pushed on the
+// encounter's stream. The access, status and version are checked again once the
 // PDF is stored, so a revocation meanwhile signs nothing (and the object is deleted).
 //
 // Refusals, audited: ErrNotFound, ErrForbidden, ErrConsentRequired, ErrNotPreliminary, ErrVersionMismatch, and a
@@ -66,7 +67,7 @@ func (s *Service) Sign(ctx context.Context, c appointment.Caller, id string, val
 				return err
 			}
 		}
-		return nil
+		return s.Jobs.EnqueueSigned(ctx, enc.AppointmentID, enc.OrganizationID)
 	})
 	if err := wrapErr("sign", err, refused); err != nil {
 		_ = s.Store.Delete(context.WithoutCancel(ctx), ObjectKey(d.DocumentReferenceID))
@@ -80,7 +81,7 @@ func (s *Service) Sign(ctx context.Context, c appointment.Caller, id string, val
 // in ctx, or the refusal, audited.
 func (s *Service) signable(ctx context.Context, c appointment.Caller, id string, version int32) (Draft, encounter.Encounter, error, error) {
 	e := entry{c: c, interaction: auditevent.CodeUpdate, outcome: auditevent.OutcomeMinorFailure}
-	d, enc, err := s.reach(ctx, c, id, s.lockedDraft)
+	d, enc, err := s.reach(ctx, c, id, s.lockedDraft, false)
 	if refused := refusal(err); refused != nil {
 		e.reference = encounterRef(enc.ID)
 		return Draft{}, encounter.Encounter{}, refused, s.record(ctx, e)
@@ -105,23 +106,30 @@ func (s *Service) lockedDraft(ctx context.Context, id string) (Draft, error) {
 	return s.Repo.Draft(ctx, id, true)
 }
 
-// reach finds a draft by find in the caller's clinic and checks the caller may reach its encounter: the
-// encounter as far as the caller may know it with a refusal (errRefused).
-func (s *Service) reach(ctx context.Context, c appointment.Caller, id string, find func(ctx context.Context, id string) (Draft, error)) (Draft, encounter.Encounter, error) {
-	if c.OrganizationID == "" {
+// reach finds a draft by find in the caller's scope (the clinic's, or the patient's own signed documents) and
+// checks the caller may reach its encounter, to read it when read is set (a signed document is then also its
+// patient's), else to write it: the encounter as far as the caller may know it with a refusal (errRefused).
+func (s *Service) reach(ctx context.Context, c appointment.Caller, id string, find func(ctx context.Context, id string) (Draft, error), read bool) (Draft, encounter.Encounter, error) {
+	var err error
+	switch {
+	case c.OrganizationID != "":
+		err = s.Repo.SetClinic(ctx, c.OrganizationID)
+	case c.PatientID != "":
+		err = s.Repo.SetPatient(ctx, c.PatientID)
+	default:
 		return Draft{}, encounter.Encounter{}, errRefused{ErrNotFound}
 	}
-	if err := s.Repo.SetClinic(ctx, c.OrganizationID); err != nil {
+	if err != nil {
 		return Draft{}, encounter.Encounter{}, err
 	}
 	d, err := find(ctx, id)
 	switch {
-	case errors.Is(err, ErrNotFound):
+	case errors.Is(err, ErrNotFound), err == nil && c.OrganizationID == "" && d.Status != StatusFinal:
 		return Draft{}, encounter.Encounter{}, errRefused{ErrNotFound}
 	case err != nil:
 		return Draft{}, encounter.Encounter{}, err
 	}
-	enc, err := s.allowed(ctx, c, d.EncounterID)
+	enc, err := s.allowed(ctx, c, d.EncounterID, read && d.Status == StatusFinal)
 	return d, enc, err
 }
 

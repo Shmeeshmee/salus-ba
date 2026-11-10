@@ -43,7 +43,7 @@ var refusals = []struct {
 	caller appointment.Caller
 }{
 	{name: "the clinic's admin", caller: admin, id: encounterID, want: transcript.ErrForbidden},
-	{name: "the patient (their copy comes with the export feature)", caller: me, id: encounterID, want: transcript.ErrForbidden},
+	{name: "the patient, while the clinic does not share transcripts", caller: me, id: encounterID, want: transcript.ErrForbidden},
 	{name: "another practitioner of the clinic", caller: pract2, id: encounterID, want: transcript.ErrForbidden},
 	{name: "the practitioner after a revocation", caller: pract, id: encounterID, want: transcript.ErrConsentRequired, setup: (*fixture).revoke},
 	{name: "someone the appointment does not show", caller: appointment.Caller{AccountID: "ac900000-0000-4000-8000-000000000009", OrganizationID: clinicA}, want: transcript.ErrNotFound},
@@ -74,6 +74,43 @@ func TestExport_FailsWhenABackendFails(t *testing.T) {
 		if _, err := f.svc.Export(t.Context(), pract, encounterID); !errors.Is(err, errBackend) {
 			t.Errorf("%s: Export() error = %v, want the backend's", name, err)
 		}
+	}
+}
+
+// SAL-17: while the clinic shares transcripts with its patients, the encounter's patient reads their copy, in their
+// own scope, audited as their own request; also after revoking the consent (their own record). The practitioner's
+// read does not ask for the clinic's setting.
+func TestExport_GivesThePatientTheirCopyWhileTheClinicSharesIt(t *testing.T) {
+	for name, revoked := range map[string]bool{"active consent": false, "revoked": true} {
+		f := newFixture()
+		first := f.storeAt(t, segmentID, 0)
+		f.clinics.copy = true
+		if revoked {
+			f.revoke()
+		}
+		got, err := f.svc.Export(t.Context(), me, encounterID)
+		if err != nil || !slices.Equal(got, []transcript.Event{first}) {
+			t.Errorf("%s: Export() = %+v, %v; want the segment", name, got, err)
+		}
+		checkEvents(t, name, f.audit, callerEvent(me, auditevent.CodeRead, encounterID, auditevent.OutcomeSuccess, 1))
+	}
+	f := newFixture()
+	f.clinics.copy = true
+	if _, err := f.svc.Export(t.Context(), pract, encounterID); err != nil || f.clinics.calls != 0 {
+		t.Errorf("the practitioner's Export() = %v after %d setting reads, want none", err, f.clinics.calls)
+	}
+	f.clinics.err = errBackend
+	if _, err := f.svc.Export(t.Context(), me, encounterID); !errors.Is(err, errBackend) {
+		t.Errorf("Export() with the clinics down = %v, want the failure", err)
+	}
+}
+
+// The patient's copy is the stored transcript only: never the live stream, whatever the clinic's setting.
+func TestSubscribe_RefusesThePatientWhileTheClinicSharesTheTranscript(t *testing.T) {
+	f := newFixture()
+	f.clinics.copy = true
+	if _, err := f.svc.Subscribe(t.Context(), me, encounterID, ""); !errors.Is(err, transcript.ErrForbidden) {
+		t.Errorf("the patient's Subscribe() = %v, want ErrForbidden", err)
 	}
 }
 

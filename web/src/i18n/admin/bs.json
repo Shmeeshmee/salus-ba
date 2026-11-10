@@ -31,6 +31,8 @@
   "timeZoneHint": "Termini i radno vrijeme prikazuju se u ovoj vremenskoj zoni.",
   "listed": "Prikaži kliniku u aplikaciji za pacijente",
   "listedHint": "Pacijenti tada mogu pronaći kliniku, njene ljekare i njihove slobodne termine te zakazati termin.",
+  "transcriptCopy": "Omogući pacijentima kopiju transkripta njihovih konsultacija",
+  "transcriptCopyHint": "Pacijenti tada mogu čitati transkripte svojih konsultacija u aplikaciji za pacijente.",
   "defaultLanguage": "Zadani jezik",
   "defaultLanguageHint": "Koristi se za e-mailove osoblju koje nije odabralo jezik i kao izvorni jezik novih upitnika.",
   "saved": "Sačuvano.",

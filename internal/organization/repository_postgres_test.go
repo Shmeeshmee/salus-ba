@@ -78,10 +78,10 @@ func TestUpdate_MovesToTheNextVersionOrConflicts(t *testing.T) {
 	var got organization.Organization
 	err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
 		var err error
-		got, err = repo.Update(ctx, organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", DefaultLanguage: "sr-Cyrl", Listed: true, VersionID: 1}, at)
+		got, err = repo.Update(ctx, organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", DefaultLanguage: "sr-Cyrl", Listed: true, PatientTranscriptCopy: true, VersionID: 1}, at)
 		return err
 	})
-	want := organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", DefaultLanguage: "sr-Cyrl", Listed: true, Active: true, VersionID: 2, LastUpdated: at}
+	want := organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", DefaultLanguage: "sr-Cyrl", Listed: true, PatientTranscriptCopy: true, Active: true, VersionID: 2, LastUpdated: at}
 	if got.LastUpdated = got.LastUpdated.UTC(); err != nil || got != want {
 		t.Errorf("Update() = %+v, %v;\nwant %+v", got, err, want)
 	}

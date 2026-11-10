@@ -1,0 +1,7 @@
+È disponibile un documento del suo appuntamento
+
+È disponibile un documento del suo appuntamento presso {{.Clinic}}.
+Data e ora: {{.When}}
+
+Per leggerlo, apra l'app Salus:
+{{.Link}}

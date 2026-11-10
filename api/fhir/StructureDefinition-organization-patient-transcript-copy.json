@@ -1,0 +1,56 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "organization-patient-transcript-copy",
+  "url": "https://salus.invalid/fhir/StructureDefinition/organization-patient-transcript-copy",
+  "version": "0.1.0",
+  "name": "OrganizationPatientTranscriptCopy",
+  "title": "Organization patient transcript copy",
+  "status": "active",
+  "date": "2026-11-10",
+  "publisher": "Salus",
+  "description": "Whether the clinic gives its patients a copy of their consultations' stored transcripts in the patient app. Set by the clinic's admin; off unless turned on. The encounter's practitioner reads the transcript whatever it says.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Organization"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "Patients get a copy of their transcripts",
+        "definition": "Whether the clinic's patients may read the stored transcripts of their own consultations.",
+        "min": 0,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "https://salus.invalid/fhir/StructureDefinition/organization-patient-transcript-copy"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "boolean"
+          }
+        ]
+      }
+    ]
+  }
+}

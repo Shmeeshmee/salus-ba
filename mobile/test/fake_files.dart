@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:salus/file_prep.dart';
 import 'package:salus/files.dart';
@@ -25,6 +26,16 @@ class FakeFiles implements Files {
   var discarded = 0;
 
   int get size => chunks.fold(0, (n, c) => n + c.length);
+
+  /// Every PDF handed to the share sheet, by name, and every text.
+  final shared = <(String, Uint8List)>[];
+  final sharedText = <String>[];
+
+  @override
+  Future<void> sharePdf(String name, Uint8List bytes) async => shared.add((name, bytes));
+
+  @override
+  Future<void> shareText(String text) async => sharedText.add(text);
 
   @override
   Future<Picked?> pick(Source source, {required bool photos, required bool videos}) async {

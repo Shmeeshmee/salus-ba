@@ -76,6 +76,11 @@ dependencies:
   image_picker: 1.2.4
   # PDFs from the documents: the system document picker on both platforms.
   file_picker: 13.1.0
+  # The share sheet (docs/consultation/SPEC.md "Patient documents"): a signed document's PDF to open in a viewer,
+  # save to the device's files or send, and the transcript copy as text. Flutter has no share sheet of its own, and
+  # one needs platform code on iOS and Android; share_plus is the Flutter Community's plugin. Reached only through
+  # lib/files.dart. Pinned exact.
+  share_plus: 13.3.1
   # The streamed upload with its Content-Length (lib/booking.dart): the generated client's own HTTP package, now
   # used directly. Pinned exact, the version the client resolves.
   http: 1.6.0

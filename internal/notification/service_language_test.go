@@ -34,13 +34,14 @@ func TestEmails_AreWrittenInEveryLanguage(t *testing.T) {
 			{func(s *notification.Service) error { return s.SendAppointmentCancelled(t.Context(), apptID, clinicID) }, "cancelled", appointment.StatusCancelled, false},
 			{func(s *notification.Service) error { return s.SendAppointmentReminder(t.Context(), apptID, clinicID) }, "reminder", appointment.StatusBooked, false},
 			{func(s *notification.Service) error { return s.SendAppointmentReminder(t.Context(), apptID, clinicID) }, "reminder_questionnaire", appointment.StatusBooked, true},
+			{func(s *notification.Service) error { return s.SendDocumentSigned(t.Context(), apptID, clinicID) }, "signed", appointment.StatusFulfilled, false},
 		} {
 			s := newMailAsking(&fakeAppointments{status: k.status}, &fakeAccounts{language: lang}, zonedClinics{}, sender, &fakeQuestionnaires{outstanding: k.outstanding})
 			if err := k.send(s); err != nil {
 				t.Fatalf("%s %s: error = %v", lang, k.name, err)
 			}
 		}
-		names := []string{"invite", "booked", "booked_questionnaire", "cancelled", "reminder", "reminder_questionnaire"}
+		names := []string{"invite", "booked", "booked_questionnaire", "cancelled", "reminder", "reminder_questionnaire", "signed"}
 		if len(sender.sent) != len(names) {
 			t.Fatalf("%s: sent %d e-mails, want %d", lang, len(sender.sent), len(names))
 		}

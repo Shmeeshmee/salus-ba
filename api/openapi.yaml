@@ -1653,9 +1653,10 @@ paths:
       summary: The consultation's stored transcript
       description: >-
         Every final segment of the encounter's transcript, in the order it was said, with its translation, as
-        `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent
-        only; the patient's own copy comes with the export feature. Not cached. Audited as a read with the
-        number of segments, also when refused.
+        `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent,
+        and for the encounter's patient (their copy, whatever the consent) while the clinic shares transcripts
+        with its patients (the Organization's organization-patient-transcript-copy extension, off by default).
+        Not cached. Audited as a read with the number of segments, also when refused.
       tags: [consultation]
       security:
         - sessionCookie: []
@@ -1675,7 +1676,8 @@ paths:
         "403":
           description: >-
             `consent_required`: the encounter's practitioner after the patient revoked their consent;
-            `forbidden`: anyone else who sees the encounter.
+            `forbidden`: the patient while the clinic does not share transcripts, and anyone else who sees the
+            encounter.
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -1947,8 +1949,9 @@ paths:
       summary: A signed document's PDF
       description: >-
         The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a
-        download. For the encounter's practitioner with the patient's active consent only. Audited as a read of
-        the DocumentReference, also when refused.
+        download. For the encounter's practitioner with the patient's active consent, and for the encounter's
+        patient whatever the consent (their own record). Audited as a read of the DocumentReference, also when
+        refused.
       tags: [documents]
       security:
         - sessionCookie: []

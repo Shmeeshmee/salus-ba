@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fakeFetch, fhirJSON, outcome } from '../test/fakeFetch'
-import { defaultLanguageURL, FhirError, listedURL, newFhirClient, participant, settingsOf, timeZoneURL, withSettings, type Appointment, type Organization } from './fhir'
+import { defaultLanguageURL, FhirError, listedURL, newFhirClient, participant, settingsOf, timeZoneURL, transcriptCopyURL, withSettings, type Appointment, type Organization } from './fhir'
 
 const org: Organization = {
   resourceType: 'Organization',
@@ -63,20 +63,39 @@ describe('clinic settings in the Organization', () => {
       { url: listedURL, valueBoolean: true },
       { url: timeZoneURL, valueCode: 'Europe/Berlin' },
       { url: defaultLanguageURL, valueCode: 'hr' },
+      { url: transcriptCopyURL, valueBoolean: true },
       { url: 'https://example.test/other', valueCode: 'kept' },
     ],
   }
 
-  it('reads listed, the time zone and the default language from their extensions', () => {
-    expect(settingsOf(withExtensions)).toEqual({ name: 'Synthetic clinic', listed: true, timeZone: 'Europe/Berlin', defaultLanguage: 'hr' })
+  it('reads listed, the time zone, the default language and the transcript copy from their extensions', () => {
+    expect(settingsOf(withExtensions)).toEqual({
+      name: 'Synthetic clinic',
+      listed: true,
+      timeZone: 'Europe/Berlin',
+      defaultLanguage: 'hr',
+      transcriptCopy: true,
+    })
   })
 
-  it('reads an Organization without them as not listed, in the default zone, in Bosnian', () => {
-    expect(settingsOf(org)).toEqual({ name: 'Synthetic clinic', listed: false, timeZone: 'Europe/Sarajevo', defaultLanguage: 'bs' })
+  it('reads an Organization without them as not listed, in the default zone, in Bosnian, without the transcript copy', () => {
+    expect(settingsOf(org)).toEqual({
+      name: 'Synthetic clinic',
+      listed: false,
+      timeZone: 'Europe/Sarajevo',
+      defaultLanguage: 'bs',
+      transcriptCopy: false,
+    })
   })
 
   it('writes the settings into the resource and keeps other extensions', () => {
-    const out = withSettings(withExtensions, { name: 'Renamed', listed: false, timeZone: 'Europe/Sarajevo', defaultLanguage: 'en' })
+    const out = withSettings(withExtensions, {
+      name: 'Renamed',
+      listed: false,
+      timeZone: 'Europe/Sarajevo',
+      defaultLanguage: 'en',
+      transcriptCopy: false,
+    })
 
     expect(out.name).toBe('Renamed')
     expect(out.extension).toEqual([
@@ -84,6 +103,7 @@ describe('clinic settings in the Organization', () => {
       { url: listedURL, valueBoolean: false },
       { url: timeZoneURL, valueCode: 'Europe/Sarajevo' },
       { url: defaultLanguageURL, valueCode: 'en' },
+      { url: transcriptCopyURL, valueBoolean: false },
     ])
   })
 })

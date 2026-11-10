@@ -81,6 +81,7 @@ func (r *fakeRepository) Update(ctx context.Context, in organization.Organizatio
 		return organization.Organization{}, organization.ErrConflict
 	}
 	o.Name, o.Listed, o.TimeZone, o.DefaultLanguage, o.VersionID, o.LastUpdated = in.Name, in.Listed, in.TimeZone, in.DefaultLanguage, in.VersionID+1, at
+	o.PatientTranscriptCopy = in.PatientTranscriptCopy
 	r.orgs[in.ID] = o
 	return o, nil
 }

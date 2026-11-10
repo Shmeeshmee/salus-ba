@@ -20,7 +20,7 @@ func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
 
 // seed is a clinic's encounter, as the owner: a clinic with a practitioner and role, a patient with an active
 // consent, an appointment and its encounter in progress. Synthetic.
-type seed struct{ clinic, role, encounter string }
+type seed struct{ clinic, role, encounter, patient string }
 
 func seedEncounter(t testing.TB, owner *pgxpool.Pool) seed {
 	t.Helper()
@@ -36,7 +36,7 @@ func seedEncounter(t testing.TB, owner *pgxpool.Pool) seed {
 			RETURNING id, patient_id, practitioner_role_id, organization_id)
 		INSERT INTO encounter (appointment_id, organization_id, patient_id, practitioner_role_id, status, period_start)
 		SELECT id, organization_id, patient_id, practitioner_role_id, 'in-progress', now() FROM ap
-		RETURNING organization_id::text, practitioner_role_id::text, id::text`).Scan(&s.clinic, &s.role, &s.encounter)
+		RETURNING organization_id::text, practitioner_role_id::text, id::text, patient_id::text`).Scan(&s.clinic, &s.role, &s.encounter, &s.patient)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,4 +275,112 @@ func TestDrafts_SaveReplaceAndSign(t *testing.T) {
 		}
 	}
 	_ = tplID
+}
+
+// asPatient runs fn on the repository in a transaction of its own, scoped to the patient.
+func asPatient(t testing.TB, app *pgxpool.Pool, patient string, fn func(ctx context.Context, r composition.Repository) error) error {
+	t.Helper()
+	r := composition.NewPostgresRepository(app)
+	return postgres.NewTransactor(app).WithTx(context.Background(), func(ctx context.Context) error {
+		if err := r.SetPatient(ctx, patient); err != nil {
+			return err
+		}
+		return fn(ctx, r)
+	})
+}
+
+// SAL-17: the patient's own scope sees the signed documents of their own encounters, by id, DocumentReference and
+// encounter, and never a draft that is not signed, nor another patient's document.
+func TestSigned_ThePatientSeesOnlyTheirOwnSignedDocuments(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s, other := seedEncounter(t, owner), seedEncounter(t, owner)
+	open, signed := openAndSigned(t, app, s)
+	var list, clinicList []composition.Draft
+	var byID, byRef composition.Draft
+	err := asPatient(t, app, s.patient, func(ctx context.Context, r composition.Repository) error {
+		var err error
+		if list, err = r.Signed(ctx, s.encounter); err != nil {
+			return err
+		}
+		if byID, err = r.Draft(ctx, signed.ID, false); err != nil {
+			return err
+		}
+		byRef, err = r.ByDocumentReference(ctx, signed.DocumentReferenceID)
+		return err
+	})
+	if err != nil || len(list) != 1 || list[0].ID != signed.ID || byID.ID != signed.ID || byRef.ID != signed.ID {
+		t.Fatalf("the patient's Signed() = %+v, Draft() = %s, ByDocumentReference() = %s, %v; want the signed one", list, byID.ID, byRef.ID, err)
+	}
+	err = asPatient(t, app, s.patient, func(ctx context.Context, r composition.Repository) error {
+		_, err := r.Draft(ctx, open.ID, false)
+		return err
+	})
+	if !errors.Is(err, composition.ErrNotFound) {
+		t.Errorf("the patient's Draft(open draft) = %v, want ErrNotFound", err)
+	}
+	err = inClinic(t, app, s.clinic, func(ctx context.Context, r composition.Repository) error {
+		var err error
+		clinicList, err = r.Signed(ctx, s.encounter)
+		return err
+	})
+	if err != nil || len(clinicList) != 1 || clinicList[0].ID != signed.ID {
+		t.Errorf("the clinic's Signed() = %+v, %v; want the signed one only", clinicList, err)
+	}
+	for name, read := range map[string]func(context.Context, composition.Repository) error{
+		"draft": func(ctx context.Context, r composition.Repository) error {
+			_, err := r.Draft(ctx, signed.ID, false)
+			return err
+		},
+		"reference": func(ctx context.Context, r composition.Repository) error {
+			_, err := r.ByDocumentReference(ctx, signed.DocumentReferenceID)
+			return err
+		},
+	} {
+		if err := asPatient(t, app, other.patient, read); !errors.Is(err, composition.ErrNotFound) {
+			t.Errorf("%s as another patient: %v, want ErrNotFound", name, err)
+		}
+	}
+	err = asPatient(t, app, other.patient, func(ctx context.Context, r composition.Repository) error {
+		var err error
+		list, err = r.Signed(ctx, s.encounter)
+		return err
+	})
+	if err != nil || len(list) != 0 {
+		t.Errorf("Signed() as another patient = %+v, %v; want none", list, err)
+	}
+}
+
+// openAndSigned stores two templates in the encounter's clinic, an open draft of the first and a signed one of
+// the second.
+func openAndSigned(t *testing.T, app *pgxpool.Pool, s seed) (open, signed composition.Draft) {
+	t.Helper()
+	err := inClinic(t, app, s.clinic, func(ctx context.Context, r composition.Repository) error {
+		first, err := r.InsertTemplate(ctx, s.clinic, content(), at)
+		if err != nil {
+			return err
+		}
+		c := content()
+		c.Title = "A placeholder referral"
+		second, err := r.InsertTemplate(ctx, s.clinic, c, at)
+		if err != nil {
+			return err
+		}
+		if open, _, err = r.SaveDraft(ctx, draftOf(s.encounter, first.ID), at); err != nil {
+			return err
+		}
+		d, _, err := r.SaveDraft(ctx, draftOf(s.encounter, second.ID), at)
+		if err != nil {
+			return err
+		}
+		d.Status, d.SignedAt, d.SignerRoleID = composition.StatusFinal, at.Add(time.Hour), s.role
+		d.DocumentReferenceID, d.ProvenanceID = "d0c00000-0000-4000-8000-000000000002", "9e000000-0000-4000-8000-000000000002"
+		d.PDF = composition.PDF{KEKID: "k1", SHA1: bytes.Repeat([]byte{1}, 20), WrappedKey: []byte{2, 3}, Size: 1234}
+		signed, err = r.Sign(ctx, d, at.Add(time.Hour))
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return open, signed
 }
