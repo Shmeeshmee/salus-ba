@@ -88,7 +88,7 @@ func TestTemplates_StoresAndReadsATemplateWithItsTranslations(t *testing.T) {
 	var read composition.Template
 	err = inClinic(t, app, s.clinic, func(ctx context.Context, r composition.Repository) error {
 		var err error
-		if list, err = r.Templates(ctx); err != nil {
+		if list, err = r.Templates(ctx, s.clinic); err != nil {
 			return err
 		}
 		read, err = r.Template(ctx, tpl.ID, true)
@@ -105,6 +105,37 @@ func TestTemplates_StoresAndReadsATemplateWithItsTranslations(t *testing.T) {
 		if !errors.Is(err, composition.ErrTemplateNotFound) {
 			t.Errorf("Template(%s) in another clinic = %v, want ErrTemplateNotFound", id, err)
 		}
+	}
+}
+
+// SAL-16: the owner (salusctl) is past row-level security, so Templates reads the clinic's templates by its id,
+// never another clinic's.
+func TestTemplates_ReadsOnlyTheClinicsTemplatesAsTheOwner(t *testing.T) {
+	t.Parallel()
+	owner, _ := pgtest.NewAppDatabase(t)
+	a, b := seedEncounter(t, owner), seedEncounter(t, owner)
+	var list []composition.Template
+	err := inClinic(t, owner, a.clinic, func(ctx context.Context, r composition.Repository) error {
+		if _, err := r.InsertTemplate(ctx, a.clinic, content(), at); err != nil {
+			return err
+		}
+		if _, err := r.InsertTemplate(ctx, b.clinic, content(), at); err != nil {
+			return err
+		}
+		var err error
+		list, err = r.Templates(ctx, b.clinic)
+		return err
+	})
+	if err != nil || len(list) != 1 || list[0].OrganizationID != b.clinic || len(list[0].Translations) != len(content().Translations) {
+		t.Errorf("Templates(other clinic) as the owner = %+v, %v; want its one template", list, err)
+	}
+	err = inClinic(t, owner, a.clinic, func(ctx context.Context, r composition.Repository) error {
+		var err error
+		list, err = r.Templates(ctx, "x")
+		return err
+	})
+	if err != nil || len(list) != 0 {
+		t.Errorf("Templates(x) = %+v, %v; want none", list, err)
 	}
 }
 

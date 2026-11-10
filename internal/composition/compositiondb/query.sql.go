@@ -533,6 +533,7 @@ func (q *Queries) TemplateForUpdate(ctx context.Context, id pgtype.UUID) (Templa
 const templates = `-- name: Templates :many
 SELECT id, organization_id, title, language, status, type_code, fields, version_id, updated_at
 FROM document_template
+WHERE organization_id = $1
 ORDER BY title, id
 `
 
@@ -548,9 +549,9 @@ type TemplatesRow struct {
 	UpdatedAt      pgtype.Timestamptz
 }
 
-// The scope's templates, by title.
-func (q *Queries) Templates(ctx context.Context) ([]TemplatesRow, error) {
-	rows, err := q.db.Query(ctx, templates)
+// The clinic's templates, by title. By its id, not only row-level security: salusctl runs as the owner.
+func (q *Queries) Templates(ctx context.Context, organizationID pgtype.UUID) ([]TemplatesRow, error) {
+	rows, err := q.db.Query(ctx, templates, organizationID)
 	if err != nil {
 		return nil, err
 	}

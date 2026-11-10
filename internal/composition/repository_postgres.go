@@ -31,8 +31,12 @@ func (r *postgresRepository) SetClinic(ctx context.Context, id string) error {
 	return postgres.SetLocal(ctx, "app.organization_id", id)
 }
 
-func (r *postgresRepository) Templates(ctx context.Context) ([]Template, error) {
-	rows, err := r.q(ctx).Templates(ctx)
+func (r *postgresRepository) Templates(ctx context.Context, org string) ([]Template, error) {
+	var uorg pgtype.UUID
+	if uorg.Scan(org) != nil {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).Templates(ctx, uorg)
 	if err != nil {
 		return nil, err
 	}
