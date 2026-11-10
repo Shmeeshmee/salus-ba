@@ -60,8 +60,10 @@ func TestHandleWebhook_ThePractitionersJoinStartsTheEncounter(t *testing.T) {
 		t.Errorf("started %v, want %v", f.encounters.started, want)
 	}
 	checkEvents(t, "HandleWebhook", f.audit, webhookEvent())
-	if len(f.provider.removed) != 0 || len(f.consents.asked) != 0 {
-		t.Errorf("removed %v, consents asked %v; want neither for the practitioner", f.provider.removed, f.consents.asked)
+	// The practitioner is never removed; the consents are asked only whether the agent may come in (SAL-12).
+	asked := slices.Compact(slices.Clone(f.consents.asked))
+	if len(f.provider.removed) != 0 || !slices.Equal(asked, []string{patientA + " " + clinicA}) {
+		t.Errorf("removed %v, consents asked %v; want no removal, and patient A's with clinic A for the agent", f.provider.removed, f.consents.asked)
 	}
 }
 
@@ -354,7 +356,8 @@ func TestHandleWebhook_FailsOnABodyThatIsNotAnEvent(t *testing.T) {
 // Every join of a person into an open consultation the practitioner has joined asks the transcription agent
 // in (SAL-4): a transcription_join job for the session, in the join's transaction. Repeats and reconnects ask
 // again; the agent joins once per session. A patient whose access is gone, a join before the practitioner's
-// (no Encounter yet), and a join after the end ask nothing.
+// (no Encounter yet), a join after the end, and a patient without an active transcription consent (SAL-12) ask
+// nothing.
 func TestHandleWebhook_AsksTheAgentInOnceThePractitionerJoined(t *testing.T) {
 	session := "5e000000-0000-4000-8000-000000000001 " + clinicA
 	for _, tc := range []struct {
@@ -380,6 +383,14 @@ func TestHandleWebhook_AsksTheAgentInOnceThePractitionerJoined(t *testing.T) {
 			s := f.session()
 			s.EndedAt, s.EndReason = now, videosession.EndPractitioner
 			f.repo.sessions[apptA] = s
+		}},
+		// SAL-12: without the patient's transcription consent the call goes on without the agent.
+		{name: "the practitioner's join, transcription declined", who: "p_practitioner", setup: func(f *fixture) { f.consents.declined = true }},
+		{name: "the patient's join after the practitioner's, transcription declined", who: "p_patient", setup: func(f *fixture) {
+			s := f.session()
+			s.PractitionerJoinedAt = start
+			f.repo.sessions[apptA] = s
+			f.consents.declined = true
 		}},
 	} {
 		f := opened(now, time.Time{}, time.Time{})

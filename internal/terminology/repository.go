@@ -29,11 +29,43 @@ type CurationRepository interface {
 	// preferred one first, then alphabetically; ErrTermNotFound when there is none.
 	Term(ctx context.Context, id string) (Term, error)
 	// UpdateTerm writes t's columns, its updated_at at, and replaces its labels; ErrTermNotFound when there is
-	// no term t.ID, ErrDuplicateWikidata when another term has t's Wikidata id.
+	// no term t.ID, ErrDuplicateWikidata when another term has t's Wikidata id. A term has a translation in exactly
+	// the languages it has labels in: one for a new language takes the term's status, one for a language left
+	// without labels is deleted (CreateFromSeed's are unreviewed).
 	UpdateTerm(ctx context.Context, t Term, at time.Time) error
+	// SetTranslationsStatus sets every translation of the term to status with no reviewer, reviewed_at at unless
+	// status is unreviewed (then each keeps its own), the next version and updated_at at.
+	SetTranslationsStatus(ctx context.Context, termID, status string, at time.Time) error
 	// Terms returns every term of review status status (any when empty) with its labels as Term has them, by
 	// category in the enum's order, rank descending, then id.
 	Terms(ctx context.Context, status string) ([]Term, error)
 	// CountByCategory returns how many terms each category holds, in the enum's order; an empty one is absent.
 	CountByCategory(ctx context.Context) ([]CategoryCount, error)
+}
+
+// ReviewRepository reads the review queue and writes a reviewer's edits and reviews (the review panel, SAL-14), on
+// the app's connection, which may write only these.
+type ReviewRepository interface {
+	// Queue returns at most q.Limit entries of the terms in q.Language: each term with its labels in the language,
+	// Latin and English (by language, the preferred one first, then alphabetically), its translation and its
+	// explanation in the language. An entry's status is needs_changes when its translation or explanation needs
+	// changes, else unreviewed when there is no translation or either is unreviewed, else approved; only those of
+	// q.Status when set. Unreviewed first, then needs_changes, then approved, each by rank descending, then id;
+	// after the entry q.AfterStatus, q.AfterRank, q.AfterID when q.AfterID is set.
+	Queue(ctx context.Context, q QueueFilter) ([]QueueRow, error)
+	// Progress returns per term language with any term how many terms there are and how many of their entries in
+	// it are approved and need changes, statuses as in Queue; none without terms.
+	Progress(ctx context.Context) ([]LanguageProgress, error)
+	// LockEntry locks the term for the transaction in ctx and returns what a review write of it in language reads;
+	// ErrTermNotFound when there is no such term.
+	LockEntry(ctx context.Context, termID, language string) (EntryState, error)
+	// ReplaceLabels replaces the term's labels in language with labels.
+	ReplaceLabels(ctx context.Context, termID, language string, labels []Label) error
+	// PutTranslation stores t, as it is, under its term and language.
+	PutTranslation(ctx context.Context, t Translation) error
+	// PutExplanation stores e, as it is, under its term and language.
+	PutExplanation(ctx context.Context, e Explanation) error
+	// SetTermReview sets the term's review status, reviewed_by and reviewed_at to r's (its curator's note stays)
+	// and its updated_at to at.
+	SetTermReview(ctx context.Context, termID string, r Review, at time.Time) error
 }

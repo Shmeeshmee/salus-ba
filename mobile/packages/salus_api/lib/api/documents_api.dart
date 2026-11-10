@@ -99,7 +99,7 @@ class DocumentsApi {
 
   /// A signed document's PDF
   ///
-  /// The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a download. For the encounter's practitioner with the patient's active consent only. Audited as a read of the DocumentReference, also when refused.
+  /// The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a download. For the encounter's practitioner with the patient's active consent, and for the encounter's patient whatever the consent (their own record). Audited as a read of the DocumentReference, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -137,7 +137,7 @@ class DocumentsApi {
 
   /// A signed document's PDF
   ///
-  /// The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a download. For the encounter's practitioner with the patient's active consent only. Audited as a read of the DocumentReference, also when refused.
+  /// The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a download. For the encounter's practitioner with the patient's active consent, and for the encounter's patient whatever the consent (their own record). Audited as a read of the DocumentReference, also when refused.
   ///
   /// Parameters:
   ///
@@ -169,7 +169,7 @@ class DocumentsApi {
 
   /// Draft a document from the transcript
   ///
-  /// Drafts (or redrafts) a template from the encounter's stored transcript so far, during or after the call, and answers with the draft once it is stored; it is also pushed on the encounter's event stream as a `DraftMessage`. The model fills the fields, each filled field citing the transcript segments it came from; a value without sources, citing a segment the transcript does not have, or not of its field's type is not kept, and the field stays missing. A redraft replaces the open draft of the template as its next version. Without a transcript every field is missing. For the encounter's practitioner with the patient's active consent only (checked again once the model answered). Audited, also when refused.
+  /// Drafts (or redrafts) a template from the encounter's stored transcript so far, during or after the call, and answers with the draft once it is stored; it is also pushed on the encounter's event stream as a `DraftMessage`. The model fills the fields, each filled field citing the transcript segments it came from; a value without sources, citing a segment the transcript does not have, or not of its field's type is not kept, and the field stays missing. A redraft replaces the open draft of the template as its next version. Without a transcript every field is missing. For the encounter's practitioner with the patient's active consent and active transcription consent only (SAL-12; checked again once the model answered). Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -218,7 +218,7 @@ class DocumentsApi {
 
   /// Draft a document from the transcript
   ///
-  /// Drafts (or redrafts) a template from the encounter's stored transcript so far, during or after the call, and answers with the draft once it is stored; it is also pushed on the encounter's event stream as a `DraftMessage`. The model fills the fields, each filled field citing the transcript segments it came from; a value without sources, citing a segment the transcript does not have, or not of its field's type is not kept, and the field stays missing. A redraft replaces the open draft of the template as its next version. Without a transcript every field is missing. For the encounter's practitioner with the patient's active consent only (checked again once the model answered). Audited, also when refused.
+  /// Drafts (or redrafts) a template from the encounter's stored transcript so far, during or after the call, and answers with the draft once it is stored; it is also pushed on the encounter's event stream as a `DraftMessage`. The model fills the fields, each filled field citing the transcript segments it came from; a value without sources, citing a segment the transcript does not have, or not of its field's type is not kept, and the field stays missing. A redraft replaces the open draft of the template as its next version. Without a transcript every field is missing. For the encounter's practitioner with the patient's active consent and active transcription consent only (SAL-12; checked again once the model answered). Audited, also when refused.
   ///
   /// Parameters:
   ///

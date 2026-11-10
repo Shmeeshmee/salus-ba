@@ -20,6 +20,7 @@ class Account {
     this.practitionerId,
     required this.mfaEnrolled,
     this.language,
+    this.termReviewer,
   });
 
   String id;
@@ -57,6 +58,15 @@ class Account {
   ///
   Language? language;
 
+  /// True for a reviewer of the medical term list, a permission only the operator grants (salusctl term-reviewer); absent otherwise.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  bool? termReviewer;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -67,7 +77,8 @@ class Account {
           other.organizationId == organizationId &&
           other.practitionerId == practitionerId &&
           other.mfaEnrolled == mfaEnrolled &&
-          other.language == language;
+          other.language == language &&
+          other.termReviewer == termReviewer;
 
   @override
   int get hashCode =>
@@ -78,11 +89,12 @@ class Account {
       (organizationId == null ? 0 : organizationId!.hashCode) +
       (practitionerId == null ? 0 : practitionerId!.hashCode) +
       (mfaEnrolled.hashCode) +
-      (language == null ? 0 : language!.hashCode);
+      (language == null ? 0 : language!.hashCode) +
+      (termReviewer == null ? 0 : termReviewer!.hashCode);
 
   @override
   String toString() =>
-      'Account[id=$id, email=$email, role=$role, organizationId=$organizationId, practitionerId=$practitionerId, mfaEnrolled=$mfaEnrolled, language=$language]';
+      'Account[id=$id, email=$email, role=$role, organizationId=$organizationId, practitionerId=$practitionerId, mfaEnrolled=$mfaEnrolled, language=$language, termReviewer=$termReviewer]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -104,6 +116,11 @@ class Account {
       json[r'language'] = this.language;
     } else {
       json[r'language'] = null;
+    }
+    if (this.termReviewer != null) {
+      json[r'termReviewer'] = this.termReviewer;
+    } else {
+      json[r'termReviewer'] = null;
     }
     return json;
   }
@@ -146,6 +163,7 @@ class Account {
         practitionerId: mapValueOfType<String>(json, r'practitionerId'),
         mfaEnrolled: mapValueOfType<bool>(json, r'mfaEnrolled')!,
         language: Language.fromJson(json[r'language']),
+        termReviewer: mapValueOfType<bool>(json, r'termReviewer'),
       );
     }
     return null;

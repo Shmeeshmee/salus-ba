@@ -66,13 +66,13 @@ func in(t *testing.T, app *pgxpool.Pool, set func(ctx context.Context) error, fn
 }
 
 var (
-	activeAA  = consent.Consent{ID: consentAA, PatientID: patientA, OrganizationID: clinicA, Status: consent.StatusActive, DateTime: granted, LastUpdated: granted, VersionID: 1}
-	revokedAB = consent.Consent{ID: consentAB, PatientID: patientA, OrganizationID: clinicB, Status: consent.StatusInactive, DateTime: granted,
+	activeAA  = consent.Consent{ID: consentAA, PatientID: patientA, OrganizationID: clinicA, Kind: consent.KindCare, Status: consent.StatusActive, DateTime: granted, LastUpdated: granted, VersionID: 1}
+	revokedAB = consent.Consent{ID: consentAB, PatientID: patientA, OrganizationID: clinicB, Kind: consent.KindCare, Status: consent.StatusInactive, DateTime: granted,
 		RevokedAt: granted.Add(24 * time.Hour), LastUpdated: granted.Add(24 * time.Hour), VersionID: 2}
 )
 
 func same(a, b consent.Consent) bool {
-	return a.ID == b.ID && a.PatientID == b.PatientID && a.OrganizationID == b.OrganizationID && a.Status == b.Status &&
+	return a.ID == b.ID && a.Kind == b.Kind && a.PatientID == b.PatientID && a.OrganizationID == b.OrganizationID && a.Status == b.Status &&
 		a.DateTime.Equal(b.DateTime) && a.RevokedAt.Equal(b.RevokedAt) && a.LastUpdated.Equal(b.LastUpdated) && a.VersionID == b.VersionID
 }
 
@@ -136,7 +136,7 @@ func TestByPatient_ListsTheLatestGrantedFirst(t *testing.T) {
 
 	var got []consent.Consent
 	err := in(t, app, func(ctx context.Context) error { return repo.SetPatient(ctx, patientA) }, func(ctx context.Context) error {
-		if _, err := repo.Grant(ctx, patientA, clinicB, later); err != nil {
+		if _, err := repo.Grant(ctx, consent.KindCare, patientA, clinicB, later); err != nil {
 			return err
 		}
 		var err error
@@ -159,16 +159,16 @@ func TestGrant_StoresOneActiveConsentPerClinic(t *testing.T) {
 	var got consent.Consent
 	err := in(t, app, asB, func(ctx context.Context) error {
 		var err error
-		got, err = repo.Grant(ctx, patientB, clinicA, at)
+		got, err = repo.Grant(ctx, consent.KindCare, patientB, clinicA, at)
 		return err
 	})
-	want := consent.Consent{ID: got.ID, PatientID: patientB, OrganizationID: clinicA, Status: consent.StatusActive, DateTime: at, LastUpdated: at, VersionID: 1}
+	want := consent.Consent{ID: got.ID, PatientID: patientB, OrganizationID: clinicA, Kind: consent.KindCare, Status: consent.StatusActive, DateTime: at, LastUpdated: at, VersionID: 1}
 	if err != nil || got.ID == "" || !same(got, want) {
 		t.Fatalf("Grant() = %+v, %v;\nwant %+v", got, err, want)
 	}
 	// A second grant gives ErrActive and leaves the transaction usable.
 	err = in(t, app, asB, func(ctx context.Context) error {
-		if _, err := repo.Grant(ctx, patientB, clinicA, at); !errors.Is(err, consent.ErrActive) {
+		if _, err := repo.Grant(ctx, consent.KindCare, patientB, clinicA, at); !errors.Is(err, consent.ErrActive) {
 			t.Errorf("second Grant() = %v, want ErrActive", err)
 		}
 		_, err := repo.ByID(ctx, got.ID)
@@ -178,17 +178,26 @@ func TestGrant_StoresOneActiveConsentPerClinic(t *testing.T) {
 		t.Errorf("a read after the refusal: %v", err)
 	}
 	for name, clinic := range map[string]string{"an unknown clinic": "f0000000-0000-4000-8000-00000000000f", "a clinic id that is not a UUID": "x"} {
-		err := in(t, app, asB, func(ctx context.Context) error { _, err := repo.Grant(ctx, patientB, clinic, at); return err })
+		err := in(t, app, asB, func(ctx context.Context) error {
+			_, err := repo.Grant(ctx, consent.KindCare, patientB, clinic, at)
+			return err
+		})
 		if !errors.Is(err, consent.ErrClinicNotFound) {
 			t.Errorf("Grant() to %s = %v, want ErrClinicNotFound", name, err)
 		}
 	}
 	// Another patient's consent is refused by row-level security.
-	err = in(t, app, asB, func(ctx context.Context) error { _, err := repo.Grant(ctx, patientA, clinicB, at); return err })
+	err = in(t, app, asB, func(ctx context.Context) error {
+		_, err := repo.Grant(ctx, consent.KindCare, patientA, clinicB, at)
+		return err
+	})
 	if err == nil || errors.Is(err, consent.ErrActive) {
 		t.Errorf("Grant() for patient A in patient B's scope = %v, want the row-level security refusal", err)
 	}
-	err = in(t, app, asB, func(ctx context.Context) error { _, err := repo.Grant(ctx, "x", clinicB, at); return err })
+	err = in(t, app, asB, func(ctx context.Context) error {
+		_, err := repo.Grant(ctx, consent.KindCare, "x", clinicB, at)
+		return err
+	})
 	if err == nil {
 		t.Error("Grant() with a patient id that is not a UUID succeeded")
 	}
@@ -211,7 +220,7 @@ func TestRevoke_EndsOnlyAnActiveConsentOfTheScope(t *testing.T) {
 		"an inactive consent": {id: consentAB, set: asA},
 		"an id not a UUID":    {id: "x", set: asA},
 	} {
-		err := in(t, app, tt.set, func(ctx context.Context) error { _, err := repo.Revoke(ctx, tt.id, at); return err })
+		err := in(t, app, tt.set, func(ctx context.Context) error { _, err := repo.Revoke(ctx, consent.KindCare, tt.id, at); return err })
 		if !errors.Is(err, consent.ErrInactive) {
 			t.Errorf("Revoke() in %s = %v, want ErrInactive", name, err)
 		}
@@ -219,7 +228,7 @@ func TestRevoke_EndsOnlyAnActiveConsentOfTheScope(t *testing.T) {
 	var got consent.Consent
 	err := in(t, app, asA, func(ctx context.Context) error {
 		var err error
-		got, err = repo.Revoke(ctx, consentAA, at)
+		got, err = repo.Revoke(ctx, consent.KindCare, consentAA, at)
 		return err
 	})
 	want := activeAA
@@ -261,6 +270,159 @@ func TestState_GivesTheActiveConsentAndTheLatestRevocationOfTheScope(t *testing.
 		if err != nil || got.Active != tt.want.Active || !got.RevokedAt.Equal(tt.want.RevokedAt) {
 			t.Errorf("%s: State() = %+v, %v; want %+v", tt.name, got, err, tt.want)
 		}
+	}
+}
+
+func TestTranscription_IsAConsentOfItsOwnWithTheSameScopes(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo := consent.NewPostgresRepository(app)
+	at := granted.Add(48 * time.Hour)
+	asA := func(ctx context.Context) error { return repo.SetPatient(ctx, patientA) }
+	inClinic := func(id string) func(ctx context.Context) error {
+		return func(ctx context.Context) error { return repo.SetClinic(ctx, id) }
+	}
+
+	var got consent.Consent
+	err := in(t, app, asA, func(ctx context.Context) error {
+		var err error
+		got, err = repo.Grant(ctx, consent.KindTranscription, patientA, clinicA, at)
+		return err
+	})
+	want := consent.Consent{ID: got.ID, PatientID: patientA, OrganizationID: clinicA, Kind: consent.KindTranscription, Status: consent.StatusActive, DateTime: at, LastUpdated: at, VersionID: 1}
+	if err != nil || got.ID == "" || got.ID == consentAA || !same(got, want) || got.Kind != want.Kind {
+		t.Fatalf("Grant(transcription) = %+v, %v;\nwant %+v", got, err, want)
+	}
+	err = in(t, app, asA, func(ctx context.Context) error {
+		_, err := repo.Grant(ctx, consent.KindTranscription, patientA, clinicA, at)
+		return err
+	})
+	if !errors.Is(err, consent.ErrActive) {
+		t.Errorf("a second Grant(transcription) = %v, want ErrActive", err)
+	}
+
+	// Read by id and listed with its kind, in the patient's scope and its clinic's, not in another clinic's.
+	var byID, care consent.Consent
+	var mine []consent.Consent
+	err = in(t, app, asA, func(ctx context.Context) error {
+		var err error
+		if byID, err = repo.ByID(ctx, got.ID); err != nil {
+			return err
+		}
+		if care, err = repo.ByID(ctx, consentAA); err != nil {
+			return err
+		}
+		mine, err = repo.ByPatient(ctx, patientA)
+		return err
+	})
+	if err != nil || byID.Kind != consent.KindTranscription || !same(byID, want) || care.Kind != consent.KindCare {
+		t.Errorf("ByID() = %+v and %+v, %v; want the transcription consent and the care one", byID, care, err)
+	}
+	if len(mine) != 3 || mine[0].ID != got.ID || mine[0].Kind != consent.KindTranscription || mine[1].Kind != consent.KindCare {
+		t.Errorf("ByPatient() = %+v; want the transcription consent first, then both care consents", mine)
+	}
+	err = in(t, app, inClinic(clinicA), func(ctx context.Context) error { _, err := repo.ByID(ctx, got.ID); return err })
+	if err != nil {
+		t.Errorf("ByID() in clinic A = %v", err)
+	}
+	err = in(t, app, inClinic(clinicB), func(ctx context.Context) error { _, err := repo.ByID(ctx, got.ID); return err })
+	if !errors.Is(err, consent.ErrNotFound) {
+		t.Errorf("ByID() in clinic B = %v, want ErrNotFound", err)
+	}
+
+}
+
+// The state shows both kinds; each kind's revocation finds only its own: a care revocation of the transcription
+// consent's id revokes nothing.
+func TestTranscription_HasItsStateAndRevocationOfItsOwn(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo := consent.NewPostgresRepository(app)
+	at := granted.Add(48 * time.Hour)
+	asA := func(ctx context.Context) error { return repo.SetPatient(ctx, patientA) }
+	inClinic := func(id string) func(ctx context.Context) error {
+		return func(ctx context.Context) error { return repo.SetClinic(ctx, id) }
+	}
+	var got consent.Consent
+	if err := in(t, app, asA, func(ctx context.Context) error {
+		var err error
+		got, err = repo.Grant(ctx, consent.KindTranscription, patientA, clinicA, at)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	state := func() access.Consent {
+		var st access.Consent
+		if err := in(t, app, inClinic(clinicA), func(ctx context.Context) error {
+			var err error
+			st, err = repo.State(ctx, patientA, clinicA)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return st
+	}
+	if st := state(); !st.Active || !st.Transcription {
+		t.Errorf("State() = %+v, want both active", st)
+	}
+	err := in(t, app, asA, func(ctx context.Context) error { _, err := repo.Revoke(ctx, consent.KindCare, got.ID, at); return err })
+	if !errors.Is(err, consent.ErrInactive) {
+		t.Errorf("Revoke(care) of the transcription consent = %v, want ErrInactive", err)
+	}
+	var revoked consent.Consent
+	err = in(t, app, asA, func(ctx context.Context) error {
+		var err error
+		revoked, err = repo.Revoke(ctx, consent.KindTranscription, got.ID, at.Add(time.Hour))
+		return err
+	})
+	if err != nil || revoked.Status != consent.StatusInactive || revoked.Kind != consent.KindTranscription || revoked.VersionID != 2 {
+		t.Errorf("Revoke(transcription) = %+v, %v", revoked, err)
+	}
+	if st := state(); !st.Active || st.Transcription || !st.RevokedAt.IsZero() {
+		t.Errorf("State() after the withdrawal = %+v, want the care consent active only, no care revocation", st)
+	}
+}
+
+func TestRevokeTranscription_EndsThePatientsActiveTranscriptionConsentWithTheClinic(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo := consent.NewPostgresRepository(app)
+	at := granted.Add(48 * time.Hour)
+	asA := func(ctx context.Context) error { return repo.SetPatient(ctx, patientA) }
+
+	var given, got consent.Consent
+	err := in(t, app, asA, func(ctx context.Context) error {
+		var err error
+		if given, err = repo.Grant(ctx, consent.KindTranscription, patientA, clinicA, at); err != nil {
+			return err
+		}
+		got, err = repo.RevokeTranscription(ctx, patientA, clinicA, at.Add(time.Hour))
+		return err
+	})
+	if err != nil || got.ID != given.ID || got.Status != consent.StatusInactive || !got.RevokedAt.Equal(at.Add(time.Hour)) {
+		t.Fatalf("RevokeTranscription() = %+v, %v; want %s revoked", got, err, given.ID)
+	}
+	for name, set := range map[string]func(ctx context.Context) error{
+		"again":             asA,
+		"patient B's scope": func(ctx context.Context) error { return repo.SetPatient(ctx, patientB) },
+	} {
+		err := in(t, app, set, func(ctx context.Context) error {
+			_, err := repo.RevokeTranscription(ctx, patientA, clinicA, at)
+			return err
+		})
+		if !errors.Is(err, consent.ErrInactive) {
+			t.Errorf("RevokeTranscription() %s = %v, want ErrInactive", name, err)
+		}
+	}
+	err = in(t, app, asA, func(ctx context.Context) error {
+		_, err := repo.RevokeTranscription(ctx, "x", clinicA, at)
+		return err
+	})
+	if !errors.Is(err, consent.ErrInactive) {
+		t.Errorf("RevokeTranscription() with ids that are not UUIDs = %v, want ErrInactive", err)
 	}
 }
 

@@ -191,6 +191,18 @@ func TestMeHandler_GivesAPractitionerTheirPractitionerID(t *testing.T) {
 	}
 }
 
+// A reviewer of the term list (SAL-14) sees the permission, so the web app shows the review panel's writes.
+func TestMeHandler_GivesAReviewerTheTermReviewerFlag(t *testing.T) {
+	a := patientAccount()
+	a.Role, a.OrganizationID, a.MFAEnrolledAt, a.TermReviewer = auth.RoleAdmin, clinicID, now, true
+	rec := serve(t, &stubService{account: a}, discard(), meRequest(t, accountID))
+
+	want := `{"id":"` + accountID + `","email":"ana@example.test","role":"admin","organizationId":"` + clinicID + `","mfaEnrolled":true,"termReviewer":true}` + "\n"
+	if rec.Code != http.StatusOK || rec.Body.String() != want {
+		t.Errorf("GET /auth/me = %d %s, want 200 %s", rec.Code, rec.Body, want)
+	}
+}
+
 func TestHandlers_LogNoEmailPasswordOrHash(t *testing.T) {
 	var logs bytes.Buffer
 	log := slog.New(slog.NewJSONHandler(&logs, nil))

@@ -31,6 +31,8 @@
   "timeZoneHint": "Appointments and working hours are shown in this time zone.",
   "listed": "List the clinic in the patient app",
   "listedHint": "Patients can then find the clinic, its practitioners and their free times, and book.",
+  "transcriptCopy": "Give patients a copy of their consultation transcripts",
+  "transcriptCopyHint": "Patients can then read the transcripts of their own consultations in the patient app.",
   "defaultLanguage": "Default language",
   "defaultLanguageHint": "Used for e-mails to staff who have not chosen a language, and as the original language of new questionnaires.",
   "saved": "Saved.",

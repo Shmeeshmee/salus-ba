@@ -85,7 +85,8 @@ func (c *Curator) ImportSeed(ctx context.Context, rows []ImportRow) (ImportRepor
 
 // ImportCurated applies the curator's rows to the terms with their ids: columns written, labels replaced,
 // reviewed_at set when a term turns approved or needs_changes (kept when its status stays or goes back to
-// unreviewed), and reviewed_by cleared when its status changes (the file names no reviewer). A row equal to
+// unreviewed), and reviewed_by cleared when its status changes (the file names no reviewer); a status the row
+// changes is every translation's of the term too. A row equal to
 // its term changes nothing, so a second import of the same file is a no-op. A row without an id, with an id
 // that names no term or that an earlier row had, or with an invalid value is refused and reported, the rest
 // applied, each row in its own transaction. A database error stops the import, as in ImportSeed.
@@ -147,6 +148,10 @@ func (c *Curator) applyCurated(ctx context.Context, t Term) (bool, error) {
 		err = c.repo.UpdateTerm(ctx, t, c.clock.Now())
 		if errors.Is(err, ErrDuplicateWikidata) {
 			return refusal("wikidata: another term has it")
+		}
+		if err == nil && t.ReviewStatus != stored.ReviewStatus {
+			// One status per row: it is every translation's, as the review panel's queue reads them.
+			err = c.repo.SetTranslationsStatus(ctx, t.ID, t.ReviewStatus, c.clock.Now())
 		}
 		updated = err == nil
 		return err

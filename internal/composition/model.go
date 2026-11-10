@@ -252,3 +252,14 @@ type Value struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
+
+// SignedEmailArgs is the document_signed_email job on the notifier's email queue, enqueued with every signature:
+// the patient's e-mail that a document of their appointment is ready in the app, which names no document.
+// Opaque ids only.
+type SignedEmailArgs struct {
+	AppointmentID  string `json:"appointment_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (SignedEmailArgs) Kind() string { return "document_signed_email" }

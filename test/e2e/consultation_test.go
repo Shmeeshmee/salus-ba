@@ -36,13 +36,14 @@ import (
 // TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIsFulfilled: the patient joins first and
 // waits; the practitioner signs in to the web app, joins from the appointment, sees and hears the patient; the
 // Encounter is in-progress; the practitioner ends the consultation, the patient is disconnected, the Encounter is
-// finished and the appointment fulfilled.
+// finished and the appointment fulfilled. The document the practitioner signed in the call is the patient's to open.
 func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIsFulfilled(t *testing.T) {
 	clinic := newBookableClinic(t)
 	p := newPatientWithProfile(t)
 	appt := p.bookFirstTime(clinic)
 	startAt(t, appt.ID, 5*time.Minute)
 	recordSynthetic(t, clinic, p, appt.ID)
+	p.giveTranscriptionConsent(clinic) // the app's notice before the call (SAL-12): the agent may join
 
 	template := newDocumentTemplate(t, clinic)
 
@@ -60,6 +61,7 @@ func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIs
 		t.Errorf("the patient was disconnected with %v, want ROOM_DELETED (the practitioner's end deletes the room)", reason)
 	}
 	finished(t, p, appt.ID)
+	patientOpensTheSignedDocument(t, clinic, p, appt.ID, template)
 }
 
 // TestConsultation_ARevocationDuringTheCallRemovesThePatient: both are in the call of an appointment that has
@@ -71,6 +73,7 @@ func TestConsultation_ARevocationDuringTheCallRemovesThePatient(t *testing.T) {
 	appt := p.bookFirstTime(clinic)
 	startAt(t, appt.ID, -time.Minute)
 	recordSynthetic(t, clinic, p, appt.ID)
+	p.giveTranscriptionConsent(clinic) // the app's notice before the call (SAL-12): the agent may join
 
 	patient := connect(t, p.api, appt.ID, true)
 	recordInLiveKitLog(t, "room", patient.room.Name())
@@ -87,9 +90,7 @@ func TestConsultation_ARevocationDuringTheCallRemovesThePatient(t *testing.T) {
 		return got["patient partial"] && got["patient final"]
 	})
 
-	var consents struct{ Consents []struct{ ID string } }
-	p.must(http.StatusOK, http.MethodGet, "/me/consents", nil, &consents)
-	p.must(http.StatusOK, http.MethodPost, "/consents/"+consents.Consents[0].ID+"/revoke", nil, nil)
+	p.must(http.StatusOK, http.MethodPost, "/consents/"+p.activeConsent("care", clinic)+"/revoke", nil, nil)
 
 	if reason := patient.waitGone(t); reason != livekit.DisconnectReason_PARTICIPANT_REMOVED {
 		t.Errorf("the patient was disconnected with %v, want PARTICIPANT_REMOVED", reason)

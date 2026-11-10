@@ -49,6 +49,9 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
   const [room, setRoom] = useState<Room>()
   const [peer, setPeer] = useState<Peer>(nobody)
   const [agent, setAgent] = useState(false)
+  // transcribed is whether the patient's transcription consent is active (SAL-12), as the status said last;
+  // undefined before it was read
+  const [transcribed, setTranscribed] = useState<boolean>()
   const [peerName, setPeerName] = useState('')
   const [gone, setGone] = useState<Gone>()
   const [local, setLocal] = useState({ camera: false, microphone: false })
@@ -75,9 +78,14 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
     return () => clearTimeout(timer)
   }, [reconnected])
 
+  // readStatus reads the consultation's status; whether it is transcribed is kept only while the screen is still
+  // on the connection it was read for (generation), so a late answer after leaving changes nothing.
   async function readStatus(): Promise<Status | undefined> {
+    const gen = generation.current
     const res = await attempt(api.GET('/appointments/{id}/consultation', params))
-    return res.ok ? res.data : undefined
+    if (!res.ok) return undefined
+    if (gen === generation.current) setTranscribed(res.data.transcription === true)
+    return res.data
   }
 
   // connect asks for a token and joins the room; again is a rejoin after the connection was lost.
@@ -122,7 +130,12 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
 
   function onEvent(e: CallEvent) {
     if (e.type === 'peer') return onPeer(e.peer)
-    if (e.type === 'agent') return setAgent(e.present)
+    if (e.type === 'agent') {
+      setAgent(e.present)
+      // The agent left: the status says whether the patient withdrew the transcription consent.
+      if (!e.present) void readStatus()
+      return
+    }
     if (e.type === 'reconnecting') {
       setReconnected(false)
       return setPhase({ name: 'reconnecting' })
@@ -151,6 +164,8 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
     present.current = p.present
     if (p.present) {
       setPatientJoined(true)
+      // The patient may have agreed to transcription just before joining (SAL-12).
+      if (!was) void readStatus()
       return setGone(undefined)
     }
     if (!was) return
@@ -241,6 +256,7 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
           reconnecting={phase.name === 'reconnecting'}
           cameraOn={local.camera}
           agent={agent}
+          transcriptionOff={transcribed === false && !agent}
           caption={consult && captionOf(live)}
         />
         <Notice message={reconnected ? t('consultation.reconnected') : undefined} />
@@ -277,13 +293,24 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
   )
 }
 
-type StageProps = { room?: Room; peer: Peer; name: string; gone?: Gone; reconnecting: boolean; cameraOn: boolean; agent: boolean; caption?: TranscriptEvent }
+type StageProps = {
+  room?: Room
+  peer: Peer
+  name: string
+  gone?: Gone
+  reconnecting: boolean
+  cameraOn: boolean
+  agent: boolean
+  transcriptionOff: boolean
+  caption?: TranscriptEvent
+}
 
 // Stage is the other person's video, large, with this side's own camera small in a corner. LiveKit's tracks are
 // put into the two video elements by the room. Lines that need the patient's name are left out without one.
 // While the transcription agent is in the room, a line says so (SPEC §2 "Changed for SAL-3"). The captions of
-// what the patient says are the one live element on the video, in a band along its lower edge (SAL-9).
-function Stage({ room, peer, name, gone, reconnecting, cameraOn, agent, caption }: StageProps) {
+// what the patient says are the one live element on the video, in a band along its lower edge (SAL-9). While the
+// patient has not agreed to transcription (declined, or withdrew it), a line in the same place says so (SAL-12).
+function Stage({ room, peer, name, gone, reconnecting, cameraOn, agent, transcriptionOff, caption }: StageProps) {
   const t = useT()
   const remote = useRef<HTMLVideoElement>(null)
   const own = useRef<HTMLVideoElement>(null)
@@ -301,6 +328,11 @@ function Stage({ room, peer, name, gone, reconnecting, cameraOn, agent, caption 
         <p className="transcription" role="status" aria-label={t('consultation.transcriptionOn')}>
           <span className="dot" aria-hidden="true" />
           {t('consultation.transcriptionOn')}
+        </p>
+      )}
+      {transcriptionOff && (
+        <p className="transcription off" role="status">
+          {t('consultation.transcriptionOff')}
         </p>
       )}
       {peer.present && <Captions caption={caption} />}

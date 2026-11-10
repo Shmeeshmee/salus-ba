@@ -49,6 +49,15 @@ async function inCall(setup: Setup = {}) {
   return call
 }
 
+// arrives emits the patient's arrival and waits for the status it reads: whether they agreed to transcription
+// (SAL-12).
+async function arrives(last: () => { emit: (e: ReturnType<typeof peer>) => void }, requests: Request[]) {
+  const reads = () => paths(requests).filter((p) => p === statusGet).length
+  const before = reads()
+  act(() => last().emit(peer(true)))
+  await vi.waitFor(() => expect(reads()).toBe(before + 1))
+}
+
 // levelPolling waits until the microphone level's interval is set. The meter can render before React runs the
 // effect that sets it, so advancing the fake clock at once could pass the 5 seconds with nothing polling.
 const levelPolling = () => vi.waitFor(() => expect(vi.getTimerCount()).toBeGreaterThan(0))
@@ -257,6 +266,48 @@ describe('CallScreen: in the call', () => {
     expect(screen.queryByText('Transcription is on')).toBeNull()
   })
 
+  // SAL-12: without the patient's transcription consent the call runs without the agent, and the practitioner is
+  // told why; the status is read again when the patient comes in and when the agent leaves.
+  it('says transcription is off while the patient has not agreed to it', async () => {
+    let transcription = false
+    const { last } = await inCall({ routes: { [statusGet]: () => Response.json({ ...open, ...(transcription ? { transcription } : {}) }) } })
+    const off = 'Transcription is off: the patient has not agreed to transcription and AI assistance. The consultation goes ahead without them.'
+    expect(await screen.findByText(off)).toBeTruthy()
+
+    transcription = true
+    act(() => last().emit(peer(true)))
+    await vi.waitFor(() => expect(screen.queryByText(off)).toBeNull())
+    act(() => last().emit({ type: 'agent', present: true }))
+    expect(screen.getByRole('status', { name: 'Transcription is on' })).toBeTruthy()
+
+    transcription = false
+    act(() => last().emit({ type: 'agent', present: false }))
+    expect(await screen.findByText(off)).toBeTruthy()
+    expect(screen.queryByText('Transcription is on')).toBeNull()
+  })
+
+  // Copilot on #49: a status read for a connection the screen has left changes nothing.
+  it('ignores a status that answers after the practitioner left and joined again', async () => {
+    const answers: ((r: Response) => void)[] = []
+    const { last } = await inCall({ routes: { [statusGet]: () => new Promise<Response>((resolve) => answers.push(resolve)) } })
+    act(() => last().emit({ type: 'agent', present: false }))
+    await vi.waitFor(() => expect(answers.length).toBeGreaterThanOrEqual(2))
+    const stale = answers.splice(0)
+    fireEvent.click(button('Leave'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Join again' }))
+    await screen.findByRole('button', { name: 'Leave' })
+    await vi.waitFor(() => expect(answers.length).toBe(1))
+    await act(async () => answers[0](Response.json({ ...open, transcription: true })))
+    await act(async () => stale.forEach((answer) => answer(Response.json(open))))
+    expect(screen.queryByText(/Transcription is off/)).toBeNull()
+  })
+
+  it('says nothing of transcription while the patient has agreed and the agent is on its way', async () => {
+    await inCall({ routes: { [statusGet]: () => Response.json({ ...open, transcription: true }) } })
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Leave' })).toBeTruthy())
+    expect(screen.queryByText(/Transcription is off/)).toBeNull()
+  })
+
   it('stops saying transcription is on once the connection is lost', async () => {
     const { last } = await inCall()
     act(() => last().emit({ type: 'agent', present: true }))
@@ -288,7 +339,7 @@ describe('CallScreen: in the call', () => {
   ])('says why when the patient %s, from the status alone', async (_, reason, line) => {
     let state: object = open
     const { last, requests } = await inCall({ routes: { [statusGet]: () => Response.json(state) } })
-    act(() => last().emit(peer(true)))
+    await arrives(last, requests)
     state = { ...open, patientJoinedAt: '2026-11-09T08:02:00Z', reason }
     const before = requests.length
 
@@ -301,7 +352,7 @@ describe('CallScreen: in the call', () => {
 
   it('reads the status once when the patient goes, however many events LiveKit sends while they are gone', async () => {
     const { last, requests } = await inCall()
-    act(() => last().emit(peer(true)))
+    await arrives(last, requests)
     const before = requests.length
 
     act(() => last().emit(peer(false)))

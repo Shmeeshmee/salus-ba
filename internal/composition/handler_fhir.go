@@ -7,6 +7,7 @@ import (
 	"html"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -30,10 +31,12 @@ type Reader interface {
 	Composition(ctx context.Context, c appointment.Caller, id string) (Document, error)
 	DocumentReference(ctx context.Context, c appointment.Caller, id string) (Document, error)
 	Provenance(ctx context.Context, c appointment.Caller, id string) (Document, error)
+	Signed(ctx context.Context, c appointment.Caller, encounterID string) ([]Document, error)
 }
 
-// FHIRHandler serves the Composition, DocumentReference and Provenance reads of the FHIR API
-// (api/fhir/CapabilityStatement.json). No create or update: drafts are written and signed through the JSON API.
+// FHIRHandler serves the Composition, DocumentReference and Provenance reads of the FHIR API, and the search of an
+// encounter's signed documents (api/fhir/CapabilityStatement.json). No create or update: drafts are written and
+// signed through the JSON API.
 type FHIRHandler struct {
 	svc Reader
 	// caller is who is signed in for the request, and false for nobody (internal/api).
@@ -52,6 +55,37 @@ func (h *FHIRHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /fhir/R4/Composition/{id}", h.read(h.svc.Composition, compositionOf))
 	mux.HandleFunc("GET /fhir/R4/DocumentReference/{id}", h.read(h.svc.DocumentReference, h.documentReferenceOf))
 	mux.HandleFunc("GET /fhir/R4/Provenance/{id}", h.read(h.svc.Provenance, provenanceOf))
+	mux.HandleFunc("GET /fhir/R4/DocumentReference", h.search)
+}
+
+// search answers DocumentReference?encounter=…, the encounter given as its id or Encounter/<id>, once: its signed
+// documents, in the order they were signed.
+func (h *FHIRHandler) search(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.signedIn(w, r)
+	if !ok {
+		return
+	}
+	q, err := url.ParseQuery(r.URL.RawQuery)
+	id, valid := "", err == nil && len(q) == 1 && len(q["encounter"]) == 1
+	if valid {
+		id, valid = fhir.ReferenceID(q.Get("encounter"), "Encounter")
+	}
+	if !valid {
+		fhir.WriteError(w, http.StatusBadRequest, "not-supported", "Search by encounter only, once.")
+		return
+	}
+	docs, err := h.svc.Signed(r.Context(), c, id)
+	if err != nil {
+		h.writeError(w, r, err)
+		return
+	}
+	matches := make([]fhir.BundleEntry, 0, len(docs))
+	for _, doc := range docs {
+		resource, _ := h.documentReferenceOf(doc)
+		matches = append(matches, fhir.BundleEntry{FullURL: h.api + "/fhir/R4/DocumentReference/" + doc.Draft.DocumentReferenceID, Resource: resource})
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	fhir.Write(w, http.StatusOK, fhir.NewSearchset(h.api+"/fhir/R4/DocumentReference?encounter="+id, matches, nil))
 }
 
 type compositionJSON struct {
@@ -233,30 +267,43 @@ func provenanceOf(doc Document) (any, int32) {
 // read serves a read of a resource found by get and mapped by to.
 func (h *FHIRHandler) read(get func(ctx context.Context, c appointment.Caller, id string) (Document, error), to func(Document) (any, int32)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		c, ok, err := h.caller(r.Context())
-		switch {
-		case err != nil:
-			fhir.InternalError(w, r, h.log, err)
-			return
-		case !ok:
-			fhir.WriteError(w, http.StatusUnauthorized, "login", "Sign in to use this resource.")
+		c, ok := h.signedIn(w, r)
+		if !ok {
 			return
 		}
 		doc, err := get(r.Context(), c, r.PathValue("id"))
-		switch {
-		case errors.Is(err, ErrNotFound):
-			fhir.WriteError(w, http.StatusNotFound, "not-found", "Resource not found.")
-			return
-		case errors.Is(err, ErrForbidden), errors.Is(err, ErrConsentRequired):
-			fhir.WriteError(w, http.StatusForbidden, "forbidden", "Only the encounter's practitioner reads its documents, while the patient's consent is active.")
-			return
-		case err != nil:
-			fhir.InternalError(w, r, h.log, err)
+		if err != nil {
+			h.writeError(w, r, err)
 			return
 		}
 		resource, version := to(doc)
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("ETag", fhir.ETag(strconv.FormatInt(int64(version), 10)))
 		fhir.Write(w, http.StatusOK, resource)
+	}
+}
+
+// signedIn returns the caller, or answers 401 (nobody signed in) or 500 and false.
+func (h *FHIRHandler) signedIn(w http.ResponseWriter, r *http.Request) (appointment.Caller, bool) {
+	c, ok, err := h.caller(r.Context())
+	switch {
+	case err != nil:
+		fhir.InternalError(w, r, h.log, err)
+	case !ok:
+		fhir.WriteError(w, http.StatusUnauthorized, "login", "Sign in to use this resource.")
+	}
+	return c, ok && err == nil
+}
+
+// writeError answers err as its OperationOutcome.
+func (h *FHIRHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, ErrNotFound):
+		fhir.WriteError(w, http.StatusNotFound, "not-found", "Resource not found.")
+	case errors.Is(err, ErrForbidden), errors.Is(err, ErrConsentRequired):
+		fhir.WriteError(w, http.StatusForbidden, "forbidden",
+			"Only the encounter's practitioner (while the patient's consent is active) and the encounter's patient may read its documents.")
+	default:
+		fhir.InternalError(w, r, h.log, err)
 	}
 }

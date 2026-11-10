@@ -198,6 +198,33 @@ func TestGenerate_OnlyTheEncountersPractitionerWithConsentDrafts(t *testing.T) {
 	}
 }
 
+// Without the patient's transcription consent (declined or withdrawn, SAL-12) the practitioner still reads and
+// signs the encounter's documents, but nothing is drafted: the model is not asked, the refusal is audited.
+func TestGenerate_NeedsTheTranscriptionConsent(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	tpl := f.template(t)
+	att := attendance(true, false, true)
+	att.TranscriptionConsent = false
+	f.encounters.attendances[practAcc] = []appointment.Attendance{att}
+	if _, err := generate(t, f, pract, tpl.ID, ""); !errors.Is(err, composition.ErrTranscriptionConsentRequired) {
+		t.Fatalf("Generate() = %v, want ErrTranscriptionConsentRequired", err)
+	}
+	if len(f.drafter.Calls()) != 0 || len(f.repo.drafts) != 0 || !slices.Equal(f.codes(), []string{"create 4 Encounter/" + encA}) {
+		t.Errorf("drafter calls %d, drafts %d, audit %q", len(f.drafter.Calls()), len(f.repo.drafts), f.codes())
+	}
+	// Withdrawn while the model drafts: seen before anything is stored.
+	g := newFixture(t)
+	tpl = g.template(t)
+	g.encounters.attendances[practAcc] = []appointment.Attendance{attendance(true, false, true), att}
+	if _, err := generate(t, g, pract, tpl.ID, ""); !errors.Is(err, composition.ErrTranscriptionConsentRequired) {
+		t.Errorf("Generate() withdrawn meanwhile = %v, want ErrTranscriptionConsentRequired", err)
+	}
+	if len(g.repo.drafts) != 0 || len(g.publisher.envelopes) != 0 {
+		t.Errorf("drafts %d, published %d; want none", len(g.repo.drafts), len(g.publisher.envelopes))
+	}
+}
+
 // A revocation while the model drafts is seen before anything is stored: the access is checked again.
 func TestGenerate_ARevocationDuringTheDraftingStoresNothing(t *testing.T) {
 	t.Parallel()

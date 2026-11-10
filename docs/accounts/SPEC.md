@@ -146,6 +146,9 @@ Decisions taken in this plan (reopen only with the owner):
   revokes the account's open sessions, and writes an `AuditEvent` (agent: the operator command, entity
   `Account/<id>`, action U, purpose `HOPERAT`), all in one transaction; the next login asks for enrolment.
   The id is opaque, so no e-mail appears in shell history. Self-service recovery is out of scope.
+  `term-reviewer grant|revoke <account-id>` (SAL-14) gives a staff account the reviewer permission of the shared term
+  list, or takes it away (`term_reviewer`, which `salus_app` only reads), audited like `reset-mfa`; a patient is
+  refused (docs/terminology/SPEC.md §3 "Review").
 - **Directory model.** `Organization`: `name`, `active`. `Practitioner`: `name` (one `HumanName` with
   `given` and `family`), `active`. `PractitionerRole`: `practitioner`, `organization`, `active`; no `code`
   or `specialty` yet. A practitioner has one role, in their clinic. An admin is an account, not a

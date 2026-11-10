@@ -65,12 +65,15 @@ A required file upload item with no file shows "This question is required." (que
 The app already asks for the camera and the microphone for video consultations. iOS keeps one purpose string
 per permission, so the two existing strings are replaced by M15 and M16, which cover both uses.
 
-- M15 (iOS, `NSCameraUsageDescription`, replaces the consultation's string): "Salus uses the camera so the
+- M15 (iOS, `NSCameraUsageDescription`, replaces the consultation's string; its last sentence changed by SAL-12, a
+  draft waiting for the owner): "Salus uses the camera so the
   practitioner can see you during a video consultation, and to take the photos and videos you add to a
-  questionnaire. The consultation is not recorded."
-- M16 (iOS, `NSMicrophoneUsageDescription`, replaces the consultation's string): "Salus uses the microphone so
+  questionnaire. The consultation is not recorded as audio or video."
+- M16 (iOS, `NSMicrophoneUsageDescription`, replaces the consultation's string; its last sentence changed by
+  SAL-12, a draft waiting for the owner): "Salus uses the microphone so
   the practitioner can hear you during a video consultation, and to record sound with the videos you add to a
-  questionnaire. The consultation is not recorded."
+  questionnaire. The consultation is not recorded as audio or video; if you agree, what is said is transcribed and
+  translated."
 - M17 (iOS, `NSPhotoLibraryUsageDescription`, new): "Salus opens your photo library only to add the photos and
   videos you choose to a questionnaire."
 - M18 (Android, the app's own explanation before the system asks for the camera; Android writes the system prompt

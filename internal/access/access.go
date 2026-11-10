@@ -58,8 +58,9 @@ type Viewer struct {
 
 // Consent is the state of the patient's consents with one clinic.
 type Consent struct {
-	RevokedAt time.Time // the latest revocation; zero when none was ever revoked
-	Active    bool
+	RevokedAt     time.Time // the latest revocation of the care consent; zero when none was ever revoked
+	Active        bool      // the care consent is active
+	Transcription bool      // the transcription consent (transcription, translation, AI assistance) is active
 }
 
 // Visit is one of the patient's appointments in the clinic, of any status.
@@ -166,9 +167,34 @@ func RequestsQuestionnaire(v Viewer, f Facts, a Visit) bool {
 // ConsultationRecord reports whether viewer may follow and read what was said in the consultation of
 // appointment a: its live stream and its transcript (docs/plans/consult-intelligence.md "Access"). Its
 // practitioner, with an active consent; nobody else, and nobody after a revocation, also for a consultation
-// that started before it. The patient's own copy comes with the export feature.
+// that started before it. The patient's own copies are SignedDocument's and TranscriptCopy's.
 func ConsultationRecord(v Viewer, f Facts, a Visit) bool {
 	return v.Role == RolePractitioner && staffOf(v, f) && ofPractitioner(v, a) && f.Consent.Active
+}
+
+// Transcribed reports whether the patient's consultations with the clinic may be transcribed and translated, with
+// AI assistance for the practitioner (the transcription agent in the call, the stored transcript, suggestions,
+// document drafts): only while both the care consent and the transcription consent are active (SAL-12,
+// docs/plans/v1-finish.md "Decisions"). Declined or withdrawn, the consultation goes on without them.
+func Transcribed(c Consent) bool {
+	return c.Active && c.Transcription
+}
+
+// SignedDocument reports whether viewer may read a signed document of the consultation of appointment a (the
+// final Composition, its DocumentReference and its PDF; docs/consultation/SPEC.md "Patient documents"): its
+// practitioner under ConsultationRecord's rule, and, once signed, the patient themselves whatever the consent: it
+// is their own record (GDPR Art. 15), which a revocation does not take from them. A draft (not signed) is only
+// ConsultationRecord's.
+func SignedDocument(v Viewer, f Facts, a Visit, signed bool) bool {
+	return ConsultationRecord(v, f, a) || (signed && self(v, f))
+}
+
+// TranscriptCopy reports whether viewer may read the stored transcript of the consultation of appointment a: its
+// practitioner under ConsultationRecord's rule, and the patient themselves while the clinic shares transcripts
+// with its patients (shared, the clinic's setting), whatever the consent, as SignedDocument. The live stream
+// stays ConsultationRecord's.
+func TranscriptCopy(v Viewer, f Facts, a Visit, shared bool) bool {
+	return ConsultationRecord(v, f, a) || (shared && self(v, f))
 }
 
 // self reports whether v is the patient the facts are about.

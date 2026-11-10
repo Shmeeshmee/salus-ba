@@ -2,6 +2,7 @@ package access_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -353,6 +354,73 @@ func TestConsultationRecord_OverEveryRoleConsentAppointmentAndClinic(t *testing.
 		seen[key] = true
 		if got := access.ConsultationRecord(v, f, f.Visits[0]); got != want[key] {
 			t.Errorf("ConsultationRecord(%s) = %v, want %v", key, got, want[key])
+		}
+	})
+	for key := range want {
+		if !seen[key] {
+			t.Errorf("expectation %q is no combination", key)
+		}
+	}
+}
+
+func TestTranscribed_OnlyWhileTheCareAndTheTranscriptionConsentAreActive(t *testing.T) {
+	revoked := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name string
+		c    access.Consent
+		want bool
+	}{
+		{"both active", access.Consent{Active: true, Transcription: true}, true},
+		{"care only", access.Consent{Active: true}, false},
+		{"transcription only", access.Consent{Transcription: true, RevokedAt: revoked}, false},
+		{"neither", access.Consent{}, false},
+	} {
+		if got := access.Transcribed(tc.c); got != tc.want {
+			t.Errorf("%s: Transcribed = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// SignedDocument: a signed document of appointment a's consultation (the final Composition, its DocumentReference
+// and its PDF) is its practitioner's under ConsultationRecord's rule, and the patient's own, whatever the consent:
+// their own record (GDPR Art. 15), also after a revocation. A draft is never the patient's.
+func TestSignedDocument_OverEveryRoleConsentAppointmentClinicAndSignature(t *testing.T) {
+	for _, signed := range []bool{true, false} {
+		checkCopy(t, "SignedDocument", signed, func(v access.Viewer, f access.Facts) bool {
+			return access.SignedDocument(v, f, f.Visits[0], signed)
+		})
+	}
+}
+
+// TranscriptCopy: the stored transcript of appointment a's consultation is its practitioner's under
+// ConsultationRecord's rule whatever the clinic's setting, and the patient's own copy only while the clinic shares
+// transcripts with its patients (shared), whatever the consent.
+func TestTranscriptCopy_OverEveryRoleConsentAppointmentClinicAndSetting(t *testing.T) {
+	for _, shared := range []bool{true, false} {
+		checkCopy(t, "TranscriptCopy", shared, func(v access.Viewer, f access.Facts) bool {
+			return access.TranscriptCopy(v, f, f.Visits[0], shared)
+		})
+	}
+}
+
+// checkCopy checks a rule of the patient's own copy over every combination with an appointment: true for the
+// appointment's practitioner with an active consent (ConsultationRecord), and for the patient, in every case,
+// when patient is set; false for everyone else.
+func checkCopy(t *testing.T, name string, patient bool, got func(v access.Viewer, f access.Facts) bool) {
+	t.Helper()
+	want := map[string]bool{
+		"practitioner/active/past/match":   true,
+		"practitioner/active/future/match": true,
+	}
+	seen := map[string]bool{}
+	each(func(key string, v access.Viewer, f access.Facts) {
+		if len(f.Visits) == 0 {
+			return
+		}
+		seen[key] = true
+		w := want[key] || (patient && strings.HasPrefix(key, "patient/"))
+		if g := got(v, f); g != w {
+			t.Errorf("%s(%s, %v) = %v, want %v", name, key, patient, g, w)
 		}
 	})
 	for key := range want {

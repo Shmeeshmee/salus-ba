@@ -12,12 +12,17 @@ import (
 )
 
 const consentByID = `-- name: ConsentByID :one
-SELECT id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status
-FROM consent
-WHERE id = $1
+SELECT 'care'::text AS kind, c.id, c.updated_at, c.date_time, c.revoked_at, c.patient_id, c.organization_id, c.version_id, c.status
+FROM consent c
+WHERE c.id = $1
+UNION ALL
+SELECT 'transcription'::text AS kind, t.id, t.updated_at, t.date_time, t.revoked_at, t.patient_id, t.organization_id, t.version_id, t.status
+FROM transcription_consent t
+WHERE t.id = $1
 `
 
 type ConsentByIDRow struct {
+	Kind           string
 	ID             pgtype.UUID
 	UpdatedAt      pgtype.Timestamptz
 	DateTime       pgtype.Timestamptz
@@ -32,6 +37,7 @@ func (q *Queries) ConsentByID(ctx context.Context, id pgtype.UUID) (ConsentByIDR
 	row := q.db.QueryRow(ctx, consentByID, id)
 	var i ConsentByIDRow
 	err := row.Scan(
+		&i.Kind,
 		&i.ID,
 		&i.UpdatedAt,
 		&i.DateTime,
@@ -45,7 +51,9 @@ func (q *Queries) ConsentByID(ctx context.Context, id pgtype.UUID) (ConsentByIDR
 }
 
 const consentState = `-- name: ConsentState :one
-SELECT coalesce(bool_or(status = 'active'), false)::boolean AS active, max(revoked_at)::timestamptz AS revoked_at
+SELECT coalesce(bool_or(status = 'active'), false)::boolean AS active, max(revoked_at)::timestamptz AS revoked_at,
+       EXISTS (SELECT 1 FROM transcription_consent t
+               WHERE t.patient_id = $1 AND t.organization_id = $2 AND t.status = 'active')::boolean AS transcription
 FROM consent
 WHERE patient_id = $1 AND organization_id = $2
 `
@@ -56,25 +64,32 @@ type ConsentStateParams struct {
 }
 
 type ConsentStateRow struct {
-	Active    bool
-	RevokedAt pgtype.Timestamptz
+	Active        bool
+	RevokedAt     pgtype.Timestamptz
+	Transcription bool
 }
 
+// revoked_at is the care consent's latest revocation (access reads it for the care record).
 func (q *Queries) ConsentState(ctx context.Context, arg ConsentStateParams) (ConsentStateRow, error) {
 	row := q.db.QueryRow(ctx, consentState, arg.PatientID, arg.OrganizationID)
 	var i ConsentStateRow
-	err := row.Scan(&i.Active, &i.RevokedAt)
+	err := row.Scan(&i.Active, &i.RevokedAt, &i.Transcription)
 	return i, err
 }
 
 const consentsByPatient = `-- name: ConsentsByPatient :many
-SELECT id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status
-FROM consent
-WHERE patient_id = $1
+SELECT 'care'::text AS kind, c.id, c.updated_at, c.date_time, c.revoked_at, c.patient_id, c.organization_id, c.version_id, c.status
+FROM consent c
+WHERE c.patient_id = $1
+UNION ALL
+SELECT 'transcription'::text AS kind, t.id, t.updated_at, t.date_time, t.revoked_at, t.patient_id, t.organization_id, t.version_id, t.status
+FROM transcription_consent t
+WHERE t.patient_id = $1
 ORDER BY date_time DESC, id
 `
 
 type ConsentsByPatientRow struct {
+	Kind           string
 	ID             pgtype.UUID
 	UpdatedAt      pgtype.Timestamptz
 	DateTime       pgtype.Timestamptz
@@ -95,6 +110,7 @@ func (q *Queries) ConsentsByPatient(ctx context.Context, patientID pgtype.UUID) 
 	for rows.Next() {
 		var i ConsentsByPatientRow
 		if err := rows.Scan(
+			&i.Kind,
 			&i.ID,
 			&i.UpdatedAt,
 			&i.DateTime,
@@ -115,6 +131,7 @@ func (q *Queries) ConsentsByPatient(ctx context.Context, patientID pgtype.UUID) 
 }
 
 const grantConsent = `-- name: GrantConsent :one
+
 INSERT INTO consent (patient_id, organization_id, status, date_time, updated_at)
 VALUES ($1, $2, 'active', $3, $3)
 ON CONFLICT (patient_id, organization_id) WHERE status = 'active' DO NOTHING
@@ -138,11 +155,95 @@ type GrantConsentRow struct {
 	Status         string
 }
 
+// consent holds the care consents, transcription_consent the transcription consents (migration 00040): the same
+// shape, a kind each. A read of both is their UNION ALL, each table on its own index and under its own
+// row-level security.
 // A second active consent with the clinic inserts nothing (no row), so the transaction stays usable for the
 // audit.
 func (q *Queries) GrantConsent(ctx context.Context, arg GrantConsentParams) (GrantConsentRow, error) {
 	row := q.db.QueryRow(ctx, grantConsent, arg.PatientID, arg.OrganizationID, arg.DateTime)
 	var i GrantConsentRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.DateTime,
+		&i.RevokedAt,
+		&i.PatientID,
+		&i.OrganizationID,
+		&i.VersionID,
+		&i.Status,
+	)
+	return i, err
+}
+
+const grantTranscriptionConsent = `-- name: GrantTranscriptionConsent :one
+INSERT INTO transcription_consent (patient_id, organization_id, status, date_time, updated_at)
+VALUES ($1, $2, 'active', $3, $3)
+ON CONFLICT (patient_id, organization_id) WHERE status = 'active' DO NOTHING
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status
+`
+
+type GrantTranscriptionConsentParams struct {
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	DateTime       pgtype.Timestamptz
+}
+
+type GrantTranscriptionConsentRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	DateTime       pgtype.Timestamptz
+	RevokedAt      pgtype.Timestamptz
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
+}
+
+func (q *Queries) GrantTranscriptionConsent(ctx context.Context, arg GrantTranscriptionConsentParams) (GrantTranscriptionConsentRow, error) {
+	row := q.db.QueryRow(ctx, grantTranscriptionConsent, arg.PatientID, arg.OrganizationID, arg.DateTime)
+	var i GrantTranscriptionConsentRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.DateTime,
+		&i.RevokedAt,
+		&i.PatientID,
+		&i.OrganizationID,
+		&i.VersionID,
+		&i.Status,
+	)
+	return i, err
+}
+
+const revokeActiveTranscriptionConsent = `-- name: RevokeActiveTranscriptionConsent :one
+UPDATE transcription_consent
+SET status = 'inactive', revoked_at = $1, updated_at = $1, version_id = version_id + 1
+WHERE patient_id = $2 AND organization_id = $3 AND status = 'active'
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status
+`
+
+type RevokeActiveTranscriptionConsentParams struct {
+	RevokedAt      pgtype.Timestamptz
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+}
+
+type RevokeActiveTranscriptionConsentRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	DateTime       pgtype.Timestamptz
+	RevokedAt      pgtype.Timestamptz
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
+}
+
+// The patient's active transcription consent with the clinic, revoked with their care consent there.
+func (q *Queries) RevokeActiveTranscriptionConsent(ctx context.Context, arg RevokeActiveTranscriptionConsentParams) (RevokeActiveTranscriptionConsentRow, error) {
+	row := q.db.QueryRow(ctx, revokeActiveTranscriptionConsent, arg.RevokedAt, arg.PatientID, arg.OrganizationID)
+	var i RevokeActiveTranscriptionConsentRow
 	err := row.Scan(
 		&i.ID,
 		&i.UpdatedAt,
@@ -183,6 +284,45 @@ type RevokeConsentRow struct {
 func (q *Queries) RevokeConsent(ctx context.Context, arg RevokeConsentParams) (RevokeConsentRow, error) {
 	row := q.db.QueryRow(ctx, revokeConsent, arg.RevokedAt, arg.ID)
 	var i RevokeConsentRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.DateTime,
+		&i.RevokedAt,
+		&i.PatientID,
+		&i.OrganizationID,
+		&i.VersionID,
+		&i.Status,
+	)
+	return i, err
+}
+
+const revokeTranscriptionConsent = `-- name: RevokeTranscriptionConsent :one
+UPDATE transcription_consent
+SET status = 'inactive', revoked_at = $1, updated_at = $1, version_id = version_id + 1
+WHERE id = $2 AND status = 'active'
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status
+`
+
+type RevokeTranscriptionConsentParams struct {
+	RevokedAt pgtype.Timestamptz
+	ID        pgtype.UUID
+}
+
+type RevokeTranscriptionConsentRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	DateTime       pgtype.Timestamptz
+	RevokedAt      pgtype.Timestamptz
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
+}
+
+func (q *Queries) RevokeTranscriptionConsent(ctx context.Context, arg RevokeTranscriptionConsentParams) (RevokeTranscriptionConsentRow, error) {
+	row := q.db.QueryRow(ctx, revokeTranscriptionConsent, arg.RevokedAt, arg.ID)
+	var i RevokeTranscriptionConsentRow
 	err := row.Scan(
 		&i.ID,
 		&i.UpdatedAt,

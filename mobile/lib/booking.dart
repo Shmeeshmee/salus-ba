@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:salus_api/api.dart' as api;
@@ -75,8 +76,16 @@ class Booking {
 
   Future<List<api.Consent>> consents() async => (await apiCall(_consents.listMyConsents))?.consents ?? const [];
 
-  Future<void> grant(String clinicId) =>
-      apiCall(() => _consents.grantConsent(api.GrantConsentRequest(organizationId: clinicId)));
+  Future<void> grant(String clinicId) => apiCall(
+    () => _consents.grantConsent(api.GrantConsentRequest(organizationId: clinicId, kind: api.ConsentKind.care)),
+  );
+
+  /// The transcription consent with the clinic (SAL-12): transcription and translation of the consultations, with
+  /// AI assistance for the practitioner. An active one already is `consent_active`.
+  Future<void> grantTranscription(String clinicId) => apiCall(
+    () =>
+        _consents.grantConsent(api.GrantConsentRequest(organizationId: clinicId, kind: api.ConsentKind.transcription)),
+  );
 
   Future<void> revoke(String consentId) => apiCall(() => _consents.revokeConsent(consentId));
 
@@ -98,6 +107,33 @@ class Booking {
     final status = await apiCall(() => _consultation.getConsultation(appointmentId));
     if (status == null) throw const ApiFailure(status: HttpStatus.badGateway);
     return status;
+  }
+
+  /// The PDF of the signed document whose DocumentReference is [id] (docs/consultation/SPEC.md "Patient documents").
+  Future<Uint8List> pdf(String id) async {
+    final response = await apiCall(
+      () => _client.invokeAPI(
+        '/document-references/${Uri.encodeComponent(id)}/content',
+        'GET',
+        const [],
+        null,
+        {'Accept': 'application/pdf'},
+        {},
+        null,
+      ),
+    );
+    if (response.statusCode >= HttpStatus.badRequest) throw ApiFailure.fromBody(response.statusCode, response.body);
+    return response.bodyBytes;
+  }
+
+  /// The patient's copy of the consultation's stored transcript, or null while the clinic does not share it (403).
+  Future<List<api.TranscriptEvent>?> transcript(String encounterId) async {
+    try {
+      return (await apiCall(() => _consultation.exportTranscript(encounterId)))?.segments ?? const [];
+    } on ApiFailure catch (f) {
+      if (f.status == HttpStatus.forbidden) return null;
+      rethrow;
+    }
   }
 
   /// Starts the response [id] in [language], one of its questionnaire's languages (docs/i18n/SPEC.md §3 "The

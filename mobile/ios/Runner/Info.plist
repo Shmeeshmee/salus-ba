@@ -40,9 +40,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Salus uses the camera so the practitioner can see you during a video consultation, and to take the photos and videos you add to a questionnaire. The consultation is not recorded.</string>
+	<string>Salus uses the camera so the practitioner can see you during a video consultation, and to take the photos and videos you add to a questionnaire. The consultation is not recorded as audio or video.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Salus uses the microphone so the practitioner can hear you during a video consultation, and to record sound with the videos you add to a questionnaire. The consultation is not recorded.</string>
+	<string>Salus uses the microphone so the practitioner can hear you during a video consultation, and to record sound with the videos you add to a questionnaire. The consultation is not recorded as audio or video; if you agree, what is said is transcribed and translated.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Salus opens your photo library only to add the photos and videos you choose to a questionnaire.</string>
 	<key>UIApplicationSceneManifest</key>

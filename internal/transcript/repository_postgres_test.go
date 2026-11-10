@@ -127,3 +127,57 @@ func TestInsert_AnotherClinicNeitherReadsNorWritesTheTranscript(t *testing.T) {
 		}
 	}
 }
+
+// asPatient runs fn on the repository in a transaction of its own, scoped to the patient.
+func asPatient(t testing.TB, app *pgxpool.Pool, patient string, fn func(ctx context.Context, r transcript.Repository) error) error {
+	t.Helper()
+	r := transcript.NewPostgresRepository(app)
+	return postgres.NewTransactor(app).WithTx(context.Background(), func(ctx context.Context) error {
+		if err := postgres.SetLocal(ctx, "app.patient_id", patient); err != nil {
+			return err
+		}
+		return fn(ctx, r)
+	})
+}
+
+// SAL-17: the patient's own scope reads the stored transcript of their own encounter (the service decides whether
+// the clinic shares it) and writes none; another patient's scope reads nothing.
+func TestByEncounter_ThePatientReadsOnlyTheirOwnTranscript(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
+	clinic, enc := seedEncounter(t, owner, at)
+	_, otherEnc := seedEncounter(t, owner, at)
+	if err := inClinic(t, app, clinic, func(ctx context.Context, r transcript.Repository) error {
+		_, err := r.Insert(ctx, segmentOf(enc, segmentID, at))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var patient, other string
+	if err := owner.QueryRow(t.Context(), `SELECT (SELECT patient_id::text FROM encounter WHERE id = $1), (SELECT patient_id::text FROM encounter WHERE id = $2)`,
+		enc, otherEnc).Scan(&patient, &other); err != nil {
+		t.Fatal(err)
+	}
+	for name, tc := range map[string]struct {
+		patient string
+		want    int
+	}{"the patient": {patient, 1}, "another patient": {other, 0}} {
+		var got []transcript.Event
+		err := asPatient(t, app, tc.patient, func(ctx context.Context, r transcript.Repository) error {
+			var err error
+			got, err = r.ByEncounter(ctx, enc)
+			return err
+		})
+		if err != nil || len(got) != tc.want {
+			t.Errorf("%s: ByEncounter() = %d segments, %v; want %d", name, len(got), err, tc.want)
+		}
+	}
+	err := asPatient(t, app, patient, func(ctx context.Context, r transcript.Repository) error {
+		_, err := r.Insert(ctx, segmentOf(enc, segmentID2, at))
+		return err
+	})
+	if err == nil {
+		t.Error("Insert() in the patient's scope succeeded, want the refusal")
+	}
+}

@@ -473,6 +473,20 @@ func TestStep_SendsNothingToTheModelAfterARevocation(t *testing.T) {
 	checkEvents(t, "revoked", x.audit, refused)
 }
 
+// Without the patient's transcription consent (withdrawn mid-call, SAL-12) nothing goes to the model either.
+func TestStep_SendsNothingToTheModelWithoutTheTranscriptionConsent(t *testing.T) {
+	x := newAssist(t)
+	x.consents.state.Transcription = false
+	x.suggester.Suggestions = []llm.Suggestion{question(askAbout, 0.6, seg(1))}
+	for n := 1; n <= suggestion.RunEveryLines; n++ {
+		x.say(t, n, true)
+	}
+	x.step(t)
+	if n := len(x.suggester.Calls()); n != 0 || len(x.publisher.published) != 0 {
+		t.Errorf("suggested %d times and published %d after the withdrawal, want none", n, len(x.publisher.published))
+	}
+}
+
 // A failed model is logged without its error's text (it may echo what it was sent) and the next run waits for
 // new lines or RunEvery, as after any run; a failed stream read is returned.
 func TestStep_LogsAFailedModelAndReturnsAFailedRead(t *testing.T) {

@@ -266,8 +266,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Consent to share the profile and appointments with a clinic
-         * @description The signed-in patient consents to share their profile and appointments with the clinic for care (FHIR Consent, docs/booking/SPEC.md "Consent shape"). At most one consent per clinic is active; granting again after a revocation creates a new consent, so the history is kept. Needs a profile. Patients only. Not cached. Audited, also when refused.
+         * Consent to share the profile and appointments with a clinic, or to transcription
+         * @description The signed-in patient consents, for `care` (the default), to share their profile and appointments with the clinic (FHIR Consent, docs/booking/SPEC.md "Consent shape"); for `transcription`, to the transcription and translation of their consultations with the clinic, with AI assistance for the practitioner (SAL-12): the transcription agent joins a call only while both are active. At most one consent of each kind per clinic is active; granting again after a revocation creates a new consent, so the history is kept. Needs a profile. Patients only. Not cached. Audited, also when refused.
          */
         post: operations["grantConsent"];
         delete?: never;
@@ -287,7 +287,7 @@ export interface paths {
         put?: never;
         /**
          * Revoke a consent
-         * @description The signed-in patient revokes their active consent. The clinic's access to the profile and to every future appointment ends at once; past appointments stay, as the clinic's records, with the name, times and status only. Patients only. Not cached. Audited, also when refused.
+         * @description The signed-in patient revokes their active consent. A care consent: the clinic's access to the profile and to every future appointment ends at once; past appointments stay, as the clinic's records, with the name, times and status only; the transcription consent with the clinic ends with it. A transcription consent: the transcription agent leaves the patient's calls with the clinic at once and joins none, the calls go on, nothing else changes. Patients only. Not cached. Audited, also when refused.
          */
         post: operations["revokeConsent"];
         delete?: never;
@@ -305,7 +305,7 @@ export interface paths {
         };
         /**
          * The signed-in patient's consents
-         * @description Every consent of the signed-in patient, active and revoked, the latest granted first; none before the profile exists. Patients only. Not cached. Audited.
+         * @description Every consent of the signed-in patient, of both kinds, active and revoked, the latest granted first; none before the profile exists. Patients only. Not cached. Audited.
          */
         get: operations["listMyConsents"];
         put?: never;
@@ -720,7 +720,7 @@ export interface paths {
         };
         /**
          * The consultation's stored transcript
-         * @description Every final segment of the encounter's transcript, in the order it was said, with its translation, as `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent only; the patient's own copy comes with the export feature. Not cached. Audited as a read with the number of segments, also when refused.
+         * @description Every final segment of the encounter's transcript, in the order it was said, with its translation, as `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent, and for the encounter's patient (their copy, whatever the consent) while the clinic shares transcripts with its patients (the Organization's organization-patient-transcript-copy extension, off by default). Not cached. Audited as a read with the number of segments, also when refused.
          */
         get: operations["exportTranscript"];
         put?: never;
@@ -795,7 +795,7 @@ export interface paths {
         put?: never;
         /**
          * Draft a document from the transcript
-         * @description Drafts (or redrafts) a template from the encounter's stored transcript so far, during or after the call, and answers with the draft once it is stored; it is also pushed on the encounter's event stream as a `DraftMessage`. The model fills the fields, each filled field citing the transcript segments it came from; a value without sources, citing a segment the transcript does not have, or not of its field's type is not kept, and the field stays missing. A redraft replaces the open draft of the template as its next version. Without a transcript every field is missing. For the encounter's practitioner with the patient's active consent only (checked again once the model answered). Audited, also when refused.
+         * @description Drafts (or redrafts) a template from the encounter's stored transcript so far, during or after the call, and answers with the draft once it is stored; it is also pushed on the encounter's event stream as a `DraftMessage`. The model fills the fields, each filled field citing the transcript segments it came from; a value without sources, citing a segment the transcript does not have, or not of its field's type is not kept, and the field stays missing. A redraft replaces the open draft of the template as its next version. Without a transcript every field is missing. For the encounter's practitioner with the patient's active consent and active transcription consent only (SAL-12; checked again once the model answered). Audited, also when refused.
          */
         post: operations["generateDraft"];
         delete?: never;
@@ -839,7 +839,7 @@ export interface paths {
         };
         /**
          * A signed document's PDF
-         * @description The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a download. For the encounter's practitioner with the patient's active consent only. Audited as a read of the DocumentReference, also when refused.
+         * @description The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a download. For the encounter's practitioner with the patient's active consent, and for the encounter's patient whatever the consent (their own record). Audited as a read of the DocumentReference, also when refused.
          */
         get: operations["downloadDocument"];
         put?: never;
@@ -1014,6 +1014,138 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/terminology/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The review queue of the medical terms in one language
+         * @description The review panel's queue (docs/terminology/SPEC.md §3 "Review"): one entry per term in the language, with the term's labels in that language, Latin and English, the review of those labels (the translation) and the term's explanation in that language. An entry's status is `needs_changes` when its translation or its explanation needs changes, else `unreviewed` when the term has no label in the language yet or either is unreviewed, else `approved` (an explanation that does not exist yet does not count). Unreviewed entries first, then those that need changes, then the approved ones, each the more common term first. Every staff member reads; only a reviewer writes. Not audited: reference data, no patient data.
+         */
+        get: operations["listTermReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/terminology/review/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How far the review is in each language
+         * @description Per term language, how many terms there are and how many of their entries in that language are approved or need changes (statuses as in listTermReview). Staff only. Not audited.
+         */
+        get: operations["getTermReviewProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/terminology/terms/{id}/translations/{language}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["TermID"];
+                language: components["schemas"]["TermLanguage"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Edit a term's labels in one language
+         * @description Replaces the term's preferred label and synonyms in the language. If-Match is the translation's version read, `W/"0"` when the term has no label in the language yet. A change sets the translation to `unreviewed`, an approved one included, and keeps its last review; the same labels again change nothing. The term's own status follows its translations (docs/terminology/SPEC.md §3 "Review"). Reviewers only. Audited.
+         */
+        put: operations["editTermTranslation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/terminology/terms/{id}/translations/{language}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["TermID"];
+                language: components["schemas"]["TermLanguage"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a term's labels in one language, or mark them as needing changes
+         * @description Sets the translation's status with the reviewer as `reviewedBy`, now as `reviewedAt` and the note (needed for `needs_changes`, optional for `approved`, cleared when absent). If-Match is the version read. Reviewers only. Audited.
+         */
+        post: operations["reviewTermTranslation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/terminology/terms/{id}/explanations/{language}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["TermID"];
+                language: components["schemas"]["Language"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Write a term's explanation in one language
+         * @description Writes the plain-language explanation, trimmed, 1 to 500 characters. If-Match is the explanation's version read, `W/"0"` when there is none yet. A new or changed explanation is `unreviewed`, an approved one included, and keeps its last review; the same text again changes nothing. Reviewers only. Audited.
+         */
+        put: operations["writeTermExplanation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/terminology/terms/{id}/explanations/{language}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["TermID"];
+                language: components["schemas"]["Language"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a term's explanation, or mark it as needing changes
+         * @description As reviewTermTranslation, for the explanation in the language. Reviewers only. Audited.
+         */
+        post: operations["reviewTermExplanation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhooks/livekit": {
         parameters: {
             query?: never;
@@ -1149,6 +1281,8 @@ export interface components {
             mfaEnrolled: boolean;
             /** @description The language the user chose; absent while they follow the browser's or the device's language, which the client then matches itself. */
             language?: components["schemas"]["Language"];
+            /** @description True for a reviewer of the medical term list, a permission only the operator grants (salusctl term-reviewer); absent otherwise. */
+            termReviewer?: boolean;
         };
         UpdateMeRequest: {
             /** @description The language chosen, or `null` to follow the browser's or the device's language again. */
@@ -1246,6 +1380,46 @@ export interface components {
         TermList: {
             terms: components["schemas"]["Term"][];
         };
+        /** @description A term's labels in one language, each trimmed with its white space collapsed. */
+        TermLabelsEdit: {
+            preferred: string;
+            synonyms: string[];
+        };
+        TermExplanationEdit: {
+            text: string;
+        };
+        ReviewDecision: {
+            /** @enum {string} */
+            status: "approved" | "needs_changes";
+            /** @description Needed with needs_changes: what has to change. */
+            note?: string;
+        };
+        /** @description A term in the queue's language: the term with its labels in that language (first, when it has any), Latin and English, the review of its labels in the language (absent while it has none) and its explanation there (absent while there is none). */
+        TermReviewEntry: {
+            term: components["schemas"]["Term"];
+            status: components["schemas"]["ReviewStatus"];
+            translation?: components["schemas"]["TermTranslation"];
+            explanation?: components["schemas"]["TermExplanation"];
+        };
+        TermReviewPage: {
+            entries: components["schemas"]["TermReviewEntry"][];
+            /** @description Pass as `after` for the next page; absent on the last. */
+            next?: string;
+        };
+        TermReviewProgress: {
+            languages: {
+                language: components["schemas"]["TermLanguage"];
+                /**
+                 * Format: int32
+                 * @description Every term.
+                 */
+                terms: number;
+                /** Format: int32 */
+                approved: number;
+                /** Format: int32 */
+                needsChanges: number;
+            }[];
+        };
         /** @description The patient's profile (docs/booking/SPEC.md "Profile"). Health data. */
         Patient: {
             /** Format: uuid */
@@ -1285,13 +1459,21 @@ export interface components {
              * @description The clinic the profile and appointments are shared with.
              */
             organizationId: string;
+            kind?: components["schemas"]["ConsentKind"];
         };
-        /** @description A patient's consent to share their profile and appointments with a clinic for care (FHIR Consent). Health data: it shows whom the patient consults. */
+        /**
+         * @description What the consent is for: `care`, sharing the profile and appointments with the clinic; `transcription`, transcription and translation of the consultations with the clinic, with AI assistance for the practitioner (suggestions, document drafts), used only with an active care consent (SAL-12).
+         * @default care
+         * @enum {string}
+         */
+        ConsentKind: "care" | "transcription";
+        /** @description A patient's consent with a clinic (FHIR Consent): to share their profile and appointments with it for care, or to transcription. Health data: it shows whom the patient consults. */
         Consent: {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
             organizationId: string;
+            kind: components["schemas"]["ConsentKind"];
             /** @enum {string} */
             status: "active" | "inactive";
             /**
@@ -1622,7 +1804,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "internal error" | "timeout";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout";
             /** @description With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
@@ -1670,6 +1852,8 @@ export interface components {
              * @enum {string}
              */
             reason?: "consent_withdrawn" | "cancelled" | "left" | "ended" | "practitioner_did_not_join" | "time_limit";
+            /** @description True while the consultation may be transcribed and translated, with AI assistance for the practitioner: the patient's care and transcription consents with the clinic are both active (SAL-12). Absent otherwise: the call runs without the transcription agent. */
+            transcription?: boolean;
         };
         /** @description LiveKit's WebhookEvent in its JSON form (protojson); only `event`, `room.name`, the participant's `identity` and `joinedAt`/`joinedAtMs`, and `createdAt` are read. */
         LiveKitWebhookEvent: {
@@ -2207,6 +2391,7 @@ export interface components {
         BinaryID: string;
         /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
         IfMatch: string;
+        TermID: string;
         AppointmentID: string;
         /** @description The encounter's id (FHIR Encounter.id). */
         EncounterID: string;
@@ -2969,7 +3154,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `consent_active`: a consent with the clinic is active already; `profile_required`: the patient has no profile yet. */
+            /** @description `consent_active`: a consent of the kind with the clinic is active already; `profile_required`: the patient has no profile yet. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4195,7 +4380,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
-            /** @description `consent_required`: the encounter's practitioner after the patient revoked their consent; `forbidden`: anyone else who sees the encounter. */
+            /** @description `consent_required`: the encounter's practitioner after the patient revoked their consent; `forbidden`: the patient while the clinic does not share transcripts, and anyone else who sees the encounter. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4368,7 +4553,15 @@ export interface operations {
             200: components["responses"]["Draft"];
             400: components["responses"]["DocumentInvalidRequest"];
             401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["DocumentRecordForbidden"];
+            /** @description `consent_required`: the encounter's practitioner after the patient revoked their consent; `transcription_consent_required`: the patient has not agreed to transcription and AI assistance, or withdrew it, so nothing is drafted; `forbidden`: anyone else who sees the encounter. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description `not_found`: no such encounter the caller may see; `template_not_found`: the clinic has no such template. */
             404: {
                 headers: {
@@ -4854,6 +5047,382 @@ export interface operations {
             };
             /** @description `forbidden`: the caller is not staff of a clinic (a patient). */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listTermReview: {
+        parameters: {
+            query: {
+                language: components["schemas"]["TermLanguage"];
+                /** @description Only entries with this status; any when absent. */
+                status?: components["schemas"]["ReviewStatus"];
+                /** @description The `next` of the page before; the first page when absent. */
+                after?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page of the queue. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermReviewPage"];
+                };
+            };
+            /** @description `invalid_request`: a missing or unknown language, an unknown status, a limit outside 1 to 100 or an unreadable `after`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: the caller is not staff of a clinic (a patient). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getTermReviewProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One row per language, in the enum's order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermReviewProgress"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: the caller is not staff of a clinic (a patient). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    editTermTranslation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: components["parameters"]["TermID"];
+                language: components["schemas"]["TermLanguage"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TermLabelsEdit"];
+            };
+        };
+        responses: {
+            /** @description The translation as stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermTranslation"];
+                };
+            };
+            /** @description `invalid_request`: no or an unreadable If-Match, or labels that are blank, repeated, longer than 300 characters, hold `|` or are more than 20. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: the caller is not a reviewer; `csrf`: a write with the session cookie and no `X-Salus-CSRF: 1`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such term. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the translation changed since it was read. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    reviewTermTranslation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: components["parameters"]["TermID"];
+                language: components["schemas"]["TermLanguage"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewDecision"];
+            };
+        };
+        responses: {
+            /** @description The translation as stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermTranslation"];
+                };
+            };
+            /** @description `invalid_request`: no or an unreadable If-Match, a status other than approved or needs_changes, or a note longer than 500 characters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: the caller is not a reviewer; `csrf`: a write with the session cookie and no `X-Salus-CSRF: 1`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such term, or it has no label in the language. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the translation changed since it was read. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `note_required`: needs_changes without a note. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    writeTermExplanation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: components["parameters"]["TermID"];
+                language: components["schemas"]["Language"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TermExplanationEdit"];
+            };
+        };
+        responses: {
+            /** @description The explanation as stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermExplanation"];
+                };
+            };
+            /** @description `invalid_request`: no or an unreadable If-Match, or a text that is blank or longer than 500 characters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: the caller is not a reviewer; `csrf`: a write with the session cookie and no `X-Salus-CSRF: 1`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such term. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the explanation changed since it was read. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    reviewTermExplanation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: components["parameters"]["TermID"];
+                language: components["schemas"]["Language"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewDecision"];
+            };
+        };
+        responses: {
+            /** @description The explanation as stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermExplanation"];
+                };
+            };
+            /** @description `invalid_request`: no or an unreadable If-Match, a status other than approved or needs_changes, or a note longer than 500 characters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: the caller is not a reviewer; `csrf`: a write with the session cookie and no `X-Salus-CSRF: 1`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such term, or it has no explanation in the language. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the explanation changed since it was read. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `note_required`: needs_changes without a note. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

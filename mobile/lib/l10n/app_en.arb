@@ -703,13 +703,88 @@
   "@cannotConnect": {
     "description": "M34."
   },
-  "whyCameraAndMicrophone": "To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded.",
+  "whyCameraAndMicrophone": "To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded as audio or video. If you agree, what is said is transcribed and translated.",
   "@whyCameraAndMicrophone": {
-    "description": "[legal] M35: Android, before the system permission prompt."
+    "description": "[legal] M35: Android, before the system permission prompt. Changed by SAL-12 (no longer \"not recorded\" alone): draft, waiting for the owner and the lawyer (Q16)."
   },
   "transcriptionOn": "Transcription is on",
   "@transcriptionOn": {
     "description": "M36: while the transcription agent is in the call. Proposed, waiting for the owner (consultation COPY.md)."
+  },
+  "transcriptionTitle": "Transcription and translation",
+  "@transcriptionTitle": {
+    "description": "SAL-12: the heading of the notice before the call. Draft, waiting for the owner and the lawyer (Q16)."
+  },
+  "transcriptionIntro": "In your video consultations with {clinic}, what you and the practitioner say can be transcribed as you speak and translated, so the practitioner can follow you in your language.",
+  "@transcriptionIntro": {
+    "description": "[legal] SAL-12 notice: what is transcribed and translated. Draft, waiting for the owner and the lawyer (Q16).",
+    "placeholders": {
+      "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "transcriptionAssistance": "From the transcript, the practitioner also gets AI assistance: suggestions during the consultation and drafts of documents. These are suggestions only; the practitioner checks them and makes every decision.",
+  "@transcriptionAssistance": {
+    "description": "[legal] SAL-12 notice: the AI assistance for the practitioner. Draft, waiting for the owner and the lawyer (Q16)."
+  },
+  "transcriptionKept": "The transcript is kept with your medical record at {clinic}. The consultation is not recorded as audio or video.",
+  "@transcriptionKept": {
+    "description": "[legal] SAL-12 notice: where the transcript is kept; no audio or video recording. Draft, waiting for the owner and the lawyer (Q16).",
+    "placeholders": {
+      "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "transcriptionDecline": "If you do not agree, the consultation goes ahead as usual, without transcription, translation or AI assistance.",
+  "@transcriptionDecline": {
+    "description": "[legal] SAL-12 notice: what happens on decline. Draft, waiting for the owner and the lawyer (Q16)."
+  },
+  "transcriptionWithdraw": "You can withdraw your agreement at any time, also during the consultation: tap “Transcription is on”, or open My consents. Transcription stops at once; what was transcribed until then stays in your record.",
+  "@transcriptionWithdraw": {
+    "description": "[legal] SAL-12 notice: how to withdraw; quotes the transcriptionOn badge and the myConsents screen. Draft, waiting for the owner and the lawyer (Q16)."
+  },
+  "transcriptionAgree": "Agree and continue",
+  "@transcriptionAgree": {
+    "description": "[legal] SAL-12 notice: the button that gives the transcription consent. Draft, waiting for the owner and the lawyer (Q16)."
+  },
+  "transcriptionWithout": "Continue without transcription",
+  "@transcriptionWithout": {
+    "description": "[legal] SAL-12 notice: the button that declines; the call goes on without the agent. Draft, waiting for the owner and the lawyer (Q16)."
+  },
+  "stopTranscriptionTitle": "Stop transcription?",
+  "@stopTranscriptionTitle": {
+    "description": "SAL-12: the dialog that withdraws the transcription consent (in the call and under My consents). Draft, waiting for the owner."
+  },
+  "stopTranscriptionBody": "Transcription, translation and AI assistance stop at once in your consultations with {clinic}. A consultation in progress goes on without them, and your appointments stay as they are. What was transcribed until now stays in your record.",
+  "@stopTranscriptionBody": {
+    "description": "[legal] SAL-12: the effect of withdrawing the transcription consent. Draft, waiting for the owner and the lawyer (Q16).",
+    "placeholders": {
+      "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "keepTranscription": "Keep transcription",
+  "@keepTranscription": {
+    "description": "SAL-12: the dialog button that keeps the transcription consent. Draft, waiting for the owner."
+  },
+  "stopTranscription": "Stop transcription",
+  "@stopTranscription": {
+    "description": "[legal] SAL-12: the dialog button that withdraws the transcription consent, and the badge tooltip. Draft, waiting for the owner."
+  },
+  "transcriptionStopped": "Transcription is off. Your consultations with this clinic go ahead without it.",
+  "@transcriptionStopped": {
+    "description": "[legal] SAL-12: after the transcription consent was withdrawn. Draft, waiting for the owner and the lawyer (Q16)."
+  },
+  "consentForCare": "Sharing for care",
+  "@consentForCare": {
+    "description": "SAL-12: My consents, the label of a care consent. Draft, waiting for the owner."
+  },
+  "consentForTranscription": "Transcription and AI assistance",
+  "@consentForTranscription": {
+    "description": "SAL-12: My consents, the label of a transcription consent. Draft, waiting for the owner."
   },
   "toFillIn": "To fill in",
   "@toFillIn": {
@@ -1268,6 +1343,69 @@
         "type": "String"
       },
       "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "documents": "Documents",
+  "@documents": {
+    "description": "SAL-17: the button under an appointment that has started, and the title of its documents screen."
+  },
+  "noDocuments": "There are no signed documents for this appointment yet. A document appears here once your practitioner signs it.",
+  "@noDocuments": {
+    "description": "SAL-17: the documents screen when the appointment has no signed document."
+  },
+  "documentSignedOn": "Signed on {date}",
+  "@documentSignedOn": {
+    "description": "SAL-17: under a signed document's title: the day it was signed, as a long date in the clinic's zone.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "documentLanguage": "Language: {language}",
+  "@documentLanguage": {
+    "description": "SAL-17: under a signed document written in another language than the app's: that language by its own name.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "sharePdf": "Save or share the PDF",
+  "@sharePdf": {
+    "description": "SAL-17: button: the signed document's PDF to the device's share sheet (open, save, send)."
+  },
+  "transcript": "Transcript",
+  "@transcript": {
+    "description": "SAL-17: the button to the transcript copy, and its screen's title."
+  },
+  "transcriptNote": "The consultation as it was transcribed and translated automatically. It may contain mistakes.",
+  "@transcriptNote": {
+    "description": "SAL-17: at the top of the transcript copy."
+  },
+  "transcriptEmpty": "Nothing was transcribed in this consultation.",
+  "@transcriptEmpty": {
+    "description": "SAL-17: the transcript copy when nothing was stored."
+  },
+  "speakerYou": "You",
+  "@speakerYou": {
+    "description": "SAL-17: the transcript: the patient's own lines."
+  },
+  "speakerPractitioner": "Practitioner",
+  "@speakerPractitioner": {
+    "description": "SAL-17: the transcript: the practitioner's lines."
+  },
+  "shareTranscript": "Share the transcript",
+  "@shareTranscript": {
+    "description": "SAL-17: button: the transcript copy to the device's share sheet as text."
+  },
+  "transcriptTranslation": "Translation: {text}",
+  "@transcriptTranslation": {
+    "description": "SAL-17: under a transcript line: its translation.",
+    "placeholders": {
+      "text": {
         "type": "String"
       }
     }

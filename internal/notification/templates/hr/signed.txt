@@ -1,0 +1,7 @@
+Dokument s vašeg termina spreman je
+
+Dokument s vašeg termina u ustanovi {{.Clinic}} spreman je.
+Datum i vrijeme: {{.When}}
+
+Za čitanje otvorite aplikaciju Salus:
+{{.Link}}

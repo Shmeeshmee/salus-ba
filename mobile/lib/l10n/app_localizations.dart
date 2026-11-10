@@ -69,8 +69,7 @@ import 'app_localizations_tr.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale)
-    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -78,8 +77,7 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate =
-      _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -91,13 +89,12 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
-      <LocalizationsDelegate<dynamic>>[
-        delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-      ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
+    delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+  ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
@@ -1020,10 +1017,10 @@ abstract class AppLocalizations {
   /// **'The video connection could not be started. Check your connection and try again.'**
   String get cannotConnect;
 
-  /// [legal] M35: Android, before the system permission prompt.
+  /// [legal] M35: Android, before the system permission prompt. Changed by SAL-12 (no longer "not recorded" alone): draft, waiting for the owner and the lawyer (Q16).
   ///
   /// In en, this message translates to:
-  /// **'To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded.'**
+  /// **'To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded as audio or video. If you agree, what is said is transcribed and translated.'**
   String get whyCameraAndMicrophone;
 
   /// M36: while the transcription agent is in the call. Proposed, waiting for the owner (consultation COPY.md).
@@ -1031,6 +1028,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Transcription is on'**
   String get transcriptionOn;
+
+  /// SAL-12: the heading of the notice before the call. Draft, waiting for the owner and the lawyer (Q16).
+  ///
+  /// In en, this message translates to:
+  /// **'Transcription and translation'**
+  String get transcriptionTitle;
+
+  /// [legal] SAL-12 notice: what is transcribed and translated. Draft, waiting for the owner and the lawyer (Q16).
+  ///
+  /// In en, this message translates to:
+  /// **'In your video consultations with {clinic}, what you and the practitioner say can be transcribed as you speak and translated, so the practitioner can follow you in your language.'**
+  String transcriptionIntro(String clinic);
+
+  /// [legal] SAL-12 notice: the AI assistance for the practitioner. Draft, waiting for the owner and the lawyer (Q16).
+  ///
+  /// In en, this message translates to:
+  /// **'From the transcript, the practitioner also gets AI assistance: suggestions during the consultation and drafts of documents. These are suggestions only; the practitioner checks them and makes every decision.'**
+  String get transcriptionAssistance;
+
+  /// [legal] SAL-12 notice: where the transcript is kept; no audio or video recording. Draft, waiting for the owner and the lawyer (Q16).
+  ///
+  /// In en, this message translates to:
+  /// **'The transcript is kept with your medical record at {clinic}. The consultation is not recorded as audio or video.'**
+  String transcriptionKept(String clinic);
+
+  /// [legal] SAL-12 notice: what happens on decline. Draft, waiting for the owner and the lawyer (Q16).
+  ///
+  /// In en, this message translates to:
+  /// **'If you do not agree, the consultation goes ahead as usual, without transcription, translation or AI assistance.'**
+  String get transcriptionDecline;
+
+  /// [legal] SAL-12 notice: how to withdraw; quotes the transcriptionOn badge and the myConsents screen. Draft, waiting for the owner and the lawyer (Q16).
+  ///
+  /// In en, this message translates to:
+  /// **'You can withdraw your agreement at any time, also during the consultation: tap “Transcription is on”, or open My consents. Transcription stops at once; what was transcribed until then stays in your record.'**
+  String get transcriptionWithdraw;
+
+  /// [legal] SAL-12 notice: the button that gives the transcription consent. Draft, waiting for the owner and the lawyer (Q16).
+  ///
+  /// In en, this message translates to:
+  /// **'Agree and continue'**
+  String get transcriptionAgree;
+
+  /// [legal] SAL-12 notice: the button that declines; the call goes on without the agent. Draft, waiting for the owner and the lawyer (Q16).
+  ///
+  /// In en, this message translates to:
+  /// **'Continue without transcription'**
+  String get transcriptionWithout;
+
+  /// SAL-12: the dialog that withdraws the transcription consent (in the call and under My consents). Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop transcription?'**
+  String get stopTranscriptionTitle;
+
+  /// [legal] SAL-12: the effect of withdrawing the transcription consent. Draft, waiting for the owner and the lawyer (Q16).
+  ///
+  /// In en, this message translates to:
+  /// **'Transcription, translation and AI assistance stop at once in your consultations with {clinic}. A consultation in progress goes on without them, and your appointments stay as they are. What was transcribed until now stays in your record.'**
+  String stopTranscriptionBody(String clinic);
+
+  /// SAL-12: the dialog button that keeps the transcription consent. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep transcription'**
+  String get keepTranscription;
+
+  /// [legal] SAL-12: the dialog button that withdraws the transcription consent, and the badge tooltip. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop transcription'**
+  String get stopTranscription;
+
+  /// [legal] SAL-12: after the transcription consent was withdrawn. Draft, waiting for the owner and the lawyer (Q16).
+  ///
+  /// In en, this message translates to:
+  /// **'Transcription is off. Your consultations with this clinic go ahead without it.'**
+  String get transcriptionStopped;
+
+  /// SAL-12: My consents, the label of a care consent. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Sharing for care'**
+  String get consentForCare;
+
+  /// SAL-12: My consents, the label of a transcription consent. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Transcription and AI assistance'**
+  String get consentForTranscription;
 
   /// M1.
   ///
@@ -1679,10 +1766,81 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{specialty}, {clinic}'**
   String specialtyAtClinic(String specialty, String clinic);
+
+  /// SAL-17: the button under an appointment that has started, and the title of its documents screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Documents'**
+  String get documents;
+
+  /// SAL-17: the documents screen when the appointment has no signed document.
+  ///
+  /// In en, this message translates to:
+  /// **'There are no signed documents for this appointment yet. A document appears here once your practitioner signs it.'**
+  String get noDocuments;
+
+  /// SAL-17: under a signed document's title: the day it was signed, as a long date in the clinic's zone.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed on {date}'**
+  String documentSignedOn(String date);
+
+  /// SAL-17: under a signed document written in another language than the app's: that language by its own name.
+  ///
+  /// In en, this message translates to:
+  /// **'Language: {language}'**
+  String documentLanguage(String language);
+
+  /// SAL-17: button: the signed document's PDF to the device's share sheet (open, save, send).
+  ///
+  /// In en, this message translates to:
+  /// **'Save or share the PDF'**
+  String get sharePdf;
+
+  /// SAL-17: the button to the transcript copy, and its screen's title.
+  ///
+  /// In en, this message translates to:
+  /// **'Transcript'**
+  String get transcript;
+
+  /// SAL-17: at the top of the transcript copy.
+  ///
+  /// In en, this message translates to:
+  /// **'The consultation as it was transcribed and translated automatically. It may contain mistakes.'**
+  String get transcriptNote;
+
+  /// SAL-17: the transcript copy when nothing was stored.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing was transcribed in this consultation.'**
+  String get transcriptEmpty;
+
+  /// SAL-17: the transcript: the patient's own lines.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get speakerYou;
+
+  /// SAL-17: the transcript: the practitioner's lines.
+  ///
+  /// In en, this message translates to:
+  /// **'Practitioner'**
+  String get speakerPractitioner;
+
+  /// SAL-17: button: the transcript copy to the device's share sheet as text.
+  ///
+  /// In en, this message translates to:
+  /// **'Share the transcript'**
+  String get shareTranscript;
+
+  /// SAL-17: under a transcript line: its translation.
+  ///
+  /// In en, this message translates to:
+  /// **'Translation: {text}'**
+  String transcriptTranslation(String text);
 }
 
-class _AppLocalizationsDelegate
-    extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -1691,17 +1849,8 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) => <String>[
-    'ar',
-    'bs',
-    'de',
-    'en',
-    'fr',
-    'hr',
-    'it',
-    'sr',
-    'tr',
-  ].contains(locale.languageCode);
+  bool isSupported(Locale locale) =>
+      <String>['ar', 'bs', 'de', 'en', 'fr', 'hr', 'it', 'sr', 'tr'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;

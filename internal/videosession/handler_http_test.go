@@ -202,6 +202,11 @@ func TestStatusAndEndHandlers_AnswerTheState(t *testing.T) {
 			want:   `{"state":"open","patientJoinedAt":"2030-01-07T09:00:00Z","reason":"consent_withdrawn"}`,
 		},
 		{
+			method: http.MethodGet, path: "/appointments/" + apptA + "/consultation", asked: "status " + apptA,
+			status: videosession.Status{State: videosession.StateOpen, Transcription: true},
+			want:   `{"state":"open","transcription":true}`,
+		},
+		{
 			method: http.MethodPost, path: "/appointments/" + apptA + "/consultation/end", asked: "end " + apptA,
 			status: videosession.Status{
 				State: videosession.StateEnded, PatientJoinedAt: start, PractitionerJoinedAt: start.Add(time.Minute),

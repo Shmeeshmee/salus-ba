@@ -25,7 +25,7 @@ func (s *Service) Drafts(ctx context.Context, c appointment.Caller, encounterID 
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		e := entry{c: c, interaction: auditevent.CodeSearchType}
-		enc, err := s.allowed(ctx, c, encounterID)
+		enc, err := s.allowed(ctx, c, encounterID, false)
 		e.reference = encounterRef(enc.ID)
 		if refused = refusal(err); refused != nil {
 			e.outcome = auditevent.OutcomeMinorFailure
@@ -49,8 +49,43 @@ func (s *Service) Drafts(ctx context.Context, c appointment.Caller, encounterID 
 	return out, nil
 }
 
+// Signed returns the encounter's signed documents, in the order they were signed, to its practitioner with the
+// patient's active consent and to its patient whatever the consent (access.SignedDocument), audited as a search
+// of the encounter's documents, also when refused: ErrNotFound, ErrForbidden, ErrConsentRequired. Never a draft.
+func (s *Service) Signed(ctx context.Context, c appointment.Caller, encounterID string) ([]Document, error) {
+	var out []Document
+	var refused error
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		e := entry{c: c, interaction: auditevent.CodeSearchType}
+		enc, err := s.allowed(ctx, c, encounterID, true)
+		e.reference = encounterRef(enc.ID)
+		if refused = refusal(err); refused != nil {
+			e.outcome = auditevent.OutcomeMinorFailure
+			return s.record(ctx, e)
+		}
+		if err != nil {
+			return err
+		}
+		drafts, err := s.Repo.Signed(ctx, enc.ID)
+		if err != nil {
+			return err
+		}
+		out = make([]Document, len(drafts))
+		for i, d := range drafts {
+			out[i] = Document{Draft: d, Encounter: enc}
+		}
+		e.org = enc.OrganizationID
+		return s.record(ctx, e)
+	})
+	if err := wrapErr("signed", err, refused); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Composition returns the draft id, preliminary or final, to its encounter's practitioner with the patient's
-// active consent, audited, also when refused: ErrNotFound, ErrForbidden, ErrConsentRequired.
+// active consent, and a final one to its patient (access.SignedDocument; a draft is not found for them),
+// audited, also when refused: ErrNotFound, ErrForbidden, ErrConsentRequired.
 func (s *Service) Composition(ctx context.Context, c appointment.Caller, id string) (Document, error) {
 	return s.read(ctx, c, "Composition", id, func(ctx context.Context, id string) (Draft, error) { return s.Repo.Draft(ctx, id, false) })
 }
@@ -101,7 +136,7 @@ func (s *Service) read(ctx context.Context, c appointment.Caller, typ, id string
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		e := entry{c: c, interaction: auditevent.CodeRead}
-		d, enc, err := s.reach(ctx, c, id, find)
+		d, enc, err := s.reach(ctx, c, id, find, true)
 		if refused = refusal(err); refused != nil {
 			e.outcome = auditevent.OutcomeMinorFailure
 			if fhir.IsUUID(id) { // the resource asked for, as other refusals are audited; not an arbitrary path

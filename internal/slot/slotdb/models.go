@@ -360,15 +360,16 @@ type Invite struct {
 }
 
 type Organization struct {
-	ID              pgtype.UUID
-	CreatedAt       pgtype.Timestamptz
-	UpdatedAt       pgtype.Timestamptz
-	VersionID       int32
-	Active          bool
-	Name            string
-	Listed          bool
-	TimeZone        string
-	DefaultLanguage Language
+	ID                    pgtype.UUID
+	CreatedAt             pgtype.Timestamptz
+	UpdatedAt             pgtype.Timestamptz
+	VersionID             int32
+	Active                bool
+	Name                  string
+	Listed                bool
+	TimeZone              string
+	DefaultLanguage       Language
+	PatientTranscriptCopy bool
 }
 
 type Patient struct {
@@ -586,6 +587,11 @@ type TermLabel struct {
 	Label     string
 }
 
+type TermReviewer struct {
+	AccountID pgtype.UUID
+	GrantedAt pgtype.Timestamptz
+}
+
 type TermTranslation struct {
 	TermID       pgtype.UUID
 	UpdatedAt    pgtype.Timestamptz
@@ -608,6 +614,18 @@ type TranscriptSegment struct {
 	Original          string
 	Translation       string
 	TranslationFailed bool
+}
+
+type TranscriptionConsent struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	DateTime       pgtype.Timestamptz
+	RevokedAt      pgtype.Timestamptz
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
 }
 
 type VideoSession struct {

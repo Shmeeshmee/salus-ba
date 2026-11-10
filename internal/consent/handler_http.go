@@ -17,7 +17,7 @@ const maxBody = 1 << 10
 
 // Consents is what the handler calls (Service).
 type Consents interface {
-	Grant(ctx context.Context, c Caller, organizationID string) (Consent, error)
+	Grant(ctx context.Context, c Caller, organizationID string, kind Kind) (Consent, error)
 	Revoke(ctx context.Context, c Caller, id string) (Consent, error)
 	Mine(ctx context.Context, c Caller) ([]Consent, error)
 }
@@ -50,6 +50,7 @@ type consentJSON struct {
 	RevokedAt      *time.Time `json:"revokedAt,omitempty"`
 	ID             string     `json:"id"`
 	OrganizationID string     `json:"organizationId"`
+	Kind           Kind       `json:"kind"`
 	Status         Status     `json:"status"`
 }
 
@@ -58,13 +59,14 @@ type listJSON struct {
 	Consents []consentJSON `json:"consents"`
 }
 
-// grantRequest is the GrantConsentRequest schema.
+// grantRequest is the GrantConsentRequest schema; no kind is the care consent.
 type grantRequest struct {
 	OrganizationID string `json:"organizationId"`
+	Kind           Kind   `json:"kind"`
 }
 
 func toJSON(c Consent) consentJSON {
-	out := consentJSON{ID: c.ID, OrganizationID: c.OrganizationID, Status: c.Status, DateTime: c.DateTime.UTC()}
+	out := consentJSON{ID: c.ID, OrganizationID: c.OrganizationID, Kind: c.Kind, Status: c.Status, DateTime: c.DateTime.UTC()}
 	if !c.RevokedAt.IsZero() {
 		at := c.RevokedAt.UTC()
 		out.RevokedAt = &at
@@ -85,7 +87,10 @@ func (h *Handler) grant(w http.ResponseWriter, r *http.Request) {
 		writeCode(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	out, err := h.svc.Grant(r.Context(), c, req.OrganizationID)
+	if req.Kind == "" {
+		req.Kind = KindCare
+	}
+	out, err := h.svc.Grant(r.Context(), c, req.OrganizationID, req.Kind)
 	if err != nil {
 		h.writeError(w, r, err)
 		return
@@ -164,6 +169,7 @@ var errorCodes = []struct {
 	{ErrClinicNotFound, "not_found", http.StatusNotFound},
 	{ErrForbidden, "forbidden", http.StatusForbidden},
 	{ErrActive, "consent_active", http.StatusConflict},
+	{ErrKind, "invalid_request", http.StatusBadRequest},
 	{ErrInactive, "consent_inactive", http.StatusConflict},
 	{ErrProfileRequired, "profile_required", http.StatusConflict},
 }

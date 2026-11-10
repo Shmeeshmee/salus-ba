@@ -16,6 +16,8 @@ var (
 	ErrProfileRequired = errors.New("consent: profile required")
 	// ErrActive is returned when a consent is granted to a clinic that holds an active one already.
 	ErrActive = errors.New("consent: already active")
+	// ErrKind is returned when a consent of an unknown kind is granted.
+	ErrKind = errors.New("consent: unknown kind")
 	// ErrInactive is returned when a consent that is no longer active is revoked.
 	ErrInactive = errors.New("consent: not active")
 )

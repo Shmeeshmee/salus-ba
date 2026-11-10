@@ -48,6 +48,7 @@ type Ports struct {
 	Drafter     llm.Drafter
 	Store       Store
 	Publisher   Publisher
+	Jobs        Jobs
 	Audit       Auditor
 	Tx          Transactor
 	Clock       clock.Clock
@@ -57,8 +58,9 @@ type Ports struct {
 
 // Service holds the rules of the templates, the drafting and the signing (docs/plans/consult-intelligence.md,
 // "E (SAL-8)"): staff of a clinic keep its templates; only the encounter's practitioner, with the patient's
-// active consent (access.ConsultationRecord), drafts, signs and reads its documents. Every write, read and
-// refusal of a draft or document is audited.
+// active consent (access.ConsultationRecord), drafts, signs and reads its documents; the encounter's patient
+// reads its signed documents, never a draft (access.SignedDocument, docs/consultation/SPEC.md "Patient
+// documents"). Every write, read and refusal of a draft or document is audited.
 type Service struct{ Ports }
 
 // NewService returns a Service on its ports.
@@ -81,16 +83,33 @@ func refusal(err error) error {
 	return nil
 }
 
-// allowed checks that the caller may draft, sign and read the documents of the encounter, in the transaction in
-// ctx (scoped to the caller by it), and returns the encounter. A refusal is an errRefused; the encounter's id
-// is returned with it as far as the caller may know it ("" when the appointment does not show it).
-func (s *Service) allowed(ctx context.Context, c appointment.Caller, encounterID string) (encounter.Encounter, error) {
+// allowed checks that the caller may draft, sign and read the documents of the encounter, or, with signed, read
+// its signed documents, in the transaction in ctx (scoped to the caller by it), and returns the encounter. A
+// refusal is an errRefused; the encounter's id is returned with it as far as the caller may know it ("" when the
+// appointment does not show it).
+func (s *Service) allowed(ctx context.Context, c appointment.Caller, encounterID string, signed bool) (encounter.Encounter, error) {
+	e, _, err := s.allowedAttendance(ctx, c, encounterID, signed)
+	return e, err
+}
+
+// allowedDrafting is allowed for a draft, which the model writes from the transcript: it needs the patient's
+// transcription consent too (SAL-12), else ErrTranscriptionConsentRequired.
+func (s *Service) allowedDrafting(ctx context.Context, c appointment.Caller, encounterID string) (encounter.Encounter, error) {
+	e, att, err := s.allowedAttendance(ctx, c, encounterID, false)
+	if err == nil && !att.TranscriptionConsent {
+		return encounter.Encounter{ID: e.ID}, errRefused{ErrTranscriptionConsentRequired}
+	}
+	return e, err
+}
+
+// allowedAttendance is allowed, with the caller's attendance of the encounter's appointment.
+func (s *Service) allowedAttendance(ctx context.Context, c appointment.Caller, encounterID string, signed bool) (encounter.Encounter, appointment.Attendance, error) {
 	e, att, err := s.Encounters.Access(ctx, c, encounterID)
 	switch {
 	case errors.Is(err, encounter.ErrNotFound):
-		return encounter.Encounter{}, errRefused{ErrNotFound}
+		return encounter.Encounter{}, att, errRefused{ErrNotFound}
 	case err != nil:
-		return encounter.Encounter{}, err
+		return encounter.Encounter{}, att, err
 	}
 	a := att.Appointment
 	visit := access.Visit{PractitionerRole: a.PractitionerRoleID, Start: a.Start}
@@ -108,12 +127,12 @@ func (s *Service) allowed(ctx context.Context, c appointment.Caller, encounterID
 		v.PractitionerRole = a.PractitionerRoleID
 	}
 	switch {
-	case access.ConsultationRecord(v, f, visit):
-		return e, nil
+	case access.SignedDocument(v, f, visit, signed):
+		return e, att, nil
 	case att.Practitioner && !att.ConsentActive:
-		return encounter.Encounter{ID: e.ID}, errRefused{ErrConsentRequired}
+		return encounter.Encounter{ID: e.ID}, att, errRefused{ErrConsentRequired}
 	}
-	return encounter.Encounter{ID: e.ID}, errRefused{ErrForbidden}
+	return encounter.Encounter{ID: e.ID}, att, errRefused{ErrForbidden}
 }
 
 // entry is one audit event of the drafting: who, the interaction on which resource ("" when none is
@@ -127,7 +146,7 @@ type entry struct {
 	template    bool
 }
 
-// record audits e, with treatment as the purpose: only staff reach a document.
+// record audits e, with treatment as the purpose for staff and the patient's own request for a patient.
 func (s *Service) record(ctx context.Context, e entry) error {
 	action := map[string]auditevent.Action{
 		auditevent.CodeCreate: auditevent.ActionCreate, auditevent.CodeUpdate: auditevent.ActionUpdate,
@@ -146,6 +165,9 @@ func (s *Service) record(ctx context.Context, e entry) error {
 		AgentAccountID:  e.c.AccountID,
 		OrganizationID:  org,
 		EntityReference: e.reference,
+	}
+	if e.c.OrganizationID == "" {
+		a.Purpose.Code = auditevent.CodePATRQT
 	}
 	if e.template {
 		a.Purpose.Code = auditevent.CodeHOPERAT

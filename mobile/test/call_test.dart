@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -21,8 +22,9 @@ Map<String, Object?> joined({String peerName = 'Cy Example'}) => {
   'role': 'patient',
 };
 
-Map<String, Object?> status(String state, {String? endReason, String? reason}) => {
+Map<String, Object?> status(String state, {String? endReason, String? reason, bool transcription = true}) => {
   'state': state,
+  'transcription': ?(transcription ? true : null),
   'patientJoinedAt': '2026-11-04T09:00:00Z',
   'practitionerJoinedAt': ?(endReason == 'practitioner_absent' ? null : '2026-11-04T09:00:00Z'),
   'endedAt': ?(state == 'ended' ? '2026-11-04T09:30:00Z' : null),
@@ -33,7 +35,8 @@ Map<String, Object?> status(String state, {String? endReason, String? reason}) =
 const practitioner = Peer(present: true, camera: true, microphone: true);
 const nobody = Peer(present: false, camera: false, microphone: false);
 
-/// Signed in, on my appointments, Join consultation tapped: the device check.
+/// Signed in, on my appointments, Join consultation tapped: the device check (the transcription consent active
+/// unless [before] answers the status without it).
 Future<Harness> atCheck(WidgetTester tester, {void Function(Harness h)? before}) async {
   final h = Harness(store: FakeTokenStore(token));
   h.api.answer('GET /auth/me', 200, account());
@@ -78,7 +81,8 @@ void main() {
       expect(find.byKey(const Key('preview-camera')), findsOneWidget);
       expect(
         find.text(
-          'To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded.',
+          'To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded as '
+          'audio or video. If you agree, what is said is transcribed and translated.',
         ),
         findsNothing,
         reason: 'both were allowed before',
@@ -109,15 +113,18 @@ void main() {
       h.api.answer('GET /me/consents', 200, {
         'consents': [consent('c1')],
       });
+      h.api.answer(statusRoute, 200, status('open'));
       await h.pump(tester);
       await tapOutlined(tester, 'My appointments');
       await tester.tap(find.widgetWithText(FilledButton, 'Join consultation'));
-      await tester.pump();
-      await tester.pump();
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
 
       expect(
         find.text(
-          'To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded.',
+          'To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded as '
+          'audio or video. If you agree, what is said is transcribed and translated.',
         ),
         findsOneWidget,
       );
@@ -137,7 +144,8 @@ void main() {
 
       expect(
         find.text(
-          'To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded.',
+          'To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded as '
+          'audio or video. If you agree, what is said is transcribed and translated.',
         ),
         findsNothing,
       );
@@ -392,6 +400,8 @@ void main() {
     testWidgets('leaves the room and reads the appointments again', (tester) async {
       final h = await inCall(tester);
       final searches = h.api.calls.where((c) => c == 'GET /fhir/R4/Appointment').length;
+      // Read once before the call, for the transcription notice (SAL-12).
+      final statuses = h.api.calls.where((c) => c == statusRoute).length;
 
       await tapButton(tester, 'Leave');
 
@@ -401,7 +411,7 @@ void main() {
 
       h.media.room.emit(const Disconnected(Ending.ended));
       await tester.pumpAndSettle();
-      expect(h.api.calls, isNot(contains(statusRoute)), reason: 'a left room is not followed');
+      expect(h.api.calls.where((c) => c == statusRoute).length, statuses, reason: 'a left room is not followed');
     });
 
     testWidgets('going back leaves the room', (tester) async {
@@ -641,5 +651,97 @@ void main() {
       debugPrint = original;
     }
     expect(printed, isEmpty);
+  });
+
+  // SAL-12: the patient is asked before the call whether it may be transcribed and translated, with AI assistance
+  // for the practitioner; declining joins without the agent; the badge in the call withdraws the consent.
+  group('transcription consent', () {
+    const notice =
+        'In your video consultations with $clinicName, what you and the practitioner say can be transcribed as you '
+        'speak and translated, so the practitioner can follow you in your language.';
+
+    Future<Harness> asked(WidgetTester tester) =>
+        atCheck(tester, before: (h) => h.api.answer(statusRoute, 200, status('open', transcription: false)));
+
+    testWidgets('is asked before the device check, saying what it covers and how to decline or withdraw', (
+      tester,
+    ) async {
+      final h = await asked(tester);
+
+      expect(find.text('Transcription and translation'), findsOneWidget);
+      expect(find.text(notice), findsOneWidget);
+      expect(
+        find.text(
+          'If you do not agree, the consultation goes ahead as usual, without transcription, translation or AI assistance.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('tap “Transcription is on”, or open My consents'), findsOneWidget);
+      expect(find.text('Check your camera and microphone'), findsNothing);
+      expect(h.media.previews, isEmpty, reason: 'no device is opened before the answer');
+      expect(h.api.calls.where((c) => c.startsWith('POST')), isEmpty);
+    });
+
+    testWidgets('agreeing gives the transcription consent with the clinic, then the device check', (tester) async {
+      final h = await asked(tester);
+      h.api.answer('POST /consents', 201, consent('t1', kind: 'transcription'));
+
+      await tapButton(tester, 'Agree and continue');
+
+      expect(h.api.calls.where((c) => c.startsWith('POST')), ['POST /consents']);
+      expect(jsonDecode(h.api.last('POST /consents').body), {'organizationId': clinicId, 'kind': 'transcription'});
+      expect(find.text('Check your camera and microphone'), findsOneWidget);
+    });
+
+    testWidgets('an agreement given already counts as given', (tester) async {
+      final h = await asked(tester);
+      h.api.answer('POST /consents', 409, error('consent_active'));
+
+      await tapButton(tester, 'Agree and continue');
+
+      expect(find.text('Check your camera and microphone'), findsOneWidget);
+    });
+
+    testWidgets('declining asks for no consent and joins the call without the agent', (tester) async {
+      final h = await asked(tester);
+
+      await tapLink(tester, 'Continue without transcription');
+      expect(find.text('Check your camera and microphone'), findsOneWidget);
+      await tapButton(tester, 'Join');
+
+      expect(h.api.calls.where((c) => c.startsWith('POST')), [joinRoute]);
+      expect(find.text('Transcription is on'), findsNothing);
+    });
+
+    testWidgets('the badge in the call withdraws it after a confirmation; the call goes on', (tester) async {
+      final h = await inCall(tester);
+      await emit(tester, h, const AgentChanged(present: true));
+      h.api.answer('GET /me/consents', 200, {
+        'consents': [consent('t1', kind: 'transcription'), consent('c1')],
+      });
+      h.api.answer(
+        'POST /consents/t1/revoke',
+        200,
+        consent('t1', kind: 'transcription', revokedAt: '2026-11-04T09:10:00Z'),
+      );
+
+      await tester.tap(find.text('Transcription is on'));
+      await tester.pumpAndSettle();
+      expect(find.text('Stop transcription?'), findsOneWidget);
+      expect(find.textContaining('A consultation in progress goes on without them'), findsOneWidget);
+      await tapLink(tester, 'Keep transcription');
+      expect(h.api.calls.where((c) => c.startsWith('POST')), [joinRoute]);
+
+      await tester.tap(find.text('Transcription is on'));
+      await tester.pumpAndSettle();
+      await tapButton(tester, 'Stop transcription');
+
+      expect(h.api.calls.where((c) => c.startsWith('POST')), [joinRoute, 'POST /consents/t1/revoke']);
+      expect(
+        find.text('Transcription is off. Your consultations with this clinic go ahead without it.'),
+        findsOneWidget,
+      );
+      expect(h.media.room.left, isFalse, reason: 'the call goes on');
+    });
   });
 }

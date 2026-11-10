@@ -141,6 +141,43 @@ func TestTranscriptionJoin_JoinsTheRoomAndLeavesWhenTheConsentIsRevoked(t *testi
 	checkConsultationLog(t, logs, b, c)
 }
 
+// SAL-12: the patient withdraws the transcription consent during the call. The withdrawal's job
+// (transcription_consent_revoked) takes the agent out of the room, and it leaves at once; the care consent and
+// the appointment stay as they were, and the agent's next join is refused, its job cancelled.
+func TestTranscriptionJoin_LeavesWhenTheTranscriptionConsentIsWithdrawn(t *testing.T) {
+	t.Parallel()
+	db := newLogins(t)
+	b := seedBooking(t, db.owner)
+	c := openConsultation(t, db, b)
+	w := &watched{Listener: listener, out: make(chan struct{}, 2)}
+
+	if ended, logs := runAgentJob(t, db, w, c.session); ended != river.EventKindJobCompleted || w.joined() != 1 {
+		t.Fatalf("transcription_join ended %s with %d joins, want completed with 1:\n%s", ended, w.joined(), logs)
+	}
+	if _, err := db.owner.Exec(t.Context(), "UPDATE transcription_consent SET status = 'inactive', revoked_at = now()"); err != nil {
+		t.Fatal(err)
+	}
+	args := consent.TranscriptionRevokedArgs{PatientID: b.patient, OrganizationID: clinicID}
+	if ended, logs := runWorkerJobWith(t, db, liveKit(t), args); ended != river.EventKindJobCompleted {
+		t.Fatalf("transcription_consent_revoked ended %s:\n%s", ended, logs)
+	}
+	select {
+	case <-w.out:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the agent was still in the room 15 s after the withdrawal's removal")
+	}
+	if n := countWhere(t, db, `SELECT count(*) FROM consent WHERE status = 'active'`); n != 1 {
+		t.Errorf("%d active care consents, want the one kept", n)
+	}
+	if n := countWhere(t, db, `SELECT count(*) FROM appointment WHERE status = 'booked'`); n != 2 {
+		t.Errorf("%d booked appointments, want both kept", n)
+	}
+	ended, logs := runAgentJob(t, db, w, c.session)
+	if ended != river.EventKindJobCancelled || w.joined() != 1 || !strings.Contains(logs, "consent required") {
+		t.Errorf("transcription_join after the withdrawal ended %s with %d joins, want cancelled with 1:\n%s", ended, w.joined(), logs)
+	}
+}
+
 // NewAgent needs everything the agent works with.
 func TestNewAgent_NeedsItsDependencies(t *testing.T) {
 	t.Parallel()

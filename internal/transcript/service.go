@@ -35,19 +35,26 @@ type Consents interface {
 	State(ctx context.Context, patientID, organizationID string) (access.Consent, error)
 }
 
+// Sharing tells whether a clinic gives its patients a copy of their transcripts (organization.Service).
+type Sharing interface {
+	TranscriptCopy(ctx context.Context, organizationID string) (bool, error)
+}
+
 // Ports are the Service's dependencies.
 type Ports struct {
 	Repo       Repository
 	Stream     Stream
 	Encounters Encounters
 	Consents   Consents
+	Sharing    Sharing
 	Audit      Auditor
 	Tx         Transactor
 }
 
 // Service holds the transcript's rules (docs/plans/consult-intelligence.md): only final segments are stored,
 // once, and only while the patient's consent is active; only the encounter's practitioner, with that consent,
-// follows the encounter's stream and reads its transcript. Every write, read and refusal is audited.
+// follows the encounter's stream and reads its transcript, and its patient reads their copy of the transcript
+// while the clinic shares it (access.TranscriptCopy). Every write, read and refusal is audited.
 type Service struct{ Ports }
 
 // NewService returns a Service on its ports.
@@ -62,8 +69,9 @@ const entityName = "transcript_segment"
 // has only the event), in the encounter's clinic scope, and audits the write; a partial segment is only pushed
 // live and is ignored. It is idempotent: a segment stored already (the stream delivers at least once) is
 // neither stored nor audited again. ErrInvalid for an event the contract does not allow, ErrNotFound for an
-// encounter the clinic's scope does not show, and ErrConsentRequired, audited, once the patient's consent with
-// the clinic is no longer active, also for a consultation that started before the revocation.
+// encounter the clinic's scope does not show, and ErrConsentRequired, audited, once the patient's care or
+// transcription consent with the clinic is no longer active (access.Transcribed, SAL-12), also for a
+// consultation that started before the revocation.
 func (s *Service) Store(ctx context.Context, agent string, e Event) error {
 	if err := e.Validate(); err != nil {
 		return err
@@ -81,7 +89,7 @@ func (s *Service) Store(ctx context.Context, agent string, e Event) error {
 		switch {
 		case err != nil:
 			return err
-		case !consent.Active:
+		case !access.Transcribed(consent):
 			refused = ErrConsentRequired
 			return s.Audit.Record(ctx, systemEvent(agent, enc, auditevent.OutcomeMinorFailure, 0))
 		}

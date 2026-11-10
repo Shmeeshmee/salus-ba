@@ -116,6 +116,16 @@ audio.
 Interim choice (owner, 2026-11-09, pending this answer): the transcription agent joins and transcribes only while
 the patient's existing care consent with the clinic is active, the same consent that gives the clinic access to the
 encounter, and leaves the call as soon as it is withdrawn (SAL-4, [plan, Gates](../plans/consult-intelligence.md#gates-before-real-engines-are-wired-in)).
+Extended by the owner on 2026-11-10 (SAL-12, still pending this answer): the patient is also asked, in the app
+before the call, for a separate, granular and revocable consent to the transcription and translation of their
+consultations with the clinic and to AI assistance for the practitioner (suggestions, document drafts). The agent
+joins, and the transcript, the suggestions and the drafting run, only while both that consent and the care
+consent are active; a patient who declines has the call without the agent, and one who withdraws during the call
+stays in it while the agent leaves at once. The notice's wording, in all ten app languages, waits for the owner's
+and the doctor partner's approval, and for your review under Q17
+([consultation COPY](../consultation/COPY.md#transcription-consent-sal-12-draft-waiting-for-the-owner-the-doctor-partner-and-the-lawyer-q16)).
+If care alone is a sufficient basis, the second consent can stay as transparency or be dropped; if explicit
+consent is needed, this is it.
 The only engine enabled is a fake that sends audio nowhere; Azure AI Speech is built but not enabled.
 Sources: [consultation §7](../consultation/SPEC.md#7-up-next), [processors.md, pending](../privacy/processors.md#pending).
 

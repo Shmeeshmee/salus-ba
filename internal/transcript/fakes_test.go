@@ -172,6 +172,9 @@ func (e *fakeEncounters) Access(ctx context.Context, c appointment.Caller, id st
 	if ctx.Value(txKey{}) != nil && c.OrganizationID != "" {
 		e.f.scope = c.OrganizationID
 	}
+	if ctx.Value(txKey{}) != nil && c.OrganizationID == "" {
+		e.f.scope = "patient:" + c.PatientID
+	}
 	return got, att, nil
 }
 
@@ -192,6 +195,21 @@ func (c *fakeConsents) State(_ context.Context, patientID, org string) (access.C
 }
 
 // fakeAuditor records events; recording outside a transaction is an error.
+// fakeClinics answers whether clinic A shares its transcripts with its patients (copy), and counts the calls.
+type fakeClinics struct {
+	err   error
+	calls int
+	copy  bool
+}
+
+func (c *fakeClinics) TranscriptCopy(ctx context.Context, org string) (bool, error) {
+	if err := inTx(ctx); err != nil {
+		return false, err
+	}
+	c.calls++
+	return c.copy && org == clinicA, c.err
+}
+
 type fakeAuditor struct {
 	err    error
 	events []auditevent.AuditEvent
@@ -213,6 +231,7 @@ type fixture struct {
 	stream     *fakeStream
 	encounters *fakeEncounters
 	consents   *fakeConsents
+	clinics    *fakeClinics
 	audit      *fakeAuditor
 	svc        *transcript.Service
 	scope      string // the clinic the current transaction is scoped to
@@ -227,7 +246,7 @@ func newFixture() *fixture {
 		Status: encounter.StatusInProgress, PeriodStart: start,
 	}
 	appt := appointment.Appointment{ID: apptA, OrganizationID: clinicA, PatientID: patientA, PractitionerRoleID: roleA1, Start: start}
-	f := &fixture{stream: &fakeStream{entries: map[string][]transcript.Entry{}}, consents: &fakeConsents{state: access.Consent{Active: true}}, audit: &fakeAuditor{}}
+	f := &fixture{stream: &fakeStream{entries: map[string][]transcript.Entry{}}, consents: &fakeConsents{state: access.Consent{Active: true, Transcription: true}}, clinics: &fakeClinics{}, audit: &fakeAuditor{}}
 	f.repo = &fakeRepository{f: f, segments: map[string]transcript.Event{}}
 	f.encounters = &fakeEncounters{f: f, encounters: map[string]encounter.Encounter{encounterID: enc}, attendance: map[string]appointment.Attendance{
 		practAcc:  {Appointment: appt, Level: access.Full, ConsentActive: true, Practitioner: true},
@@ -236,7 +255,7 @@ func newFixture() *fixture {
 		accountA:  {Appointment: appt, Level: access.Full, ConsentActive: true, Patient: true},
 	}}
 	f.svc = transcript.NewService(transcript.Ports{
-		Repo: f.repo, Stream: f.stream, Encounters: f.encounters, Consents: f.consents, Audit: f.audit, Tx: fakeTransactor{f: f},
+		Repo: f.repo, Stream: f.stream, Encounters: f.encounters, Consents: f.consents, Sharing: f.clinics, Audit: f.audit, Tx: fakeTransactor{f: f},
 	})
 	return f
 }

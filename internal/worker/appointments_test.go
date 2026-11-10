@@ -17,6 +17,7 @@ import (
 	"github.com/riverqueue/river/rivertype"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
@@ -28,8 +29,8 @@ type booking struct {
 }
 
 // seedBooking creates, as the owner, the listed clinic with a practitioner, a schedule and two busy slots, a
-// patient (Ana Example, a fresh synthetic address) with an active consent, and their two appointments: one a
-// week ahead and one that started an hour ago.
+// patient (Ana Example, a fresh synthetic address) with an active consent and an active transcription consent
+// (SAL-12), and their two appointments: one a week ahead and one that started an hour ago.
 func seedBooking(t *testing.T, owner *pgxpool.Pool) booking {
 	t.Helper()
 	ctx := t.Context()
@@ -48,6 +49,10 @@ func seedBooking(t *testing.T, owner *pgxpool.Pool) booking {
 		p AS (INSERT INTO patient (account_id, given_name, family_name, birth_date) SELECT id, 'Ana', 'Example', '1990-01-01' FROM a RETURNING id)
 		INSERT INTO consent (patient_id, organization_id, status, date_time) SELECT id, $2, 'active', now() - interval '1 day' FROM p
 		RETURNING patient_id::text`, b.email, clinicID).Scan(&b.patient); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(ctx, `INSERT INTO transcription_consent (patient_id, organization_id, status, date_time)
+		VALUES ($1, $2, 'active', now() - interval '1 day')`, b.patient, clinicID); err != nil {
 		t.Fatal(err)
 	}
 	for _, x := range []struct {
@@ -172,6 +177,31 @@ func TestNotifier_SendsTheAppointmentEmailsToThePatient(t *testing.T) {
 	if err := owner.QueryRow(t.Context(), `SELECT count(*) FROM audit_event WHERE agent_name IN ('appointment_booked_email', 'appointment_reminder_email')
 		AND subtype_code = 'read' AND entity_reference LIKE 'PractitionerRole/%'`).Scan(&n); err != nil || n != 2 {
 		t.Errorf("%d audit events of the role's default read by the jobs (%v), want 2", n, err)
+	}
+}
+
+// SAL-17: the notifier sends the patient the e-mail that a document of their appointment is ready, which names
+// no document; an unknown appointment cancels the job.
+func TestNotifier_SendsTheDocumentSignedEmailToThePatient(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	b := seedBooking(t, owner)
+	args := composition.SignedEmailArgs{AppointmentID: b.past, OrganizationID: clinicID}
+	if state := runEmailJob(t, app, args); state != rivertype.JobStateCompleted {
+		t.Fatalf("job state %s, want completed", state)
+	}
+	text := mailpitText(t, b.email)
+	if !strings.Contains(text, "A document from your appointment at Synthetic clinic") || !strings.Contains(text, "https://patient.example.test/appointments") {
+		t.Errorf("the e-mail lacks the clinic or the link:\n%s", text)
+	}
+	for _, never := range []string{"Ana", "Cy", b.past} {
+		if strings.Contains(text, never) {
+			t.Errorf("the e-mail holds %q:\n%s", never, text)
+		}
+	}
+	unknown := composition.SignedEmailArgs{AppointmentID: "e9000000-0000-4000-8000-0000000000e9", OrganizationID: clinicID}
+	if state := runEmailJob(t, app, unknown); state != rivertype.JobStateCancelled {
+		t.Errorf("unknown appointment: job state %s, want cancelled", state)
 	}
 }
 

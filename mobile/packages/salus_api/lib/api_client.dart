@@ -232,6 +232,8 @@ class ApiClient {
           return ConfirmRequest.fromJson(value);
         case 'Consent':
           return Consent.fromJson(value);
+        case 'ConsentKind':
+          return ConsentKindTypeTransformer().decode(value);
         case 'ConsentList':
           return ConsentList.fromJson(value);
         case 'ConsultCommand':
@@ -318,6 +320,8 @@ class ApiClient {
           return RequestQuestionnaireRequest.fromJson(value);
         case 'Review':
           return Review.fromJson(value);
+        case 'ReviewDecision':
+          return ReviewDecision.fromJson(value);
         case 'ReviewStatus':
           return ReviewStatusTypeTransformer().decode(value);
         case 'RoleSpecialty':
@@ -364,12 +368,24 @@ class ApiClient {
           return TermCodes.fromJson(value);
         case 'TermExplanation':
           return TermExplanation.fromJson(value);
+        case 'TermExplanationEdit':
+          return TermExplanationEdit.fromJson(value);
         case 'TermLabels':
           return TermLabels.fromJson(value);
+        case 'TermLabelsEdit':
+          return TermLabelsEdit.fromJson(value);
         case 'TermLanguage':
           return TermLanguageTypeTransformer().decode(value);
         case 'TermList':
           return TermList.fromJson(value);
+        case 'TermReviewEntry':
+          return TermReviewEntry.fromJson(value);
+        case 'TermReviewPage':
+          return TermReviewPage.fromJson(value);
+        case 'TermReviewProgress':
+          return TermReviewProgress.fromJson(value);
+        case 'TermReviewProgressLanguagesInner':
+          return TermReviewProgressLanguagesInner.fromJson(value);
         case 'TermTranslation':
           return TermTranslation.fromJson(value);
         case 'Transcript':

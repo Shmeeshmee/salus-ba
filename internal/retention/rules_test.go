@@ -131,6 +131,18 @@ func TestRules_KeepConsentsWithTheClinicalRecord(t *testing.T) {
 	t.Fatal("no rule for consent")
 }
 
+func TestRules_KeepTranscriptionConsentsWithTheClinicalRecord(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "transcription_consent" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("transcription_consent then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for transcription_consent")
+}
+
 func TestRules_KeepAppointmentsWithTheClinicalRecord(t *testing.T) {
 	for _, r := range retention.Rules() {
 		if r.Table == "appointment" {
@@ -223,4 +235,18 @@ func TestRules_KeepTheTermListsReviewsWithTheirReviewer(t *testing.T) {
 	for table := range want {
 		t.Errorf("no rule for %s", table)
 	}
+}
+
+// The reviewer permission (00039) is kept while the operator grants it: revoking it, or deleting the account,
+// deletes the row.
+func TestRules_KeepTheReviewerPermissionWhileGranted(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "term_reviewer" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("term_reviewer then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Error("no rule for term_reviewer")
 }

@@ -133,3 +133,13 @@ export function ArrowIcon({ direction }: { direction: 'up' | 'down' }) {
     </svg>
   )
 }
+
+// A sheet with a tick: the term review.
+export function ReviewIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <rect x="4" y="3" width="12" height="14.5" rx="2" />
+      <path d="M7.5 10.5l2 2 3.5-4" />
+    </svg>
+  )
+}

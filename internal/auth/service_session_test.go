@@ -83,9 +83,9 @@ func TestLogin_GivesEachSessionItsOwnToken(t *testing.T) {
 
 func TestLogin_AsksForMFAAndOpensNoSessionUntilThen(t *testing.T) {
 	tests := []struct {
-		account auth.Account
 		name    string
 		want    auth.Next
+		account auth.Account
 	}{
 		{name: "staff not enrolled", account: staff(), want: auth.NextEnrol},
 		{name: "staff enrolled", account: enrolled(staff()), want: auth.NextVerify},

@@ -14,27 +14,44 @@ class GrantConsentRequest {
   /// Returns a new [GrantConsentRequest] instance.
   GrantConsentRequest({
     required this.organizationId,
+    this.kind,
   });
 
   /// The clinic the profile and appointments are shared with.
   String organizationId;
 
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  ConsentKind? kind;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is GrantConsentRequest && other.organizationId == organizationId;
+      other is GrantConsentRequest &&
+          other.organizationId == organizationId &&
+          other.kind == kind;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (organizationId.hashCode);
+      (organizationId.hashCode) + (kind == null ? 0 : kind!.hashCode);
 
   @override
-  String toString() => 'GrantConsentRequest[organizationId=$organizationId]';
+  String toString() =>
+      'GrantConsentRequest[organizationId=$organizationId, kind=$kind]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'organizationId'] = this.organizationId;
+    if (this.kind != null) {
+      json[r'kind'] = this.kind;
+    } else {
+      json[r'kind'] = null;
+    }
     return json;
   }
 
@@ -58,6 +75,7 @@ class GrantConsentRequest {
 
       return GrantConsentRequest(
         organizationId: mapValueOfType<String>(json, r'organizationId')!,
+        kind: ConsentKind.fromJson(json[r'kind']),
       );
     }
     return null;

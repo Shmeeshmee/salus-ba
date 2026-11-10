@@ -773,7 +773,8 @@ turned off.
 launch. iOS shows the approved `NSCameraUsageDescription` and `NSMicrophoneUsageDescription`; Android shows the
 approved explanation (M35) before the system prompt. A refusal is respected: the patient can still join with
 what remains, and the app offers the device settings. "The consultation is not recorded" is true while
-ADR 0006 holds and must change if recording is ever added.
+ADR 0006 holds and must change if recording is ever added. Changed by SAL-12 (draft): "not recorded as audio or
+video", and, with the patient's agreement, what is said is transcribed and translated.
 
 **Risks and measures.**
 
@@ -901,7 +902,36 @@ the practitioner's web app has these panels; the patient app has none.
 | A document signed with what the conversation did not cover | Fields the draft could not fill are flagged; signing always asks to confirm and says how many fields are empty |
 
 **Open (follow-up ticket).** The patient's notice at the start of the call that it is transcribed (web and
-mobile), out of SAL-9's scope by the owner's decision of 2026-11-09.
+mobile), out of SAL-9's scope by the owner's decision of 2026-11-09. Built by SAL-12 (below).
+
+### SAL-12: the patient's transcription consent
+
+**Processing changed.** Transcription, translation and AI assistance (the agent in the call, the stored
+transcript, the suggestions, the drafting) now rest on a separate, granular, revocable FHIR `Consent` per
+patient and clinic as well as the care consent (owner, 2026-11-10, `docs/plans/v1-finish.md` "Decisions",
+pending `docs/legal/BRIEF.md` Q16). The patient app asks before every call while it is not active: what is
+transcribed and translated, the AI assistance for the practitioner (suggestions and document drafts, checked by
+the practitioner), where the transcript is kept, that nothing is recorded as audio or video, what declining does,
+and how to withdraw (`docs/consultation/COPY.md` M37 to M48, a draft waiting for the owner, the doctor partner and
+the lawyer). No processor is named: the engines are fakes and the real ones are not enabled.
+
+**Personal data added.** `transcription_consent` (migration 00040): the patient, the clinic, when it was given,
+when it was withdrawn, its status and version. Needed as the proof of the patient's decision (Art. 7(1)) and for
+the agent's, the suggestions' and the drafting's check; kept with the clinical record like `consent` (retention
+`keep`, needs a legal decision before production). Row-level security as `consent`: the patient's own scope
+reads and writes it, the clinic's reads the ones given to it. Every grant, withdrawal and read is audited
+(`Consent/<id>`), as for the care consent.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The agent joins a patient who did not agree | The webhook enqueues no `transcription_join` without both consents; `AgentJoin` refuses; the agent asks again once connected (unit, worker, api and e2e tests) |
+| The agent stays after a withdrawal | The withdrawal's `transcription_consent_revoked` job removes it at once from every open room of the patient with the clinic; the agent's own check refuses from the commit (unit, worker and e2e tests) |
+| Lines, suggestions or drafts made after a withdrawal | `transcript.Store`, the suggestions' record and run, and the drafting check both consents before each write or model call (unit tests); the stored transcript stays, as said in the notice |
+| A withdrawal that costs the patient their consultation or appointments | It removes only the agent: the call, the care consent and the appointments stay (e2e test) |
+| A care consent re-granted bringing transcription back without asking | A care revocation ends the transcription consent in the same transaction; it is asked again before the next call |
+| The patient not knowing transcription is on | The badge M36 stays while the agent is in the room, and is the way to stop it |
 
 ## Questionnaires (`docs/questionnaire`)
 
@@ -1505,3 +1535,70 @@ the object unreadable). An object whose commit failed is unreadable and not yet 
 | Field values or transcript text in logs | Logs carry ids and the error only; errors name field keys, never values (tested for a publish failure) |
 | The PDF readable from the object store | Encrypted with a per-file key wrapped by the KEK; the store sees ciphertext only |
 | Patient text to a hosted model without a DPA | Only the fake is wired; SAL-5's adapter is off by default and gated on its DPA |
+
+### SAL-17: the patient's signed documents and transcript copy
+
+**Processing added.** No new personal data is collected. The patient reads what is already kept about their own
+consultations: the signed documents (Composition, DocumentReference, Provenance, the PDF) and, while their clinic
+shares it, the stored transcript. A signature enqueues an e-mail job (appointment and clinic ids) and the notifier
+tells the patient a document is ready. The clinic's setting `organization.patient_transcript_copy` is not personal
+data.
+
+**Purpose and lawful basis.** The patient's right of access to their own record (Art. 15) and the care itself
+(Art. 9(2)(h)). The e-mail is part of the care service, as the appointment e-mails are.
+
+**Access.** `access.SignedDocument`: the encounter's patient, whatever the consent, signed documents only; the
+practitioner as before. `access.TranscriptCopy`: the encounter's patient while the clinic shares transcripts. Both
+in the patient's own scope: row-level security (`document_draft_own`, `transcript_segment_own`, migration 00038)
+shows them only their own encounters' rows, final documents only.
+
+**Audit.** Every search, read and PDF download by the patient, and every refusal, with purpose `PATRQT`; the
+e-mail job's reads with the job as agent, as the appointment e-mails.
+
+**Retention.** Unchanged. A PDF the patient shares leaves the app on their own decision; the app's temporary copy is
+deleted when the share sheet closes and swept at the next start.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A draft shown to the patient as if final | Row-level security shows the patient's scope final rows only; the service refuses a non-final one as not found (tested in the repository, the service, the API and the migration) |
+| Another patient's document or transcript | The patient's scope matches the encounter's patient (tested) |
+| Clinical content in the e-mail | The template names the clinic, the date and the link only (tested in every language) |
+| A copy of the PDF left on the device | Written under `salus-document-*` in the temporary directory, deleted after the share, swept at start with share_plus's own copy |
+| The transcript shown when the clinic does not share it | Checked in the service on every read (tested); off by default |
+
+## Medical terminology (`docs/terminology`)
+
+### SAL-14: the review panel
+
+**Personal data.** Staff data only, no patient data. `term_reviewer` (00039) holds the account id of each staff
+member the operator made a reviewer of the term list, and when. `term.reviewed_by`, `term_translation.reviewed_by` and
+`term_explanation.reviewed_by` (00037) hold the account id of the reviewer who last approved an entry or marked it as
+needing changes, with the time. The panel's labels, explanations and notes are reference data about medical terms;
+the notes are the reviewer's, about a term, and the panel says nothing of a patient.
+
+**Purpose and lawful basis.** Accountability for the medical term list every clinic works with (Art. 5(2), Art.
+6(1)(f)): who approved or flagged an entry. The permission itself is part of the contract with the staff member's
+clinic (Art. 6(1)(b)).
+
+**Access.** Every staff member reads the queue and the progress; only a reviewer writes. The permission is granted
+and revoked only by the operator (`salusctl term-reviewer grant|revoke`), never by a clinic admin; `salus_app` can read
+`term_reviewer` but not write it (tested), so no request to the API can grant it.
+
+**Audit.** Every edit, approval and request for changes is an `AuditEvent` with the reviewer as the agent and
+`entity.name` `term_translation` or `term_explanation` (as the document templates are audited, the term list being no
+FHIR resource), in the write's transaction; a write refused to a non-reviewer is audited as a minor failure. A grant
+or revocation is audited with salusctl as the agent and `Account/<id>` as the entity.
+
+**Retention.** `term_reviewer` is `keep` while granted: revoking deletes the row, and so does deleting the account
+(foreign key). The `reviewed_by` columns are `keep` with the term, the reference cleared with the account's erasure
+(subject-rights feature).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A clinic admin or a bug grants the permission | `salus_app` has no write on `term_reviewer`; only salusctl, as the owner, writes it (tested) |
+| A reviewer's edit reaches every clinic unseen | An edit sets the entry back to unreviewed (the cheatsheet marks it "Not reviewed yet"), and every write is audited |
+| Patient data typed into a label, an explanation or a note | The panel asks for terms and plain-language text about them; no log line carries a label, an explanation or a note |

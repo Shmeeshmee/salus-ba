@@ -1,0 +1,8 @@
+Randevunuza ait bir belge hazır
+
+Randevunuza ait bir belge hazır.
+Klinik: {{.Clinic}}
+Tarih ve saat: {{.When}}
+
+Belgeyi okumak için Salus uygulamasını açın:
+{{.Link}}

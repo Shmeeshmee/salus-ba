@@ -84,6 +84,20 @@ func (q *Queries) DeleteLabels(ctx context.Context, termID pgtype.UUID) error {
 	return err
 }
 
+const deleteLabelsIn = `-- name: DeleteLabelsIn :exec
+DELETE FROM term_label WHERE term_id = $1 AND language = $2::term_language
+`
+
+type DeleteLabelsInParams struct {
+	TermID   pgtype.UUID
+	Language TermLanguage
+}
+
+func (q *Queries) DeleteLabelsIn(ctx context.Context, arg DeleteLabelsInParams) error {
+	_, err := q.db.Exec(ctx, deleteLabelsIn, arg.TermID, arg.Language)
+	return err
+}
+
 const glossaryTerms = `-- name: GlossaryTerms :many
 WITH found AS (
     SELECT DISTINCT ON (l.term_id) l.term_id, l.label
@@ -248,6 +262,292 @@ func (q *Queries) ListTerms(ctx context.Context, arg ListTermsParams) ([]ListTer
 	return items, nil
 }
 
+const lockTerm = `-- name: LockTerm :one
+SELECT review_status, reviewed_at, reviewed_by FROM term WHERE id = $1 FOR UPDATE
+`
+
+type LockTermRow struct {
+	ReviewStatus string
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+}
+
+// A review write holds the term until it commits, so two reviewers' writes of one term run one after the other.
+func (q *Queries) LockTerm(ctx context.Context, id pgtype.UUID) (LockTermRow, error) {
+	row := q.db.QueryRow(ctx, lockTerm, id)
+	var i LockTermRow
+	err := row.Scan(&i.ReviewStatus, &i.ReviewedAt, &i.ReviewedBy)
+	return i, err
+}
+
+const putExplanation = `-- name: PutExplanation :exec
+INSERT INTO term_explanation (term_id, language, updated_at, reviewed_at, reviewed_by, version_id, review_status, note, text)
+VALUES ($1, $2::term_language, $3, $4, $5, $6,
+        $7::text, $8, $9)
+ON CONFLICT (term_id, language) DO UPDATE
+SET updated_at = excluded.updated_at, reviewed_at = excluded.reviewed_at, reviewed_by = excluded.reviewed_by,
+    version_id = excluded.version_id, review_status = excluded.review_status, note = excluded.note, text = excluded.text
+`
+
+type PutExplanationParams struct {
+	TermID       pgtype.UUID
+	Language     TermLanguage
+	UpdatedAt    pgtype.Timestamptz
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	VersionID    int32
+	ReviewStatus string
+	Note         pgtype.Text
+	Text         string
+}
+
+func (q *Queries) PutExplanation(ctx context.Context, arg PutExplanationParams) error {
+	_, err := q.db.Exec(ctx, putExplanation,
+		arg.TermID,
+		arg.Language,
+		arg.UpdatedAt,
+		arg.ReviewedAt,
+		arg.ReviewedBy,
+		arg.VersionID,
+		arg.ReviewStatus,
+		arg.Note,
+		arg.Text,
+	)
+	return err
+}
+
+const putTranslation = `-- name: PutTranslation :exec
+INSERT INTO term_translation (term_id, language, updated_at, reviewed_at, reviewed_by, version_id, review_status, note)
+VALUES ($1, $2::term_language, $3, $4, $5, $6,
+        $7::text, $8)
+ON CONFLICT (term_id, language) DO UPDATE
+SET updated_at = excluded.updated_at, reviewed_at = excluded.reviewed_at, reviewed_by = excluded.reviewed_by,
+    version_id = excluded.version_id, review_status = excluded.review_status, note = excluded.note
+`
+
+type PutTranslationParams struct {
+	TermID       pgtype.UUID
+	Language     TermLanguage
+	UpdatedAt    pgtype.Timestamptz
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	VersionID    int32
+	ReviewStatus string
+	Note         pgtype.Text
+}
+
+func (q *Queries) PutTranslation(ctx context.Context, arg PutTranslationParams) error {
+	_, err := q.db.Exec(ctx, putTranslation,
+		arg.TermID,
+		arg.Language,
+		arg.UpdatedAt,
+		arg.ReviewedAt,
+		arg.ReviewedBy,
+		arg.VersionID,
+		arg.ReviewStatus,
+		arg.Note,
+	)
+	return err
+}
+
+const reviewProgress = `-- name: ReviewProgress :many
+SELECT l.language::text AS language, count(*)::integer AS terms,
+       (count(*) FILTER (WHERE s.status_order = 2))::integer AS approved,
+       (count(*) FILTER (WHERE s.status_order = 1))::integer AS needs_changes
+FROM term t
+CROSS JOIN unnest(enum_range(NULL::term_language)) AS l(language)
+LEFT JOIN term_translation tr ON tr.term_id = t.id AND tr.language = l.language
+LEFT JOIN term_explanation ex ON ex.term_id = t.id AND ex.language = l.language
+CROSS JOIN LATERAL (
+    SELECT CASE WHEN tr.review_status = 'needs_changes' OR ex.review_status = 'needs_changes' THEN 1
+                WHEN tr.term_id IS NULL OR tr.review_status = 'unreviewed' OR ex.review_status = 'unreviewed' THEN 0
+                ELSE 2 END AS status_order
+) s
+GROUP BY l.language
+ORDER BY l.language
+`
+
+type ReviewProgressRow struct {
+	Language     string
+	Terms        int32
+	Approved     int32
+	NeedsChanges int32
+}
+
+// Per language, every term and how many of its entries there are approved (2) or need changes (1), as ReviewQueue.
+func (q *Queries) ReviewProgress(ctx context.Context) ([]ReviewProgressRow, error) {
+	rows, err := q.db.Query(ctx, reviewProgress)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ReviewProgressRow
+	for rows.Next() {
+		var i ReviewProgressRow
+		if err := rows.Scan(
+			&i.Language,
+			&i.Terms,
+			&i.Approved,
+			&i.NeedsChanges,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const reviewQueue = `-- name: ReviewQueue :many
+
+WITH entries AS (
+    SELECT t.id, t.reviewed_at, t.rank, t.category, t.review_status, t.wikidata_id, t.icd10, t.ta98, t.atc, t.pcs,
+           tr.term_id IS NOT NULL AS has_translation, tr.updated_at AS tr_updated_at, tr.reviewed_at AS tr_reviewed_at,
+           tr.reviewed_by AS tr_reviewed_by, tr.version_id AS tr_version_id, tr.review_status AS tr_status, tr.note AS tr_note,
+           ex.term_id IS NOT NULL AS has_explanation, ex.updated_at AS ex_updated_at, ex.reviewed_at AS ex_reviewed_at,
+           ex.reviewed_by AS ex_reviewed_by, ex.version_id AS ex_version_id, ex.review_status AS ex_status, ex.note AS ex_note,
+           ex.text AS ex_text,
+           CASE WHEN tr.review_status = 'needs_changes' OR ex.review_status = 'needs_changes' THEN 1
+                WHEN tr.term_id IS NULL OR tr.review_status = 'unreviewed' OR ex.review_status = 'unreviewed' THEN 0
+                ELSE 2 END AS status_order
+    FROM term t
+    LEFT JOIN term_translation tr ON tr.term_id = t.id AND tr.language = $1::term_language
+    LEFT JOIN term_explanation ex ON ex.term_id = t.id AND ex.language = $1::term_language
+), page AS (
+    SELECT id, reviewed_at, rank, category, review_status, wikidata_id, icd10, ta98, atc, pcs, has_translation, tr_updated_at, tr_reviewed_at, tr_reviewed_by, tr_version_id, tr_status, tr_note, has_explanation, ex_updated_at, ex_reviewed_at, ex_reviewed_by, ex_version_id, ex_status, ex_note, ex_text, status_order FROM entries e
+    WHERE ($2::integer IS NULL OR e.status_order = $2::integer)
+      AND ($3::uuid IS NULL
+           OR e.status_order > $4::integer
+           OR (e.status_order = $4::integer
+               AND (e.rank < $5::integer OR (e.rank = $5::integer AND e.id > $3::uuid))))
+    ORDER BY e.status_order, e.rank DESC, e.id
+    LIMIT $6
+)
+SELECT p.id, p.reviewed_at, p.rank, p.category, p.review_status, p.wikidata_id, p.icd10, p.ta98, p.atc, p.pcs,
+       p.has_translation::boolean AS has_translation, p.tr_updated_at, p.tr_reviewed_at, p.tr_reviewed_by,
+       p.tr_version_id, coalesce(p.tr_status, '')::text AS tr_status, p.tr_note,
+       p.has_explanation::boolean AS has_explanation, p.ex_updated_at, p.ex_reviewed_at, p.ex_reviewed_by,
+       p.ex_version_id, coalesce(p.ex_status, '')::text AS ex_status, p.ex_note, p.ex_text,
+       p.status_order::integer AS status_order,
+       coalesce(l.languages, '{}')::text[] AS label_languages,
+       coalesce(l.labels, '{}')::text[] AS labels,
+       coalesce(l.preferred, '{}')::boolean[] AS label_preferred
+FROM page p
+CROSS JOIN LATERAL (
+    SELECT array_agg(language::text ORDER BY language, preferred DESC, label) AS languages,
+           array_agg(label ORDER BY language, preferred DESC, label) AS labels,
+           array_agg(preferred ORDER BY language, preferred DESC, label) AS preferred
+    FROM term_label
+    WHERE term_id = p.id AND (language = $1::term_language OR language IN ('la', 'en'))
+) l
+ORDER BY p.status_order, p.rank DESC, p.id
+`
+
+type ReviewQueueParams struct {
+	Language    TermLanguage
+	StatusOrder pgtype.Int4
+	AfterID     pgtype.UUID
+	AfterOrder  int32
+	AfterRank   int32
+	MaxEntries  int32
+}
+
+type ReviewQueueRow struct {
+	ID             pgtype.UUID
+	ReviewedAt     pgtype.Timestamptz
+	Rank           int32
+	Category       TermCategory
+	ReviewStatus   string
+	WikidataID     pgtype.Text
+	Icd10          pgtype.Text
+	Ta98           pgtype.Text
+	Atc            pgtype.Text
+	Pcs            pgtype.Text
+	HasTranslation bool
+	TrUpdatedAt    pgtype.Timestamptz
+	TrReviewedAt   pgtype.Timestamptz
+	TrReviewedBy   pgtype.UUID
+	TrVersionID    pgtype.Int4
+	TrStatus       string
+	TrNote         pgtype.Text
+	HasExplanation bool
+	ExUpdatedAt    pgtype.Timestamptz
+	ExReviewedAt   pgtype.Timestamptz
+	ExReviewedBy   pgtype.UUID
+	ExVersionID    pgtype.Int4
+	ExStatus       string
+	ExNote         pgtype.Text
+	ExText         pgtype.Text
+	StatusOrder    int32
+	LabelLanguages []string
+	Labels         []string
+	LabelPreferred []bool
+}
+
+// The review panel (SAL-14), on the app's connection: docs/terminology/SPEC.md §3 "Review".
+// An entry per term in the language: status_order 0 unreviewed (no translation, or the translation or the
+// explanation unreviewed), 1 needs_changes (either needs changes), 2 approved; an explanation that does not exist
+// does not count. A page by status, rank descending and id, after the keyset (after_order, after_rank, after_id)
+// when after_id is set; each entry with its labels in the language, Latin and English.
+func (q *Queries) ReviewQueue(ctx context.Context, arg ReviewQueueParams) ([]ReviewQueueRow, error) {
+	rows, err := q.db.Query(ctx, reviewQueue,
+		arg.Language,
+		arg.StatusOrder,
+		arg.AfterID,
+		arg.AfterOrder,
+		arg.AfterRank,
+		arg.MaxEntries,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ReviewQueueRow
+	for rows.Next() {
+		var i ReviewQueueRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReviewedAt,
+			&i.Rank,
+			&i.Category,
+			&i.ReviewStatus,
+			&i.WikidataID,
+			&i.Icd10,
+			&i.Ta98,
+			&i.Atc,
+			&i.Pcs,
+			&i.HasTranslation,
+			&i.TrUpdatedAt,
+			&i.TrReviewedAt,
+			&i.TrReviewedBy,
+			&i.TrVersionID,
+			&i.TrStatus,
+			&i.TrNote,
+			&i.HasExplanation,
+			&i.ExUpdatedAt,
+			&i.ExReviewedAt,
+			&i.ExReviewedBy,
+			&i.ExVersionID,
+			&i.ExStatus,
+			&i.ExNote,
+			&i.ExText,
+			&i.StatusOrder,
+			&i.LabelLanguages,
+			&i.Labels,
+			&i.LabelPreferred,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchTerms = `-- name: SearchTerms :many
 WITH folded AS MATERIALIZED (
     SELECT l.term_id, l.language, term_fold(l.label) AS label
@@ -353,6 +653,198 @@ func (q *Queries) SearchTerms(ctx context.Context, arg SearchTermsParams) ([]Sea
 			&i.LabelLanguages,
 			&i.Labels,
 			&i.LabelPreferred,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setTermReview = `-- name: SetTermReview :exec
+UPDATE term
+SET review_status = $1::text, reviewed_at = $2, reviewed_by = $3,
+    updated_at = $4
+WHERE id = $5
+`
+
+type SetTermReviewParams struct {
+	ReviewStatus string
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	UpdatedAt    pgtype.Timestamptz
+	ID           pgtype.UUID
+}
+
+func (q *Queries) SetTermReview(ctx context.Context, arg SetTermReviewParams) error {
+	_, err := q.db.Exec(ctx, setTermReview,
+		arg.ReviewStatus,
+		arg.ReviewedAt,
+		arg.ReviewedBy,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
+const setTranslationsStatus = `-- name: SetTranslationsStatus :exec
+UPDATE term_translation
+SET review_status = $1::text, reviewed_by = NULL,
+    reviewed_at = CASE WHEN $1::text = 'unreviewed' THEN reviewed_at ELSE $2::timestamptz END,
+    version_id = version_id + 1, updated_at = $2::timestamptz
+WHERE term_id = $3
+`
+
+type SetTranslationsStatusParams struct {
+	ReviewStatus string
+	At           pgtype.Timestamptz
+	TermID       pgtype.UUID
+}
+
+// The curator's file sets one status per term: every translation's, with no reviewer (the file names no one).
+func (q *Queries) SetTranslationsStatus(ctx context.Context, arg SetTranslationsStatusParams) error {
+	_, err := q.db.Exec(ctx, setTranslationsStatus, arg.ReviewStatus, arg.At, arg.TermID)
+	return err
+}
+
+const syncTranslations = `-- name: SyncTranslations :exec
+WITH gone AS (
+    DELETE FROM term_translation tr
+    WHERE tr.term_id = $1
+      AND NOT EXISTS (SELECT FROM term_label l WHERE l.term_id = tr.term_id AND l.language = tr.language)
+)
+INSERT INTO term_translation (term_id, language, review_status, reviewed_at)
+SELECT DISTINCT l.term_id, l.language, t.review_status, t.reviewed_at
+FROM term_label l JOIN term t ON t.id = l.term_id
+WHERE l.term_id = $1
+ON CONFLICT (term_id, language) DO NOTHING
+`
+
+// A term has a translation in exactly the languages it has labels in (docs/terminology/SPEC.md §3 "Review"): one
+// for a language without one, with the term's status and date, and none for a language left without labels.
+func (q *Queries) SyncTranslations(ctx context.Context, termID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, syncTranslations, termID)
+	return err
+}
+
+const termExplanationIn = `-- name: TermExplanationIn :many
+SELECT updated_at, reviewed_at, reviewed_by, version_id, review_status, note, text
+FROM term_explanation WHERE term_id = $1 AND language = $2::term_language
+`
+
+type TermExplanationInParams struct {
+	TermID   pgtype.UUID
+	Language TermLanguage
+}
+
+type TermExplanationInRow struct {
+	UpdatedAt    pgtype.Timestamptz
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	VersionID    int32
+	ReviewStatus string
+	Note         pgtype.Text
+	Text         string
+}
+
+func (q *Queries) TermExplanationIn(ctx context.Context, arg TermExplanationInParams) ([]TermExplanationInRow, error) {
+	rows, err := q.db.Query(ctx, termExplanationIn, arg.TermID, arg.Language)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TermExplanationInRow
+	for rows.Next() {
+		var i TermExplanationInRow
+		if err := rows.Scan(
+			&i.UpdatedAt,
+			&i.ReviewedAt,
+			&i.ReviewedBy,
+			&i.VersionID,
+			&i.ReviewStatus,
+			&i.Note,
+			&i.Text,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const termLabelsIn = `-- name: TermLabelsIn :many
+SELECT label, preferred FROM term_label WHERE term_id = $1 AND language = $2::term_language
+ORDER BY preferred DESC, label
+`
+
+type TermLabelsInParams struct {
+	TermID   pgtype.UUID
+	Language TermLanguage
+}
+
+type TermLabelsInRow struct {
+	Label     string
+	Preferred bool
+}
+
+func (q *Queries) TermLabelsIn(ctx context.Context, arg TermLabelsInParams) ([]TermLabelsInRow, error) {
+	rows, err := q.db.Query(ctx, termLabelsIn, arg.TermID, arg.Language)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TermLabelsInRow
+	for rows.Next() {
+		var i TermLabelsInRow
+		if err := rows.Scan(&i.Label, &i.Preferred); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const termTranslations = `-- name: TermTranslations :many
+SELECT language::text AS language, updated_at, reviewed_at, reviewed_by, version_id, review_status, note
+FROM term_translation WHERE term_id = $1 ORDER BY term_translation.language
+`
+
+type TermTranslationsRow struct {
+	Language     string
+	UpdatedAt    pgtype.Timestamptz
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	VersionID    int32
+	ReviewStatus string
+	Note         pgtype.Text
+}
+
+func (q *Queries) TermTranslations(ctx context.Context, termID pgtype.UUID) ([]TermTranslationsRow, error) {
+	rows, err := q.db.Query(ctx, termTranslations, termID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TermTranslationsRow
+	for rows.Next() {
+		var i TermTranslationsRow
+		if err := rows.Scan(
+			&i.Language,
+			&i.UpdatedAt,
+			&i.ReviewedAt,
+			&i.ReviewedBy,
+			&i.VersionID,
+			&i.ReviewStatus,
+			&i.Note,
 		); err != nil {
 			return nil, err
 		}

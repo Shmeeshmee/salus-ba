@@ -20,13 +20,21 @@ func NewRiverJobs(client *river.Client[pgx.Tx]) Jobs {
 }
 
 func (j *riverJobs) EnqueueConsentRevoked(ctx context.Context, patientID, organizationID string) error {
+	return j.insert(ctx, RevokedArgs{PatientID: patientID, OrganizationID: organizationID})
+}
+
+func (j *riverJobs) EnqueueTranscriptionRevoked(ctx context.Context, patientID, organizationID string) error {
+	return j.insert(ctx, TranscriptionRevokedArgs{PatientID: patientID, OrganizationID: organizationID})
+}
+
+// insert enqueues args in the transaction in ctx.
+func (j *riverJobs) insert(ctx context.Context, args river.JobArgs) error {
 	tx, ok := postgres.Tx(ctx)
 	if !ok {
 		return postgres.ErrNoTx
 	}
-	args := RevokedArgs{PatientID: patientID, OrganizationID: organizationID}
 	if _, err := j.client.InsertTx(ctx, tx, args, nil); err != nil {
-		return fmt.Errorf("consent: enqueue consent_revoked: %w", err)
+		return fmt.Errorf("consent: enqueue %s: %w", args.Kind(), err)
 	}
 	return nil
 }

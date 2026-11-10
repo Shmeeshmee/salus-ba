@@ -34,8 +34,10 @@ tables:
   term: {owner: terminology, personal_data: true} # reviewed_by, the reviewer's account (00037)
   term_explanation: {owner: terminology, personal_data: true} # reviewed_by
   term_label: {owner: terminology, personal_data: false}
+  term_reviewer: {owner: auth, personal_data: true} # the reviewer permission of a staff account (00039)
   term_translation: {owner: terminology, personal_data: true} # reviewed_by
   transcript_segment: {owner: transcript, personal_data: true}
+  transcription_consent: {owner: consent, personal_data: true}
   video_session: {owner: videosession, personal_data: true}
   river_job: {owner: river}
   river_leader: {owner: river}

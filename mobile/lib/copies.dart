@@ -5,7 +5,8 @@ import 'dart:io';
 // directory on Android (`<data>/cache`, `<data>/cache/<uuid>/`, `<data>/cache/file_picker/<stamp>/`), while
 // Directory.systemTemp is often `<data>/code_cache` beside it; on iOS into `tmp` (`image_picker_*`, `<UUID>/`).
 // The conversion writes `salus-converted-*` and file_prep.dart `salus-upload-*`. A copy is deleted once its upload
-// ends, and what an earlier run left (the app stopped mid-upload) is swept at start. A file outside these
+// ends, and what an earlier run left (the app stopped mid-upload) is swept at start. A signed document shared from
+// the app goes through `salus-document-*`, and share_plus copies it into `<cache>/share_plus/` on Android, swept too. A file outside these
 // directories is the patient's own and is never touched. path_provider is not a dependency of the app, so the
 // directories are derived from Directory.systemTemp. Nothing here logs.
 
@@ -58,9 +59,9 @@ Future<void> forgetCopy(String path, Directory temp) async {
 }
 
 /// What the pickers and the app name their copies: `salus-*`, image_picker's `image_picker_*` (iOS) and `scaled_*`,
-/// file_picker's folder (Android), and the UUID-named files and folders both write.
+/// file_picker's and share_plus's folders (Android), and the UUID-named files and folders both write.
 final _copyName = RegExp(
-  r'^(salus-|image_picker|scaled_|file_picker$|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})',
+  r'^(salus-|image_picker|scaled_|file_picker$|share_plus$|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})',
   caseSensitive: false,
 );
 
