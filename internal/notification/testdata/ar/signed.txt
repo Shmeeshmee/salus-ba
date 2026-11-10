@@ -1,0 +1,7 @@
+Subject: مستند من موعدك جاهز
+
+مستند من موعدك في Synthetic clinic جاهز.
+التاريخ والوقت: الاثنين 7 يناير 2030، الساعة 10:00 (Europe/Sarajevo)
+
+لقراءته، افتح تطبيق Salus:
+https://patient.example.test/appointments

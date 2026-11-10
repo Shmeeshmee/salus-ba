@@ -1657,9 +1657,10 @@ paths:
       summary: The consultation's stored transcript
       description: >-
         Every final segment of the encounter's transcript, in the order it was said, with its translation, as
-        `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent
-        only; the patient's own copy comes with the export feature. Not cached. Audited as a read with the
-        number of segments, also when refused.
+        `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent,
+        and for the encounter's patient (their copy, whatever the consent) while the clinic shares transcripts
+        with its patients (the Organization's organization-patient-transcript-copy extension, off by default).
+        Not cached. Audited as a read with the number of segments, also when refused.
       tags: [consultation]
       security:
         - sessionCookie: []
@@ -1679,7 +1680,8 @@ paths:
         "403":
           description: >-
             `consent_required`: the encounter's practitioner after the patient revoked their consent;
-            `forbidden`: anyone else who sees the encounter.
+            `forbidden`: the patient while the clinic does not share transcripts, and anyone else who sees the
+            encounter.
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -1958,8 +1960,9 @@ paths:
       summary: A signed document's PDF
       description: >-
         The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a
-        download. For the encounter's practitioner with the patient's active consent only. Audited as a read of
-        the DocumentReference, also when refused.
+        download. For the encounter's practitioner with the patient's active consent, and for the encounter's
+        patient whatever the consent (their own record). Audited as a read of the DocumentReference, also when
+        refused.
       tags: [documents]
       security:
         - sessionCookie: []
@@ -2361,6 +2364,320 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /terminology/review:
+    get:
+      operationId: listTermReview
+      summary: The review queue of the medical terms in one language
+      description: >-
+        The review panel's queue (docs/terminology/SPEC.md §3 "Review"): one entry per term in the language, with
+        the term's labels in that language, Latin and English, the review of those labels (the translation) and the
+        term's explanation in that language. An entry's status is `needs_changes` when its translation or its
+        explanation needs changes, else `unreviewed` when the term has no label in the language yet or either is
+        unreviewed, else `approved` (an explanation that does not exist yet does not count). Unreviewed entries
+        first, then those that need changes, then the approved ones, each the more common term first. Every staff
+        member reads; only a reviewer writes. Not audited: reference data, no patient data.
+      tags: [terminology]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - name: language
+          in: query
+          required: true
+          schema: {$ref: "#/components/schemas/TermLanguage"}
+        - name: status
+          in: query
+          required: false
+          description: Only entries with this status; any when absent.
+          schema: {$ref: "#/components/schemas/ReviewStatus"}
+        - name: after
+          in: query
+          required: false
+          description: The `next` of the page before; the first page when absent.
+          schema: {type: string, maxLength: 200}
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, format: int32, minimum: 1, maximum: 100, default: 25}
+      responses:
+        "200":
+          description: The page of the queue.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TermReviewPage"}
+        "400":
+          description: "`invalid_request`: a missing or unknown language, an unknown status, a limit outside 1 to 100 or an unreadable `after`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: the caller is not staff of a clinic (a patient)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /terminology/review/progress:
+    get:
+      operationId: getTermReviewProgress
+      summary: How far the review is in each language
+      description: >-
+        Per term language, how many terms there are and how many of their entries in that language are approved
+        or need changes (statuses as in listTermReview). Staff only. Not audited.
+      tags: [terminology]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: One row per language, in the enum's order.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TermReviewProgress"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: the caller is not staff of a clinic (a patient)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /terminology/terms/{id}/translations/{language}:
+    parameters:
+      - $ref: "#/components/parameters/TermID"
+      - name: language
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/TermLanguage"}
+    put:
+      operationId: editTermTranslation
+      summary: Edit a term's labels in one language
+      description: >-
+        Replaces the term's preferred label and synonyms in the language. If-Match is the translation's version
+        read, `W/"0"` when the term has no label in the language yet. A change sets the translation to `unreviewed`,
+        an approved one included, and keeps its last review; the same labels again change nothing. The term's own
+        status follows its translations (docs/terminology/SPEC.md §3 "Review"). Reviewers only. Audited.
+      tags: [terminology]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/TermLabelsEdit"}
+      responses:
+        "200":
+          description: The translation as stored.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TermTranslation"}
+        "400":
+          description: "`invalid_request`: no or an unreadable If-Match, or labels that are blank, repeated, longer than 300 characters, hold `|` or are more than 20."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: the caller is not a reviewer; `csrf`: a write with the session cookie and no `X-Salus-CSRF: 1`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such term."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_conflict`: the translation changed since it was read."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /terminology/terms/{id}/translations/{language}/review:
+    parameters:
+      - $ref: "#/components/parameters/TermID"
+      - name: language
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/TermLanguage"}
+    post:
+      operationId: reviewTermTranslation
+      summary: Approve a term's labels in one language, or mark them as needing changes
+      description: >-
+        Sets the translation's status with the reviewer as `reviewedBy`, now as `reviewedAt` and the note (needed
+        for `needs_changes`, optional for `approved`, cleared when absent). If-Match is the version read. Reviewers
+        only. Audited.
+      tags: [terminology]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewDecision"}
+      responses:
+        "200":
+          description: The translation as stored.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TermTranslation"}
+        "400":
+          description: "`invalid_request`: no or an unreadable If-Match, a status other than approved or needs_changes, or a note longer than 500 characters."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: the caller is not a reviewer; `csrf`: a write with the session cookie and no `X-Salus-CSRF: 1`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such term, or it has no label in the language."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_conflict`: the translation changed since it was read."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422":
+          description: "`note_required`: needs_changes without a note."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /terminology/terms/{id}/explanations/{language}:
+    parameters:
+      - $ref: "#/components/parameters/TermID"
+      - name: language
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/Language"}
+    put:
+      operationId: writeTermExplanation
+      summary: Write a term's explanation in one language
+      description: >-
+        Writes the plain-language explanation, trimmed, 1 to 500 characters. If-Match is the explanation's version
+        read, `W/"0"` when there is none yet. A new or changed explanation is `unreviewed`, an approved one
+        included, and keeps its last review; the same text again changes nothing. Reviewers only. Audited.
+      tags: [terminology]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/TermExplanationEdit"}
+      responses:
+        "200":
+          description: The explanation as stored.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TermExplanation"}
+        "400":
+          description: "`invalid_request`: no or an unreadable If-Match, or a text that is blank or longer than 500 characters."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: the caller is not a reviewer; `csrf`: a write with the session cookie and no `X-Salus-CSRF: 1`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such term."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_conflict`: the explanation changed since it was read."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /terminology/terms/{id}/explanations/{language}/review:
+    parameters:
+      - $ref: "#/components/parameters/TermID"
+      - name: language
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/Language"}
+    post:
+      operationId: reviewTermExplanation
+      summary: Approve a term's explanation, or mark it as needing changes
+      description: >-
+        As reviewTermTranslation, for the explanation in the language. Reviewers only. Audited.
+      tags: [terminology]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewDecision"}
+      responses:
+        "200":
+          description: The explanation as stored.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TermExplanation"}
+        "400":
+          description: "`invalid_request`: no or an unreadable If-Match, a status other than approved or needs_changes, or a note longer than 500 characters."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: the caller is not a reviewer; `csrf`: a write with the session cookie and no `X-Salus-CSRF: 1`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such term, or it has no explanation in the language."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_conflict`: the explanation changed since it was read."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "422":
+          description: "`note_required`: needs_changes without a note."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /webhooks/livekit:
     post:
       operationId: receiveLiveKitWebhook
@@ -2450,6 +2767,11 @@ components:
       description: The version read, as a weak ETag, `W/"<versionId>"`.
       schema:
         type: string
+    TermID:
+      name: id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
     AppointmentID:
       name: id
       in: path
@@ -2868,6 +3190,11 @@ components:
           description: >-
             The language the user chose; absent while they follow the browser's or the device's language,
             which the client then matches itself.
+        termReviewer:
+          type: boolean
+          description: >-
+            True for a reviewer of the medical term list, a permission only the operator grants (salusctl
+            term-reviewer); absent otherwise.
     UpdateMeRequest:
       type: object
       required: [language]
@@ -2980,6 +3307,66 @@ components:
         terms:
           type: array
           items: {$ref: "#/components/schemas/Term"}
+    TermLabelsEdit:
+      type: object
+      required: [preferred, synonyms]
+      additionalProperties: false
+      description: A term's labels in one language, each trimmed with its white space collapsed.
+      properties:
+        preferred: {type: string, minLength: 1, maxLength: 300}
+        synonyms:
+          type: array
+          maxItems: 20
+          items: {type: string, minLength: 1, maxLength: 300}
+    TermExplanationEdit:
+      type: object
+      required: [text]
+      additionalProperties: false
+      properties:
+        text: {type: string, minLength: 1, maxLength: 500}
+    ReviewDecision:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [approved, needs_changes]
+        note: {type: string, maxLength: 500, description: "Needed with needs_changes: what has to change."}
+    TermReviewEntry:
+      type: object
+      required: [term, status]
+      description: >-
+        A term in the queue's language: the term with its labels in that language (first, when it has any), Latin
+        and English, the review of its labels in the language (absent while it has none) and its explanation there
+        (absent while there is none).
+      properties:
+        term: {$ref: "#/components/schemas/Term"}
+        status: {$ref: "#/components/schemas/ReviewStatus"}
+        translation: {$ref: "#/components/schemas/TermTranslation"}
+        explanation: {$ref: "#/components/schemas/TermExplanation"}
+    TermReviewPage:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items: {$ref: "#/components/schemas/TermReviewEntry"}
+        next: {type: string, description: "Pass as `after` for the next page; absent on the last."}
+    TermReviewProgress:
+      type: object
+      required: [languages]
+      properties:
+        languages:
+          type: array
+          items:
+            type: object
+            required: [language, terms, approved, needsChanges]
+            properties:
+              language: {$ref: "#/components/schemas/TermLanguage"}
+              terms: {type: integer, format: int32, description: Every term.}
+              approved: {type: integer, format: int32}
+              needsChanges: {type: integer, format: int32}
     Patient:
       type: object
       required: [id, givenName, familyName, birthDate, versionId, lastUpdated]
@@ -3642,6 +4029,7 @@ components:
             - language_unavailable
             - language_locked
             - translation_incomplete
+            - note_required
             - internal error
             - timeout
         linkIds:

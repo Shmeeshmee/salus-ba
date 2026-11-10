@@ -18,14 +18,19 @@ type Organization struct {
 	VersionID       int32 // meta.versionId; an update names the version it changes
 	Active          bool
 	Listed          bool // anyone may find the clinic and its practitioners
+	// PatientTranscriptCopy: the clinic gives its patients a copy of their consultations' stored transcripts in
+	// the app (docs/consultation/SPEC.md "Patient documents"); off unless its admin turns it on.
+	PatientTranscriptCopy bool
 }
 
-// Changes are what an update sets: the name, and the listing and the time zone when given (nil keeps them).
+// Changes are what an update sets: the name, and the listing, the time zone, the default language and the
+// patients' transcript copy when given (nil keeps them).
 type Changes struct {
-	Listed          *bool
-	TimeZone        *string
-	DefaultLanguage *string
-	Name            string
+	Listed                *bool
+	TimeZone              *string
+	DefaultLanguage       *string
+	PatientTranscriptCopy *bool
+	Name                  string
 }
 
 // Caller is who asks: the signed-in account and, for staff, its clinic.

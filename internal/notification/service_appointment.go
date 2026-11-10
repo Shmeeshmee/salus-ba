@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/organization"
 )
 
@@ -39,10 +40,12 @@ var (
 	reminderEmail = appointmentEmail{
 		agent: appointment.ReminderEmailArgs{}.Kind(), applies: appointment.StatusBooked, template: "reminder", asksQuestionnaire: true,
 	}
+	// signedEmail applies in every status: a document is signed during the consultation or after it.
+	signedEmail = appointmentEmail{agent: composition.SignedEmailArgs{}.Kind(), template: "signed"}
 )
 
 // appointmentEmail is one of the appointment e-mails: sent only while the appointment is in the status it
-// applies to. One that asksQuestionnaire mentions an outstanding questionnaire (COPY E1).
+// applies to ("" for any). One that asksQuestionnaire mentions an outstanding questionnaire (COPY E1).
 type appointmentEmail struct {
 	agent             string
 	template          string
@@ -60,6 +63,13 @@ func (s *Service) SendAppointmentBooked(ctx context.Context, id, org string) err
 // whoever cancelled it (the appointment_cancelled_email job).
 func (s *Service) SendAppointmentCancelled(ctx context.Context, id, org string) error {
 	return s.sendAppointment(ctx, cancelledEmail, id, org)
+}
+
+// SendDocumentSigned tells the patient of the appointment id of the clinic org that a document of it is ready in
+// the app (the document_signed_email job), whatever the appointment's status: which document, its type or its
+// content is never in the e-mail (docs/consultation/SPEC.md "Patient documents").
+func (s *Service) SendDocumentSigned(ctx context.Context, id, org string) error {
+	return s.sendAppointment(ctx, signedEmail, id, org)
 }
 
 // SendAppointmentReminder sends the reminder of the appointment id of the clinic org to its patient, 24 hours
@@ -80,7 +90,7 @@ func (s *Service) sendAppointment(ctx context.Context, e appointmentEmail, id, o
 	if err != nil {
 		return fmt.Errorf("notification: %s: %w", e.agent, err)
 	}
-	if n.Appointment.Status != e.applies {
+	if e.applies != "" && n.Appointment.Status != e.applies {
 		return nil
 	}
 	clinic, err := s.clinics.Read(ctx, organization.Caller{OrganizationID: org}, org)

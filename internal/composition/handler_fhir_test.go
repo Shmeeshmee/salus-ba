@@ -45,6 +45,17 @@ type stubReader struct {
 	doc composition.Document
 }
 
+func (s *stubReader) Signed(_ context.Context, _ appointment.Caller, encounterID string) ([]composition.Document, error) {
+	s.id = encounterID
+	if s.err != nil {
+		return nil, s.err
+	}
+	if s.doc.Draft.ID == "" {
+		return []composition.Document{}, nil
+	}
+	return []composition.Document{s.doc}, nil
+}
+
 func (s *stubReader) Composition(_ context.Context, _ appointment.Caller, id string) (composition.Document, error) {
 	s.id = id
 	return s.doc, s.err
@@ -144,6 +155,39 @@ func TestFHIR_Errors(t *testing.T) {
 		}
 	}
 	if rec := getFHIR(t, &stubReader{}, false, "/fhir/R4/Composition/"+draftA); rec.Code != 401 {
+		t.Errorf("signed out = %d, want 401", rec.Code)
+	}
+}
+
+// SAL-17: DocumentReference?encounter=… is the encounter's signed documents as a searchset, the reference given
+// as an id or as Encounter/<id>; any other search is not supported.
+func TestFHIR_SearchesTheEncountersSignedDocuments(t *testing.T) {
+	t.Parallel()
+	for _, q := range []string{encA, "Encounter/" + encA} {
+		svc := &stubReader{doc: signedDoc()}
+		rec := getFHIR(t, svc, true, "/fhir/R4/DocumentReference?encounter="+q)
+		if rec.Code != 200 || rec.Header().Get("Content-Type") != "application/fhir+json" || rec.Header().Get("Cache-Control") != "no-store" || svc.id != encA {
+			t.Errorf("search %s = %d %v, asked for %q", q, rec.Code, rec.Header(), svc.id)
+		}
+		assertGolden(t, "documentreference_search.json", rec.Body.Bytes())
+	}
+	if rec := getFHIR(t, &stubReader{}, true, "/fhir/R4/DocumentReference?encounter="+encA); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"total":0`) {
+		t.Errorf("search without documents = %d %s", rec.Code, rec.Body)
+	}
+	for _, q := range []string{"", "?patient=" + patientA, "?encounter=" + encA + "&encounter=" + encA, "?encounter=Patient/" + encA, "?encounter=" + encA + "&status=current"} {
+		if rec := getFHIR(t, &stubReader{}, true, "/fhir/R4/DocumentReference"+q); rec.Code != 400 || !strings.Contains(rec.Body.String(), "not-supported") {
+			t.Errorf("search %q = %d %s, want 400 not-supported", q, rec.Code, rec.Body)
+		}
+	}
+	for _, tt := range []struct {
+		err    error
+		status int
+	}{{composition.ErrNotFound, 404}, {composition.ErrForbidden, 403}, {composition.ErrConsentRequired, 403}, {errBackend, 500}} {
+		if rec := getFHIR(t, &stubReader{err: tt.err}, true, "/fhir/R4/DocumentReference?encounter="+encA); rec.Code != tt.status || !strings.Contains(rec.Body.String(), "OperationOutcome") {
+			t.Errorf("%v: %d %s", tt.err, rec.Code, rec.Body)
+		}
+	}
+	if rec := getFHIR(t, &stubReader{}, false, "/fhir/R4/DocumentReference?encounter="+encA); rec.Code != 401 {
 		t.Errorf("signed out = %d, want 401", rec.Code)
 	}
 }

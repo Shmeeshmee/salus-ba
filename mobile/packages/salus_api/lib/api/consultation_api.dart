@@ -99,7 +99,7 @@ class ConsultationApi {
 
   /// The consultation's stored transcript
   ///
-  /// Every final segment of the encounter's transcript, in the order it was said, with its translation, as `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent only; the patient's own copy comes with the export feature. Not cached. Audited as a read with the number of segments, also when refused.
+  /// Every final segment of the encounter's transcript, in the order it was said, with its translation, as `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent, and for the encounter's patient (their copy, whatever the consent) while the clinic shares transcripts with its patients (the Organization's organization-patient-transcript-copy extension, off by default). Not cached. Audited as a read with the number of segments, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -137,7 +137,7 @@ class ConsultationApi {
 
   /// The consultation's stored transcript
   ///
-  /// Every final segment of the encounter's transcript, in the order it was said, with its translation, as `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent only; the patient's own copy comes with the export feature. Not cached. Audited as a read with the number of segments, also when refused.
+  /// Every final segment of the encounter's transcript, in the order it was said, with its translation, as `TranscriptEvent`s (`is_final` true). For the encounter's practitioner with the patient's active consent, and for the encounter's patient (their copy, whatever the consent) while the clinic shares transcripts with its patients (the Organization's organization-patient-transcript-copy extension, off by default). Not cached. Audited as a read with the number of segments, also when refused.
   ///
   /// Parameters:
   ///

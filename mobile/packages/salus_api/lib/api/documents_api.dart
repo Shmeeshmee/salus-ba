@@ -99,7 +99,7 @@ class DocumentsApi {
 
   /// A signed document's PDF
   ///
-  /// The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a download. For the encounter's practitioner with the patient's active consent only. Audited as a read of the DocumentReference, also when refused.
+  /// The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a download. For the encounter's practitioner with the patient's active consent, and for the encounter's patient whatever the consent (their own record). Audited as a read of the DocumentReference, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -137,7 +137,7 @@ class DocumentsApi {
 
   /// A signed document's PDF
   ///
-  /// The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a download. For the encounter's practitioner with the patient's active consent only. Audited as a read of the DocumentReference, also when refused.
+  /// The PDF of a signed document (the DocumentReference's attachment url), decrypted as it is sent, as a download. For the encounter's practitioner with the patient's active consent, and for the encounter's patient whatever the consent (their own record). Audited as a read of the DocumentReference, also when refused.
   ///
   /// Parameters:
   ///

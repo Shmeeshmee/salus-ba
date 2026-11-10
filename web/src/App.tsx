@@ -15,10 +15,11 @@ import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import { isStaffLanguage, type Language } from './i18n/languages'
 import { useLanguage, useT } from './i18n/useT'
-import { CalendarIcon, ClinicIcon, ClockIcon, ListIcon, Logo, PeopleIcon, SignOutIcon } from './icons'
+import { CalendarIcon, ClinicIcon, ClockIcon, ListIcon, Logo, PeopleIcon, ReviewIcon, SignOutIcon } from './icons'
 import { LanguagePicker } from './LanguagePicker'
 import { navigate, usePath } from './route'
 import { Cheatsheet } from './terminology/Cheatsheet'
+import { Review } from './terminology/Review'
 import { Alert, Link, Notice } from './ui'
 
 type Clients = { api: ApiClient; fhir: FhirClient }
@@ -97,7 +98,7 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
     <>
       <header className="bar">
         <Logo />
-        {staff && <Navigation admin={account.role === 'admin'} />}
+        {staff && <Navigation admin={account.role === 'admin'} reviewer={account.termReviewer === true} />}
         {staff && <Cheatsheet api={api} />}
         {staff && <LanguagePicker value={staffChoice(account)} onChange={(language) => saveLanguage(account, language)} />}
         <button type="button" className="quiet" onClick={signOut}>
@@ -115,7 +116,7 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
   )
 }
 
-function Navigation({ admin }: { admin: boolean }) {
+function Navigation({ admin, reviewer }: { admin: boolean; reviewer: boolean }) {
   const t = useT()
   return (
     <nav aria-label={t('shell.mainNav')}>
@@ -135,6 +136,12 @@ function Navigation({ admin }: { admin: boolean }) {
         <ListIcon />
         {t('shell.questionnaires')}
       </Link>
+      {reviewer && (
+        <Link to="/term-review">
+          <ReviewIcon />
+          {t('shell.termReview')}
+        </Link>
+      )}
       {admin && (
         <Link to="/clinic">
           <ClinicIcon />
@@ -170,6 +177,7 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   if (path === '/questionnaires') return <Questionnaires api={api} fhir={fhir} account={account} />
   const questionnaire = questionnairePath.exec(path)
   if (questionnaire) return <Builder key={questionnaire[1]} api={api} fhir={fhir} id={decodeURIComponent(questionnaire[1])} />
+  if (path === '/term-review') return <Review api={api} reviewer={account.termReviewer === true} />
   if (path === '/clinic' && account.role === 'admin') {
     return <ClinicSettings fhir={fhir} organizationId={account.organizationId ?? ''} />
   }

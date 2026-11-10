@@ -69,8 +69,7 @@ import 'app_localizations_tr.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale)
-    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -78,8 +77,7 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate =
-      _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -91,13 +89,12 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
-      <LocalizationsDelegate<dynamic>>[
-        delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-      ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
+    delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+  ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
@@ -1769,10 +1766,81 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{specialty}, {clinic}'**
   String specialtyAtClinic(String specialty, String clinic);
+
+  /// SAL-17: the button under an appointment that has started, and the title of its documents screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Documents'**
+  String get documents;
+
+  /// SAL-17: the documents screen when the appointment has no signed document.
+  ///
+  /// In en, this message translates to:
+  /// **'There are no signed documents for this appointment yet. A document appears here once your practitioner signs it.'**
+  String get noDocuments;
+
+  /// SAL-17: under a signed document's title: the day it was signed, as a long date in the clinic's zone.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed on {date}'**
+  String documentSignedOn(String date);
+
+  /// SAL-17: under a signed document written in another language than the app's: that language by its own name.
+  ///
+  /// In en, this message translates to:
+  /// **'Language: {language}'**
+  String documentLanguage(String language);
+
+  /// SAL-17: button: the signed document's PDF to the device's share sheet (open, save, send).
+  ///
+  /// In en, this message translates to:
+  /// **'Save or share the PDF'**
+  String get sharePdf;
+
+  /// SAL-17: the button to the transcript copy, and its screen's title.
+  ///
+  /// In en, this message translates to:
+  /// **'Transcript'**
+  String get transcript;
+
+  /// SAL-17: at the top of the transcript copy.
+  ///
+  /// In en, this message translates to:
+  /// **'The consultation as it was transcribed and translated automatically. It may contain mistakes.'**
+  String get transcriptNote;
+
+  /// SAL-17: the transcript copy when nothing was stored.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing was transcribed in this consultation.'**
+  String get transcriptEmpty;
+
+  /// SAL-17: the transcript: the patient's own lines.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get speakerYou;
+
+  /// SAL-17: the transcript: the practitioner's lines.
+  ///
+  /// In en, this message translates to:
+  /// **'Practitioner'**
+  String get speakerPractitioner;
+
+  /// SAL-17: button: the transcript copy to the device's share sheet as text.
+  ///
+  /// In en, this message translates to:
+  /// **'Share the transcript'**
+  String get shareTranscript;
+
+  /// SAL-17: under a transcript line: its translation.
+  ///
+  /// In en, this message translates to:
+  /// **'Translation: {text}'**
+  String transcriptTranslation(String text);
 }
 
-class _AppLocalizationsDelegate
-    extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -1781,17 +1849,8 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) => <String>[
-    'ar',
-    'bs',
-    'de',
-    'en',
-    'fr',
-    'hr',
-    'it',
-    'sr',
-    'tr',
-  ].contains(locale.languageCode);
+  bool isSupported(Locale locale) =>
+      <String>['ar', 'bs', 'de', 'en', 'fr', 'hr', 'it', 'sr', 'tr'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;

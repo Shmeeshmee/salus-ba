@@ -208,4 +208,22 @@ describe('the language', () => {
 
     expect((await screen.findByRole('alert')).textContent).toBe('Nešto nije u redu. Pokušajte ponovo.')
   })
+
+  it('gives a reviewer the term review in the navigation, and keeps it out of everyone else\'s', async () => {
+    const reviewRoutes: Record<string, Route> = {
+      'GET /terminology/review': () => Response.json({ entries: [] }),
+      'GET /terminology/review/progress': () => Response.json({ languages: [] }),
+    }
+    renderAt('/', { ...staff({ ...admin, termReviewer: true }), ...reviewRoutes })
+    expect(await screen.findByRole('heading', { name: 'Calendar' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('link', { name: 'Term review' }))
+    expect(await screen.findByRole('heading', { name: 'Term review' })).toBeTruthy()
+    expect(location.pathname).toBe('/term-review')
+    cleanup()
+
+    renderAt('/term-review', { ...staff(admin), ...reviewRoutes })
+    expect(await screen.findByRole('heading', { name: 'Term review' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Term review' })).toBeNull()
+    expect(screen.getByText('Only reviewers can edit and approve terms.')).toBeTruthy()
+  })
 })

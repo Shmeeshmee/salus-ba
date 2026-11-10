@@ -174,13 +174,13 @@ func TestAcceptInvite_DoesNotSaveAPatientLanguage(t *testing.T) {
 
 func TestSetLanguage_SetsOrClearsTheChoiceAndAuditsIt(t *testing.T) {
 	tests := []struct {
-		account  auth.Account
 		language string
+		account  auth.Account
 	}{
-		{patientWithoutMFA(), "ar"},
-		{withLanguages(patientWithoutMFA(), "ar", "de"), ""},
-		{staff(), "sr-Cyrl"},
-		{withLanguages(staff(), "en", ""), ""},
+		{account: patientWithoutMFA(), language: "ar"},
+		{account: withLanguages(patientWithoutMFA(), "ar", "de"), language: ""},
+		{account: staff(), language: "sr-Cyrl"},
+		{account: withLanguages(staff(), "en", ""), language: ""},
 	}
 	for _, tt := range tests {
 		f := newFixture(tt.account)

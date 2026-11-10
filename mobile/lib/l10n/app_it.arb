@@ -275,5 +275,17 @@
   "questionnaireLanguages": "È disponibile in: {languages}. Scelga la lingua che comprende meglio.",
   "continueInLanguage": "Continua in {language}",
   "languageUnavailable": "Questa lingua non è più disponibile per questo questionario. Ne scelga un’altra.",
-  "specialtyAtClinic": "{specialty}, {clinic}"
+  "specialtyAtClinic": "{specialty}, {clinic}",
+  "documents": "Documenti",
+  "noDocuments": "Per questo appuntamento non ci sono ancora documenti firmati. Un documento compare qui quando il medico lo firma.",
+  "documentSignedOn": "Firmato il {date}",
+  "documentLanguage": "Lingua: {language}",
+  "sharePdf": "Salva o condividi il PDF",
+  "transcript": "Trascrizione",
+  "transcriptNote": "La visita come è stata trascritta e tradotta automaticamente. Può contenere errori.",
+  "transcriptEmpty": "In questa visita non è stato trascritto nulla.",
+  "speakerYou": "Lei",
+  "speakerPractitioner": "Medico",
+  "shareTranscript": "Condividi la trascrizione",
+  "transcriptTranslation": "Traduzione: {text}"
 }

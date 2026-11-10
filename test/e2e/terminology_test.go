@@ -34,7 +34,7 @@ import (
 // cheatsheet (test/e2e/web/terminology.spec.ts); a patient is refused with 403 and nobody signed in with 401.
 func TestTerminology_APractitionerFindsATermAndAPatientIsRefused(t *testing.T) {
 	practitioner, practitionerAddr, totp := newPractitioner(t)
-	term := newSyntheticTerm(t)
+	term := newSyntheticTerm(t, 0)
 
 	got, header := search(t, practitioner, term.latin, "la,hr,en")
 	if header.Get("Cache-Control") != "no-store" {
@@ -86,7 +86,7 @@ func TestTerminology_APractitionerFindsATermAndAPatientIsRefused(t *testing.T) {
 // holds it; importing the same row again changes nothing.
 func TestTerminology_TheCuratorsRoundTrip(t *testing.T) {
 	practitioner, _, _ := newPractitioner(t)
-	term := newSyntheticTerm(t)
+	term := newSyntheticTerm(t, 0)
 	dir := t.TempDir()
 
 	header, row := exportedRow(t, filepath.Join(dir, "drafts.csv"), "unreviewed", term.id)
@@ -129,12 +129,13 @@ func TestTerminology_TheCuratorsRoundTrip(t *testing.T) {
 }
 
 // syntheticTerm is a symptom added with salusctl's seed import under a Wikidata id far beyond Wikidata's own, with
-// made-up labels that match no seed term; the test's cleanup deletes it (its labels go with it).
+// made-up labels that match no seed term, at rank; the test's cleanup deletes it (its labels, translations and
+// explanations go with it).
 type syntheticTerm struct {
 	id, suffix, latin, croatian, english string
 }
 
-func newSyntheticTerm(t *testing.T) syntheticTerm {
+func newSyntheticTerm(t *testing.T, rank int32) syntheticTerm {
 	t.Helper()
 	n, err := rand.Int(rand.Reader, big.NewInt(1e15))
 	if err != nil {
@@ -144,8 +145,8 @@ func newSyntheticTerm(t *testing.T) syntheticTerm {
 	term := syntheticTerm{suffix: s, latin: "Zyntheticum " + s, croatian: "Čirzynt " + s, english: "E2E synthetic term " + s}
 	wikidata := fmt.Sprintf("Q9%015d", n)
 	seed := filepath.Join(t.TempDir(), "seed.jsonl")
-	line := fmt.Sprintf(`{"labels":{"la":[%q],"hr":[%q],"en":[%q]},"wikidata":%q,"category":"symptom","rank":0}`+"\n",
-		term.latin, term.croatian, term.english, wikidata)
+	line := fmt.Sprintf(`{"labels":{"la":[%q],"hr":[%q],"en":[%q]},"wikidata":%q,"category":"symptom","rank":%d}`+"\n",
+		term.latin, term.croatian, term.english, wikidata, rank)
 	if err := os.WriteFile(seed, []byte(line), 0o600); err != nil {
 		t.Fatal(err)
 	}

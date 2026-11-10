@@ -126,7 +126,13 @@ Class | Method | HTTP request | Description
 *QuestionnairesApi* | [**withdrawQuestionnaire**](doc//QuestionnairesApi.md#withdrawquestionnaire) | **POST** /questionnaire-responses/{id}/withdraw | Withdraw a questionnaire request
 *SchedulingApi* | [**getAvailability**](doc//SchedulingApi.md#getavailability) | **GET** /practitioner-roles/{id}/availability | Read a practitioner role's weekly availability
 *SchedulingApi* | [**saveAvailability**](doc//SchedulingApi.md#saveavailability) | **PUT** /practitioner-roles/{id}/availability | Set a practitioner role's weekly availability
+*TerminologyApi* | [**editTermTranslation**](doc//TerminologyApi.md#edittermtranslation) | **PUT** /terminology/terms/{id}/translations/{language} | Edit a term's labels in one language
+*TerminologyApi* | [**getTermReviewProgress**](doc//TerminologyApi.md#gettermreviewprogress) | **GET** /terminology/review/progress | How far the review is in each language
+*TerminologyApi* | [**listTermReview**](doc//TerminologyApi.md#listtermreview) | **GET** /terminology/review | The review queue of the medical terms in one language
+*TerminologyApi* | [**reviewTermExplanation**](doc//TerminologyApi.md#reviewtermexplanation) | **POST** /terminology/terms/{id}/explanations/{language}/review | Approve a term's explanation, or mark it as needing changes
+*TerminologyApi* | [**reviewTermTranslation**](doc//TerminologyApi.md#reviewtermtranslation) | **POST** /terminology/terms/{id}/translations/{language}/review | Approve a term's labels in one language, or mark them as needing changes
 *TerminologyApi* | [**searchTerminology**](doc//TerminologyApi.md#searchterminology) | **GET** /terminology/search | Search the medical terminology
+*TerminologyApi* | [**writeTermExplanation**](doc//TerminologyApi.md#writetermexplanation) | **PUT** /terminology/terms/{id}/explanations/{language} | Write a term's explanation in one language
 
 
 ## Documentation For Models
@@ -189,6 +195,7 @@ Class | Method | HTTP request | Description
  - [RegisterRequest](doc//RegisterRequest.md)
  - [RequestQuestionnaireRequest](doc//RequestQuestionnaireRequest.md)
  - [Review](doc//Review.md)
+ - [ReviewDecision](doc//ReviewDecision.md)
  - [ReviewStatus](doc//ReviewStatus.md)
  - [RoleSpecialty](doc//RoleSpecialty.md)
  - [SaveAnswersRequest](doc//SaveAnswersRequest.md)
@@ -212,9 +219,15 @@ Class | Method | HTTP request | Description
  - [TermCategory](doc//TermCategory.md)
  - [TermCodes](doc//TermCodes.md)
  - [TermExplanation](doc//TermExplanation.md)
+ - [TermExplanationEdit](doc//TermExplanationEdit.md)
  - [TermLabels](doc//TermLabels.md)
+ - [TermLabelsEdit](doc//TermLabelsEdit.md)
  - [TermLanguage](doc//TermLanguage.md)
  - [TermList](doc//TermList.md)
+ - [TermReviewEntry](doc//TermReviewEntry.md)
+ - [TermReviewPage](doc//TermReviewPage.md)
+ - [TermReviewProgress](doc//TermReviewProgress.md)
+ - [TermReviewProgressLanguagesInner](doc//TermReviewProgressLanguagesInner.md)
  - [TermTranslation](doc//TermTranslation.md)
  - [Transcript](doc//Transcript.md)
  - [TranscriptEvent](doc//TranscriptEvent.md)

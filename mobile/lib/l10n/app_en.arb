@@ -1346,5 +1346,68 @@
         "type": "String"
       }
     }
+  },
+  "documents": "Documents",
+  "@documents": {
+    "description": "SAL-17: the button under an appointment that has started, and the title of its documents screen."
+  },
+  "noDocuments": "There are no signed documents for this appointment yet. A document appears here once your practitioner signs it.",
+  "@noDocuments": {
+    "description": "SAL-17: the documents screen when the appointment has no signed document."
+  },
+  "documentSignedOn": "Signed on {date}",
+  "@documentSignedOn": {
+    "description": "SAL-17: under a signed document's title: the day it was signed, as a long date in the clinic's zone.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "documentLanguage": "Language: {language}",
+  "@documentLanguage": {
+    "description": "SAL-17: under a signed document written in another language than the app's: that language by its own name.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "sharePdf": "Save or share the PDF",
+  "@sharePdf": {
+    "description": "SAL-17: button: the signed document's PDF to the device's share sheet (open, save, send)."
+  },
+  "transcript": "Transcript",
+  "@transcript": {
+    "description": "SAL-17: the button to the transcript copy, and its screen's title."
+  },
+  "transcriptNote": "The consultation as it was transcribed and translated automatically. It may contain mistakes.",
+  "@transcriptNote": {
+    "description": "SAL-17: at the top of the transcript copy."
+  },
+  "transcriptEmpty": "Nothing was transcribed in this consultation.",
+  "@transcriptEmpty": {
+    "description": "SAL-17: the transcript copy when nothing was stored."
+  },
+  "speakerYou": "You",
+  "@speakerYou": {
+    "description": "SAL-17: the transcript: the patient's own lines."
+  },
+  "speakerPractitioner": "Practitioner",
+  "@speakerPractitioner": {
+    "description": "SAL-17: the transcript: the practitioner's lines."
+  },
+  "shareTranscript": "Share the transcript",
+  "@shareTranscript": {
+    "description": "SAL-17: button: the transcript copy to the device's share sheet as text."
+  },
+  "transcriptTranslation": "Translation: {text}",
+  "@transcriptTranslation": {
+    "description": "SAL-17: under a transcript line: its translation.",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
   }
 }

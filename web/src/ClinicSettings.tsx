@@ -9,8 +9,9 @@ import { useSubmit } from './useSubmit'
 type Load = { name: 'loading' } | { name: 'failed' } | { name: 'loaded'; org: Organization }
 type T = ReturnType<typeof useT>
 
-// ClinicSettings reads the clinic's Organization and saves its name, time zone, default language and whether it
-// is listed in the patient app, with If-Match on the version read.
+// ClinicSettings reads the clinic's Organization and saves its name, time zone, default language, whether it is
+// listed in the patient app and whether its patients get a copy of their transcripts, with If-Match on the
+// version read.
 export function ClinicSettings({ fhir, organizationId }: { fhir: FhirClient; organizationId: string }) {
   const t = useT()
   const [load, setLoad] = useState<Load>({ name: 'loading' })
@@ -117,6 +118,21 @@ function SettingsForm({ org, save, onSaved, onReload }: SettingsFormProps) {
           <label htmlFor="listed">{t('admin.listed')}</label>
           <p className="hint" id="listed-hint">
             {t('admin.listedHint')}
+          </p>
+        </div>
+      </div>
+      <div className="check">
+        <input
+          id="transcript-copy"
+          type="checkbox"
+          checked={settings.transcriptCopy}
+          onChange={(e) => change({ transcriptCopy: e.target.checked })}
+          aria-describedby="transcript-copy-hint"
+        />
+        <div className="stack">
+          <label htmlFor="transcript-copy">{t('admin.transcriptCopy')}</label>
+          <p className="hint" id="transcript-copy-hint">
+            {t('admin.transcriptCopyHint')}
           </p>
         </div>
       </div>

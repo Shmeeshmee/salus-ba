@@ -275,5 +275,17 @@
   "questionnaireLanguages": "Доступан је на овим језицима: {languages}. Изаберите онај који најбоље разумијете.",
   "continueInLanguage": "Наставите на језику: {language}",
   "languageUnavailable": "Овај језик више није доступан за овај упитник. Изаберите други.",
-  "specialtyAtClinic": "{specialty}, {clinic}"
+  "specialtyAtClinic": "{specialty}, {clinic}",
+  "documents": "Документи",
+  "noDocuments": "За овај термин још нема потписаних докумената. Документ се појављује овдје када га ваш љекар потпише.",
+  "documentSignedOn": "Потписано {date}",
+  "documentLanguage": "Језик: {language}",
+  "sharePdf": "Сачувај или подијели PDF",
+  "transcript": "Транскрипт",
+  "transcriptNote": "Консултација онако како је аутоматски транскрибована и преведена. Може да садржи грешке.",
+  "transcriptEmpty": "У овој консултацији ништа није транскрибовано.",
+  "speakerYou": "Ви",
+  "speakerPractitioner": "Љекар",
+  "shareTranscript": "Подијели транскрипт",
+  "transcriptTranslation": "Пријевод: {text}"
 }

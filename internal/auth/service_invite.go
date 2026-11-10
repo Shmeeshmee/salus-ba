@@ -160,9 +160,9 @@ func (s *Service) ClinicMember(ctx context.Context, sess Session) (Member, error
 	case a.OrganizationID == "" || a.OrganizationID != sess.OrganizationID:
 		return Member{}, nil
 	case a.Role == RoleAdmin:
-		return Member{Admin: true}, nil
+		return Member{Admin: true, TermReviewer: a.TermReviewer}, nil
 	case a.Role == RolePractitioner:
-		return Member{PractitionerID: a.PractitionerID}, nil
+		return Member{PractitionerID: a.PractitionerID, TermReviewer: a.TermReviewer}, nil
 	}
 	return Member{}, nil
 }

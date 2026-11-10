@@ -194,3 +194,14 @@ type roleCreator struct{ d *fakeDirectory }
 func (r roleCreator) Create(ctx context.Context, c practitionerrole.Caller, practitionerID string) (practitionerrole.PractitionerRole, error) {
 	return r.d.CreateRole(ctx, c, practitionerID)
 }
+
+func (r *fakeRepository) SetTermReviewer(ctx context.Context, id string, reviewer bool) error {
+	r.seen(ctx, "SetTermReviewer")
+	if r.err != nil {
+		return r.err
+	}
+	a := r.accounts[id]
+	a.TermReviewer = reviewer
+	r.accounts[id] = a
+	return nil
+}

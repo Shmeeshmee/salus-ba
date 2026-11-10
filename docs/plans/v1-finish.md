@@ -33,7 +33,7 @@ Each package runs in its own git worktree and compose project (`-p salus-sal10`,
 `salus-sal17`, then `salus-sal13`) with an override file without published host ports and with its own app image
 tag. Migrations: each branch takes the next free number when it merges main before its own merge (a migration not
 yet on main may be renumbered; `scripts/check-migrations.sh` guards only main's). Reserved while in flight: SAL-12
-`00038`, SAL-14 `00039`, SAL-17 `00040`, SAL-10 `00041` (if it needs one), SAL-13 `00042`.
+`00038`, SAL-14 `00039`, SAL-17 `00040`, SAL-10 `00041` (if it needs one), SAL-13 `00042`. Taken so far: 00038 by SAL-17, 00039 by SAL-14, 00040 by SAL-12.
 
 ## Decisions (owner, 2026-11-10)
 

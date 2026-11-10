@@ -275,5 +275,17 @@
   "questionnaireLanguages": "Dostupan je na ovim jezicima: {languages}. Odaberite onaj koji najbolje razumijete.",
   "continueInLanguage": "Nastavi na jeziku: {language}",
   "languageUnavailable": "Ovaj jezik više nije dostupan za ovaj upitnik. Odaberite drugi.",
-  "specialtyAtClinic": "{specialty}, {clinic}"
+  "specialtyAtClinic": "{specialty}, {clinic}",
+  "documents": "Dokumenti",
+  "noDocuments": "Za ovaj termin još nema potpisanih dokumenata. Dokument se pojavljuje ovdje kada ga vaš ljekar potpiše.",
+  "documentSignedOn": "Potpisano {date}",
+  "documentLanguage": "Jezik: {language}",
+  "sharePdf": "Sačuvaj ili podijeli PDF",
+  "transcript": "Transkript",
+  "transcriptNote": "Konsultacija onako kako je automatski transkribovana i prevedena. Može sadržavati greške.",
+  "transcriptEmpty": "U ovoj konsultaciji ništa nije transkribovano.",
+  "speakerYou": "Vi",
+  "speakerPractitioner": "Ljekar",
+  "shareTranscript": "Podijeli transkript",
+  "transcriptTranslation": "Prijevod: {text}"
 }

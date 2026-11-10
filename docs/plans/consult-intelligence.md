@@ -113,7 +113,7 @@ after-revocation rule apply unchanged; the clinic scope only. A patient's access
   a revocation that commits while it connects is seen too.
   Extended by the owner, 2026-11-10 (docs/plans/v1-finish.md "Decisions"; SAL-12), still pending Q16: a separate,
   granular, revocable FHIR `Consent` for transcription, translation and AI assistance, per patient and clinic
-  (`transcription_consent`, migration 00038), asked in the patient app before the call. The agent joins, and the
+  (`transcription_consent`, migration 00040), asked in the patient app before the call. The agent joins, and the
   transcript, the suggestions and the drafting run, only while both the care Consent and this one are active
   (`access.Transcribed`). Declining, the call runs without the agent; withdrawing, the call goes on and the
   withdrawal's `transcription_consent_revoked` job removes the agent at once, which asks again once connected as

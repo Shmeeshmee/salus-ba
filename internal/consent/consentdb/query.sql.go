@@ -155,7 +155,7 @@ type GrantConsentRow struct {
 	Status         string
 }
 
-// consent holds the care consents, transcription_consent the transcription consents (migration 00038): the same
+// consent holds the care consents, transcription_consent the transcription consents (migration 00040): the same
 // shape, a kind each. A read of both is their UNION ALL, each table on its own index and under its own
 // row-level security.
 // A second active consent with the clinic inserts nothing (no row), so the transaction stays usable for the

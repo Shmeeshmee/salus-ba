@@ -103,6 +103,11 @@ func termReviewRules() []Rule {
 		{Table: "term", Basis: basis, Then: ThenKeep},
 		{Table: "term_translation", Basis: basis, Then: ThenKeep},
 		{Table: "term_explanation", Basis: basis, Then: ThenKeep},
+		{
+			Table: "term_reviewer",
+			Basis: "The operator's grant of the term list's review permission to a staff account (GDPR Art. 6(1)(b), (f)): kept while granted; revoking it deletes the row, and so does deleting the account (foreign key)",
+			Then:  ThenKeep,
+		},
 	}
 }
 

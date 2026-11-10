@@ -6,8 +6,9 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-// The terminology tables (00030, docs/terminology/SPEC.md §3 "Database") are reference data: the app reads them
-// and never writes; salusctl writes them as the owner.
+// The terminology tables (00030, docs/terminology/SPEC.md §3 "Database") are reference data: the app reads them;
+// since 00039 it writes only what the review panel needs (a term's review columns, a language's labels replaced),
+// never a term's codes or note, a new term or a deletion of one; salusctl writes the rest as the owner.
 func TestTerminology_TheAppRoleOnlyReads(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
@@ -23,10 +24,9 @@ func TestTerminology_TheAppRoleOnlyReads(t *testing.T) {
 		`INSERT INTO term (category, rank) VALUES ('drug', 1)`,
 		`UPDATE term SET note = 'x'`,
 		`DELETE FROM term`,
+		`UPDATE term SET rank = 1, wikidata_id = 'Q1'`,
 		`TRUNCATE term_label`,
-		`INSERT INTO term_label (term_id, language, label) VALUES ('00000000-0000-4000-8000-000000000001', 'en', 'liver')`,
 		`UPDATE term_label SET preferred = false`,
-		`DELETE FROM term_label`,
 	} {
 		if _, err := app.Exec(t.Context(), stmt); sqlState(err) != "42501" {
 			t.Errorf("%s as %s: %v, want insufficient_privilege", stmt, pgtest.AppRole, err)
@@ -133,7 +133,7 @@ func TestTerminology_ReviewOfTranslationsAndExplanations(t *testing.T) {
 	}
 }
 
-// The app reads translations and explanations; it writes none (SAL-14 grants its reviewer writes).
+// The app reads translations and explanations, and writes them for a reviewer (00039): never a deletion.
 func TestTerminology_TheAppRoleReadsReviews(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
@@ -146,9 +146,72 @@ func TestTerminology_TheAppRoleReadsReviews(t *testing.T) {
 	if err := app.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM term_translation) + (SELECT count(*) FROM term_explanation)`).Scan(&n); err != nil || n != 2 {
 		t.Errorf("%s reads %d rows, %v; want 2", pgtest.AppRole, n, err)
 	}
-	for _, stmt := range []string{`UPDATE term_translation SET note = 'x'`, `DELETE FROM term_explanation`} {
+	for _, stmt := range []string{
+		`DELETE FROM term_translation`, `DELETE FROM term_explanation`, `TRUNCATE term_explanation`,
+		`UPDATE term_translation SET language = 'hr'`, `UPDATE term_translation SET term_id = term_id`,
+		`UPDATE term_explanation SET language = 'hr'`, `UPDATE term_explanation SET created_at = now()`,
+	} {
 		if _, err := app.Exec(t.Context(), stmt); sqlState(err) != "42501" {
 			t.Errorf("%s as %s: %v, want insufficient_privilege", stmt, pgtest.AppRole, err)
 		}
+	}
+}
+
+// The reviewer's writes (00039, SAL-14): the app replaces a language's labels, writes translations and
+// explanations, and a term's review columns, as the review panel does.
+func TestTerminology_TheAppRoleWritesTheReview(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	if _, err := owner.Exec(t.Context(), `INSERT INTO term (id, category, rank) VALUES ('00000000-0000-4000-8000-000000000001', 'anatomy', 10);
+		INSERT INTO term_label (term_id, language, label, preferred) VALUES ('00000000-0000-4000-8000-000000000001', 'la', 'hepar', true)`); err != nil {
+		t.Fatal(err)
+	}
+	for _, stmt := range []string{
+		`DELETE FROM term_label WHERE language = 'la'`,
+		`INSERT INTO term_label (term_id, language, label, preferred) VALUES ('00000000-0000-4000-8000-000000000001', 'la', 'hepar', true)`,
+		`INSERT INTO term_translation (term_id, language) VALUES ('00000000-0000-4000-8000-000000000001', 'la')`,
+		`UPDATE term_translation SET review_status = 'approved', reviewed_at = now(), note = 'x', version_id = 2, updated_at = now()`,
+		`INSERT INTO term_explanation (term_id, language, text) VALUES ('00000000-0000-4000-8000-000000000001', 'en', 'The liver.')
+		 ON CONFLICT (term_id, language) DO UPDATE SET text = excluded.text`,
+		`UPDATE term SET review_status = 'approved', reviewed_at = now(), reviewed_by = NULL, updated_at = now()`,
+		`SELECT id FROM term WHERE id = '00000000-0000-4000-8000-000000000001' FOR UPDATE`,
+	} {
+		if _, err := app.Exec(t.Context(), stmt); err != nil {
+			t.Errorf("%s as %s: %v", stmt, pgtest.AppRole, err)
+		}
+	}
+}
+
+// The reviewer permission (00039): one row per staff account the operator made a reviewer, gone with the account;
+// the app reads it and can never grant or revoke it.
+func TestTerminology_TheReviewerPermissionIsTheOperators(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	const account = "00000000-0000-4000-8000-0000000000a1"
+	if _, err := owner.Exec(t.Context(), `INSERT INTO account (id, email, password_hash, role) VALUES ('`+account+`', 'reviewer@example.test', 'x', 'patient'); -- the service refuses a patient; the table does not care
+		INSERT INTO term_reviewer (account_id) VALUES ('`+account+`')`); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := app.QueryRow(t.Context(), `SELECT count(*) FROM term_reviewer WHERE granted_at IS NOT NULL`).Scan(&n); err != nil || n != 1 {
+		t.Errorf("%s reads %d reviewers, %v; want 1", pgtest.AppRole, n, err)
+	}
+	for _, stmt := range []string{
+		`INSERT INTO term_reviewer (account_id) VALUES ('` + account + `')`,
+		`UPDATE term_reviewer SET granted_at = now()`,
+		`DELETE FROM term_reviewer`,
+	} {
+		if _, err := app.Exec(t.Context(), stmt); sqlState(err) != "42501" {
+			t.Errorf("%s as %s: %v, want insufficient_privilege", stmt, pgtest.AppRole, err)
+		}
+	}
+	if _, err := owner.Exec(t.Context(), `INSERT INTO term_reviewer (account_id) VALUES ('`+account+`')`); sqlState(err) != "23505" {
+		t.Errorf("a second grant: %v, want unique_violation", err)
+	}
+	if _, err := owner.Exec(t.Context(), `DELETE FROM account`); err != nil {
+		t.Fatalf("deleting the account: %v", err)
+	}
+	if err := owner.QueryRow(t.Context(), `SELECT count(*) FROM term_reviewer`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("reviewers after the account's deletion: %d, %v; want 0", n, err)
 	}
 }
