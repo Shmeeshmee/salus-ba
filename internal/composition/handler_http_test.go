@@ -21,6 +21,7 @@ type stubDocuments struct {
 	err       error
 	templates []composition.Template
 	pdf       []byte
+	terms     []composition.SectionTerms
 	got       struct {
 		id      string
 		content composition.TemplateContent
@@ -29,7 +30,6 @@ type stubDocuments struct {
 		version int32
 	}
 	draft composition.Draft
-	terms []composition.SectionTerms
 }
 
 func (s *stubDocuments) Terms(_ context.Context, _ appointment.Caller, id string) ([]composition.SectionTerms, error) {

@@ -32,19 +32,19 @@ const (
 // stays empty for a partial segment and for one said in the listener's language. TranslationFailed marks a final
 // segment that should have been translated and was not (SAL-5): its original is published and stored alone.
 type Event struct {
-	TsStart     time.Time `json:"ts_start"`
-	TsEnd       time.Time `json:"ts_end"`
-	EncounterID string    `json:"encounter_id"`
-	SegmentID   string    `json:"segment_id"`
-	Speaker     Speaker   `json:"speaker"`
-	Lang        string    `json:"lang"`
-	Original    string    `json:"original"`
-	Translation string    `json:"translation"`
-	IsFinal     bool      `json:"is_final"`
+	TsStart time.Time `json:"ts_start"`
+	TsEnd   time.Time `json:"ts_end"`
+	// Terms are the explained terms found in a final line (SAL-13), nil when none: an overlay, never stored.
+	Terms       *Terms  `json:"terms,omitempty"`
+	EncounterID string  `json:"encounter_id"`
+	SegmentID   string  `json:"segment_id"`
+	Speaker     Speaker `json:"speaker"`
+	Lang        string  `json:"lang"`
+	Original    string  `json:"original"`
+	Translation string  `json:"translation"`
+	IsFinal     bool    `json:"is_final"`
 	// TranslationFailed is left out of the JSON when false: the smallest change to the P0 contract.
 	TranslationFailed bool `json:"translation_failed,omitempty"`
-	// Terms are the explained terms found in a final line (SAL-13), nil when none: an overlay, never stored.
-	Terms *Terms `json:"terms,omitempty"`
 }
 
 // Terms are where the explained terms are in a line's original and in its translation (terminology.Span: UTF-16

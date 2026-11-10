@@ -30,6 +30,12 @@ test('the practitioner signs in, joins from the appointment, sees and hears the 
   const line = transcript.getByRole('listitem').filter({ hasText: 'Placeholder caption from the test speech engine' })
   await expect(line.getByText('Patient', { exact: true })).toBeVisible({ timeout: 30_000 })
 
+  // SAL-13: the term the line says (the Go test added it with its explanation) is explained on hover, labelled
+  // informational and not reviewed yet; the line itself reads as it was said.
+  const label = required('E2E_TERM_LABEL')
+  await expectExplained(page, line.locator('.term', { hasText: label }).first())
+  await expect(line).toContainText('Placeholder caption from the test speech engine')
+
   // Drafting (SAL-8) on the fake model, which leaves every field missing: the required field blocks the sign until
   // the practitioner fills it in; then the document is signed (W15 to W24).
   await side.getByRole('tab', { name: 'Documents' }).click()
@@ -40,13 +46,17 @@ test('the practitioner signs in, joins from the appointment, sees and hears the 
   await expect(side.getByText('Not covered in the conversation yet')).toHaveCount(2)
   await side.getByRole('button', { name: 'Sign' }).click()
   await expect(side.getByRole('alert')).toHaveText('1 required field is empty. Fill it in before you sign.')
-  await reason.fill('Placeholder reason typed in the e2e journey')
+  await reason.fill(`Placeholder reason typed in the e2e journey about the ${label}`)
   await side.getByRole('button', { name: 'Sign' }).click()
   const ask = side.getByRole('alertdialog', { name: 'Sign this document?' })
   await expect(ask.getByText('1 field is empty and stays empty.')).toBeVisible()
   await ask.getByRole('button', { name: 'Sign' }).click()
   await expect(side.getByText('Signed. This document is final.')).toBeVisible()
   await expect(side.getByText('Placeholder reason typed in the e2e journey')).toBeVisible()
+  // The signed document's term is explained on hover too; the document is shown as it was signed.
+  const signed = side.locator('.draft-signed')
+  await expectExplained(page, signed.locator('.term', { hasText: label }))
+  await expect(signed).toContainText(`Placeholder reason typed in the e2e journey about the ${label}`)
 
   // The Go test checks the Encounter is in progress, then signals the end.
   await expect.poll(() => existsSync(required('E2E_END_SIGNAL')), { timeout: 60_000 }).toBe(true)
@@ -60,6 +70,17 @@ test('the practitioner signs in, joins from the appointment, sees and hears the 
   await expect(page.getByRole('heading', { name: 'The consultation has ended' })).toBeVisible() // W27
   await expect(page.getByText('The appointment is marked as fulfilled.')).toBeVisible() // W28
 })
+
+// expectExplained hovers term and expects its tooltip: the explanation, informational, not reviewed yet (the texts
+// are the catalogs', web/src/i18n/terminology/en.json).
+async function expectExplained(page: Page, term: ReturnType<Page['locator']>) {
+  await term.hover()
+  const tip = term.getByRole('tooltip')
+  await expect(tip).toBeVisible()
+  await expect(tip).toContainText(required('E2E_TERM_EXPLANATION'))
+  await expect(tip).toContainText('Informational, not a diagnosis · Not reviewed yet')
+  await page.mouse.move(0, 0)
+}
 
 // countInboundAudio keeps every RTCPeerConnection the page makes, so the test can read their statistics: the app
 // and livekit-client expose none.

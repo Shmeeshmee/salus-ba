@@ -14,14 +14,14 @@ import (
 
 // fakeCuration keeps the terms in memory by id and counts the transactions and writes.
 type fakeCuration struct {
-	err          error // returned by every method when set
-	terms        map[string]terminology.Term
+	err   error // returned by every method when set
+	terms map[string]terminology.Term
+	// explanations are the stored explanations by "<term id> <language>" (ImportExplanations)
+	explanations map[string]terminology.Explanation
 	gotStat      string
 	translations []string // the SetTranslationsStatus calls, "<id> <status> <at>"
 	updates      int
 	txs          int
-	// explanations are the stored explanations by "<term id> <language>" (ImportExplanations)
-	explanations map[string]terminology.Explanation
 }
 
 func (f *fakeCuration) TermIDByWikidata(_ context.Context, wikidataID string) (string, error) {

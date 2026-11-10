@@ -45,10 +45,11 @@ func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIs
 	recordSynthetic(t, clinic, p, appt.ID)
 
 	template := newDocumentTemplate(t, clinic)
+	term := newExplainedTerm(t, spokenTerm)
 
 	patient := connect(t, p.api, appt.ID, true)
 	recordInLiveKitLog(t, "room", patient.room.Name())
-	browser := startPractitionerInBrowser(t, clinic, p, appt.ID, patient.join.URL, template)
+	browser := startPractitionerInBrowser(t, clinic, p, appt.ID, patient.join.URL, template, term)
 
 	eventually(t, "the Encounter in progress once the practitioner joined", func() bool {
 		return browser.running(t) && encounterOf(t, p, appt.ID).Status == "in-progress"
@@ -60,7 +61,7 @@ func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIs
 		t.Errorf("the patient was disconnected with %v, want ROOM_DELETED (the practitioner's end deletes the room)", reason)
 	}
 	finished(t, p, appt.ID)
-	patientOpensTheSignedDocument(t, clinic, p, appt.ID, template)
+	patientOpensTheSignedDocument(t, clinic, p, appt.ID, template, term)
 }
 
 // TestConsultation_ARevocationDuringTheCallRemovesThePatient: both are in the call of an appointment that has
@@ -299,7 +300,7 @@ func newDocumentTemplate(t *testing.T, clinic *bookableClinic) string {
 	return title
 }
 
-func startPractitionerInBrowser(t *testing.T, clinic *bookableClinic, p *patient, appointmentID, livekitURL, template string) *browser {
+func startPractitionerInBrowser(t *testing.T, clinic *bookableClinic, p *patient, appointmentID, livekitURL, template string, term explainedTerm) *browser {
 	t.Helper()
 	b := &browser{done: make(chan struct{}), output: &bytes.Buffer{}, signal: filepath.Join(t.TempDir(), "end")}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -314,6 +315,8 @@ func startPractitionerInBrowser(t *testing.T, clinic *bookableClinic, p *patient
 		"E2E_LIVEKIT_PUBLIC_URL="+livekitURL,
 		"E2E_END_SIGNAL="+b.signal,
 		"E2E_TEMPLATE_TITLE="+template,
+		"E2E_TERM_LABEL="+term.label,
+		"E2E_TERM_EXPLANATION="+term.explanation,
 	)
 	cmd.Stdout, cmd.Stderr = b.output, b.output
 	if err := cmd.Start(); err != nil {

@@ -13,16 +13,16 @@ import (
 
 // fakeRepo records the search it was asked and returns its terms or its error.
 type fakeRepo struct {
-	err           error
-	got           *terminology.Search
-	glossaryQuery *terminology.GlossaryQuery
-	terms         []terminology.Term
-	glossary      []terminology.GlossaryEntry
+	err                  error
+	got                  *terminology.Search
+	glossaryQuery        *terminology.GlossaryQuery
+	explanationsLanguage string // what Explanations was asked for
+	terms                []terminology.Term
+	glossary             []terminology.GlossaryEntry
 	// tagged are the terms Tag finds among the candidates it is asked (tagQuery)
-	tagged               []terminology.CandidateTerm
-	tagQuery             []terminology.Candidate
-	explanations         []terminology.Explanation
-	explanationsLanguage string
+	tagged       []terminology.CandidateTerm
+	tagQuery     []terminology.Candidate
+	explanations []terminology.Explanation
 }
 
 func (f *fakeRepo) Tag(_ context.Context, candidates []terminology.Candidate) ([]terminology.CandidateTerm, error) {
