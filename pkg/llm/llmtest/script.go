@@ -94,6 +94,9 @@ func (s *Script) load(fsys fs.FS, name string) (int, error) {
 	}
 	said := map[string]bool{}
 	for _, l := range file.Lines {
+		if l.Lang == "" || strings.TrimSpace(l.Text) == "" {
+			return 0, errors.New("a line without its text or language")
+		}
 		said[l.Text] = true
 		for to, text := range l.Translations {
 			key := [3]string{l.Lang, l.Text, to}

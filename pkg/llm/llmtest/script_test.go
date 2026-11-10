@@ -105,15 +105,17 @@ func TestDrafter_FillsAScriptsFieldFromItsLineAndLeavesTheRestMissing(t *testing
 func TestLoadScript_RefusesAScriptItCannotPlay(t *testing.T) {
 	t.Parallel()
 	for name, files := range map[string]fstest.MapFS{
-		"no file":                 {},
-		"not JSON":                {"de.json": {Data: []byte("{")}},
-		"a suggestion of no line": {"de.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins"}], "suggestions": [{"after": "Zwei", "type": "question", "text": "x", "confidence": 0.5}]}`)}},
-		"a suggestion of no text": {"de.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins"}], "suggestions": [{"after": "Eins", "type": "question", "confidence": 0.5}]}`)}},
-		"a field from no line":    {"de.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins"}], "fields": [{"key": "k", "from": "Zwei", "value": "x"}]}`)}},
-		"a field without its key": {"de.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins"}], "fields": [{"from": "Eins", "value": "x"}]}`)}},
-		"a filled field no value": {"de.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins"}], "fields": [{"key": "k", "from": "Eins"}]}`)}},
-		"two translations of one": {"de.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins", "translations": {"bs": "a"}}]}`)}, "at.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins", "translations": {"bs": "b"}}]}`)}},
-		"no line":                 {"de.json": {Data: []byte(`{"lines": []}`)}},
+		"no file":                     {},
+		"not JSON":                    {"de.json": {Data: []byte("{")}},
+		"a suggestion of no line":     {"de.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins"}], "suggestions": [{"after": "Zwei", "type": "question", "text": "x", "confidence": 0.5}]}`)}},
+		"a suggestion of no text":     {"de.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins"}], "suggestions": [{"after": "Eins", "type": "question", "confidence": 0.5}]}`)}},
+		"a field from no line":        {"de.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins"}], "fields": [{"key": "k", "from": "Zwei", "value": "x"}]}`)}},
+		"a field without its key":     {"de.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins"}], "fields": [{"from": "Eins", "value": "x"}]}`)}},
+		"a filled field no value":     {"de.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins"}], "fields": [{"key": "k", "from": "Eins"}]}`)}},
+		"two translations of one":     {"de.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins", "translations": {"bs": "a"}}]}`)}, "at.json": {Data: []byte(`{"lines": [{"lang": "de", "text": "Eins", "translations": {"bs": "b"}}]}`)}},
+		"no line":                     {"de.json": {Data: []byte(`{"lines": []}`)}},
+		"a line without its text":     {"de.json": {Data: []byte(`{"lines": [{"lang": "de", "text": " "}]}`)}},
+		"a line without its language": {"de.json": {Data: []byte(`{"lines": [{"text": "Eins"}]}`)}},
 	} {
 		if got, err := llmtest.LoadScript(files); err == nil {
 			t.Errorf("%s: LoadScript() = %+v, want an error", name, got)
