@@ -14,10 +14,10 @@ const agentTranscription = "transcription_agent"
 // AgentJoin gives the transcription agent (cmd/agent, SPEC.md §2 "Changed for SAL-3") a token for the room of the
 // session of the clinic org: subscribe only, of kind agent, so both clients show that it is in the call. It is
 // called in-process with the opaque ids a job carries, never over HTTP. Like a person's join, it needs the session
-// open and inside its window, the appointment booked and the patient's consent with the clinic active; and the
-// practitioner joined, so the consultation's Encounter exists (SAL-4). The ticket names that Encounter and who is
-// who in the room. The room is created again outside the transaction (idempotent), still for two people: LiveKit
-// does not count an agent. ErrNotFound for a session the clinic's scope does not show, ErrConsultationEnded,
+// open and inside its window, the appointment booked and the patient's consent with the clinic active; their
+// transcription consent there active too (SAL-12); and the practitioner joined, so the consultation's Encounter
+// exists (SAL-4). The ticket names that Encounter and who is who in the room. The room is created again outside
+// the transaction (idempotent), still for two people: LiveKit does not count an agent. ErrNotFound for a session the clinic's scope does not show, ErrConsultationEnded,
 // ErrConsentRequired and ErrNotStarted; every outcome is audited.
 func (s *Service) AgentJoin(ctx context.Context, sessionID, org string) (AgentTicket, error) {
 	now := s.Clock.Now()
@@ -109,6 +109,13 @@ func (s *Service) agentAdmitted(ctx context.Context, sessionID, org string) (Ses
 		return session, ErrConsentRequired, nil
 	case gone:
 		return session, ErrConsultationEnded, nil
+	}
+	transcribed, err := s.transcribed(ctx, session.AppointmentID)
+	switch {
+	case err != nil:
+		return Session{}, nil, err
+	case !transcribed:
+		return session, ErrConsentRequired, nil
 	case session.PractitionerJoinedAt.IsZero():
 		return session, ErrNotStarted, nil
 	}

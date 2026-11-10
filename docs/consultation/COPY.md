@@ -87,12 +87,14 @@ API.
 - W38: "Practitioner joined at [time]" / "Practitioner did not join"
 
 ## System permission text (mobile)
-- iOS `NSCameraUsageDescription`: "Salus uses the camera so the practitioner can see you during a video consultation. The consultation is not recorded."
-- iOS `NSMicrophoneUsageDescription`: "Salus uses the microphone so the practitioner can hear you during a video consultation. The consultation is not recorded."
-- Android, the app's explanation before the system prompt (M35): "To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded."
+- iOS `NSCameraUsageDescription` and `NSMicrophoneUsageDescription`: replaced by docs/attachments/COPY.md M15 and
+  M16, changed by SAL-12 (below).
+- Android, the app's explanation before the system prompt (M35): "To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded as audio or video. If you agree, what is said is transcribed and translated."
+  Changed by SAL-12, a draft waiting for the owner and the lawyer's Q16; until then it ended "The consultation is
+  not recorded.", no longer the whole truth once the transcript is kept (SAL-6).
 - Browsers show their own prompt; nothing is added before it beyond W3 and W4.
 
-"The consultation is not recorded" must change if recording is ever added (ADR 0006).
+"Not recorded as audio or video" must change if recording is ever added (ADR 0006).
 
 ## Transcription (SAL-3): proposed, waiting for the owner
 
@@ -106,3 +108,33 @@ the English wording changes them too.
 
 For the owner, with SAL-1: once a transcript is kept, "The consultation is not recorded" in the permission text
 above (iOS, Android M35) is no longer the whole truth and needs new wording, with the bs/hr/sr localisation.
+Drafted by SAL-12 (below and in M35), in all ten languages.
+
+## Transcription consent (SAL-12): draft, waiting for the owner, the doctor partner and the lawyer (Q16)
+
+Not approved yet. The patient's notice before the call (mobile; the patient joins only from the app), its decline
+and withdrawal, and the practitioner's line when the agent is not in the call (web). Drafted in every catalog
+(mobile ten languages, web five), `legal` where it states what is processed or what a choice does. [Clinic] is the
+clinic's name. Nothing here names a processor: the engines are fakes, the real ones are not enabled.
+
+Before the device check, while the patient's transcription consent with the clinic is not active:
+- M37: "Transcription and translation"
+- M38: "In your video consultations with [Clinic], what you and the practitioner say can be transcribed as you speak and translated, so the practitioner can follow you in your language."
+- M39: "From the transcript, the practitioner also gets AI assistance: suggestions during the consultation and drafts of documents. These are suggestions only; the practitioner checks them and makes every decision."
+- M40: "The transcript is kept with your medical record at [Clinic]. The consultation is not recorded as audio or video."
+- M41: "If you do not agree, the consultation goes ahead as usual, without transcription, translation or AI assistance."
+- M42: "You can withdraw your agreement at any time, also during the consultation: tap “Transcription is on”, or open My consents. Transcription stops at once; what was transcribed until then stays in your record."
+- M43: "Agree and continue" / "Continue without transcription"
+
+Withdrawing, from the badge M36 in the call (a button) or from My consents:
+- M44: "Stop transcription?"
+- M45: "Transcription, translation and AI assistance stop at once in your consultations with [Clinic]. A consultation in progress goes on without them, and your appointments stay as they are. What was transcribed until now stays in your record."
+- M46: "Keep transcription" / "Stop transcription"
+- M47: "Transcription is off. Your consultations with this clinic go ahead without it."
+- M48 (My consents, the kind of each consent): "Sharing for care" / "Transcription and AI assistance"
+
+The practitioner's call, while the agent is not in the room and the patient has not agreed (or withdrew), and the
+draft's refusal:
+- W42: "Transcription is off: the patient has not agreed to transcription and AI assistance. The consultation goes ahead without them."
+- W43: "The patient has not agreed to transcription and AI assistance, so no draft can be generated."
+

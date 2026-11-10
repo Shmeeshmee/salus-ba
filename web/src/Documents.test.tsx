@@ -133,6 +133,17 @@ describe('Documents: the draft', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('The draft could not be generated. Try again.')
     expect(screen.queryByText('Generating the draft from the transcript…')).toBeNull()
   })
+
+  // SAL-12: without the patient's transcription consent nothing is drafted, and the practitioner is told why.
+  it('says why when the patient has not agreed to transcription and AI assistance', async () => {
+    openDocuments({ failGenerate: 'declined' })
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Template' }), { target: { value: summary.id } })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'The patient has not agreed to transcription and AI assistance, so no draft can be generated.',
+    )
+  })
 })
 
 describe('Documents: two templates', () => {

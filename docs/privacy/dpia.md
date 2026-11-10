@@ -773,7 +773,8 @@ turned off.
 launch. iOS shows the approved `NSCameraUsageDescription` and `NSMicrophoneUsageDescription`; Android shows the
 approved explanation (M35) before the system prompt. A refusal is respected: the patient can still join with
 what remains, and the app offers the device settings. "The consultation is not recorded" is true while
-ADR 0006 holds and must change if recording is ever added.
+ADR 0006 holds and must change if recording is ever added. Changed by SAL-12 (draft): "not recorded as audio or
+video", and, with the patient's agreement, what is said is transcribed and translated.
 
 **Risks and measures.**
 
@@ -901,7 +902,36 @@ the practitioner's web app has these panels; the patient app has none.
 | A document signed with what the conversation did not cover | Fields the draft could not fill are flagged; signing always asks to confirm and says how many fields are empty |
 
 **Open (follow-up ticket).** The patient's notice at the start of the call that it is transcribed (web and
-mobile), out of SAL-9's scope by the owner's decision of 2026-11-09.
+mobile), out of SAL-9's scope by the owner's decision of 2026-11-09. Built by SAL-12 (below).
+
+### SAL-12: the patient's transcription consent
+
+**Processing changed.** Transcription, translation and AI assistance (the agent in the call, the stored
+transcript, the suggestions, the drafting) now rest on a separate, granular, revocable FHIR `Consent` per
+patient and clinic as well as the care consent (owner, 2026-11-10, `docs/plans/v1-finish.md` "Decisions",
+pending `docs/legal/BRIEF.md` Q16). The patient app asks before every call while it is not active: what is
+transcribed and translated, the AI assistance for the practitioner (suggestions and document drafts, checked by
+the practitioner), where the transcript is kept, that nothing is recorded as audio or video, what declining does,
+and how to withdraw (`docs/consultation/COPY.md` M37 to M48, a draft waiting for the owner, the doctor partner and
+the lawyer). No processor is named: the engines are fakes and the real ones are not enabled.
+
+**Personal data added.** `transcription_consent` (migration 00040): the patient, the clinic, when it was given,
+when it was withdrawn, its status and version. Needed as the proof of the patient's decision (Art. 7(1)) and for
+the agent's, the suggestions' and the drafting's check; kept with the clinical record like `consent` (retention
+`keep`, needs a legal decision before production). Row-level security as `consent`: the patient's own scope
+reads and writes it, the clinic's reads the ones given to it. Every grant, withdrawal and read is audited
+(`Consent/<id>`), as for the care consent.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The agent joins a patient who did not agree | The webhook enqueues no `transcription_join` without both consents; `AgentJoin` refuses; the agent asks again once connected (unit, worker, api and e2e tests) |
+| The agent stays after a withdrawal | The withdrawal's `transcription_consent_revoked` job removes it at once from every open room of the patient with the clinic; the agent's own check refuses from the commit (unit, worker and e2e tests) |
+| Lines, suggestions or drafts made after a withdrawal | `transcript.Store`, the suggestions' record and run, and the drafting check both consents before each write or model call (unit tests); the stored transcript stays, as said in the notice |
+| A withdrawal that costs the patient their consultation or appointments | It removes only the agent: the call, the care consent and the appointments stay (e2e test) |
+| A care consent re-granted bringing transcription back without asking | A care revocation ends the transcription consent in the same transaction; it is asked again before the next call |
+| The patient not knowing transcription is on | The badge M36 stays while the agent is in the room, and is the way to stop it |
 
 ## Questionnaires (`docs/questionnaire`)
 

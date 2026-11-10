@@ -70,7 +70,7 @@ func as(c consent.Caller) func(context.Context) (consent.Caller, bool, error) {
 }
 
 func TestFHIRHandlerRead_SendsTheConsentAsSPECConsentShapeSaysWithMetaAndETag(t *testing.T) {
-	active := consent.Consent{ID: consentID, PatientID: patientA, OrganizationID: clinicA, Status: consent.StatusActive,
+	active := consent.Consent{ID: consentID, PatientID: patientA, OrganizationID: clinicA, Kind: consent.KindCare, Status: consent.StatusActive,
 		DateTime: now.Add(-24 * time.Hour), VersionID: 1, LastUpdated: now.Add(-24 * time.Hour)}
 	svc := &stubReader{out: active}
 	var log bytes.Buffer
@@ -91,6 +91,18 @@ func TestFHIRHandlerRead_SendsTheConsentAsSPECConsentShapeSaysWithMetaAndETag(t 
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"status":"inactive"`) {
 		t.Errorf("a revoked consent = %d %s, want status inactive", rec.Code, rec.Body)
 	}
+}
+
+// The transcription consent is a Consent of its own: information collection (v3-ActCode ICOL) beside the
+// patient consent category, the provision permitting the clinic to collect and use what is said for treatment.
+func TestFHIRHandlerRead_SendsATranscriptionConsentWithItsCategoryAndActions(t *testing.T) {
+	tc := consent.Consent{ID: consentID, PatientID: patientA, OrganizationID: clinicA, Kind: consent.KindTranscription,
+		Status: consent.StatusActive, DateTime: now.Add(-24 * time.Hour), VersionID: 1, LastUpdated: now.Add(-24 * time.Hour)}
+	rec := readFHIR(t, &stubReader{out: tc}, as(me), &bytes.Buffer{})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d %s, want 200", rec.Code, rec.Body)
+	}
+	assertGolden(t, "transcription_consent.json", rec.Body.Bytes())
 }
 
 func TestFHIRHandlerRead_AnswersNotFoundAndAsksForASignIn(t *testing.T) {

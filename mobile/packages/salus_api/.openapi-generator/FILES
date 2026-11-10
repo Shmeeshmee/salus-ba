@@ -37,6 +37,7 @@ lib/model/command_error.dart
 lib/model/command_error_message.dart
 lib/model/confirm_request.dart
 lib/model/consent.dart
+lib/model/consent_kind.dart
 lib/model/consent_list.dart
 lib/model/consult_command.dart
 lib/model/consult_frame.dart

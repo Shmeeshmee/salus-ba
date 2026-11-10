@@ -37,15 +37,17 @@ func composeLiveKitConfig(t *testing.T) config.LiveKit {
 // consultationApp is the api on the compose LiveKit with the directory's admin, practitioner and patient (with
 // a profile and an active consent), a second patient with no appointment, and the owner's pool.
 type consultationApp struct {
-	log       *syncBuffer
-	owner     *pgxpool.Pool
-	stranger  *client
-	h         http.Handler
-	d         directory
-	lk        config.LiveKit
-	consent   string // the patient's consent with the clinic
-	patientID string // the patient's profile
-	redisURL  string // the api's Redis, which carries the encounters' streams
+	log      *syncBuffer
+	owner    *pgxpool.Pool
+	stranger *client
+	h        http.Handler
+	d        directory
+	lk       config.LiveKit
+	consent  string // the patient's consent with the clinic
+	// transcription is the patient's transcription consent with the clinic (SAL-12), given with the consent
+	transcription string
+	patientID     string // the patient's profile
+	redisURL      string // the api's Redis, which carries the encounters' streams
 }
 
 func newConsultationApp(t *testing.T) consultationApp {
@@ -66,6 +68,12 @@ func newConsultationApp(t *testing.T) consultationApp {
 		t.Fatalf("the patient's profile %q and consent %q, want both", profile.ID, consent.ID)
 	}
 	c.patientID, c.consent = profile.ID, consent.ID
+	var transcription struct{ ID, Kind string }
+	decode(t, c.d.patient.do(http.MethodPost, "/consents", `{"organizationId":"`+inviteClinic+`","kind":"transcription"}`), &transcription)
+	if transcription.ID == "" || transcription.Kind != "transcription" {
+		t.Fatalf("the patient's transcription consent %+v, want one", transcription)
+	}
+	c.transcription = transcription.ID
 
 	c.stranger = &client{t: t, h: app.Handler}
 	c.stranger.do(http.MethodPost, "/auth/register", `{"email":"eve@example.test","password":"`+testPassword+`"}`)
@@ -131,7 +139,7 @@ func TestNew_ServesTheConsultationsJoinStatusAndEnd(t *testing.T) {
 	consultation := "/appointments/" + appt + "/consultation"
 
 	for _, cl := range []*client{c.d.patient, c.d.practitioner, c.d.admin} {
-		expectHTTP(t, cl, http.MethodGet, consultation, http.StatusOK, `{"state":"not_started"}`)
+		expectHTTP(t, cl, http.MethodGet, consultation, http.StatusOK, `{"state":"not_started","transcription":true}`)
 	}
 	expectHTTP(t, c.stranger, http.MethodGet, consultation, http.StatusNotFound, `"not_found"`)
 	expectHTTP(t, c.stranger, http.MethodPost, consultation+"/join", http.StatusNotFound, `"not_found"`)
@@ -155,7 +163,7 @@ func TestNew_ServesTheConsultationsJoinStatusAndEnd(t *testing.T) {
 		}
 		tokens = append(tokens, j.Token)
 	}
-	expectHTTP(t, c.d.admin, http.MethodGet, consultation, http.StatusOK, `{"state":"open"}`)
+	expectHTTP(t, c.d.admin, http.MethodGet, consultation, http.StatusOK, `{"state":"open","transcription":true}`)
 
 	joinedAt := now.Add(-2 * time.Minute).UTC().Truncate(time.Second) // inside the window, before the end
 	c.joined(t, appt, "practitioner", joinedAt)
@@ -243,4 +251,38 @@ func TestNew_RefusesAConsultationJoinWithItsCode(t *testing.T) {
 
 	expectHTTP(t, c.d.patient, http.MethodPost, "/consents/"+c.consent+"/revoke", http.StatusOK)
 	expectHTTP(t, c.d.patient, http.MethodPost, "/appointments/"+soon+"/consultation/join", http.StatusConflict, `"consent_required"`)
+}
+
+// SAL-12, through api.New: the patient withdraws the transcription consent before the practitioner joins. The
+// status no longer says the consultation is transcribed, the withdrawal's job is enqueued in its transaction
+// (and no consent_revoked: the appointment and the call stay), and the practitioner's join asks the agent in no
+// more. Agreeing again asks it in with the patient's join.
+func TestNew_WithoutTheTranscriptionConsentTheAgentIsNotAskedIn(t *testing.T) {
+	c := newConsultationApp(t)
+	now := wallNow()
+	appt := c.book(t, now.Add(-5*time.Minute))
+	consultation := "/appointments/" + appt + "/consultation"
+	expectHTTP(t, c.d.practitioner, http.MethodPost, consultation+"/join", http.StatusOK, `"token"`)
+	expectHTTP(t, c.d.patient, http.MethodPost, "/consents/"+c.transcription+"/revoke", http.StatusOK, `"kind":"transcription"`, `"status":"inactive"`)
+	expectHTTP(t, c.d.patient, http.MethodGet, consultation, http.StatusOK, `{"state":"open"}`)
+	c.joined(t, appt, "practitioner", now.Add(-time.Minute).UTC().Truncate(time.Second))
+
+	jobs := func(kind string) int {
+		var n int
+		if err := c.owner.QueryRow(t.Context(), "SELECT count(*) FROM river_job WHERE kind = $1", kind).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if n, m, r := jobs("transcription_join"), jobs("transcription_consent_revoked"), jobs("consent_revoked"); n != 0 || m != 1 || r != 0 {
+		t.Errorf("transcription_join %d, transcription_consent_revoked %d, consent_revoked %d; want 0, 1, 0", n, m, r)
+	}
+	if rec := c.d.patient.do(http.MethodPost, "/consents", `{"organizationId":"`+inviteClinic+`","kind":"transcription"}`); rec.Code != http.StatusCreated {
+		t.Fatalf("POST /consents again = %d %s", rec.Code, rec.Body)
+	}
+	expectHTTP(t, c.d.patient, http.MethodPost, consultation+"/join", http.StatusOK, `"token"`)
+	c.joined(t, appt, "patient", now.UTC().Truncate(time.Second))
+	if n := jobs("transcription_join"); n != 1 {
+		t.Errorf("transcription_join %d after the patient agreed again and joined, want 1", n)
+	}
 }

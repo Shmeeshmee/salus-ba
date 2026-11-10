@@ -57,7 +57,7 @@
         {
           "type": "Consent",
           "interaction": [{ "code": "read" }],
-          "documentation": "The patient, and staff of the consent's clinic."
+          "documentation": "The patient, and staff of the consent's clinic. Two kinds: the care consent, and the transcription consent (SAL-12), told apart by its second category (v3-ActCode ICOL) and its provision actions (consentaction collect, use)."
         },
         {
           "type": "Schedule",

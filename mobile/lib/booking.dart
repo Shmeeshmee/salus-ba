@@ -76,8 +76,16 @@ class Booking {
 
   Future<List<api.Consent>> consents() async => (await apiCall(_consents.listMyConsents))?.consents ?? const [];
 
-  Future<void> grant(String clinicId) =>
-      apiCall(() => _consents.grantConsent(api.GrantConsentRequest(organizationId: clinicId)));
+  Future<void> grant(String clinicId) => apiCall(
+    () => _consents.grantConsent(api.GrantConsentRequest(organizationId: clinicId, kind: api.ConsentKind.care)),
+  );
+
+  /// The transcription consent with the clinic (SAL-12): transcription and translation of the consultations, with
+  /// AI assistance for the practitioner. An active one already is `consent_active`.
+  Future<void> grantTranscription(String clinicId) => apiCall(
+    () =>
+        _consents.grantConsent(api.GrantConsentRequest(organizationId: clinicId, kind: api.ConsentKind.transcription)),
+  );
 
   Future<void> revoke(String consentId) => apiCall(() => _consents.revokeConsent(consentId));
 

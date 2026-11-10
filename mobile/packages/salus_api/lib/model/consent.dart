@@ -15,6 +15,7 @@ class Consent {
   Consent({
     required this.id,
     required this.organizationId,
+    required this.kind,
     required this.status,
     required this.dateTime,
     this.revokedAt,
@@ -23,6 +24,8 @@ class Consent {
   String id;
 
   String organizationId;
+
+  ConsentKind kind;
 
   ConsentStatusEnum status;
 
@@ -44,6 +47,7 @@ class Consent {
       other is Consent &&
           other.id == id &&
           other.organizationId == organizationId &&
+          other.kind == kind &&
           other.status == status &&
           other.dateTime == dateTime &&
           other.revokedAt == revokedAt;
@@ -53,18 +57,20 @@ class Consent {
       // ignore: unnecessary_parenthesis
       (id.hashCode) +
       (organizationId.hashCode) +
+      (kind.hashCode) +
       (status.hashCode) +
       (dateTime.hashCode) +
       (revokedAt == null ? 0 : revokedAt!.hashCode);
 
   @override
   String toString() =>
-      'Consent[id=$id, organizationId=$organizationId, status=$status, dateTime=$dateTime, revokedAt=$revokedAt]';
+      'Consent[id=$id, organizationId=$organizationId, kind=$kind, status=$status, dateTime=$dateTime, revokedAt=$revokedAt]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'id'] = this.id;
     json[r'organizationId'] = this.organizationId;
+    json[r'kind'] = this.kind;
     json[r'status'] = this.status;
     json[r'dateTime'] = this.dateTime.toUtc().toIso8601String();
     if (this.revokedAt != null) {
@@ -94,6 +100,10 @@ class Consent {
             'Required key "Consent[organizationId]" is missing from JSON.');
         assert(json[r'organizationId'] != null,
             'Required key "Consent[organizationId]" has a null value in JSON.');
+        assert(json.containsKey(r'kind'),
+            'Required key "Consent[kind]" is missing from JSON.');
+        assert(json[r'kind'] != null,
+            'Required key "Consent[kind]" has a null value in JSON.');
         assert(json.containsKey(r'status'),
             'Required key "Consent[status]" is missing from JSON.');
         assert(json[r'status'] != null,
@@ -108,6 +118,7 @@ class Consent {
       return Consent(
         id: mapValueOfType<String>(json, r'id')!,
         organizationId: mapValueOfType<String>(json, r'organizationId')!,
+        kind: ConsentKind.fromJson(json[r'kind'])!,
         status: ConsentStatusEnum.fromJson(json[r'status'])!,
         dateTime: mapDateTime(json, r'dateTime', r'')!,
         revokedAt: mapDateTime(json, r'revokedAt', r''),
@@ -169,6 +180,7 @@ class Consent {
   static const requiredKeys = <String>{
     'id',
     'organizationId',
+    'kind',
     'status',
     'dateTime',
   };

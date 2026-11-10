@@ -19,8 +19,11 @@ type Attendance struct {
 	Level          access.Level // what the caller may see of the appointment (access.Appointment)
 	Profile        access.Level // what the caller may see of its patient (access.Profile)
 	ConsentActive  bool         // the patient's consent with the clinic is active
-	Patient        bool         // the caller is the appointment's patient
-	Practitioner   bool         // the caller is the practitioner of the appointment's role
+	// TranscriptionConsent: the consultation may be transcribed and translated, with AI assistance
+	// (access.Transcribed: the care and the transcription consent active, SAL-12)
+	TranscriptionConsent bool
+	Patient              bool // the caller is the appointment's patient
+	Practitioner         bool // the caller is the practitioner of the appointment's role
 }
 
 // Attendance returns the appointment id with the caller's access facts, read in the caller's scope (the
@@ -45,8 +48,9 @@ func (s *Service) Attendance(ctx context.Context, c Caller, id string) (Attendan
 		out = Attendance{
 			Appointment: v.a, PractitionerID: practitionerID, Level: v.level, Profile: access.Profile(v.viewer, v.facts),
 			ConsentActive: v.facts.Consent.Active, RevokedAt: v.facts.Consent.RevokedAt,
-			Patient:      c.patient(),
-			Practitioner: !c.patient() && v.viewer.PractitionerRole != "" && v.viewer.PractitionerRole == v.a.PractitionerRoleID,
+			TranscriptionConsent: access.Transcribed(v.facts.Consent),
+			Patient:              c.patient(),
+			Practitioner:         !c.patient() && v.viewer.PractitionerRole != "" && v.viewer.PractitionerRole == v.a.PractitionerRoleID,
 		}
 		return nil
 	})

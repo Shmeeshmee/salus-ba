@@ -518,10 +518,65 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get whyCameraAndMicrophone =>
-      'Für die Teilnahme an der Videosprechstunde benötigt Salus Zugriff auf Ihre Kamera und Ihr Mikrofon. Die Sprechstunde wird nicht aufgezeichnet.';
+      'Für die Teilnahme an der Videosprechstunde benötigt Salus Zugriff auf Ihre Kamera und Ihr Mikrofon. Die Sprechstunde wird weder als Ton noch als Video aufgezeichnet. Wenn Sie einwilligen, wird das Gesprochene transkribiert und übersetzt.';
 
   @override
   String get transcriptionOn => 'Transkription ist aktiv';
+
+  @override
+  String get transcriptionTitle => 'Transkription und Übersetzung';
+
+  @override
+  String transcriptionIntro(String clinic) {
+    return 'In Ihren Videosprechstunden bei $clinic kann das, was Sie und Ihr Behandler sagen, beim Sprechen transkribiert und übersetzt werden, damit Ihr Behandler Ihnen in Ihrer Sprache folgen kann.';
+  }
+
+  @override
+  String get transcriptionAssistance =>
+      'Aus dem Transkript erhält Ihr Behandler außerdem KI-Unterstützung: Vorschläge während der Sprechstunde und Entwürfe von Dokumenten. Es sind nur Vorschläge; Ihr Behandler prüft sie und trifft jede Entscheidung selbst.';
+
+  @override
+  String transcriptionKept(String clinic) {
+    return 'Das Transkript wird mit Ihren Behandlungsunterlagen bei $clinic aufbewahrt. Die Sprechstunde wird weder als Ton noch als Video aufgezeichnet.';
+  }
+
+  @override
+  String get transcriptionDecline =>
+      'Wenn Sie nicht einwilligen, findet die Sprechstunde wie gewohnt statt, ohne Transkription, Übersetzung und KI-Unterstützung.';
+
+  @override
+  String get transcriptionWithdraw =>
+      'Sie können Ihre Einwilligung jederzeit widerrufen, auch während der Sprechstunde: Tippen Sie auf „Transkription ist aktiv“ oder öffnen Sie Meine Einwilligungen. Die Transkription endet sofort; was bis dahin transkribiert wurde, bleibt in Ihren Unterlagen.';
+
+  @override
+  String get transcriptionAgree => 'Einwilligen und fortfahren';
+
+  @override
+  String get transcriptionWithout => 'Ohne Transkription fortfahren';
+
+  @override
+  String get stopTranscriptionTitle => 'Transkription beenden?';
+
+  @override
+  String stopTranscriptionBody(String clinic) {
+    return 'Transkription, Übersetzung und KI-Unterstützung enden sofort in Ihren Sprechstunden bei $clinic. Eine laufende Sprechstunde geht ohne sie weiter, und Ihre Termine bleiben bestehen. Was bis jetzt transkribiert wurde, bleibt in Ihren Unterlagen.';
+  }
+
+  @override
+  String get keepTranscription => 'Transkription behalten';
+
+  @override
+  String get stopTranscription => 'Transkription beenden';
+
+  @override
+  String get transcriptionStopped =>
+      'Die Transkription ist aus. Ihre Sprechstunden bei dieser Klinik finden ohne sie statt.';
+
+  @override
+  String get consentForCare => 'Weitergabe für die Behandlung';
+
+  @override
+  String get consentForTranscription => 'Transkription und KI-Unterstützung';
 
   @override
   String get toFillIn => 'Auszufüllen';

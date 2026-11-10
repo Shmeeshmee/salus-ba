@@ -517,10 +517,65 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get whyCameraAndMicrophone =>
-      'للانضمام إلى استشارة الفيديو، يحتاج Salus إلى الكاميرا والميكروفون. لا يتم تسجيل الاستشارة.';
+      'للانضمام إلى استشارة الفيديو، يحتاج Salus إلى الكاميرا والميكروفون. لا تُسجَّل الاستشارة صوتًا ولا فيديو. وإذا وافقت، يُنسخ ما يُقال نصيًا ويُترجم.';
 
   @override
   String get transcriptionOn => 'النسخ النصي مفعّل';
+
+  @override
+  String get transcriptionTitle => 'النسخ النصي والترجمة';
+
+  @override
+  String transcriptionIntro(String clinic) {
+    return 'في استشارات الفيديو مع $clinic، يمكن نسخ ما تقوله أنت والطبيب نصيًا أثناء الحديث وترجمته، ليتمكن الطبيب من متابعتك بلغتك.';
+  }
+
+  @override
+  String get transcriptionAssistance =>
+      'ويحصل الطبيب أيضًا على مساعدة من الذكاء الاصطناعي انطلاقًا من النص المنسوخ: اقتراحات أثناء الاستشارة ومسودات للمستندات. وهي مجرد اقتراحات، يراجعها الطبيب ويتخذ كل قرار بنفسه.';
+
+  @override
+  String transcriptionKept(String clinic) {
+    return 'يُحفظ النص المنسوخ مع سجلك الطبي لدى $clinic. لا تُسجَّل الاستشارة صوتًا ولا فيديو.';
+  }
+
+  @override
+  String get transcriptionDecline =>
+      'إذا لم توافق، تجري الاستشارة كالمعتاد، دون نسخ نصي أو ترجمة أو مساعدة من الذكاء الاصطناعي.';
+
+  @override
+  String get transcriptionWithdraw =>
+      'يمكنك سحب موافقتك في أي وقت، حتى أثناء الاستشارة: اضغط على «النسخ النصي مفعّل» أو افتح موافقاتي. يتوقف النسخ النصي فورًا، ويبقى ما نُسخ حتى ذلك الحين في سجلك.';
+
+  @override
+  String get transcriptionAgree => 'الموافقة والمتابعة';
+
+  @override
+  String get transcriptionWithout => 'المتابعة دون نسخ نصي';
+
+  @override
+  String get stopTranscriptionTitle => 'هل تريد إيقاف النسخ النصي؟';
+
+  @override
+  String stopTranscriptionBody(String clinic) {
+    return 'يتوقف النسخ النصي والترجمة ومساعدة الذكاء الاصطناعي فورًا في استشاراتك مع $clinic. تستمر الاستشارة الجارية بدونها، وتبقى مواعيدك كما هي. ويبقى ما نُسخ حتى الآن في سجلك.';
+  }
+
+  @override
+  String get keepTranscription => 'الإبقاء على النسخ النصي';
+
+  @override
+  String get stopTranscription => 'إيقاف النسخ النصي';
+
+  @override
+  String get transcriptionStopped =>
+      'النسخ النصي متوقف. تجري استشاراتك مع هذه العيادة بدونه.';
+
+  @override
+  String get consentForCare => 'المشاركة لأغراض الرعاية';
+
+  @override
+  String get consentForTranscription => 'النسخ النصي ومساعدة الذكاء الاصطناعي';
 
   @override
   String get toFillIn => 'بانتظار التعبئة';

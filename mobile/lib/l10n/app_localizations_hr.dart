@@ -515,10 +515,66 @@ class AppLocalizationsHr extends AppLocalizations {
 
   @override
   String get whyCameraAndMicrophone =>
-      'Da biste se pridružili videokonzultaciji, Salus treba pristup vašoj kameri i mikrofonu. Konzultacija se ne snima.';
+      'Da biste se pridružili videokonzultaciji, Salus treba pristup vašoj kameri i mikrofonu. Konzultacija se ne snima ni kao zvuk ni kao video. Ako pristanete, ono što se izgovori transkribira se i prevodi.';
 
   @override
   String get transcriptionOn => 'Transkripcija je uključena';
+
+  @override
+  String get transcriptionTitle => 'Transkripcija i prijevod';
+
+  @override
+  String transcriptionIntro(String clinic) {
+    return 'U vašim videokonzultacijama s klinikom $clinic ono što vi i liječnik kažete može se transkribirati dok govorite i prevesti, kako bi vas liječnik mogao pratiti na vašem jeziku.';
+  }
+
+  @override
+  String get transcriptionAssistance =>
+      'Na temelju transkripta liječnik dobiva i pomoć umjetne inteligencije (AI): prijedloge tijekom konzultacije i nacrte dokumenata. To su samo prijedlozi; liječnik ih provjerava i donosi svaku odluku.';
+
+  @override
+  String transcriptionKept(String clinic) {
+    return 'Transkript se čuva uz vašu medicinsku dokumentaciju u klinici $clinic. Konzultacija se ne snima ni kao zvuk ni kao video.';
+  }
+
+  @override
+  String get transcriptionDecline =>
+      'Ako ne pristanete, konzultacija se odvija kao i obično, bez transkripcije, prijevoda i pomoći umjetne inteligencije.';
+
+  @override
+  String get transcriptionWithdraw =>
+      'Privolu možete povući u bilo kojem trenutku, i tijekom konzultacije: dodirnite „Transkripcija je uključena” ili otvorite Moje privole. Transkripcija prestaje odmah; ono što je dotad transkribirano ostaje u vašoj dokumentaciji.';
+
+  @override
+  String get transcriptionAgree => 'Prihvati i nastavi';
+
+  @override
+  String get transcriptionWithout => 'Nastavi bez transkripcije';
+
+  @override
+  String get stopTranscriptionTitle => 'Zaustaviti transkripciju?';
+
+  @override
+  String stopTranscriptionBody(String clinic) {
+    return 'Transkripcija, prijevod i pomoć umjetne inteligencije odmah prestaju u vašim konzultacijama s klinikom $clinic. Konzultacija koja je u tijeku nastavlja se bez njih, a vaši termini ostaju nepromijenjeni. Ono što je dosad transkribirano ostaje u vašoj dokumentaciji.';
+  }
+
+  @override
+  String get keepTranscription => 'Zadrži transkripciju';
+
+  @override
+  String get stopTranscription => 'Zaustavi transkripciju';
+
+  @override
+  String get transcriptionStopped =>
+      'Transkripcija je isključena. Vaše konzultacije s ovom klinikom odvijaju se bez nje.';
+
+  @override
+  String get consentForCare => 'Dijeljenje radi liječenja';
+
+  @override
+  String get consentForTranscription =>
+      'Transkripcija i pomoć umjetne inteligencije';
 
   @override
   String get toFillIn => 'Za ispunjavanje';

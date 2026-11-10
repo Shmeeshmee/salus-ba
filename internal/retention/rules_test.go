@@ -131,6 +131,18 @@ func TestRules_KeepConsentsWithTheClinicalRecord(t *testing.T) {
 	t.Fatal("no rule for consent")
 }
 
+func TestRules_KeepTranscriptionConsentsWithTheClinicalRecord(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "transcription_consent" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("transcription_consent then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for transcription_consent")
+}
+
 func TestRules_KeepAppointmentsWithTheClinicalRecord(t *testing.T) {
 	for _, r := range retention.Rules() {
 		if r.Table == "appointment" {

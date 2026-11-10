@@ -266,8 +266,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Consent to share the profile and appointments with a clinic
-         * @description The signed-in patient consents to share their profile and appointments with the clinic for care (FHIR Consent, docs/booking/SPEC.md "Consent shape"). At most one consent per clinic is active; granting again after a revocation creates a new consent, so the history is kept. Needs a profile. Patients only. Not cached. Audited, also when refused.
+         * Consent to share the profile and appointments with a clinic, or to transcription
+         * @description The signed-in patient consents, for `care` (the default), to share their profile and appointments with the clinic (FHIR Consent, docs/booking/SPEC.md "Consent shape"); for `transcription`, to the transcription and translation of their consultations with the clinic, with AI assistance for the practitioner (SAL-12): the transcription agent joins a call only while both are active. At most one consent of each kind per clinic is active; granting again after a revocation creates a new consent, so the history is kept. Needs a profile. Patients only. Not cached. Audited, also when refused.
          */
         post: operations["grantConsent"];
         delete?: never;
@@ -287,7 +287,7 @@ export interface paths {
         put?: never;
         /**
          * Revoke a consent
-         * @description The signed-in patient revokes their active consent. The clinic's access to the profile and to every future appointment ends at once; past appointments stay, as the clinic's records, with the name, times and status only. Patients only. Not cached. Audited, also when refused.
+         * @description The signed-in patient revokes their active consent. A care consent: the clinic's access to the profile and to every future appointment ends at once; past appointments stay, as the clinic's records, with the name, times and status only; the transcription consent with the clinic ends with it. A transcription consent: the transcription agent leaves the patient's calls with the clinic at once and joins none, the calls go on, nothing else changes. Patients only. Not cached. Audited, also when refused.
          */
         post: operations["revokeConsent"];
         delete?: never;
@@ -305,7 +305,7 @@ export interface paths {
         };
         /**
          * The signed-in patient's consents
-         * @description Every consent of the signed-in patient, active and revoked, the latest granted first; none before the profile exists. Patients only. Not cached. Audited.
+         * @description Every consent of the signed-in patient, of both kinds, active and revoked, the latest granted first; none before the profile exists. Patients only. Not cached. Audited.
          */
         get: operations["listMyConsents"];
         put?: never;
@@ -795,7 +795,7 @@ export interface paths {
         put?: never;
         /**
          * Draft a document from the transcript
-         * @description Drafts (or redrafts) a template from the encounter's stored transcript so far, during or after the call, and answers with the draft once it is stored; it is also pushed on the encounter's event stream as a `DraftMessage`. The model fills the fields, each filled field citing the transcript segments it came from; a value without sources, citing a segment the transcript does not have, or not of its field's type is not kept, and the field stays missing. A redraft replaces the open draft of the template as its next version. Without a transcript every field is missing. For the encounter's practitioner with the patient's active consent only (checked again once the model answered). Audited, also when refused.
+         * @description Drafts (or redrafts) a template from the encounter's stored transcript so far, during or after the call, and answers with the draft once it is stored; it is also pushed on the encounter's event stream as a `DraftMessage`. The model fills the fields, each filled field citing the transcript segments it came from; a value without sources, citing a segment the transcript does not have, or not of its field's type is not kept, and the field stays missing. A redraft replaces the open draft of the template as its next version. Without a transcript every field is missing. For the encounter's practitioner with the patient's active consent and active transcription consent only (SAL-12; checked again once the model answered). Audited, also when refused.
          */
         post: operations["generateDraft"];
         delete?: never;
@@ -1459,13 +1459,21 @@ export interface components {
              * @description The clinic the profile and appointments are shared with.
              */
             organizationId: string;
+            kind?: components["schemas"]["ConsentKind"];
         };
-        /** @description A patient's consent to share their profile and appointments with a clinic for care (FHIR Consent). Health data: it shows whom the patient consults. */
+        /**
+         * @description What the consent is for: `care`, sharing the profile and appointments with the clinic; `transcription`, transcription and translation of the consultations with the clinic, with AI assistance for the practitioner (suggestions, document drafts), used only with an active care consent (SAL-12).
+         * @default care
+         * @enum {string}
+         */
+        ConsentKind: "care" | "transcription";
+        /** @description A patient's consent with a clinic (FHIR Consent): to share their profile and appointments with it for care, or to transcription. Health data: it shows whom the patient consults. */
         Consent: {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
             organizationId: string;
+            kind: components["schemas"]["ConsentKind"];
             /** @enum {string} */
             status: "active" | "inactive";
             /**
@@ -1796,7 +1804,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout";
             /** @description With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
@@ -1844,6 +1852,8 @@ export interface components {
              * @enum {string}
              */
             reason?: "consent_withdrawn" | "cancelled" | "left" | "ended" | "practitioner_did_not_join" | "time_limit";
+            /** @description True while the consultation may be transcribed and translated, with AI assistance for the practitioner: the patient's care and transcription consents with the clinic are both active (SAL-12). Absent otherwise: the call runs without the transcription agent. */
+            transcription?: boolean;
         };
         /** @description LiveKit's WebhookEvent in its JSON form (protojson); only `event`, `room.name`, the participant's `identity` and `joinedAt`/`joinedAtMs`, and `createdAt` are read. */
         LiveKitWebhookEvent: {
@@ -3144,7 +3154,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `consent_active`: a consent with the clinic is active already; `profile_required`: the patient has no profile yet. */
+            /** @description `consent_active`: a consent of the kind with the clinic is active already; `profile_required`: the patient has no profile yet. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4543,7 +4553,15 @@ export interface operations {
             200: components["responses"]["Draft"];
             400: components["responses"]["DocumentInvalidRequest"];
             401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["DocumentRecordForbidden"];
+            /** @description `consent_required`: the encounter's practitioner after the patient revoked their consent; `transcription_consent_required`: the patient has not agreed to transcription and AI assistance, or withdrew it, so nothing is drafted; `forbidden`: anyone else who sees the encounter. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description `not_found`: no such encounter the caller may see; `template_not_found`: the clinic has no such template. */
             404: {
                 headers: {

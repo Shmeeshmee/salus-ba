@@ -52,6 +52,7 @@ func seedConsultation(t testing.TB, owner *pgxpool.Pool, at time.Time) consultat
 	err = owner.QueryRow(ctx, `WITH a AS (INSERT INTO account (email, password_hash, role) VALUES (gen_random_uuid()::text || '@example.test', 'h', 'patient') RETURNING id),
 		p AS (INSERT INTO patient (account_id, given_name, family_name, birth_date) SELECT id, 'Ada', 'Example', '1990-01-01' FROM a RETURNING id, account_id),
 		c AS (INSERT INTO consent (patient_id, organization_id, status, date_time) SELECT id, $1, 'active', $2::timestamptz - interval '30 days' FROM p),
+		tc AS (INSERT INTO transcription_consent (patient_id, organization_id, status, date_time) SELECT id, $1, 'active', $2::timestamptz - interval '30 days' FROM p),
 		b AS (INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period)
 			SELECT id, $3, $1, gen_random_uuid(), tstzrange($2::timestamptz, $2::timestamptz + interval '30 minutes') FROM p RETURNING id)
 		SELECT p.id::text, p.account_id::text, b.id::text FROM p, b`, s.clinic, at, s.role).

@@ -516,10 +516,65 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get whyCameraAndMicrophone =>
-      'Görüntülü görüşmeye katılmak için Salus\'un kameranıza ve mikrofonunuza erişmesi gerekir. Görüşme kaydedilmez.';
+      'Görüntülü görüşmeye katılmak için Salus\'un kameranıza ve mikrofonunuza erişmesi gerekir. Görüşme ses veya görüntü olarak kaydedilmez. Onay verirseniz söylenenler yazıya dökülür ve çevrilir.';
 
   @override
   String get transcriptionOn => 'Transkripsiyon açık';
+
+  @override
+  String get transcriptionTitle => 'Transkripsiyon ve çeviri';
+
+  @override
+  String transcriptionIntro(String clinic) {
+    return '$clinic ile görüntülü görüşmelerinizde sizin ve sağlık uzmanının söyledikleri konuşurken yazıya dökülebilir ve çevrilebilir; böylece sağlık uzmanı sizi kendi dilinizde takip edebilir.';
+  }
+
+  @override
+  String get transcriptionAssistance =>
+      'Sağlık uzmanı ayrıca yazıya dökülen metinden yapay zekâ desteği alır: görüşme sırasında öneriler ve belge taslakları. Bunlar yalnızca önerilerdir; sağlık uzmanı bunları kontrol eder ve her kararı kendisi verir.';
+
+  @override
+  String transcriptionKept(String clinic) {
+    return 'Yazıya dökülen metin, sağlık kaydınızla birlikte $clinic tarafından saklanır. Görüşme ses veya görüntü olarak kaydedilmez.';
+  }
+
+  @override
+  String get transcriptionDecline =>
+      'Onay vermezseniz görüşme her zamanki gibi; transkripsiyon, çeviri ve yapay zekâ desteği olmadan yapılır.';
+
+  @override
+  String get transcriptionWithdraw =>
+      'Onayınızı istediğiniz zaman, görüşme sırasında da geri alabilirsiniz: “Transkripsiyon açık” yazısına dokunun veya Onaylarım bölümünü açın. Transkripsiyon hemen durur; o ana kadar yazıya dökülenler kaydınızda kalır.';
+
+  @override
+  String get transcriptionAgree => 'Onayla ve devam et';
+
+  @override
+  String get transcriptionWithout => 'Transkripsiyon olmadan devam et';
+
+  @override
+  String get stopTranscriptionTitle => 'Transkripsiyon durdurulsun mu?';
+
+  @override
+  String stopTranscriptionBody(String clinic) {
+    return '$clinic ile görüşmelerinizde transkripsiyon, çeviri ve yapay zekâ desteği hemen durur. Devam eden bir görüşme bunlar olmadan sürer ve randevularınız olduğu gibi kalır. Şimdiye kadar yazıya dökülenler kaydınızda kalır.';
+  }
+
+  @override
+  String get keepTranscription => 'Transkripsiyonu sürdür';
+
+  @override
+  String get stopTranscription => 'Transkripsiyonu durdur';
+
+  @override
+  String get transcriptionStopped =>
+      'Transkripsiyon kapalı. Bu klinikle görüşmeleriniz transkripsiyon olmadan yapılır.';
+
+  @override
+  String get consentForCare => 'Bakım için paylaşım';
+
+  @override
+  String get consentForTranscription => 'Transkripsiyon ve yapay zekâ desteği';
 
   @override
   String get toFillIn => 'Doldurulacak';

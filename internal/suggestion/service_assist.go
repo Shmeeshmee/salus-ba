@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/transcript"
@@ -210,8 +211,9 @@ func (a *Assistant) run(ctx context.Context, s *Session) error {
 }
 
 // shown returns the encounter, in its clinic's scope, and the suggestions shown in it so far (whatever their
-// status), audited as the worker's read; ErrConsentRequired, audited, once the patient's consent with the
-// clinic is no longer active, and ErrNotFound for an encounter the scope does not show.
+// status), audited as the worker's read; ErrConsentRequired, audited, once the patient's care or transcription
+// consent with the clinic is no longer active (access.Transcribed, SAL-12), and ErrNotFound for an encounter the
+// scope does not show.
 func (s *Service) shown(ctx context.Context, encounterID string) (encounter.Encounter, []Event, error) {
 	var enc encounter.Encounter
 	var out []Event
@@ -225,7 +227,7 @@ func (s *Service) shown(ctx context.Context, encounterID string) (encounter.Enco
 		switch {
 		case err != nil:
 			return err
-		case !consent.Active:
+		case !access.Transcribed(consent):
 			refused = ErrConsentRequired
 			return s.Audit.Record(ctx, systemEvent(assistAgent, enc, auditevent.CodeRead, auditevent.OutcomeMinorFailure, 0))
 		}

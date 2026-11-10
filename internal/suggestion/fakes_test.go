@@ -234,7 +234,7 @@ type fixture struct {
 
 // newFixture is clinic A's encounter A of patient A, with an active consent.
 func newFixture() *fixture {
-	f := &fixture{consents: &fakeConsents{state: access.Consent{Active: true}}, audit: &fakeAuditor{}, publisher: &fakePublisher{}}
+	f := &fixture{consents: &fakeConsents{state: access.Consent{Active: true, Transcription: true}}, audit: &fakeAuditor{}, publisher: &fakePublisher{}}
 	f.repo = &fakeRepository{f: f, rows: map[string]suggestion.Event{}}
 	f.encounters = &fakeEncounters{f: f}
 	f.records = &fakeRecords{f: f}

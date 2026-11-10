@@ -90,6 +90,20 @@ func TestStore_WritesNothingAfterARevocation(t *testing.T) {
 	checkEvents(t, "revoked", f.audit, systemEvent(auditevent.OutcomeMinorFailure, 0))
 }
 
+// Without the patient's transcription consent (declined, or withdrawn while a line was on its way) nothing is
+// stored either (SAL-12); the care record of the consultation goes on.
+func TestStore_WritesNothingWithoutTheTranscriptionConsent(t *testing.T) {
+	f := newFixture()
+	f.consents.state.Transcription = false
+	if err := f.svc.Store(t.Context(), consumer, valid()); !errors.Is(err, transcript.ErrConsentRequired) {
+		t.Errorf("Store() error = %v, want ErrConsentRequired", err)
+	}
+	if len(f.repo.segments) != 0 {
+		t.Errorf("stored %d segments, want none", len(f.repo.segments))
+	}
+	checkEvents(t, "withdrawn", f.audit, systemEvent(auditevent.OutcomeMinorFailure, 0))
+}
+
 func TestStore_FailsWithNothingStoredWhenABackendFails(t *testing.T) {
 	for name, fail := range map[string]func(*fixture){
 		"the repository": func(f *fixture) { f.repo.err = errBackend },

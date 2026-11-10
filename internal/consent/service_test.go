@@ -47,20 +47,29 @@ func (f fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 	return err
 }
 
-// fakeJobs records the consent_revoked jobs enqueued: "<patient id> <clinic id>".
+// fakeJobs records the consent_revoked jobs enqueued, "<patient id> <clinic id>", and the
+// transcription_consent_revoked ones, "transcription <patient id> <clinic id>".
 type fakeJobs struct {
 	err      error
 	enqueued []string
 }
 
 func (j *fakeJobs) EnqueueConsentRevoked(ctx context.Context, patientID, organizationID string) error {
+	return j.enqueue(ctx, patientID+" "+organizationID)
+}
+
+func (j *fakeJobs) EnqueueTranscriptionRevoked(ctx context.Context, patientID, organizationID string) error {
+	return j.enqueue(ctx, "transcription "+patientID+" "+organizationID)
+}
+
+func (j *fakeJobs) enqueue(ctx context.Context, job string) error {
 	if ctx.Value(txKey{}) == nil {
 		return errors.New("enqueued outside a transaction")
 	}
 	if j.err != nil {
 		return j.err
 	}
-	j.enqueued = append(j.enqueued, patientID+" "+organizationID)
+	j.enqueued = append(j.enqueued, job)
 	return nil
 }
 
@@ -76,8 +85,8 @@ type fakeRepository struct {
 
 func newFakeRepository() *fakeRepository {
 	return &fakeRepository{consents: []consent.Consent{
-		{ID: consentAA, PatientID: patientA, OrganizationID: clinicA, Status: consent.StatusActive, DateTime: granted, LastUpdated: granted, VersionID: 1},
-		{ID: consentAB, PatientID: patientA, OrganizationID: clinicB, Status: consent.StatusInactive, DateTime: granted, RevokedAt: revoked, LastUpdated: revoked, VersionID: 2},
+		{ID: consentAA, PatientID: patientA, OrganizationID: clinicA, Kind: consent.KindCare, Status: consent.StatusActive, DateTime: granted, LastUpdated: granted, VersionID: 1},
+		{ID: consentAB, PatientID: patientA, OrganizationID: clinicB, Kind: consent.KindCare, Status: consent.StatusInactive, DateTime: granted, RevokedAt: revoked, LastUpdated: revoked, VersionID: 2},
 	}}
 }
 
@@ -104,7 +113,7 @@ func (r *fakeRepository) SetClinic(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *fakeRepository) Grant(ctx context.Context, patientID, organizationID string, at time.Time) (consent.Consent, error) {
+func (r *fakeRepository) Grant(ctx context.Context, kind consent.Kind, patientID, organizationID string, at time.Time) (consent.Consent, error) {
 	r.seen(ctx, "Grant")
 	if r.err != nil {
 		return consent.Consent{}, r.err
@@ -113,11 +122,11 @@ func (r *fakeRepository) Grant(ctx context.Context, patientID, organizationID st
 		return consent.Consent{}, consent.ErrClinicNotFound
 	}
 	for _, c := range r.consents {
-		if c.PatientID == patientID && c.OrganizationID == organizationID && c.Status == consent.StatusActive {
+		if c.PatientID == patientID && c.OrganizationID == organizationID && c.Kind == kind && c.Status == consent.StatusActive {
 			return consent.Consent{}, consent.ErrActive
 		}
 	}
-	c := consent.Consent{ID: newID, PatientID: patientID, OrganizationID: organizationID, Status: consent.StatusActive, DateTime: at, LastUpdated: at, VersionID: 1}
+	c := consent.Consent{ID: newID, PatientID: patientID, OrganizationID: organizationID, Kind: kind, Status: consent.StatusActive, DateTime: at, LastUpdated: at, VersionID: 1}
 	r.consents = append(r.consents, c)
 	return c, nil
 }
@@ -135,13 +144,25 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (consent.Consent, 
 	return consent.Consent{}, consent.ErrNotFound
 }
 
-func (r *fakeRepository) Revoke(ctx context.Context, id string, at time.Time) (consent.Consent, error) {
-	r.seen(ctx, "Revoke")
+func (r *fakeRepository) Revoke(ctx context.Context, kind consent.Kind, id string, at time.Time) (consent.Consent, error) {
+	r.seen(ctx, "Revoke "+string(kind))
+	return r.revoke(func(c consent.Consent) bool { return c.ID == id && c.Kind == kind }, at)
+}
+
+func (r *fakeRepository) RevokeTranscription(ctx context.Context, patientID, organizationID string, at time.Time) (consent.Consent, error) {
+	r.seen(ctx, "RevokeTranscription")
+	return r.revoke(func(c consent.Consent) bool {
+		return c.PatientID == patientID && c.OrganizationID == organizationID && c.Kind == consent.KindTranscription
+	}, at)
+}
+
+// revoke revokes the active consent of the patient's scope that match picks.
+func (r *fakeRepository) revoke(match func(consent.Consent) bool, at time.Time) (consent.Consent, error) {
 	if r.err != nil {
 		return consent.Consent{}, r.err
 	}
 	for i, c := range r.consents {
-		if c.ID == id && r.patient != "" && c.PatientID == r.patient && c.Status == consent.StatusActive {
+		if match(c) && r.patient != "" && c.PatientID == r.patient && c.Status == consent.StatusActive {
 			c.Status, c.RevokedAt, c.LastUpdated, c.VersionID = consent.StatusInactive, at, at, c.VersionID+1
 			r.consents[i] = c
 			return c, nil
@@ -171,7 +192,9 @@ func (r *fakeRepository) State(ctx context.Context, patientID, organizationID st
 	}
 	var s access.Consent
 	for _, c := range r.consents {
-		if c.PatientID == patientID && c.OrganizationID == organizationID {
+		if c.PatientID == patientID && c.OrganizationID == organizationID && c.Kind == consent.KindTranscription {
+			s.Transcription = s.Transcription || c.Status == consent.StatusActive
+		} else if c.PatientID == patientID && c.OrganizationID == organizationID {
 			s.Active = s.Active || c.Status == consent.StatusActive
 			if c.RevokedAt.After(s.RevokedAt) {
 				s.RevokedAt = c.RevokedAt
@@ -241,8 +264,8 @@ func checkEvents(t *testing.T, name string, audit *fakeAuditor, want ...auditeve
 
 func TestGrant_StoresAnActiveConsentOfTheCallingPatientAndAuditsIt(t *testing.T) {
 	f := newFixture()
-	got, err := f.svc.Grant(t.Context(), other, clinicA)
-	want := consent.Consent{ID: newID, PatientID: patientB, OrganizationID: clinicA, Status: consent.StatusActive, DateTime: now, LastUpdated: now, VersionID: 1}
+	got, err := f.svc.Grant(t.Context(), other, clinicA, consent.KindCare)
+	want := consent.Consent{ID: newID, PatientID: patientB, OrganizationID: clinicA, Kind: consent.KindCare, Status: consent.StatusActive, DateTime: now, LastUpdated: now, VersionID: 1}
 	if err != nil || got != want {
 		t.Fatalf("Grant() = %+v, %v;\nwant %+v", got, err, want)
 	}
@@ -254,7 +277,7 @@ func TestGrant_StoresAnActiveConsentOfTheCallingPatientAndAuditsIt(t *testing.T)
 
 func TestGrant_AfterARevocationAddsANewConsent(t *testing.T) {
 	f := newFixture()
-	got, err := f.svc.Grant(t.Context(), me, clinicB)
+	got, err := f.svc.Grant(t.Context(), me, clinicB, consent.KindCare)
 	if err != nil || got.ID != newID || got.Status != consent.StatusActive || len(f.repo.consents) != 3 {
 		t.Fatalf("Grant() = %+v, %v with %d consents; want a third, active consent", got, err, len(f.repo.consents))
 	}
@@ -278,7 +301,7 @@ func TestGrant_RefusesAndAuditsEveryCaseOfRefusal(t *testing.T) {
 	}
 	for _, tt := range tests {
 		f := newFixture()
-		_, err := f.svc.Grant(t.Context(), tt.caller, tt.clinic)
+		_, err := f.svc.Grant(t.Context(), tt.caller, tt.clinic, consent.KindCare)
 		if !errors.Is(err, tt.want) || !slices.Equal(f.repo.calls, tt.calls) {
 			t.Errorf("%s: Grant() = %v after calls %v, want %v after %v", tt.name, err, f.repo.calls, tt.want, tt.calls)
 		}
@@ -292,7 +315,7 @@ func TestRevoke_EndsTheCallingPatientsActiveConsentAndAuditsIt(t *testing.T) {
 	if err != nil || got.ID != consentAA || got.Status != consent.StatusInactive || !got.RevokedAt.Equal(now) || got.VersionID != 2 {
 		t.Fatalf("Revoke() = %+v, %v; want consent A-A inactive, revoked now, version 2", got, err)
 	}
-	if want := []string{"SetPatient", "ByID", "Revoke"}; !slices.Equal(f.repo.calls, want) || f.repo.patient != patientA {
+	if want := []string{"SetPatient", "ByID", "Revoke care", "RevokeTranscription"}; !slices.Equal(f.repo.calls, want) || f.repo.patient != patientA {
 		t.Errorf("calls %v with patient %q, want %v inside the transaction with patient A", f.repo.calls, f.repo.patient, want)
 	}
 	checkEvents(t, "Revoke", f.audit, event(me, auditevent.CodeUpdate, consentAA, auditevent.OutcomeSuccess))
@@ -360,7 +383,7 @@ func TestRevoke_LosingARaceIsInactive(t *testing.T) {
 
 type racingRepository struct{ *fakeRepository }
 
-func (r *racingRepository) Revoke(context.Context, string, time.Time) (consent.Consent, error) {
+func (r *racingRepository) Revoke(context.Context, consent.Kind, string, time.Time) (consent.Consent, error) {
 	return consent.Consent{}, consent.ErrInactive
 }
 
@@ -475,7 +498,10 @@ func TestState_GivesTheConsentStateInTheCallersTransactionWithoutAnAudit(t *test
 
 func TestService_FailsOnARepositoryOrAuditError(t *testing.T) {
 	calls := map[string]func(s *consent.Service) error{
-		"Grant":  func(s *consent.Service) error { _, err := s.Grant(t.Context(), me, clinicB); return err },
+		"Grant": func(s *consent.Service) error {
+			_, err := s.Grant(t.Context(), me, clinicB, consent.KindCare)
+			return err
+		},
 		"Revoke": func(s *consent.Service) error { _, err := s.Revoke(t.Context(), me, consentAA); return err },
 		"Mine":   func(s *consent.Service) error { _, err := s.Mine(t.Context(), me); return err },
 		"Read":   func(s *consent.Service) error { _, err := s.Read(t.Context(), me, consentAA); return err },
@@ -485,10 +511,13 @@ func TestService_FailsOnARepositoryOrAuditError(t *testing.T) {
 		},
 		"State": func(s *consent.Service) error { _, err := s.State(t.Context(), patientA, clinicA); return err },
 		"Grant as staff": func(s *consent.Service) error {
-			_, err := s.Grant(t.Context(), staff, clinicA)
+			_, err := s.Grant(t.Context(), staff, clinicA, consent.KindCare)
 			return err
 		},
-		"Grant to an unknown clinic": func(s *consent.Service) error { _, err := s.Grant(t.Context(), other, "x"); return err },
+		"Grant to an unknown clinic": func(s *consent.Service) error {
+			_, err := s.Grant(t.Context(), other, "x", consent.KindCare)
+			return err
+		},
 	}
 	boom := errors.New("connection reset")
 	for name, call := range calls {
@@ -508,5 +537,84 @@ func TestService_FailsOnARepositoryOrAuditError(t *testing.T) {
 				t.Errorf("%s: the error %q holds an id", name, err)
 			}
 		}
+	}
+}
+
+// withTranscription is the fixture with patient A's active transcription consent with clinic A.
+func withTranscription() (fixture, consent.Consent) {
+	f := newFixture()
+	tc := consent.Consent{ID: transcriptionAA, PatientID: patientA, OrganizationID: clinicA, Kind: consent.KindTranscription, Status: consent.StatusActive, DateTime: granted, LastUpdated: granted, VersionID: 1}
+	f.repo.consents = append(f.repo.consents, tc)
+	return f, tc
+}
+
+const transcriptionAA = "f3000000-0000-4000-8000-0000000000f3"
+
+func TestGrant_StoresATranscriptionConsentBesideTheCareConsent(t *testing.T) {
+	f := newFixture()
+	got, err := f.svc.Grant(t.Context(), me, clinicA, consent.KindTranscription)
+	want := consent.Consent{ID: newID, PatientID: patientA, OrganizationID: clinicA, Kind: consent.KindTranscription, Status: consent.StatusActive, DateTime: now, LastUpdated: now, VersionID: 1}
+	if err != nil || got != want {
+		t.Fatalf("Grant(transcription) = %+v, %v;\nwant %+v", got, err, want)
+	}
+	checkEvents(t, "Grant", f.audit, event(me, auditevent.CodeCreate, newID, auditevent.OutcomeSuccess))
+	if _, err := f.svc.Grant(t.Context(), me, clinicA, consent.KindTranscription); !errors.Is(err, consent.ErrActive) {
+		t.Errorf("a second Grant(transcription) = %v, want ErrActive", err)
+	}
+	st, err := f.svc.State(t.Context(), patientA, clinicA)
+	if err != nil || !st.Active || !st.Transcription {
+		t.Errorf("State() = %+v, %v; want both consents active", st, err)
+	}
+}
+
+func TestGrant_RefusesAnUnknownKindAndAuditsIt(t *testing.T) {
+	f := newFixture()
+	if _, err := f.svc.Grant(t.Context(), me, clinicA, "research"); !errors.Is(err, consent.ErrKind) {
+		t.Errorf("Grant(research) = %v, want ErrKind", err)
+	}
+	if len(f.repo.calls) != 0 {
+		t.Errorf("calls %v, want none", f.repo.calls)
+	}
+	checkEvents(t, "unknown kind", f.audit, event(me, auditevent.CodeCreate, "", auditevent.OutcomeMinorFailure))
+}
+
+// A withdrawal of the transcription consent takes the agent out of the call (transcription_consent_revoked) and
+// leaves the care consent, the appointments and the call as they are: no consent_revoked.
+func TestRevoke_ATranscriptionConsentEnqueuesOnlyTheAgentsRemoval(t *testing.T) {
+	f, tc := withTranscription()
+	got, err := f.svc.Revoke(t.Context(), me, tc.ID)
+	if err != nil || got.Kind != consent.KindTranscription || got.Status != consent.StatusInactive || !got.RevokedAt.Equal(now) {
+		t.Fatalf("Revoke() = %+v, %v; want the transcription consent revoked now", got, err)
+	}
+	if want := []string{"SetPatient", "ByID", "Revoke transcription"}; !slices.Equal(f.repo.calls, want) {
+		t.Errorf("calls %v, want %v", f.repo.calls, want)
+	}
+	if want := []string{"transcription " + patientA + " " + clinicA}; !slices.Equal(f.jobs.enqueued, want) {
+		t.Errorf("enqueued %v, want %v", f.jobs.enqueued, want)
+	}
+	checkEvents(t, "Revoke", f.audit, event(me, auditevent.CodeUpdate, tc.ID, auditevent.OutcomeSuccess))
+	if f.repo.consents[0].Status != consent.StatusActive {
+		t.Errorf("the care consent became %+v, want it active", f.repo.consents[0])
+	}
+}
+
+// A revocation of the care consent revokes the transcription consent with the clinic in the same transaction,
+// audited: granting care again asks for the transcription consent again.
+func TestRevoke_TheCareConsentRevokesTheTranscriptionConsentToo(t *testing.T) {
+	f, tc := withTranscription()
+	if _, err := f.svc.Revoke(t.Context(), me, consentAA); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.repo.consents[2]; got.ID != tc.ID || got.Status != consent.StatusInactive || !got.RevokedAt.Equal(now) {
+		t.Errorf("the transcription consent became %+v, want it revoked now", got)
+	}
+	checkEvents(t, "Revoke", f.audit,
+		event(me, auditevent.CodeUpdate, tc.ID, auditevent.OutcomeSuccess),
+		event(me, auditevent.CodeUpdate, consentAA, auditevent.OutcomeSuccess))
+	if want := []string{patientA + " " + clinicA}; !slices.Equal(f.jobs.enqueued, want) {
+		t.Errorf("enqueued %v, want only consent_revoked %v (it removes the agent with the patient)", f.jobs.enqueued, want)
+	}
+	if st, _ := f.svc.State(t.Context(), patientA, clinicA); st.Active || st.Transcription {
+		t.Errorf("State() = %+v, want neither active", st)
 	}
 }

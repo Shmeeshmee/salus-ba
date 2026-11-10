@@ -214,6 +214,7 @@ func TestHTTP_MapsTheErrors(t *testing.T) {
 		{composition.ErrNotFound, `{"error":"not_found"}`, 404},
 		{composition.ErrForbidden, `{"error":"forbidden"}`, 403},
 		{composition.ErrConsentRequired, `{"error":"consent_required"}`, 403},
+		{composition.ErrTranscriptionConsentRequired, `{"error":"transcription_consent_required"}`, 403},
 		{composition.ErrTemplateNotFound, `{"error":"template_not_found"}`, 404},
 		{composition.ErrLanguageUnavailable, `{"error":"language_unavailable"}`, 422},
 		{composition.ErrVersionMismatch, `{"error":"version_mismatch"}`, 412},
