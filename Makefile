@@ -3,6 +3,9 @@
 
 export HOST_UID := $(shell id -u)
 export HOST_GID := $(shell id -g)
+# The repository's git directory, absolute: in a worktree /src/.git is a file pointing into the main checkout's .git,
+# which compose mounts at this same path so git works in the tools container (scripts/check-migrations.sh).
+export GIT_COMMON_DIR := $(shell git rev-parse --path-format=absolute --git-common-dir)
 
 COMPOSE := docker compose -f deployments/docker-compose.yml
 GO      := $(COMPOSE) run --rm tools
