@@ -229,7 +229,7 @@ func (r *postgresRepository) Queue(ctx context.Context, q QueueFilter) ([]QueueR
 	}
 	if q.AfterID != "" {
 		if err := p.AfterID.Scan(q.AfterID); err != nil {
-			return nil, nil // no term has that id: nothing comes after it
+			return nil, ErrInvalidReview // the service checks the token: not reached through it
 		}
 		p.AfterOrder, p.AfterRank = statusOrder[q.AfterStatus], q.AfterRank
 	}

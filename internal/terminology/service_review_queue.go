@@ -3,6 +3,7 @@ package terminology
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -41,6 +42,9 @@ func (s *Reviews) Queue(ctx context.Context, c Caller, q QueueQuery) (QueuePage,
 	return page, nil
 }
 
+// termIDForm is the form of a term id (a UUID) in a page token.
+var termIDForm = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
 // queueFilter checks q and reads its page token, "<status>~<rank>~<term id>" of the last entry of the page before.
 func queueFilter(q QueueQuery) (QueueFilter, bool) {
 	f := QueueFilter{Language: q.Language, Status: q.Status, Limit: q.Limit}
@@ -51,7 +55,7 @@ func queueFilter(q QueueQuery) (QueueFilter, bool) {
 		return f, true
 	}
 	parts := strings.SplitN(q.After, "~", 3)
-	if len(parts) != 3 || !validStatus(parts[0]) || parts[2] == "" {
+	if len(parts) != 3 || !validStatus(parts[0]) || !termIDForm.MatchString(parts[2]) {
 		return f, false
 	}
 	rank, err := strconv.ParseInt(parts[1], 10, 32)
