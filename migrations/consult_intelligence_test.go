@@ -77,7 +77,7 @@ func insertConsultRow(table, encounter, template string) func(ctx context.Contex
 
 // Every row follows its encounter in the clinic's scope: a clinic sees the rows of the encounters it sees (an
 // active consent, or after a revocation those that started before it). The patient's own scope sees the
-// transcript of their own encounters, whatever the consent (00040, SAL-17: whether the clinic shares it is the
+// transcript of their own encounters, whatever the consent (00038, SAL-17: whether the clinic shares it is the
 // service's check), and no suggestion or open draft (a signed one: patient_documents_test.go); an account's scope
 // sees none, and neither does a video room's, which shows an encounter after a revocation.
 func TestConsultTables_OnlyTheClinicScopeSeesTheRowsOfTheEncountersItSees(t *testing.T) {

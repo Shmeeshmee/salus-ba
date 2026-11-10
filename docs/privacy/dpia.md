@@ -1519,7 +1519,7 @@ data.
 
 **Access.** `access.SignedDocument`: the encounter's patient, whatever the consent, signed documents only; the
 practitioner as before. `access.TranscriptCopy`: the encounter's patient while the clinic shares transcripts. Both
-in the patient's own scope: row-level security (`document_draft_own`, `transcript_segment_own`, migration 00040)
+in the patient's own scope: row-level security (`document_draft_own`, `transcript_segment_own`, migration 00038)
 shows them only their own encounters' rows, final documents only.
 
 **Audit.** Every search, read and PDF download by the patient, and every refusal, with purpose `PATRQT`; the

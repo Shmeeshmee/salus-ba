@@ -9,7 +9,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-// 00040 (SAL-17): the patient's own scope sees the final (signed) documents of their own encounters, whatever the
+// 00038 (SAL-17): the patient's own scope sees the final (signed) documents of their own encounters, whatever the
 // consent, never an open or discarded draft and never another patient's; a video room's scope sees none.
 func TestPatientDocuments_ThePatientSeesOnlyTheirOwnSignedDocuments(t *testing.T) {
 	t.Parallel()
@@ -54,7 +54,7 @@ func TestPatientDocuments_ThePatientSeesOnlyTheirOwnSignedDocuments(t *testing.T
 	}
 }
 
-// 00040: the clinic's patient transcript copy is off unless its admin turns it on, through salus_app's grant.
+// 00038: the clinic's patient transcript copy is off unless its admin turns it on, through salus_app's grant.
 func TestPatientDocuments_TheTranscriptCopyIsOffUntilTheClinicTurnsItOn(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
