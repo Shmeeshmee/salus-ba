@@ -56,7 +56,7 @@ func (s *Service) Generate(ctx context.Context, c appointment.Caller, encounterI
 	var refused error
 	err = s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		e := entry{c: c, interaction: auditevent.CodeCreate}
-		enc, err := s.allowed(ctx, c, encounterID)
+		enc, err := s.allowed(ctx, c, encounterID, false)
 		if refused = refusal(err); refused != nil {
 			e.reference, e.outcome = encounterRef(enc.ID), auditevent.OutcomeMinorFailure
 			return s.record(ctx, e)
@@ -89,7 +89,7 @@ func (s *Service) prepare(ctx context.Context, c appointment.Caller, encounterID
 	var segments []utterance
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		enc, err := s.allowed(ctx, c, encounterID)
+		enc, err := s.allowed(ctx, c, encounterID, false)
 		if refused = refusal(err); refused == nil && err == nil {
 			refused, err = s.drafted(ctx, &d, enc, in)
 		}

@@ -260,5 +260,17 @@
   "questionnaireLanguages": "Il est disponible en : {languages}. Choisissez la langue que vous comprenez le mieux.",
   "continueInLanguage": "Continuer en {language}",
   "languageUnavailable": "Cette langue n’est plus disponible pour ce questionnaire. Choisissez-en une autre.",
-  "specialtyAtClinic": "{specialty}, {clinic}"
+  "specialtyAtClinic": "{specialty}, {clinic}",
+  "documents": "Documents",
+  "noDocuments": "Il n’y a pas encore de document signé pour ce rendez-vous. Un document apparaît ici dès que votre praticien l’a signé.",
+  "documentSignedOn": "Signé le {date}",
+  "documentLanguage": "Langue : {language}",
+  "sharePdf": "Enregistrer ou partager le PDF",
+  "transcript": "Transcription",
+  "transcriptNote": "La consultation telle qu’elle a été transcrite et traduite automatiquement. Elle peut contenir des erreurs.",
+  "transcriptEmpty": "Rien n’a été transcrit pendant cette consultation.",
+  "speakerYou": "Vous",
+  "speakerPractitioner": "Praticien",
+  "shareTranscript": "Partager la transcription",
+  "transcriptTranslation": "Traduction : {text}"
 }

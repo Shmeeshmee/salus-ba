@@ -11,7 +11,7 @@ import (
 )
 
 // templateFS holds the e-mails of every language, templates/<language>/ (docs/i18n/SPEC.md §3 "Catalogs"):
-// a template per kind (invite, booked, cancelled, reminder) whose first line is the subject and whose body
+// a template per kind (invite, booked, cancelled, reminder, signed) whose first line is the subject and whose body
 // follows a blank line; date.txt, the start's template; and names.txt, the weekdays from Sunday and then the
 // months, one per line, in the form the date uses.
 //

@@ -77,7 +77,7 @@ func TestCapabilityStatement_ListsExactlyTheInteractionsServed(t *testing.T) {
 		"Appointment":       "read search-type param:patient:reference param:practitioner:reference param:date:date param:status:token ",
 		"Composition":       "read ",
 		"Consent":           "read ",
-		"DocumentReference": "read ",
+		"DocumentReference": "read search-type param:encounter:reference ",
 		"Encounter":         "read search-type param:appointment:reference param:patient:reference param:practitioner:reference ",
 		"Organization":      "read update search-type param:listed:token versioning:versioned-update",
 		"Patient":           "read ",

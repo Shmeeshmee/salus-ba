@@ -111,7 +111,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies)
 	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners)
-	consultAPI, consultStream := newConsultRecord(consultPorts{pool: pool, rdb: rdb, audit: audit, tx: tx, encounters: encounters, consents: consents, files: files, kek: kek, drafter: drafter}, appointmentCaller(accounts, patients), fhirBase, log)
+	consultAPI, consultStream := newConsultRecord(consultPorts{pool: pool, rdb: rdb, audit: audit, tx: tx, encounters: encounters, consents: consents, clinics: clinics, jobs: jobs, files: files, kek: kek, drafter: drafter}, appointmentCaller(accounts, patients), fhirBase, log)
 	questionnaireAPI, streams := questionnaireRoutes(questionnairePorts{
 		pool: pool, audit: audit, tx: tx, jobs: jobs, roles: roles, clinics: clinics, accounts: accounts, appointments: appointments, patients: patients,
 		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
@@ -205,6 +205,8 @@ type consultPorts struct {
 	tx         *postgres.Transactor
 	encounters *encounter.Service
 	consents   *consent.Service
+	clinics    *organization.Service
+	jobs       *river.Client[pgx.Tx]
 	kek        *envelope.KEK
 	files      config.ObjectStore
 }
@@ -215,12 +217,13 @@ type consultPorts struct {
 func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointment.Caller, bool, error), fhirBase string, log *slog.Logger) (routes []func(*http.ServeMux), stream func(*http.ServeMux)) {
 	transcripts := transcript.NewService(transcript.Ports{
 		Repo: transcript.NewPostgresRepository(p.pool), Stream: transcript.NewRedisStream(p.rdb), Encounters: p.encounters, Consents: p.consents,
-		Audit: p.audit, Tx: p.tx,
+		Sharing: p.clinics, Audit: p.audit, Tx: p.tx,
 	})
 	documents := composition.NewService(composition.Ports{
 		Repo: composition.NewPostgresRepository(p.pool), Encounters: p.encounters, Transcripts: transcripts, Drafter: p.drafter,
 		Store:     binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, p.files.Endpoint, p.files.Region, p.files.Bucket, p.files.AccessKeyID, p.files.SecretAccessKey, s3PageSize),
-		Publisher: transcript.NewRedisPublisher(p.rdb), Audit: p.audit, Tx: p.tx, Clock: clock.System{}, KEK: p.kek, Log: log,
+		Publisher: transcript.NewRedisPublisher(p.rdb), Jobs: composition.NewRiverJobs(p.jobs), // a signature enqueues the patient's e-mail
+		Audit: p.audit, Tx: p.tx, Clock: clock.System{}, KEK: p.kek, Log: log,
 	})
 	suggestions := suggestion.NewService(suggestion.Ports{
 		Repo: suggestion.NewPostgresRepository(p.pool), Encounters: p.encounters, Consents: p.consents, Records: transcripts,

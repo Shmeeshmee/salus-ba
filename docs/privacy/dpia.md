@@ -1506,6 +1506,38 @@ the object unreadable). An object whose commit failed is unreadable and not yet 
 | The PDF readable from the object store | Encrypted with a per-file key wrapped by the KEK; the store sees ciphertext only |
 | Patient text to a hosted model without a DPA | Only the fake is wired; SAL-5's adapter is off by default and gated on its DPA |
 
+### SAL-17: the patient's signed documents and transcript copy
+
+**Processing added.** No new personal data is collected. The patient reads what is already kept about their own
+consultations: the signed documents (Composition, DocumentReference, Provenance, the PDF) and, while their clinic
+shares it, the stored transcript. A signature enqueues an e-mail job (appointment and clinic ids) and the notifier
+tells the patient a document is ready. The clinic's setting `organization.patient_transcript_copy` is not personal
+data.
+
+**Purpose and lawful basis.** The patient's right of access to their own record (Art. 15) and the care itself
+(Art. 9(2)(h)). The e-mail is part of the care service, as the appointment e-mails are.
+
+**Access.** `access.SignedDocument`: the encounter's patient, whatever the consent, signed documents only; the
+practitioner as before. `access.TranscriptCopy`: the encounter's patient while the clinic shares transcripts. Both
+in the patient's own scope: row-level security (`document_draft_own`, `transcript_segment_own`, migration 00038)
+shows them only their own encounters' rows, final documents only.
+
+**Audit.** Every search, read and PDF download by the patient, and every refusal, with purpose `PATRQT`; the
+e-mail job's reads with the job as agent, as the appointment e-mails.
+
+**Retention.** Unchanged. A PDF the patient shares leaves the app on their own decision; the app's temporary copy is
+deleted when the share sheet closes and swept at the next start.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A draft shown to the patient as if final | Row-level security shows the patient's scope final rows only; the service refuses a non-final one as not found (tested in the repository, the service, the API and the migration) |
+| Another patient's document or transcript | The patient's scope matches the encounter's patient (tested) |
+| Clinical content in the e-mail | The template names the clinic, the date and the link only (tested in every language) |
+| A copy of the PDF left on the device | Written under `salus-document-*` in the temporary directory, deleted after the share, swept at start with share_plus's own copy |
+| The transcript shown when the clinic does not share it | Checked in the service on every read (tested); off by default |
+
 ## Medical terminology (`docs/terminology`)
 
 ### SAL-14: the review panel

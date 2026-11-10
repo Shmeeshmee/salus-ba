@@ -1,0 +1,6 @@
+Subject: A document from your appointment is ready
+
+A document from your appointment at Synthetic clinic on Monday 7 January 2030, 10:00 (Europe/Sarajevo) is ready.
+
+To read it, open the Salus app:
+https://patient.example.test/appointments

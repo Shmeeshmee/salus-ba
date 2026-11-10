@@ -75,10 +75,11 @@ func insertConsultRow(table, encounter, template string) func(ctx context.Contex
 	}
 }
 
-// Every row follows its encounter in the clinic's scope only: a clinic sees the rows of the encounters it sees
-// (an active consent, or after a revocation those that started before it). The patient's and an account's
-// scope see none (the patient's copy comes with the export feature), and neither does a video room's, which
-// shows an encounter after a revocation.
+// Every row follows its encounter in the clinic's scope: a clinic sees the rows of the encounters it sees (an
+// active consent, or after a revocation those that started before it). The patient's own scope sees the
+// transcript of their own encounters, whatever the consent (00038, SAL-17: whether the clinic shares it is the
+// service's check), and no suggestion or open draft (a signed one: patient_documents_test.go); an account's scope
+// sees none, and neither does a video room's, which shows an encounter after a revocation.
 func TestConsultTables_OnlyTheClinicScopeSeesTheRowsOfTheEncountersItSees(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
@@ -86,14 +87,16 @@ func TestConsultTables_OnlyTheClinicScopeSeesTheRowsOfTheEncountersItSees(t *tes
 	seedVideoSessions(t, owner, c.a)
 	e, a := c.encounters, c.a
 
+	ownTranscript := sorted(e[a.aPast], e[a.aFuture], e[a.bPast], e[a.bFuture]) // patient A's encounters
 	tests := []struct {
 		scope map[string]string
 		name  string
 		want  []string // encounter ids
+		own   bool     // the patient's own scope: transcript_segment shows ownTranscript
 	}{
 		{name: "no scope"},
-		{name: "patient A", scope: map[string]string{"app.patient_id": c.patients[0].patient}},
-		{name: "patient A with clinic A set", scope: map[string]string{"app.patient_id": c.patients[0].patient, "app.organization_id": clinicA}},
+		{name: "patient A", scope: map[string]string{"app.patient_id": c.patients[0].patient}, own: true},
+		{name: "patient A with clinic A set", scope: map[string]string{"app.patient_id": c.patients[0].patient, "app.organization_id": clinicA}, own: true},
 		{name: "account A with clinic A set", scope: map[string]string{"app.account_id": c.patients[0].account, "app.organization_id": clinicA}},
 		{name: "clinic A: patient A consents, patient B never did", scope: map[string]string{"app.organization_id": clinicA},
 			want: sorted(e[a.aPast], e[a.aFuture])},
@@ -104,8 +107,12 @@ func TestConsultTables_OnlyTheClinicScopeSeesTheRowsOfTheEncountersItSees(t *tes
 	}
 	for _, table := range consultTables {
 		for _, tt := range tests {
-			if got := idsIn(t, app, tt.scope, "SELECT encounter_id::text FROM "+table); !slices.Equal(got, tt.want) {
-				t.Errorf("%s, %s: sees %v, want %v", table, tt.name, got, tt.want)
+			want := tt.want
+			if tt.own && table == "transcript_segment" {
+				want = ownTranscript
+			}
+			if got := idsIn(t, app, tt.scope, "SELECT encounter_id::text FROM "+table); !slices.Equal(got, want) {
+				t.Errorf("%s, %s: sees %v, want %v", table, tt.name, got, want)
 			}
 		}
 	}

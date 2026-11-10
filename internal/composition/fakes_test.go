@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -63,12 +64,14 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 	}
 	t.f.mu.Lock()
 	events, templates, drafts := len(t.f.audit.events), maps.Clone(t.f.repo.templates), maps.Clone(t.f.repo.drafts)
+	jobs := len(t.f.jobs.signed)
 	t.f.mu.Unlock()
 	defer func() { t.f.repo.scope = "" }()
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
 		t.f.mu.Lock()
 		t.f.audit.events, t.f.repo.templates, t.f.repo.drafts = t.f.audit.events[:events], templates, drafts
+		t.f.jobs.signed = t.f.jobs.signed[:jobs]
 		t.f.mu.Unlock()
 	}
 	return err
@@ -81,7 +84,8 @@ func inTx(ctx context.Context) error {
 	return nil
 }
 
-// fakeRepository holds the templates and drafts by id; templates are seen only in their clinic's scope.
+// fakeRepository holds the templates and drafts by id; templates are seen only in their clinic's scope, and a
+// patient's scope (patientScope) sees only the final drafts, as row-level security shows it.
 type fakeRepository struct {
 	err       error
 	templates map[string]composition.Template
@@ -95,6 +99,22 @@ func (r *fakeRepository) SetClinic(ctx context.Context, id string) error {
 	}
 	r.scope = id
 	return r.err
+}
+
+func (r *fakeRepository) SetPatient(ctx context.Context, id string) error {
+	if err := inTx(ctx); err != nil {
+		return err
+	}
+	r.scope = patientScope + id
+	return r.err
+}
+
+// patientScope prefixes the scope of a patient.
+const patientScope = "patient:"
+
+// visible reports whether the scope shows d: a patient's only a final one.
+func (r *fakeRepository) visible(d composition.Draft) bool {
+	return !strings.HasPrefix(r.scope, patientScope) || d.Status == composition.StatusFinal
 }
 
 func (r *fakeRepository) Templates(ctx context.Context, org string) ([]composition.Template, error) {
@@ -173,7 +193,7 @@ func (r *fakeRepository) Draft(ctx context.Context, id string, _ bool) (composit
 		return composition.Draft{}, err
 	}
 	d, ok := r.drafts[id]
-	if !ok {
+	if !ok || !r.visible(d) {
 		return composition.Draft{}, composition.ErrNotFound
 	}
 	return d, nil
@@ -205,12 +225,17 @@ func (r *fakeRepository) Drafts(ctx context.Context, encounterID string) ([]comp
 	}
 	var out []composition.Draft
 	for _, d := range r.drafts {
-		if d.EncounterID == encounterID {
+		if d.EncounterID == encounterID && r.visible(d) {
 			out = append(out, d)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, nil
+}
+
+func (r *fakeRepository) Signed(ctx context.Context, encounterID string) ([]composition.Draft, error) {
+	all, err := r.Drafts(ctx, encounterID)
+	return slices.DeleteFunc(all, func(d composition.Draft) bool { return d.Status != composition.StatusFinal }), err
 }
 
 func (r *fakeRepository) Sign(ctx context.Context, d composition.Draft, at time.Time) (composition.Draft, error) {
@@ -256,6 +281,9 @@ func (e *fakeEncounters) Access(ctx context.Context, c appointment.Caller, id st
 	n := e.calls[c.AccountID]
 	e.calls[c.AccountID]++
 	e.f.repo.scope = c.OrganizationID // the encounter's service scopes the transaction to the caller
+	if c.OrganizationID == "" {
+		e.f.repo.scope = patientScope + c.PatientID
+	}
 	return e.enc, all[min(n, len(all)-1)], nil
 }
 
@@ -337,6 +365,20 @@ func (p *fakePublisher) Publish(ctx context.Context, encounterID string, b []byt
 	return p.err
 }
 
+// fakeJobs records the e-mail jobs enqueued, each "<appointment> <clinic>", in the transaction.
+type fakeJobs struct {
+	err    error
+	signed []string
+}
+
+func (j *fakeJobs) EnqueueSigned(ctx context.Context, appointmentID, org string) error {
+	if err := inTx(ctx); err != nil {
+		return err
+	}
+	j.signed = append(j.signed, appointmentID+" "+org)
+	return j.err
+}
+
 type fakeAuditor struct {
 	events []auditevent.AuditEvent
 }
@@ -360,6 +402,7 @@ type fixture struct {
 	drafter     *llmtest.Drafter
 	store       *fakeStore
 	publisher   *fakePublisher
+	jobs        *fakeJobs
 	audit       *fakeAuditor
 	logs        *bytes.Buffer
 	mu          sync.Mutex
@@ -387,6 +430,7 @@ func newFixture(t *testing.T) *fixture {
 		drafter:   &llmtest.Drafter{},
 		store:     &fakeStore{objects: map[string][]byte{}},
 		publisher: &fakePublisher{},
+		jobs:      &fakeJobs{},
 		audit:     &fakeAuditor{},
 		logs:      &bytes.Buffer{},
 		transcripts: &fakeTranscripts{segments: []transcript.Event{
@@ -406,7 +450,7 @@ func newFixture(t *testing.T) *fixture {
 	}
 	f.svc = composition.NewService(composition.Ports{
 		Repo: f.repo, Encounters: f.encounters, Transcripts: f.transcripts, Drafter: f.drafter, Store: f.store,
-		Publisher: f.publisher, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now}, KEK: kek,
+		Publisher: f.publisher, Jobs: f.jobs, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now}, KEK: kek,
 		Log: slog.New(slog.NewTextHandler(f.logs, nil)),
 	})
 	return f

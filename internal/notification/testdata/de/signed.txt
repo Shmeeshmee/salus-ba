@@ -1,0 +1,7 @@
+Subject: Ein Dokument zu Ihrem Termin liegt vor
+
+Ein Dokument zu Ihrem Termin bei Synthetic clinic liegt vor.
+Datum und Uhrzeit: Montag, 7. Januar 2030, 10:00 Uhr (Europe/Sarajevo)
+
+Um es zu lesen, öffnen Sie die Salus-App:
+https://patient.example.test/appointments

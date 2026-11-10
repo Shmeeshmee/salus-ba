@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'booking.dart';
 import 'call.dart';
 import 'call_screen.dart';
+import 'documents_screen.dart';
 import 'fhir.dart';
 import 'files.dart';
 import 'l10n/app_localizations.dart';
@@ -78,6 +79,13 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
     );
     if (mounted) await reload();
   }
+
+  /// The signed documents of an appointment that has started (SAL-17).
+  void _documents(Appointment a, Zone zone) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => DocumentsScreen(booking: widget.booking, files: widget.files, appointmentId: a.id, zone: zone),
+    ),
+  );
 
   /// The appointments with the clinics they are in: every booking needs a consent, so the consents name them.
   /// With the questionnaires asked for them and the versions they answer.
@@ -221,6 +229,10 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
               const SizedBox(height: 8),
               OutlinedButton(onPressed: cancellable ? () => _cancel(a, zone) : null, child: Text(t.cancelAppointment)),
               if (!cancellable) Text(t.cancelWindowHint),
+            ],
+            if (a.status != 'cancelled' && !a.start.isAfter(now)) ...[
+              const SizedBox(height: 8),
+              OutlinedButton(onPressed: () => _documents(a, zone), child: Text(t.documents)),
             ],
             for (final (r, v) in questionnaires) ...[
               const SizedBox(height: 16),

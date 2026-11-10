@@ -1,0 +1,7 @@
+Ein Dokument zu Ihrem Termin liegt vor
+
+Ein Dokument zu Ihrem Termin bei {{.Clinic}} liegt vor.
+Datum und Uhrzeit: {{.When}}
+
+Um es zu lesen, öffnen Sie die Salus-App:
+{{.Link}}

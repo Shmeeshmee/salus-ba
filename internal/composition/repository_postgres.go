@@ -31,6 +31,10 @@ func (r *postgresRepository) SetClinic(ctx context.Context, id string) error {
 	return postgres.SetLocal(ctx, "app.organization_id", id)
 }
 
+func (r *postgresRepository) SetPatient(ctx context.Context, id string) error {
+	return postgres.SetLocal(ctx, "app.patient_id", id)
+}
+
 func (r *postgresRepository) Templates(ctx context.Context, org string) ([]Template, error) {
 	var uorg pgtype.UUID
 	if uorg.Scan(org) != nil {
@@ -243,6 +247,24 @@ func (r *postgresRepository) Drafts(ctx context.Context, encounterID string) ([]
 		return nil, nil
 	}
 	rows, err := r.q(ctx).Drafts(ctx, enc)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Draft, len(rows))
+	for i, row := range rows {
+		if out[i], err = draftOf(compositiondb.DraftRow(row)); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) Signed(ctx context.Context, encounterID string) ([]Draft, error) {
+	var enc pgtype.UUID
+	if enc.Scan(encounterID) != nil {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).Signed(ctx, enc)
 	if err != nil {
 		return nil, err
 	}

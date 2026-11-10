@@ -260,5 +260,17 @@
   "questionnaireLanguages": "Er ist in diesen Sprachen verfügbar: {languages}. Wählen Sie die Sprache, die Sie am besten verstehen.",
   "continueInLanguage": "Weiter auf {language}",
   "languageUnavailable": "Diese Sprache ist für diesen Fragebogen nicht mehr verfügbar. Wählen Sie eine andere.",
-  "specialtyAtClinic": "{specialty}, {clinic}"
+  "specialtyAtClinic": "{specialty}, {clinic}",
+  "documents": "Dokumente",
+  "noDocuments": "Für diesen Termin gibt es noch keine unterschriebenen Dokumente. Ein Dokument erscheint hier, sobald Ihr Behandler es unterschrieben hat.",
+  "documentSignedOn": "Unterschrieben am {date}",
+  "documentLanguage": "Sprache: {language}",
+  "sharePdf": "PDF speichern oder teilen",
+  "transcript": "Transkript",
+  "transcriptNote": "Die Sprechstunde, wie sie automatisch transkribiert und übersetzt wurde. Sie kann Fehler enthalten.",
+  "transcriptEmpty": "In dieser Sprechstunde wurde nichts transkribiert.",
+  "speakerYou": "Sie",
+  "speakerPractitioner": "Behandler",
+  "shareTranscript": "Transkript teilen",
+  "transcriptTranslation": "Übersetzung: {text}"
 }

@@ -14,13 +14,15 @@ import (
 
 const maxBody = 64 << 10 // bytes of an update's body
 
-// The extensions of an Organization: whether it is listed in the public directory, its IANA time zone and its
-// default language (api/fhir/StructureDefinition-organization-listed.json, -organization-timezone.json,
-// -organization-default-language.json).
+// The extensions of an Organization: whether it is listed in the public directory, its IANA time zone, its
+// default language and whether its patients get a copy of their transcripts
+// (api/fhir/StructureDefinition-organization-listed.json, -organization-timezone.json,
+// -organization-default-language.json, -organization-patient-transcript-copy.json).
 const (
 	extensionListed          = "https://salus.invalid/fhir/StructureDefinition/organization-listed"
 	extensionTimeZone        = "https://salus.invalid/fhir/StructureDefinition/organization-timezone"
 	extensionDefaultLanguage = "https://salus.invalid/fhir/StructureDefinition/organization-default-language"
+	extensionTranscriptCopy  = "https://salus.invalid/fhir/StructureDefinition/organization-patient-transcript-copy"
 )
 
 // Clinics reads and changes a clinic for a caller, and lists the listed ones for anyone (Service).
@@ -72,6 +74,7 @@ func toFHIR(o Organization) resource {
 			{URL: extensionListed, ValueBoolean: &o.Listed},
 			{URL: extensionTimeZone, ValueCode: o.TimeZone},
 			{URL: extensionDefaultLanguage, ValueCode: o.DefaultLanguage},
+			{URL: extensionTranscriptCopy, ValueBoolean: &o.PatientTranscriptCopy},
 		},
 	}
 }
@@ -105,7 +108,7 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 }
 
 // update changes the clinic: the body is the Organization with its name and, when given, the listed,
-// time-zone and default-language extensions; If-Match the version it was read at. An extension left out keeps its value; the
+// time-zone, default-language and patient-transcript-copy extensions; If-Match the version it was read at. An extension left out keeps its value; the
 // other elements of the body are ignored.
 func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.signedIn(w, r)
@@ -152,7 +155,9 @@ func (b updateBody) changes() (Changes, bool) {
 			ch.TimeZone = e.ValueCode
 		case e.URL == extensionDefaultLanguage && ch.DefaultLanguage == nil && code(e.ValueCode, e.ValueBoolean):
 			ch.DefaultLanguage = e.ValueCode
-		case e.URL == extensionListed || e.URL == extensionTimeZone || e.URL == extensionDefaultLanguage:
+		case e.URL == extensionTranscriptCopy && ch.PatientTranscriptCopy == nil && e.ValueBoolean != nil && e.ValueCode == nil:
+			ch.PatientTranscriptCopy = e.ValueBoolean
+		case e.URL == extensionListed || e.URL == extensionTimeZone || e.URL == extensionDefaultLanguage || e.URL == extensionTranscriptCopy:
 			return Changes{}, false
 		}
 	}

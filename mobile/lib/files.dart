@@ -3,14 +3,15 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'copies.dart';
 import 'file_prep.dart';
 
 // files.dart is the one file that reaches the device's camera, photo library and document picker (image_picker,
-// file_picker) and the platform conversion (MainActivity.kt, AppDelegate.swift). The questionnaire screen sees only
-// [Files], so it is tested with a fake (test/fake_files.dart); what is done to the bytes is in file_prep.dart and
-// tested there. Nothing here logs.
+// file_picker), the platform conversion (MainActivity.kt, AppDelegate.swift) and the share sheet (share_plus). The
+// questionnaire and documents screens see only [Files], so they are tested with a fake (test/fake_files.dart); what
+// is done to the bytes is in file_prep.dart and tested there. Nothing here logs.
 
 /// Where a file comes from (COPY M3): the camera as a photo or a video, the photo library, or the documents.
 enum Source { camera, videoCamera, library, document }
@@ -41,6 +42,13 @@ abstract interface class Files {
   /// The picked file converted and stripped of its metadata (file_prep.dart). Throws [CannotPrepare] or
   /// [TooLarge].
   Future<Prepared> prepare(Picked picked);
+
+  /// Hands a signed document's PDF to the device's share sheet as [name]: to open it in a viewer, save it to the
+  /// device's files or send it (docs/consultation/SPEC.md "Patient documents").
+  Future<void> sharePdf(String name, Uint8List bytes);
+
+  /// Hands [text] (a transcript) to the share sheet.
+  Future<void> shareText(String text);
 }
 
 /// [Files] on image_picker, file_picker and the app's own conversion channel. Made once, at start, when it sweeps
@@ -114,6 +122,28 @@ class DeviceFiles implements Files {
       rethrow;
     }
   }
+
+  /// The PDF goes through a copy in the temporary directory (`salus-document-*`), deleted once the sheet has closed,
+  /// and swept at the next start if the app stopped first (copies.dart), as share_plus's own copy is.
+  @override
+  Future<void> sharePdf(String name, Uint8List bytes) async {
+    final temp = Directory.systemTemp;
+    final copy = File('${temp.path}/salus-document-${DateTime.now().microsecondsSinceEpoch}.pdf');
+    try {
+      await copy.writeAsBytes(bytes, flush: true);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(copy.path, mimeType: 'application/pdf')],
+          fileNameOverrides: [name],
+        ),
+      );
+    } finally {
+      await forgetCopy(copy.path, temp);
+    }
+  }
+
+  @override
+  Future<void> shareText(String text) => SharePlus.instance.share(ShareParams(text: text));
 
   static Future<String> _convert(Conversion conversion, String path) async {
     final out = await _channel.invokeMethod<String>('convert', {'kind': conversion.name, 'path': path});

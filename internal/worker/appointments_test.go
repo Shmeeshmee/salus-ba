@@ -17,6 +17,7 @@ import (
 	"github.com/riverqueue/river/rivertype"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
@@ -172,6 +173,31 @@ func TestNotifier_SendsTheAppointmentEmailsToThePatient(t *testing.T) {
 	if err := owner.QueryRow(t.Context(), `SELECT count(*) FROM audit_event WHERE agent_name IN ('appointment_booked_email', 'appointment_reminder_email')
 		AND subtype_code = 'read' AND entity_reference LIKE 'PractitionerRole/%'`).Scan(&n); err != nil || n != 2 {
 		t.Errorf("%d audit events of the role's default read by the jobs (%v), want 2", n, err)
+	}
+}
+
+// SAL-17: the notifier sends the patient the e-mail that a document of their appointment is ready, which names
+// no document; an unknown appointment cancels the job.
+func TestNotifier_SendsTheDocumentSignedEmailToThePatient(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	b := seedBooking(t, owner)
+	args := composition.SignedEmailArgs{AppointmentID: b.past, OrganizationID: clinicID}
+	if state := runEmailJob(t, app, args); state != rivertype.JobStateCompleted {
+		t.Fatalf("job state %s, want completed", state)
+	}
+	text := mailpitText(t, b.email)
+	if !strings.Contains(text, "A document from your appointment at Synthetic clinic") || !strings.Contains(text, "https://patient.example.test/appointments") {
+		t.Errorf("the e-mail lacks the clinic or the link:\n%s", text)
+	}
+	for _, never := range []string{"Ana", "Cy", b.past} {
+		if strings.Contains(text, never) {
+			t.Errorf("the e-mail holds %q:\n%s", never, text)
+		}
+	}
+	unknown := composition.SignedEmailArgs{AppointmentID: "e9000000-0000-4000-8000-0000000000e9", OrganizationID: clinicID}
+	if state := runEmailJob(t, app, unknown); state != rivertype.JobStateCancelled {
+		t.Errorf("unknown appointment: job state %s, want cancelled", state)
 	}
 }
 

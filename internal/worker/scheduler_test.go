@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/videosession"
@@ -113,7 +114,7 @@ func TestScheduler_KnowsEveryKindTheWorkerTheNotifierAndTheAgentWork(t *testing.
 		NoopArgs{}, RetentionApplyArgs{}, schedule.SlotsGenerateArgs{}, consent.RevokedArgs{}, auth.InviteEmailArgs{},
 		appointment.BookedEmailArgs{}, appointment.CancelledEmailArgs{}, appointment.ReminderEmailArgs{}, appointment.AccessEndArgs{},
 		videosession.WindowCloseArgs{}, appointment.QuestionnaireRequestArgs{}, appointment.QuestionnaireDiscardArgs{},
-		binary.ScanArgs{}, binary.DiscardArgs{}, videosession.AgentJoinArgs{},
+		binary.ScanArgs{}, binary.DiscardArgs{}, videosession.AgentJoinArgs{}, composition.SignedEmailArgs{},
 	} {
 		var unknown *river.UnknownJobKindError
 		if _, err := client.Insert(t.Context(), args, nil); errors.As(err, &unknown) || err != nil {

@@ -1,0 +1,6 @@
+A document from your appointment is ready
+
+A document from your appointment at {{.Clinic}} on {{.When}} is ready.
+
+To read it, open the Salus app:
+{{.Link}}

@@ -13,18 +13,19 @@ import (
 
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organization (name) VALUES ($1)
-RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language
+RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy
 `
 
 type CreateOrganizationRow struct {
-	ID              pgtype.UUID
-	UpdatedAt       pgtype.Timestamptz
-	VersionID       int32
-	Active          bool
-	Listed          bool
-	Name            string
-	TimeZone        string
-	DefaultLanguage Language
+	ID                    pgtype.UUID
+	UpdatedAt             pgtype.Timestamptz
+	VersionID             int32
+	Active                bool
+	Listed                bool
+	Name                  string
+	TimeZone              string
+	DefaultLanguage       Language
+	PatientTranscriptCopy bool
 }
 
 // The operator command only (salusctl, as the owner): salus_app has no INSERT on organization.
@@ -40,26 +41,28 @@ func (q *Queries) CreateOrganization(ctx context.Context, name string) (CreateOr
 		&i.Name,
 		&i.TimeZone,
 		&i.DefaultLanguage,
+		&i.PatientTranscriptCopy,
 	)
 	return i, err
 }
 
 const listedOrganizations = `-- name: ListedOrganizations :many
-SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language
+SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy
 FROM organization
 WHERE listed
 ORDER BY name, id
 `
 
 type ListedOrganizationsRow struct {
-	ID              pgtype.UUID
-	UpdatedAt       pgtype.Timestamptz
-	VersionID       int32
-	Active          bool
-	Listed          bool
-	Name            string
-	TimeZone        string
-	DefaultLanguage Language
+	ID                    pgtype.UUID
+	UpdatedAt             pgtype.Timestamptz
+	VersionID             int32
+	Active                bool
+	Listed                bool
+	Name                  string
+	TimeZone              string
+	DefaultLanguage       Language
+	PatientTranscriptCopy bool
 }
 
 // Organization?listed=true: row-level security shows only listed clinics in the directory scope.
@@ -81,6 +84,7 @@ func (q *Queries) ListedOrganizations(ctx context.Context) ([]ListedOrganization
 			&i.Name,
 			&i.TimeZone,
 			&i.DefaultLanguage,
+			&i.PatientTranscriptCopy,
 		); err != nil {
 			return nil, err
 		}
@@ -93,20 +97,21 @@ func (q *Queries) ListedOrganizations(ctx context.Context) ([]ListedOrganization
 }
 
 const organizationByID = `-- name: OrganizationByID :one
-SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language
+SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy
 FROM organization
 WHERE id = $1
 `
 
 type OrganizationByIDRow struct {
-	ID              pgtype.UUID
-	UpdatedAt       pgtype.Timestamptz
-	VersionID       int32
-	Active          bool
-	Listed          bool
-	Name            string
-	TimeZone        string
-	DefaultLanguage Language
+	ID                    pgtype.UUID
+	UpdatedAt             pgtype.Timestamptz
+	VersionID             int32
+	Active                bool
+	Listed                bool
+	Name                  string
+	TimeZone              string
+	DefaultLanguage       Language
+	PatientTranscriptCopy bool
 }
 
 func (q *Queries) OrganizationByID(ctx context.Context, id pgtype.UUID) (OrganizationByIDRow, error) {
@@ -121,36 +126,39 @@ func (q *Queries) OrganizationByID(ctx context.Context, id pgtype.UUID) (Organiz
 		&i.Name,
 		&i.TimeZone,
 		&i.DefaultLanguage,
+		&i.PatientTranscriptCopy,
 	)
 	return i, err
 }
 
 const updateOrganization = `-- name: UpdateOrganization :one
 UPDATE organization
-SET name = $1, listed = $2, time_zone = $3, default_language = $4, version_id = version_id + 1, updated_at = $5
-WHERE id = $6 AND version_id = $7
-RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language
+SET name = $1, listed = $2, time_zone = $3, default_language = $4, patient_transcript_copy = $5, version_id = version_id + 1, updated_at = $6
+WHERE id = $7 AND version_id = $8
+RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy
 `
 
 type UpdateOrganizationParams struct {
-	Name            string
-	Listed          bool
-	TimeZone        string
-	DefaultLanguage Language
-	UpdatedAt       pgtype.Timestamptz
-	ID              pgtype.UUID
-	VersionID       int32
+	Name                  string
+	Listed                bool
+	TimeZone              string
+	DefaultLanguage       Language
+	PatientTranscriptCopy bool
+	UpdatedAt             pgtype.Timestamptz
+	ID                    pgtype.UUID
+	VersionID             int32
 }
 
 type UpdateOrganizationRow struct {
-	ID              pgtype.UUID
-	UpdatedAt       pgtype.Timestamptz
-	VersionID       int32
-	Active          bool
-	Listed          bool
-	Name            string
-	TimeZone        string
-	DefaultLanguage Language
+	ID                    pgtype.UUID
+	UpdatedAt             pgtype.Timestamptz
+	VersionID             int32
+	Active                bool
+	Listed                bool
+	Name                  string
+	TimeZone              string
+	DefaultLanguage       Language
+	PatientTranscriptCopy bool
 }
 
 // Optimistic locking: only the current version changes.
@@ -160,6 +168,7 @@ func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganization
 		arg.Listed,
 		arg.TimeZone,
 		arg.DefaultLanguage,
+		arg.PatientTranscriptCopy,
 		arg.UpdatedAt,
 		arg.ID,
 		arg.VersionID,
@@ -174,6 +183,7 @@ func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganization
 		&i.Name,
 		&i.TimeZone,
 		&i.DefaultLanguage,
+		&i.PatientTranscriptCopy,
 	)
 	return i, err
 }

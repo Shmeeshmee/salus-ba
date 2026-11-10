@@ -94,6 +94,8 @@ void main() {
         'data/cache/0B7E6C1A-2F4D-4E8A-9C3B-5D6E7F8A9B0C/x.jpg',
         'data/cache/scaled_x.jpg',
         'data/cache/file_picker/1/x.pdf',
+        'data/code_cache/salus-document-4.pdf',
+        'data/cache/share_plus/salus-document-4.pdf',
       ];
       final kept = ['data/cache/other.bin', 'data/code_cache/flutter_engine/x', 'storage/DCIM/salus-upload-9.jpg'];
       for (final p in [...left, ...kept]) {
@@ -104,6 +106,7 @@ void main() {
         expect(exists(p), isFalse, reason: p);
       }
       expect(exists('data/cache/file_picker'), isFalse);
+      expect(exists('data/cache/share_plus'), isFalse);
       expect(exists('data/cache/0B7E6C1A-2F4D-4E8A-9C3B-5D6E7F8A9B0C'), isFalse);
       for (final p in kept) {
         expect(exists(p), isTrue, reason: p);
