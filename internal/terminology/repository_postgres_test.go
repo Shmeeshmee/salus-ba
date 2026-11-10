@@ -34,10 +34,10 @@ func insertTerms(t *testing.T, db *pgxpool.Pool) {
 	t.Helper()
 	_, err := db.Exec(t.Context(), `
 		INSERT INTO term (id, category, rank, wikidata_id, ta98, icd10, review_status, reviewed_at) VALUES
-			('`+liver+`', 'anatomy', 100, 'Q9368', 'A05.8.01.001', NULL, 'reviewed', '2026-11-05T10:00:00Z'),
-			('`+hepatitis+`', 'diagnosis', 200, 'Q131742', NULL, 'K75.9', 'draft', NULL),
-			('`+ulcer+`', 'diagnosis', 50, 'Q1065994', NULL, 'K25', 'draft', NULL),
-			('`+fattyLvr+`', 'diagnosis', 1000, NULL, NULL, 'K76.0', 'draft', NULL);
+			('`+liver+`', 'anatomy', 100, 'Q9368', 'A05.8.01.001', NULL, 'approved', '2026-11-05T10:00:00Z'),
+			('`+hepatitis+`', 'diagnosis', 200, 'Q131742', NULL, 'K75.9', 'unreviewed', NULL),
+			('`+ulcer+`', 'diagnosis', 50, 'Q1065994', NULL, 'K25', 'unreviewed', NULL),
+			('`+fattyLvr+`', 'diagnosis', 1000, NULL, NULL, 'K76.0', 'unreviewed', NULL);
 		INSERT INTO term_label (term_id, language, label, preferred) VALUES
 			('`+liver+`', 'la', 'hepar', true), ('`+liver+`', 'la', 'iecur', false),
 			('`+liver+`', 'bs', 'jetra', true), ('`+liver+`', 'hr', 'jetra', true),
@@ -167,7 +167,7 @@ func TestSearch_ReturnsTheTermWithItsLabelsInTheRequestedLanguages(t *testing.T)
 	}
 	want := terminology.Term{
 		ReviewedAt: got.ReviewedAt, ID: liver, Category: "anatomy", WikidataID: "Q9368", TA98: "A05.8.01.001",
-		ReviewStatus: "reviewed", Rank: 100,
+		ReviewStatus: "approved", Rank: 100,
 		Labels: []terminology.Label{
 			{Language: "la", Text: "hepar", Preferred: true}, {Language: "la", Text: "iecur"},
 			{Language: "sr-Cyrl", Text: "јетра", Preferred: true},
@@ -181,7 +181,7 @@ func TestSearch_ReturnsTheTermWithItsLabelsInTheRequestedLanguages(t *testing.T)
 	if err != nil || len(terms) != 1 {
 		t.Fatalf("Search(ulcus) = %v, %v; want one term", terms, err)
 	}
-	if got := terms[0]; got.ICD10 != "K25" || got.ReviewStatus != "draft" || !got.ReviewedAt.IsZero() ||
+	if got := terms[0]; got.ICD10 != "K25" || got.ReviewStatus != "unreviewed" || !got.ReviewedAt.IsZero() ||
 		!reflect.DeepEqual(got.Labels, []terminology.Label{{Language: "en", Text: "stomach ulcer", Preferred: true}, {Language: "en", Text: "gastric ulcer"}}) {
 		t.Errorf("Search(ulcus) = %+v", got)
 	}

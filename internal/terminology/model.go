@@ -1,15 +1,54 @@
 // Package terminology is the medical term list (docs/terminology/SPEC.md): concepts of anatomy, diagnoses,
 // symptoms, procedures and drugs with their codes and their labels in Latin and the app languages, seeded from
-// Wikidata and curated by the owner's doctor partner. Reference data: no personal data, read-only for the app.
+// Wikidata and curated by the owner's doctor partner. Reference data; the reviews name the reviewer's account.
 package terminology
 
 import "time"
 
+// The review statuses of a term, a translation and an explanation (review_status, 00037): one status for the
+// cheatsheet's "Not reviewed yet" mark, the curator's file and the review panel (docs/plans/v1-finish.md).
+const (
+	ReviewUnreviewed   = "unreviewed"
+	ReviewApproved     = "approved"
+	ReviewNeedsChanges = "needs_changes"
+)
+
+// Review is where an entry is in its review: its status, when it was last set to approved or needs changes, by
+// whom (an account id; empty when the curator's file set it), and the reviewer's note.
+type Review struct {
+	ReviewedAt time.Time // zero until the first review; kept when the entry goes back to unreviewed
+	Status     string
+	ReviewedBy string
+	Note       string
+}
+
+// Translation is the review of a term's labels in one language. A term and language with labels and no stored
+// translation is unreviewed.
+type Translation struct {
+	UpdatedAt time.Time
+	Review    Review
+	TermID    string
+	Language  string
+	VersionID int32
+}
+
+// Explanation is a short plain-language explanation of a term in an app language (never Latin), at most 500
+// characters: informational, never a diagnosis.
+type Explanation struct {
+	UpdatedAt time.Time
+	Review    Review
+	TermID    string
+	Language  string
+	Text      string
+	VersionID int32
+}
+
 // Term is one concept with its codes. A code is empty when the term has none; several codes of one kind are
 // joined with ", ".
 type Term struct {
-	ReviewedAt   time.Time // zero while the term is a draft
+	ReviewedAt   time.Time // zero until the term's first review
 	ID           string
+	ReviewedBy   string // the account that set the status in the review panel; empty when the curator's file did
 	Category     string
 	WikidataID   string // e.g. Q9368
 	ICD10        string

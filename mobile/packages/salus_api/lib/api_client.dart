@@ -316,6 +316,10 @@ class ApiClient {
           return RegisterRequest.fromJson(value);
         case 'RequestQuestionnaireRequest':
           return RequestQuestionnaireRequest.fromJson(value);
+        case 'Review':
+          return Review.fromJson(value);
+        case 'ReviewStatus':
+          return ReviewStatusTypeTransformer().decode(value);
         case 'RoleSpecialty':
           return RoleSpecialty.fromJson(value);
         case 'SaveAnswersRequest':
@@ -358,12 +362,16 @@ class ApiClient {
           return TermCategoryTypeTransformer().decode(value);
         case 'TermCodes':
           return TermCodes.fromJson(value);
+        case 'TermExplanation':
+          return TermExplanation.fromJson(value);
         case 'TermLabels':
           return TermLabels.fromJson(value);
         case 'TermLanguage':
           return TermLanguageTypeTransformer().decode(value);
         case 'TermList':
           return TermList.fromJson(value);
+        case 'TermTranslation':
+          return TermTranslation.fromJson(value);
         case 'Transcript':
           return Transcript.fromJson(value);
         case 'TranscriptEvent':

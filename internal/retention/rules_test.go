@@ -207,3 +207,20 @@ func TestRules_KeepTheConsultationsTranscriptSuggestionsAndDrafts(t *testing.T) 
 		t.Errorf("no rule for %s", table)
 	}
 }
+
+// The term list's reviews name the reviewer's account (00037): kept with the term, as the account is.
+func TestRules_KeepTheTermListsReviewsWithTheirReviewer(t *testing.T) {
+	want := map[string]bool{"term": true, "term_translation": true, "term_explanation": true}
+	for _, r := range retention.Rules() {
+		if !want[r.Table] {
+			continue
+		}
+		if r.Then != retention.ThenKeep {
+			t.Errorf("%s then %q, want %q", r.Table, r.Then, retention.ThenKeep)
+		}
+		delete(want, r.Table)
+	}
+	for table := range want {
+		t.Errorf("no rule for %s", table)
+	}
+}

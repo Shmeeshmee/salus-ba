@@ -1188,14 +1188,60 @@ export interface components {
             /** Format: uuid */
             id: string;
             category: components["schemas"]["TermCategory"];
-            /**
-             * @description `draft` until the curator has reviewed the term (the UI marks it "Not reviewed yet").
-             * @enum {string}
-             */
-            reviewStatus: "draft" | "reviewed";
+            /** @description Anything but `approved` is marked "Not reviewed yet" in the UI. */
+            reviewStatus: components["schemas"]["ReviewStatus"];
             codes: components["schemas"]["TermCodes"];
             /** @description One entry per requested language that has a label, in the order requested. A language with no label is absent: gaps are never filled by machine translation. */
             labels: components["schemas"]["TermLabels"][];
+        };
+        /**
+         * @description Where a term, a translation or an explanation is in its review (docs/plans/v1-finish.md "Contract"): one status for all three. Editing an approved entry sets it back to `unreviewed`.
+         * @enum {string}
+         */
+        ReviewStatus: "unreviewed" | "approved" | "needs_changes";
+        Review: {
+            status: components["schemas"]["ReviewStatus"];
+            /**
+             * Format: uuid
+             * @description The account that last set the status; absent when the curator's file set it or before the first review.
+             */
+            reviewedBy?: string;
+            /**
+             * Format: date-time
+             * @description When it was last approved or marked as needing changes; kept when the entry goes back to unreviewed.
+             */
+            reviewedAt?: string;
+            /** @description The reviewer's note, e.g. what needs to change. */
+            note?: string;
+        };
+        /** @description The review of a term's labels in one language. A term and language with labels and no translation stored is unreviewed. */
+        TermTranslation: {
+            /** Format: uuid */
+            termId: string;
+            language: components["schemas"]["TermLanguage"];
+            review: components["schemas"]["Review"];
+            /**
+             * Format: int32
+             * @description For If-Match on an edit.
+             */
+            versionId: number;
+            /** Format: date-time */
+            lastUpdated: string;
+        };
+        /** @description A short plain-language explanation of a term in an app language, for patients and staff: informational, never a diagnosis (CLAUDE.md "Copy"), and labelled as such wherever it is shown. */
+        TermExplanation: {
+            /** Format: uuid */
+            termId: string;
+            language: components["schemas"]["Language"];
+            text: string;
+            review: components["schemas"]["Review"];
+            /**
+             * Format: int32
+             * @description For If-Match on an edit.
+             */
+            versionId: number;
+            /** Format: date-time */
+            lastUpdated: string;
         };
         TermList: {
             terms: components["schemas"]["Term"][];

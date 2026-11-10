@@ -97,7 +97,7 @@ func seedLanguages(labels map[string][]string) []string {
 // csvNote is the first line of the curator's CSV, one cell (owner's answer, 2026-11-08); DecodeCSV skips the lines
 // before the header whose first cell starts with #.
 const csvNote = `# For the curator: anatomy Latin follows Terminologia Anatomica (TA98), e.g. "hepar", not "iecur". ` +
-	`Fill in missing Bosnian, Croatian and Serbian terms, such as "čir". Set review_status to reviewed when a row ` +
+	`Fill in missing Bosnian, Croatian and Serbian terms, such as "čir". Set review_status to approved when a row ` +
 	`is checked. The import skips the lines that start with #.`
 
 // EncodeCSV writes terms as the curator's CSV: a byte order mark, the curator's note, the header, then one row

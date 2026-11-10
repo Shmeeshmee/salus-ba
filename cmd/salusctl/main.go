@@ -4,7 +4,7 @@
 //	salusctl create-clinic -name <name> -admin-email <e-mail>   the clinic and its first admin's invite
 //	salusctl reset-mfa <account-id>                             a staff member who lost their device
 //	salusctl terminology import <seed.jsonl | terms.csv>        the term list's seed or the curator's edits
-//	salusctl terminology export -o <terms.csv> [-status draft|reviewed]   the term list for the curator
+//	salusctl terminology export -o <terms.csv> [-status unreviewed|approved|needs_changes]   the term list for the curator
 //	salusctl document-templates seed -clinic <id> <template.json>...      the dev seed of placeholder templates
 //
 // It prints opaque ids only, never an e-mail. The terminology commands are not audited: the terms are reference

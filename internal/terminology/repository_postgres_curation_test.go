@@ -34,7 +34,7 @@ func TestTerm_ReturnsTheTermWithEveryLabel(t *testing.T) {
 	got := termOf(t, repo, ulcer)
 
 	want := terminology.Term{
-		ID: ulcer, Category: "diagnosis", WikidataID: "Q1065994", ICD10: "K25", ReviewStatus: "draft", Rank: 50,
+		ID: ulcer, Category: "diagnosis", WikidataID: "Q1065994", ICD10: "K25", ReviewStatus: "unreviewed", Rank: 50,
 		Labels: []terminology.Label{
 			{Language: "la", Text: "ulcus ventriculi", Preferred: true}, {Language: "bs", Text: "čir na želucu", Preferred: true},
 			{Language: "en", Text: "stomach ulcer", Preferred: true}, {Language: "en", Text: "gastric ulcer"},
@@ -54,7 +54,7 @@ func TestCreateFromSeed_InsertsANewTermOnceByItsWikidataID(t *testing.T) {
 	t.Parallel()
 	repo := curation(t)
 	seed := terminology.Term{
-		Category: "symptom", WikidataID: "Q38933", ICD10: "R50.9", Rank: 120, ReviewStatus: "draft",
+		Category: "symptom", WikidataID: "Q38933", ICD10: "R50.9", Rank: 120, ReviewStatus: "unreviewed",
 		Labels: []terminology.Label{{Language: "la", Text: "febris", Preferred: true}, {Language: "en", Text: "fever", Preferred: true}, {Language: "en", Text: "pyrexia"}},
 	}
 
@@ -94,7 +94,7 @@ func TestUpdateTerm_WritesTheColumnsAndReplacesTheLabels(t *testing.T) {
 	at := time.Date(2026, 11, 8, 9, 0, 0, 0, time.UTC)
 	edit := terminology.Term{
 		ReviewedAt: at, ID: ulcer, Category: "diagnosis", WikidataID: "Q1065994", ICD10: "K25.9", PCS: "44.4",
-		ReviewStatus: "reviewed", Note: "Checked against the textbook.", Rank: 51,
+		ReviewStatus: "approved", Note: "Checked against the textbook.", Rank: 51,
 		Labels: []terminology.Label{{Language: "la", Text: "ulcus ventriculi", Preferred: true}, {Language: "hr", Text: "vrijed želuca", Preferred: true}, {Language: "hr", Text: "čir na želucu"}},
 	}
 
@@ -110,12 +110,53 @@ func TestUpdateTerm_WritesTheColumnsAndReplacesTheLabels(t *testing.T) {
 	}
 }
 
+// reviewed_by is the reviewer's account, written and read back, and cleared (00037).
+func TestUpdateTerm_WritesAndClearsTheReviewer(t *testing.T) {
+	t.Parallel()
+	db := pgtest.NewDatabase(t)
+	insertTerms(t, db)
+	repo := terminology.NewPostgresCurationRepository(db)
+	var reviewer string
+	if err := db.QueryRow(t.Context(), `INSERT INTO organization (name) VALUES ('Synthetic clinic') RETURNING id::text`).Scan(new(string)); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(t.Context(), `INSERT INTO account (email, password_hash, role, organization_id)
+		SELECT 'reviewer@example.test', 'h', 'practitioner', id FROM organization LIMIT 1 RETURNING id::text`).Scan(&reviewer); err != nil {
+		t.Fatal(err)
+	}
+	at := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
+	edit := termOf(t, repo, ulcer)
+	edit.ReviewStatus, edit.ReviewedAt, edit.ReviewedBy = "approved", at, reviewer
+
+	if err := repo.UpdateTerm(t.Context(), edit, at); err != nil {
+		t.Fatalf("UpdateTerm: %v", err)
+	}
+	if got := termOf(t, repo, ulcer); got.ReviewedBy != reviewer {
+		t.Errorf("reviewed_by = %q, want %q", got.ReviewedBy, reviewer)
+	}
+	bad := edit
+	bad.ReviewedBy = "not-an-account"
+	if err := repo.UpdateTerm(t.Context(), bad, at); err == nil {
+		t.Error("UpdateTerm with a reviewer that is no UUID = nil, want an error")
+	}
+	if got := termOf(t, repo, ulcer); got.ReviewedBy != reviewer {
+		t.Errorf("reviewed_by = %q after a refused update, want %q kept", got.ReviewedBy, reviewer)
+	}
+	edit.ReviewedBy = ""
+	if err := repo.UpdateTerm(t.Context(), edit, at); err != nil {
+		t.Fatalf("UpdateTerm: %v", err)
+	}
+	if got := termOf(t, repo, ulcer); got.ReviewedBy != "" {
+		t.Errorf("reviewed_by = %q after clearing, want none", got.ReviewedBy)
+	}
+}
+
 func TestUpdateTerm_RefusesAnUnknownIDOrAnotherTermsWikidataID(t *testing.T) {
 	t.Parallel()
 	repo := curation(t)
 	at := time.Date(2026, 11, 8, 9, 0, 0, 0, time.UTC)
 
-	missing := terminology.Term{ID: "00000000-0000-4000-8000-0000000000ff", Category: "diagnosis", ReviewStatus: "draft"}
+	missing := terminology.Term{ID: "00000000-0000-4000-8000-0000000000ff", Category: "diagnosis", ReviewStatus: "unreviewed"}
 	if err := repo.UpdateTerm(t.Context(), missing, at); !errors.Is(err, terminology.ErrTermNotFound) {
 		t.Errorf("UpdateTerm(unknown id) = %v, want ErrTermNotFound", err)
 	}
@@ -145,10 +186,10 @@ func TestTerms_ByCategoryAndRankFilteredByStatus(t *testing.T) {
 	if got, want := ids(""), []string{liver, fattyLvr, hepatitis, ulcer}; !reflect.DeepEqual(got, want) {
 		t.Errorf("Terms() = %v, want %v", got, want)
 	}
-	if got, want := ids("draft"), []string{fattyLvr, hepatitis, ulcer}; !reflect.DeepEqual(got, want) {
+	if got, want := ids("unreviewed"), []string{fattyLvr, hepatitis, ulcer}; !reflect.DeepEqual(got, want) {
 		t.Errorf("Terms(draft) = %v, want %v", got, want)
 	}
-	if got, want := ids("reviewed"), []string{liver}; !reflect.DeepEqual(got, want) {
+	if got, want := ids("approved"), []string{liver}; !reflect.DeepEqual(got, want) {
 		t.Errorf("Terms(reviewed) = %v, want %v", got, want)
 	}
 }

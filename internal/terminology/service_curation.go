@@ -14,11 +14,10 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
-// The review statuses of a term (term.review_status).
-const (
-	statusDraft    = "draft"
-	statusReviewed = "reviewed"
-)
+// validStatus reports whether status is a review status (review_status).
+func validStatus(status string) bool {
+	return status == ReviewUnreviewed || status == ReviewApproved || status == ReviewNeedsChanges
+}
 
 // maxLabel is the longest label in characters (term_label's check).
 const maxLabel = 300
@@ -65,7 +64,7 @@ func (c *Curator) ImportSeed(ctx context.Context, rows []ImportRow) (ImportRepor
 			report.Refused = append(report.Refused, RowError{Line: r.Line, Reason: err.Error()})
 			continue
 		}
-		t.ReviewStatus, t.ReviewedAt, t.Note = statusDraft, time.Time{}, ""
+		t.ReviewStatus, t.ReviewedAt, t.Note = ReviewUnreviewed, time.Time{}, ""
 		var created bool
 		err = c.tx.WithTx(ctx, func(ctx context.Context) error {
 			var err error
@@ -85,7 +84,8 @@ func (c *Curator) ImportSeed(ctx context.Context, rows []ImportRow) (ImportRepor
 }
 
 // ImportCurated applies the curator's rows to the terms with their ids: columns written, labels replaced,
-// reviewed_at set when a term turns reviewed (kept when it stays reviewed or goes back to draft). A row equal to
+// reviewed_at set when a term turns approved or needs_changes (kept when its status stays or goes back to
+// unreviewed), and reviewed_by cleared when its status changes (the file names no reviewer). A row equal to
 // its term changes nothing, so a second import of the same file is a no-op. A row without an id, with an id
 // that names no term or that an earlier row had, or with an invalid value is refused and reported, the rest
 // applied, each row in its own transaction. A database error stops the import, as in ImportSeed.
@@ -98,8 +98,8 @@ func (c *Curator) ImportCurated(ctx context.Context, rows []ImportRow) (ImportRe
 		case err != nil:
 		case t.ID == "":
 			err = refusal("id: missing; new terms come from the seed")
-		case t.ReviewStatus != statusDraft && t.ReviewStatus != statusReviewed:
-			err = refusal("review_status: not draft or reviewed")
+		case !validStatus(t.ReviewStatus):
+			err = refusal("review_status: not unreviewed, approved or needs_changes")
 		case seen[t.ID]:
 			err = refusal("id: repeated in the file")
 		default:
@@ -134,9 +134,12 @@ func (c *Curator) applyCurated(ctx context.Context, t Term) (bool, error) {
 		if err != nil {
 			return err
 		}
-		t.ReviewedAt = stored.ReviewedAt
-		if t.ReviewStatus == statusReviewed && stored.ReviewStatus != statusReviewed {
-			t.ReviewedAt = c.clock.Now()
+		t.ReviewedAt, t.ReviewedBy = stored.ReviewedAt, stored.ReviewedBy
+		if t.ReviewStatus != stored.ReviewStatus {
+			t.ReviewedBy = ""
+			if t.ReviewStatus != ReviewUnreviewed {
+				t.ReviewedAt = c.clock.Now()
+			}
 		}
 		if same(stored, t) {
 			return nil
@@ -154,7 +157,7 @@ func (c *Curator) applyCurated(ctx context.Context, t Term) (bool, error) {
 // Export returns the terms of review status status (every term when empty) with all their labels, by category,
 // rank descending, then id; ErrInvalidStatus for another status.
 func (c *Curator) Export(ctx context.Context, status string) ([]Term, error) {
-	if status != "" && status != statusDraft && status != statusReviewed {
+	if status != "" && !validStatus(status) {
 		return nil, ErrInvalidStatus
 	}
 	terms, err := c.repo.Terms(ctx, status)

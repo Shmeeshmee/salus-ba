@@ -12,7 +12,7 @@ type Term = components['schemas']['Term']
 const liver: Term = {
   id: '00000000-0000-4000-8000-000000000001',
   category: 'anatomy',
-  reviewStatus: 'reviewed',
+  reviewStatus: 'approved',
   codes: { wikidata: 'Q9368', ta98: 'A05.8.01.001' },
   labels: [
     { language: 'la', preferred: 'hepar', synonyms: ['iecur'] },
@@ -26,7 +26,7 @@ const liver: Term = {
 const ulcer: Term = {
   id: '00000000-0000-4000-8000-000000000002',
   category: 'diagnosis',
-  reviewStatus: 'draft',
+  reviewStatus: 'unreviewed',
   codes: { wikidata: 'Q12356', icd10: 'K25' },
   labels: [
     { language: 'la', preferred: 'ulcus ventriculi', synonyms: [] },

@@ -24,8 +24,8 @@ class Term {
 
   TermCategory category;
 
-  /// `draft` until the curator has reviewed the term (the UI marks it \"Not reviewed yet\").
-  TermReviewStatusEnum reviewStatus;
+  /// Anything but `approved` is marked \"Not reviewed yet\" in the UI.
+  ReviewStatus reviewStatus;
 
   TermCodes codes;
 
@@ -102,7 +102,7 @@ class Term {
       return Term(
         id: mapValueOfType<String>(json, r'id')!,
         category: TermCategory.fromJson(json[r'category'])!,
-        reviewStatus: TermReviewStatusEnum.fromJson(json[r'reviewStatus'])!,
+        reviewStatus: ReviewStatus.fromJson(json[r'reviewStatus'])!,
         codes: TermCodes.fromJson(json[r'codes'])!,
         labels: TermLabels.listFromJson(json[r'labels']),
       );
@@ -167,88 +167,4 @@ class Term {
     'codes',
     'labels',
   };
-}
-
-/// `draft` until the curator has reviewed the term (the UI marks it \"Not reviewed yet\").
-enum TermReviewStatusEnum {
-  draft._(r'draft'),
-  reviewed._(r'reviewed'),
-  ;
-
-  /// Instantiate a new enum with the provided value.
-  const TermReviewStatusEnum._(this._value);
-
-  /// The underlying value of this enum member.
-  final String _value;
-
-  @override
-  String toString() => _value;
-
-  /// Encodes this enum as a value suitable for JSON.
-  String toJson() => _value;
-
-  /// Returns the instance of [TermReviewStatusEnum] that was successfully decoded
-  /// from the passed [value] on success, null otherwise.
-  static TermReviewStatusEnum? fromJson(dynamic value) =>
-      TermReviewStatusEnumTypeTransformer().decode(value);
-
-  /// Returns a [List] containing instances of [TermReviewStatusEnum]
-  /// that were successfully decoded from the passed [JSON][json].
-  static List<TermReviewStatusEnum> listFromJson(
-    dynamic json, {
-    bool growable = false,
-  }) {
-    final result = <TermReviewStatusEnum>[];
-    if (json is List && json.isNotEmpty) {
-      for (final row in json) {
-        final value = TermReviewStatusEnum.fromJson(row);
-        if (value != null) {
-          result.add(value);
-        }
-      }
-    }
-    return result.toList(growable: growable);
-  }
-}
-
-/// Transformation class that can [encode] an instance of [TermReviewStatusEnum] to String,
-/// and [decode] dynamic data back to [TermReviewStatusEnum].
-class TermReviewStatusEnumTypeTransformer {
-  factory TermReviewStatusEnumTypeTransformer() =>
-      _instance ??= const TermReviewStatusEnumTypeTransformer._();
-
-  const TermReviewStatusEnumTypeTransformer._();
-
-  String encode(TermReviewStatusEnum data) => data._value;
-
-  /// Returns the instance of [TermReviewStatusEnum] that was successfully decoded
-  /// from the passed [data] value on success, null otherwise.
-  ///
-  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
-  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
-  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
-  ///
-  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
-  /// and users are still using an old app with the old code.
-  TermReviewStatusEnum? decode(dynamic data, {bool allowNull = true}) {
-    if (data is TermReviewStatusEnum) {
-      return data;
-    }
-    if (data != null) {
-      switch (data) {
-        case r'draft':
-          return TermReviewStatusEnum.draft;
-        case r'reviewed':
-          return TermReviewStatusEnum.reviewed;
-        default:
-          if (!allowNull) {
-            throw ArgumentError('Unknown enum value to decode: $data');
-          }
-      }
-    }
-    return null;
-  }
-
-  /// The singleton instance of this transformer.
-  static TermReviewStatusEnumTypeTransformer? _instance;
 }

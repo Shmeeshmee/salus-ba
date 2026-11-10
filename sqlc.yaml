@@ -2,6 +2,13 @@
 # internal/<domain>/<domain>db from the domain's query.sql against the schema in migrations/; the generated
 # package is imported only by that domain's repository_postgres.go (archcheck) and never edited by hand.
 version: "2"
+# The review_status domain (00037) is text: sqlc reads a domain as an unknown type. Global, as every package's
+# models are generated from the one schema.
+overrides:
+  go:
+    overrides:
+      - db_type: review_status
+        go_type: string
 sql:
   - engine: postgresql
     schema: migrations

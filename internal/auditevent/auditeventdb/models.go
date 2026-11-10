@@ -562,6 +562,20 @@ type Term struct {
 	Atc          pgtype.Text
 	Pcs          pgtype.Text
 	Note         pgtype.Text
+	ReviewedBy   pgtype.UUID
+}
+
+type TermExplanation struct {
+	TermID       pgtype.UUID
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	VersionID    int32
+	Language     TermLanguage
+	ReviewStatus string
+	Text         string
+	Note         pgtype.Text
 }
 
 type TermLabel struct {
@@ -570,6 +584,17 @@ type TermLabel struct {
 	Language  TermLanguage
 	Preferred bool
 	Label     string
+}
+
+type TermTranslation struct {
+	TermID       pgtype.UUID
+	UpdatedAt    pgtype.Timestamptz
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	VersionID    int32
+	Language     TermLanguage
+	ReviewStatus string
+	Note         pgtype.Text
 }
 
 type TranscriptSegment struct {

@@ -112,7 +112,7 @@ func reasons(r terminology.ImportReport) map[int]string {
 
 func TestImportSeed_CreatesNewTermsAsDraftsAndKeepsTheOnesThere(t *testing.T) {
 	t.Parallel()
-	f := newFakeCuration(terminology.Term{ID: "liver", WikidataID: "Q9368", Category: "anatomy", ReviewStatus: "reviewed"})
+	f := newFakeCuration(terminology.Term{ID: "liver", WikidataID: "Q9368", Category: "anatomy", ReviewStatus: "approved"})
 	fever := terminology.Term{
 		Category: "symptom", WikidataID: "Q38933", ICD10: " R50.9 ", Rank: 120,
 		Labels: labels("la", "  febris ", "en", "fever", "en", "high   temperature", "en", "fever"),
@@ -127,13 +127,13 @@ func TestImportSeed_CreatesNewTermsAsDraftsAndKeepsTheOnesThere(t *testing.T) {
 		t.Fatalf("ImportSeed = %+v, %v; want one created, one unchanged", got, err)
 	}
 	want := terminology.Term{
-		ID: "new-Q38933", Category: "symptom", WikidataID: "Q38933", ICD10: "R50.9", Rank: 120, ReviewStatus: "draft",
+		ID: "new-Q38933", Category: "symptom", WikidataID: "Q38933", ICD10: "R50.9", Rank: 120, ReviewStatus: "unreviewed",
 		Labels: labels("la", "febris", "en", "fever", "en", "high temperature"),
 	}
 	if !reflect.DeepEqual(f.terms["new-Q38933"], want) {
 		t.Errorf("created %+v,\nwant %+v", f.terms["new-Q38933"], want)
 	}
-	if f.terms["liver"].ReviewStatus != "reviewed" || f.txs != 2 {
+	if f.terms["liver"].ReviewStatus != "approved" || f.txs != 2 {
 		t.Errorf("the existing term was changed or the rows did not run in their own transactions (%d)", f.txs)
 	}
 }
@@ -183,11 +183,11 @@ func TestImportCurated(t *testing.T) {
 	t.Parallel()
 	reviewedOn := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
 	stored := []terminology.Term{
-		{ID: "liver", Category: "anatomy", WikidataID: "Q9368", TA98: "A05.8.01.001", Rank: 100, ReviewStatus: "draft", Labels: labels("la", "hepar", "en", "liver")},
-		{ID: "ulcer", ReviewedAt: reviewedOn, Category: "diagnosis", WikidataID: "Q1065994", ICD10: "K25", Rank: 50, ReviewStatus: "reviewed", Labels: labels("en", "stomach ulcer", "en", "gastric ulcer")},
-		{ID: "fever", ReviewedAt: reviewedOn, Category: "symptom", WikidataID: "Q38933", Rank: 120, ReviewStatus: "reviewed", Labels: labels("en", "fever")},
-		{ID: "cough", ReviewedAt: reviewedOn, Category: "symptom", WikidataID: "Q35805", Rank: 110, ReviewStatus: "reviewed", Labels: labels("en", "cough")},
-		{ID: "rash", Category: "symptom", WikidataID: "Q1139839", Rank: 90, ReviewStatus: "draft", Labels: labels("en", "rash")},
+		{ID: "liver", Category: "anatomy", WikidataID: "Q9368", TA98: "A05.8.01.001", Rank: 100, ReviewStatus: "unreviewed", Labels: labels("la", "hepar", "en", "liver")},
+		{ID: "ulcer", ReviewedAt: reviewedOn, Category: "diagnosis", WikidataID: "Q1065994", ICD10: "K25", Rank: 50, ReviewStatus: "approved", Labels: labels("en", "stomach ulcer", "en", "gastric ulcer")},
+		{ID: "fever", ReviewedAt: reviewedOn, Category: "symptom", WikidataID: "Q38933", Rank: 120, ReviewStatus: "approved", Labels: labels("en", "fever")},
+		{ID: "cough", ReviewedAt: reviewedOn, Category: "symptom", WikidataID: "Q35805", Rank: 110, ReviewStatus: "approved", Labels: labels("en", "cough")},
+		{ID: "rash", Category: "symptom", WikidataID: "Q1139839", Rank: 90, ReviewStatus: "unreviewed", Labels: labels("en", "rash")},
 	}
 	f := newFakeCuration(stored...)
 	edited := func(t terminology.Term, edit func(*terminology.Term)) terminology.Term {
@@ -197,7 +197,7 @@ func TestImportCurated(t *testing.T) {
 	rows := []terminology.ImportRow{
 		// draft to reviewed, Latin filled: the date is now
 		row(2, edited(stored[0], func(t *terminology.Term) {
-			t.ReviewStatus, t.Labels = "reviewed", labels("la", "hepar", "la", "iecur", "en", "liver")
+			t.ReviewStatus, t.Labels = "approved", labels("la", "hepar", "la", "iecur", "en", "liver")
 		})),
 		// the same content, synonyms in another order: unchanged, its date kept
 		row(3, edited(stored[1], func(t *terminology.Term) {
@@ -205,13 +205,13 @@ func TestImportCurated(t *testing.T) {
 		})),
 		// reviewed back to draft: its last date kept
 		row(4, edited(stored[2], func(t *terminology.Term) {
-			t.ReviewedAt, t.ReviewStatus, t.Note = time.Time{}, "draft", "Check the Latin."
+			t.ReviewedAt, t.ReviewStatus, t.Note = time.Time{}, "unreviewed", "Check the Latin."
 		})),
 		// a label fixed on a reviewed term: still reviewed, its date kept
 		row(5, edited(stored[3], func(t *terminology.Term) {
 			t.ReviewedAt, t.Labels = time.Time{}, labels("en", "cough", "hr", "kašalj")
 		})),
-		row(6, terminology.Term{Category: "symptom", ReviewStatus: "draft", Labels: labels("en", "new")}),
+		row(6, terminology.Term{Category: "symptom", ReviewStatus: "unreviewed", Labels: labels("en", "new")}),
 		row(7, edited(stored[0], func(t *terminology.Term) { t.ID = "missing" })),
 		row(8, edited(stored[1], func(t *terminology.Term) { t.ReviewStatus = "done" })),
 		row(9, edited(stored[1], func(t *terminology.Term) {})),
@@ -221,7 +221,7 @@ func TestImportCurated(t *testing.T) {
 	got, err := newCurator(f).ImportCurated(t.Context(), rows)
 
 	wantRefused := map[int]string{
-		6: "id: missing; new terms come from the seed", 7: "id: no such term", 8: "review_status: not draft or reviewed",
+		6: "id: missing; new terms come from the seed", 7: "id: no such term", 8: "review_status: not unreviewed, approved or needs_changes",
 		9: "id: repeated in the file", 10: "wikidata: another term has it",
 	}
 	if err != nil || got.Updated != 3 || got.Unchanged != 1 || got.Created != 0 || !reflect.DeepEqual(reasons(got), wantRefused) {
@@ -230,7 +230,7 @@ func TestImportCurated(t *testing.T) {
 	for _, c := range []struct {
 		at         time.Time
 		id, status string
-	}{{now, "liver", "reviewed"}, {reviewedOn, "ulcer", "reviewed"}, {reviewedOn, "fever", "draft"}, {reviewedOn, "cough", "reviewed"}} {
+	}{{now, "liver", "approved"}, {reviewedOn, "ulcer", "approved"}, {reviewedOn, "fever", "unreviewed"}, {reviewedOn, "cough", "approved"}} {
 		if term := f.terms[c.id]; term.ReviewStatus != c.status || !term.ReviewedAt.Equal(c.at) {
 			t.Errorf("%s: %s reviewed at %v, want %s at %v", c.id, term.ReviewStatus, term.ReviewedAt, c.status, c.at)
 		}
@@ -243,12 +243,39 @@ func TestImportCurated(t *testing.T) {
 	}
 }
 
+// needs_changes is a review like approved: the date is now. A status the curator's file changes names no reviewer,
+// so an in-app reviewer's account is cleared; a row that keeps the status keeps it (00037).
+func TestImportCurated_NeedsChangesAndTheReviewer(t *testing.T) {
+	t.Parallel()
+	reviewedOn := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
+	stored := []terminology.Term{
+		{ID: "liver", ReviewedAt: reviewedOn, ReviewedBy: "acc-1", Category: "anatomy", WikidataID: "Q9368", Rank: 100, ReviewStatus: "approved", Labels: labels("en", "liver")},
+		{ID: "fever", ReviewedAt: reviewedOn, ReviewedBy: "acc-1", Category: "symptom", WikidataID: "Q38933", Rank: 120, ReviewStatus: "approved", Labels: labels("en", "fever")},
+	}
+	f := newFakeCuration(stored...)
+	flagged, kept := stored[0], stored[1]
+	flagged.ReviewedAt, flagged.ReviewedBy, flagged.ReviewStatus, flagged.Note = time.Time{}, "", "needs_changes", "Check the Latin."
+	kept.ReviewedAt, kept.ReviewedBy, kept.Labels = time.Time{}, "", labels("en", "fever", "hr", "vrućica")
+
+	got, err := newCurator(f).ImportCurated(t.Context(), []terminology.ImportRow{row(2, flagged), row(3, kept)})
+
+	if err != nil || got.Updated != 2 || len(got.Refused) != 0 {
+		t.Fatalf("ImportCurated = %+v, %v; want 2 updated", got, err)
+	}
+	if term := f.terms["liver"]; term.ReviewStatus != "needs_changes" || !term.ReviewedAt.Equal(now) || term.ReviewedBy != "" {
+		t.Errorf("liver: %s at %v by %q, want needs_changes at %v by no one", term.ReviewStatus, term.ReviewedAt, term.ReviewedBy, now)
+	}
+	if term := f.terms["fever"]; term.ReviewStatus != "approved" || !term.ReviewedAt.Equal(reviewedOn) || term.ReviewedBy != "acc-1" {
+		t.Errorf("fever: %s at %v by %q, want approved at %v by acc-1", term.ReviewStatus, term.ReviewedAt, term.ReviewedBy, reviewedOn)
+	}
+}
+
 func TestExport(t *testing.T) {
 	t.Parallel()
 	f := newFakeCuration()
 	c := newCurator(f)
 
-	for _, status := range []string{"", "draft", "reviewed"} {
+	for _, status := range []string{"", "unreviewed", "approved", "needs_changes"} {
 		if terms, err := c.Export(t.Context(), status); err != nil || len(terms) != 1 || f.gotStat != status {
 			t.Errorf("Export(%q) = %v, %v; asked %q", status, terms, err, f.gotStat)
 		}

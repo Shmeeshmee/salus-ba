@@ -202,7 +202,7 @@ function TermHead({ term }: { term: Term }) {
   return (
     <div className="term-head">
       {codes.length > 0 ? <TipTag className="category" label={category} tip={codes.join(', ')} /> : <span className="tag category">{category}</span>}
-      {term.reviewStatus === 'draft' && <span className="tag draft">{t('terminology.draft')}</span>}
+      {term.reviewStatus !== 'approved' && <span className="tag draft">{t('terminology.draft')}</span>}
     </div>
   )
 }

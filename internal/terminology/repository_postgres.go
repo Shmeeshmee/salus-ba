@@ -121,10 +121,15 @@ func (r *postgresRepository) UpdateTerm(ctx context.Context, t Term, at time.Tim
 	if err := id.Scan(t.ID); err != nil {
 		return ErrTermNotFound
 	}
+	reviewer, ok := optionalUUID(t.ReviewedBy)
+	if !ok {
+		return errInvalidReviewer
+	}
 	n, err := r.q(ctx).UpdateTerm(ctx, terminologydb.UpdateTermParams{
 		Category: terminologydb.TermCategory(t.Category), Rank: t.Rank, WikidataID: text(t.WikidataID),
 		Icd10: text(t.ICD10), Ta98: text(t.TA98), Atc: text(t.ATC), Pcs: text(t.PCS), ReviewStatus: t.ReviewStatus,
-		ReviewedAt: pgtype.Timestamptz{Time: t.ReviewedAt, Valid: !t.ReviewedAt.IsZero()}, Note: text(t.Note),
+		ReviewedAt: pgtype.Timestamptz{Time: t.ReviewedAt, Valid: !t.ReviewedAt.IsZero()}, ReviewedBy: reviewer,
+		Note:      text(t.Note),
 		UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true}, ID: id,
 	})
 	if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) && pgErr.ConstraintName == "term_wikidata_id_key" {
@@ -173,6 +178,9 @@ func listedTerm(row terminologydb.ListTermsRow) Term {
 		WikidataID: row.WikidataID.String, ICD10: row.Icd10.String, TA98: row.Ta98.String, ATC: row.Atc.String,
 		PCS: row.Pcs.String, ReviewStatus: row.ReviewStatus, Note: row.Note.String, Rank: row.Rank,
 	}
+	if row.ReviewedBy.Valid {
+		t.ReviewedBy = row.ReviewedBy.String()
+	}
 	for j, label := range row.Labels {
 		t.Labels = append(t.Labels, Label{Language: row.LabelLanguages[j], Text: label, Preferred: row.LabelPreferred[j]})
 	}
@@ -182,4 +190,16 @@ func listedTerm(row terminologydb.ListTermsRow) Term {
 // text is s as a nullable column: NULL when empty.
 func text(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: s != ""}
+}
+
+// errInvalidReviewer is returned for a reviewer that is no account id; the value is not repeated.
+var errInvalidReviewer = errors.New("terminology: reviewed_by is no UUID")
+
+// optionalUUID is id as a nullable uuid, null when empty; false when it is no UUID.
+func optionalUUID(id string) (pgtype.UUID, bool) {
+	var u pgtype.UUID
+	if id == "" {
+		return u, true
+	}
+	return u, u.Scan(id) == nil
 }

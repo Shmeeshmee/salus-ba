@@ -290,6 +290,9 @@ services:
       RETENTION_DATABASE_PASSWORD: local-retention-password # make migrate sets it on salus_retention
     volumes:
       - ..:/src
+      # The git directory at its host path (make exports GIT_COMMON_DIR): a worktree's .git file points there, so
+      # git (scripts/check-migrations.sh) works in a worktree as in the main checkout. Without make, /src/.git again.
+      - ${GIT_COMMON_DIR:-../.git}:${GIT_COMMON_DIR:-/src/.git}
       - gomod:/cache/gomod
       - gobuild:/cache/gobuild
       - golangci:/cache/golangci
