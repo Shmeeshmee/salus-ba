@@ -97,13 +97,13 @@ func (r *fakeRepository) SetClinic(ctx context.Context, id string) error {
 	return r.err
 }
 
-func (r *fakeRepository) Templates(ctx context.Context) ([]composition.Template, error) {
+func (r *fakeRepository) Templates(ctx context.Context, org string) ([]composition.Template, error) {
 	if err := r.check(ctx); err != nil {
 		return nil, err
 	}
 	var out []composition.Template
 	for _, t := range r.templates {
-		if t.OrganizationID == r.scope {
+		if t.OrganizationID == org && org == r.scope {
 			out = append(out, t)
 		}
 	}

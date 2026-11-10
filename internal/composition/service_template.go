@@ -22,7 +22,7 @@ func (s *Service) Templates(ctx context.Context, c appointment.Caller) ([]Templa
 		if err != nil {
 			return err
 		}
-		out, err = s.Repo.Templates(ctx)
+		out, err = s.Repo.Templates(ctx, c.OrganizationID)
 		return err
 	})
 	if err := wrapErr("templates", err, refused); err != nil {
@@ -104,7 +104,7 @@ func (s *Service) SeedTemplate(ctx context.Context, agent, org string, in Templa
 		if err := s.Repo.SetClinic(ctx, org); err != nil {
 			return err
 		}
-		all, err := s.Repo.Templates(ctx)
+		all, err := s.Repo.Templates(ctx, org)
 		if err != nil {
 			return err
 		}
