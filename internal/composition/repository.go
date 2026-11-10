@@ -13,8 +13,9 @@ import (
 type Repository interface {
 	// SetClinic scopes the rest of the transaction in ctx to the clinic id.
 	SetClinic(ctx context.Context, id string) error
-	// Templates returns the scope's templates, by title, each with its translations.
-	Templates(ctx context.Context) ([]Template, error)
+	// Templates returns the templates of the clinic org, by title, each with its translations. It selects by
+	// org, so the owner (salusctl), past row-level security, sees no other clinic's.
+	Templates(ctx context.Context, org string) ([]Template, error)
 	// Template returns the template with its translations, locked until the transaction ends when lock is
 	// set, or ErrTemplateNotFound (also outside the scope, or for an id that is no UUID).
 	Template(ctx context.Context, id string, lock bool) (Template, error)

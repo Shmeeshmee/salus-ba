@@ -492,3 +492,14 @@ and the quality of the fields it fills (blocked on SAL-5's adapter and the DPA).
   nothing deletes it yet (the attachments' purger now leaves `composition/` alone).
 - The web wiring of `templates()`, `generate`, `sign` (SAL-9's page): a later PR. `sign` there sends no `If-Match`
   yet; the draft's `version_id` is now on every event for it.
+
+### 2026-11-10: SAL-16, the seed of a second clinic (branch `sal-16-seed`)
+
+`salusctl document-templates seed` connects as the owner, past row-level security, and its "already seeded" check
+read every clinic's templates: a second clinic found the first one's template of the same title and got none. The
+`Templates` query now selects by the clinic's id (`Repository.Templates(ctx, org)`), so the seed and the API read
+only the clinic's templates whether or not RLS applies; RLS and grants are unchanged. Tests: two clinics seeded
+twice through `salusctl` (`cmd/salusctl`), and `Templates` as the owner (`internal/composition`). The other
+`salusctl` commands were reviewed and need no change: `create-clinic` writes only into the clinic it creates (the
+invite's upsert is keyed by clinic and e-mail), `reset-mfa` acts on the one account named by its id and audits it in
+that account's clinic, and `terminology import|export` work on reference data with no clinic.

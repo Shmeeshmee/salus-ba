@@ -1,7 +1,8 @@
 -- name: Templates :many
--- The scope's templates, by title.
+-- The clinic's templates, by title. By its id, not only row-level security: salusctl runs as the owner.
 SELECT id, organization_id, title, language, status, type_code, fields, version_id, updated_at
 FROM document_template
+WHERE organization_id = @organization_id
 ORDER BY title, id;
 
 -- name: Template :one
