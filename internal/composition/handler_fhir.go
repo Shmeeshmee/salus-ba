@@ -302,7 +302,7 @@ func (h *FHIRHandler) writeError(w http.ResponseWriter, r *http.Request, err err
 		fhir.WriteError(w, http.StatusNotFound, "not-found", "Resource not found.")
 	case errors.Is(err, ErrForbidden), errors.Is(err, ErrConsentRequired):
 		fhir.WriteError(w, http.StatusForbidden, "forbidden",
-			"Only the encounter's practitioner, while the patient's consent is active, and its patient read its signed documents.")
+			"Only the encounter's practitioner (while the patient's consent is active) and the encounter's patient may read its documents.")
 	default:
 		fhir.InternalError(w, r, h.log, err)
 	}
