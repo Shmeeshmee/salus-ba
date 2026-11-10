@@ -1,6 +1,6 @@
 import type { AnswerValue } from './api/fhir'
 import type { FileKind } from './builder'
-import { intlLocale } from './i18n/format'
+import { formatNumber } from './i18n/format'
 import type { Language } from './i18n/languages'
 import type { useT } from './i18n/useT'
 
@@ -37,6 +37,6 @@ export function filesOf(values: AnswerValue[]): Attached[] {
 export function sizeText(bytes: number, t: ReturnType<typeof useT>, language: Language): string {
   const kb = Math.max(1, Math.round(bytes / 1000))
   if (kb < 1000) return t('attachments.kb', { n: kb })
-  const mb = new Intl.NumberFormat(intlLocale(language), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(bytes / 1_000_000)
+  const mb = formatNumber(bytes / 1_000_000, language, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   return t('attachments.mb', { n: mb })
 }

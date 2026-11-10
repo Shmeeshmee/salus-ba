@@ -281,6 +281,13 @@ the owner was away".
 - Formatting locales: `en` is formatted as `en-GB` (day before month, as the app wrote dates before), Serbian as
   `sr-Latn-BA` / `sr-Cyrl-BA` so dates are ijekavian (SPEC §3 "Serbian is ijekavian"; plain `sr` is ekavian
   in CLDR). Intl's own punctuation is kept ("Monday, 9 November 2026"), not post-processed.
+- Bosnian (SAL-15, later): Chromium ships no Bosnian locale data, and Intl with `bs` writes "2026 M11 10, Tue"
+  and "1,234.5" there. `bs` dates and numbers are formatted with Croatian data, which every browser has and whose
+  patterns, punctuation, ijekavian weekdays and number signs are CLDR Bosnian's; only the month names are replaced,
+  with Bosnian's (januar … juni, juli, august …, short jan … aug …). Serbian Latin data would not do: its months are
+  jun, jul, avgust, and its short date and date-with-time patterns differ. A date with its time has no "u" in `bs`
+  ("10. nov 2026. 15:05"), as in `hr`. The ICU messages keep the `bs` locale (Chromium has its plural rules).
+  Flutter's `intl` ships its own Bosnian data and needs nothing.
 - Signed-in saving (`PATCH /auth/me`) and applying the account's `language` after `/auth/me` belong to 1.5
   (the picker); `useLanguage().choose` switches the UI and keeps the choice on the device, and 1.5 calls the
   API beside it. No generated API client is used in 0.2.

@@ -83,12 +83,16 @@ func TestLanguage_TheClinicsDefaultLanguageAndAStaffChoice(t *testing.T) {
 // TestLanguage_TheWebAppFollowsTheBrowserThenTheSavedChoice runs the web journey (test/e2e/web/language.spec.ts): the
 // sign-in screen of a browser in Serbian Cyrillic is in Serbian Cyrillic; the admin picks Hrvatski, signs out and
 // signs in from another browser in English, where the app is in Croatian, and goes back to the browser's language.
+// In Bosnian, an open invite's expiry date reads in Bosnian in Chromium, which has no Bosnian locale data (SAL-15).
 // Then the account holds no chosen language.
 func TestLanguage_TheWebAppFollowsTheBrowserThenTheSavedChoice(t *testing.T) {
 	waitReady(t)
 	adminAddr := email(t, "admin")
 	salusctl(t, "create-clinic", "-name", "E2E synthetic clinic "+suffix(t), "-admin-email", adminAddr)
 	admin, totp := enrolFromInvite(t, adminAddr)
+	admin.must(http.StatusCreated, http.MethodPost, "/invites", map[string]string{
+		"email": email(t, "practitioner"), "role": "practitioner", "givenName": "Cy", "familyName": "Synthetic",
+	}, nil)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()

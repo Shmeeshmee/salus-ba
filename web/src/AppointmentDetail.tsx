@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useIntl } from 'react-intl'
 import type { Account, ApiClient } from './api/client'
 import { FhirError, nameOf, participant, type Appointment, type AppointmentStatus, type FhirClient, type Patient } from './api/fhir'
 import { attempt, type Outcome } from './api/result'
@@ -151,7 +150,7 @@ function Consultation({ status, zone }: { status: ConsultationStatus; zone: stri
 
 function Profile({ patient }: { patient: Patient }) {
   const t = useT()
-  const intl = useIntl()
+  const f = useFormat()
   const phone = patient.telecom?.find((c) => c.system === 'phone')?.value
   return (
     <details className="more">
@@ -160,7 +159,7 @@ function Profile({ patient }: { patient: Patient }) {
         {patient.birthDate && (
           <>
             <dt>{t('calendar.birthDate')}</dt>
-            <dd>{intl.formatDate(new Date(`${patient.birthDate}T00:00:00Z`), { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' })}</dd>
+            <dd>{f.calendarDate(patient.birthDate)}</dd>
           </>
         )}
         {phone && (
