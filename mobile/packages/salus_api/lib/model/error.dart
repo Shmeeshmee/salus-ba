@@ -208,6 +208,7 @@ enum ErrorErrorEnum {
   languageUnavailable._(r'language_unavailable'),
   languageLocked._(r'language_locked'),
   translationIncomplete._(r'translation_incomplete'),
+  noteRequired._(r'note_required'),
   internalError._(r'internal error'),
   timeout._(r'timeout'),
   ;
@@ -389,6 +390,8 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.languageLocked;
         case r'translation_incomplete':
           return ErrorErrorEnum.translationIncomplete;
+        case r'note_required':
+          return ErrorErrorEnum.noteRequired;
         case r'internal error':
           return ErrorErrorEnum.internalError;
         case r'timeout':

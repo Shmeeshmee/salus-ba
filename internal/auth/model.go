@@ -32,6 +32,9 @@ type Account struct {
 	// DetectedLanguage is the language the client matched at the last registration or sign-in; empty before.
 	DetectedLanguage string
 	Role             Role
+	// TermReviewer is the platform permission to edit and review the shared term list (SAL-14), granted and
+	// revoked only by the operator (salusctl term-reviewer); never a patient's.
+	TermReviewer bool
 }
 
 // Member is what a staff session is in its clinic: whether its account is the admin, and the practitioner it
@@ -39,6 +42,7 @@ type Account struct {
 type Member struct {
 	PractitionerID string
 	Admin          bool
+	TermReviewer   bool // the account's reviewer permission of the term list (Account.TermReviewer)
 }
 
 // MFAEnrolled reports whether the account has set up TOTP.
@@ -102,8 +106,8 @@ func (inv Invite) open(now time.Time) bool {
 // it), and the challenge for POST /auth/mfa/confirm, which also opens the first session.
 type Acceptance struct {
 	Enrolment Enrolment
-	Account   Account
 	Challenge string
+	Account   Account
 }
 
 // InviteEmailArgs is the invite_email job, on the notifier's "email" queue. Its arguments are opaque ids

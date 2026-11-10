@@ -117,3 +117,132 @@ JOIN target tl ON tl.term_id = f.term_id
 JOIN term t ON t.id = f.term_id
 ORDER BY t.rank DESC, t.id
 LIMIT @max_terms;
+
+-- name: SyncTranslations :exec
+-- A term has a translation in exactly the languages it has labels in (docs/terminology/SPEC.md §3 "Review"): one
+-- for a language without one, with the term's status and date, and none for a language left without labels.
+WITH gone AS (
+    DELETE FROM term_translation tr
+    WHERE tr.term_id = @term_id
+      AND NOT EXISTS (SELECT FROM term_label l WHERE l.term_id = tr.term_id AND l.language = tr.language)
+)
+INSERT INTO term_translation (term_id, language, review_status, reviewed_at)
+SELECT DISTINCT l.term_id, l.language, t.review_status, t.reviewed_at
+FROM term_label l JOIN term t ON t.id = l.term_id
+WHERE l.term_id = @term_id
+ON CONFLICT (term_id, language) DO NOTHING;
+
+-- name: SetTranslationsStatus :exec
+-- The curator's file sets one status per term: every translation's, with no reviewer (the file names no one).
+UPDATE term_translation
+SET review_status = @review_status::text, reviewed_by = NULL,
+    reviewed_at = CASE WHEN @review_status::text = 'unreviewed' THEN reviewed_at ELSE @at::timestamptz END,
+    version_id = version_id + 1, updated_at = @at::timestamptz
+WHERE term_id = @term_id;
+
+-- The review panel (SAL-14), on the app's connection: docs/terminology/SPEC.md §3 "Review".
+
+-- name: ReviewQueue :many
+-- An entry per term in the language: status_order 0 unreviewed (no translation, or the translation or the
+-- explanation unreviewed), 1 needs_changes (either needs changes), 2 approved; an explanation that does not exist
+-- does not count. A page by status, rank descending and id, after the keyset (after_order, after_rank, after_id)
+-- when after_id is set; each entry with its labels in the language, Latin and English.
+WITH entries AS (
+    SELECT t.id, t.reviewed_at, t.rank, t.category, t.review_status, t.wikidata_id, t.icd10, t.ta98, t.atc, t.pcs,
+           tr.term_id IS NOT NULL AS has_translation, tr.updated_at AS tr_updated_at, tr.reviewed_at AS tr_reviewed_at,
+           tr.reviewed_by AS tr_reviewed_by, tr.version_id AS tr_version_id, tr.review_status AS tr_status, tr.note AS tr_note,
+           ex.term_id IS NOT NULL AS has_explanation, ex.updated_at AS ex_updated_at, ex.reviewed_at AS ex_reviewed_at,
+           ex.reviewed_by AS ex_reviewed_by, ex.version_id AS ex_version_id, ex.review_status AS ex_status, ex.note AS ex_note,
+           ex.text AS ex_text,
+           CASE WHEN tr.review_status = 'needs_changes' OR ex.review_status = 'needs_changes' THEN 1
+                WHEN tr.term_id IS NULL OR tr.review_status = 'unreviewed' OR ex.review_status = 'unreviewed' THEN 0
+                ELSE 2 END AS status_order
+    FROM term t
+    LEFT JOIN term_translation tr ON tr.term_id = t.id AND tr.language = @language::term_language
+    LEFT JOIN term_explanation ex ON ex.term_id = t.id AND ex.language = @language::term_language
+), page AS (
+    SELECT * FROM entries e
+    WHERE (sqlc.narg(status_order)::integer IS NULL OR e.status_order = sqlc.narg(status_order)::integer)
+      AND (sqlc.narg(after_id)::uuid IS NULL
+           OR e.status_order > @after_order::integer
+           OR (e.status_order = @after_order::integer
+               AND (e.rank < @after_rank::integer OR (e.rank = @after_rank::integer AND e.id > sqlc.narg(after_id)::uuid))))
+    ORDER BY e.status_order, e.rank DESC, e.id
+    LIMIT @max_entries
+)
+SELECT p.id, p.reviewed_at, p.rank, p.category, p.review_status, p.wikidata_id, p.icd10, p.ta98, p.atc, p.pcs,
+       p.has_translation::boolean AS has_translation, p.tr_updated_at, p.tr_reviewed_at, p.tr_reviewed_by,
+       p.tr_version_id, coalesce(p.tr_status, '')::text AS tr_status, p.tr_note,
+       p.has_explanation::boolean AS has_explanation, p.ex_updated_at, p.ex_reviewed_at, p.ex_reviewed_by,
+       p.ex_version_id, coalesce(p.ex_status, '')::text AS ex_status, p.ex_note, p.ex_text,
+       p.status_order::integer AS status_order,
+       coalesce(l.languages, '{}')::text[] AS label_languages,
+       coalesce(l.labels, '{}')::text[] AS labels,
+       coalesce(l.preferred, '{}')::boolean[] AS label_preferred
+FROM page p
+CROSS JOIN LATERAL (
+    SELECT array_agg(language::text ORDER BY language, preferred DESC, label) AS languages,
+           array_agg(label ORDER BY language, preferred DESC, label) AS labels,
+           array_agg(preferred ORDER BY language, preferred DESC, label) AS preferred
+    FROM term_label
+    WHERE term_id = p.id AND (language = @language::term_language OR language IN ('la', 'en'))
+) l
+ORDER BY p.status_order, p.rank DESC, p.id;
+
+-- name: ReviewProgress :many
+-- Per language, every term and how many of its entries there are approved (2) or need changes (1), as ReviewQueue.
+SELECT l.language::text AS language, count(*)::integer AS terms,
+       (count(*) FILTER (WHERE s.status_order = 2))::integer AS approved,
+       (count(*) FILTER (WHERE s.status_order = 1))::integer AS needs_changes
+FROM term t
+CROSS JOIN unnest(enum_range(NULL::term_language)) AS l(language)
+LEFT JOIN term_translation tr ON tr.term_id = t.id AND tr.language = l.language
+LEFT JOIN term_explanation ex ON ex.term_id = t.id AND ex.language = l.language
+CROSS JOIN LATERAL (
+    SELECT CASE WHEN tr.review_status = 'needs_changes' OR ex.review_status = 'needs_changes' THEN 1
+                WHEN tr.term_id IS NULL OR tr.review_status = 'unreviewed' OR ex.review_status = 'unreviewed' THEN 0
+                ELSE 2 END AS status_order
+) s
+GROUP BY l.language
+ORDER BY l.language;
+
+-- name: LockTerm :one
+-- A review write holds the term until it commits, so two reviewers' writes of one term run one after the other.
+SELECT review_status, reviewed_at, reviewed_by FROM term WHERE id = @id FOR UPDATE;
+
+-- name: TermLabelsIn :many
+SELECT label, preferred FROM term_label WHERE term_id = @term_id AND language = @language::term_language
+ORDER BY preferred DESC, label;
+
+-- name: TermTranslations :many
+SELECT language::text AS language, updated_at, reviewed_at, reviewed_by, version_id, review_status, note
+FROM term_translation WHERE term_id = @term_id ORDER BY term_translation.language;
+
+-- name: TermExplanationIn :many
+SELECT updated_at, reviewed_at, reviewed_by, version_id, review_status, note, text
+FROM term_explanation WHERE term_id = @term_id AND language = @language::term_language;
+
+-- name: DeleteLabelsIn :exec
+DELETE FROM term_label WHERE term_id = @term_id AND language = @language::term_language;
+
+-- name: PutTranslation :exec
+INSERT INTO term_translation (term_id, language, updated_at, reviewed_at, reviewed_by, version_id, review_status, note)
+VALUES (@term_id, @language::term_language, @updated_at, sqlc.narg(reviewed_at), sqlc.narg(reviewed_by), @version_id,
+        @review_status::text, sqlc.narg(note))
+ON CONFLICT (term_id, language) DO UPDATE
+SET updated_at = excluded.updated_at, reviewed_at = excluded.reviewed_at, reviewed_by = excluded.reviewed_by,
+    version_id = excluded.version_id, review_status = excluded.review_status, note = excluded.note;
+
+-- name: PutExplanation :exec
+INSERT INTO term_explanation (term_id, language, updated_at, reviewed_at, reviewed_by, version_id, review_status, note, text)
+VALUES (@term_id, @language::term_language, @updated_at, sqlc.narg(reviewed_at), sqlc.narg(reviewed_by), @version_id,
+        @review_status::text, sqlc.narg(note), @text)
+ON CONFLICT (term_id, language) DO UPDATE
+SET updated_at = excluded.updated_at, reviewed_at = excluded.reviewed_at, reviewed_by = excluded.reviewed_by,
+    version_id = excluded.version_id, review_status = excluded.review_status, note = excluded.note, text = excluded.text;
+
+-- name: SetTermReview :exec
+UPDATE term
+SET review_status = @review_status::text, reviewed_at = sqlc.narg(reviewed_at), reviewed_by = sqlc.narg(reviewed_by),
+    updated_at = @updated_at
+WHERE id = @id;

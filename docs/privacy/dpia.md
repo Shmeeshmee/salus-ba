@@ -1505,3 +1505,38 @@ the object unreadable). An object whose commit failed is unreadable and not yet 
 | Field values or transcript text in logs | Logs carry ids and the error only; errors name field keys, never values (tested for a publish failure) |
 | The PDF readable from the object store | Encrypted with a per-file key wrapped by the KEK; the store sees ciphertext only |
 | Patient text to a hosted model without a DPA | Only the fake is wired; SAL-5's adapter is off by default and gated on its DPA |
+
+## Medical terminology (`docs/terminology`)
+
+### SAL-14: the review panel
+
+**Personal data.** Staff data only, no patient data. `term_reviewer` (00039) holds the account id of each staff
+member the operator made a reviewer of the term list, and when. `term.reviewed_by`, `term_translation.reviewed_by` and
+`term_explanation.reviewed_by` (00037) hold the account id of the reviewer who last approved an entry or marked it as
+needing changes, with the time. The panel's labels, explanations and notes are reference data about medical terms;
+the notes are the reviewer's, about a term, and the panel says nothing of a patient.
+
+**Purpose and lawful basis.** Accountability for the medical term list every clinic works with (Art. 5(2), Art.
+6(1)(f)): who approved or flagged an entry. The permission itself is part of the contract with the staff member's
+clinic (Art. 6(1)(b)).
+
+**Access.** Every staff member reads the queue and the progress; only a reviewer writes. The permission is granted
+and revoked only by the operator (`salusctl term-reviewer grant|revoke`), never by a clinic admin; `salus_app` can read
+`term_reviewer` but not write it (tested), so no request to the API can grant it.
+
+**Audit.** Every edit, approval and request for changes is an `AuditEvent` with the reviewer as the agent and
+`entity.name` `term_translation` or `term_explanation` (as the document templates are audited, the term list being no
+FHIR resource), in the write's transaction; a write refused to a non-reviewer is audited as a minor failure. A grant
+or revocation is audited with salusctl as the agent and `Account/<id>` as the entity.
+
+**Retention.** `term_reviewer` is `keep` while granted: revoking deletes the row, and so does deleting the account
+(foreign key). The `reviewed_by` columns are `keep` with the term, the reference cleared with the account's erasure
+(subject-rights feature).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A clinic admin or a bug grants the permission | `salus_app` has no write on `term_reviewer`; only salusctl, as the owner, writes it (tested) |
+| A reviewer's edit reaches every clinic unseen | An edit sets the entry back to unreviewed (the cheatsheet marks it "Not reviewed yet"), and every write is audited |
+| Patient data typed into a label, an explanation or a note | The panel asks for terms and plain-language text about them; no log line carries a label, an explanation or a note |

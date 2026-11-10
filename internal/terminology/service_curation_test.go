@@ -14,11 +14,12 @@ import (
 
 // fakeCuration keeps the terms in memory by id and counts the transactions and writes.
 type fakeCuration struct {
-	err     error // returned by every method when set
-	terms   map[string]terminology.Term
-	gotStat string
-	updates int
-	txs     int
+	err          error // returned by every method when set
+	terms        map[string]terminology.Term
+	gotStat      string
+	translations []string // the SetTranslationsStatus calls, "<id> <status> <at>"
+	updates      int
+	txs          int
 }
 
 func newFakeCuration(terms ...terminology.Term) *fakeCuration {
@@ -71,6 +72,11 @@ func (f *fakeCuration) UpdateTerm(_ context.Context, t terminology.Term, at time
 	f.updates++
 	f.terms[t.ID] = t
 	return nil
+}
+
+func (f *fakeCuration) SetTranslationsStatus(_ context.Context, id, status string, at time.Time) error {
+	f.translations = append(f.translations, id+" "+status+" "+at.Format(time.RFC3339))
+	return f.err
 }
 
 func (f *fakeCuration) Terms(_ context.Context, status string) ([]terminology.Term, error) {
@@ -240,6 +246,11 @@ func TestImportCurated(t *testing.T) {
 	}
 	if f.terms["fever"].Note != "Check the Latin." || f.updates != 3 {
 		t.Errorf("note %q, %d updates; want the note and 3 updates", f.terms["fever"].Note, f.updates)
+	}
+	// The file has one status per term: a status it changes is every translation's too, so the review panel's
+	// queue and the term's status agree (docs/terminology/SPEC.md §3 "Review").
+	if want := []string{"liver approved " + now.Format(time.RFC3339), "fever unreviewed " + now.Format(time.RFC3339)}; !reflect.DeepEqual(f.translations, want) {
+		t.Errorf("translations' statuses set %v, want %v (only where the status changed)", f.translations, want)
 	}
 }
 

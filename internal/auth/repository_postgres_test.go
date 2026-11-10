@@ -390,3 +390,32 @@ func TestByID_ReadsAPractitionersPractitioner(t *testing.T) {
 		t.Errorf("ByEmail() = %+v, %v; want the practitioner %s", got, err, practitionerID)
 	}
 }
+
+// The reviewer permission (00039) is the owner's to write (salusctl); the account reads it back, as does a login.
+func TestSetTermReviewer_GrantsAndRevokesOnTheOwnersConnection(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	var id string
+	err := owner.QueryRow(t.Context(), `INSERT INTO account (email, password_hash, role, organization_id)
+		VALUES ('rev@example.test', 'h', 'admin', $1) RETURNING id`, clinicID).Scan(&id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := auth.NewPostgresRepository(owner)
+	for _, step := range []bool{true, true, false, false} { // granting or revoking twice is a no-op
+		if err := repo.SetTermReviewer(t.Context(), id, step); err != nil {
+			t.Fatalf("SetTermReviewer(%v) = %v", step, err)
+		}
+		byID, err := auth.NewPostgresRepository(app).ByID(t.Context(), id)
+		if err != nil || byID.TermReviewer != step {
+			t.Errorf("ByID() after SetTermReviewer(%v): TermReviewer %v, %v", step, byID.TermReviewer, err)
+		}
+		byEmail, err := auth.NewPostgresRepository(app).ByEmail(t.Context(), "rev@example.test")
+		if err != nil || byEmail.TermReviewer != step {
+			t.Errorf("ByEmail() after SetTermReviewer(%v): TermReviewer %v, %v", step, byEmail.TermReviewer, err)
+		}
+	}
+	if err := auth.NewPostgresRepository(app).SetTermReviewer(t.Context(), id, true); err == nil {
+		t.Error("SetTermReviewer() on the app's connection succeeded; only the operator grants it")
+	}
+}

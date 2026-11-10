@@ -11,5 +11,6 @@
   "notFound": "This page does not exist.",
   "language": "Language",
   "browserLanguage": "Use the browser's language",
-  "languageSaved": "Language saved."
+  "languageSaved": "Language saved.",
+  "termReview": "Term review"
 }

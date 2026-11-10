@@ -30,7 +30,8 @@ func (q *Queries) AcceptInvite(ctx context.Context, arg AcceptInviteParams) (int
 }
 
 const accountByEmail = `-- name: AccountByEmail :one
-SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language,
+       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer
 FROM account
 WHERE email = $1
 `
@@ -45,6 +46,7 @@ type AccountByEmailRow struct {
 	PasswordHash     string
 	Language         NullLanguage
 	DetectedLanguage NullLanguage
+	TermReviewer     bool
 }
 
 func (q *Queries) AccountByEmail(ctx context.Context, email string) (AccountByEmailRow, error) {
@@ -60,12 +62,14 @@ func (q *Queries) AccountByEmail(ctx context.Context, email string) (AccountByEm
 		&i.PasswordHash,
 		&i.Language,
 		&i.DetectedLanguage,
+		&i.TermReviewer,
 	)
 	return i, err
 }
 
 const accountByID = `-- name: AccountByID :one
-SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language,
+       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer
 FROM account
 WHERE id = $1
 `
@@ -80,6 +84,7 @@ type AccountByIDRow struct {
 	PasswordHash     string
 	Language         NullLanguage
 	DetectedLanguage NullLanguage
+	TermReviewer     bool
 }
 
 func (q *Queries) AccountByID(ctx context.Context, id pgtype.UUID) (AccountByIDRow, error) {
@@ -95,6 +100,7 @@ func (q *Queries) AccountByID(ctx context.Context, id pgtype.UUID) (AccountByIDR
 		&i.PasswordHash,
 		&i.Language,
 		&i.DetectedLanguage,
+		&i.TermReviewer,
 	)
 	return i, err
 }
@@ -206,6 +212,16 @@ func (q *Queries) DeleteSessionsEndedBefore(ctx context.Context, before pgtype.T
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const grantTermReviewer = `-- name: GrantTermReviewer :exec
+INSERT INTO term_reviewer (account_id) VALUES ($1) ON CONFLICT (account_id) DO NOTHING
+`
+
+// The operator's (salus_app may only read term_reviewer).
+func (q *Queries) GrantTermReviewer(ctx context.Context, accountID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, grantTermReviewer, accountID)
+	return err
 }
 
 const inviteByID = `-- name: InviteByID :one
@@ -427,6 +443,15 @@ type RevokeSessionsParams struct {
 
 func (q *Queries) RevokeSessions(ctx context.Context, arg RevokeSessionsParams) error {
 	_, err := q.db.Exec(ctx, revokeSessions, arg.RevokedAt, arg.AccountID)
+	return err
+}
+
+const revokeTermReviewer = `-- name: RevokeTermReviewer :exec
+DELETE FROM term_reviewer WHERE account_id = $1
+`
+
+func (q *Queries) RevokeTermReviewer(ctx context.Context, accountID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, revokeTermReviewer, accountID)
 	return err
 }
 

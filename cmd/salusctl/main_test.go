@@ -118,3 +118,45 @@ func TestRun_RejectsAnUnknownCommandOrMissingArguments(t *testing.T) {
 		t.Error("run() without DATABASE_URL: error = nil")
 	}
 }
+
+// The reviewer permission of the term list (SAL-14) is the operator's: granted and revoked on a staff account,
+// audited with salusctl as the agent; a patient and an unknown account are refused.
+func TestTermReviewer_GrantsAndRevokesTheReviewerPermission(t *testing.T) {
+	db, count := ownerDB(t)
+	var staff, patient string
+	if err := db.QueryRow(t.Context(), `WITH o AS (INSERT INTO organization (name) VALUES ('Synthetic clinic') RETURNING id)
+		INSERT INTO account (email, password_hash, role, organization_id) SELECT 'dee@example.test', 'h', 'practitioner', id FROM o RETURNING id`).Scan(&staff); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(t.Context(), `INSERT INTO account (email, password_hash, role) VALUES ('ana@example.test', 'h', 'patient') RETURNING id`).Scan(&patient); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := run(t.Context(), []string{"term-reviewer", "grant", staff}, &out); err != nil {
+		t.Fatalf("term-reviewer grant: %v", err)
+	}
+	if n := count(`SELECT count(*) FROM term_reviewer WHERE account_id = $1`, staff); n != 1 || out.String() != "account "+staff+" is a term reviewer\n" {
+		t.Errorf("after grant: %d rows, output %q", n, out.String())
+	}
+	out.Reset()
+	if err := run(t.Context(), []string{"term-reviewer", "revoke", staff}, &out); err != nil {
+		t.Fatalf("term-reviewer revoke: %v", err)
+	}
+	if n := count(`SELECT count(*) FROM term_reviewer`); n != 0 || out.String() != "account "+staff+" is no longer a term reviewer\n" {
+		t.Errorf("after revoke: %d rows, output %q", n, out.String())
+	}
+	if n := count(`SELECT count(*) FROM audit_event WHERE agent_name = 'salusctl' AND action = 'U' AND outcome = 0 AND entity_reference = $1`, "Account/"+staff); n != 2 {
+		t.Errorf("%d audited changes, want 2", n)
+	}
+	for _, args := range [][]string{
+		{"term-reviewer", "grant", patient}, {"term-reviewer", "grant", "0b6c8a52-0000-4000-8000-000000000000"},
+		{"term-reviewer"}, {"term-reviewer", "grant"}, {"term-reviewer", "promote", staff}, {"term-reviewer", "grant", staff, "extra"},
+	} {
+		if err := run(t.Context(), args, &bytes.Buffer{}); err == nil {
+			t.Errorf("run(%q): error = nil, want a refusal", args)
+		}
+	}
+	if n := count(`SELECT count(*) FROM term_reviewer`); n != 0 {
+		t.Errorf("%d reviewers after the refusals, want none", n)
+	}
+}

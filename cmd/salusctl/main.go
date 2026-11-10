@@ -3,6 +3,7 @@
 //
 //	salusctl create-clinic -name <name> -admin-email <e-mail>   the clinic and its first admin's invite
 //	salusctl reset-mfa <account-id>                             a staff member who lost their device
+//	salusctl term-reviewer grant|revoke <account-id>             the term list's reviewer permission of a staff account
 //	salusctl terminology import <seed.jsonl | terms.csv>        the term list's seed or the curator's edits
 //	salusctl terminology export -o <terms.csv> [-status unreviewed|approved|needs_changes]   the term list for the curator
 //	salusctl document-templates seed -clinic <id> <template.json>...      the dev seed of placeholder templates
@@ -32,7 +33,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
-const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | terminology import|export | document-templates seed"
+const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | term-reviewer grant|revoke <account-id> | terminology import|export | document-templates seed"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -89,6 +90,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return s.terminologyCommand(ctx, args[1:], stdout)
 	case "document-templates":
 		return s.templatesCommand(ctx, args[1:], stdout)
+	case "term-reviewer":
+		return s.termReviewer(ctx, args[1:], stdout)
 	case "reset-mfa":
 		if len(args) != 2 {
 			return errors.New(usage)
@@ -127,5 +130,23 @@ func (s services) createClinic(ctx context.Context, args []string, stdout io.Wri
 		return err
 	}
 	_, err = fmt.Fprintf(stdout, "organization %s\ninvite %s\n", clinic.ID, inv.ID)
+	return err
+}
+
+// termReviewer grants or revokes the reviewer permission of the term list on a staff account (docs/plans/v1-finish.md
+// "Decisions": the operator's only, never a clinic admin's, as the term list is every clinic's).
+func (s services) termReviewer(ctx context.Context, args []string, stdout io.Writer) error {
+	if len(args) != 2 || (args[0] != "grant" && args[0] != "revoke") {
+		return errors.New(usage)
+	}
+	grant := args[0] == "grant"
+	if err := s.accounts.SetTermReviewer(ctx, args[1], grant); err != nil {
+		return err
+	}
+	msg := "account " + args[1] + " is a term reviewer"
+	if !grant {
+		msg = "account " + args[1] + " is no longer a term reviewer"
+	}
+	_, err := fmt.Fprintln(stdout, msg)
 	return err
 }
