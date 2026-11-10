@@ -83,7 +83,7 @@ func (l *latencyLog) report() string {
 		b.WriteString("No consultation pipeline journey ran.\n")
 		return b.String()
 	}
-	b.WriteString("| Journey | Hop | n | p50 | max | Budget | |\n| --- | --- | --- | --- | --- | --- | --- |\n")
+	b.WriteString("| Journey | Hop | n | p50 | max | Budget | Median |\n| --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, key := range l.order {
 		d := l.samples[key]
 		verdict := "within"
