@@ -13,6 +13,7 @@ export type TranscriptEvent = components['schemas']['TranscriptEvent']
 export type SuggestionEvent = components['schemas']['SuggestionEvent']
 export type DraftEvent = components['schemas']['DraftEvent']
 export type DraftField = components['schemas']['DraftField']
+export type DocumentTerms = components['schemas']['DocumentTerms']
 
 // Template is a clinic's document template as the page shows it: its title and its fields' labels in language,
 // one the template is written or translated in, and which fields a sign needs.
@@ -32,12 +33,13 @@ export interface LiveSource {
 // ConsultActions are what the practitioner does: set a suggestion's status, list the clinic's templates in a
 // language, generate (or regenerate) a template's draft in the language it was listed in, which answers with the
 // stored draft, and sign a draft, as it was read, with the fields as the practitioner left them, which answers
-// with the signed draft or fails with SignRefused.
+// with the signed draft or fails with SignRefused; and read the explained terms of a signed draft (SAL-13).
 export interface ConsultActions {
   setSuggestionStatus(id: string, status: SuggestionEvent['status']): Promise<void>
   templates(language: string): Promise<Template[]>
   generate(appointmentId: string, templateId: string, language: string): Promise<DraftEvent>
   sign(draft: DraftEvent, fields: { key: string; value: string }[]): Promise<DraftEvent>
+  terms(draftId: string): Promise<DocumentTerms>
 }
 
 // TranscriptionDeclined is a draft refused because the patient has not agreed to transcription and AI assistance,

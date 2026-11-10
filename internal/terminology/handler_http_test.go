@@ -18,10 +18,18 @@ import (
 
 // stubSearcher records its call and returns its matches or its error.
 type stubSearcher struct {
-	err     error
-	caller  *terminology.Caller
-	search  *terminology.Search
-	matches []terminology.Match
+	err    error
+	caller *terminology.Caller
+	search *terminology.Search
+	// language is what Explanations was asked for; explanations answer it
+	language     string
+	matches      []terminology.Match
+	explanations []terminology.Explanation
+}
+
+func (s *stubSearcher) Explanations(_ context.Context, language string) ([]terminology.Explanation, error) {
+	s.language = language
+	return s.explanations, s.err
 }
 
 func (s *stubSearcher) Search(_ context.Context, c terminology.Caller, q terminology.Search) ([]terminology.Match, error) {

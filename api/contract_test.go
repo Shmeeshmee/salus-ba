@@ -88,6 +88,8 @@ func TestLiveEvents_MatchTheirGoTypes(t *testing.T) {
 		"DocumentFieldTexts": {composition.FieldTexts{}, nil},
 		"DraftValue":         {composition.Value{}, nil},
 		"Cursor":             {transcript.Cursor{}, nil},
+		"TranscriptTerms":    {transcript.Terms{}, nil},
+		"TermSpan":           {terminology.Span{}, nil},
 		"SuggestionStatus": {suggestion.StatusChange{}, map[string][]string{
 			"status": {string(suggestion.StatusShown), string(suggestion.StatusDismissed), string(suggestion.StatusPinned)},
 		}},

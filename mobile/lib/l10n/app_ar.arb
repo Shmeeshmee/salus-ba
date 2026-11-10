@@ -287,5 +287,8 @@
   "speakerYou": "أنت",
   "speakerPractitioner": "الطبيب",
   "shareTranscript": "مشاركة النص المكتوب",
-  "transcriptTranslation": "الترجمة: {text}"
+  "transcriptTranslation": "الترجمة: {text}",
+  "termExplanationNote": "للعلم فقط، وليس تشخيصًا",
+  "termNotReviewed": "لم تتم مراجعته بعد",
+  "termClose": "إغلاق"
 }

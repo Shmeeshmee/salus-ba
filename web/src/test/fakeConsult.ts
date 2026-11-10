@@ -1,4 +1,4 @@
-import { SignRefused, TranscriptionDeclined, type ConsultActions, type ConsultMessage, type DraftEvent, type End, type LiveSource, type SuggestionEvent, type Template, type TranscriptEvent } from '../consult'
+import { SignRefused, TranscriptionDeclined, type ConsultActions, type ConsultMessage, type DocumentTerms, type DraftEvent, type End, type LiveSource, type SuggestionEvent, type Template, type TranscriptEvent } from '../consult'
 
 // The in-memory stand-ins for the live source and the consultation's actions (consult.ts), and builders of the
 // P0 envelopes. Every text is synthetic and labelled as a placeholder; no line is real medical wording.
@@ -107,7 +107,14 @@ export function fakeLive() {
   }
 }
 
-type ActionOptions = { templates?: Template[] | 'fail'; failStatus?: boolean; failSign?: boolean | { keys: string[] }; failGenerate?: boolean | 'declined' }
+type ActionOptions = {
+  templates?: Template[] | 'fail'
+  failStatus?: boolean
+  failSign?: boolean | { keys: string[] }
+  failGenerate?: boolean | 'declined'
+  // terms are the documents' explained terms by draft id (SAL-13); none for a draft not named
+  terms?: Record<string, DocumentTerms>
+}
 
 // fakeActions records every call. A generation waits until the test answers it with the stored draft (answer),
 // as the drafting backend answers once the draft is stored; sign answers with the signed draft.
@@ -117,6 +124,7 @@ export function fakeActions(options: ActionOptions = {}) {
   const signed: [string, number | undefined, { key: string; value: string }[]][] = []
   const languages: string[] = []
   const waiting: ((d: DraftEvent) => void)[] = []
+  const termsAsked: string[] = []
   const actions: ConsultActions = {
     async setSuggestionStatus(id, status) {
       statuses.push([id, status])
@@ -139,8 +147,12 @@ export function fakeActions(options: ActionOptions = {}) {
       if (options.failSign) throw new Error('synthetic failure')
       return { ...d, status: 'final', version_id: (d.version_id ?? 0) + 1, fields: fields.map((f) => ({ ...f, missing: f.value === '' })) }
     },
+    async terms(id) {
+      termsAsked.push(id)
+      return options.terms?.[id] ?? { sections: [] }
+    },
   }
   // answer answers the oldest generation still waiting with the draft d.
   const answer = (d: ConsultMessage = draft()) => waiting.shift()?.(d.payload as DraftEvent)
-  return { actions, statuses, generated, signed, languages, answer }
+  return { actions, statuses, generated, signed, languages, answer, termsAsked }
 }

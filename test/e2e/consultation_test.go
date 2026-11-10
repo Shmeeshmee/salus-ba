@@ -46,10 +46,11 @@ func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIs
 	p.giveTranscriptionConsent(clinic) // the app's notice before the call (SAL-12): the agent may join
 
 	template := newDocumentTemplate(t, clinic)
+	term := newExplainedTerm(t, spokenTerm)
 
 	patient := connect(t, p.api, appt.ID, true)
 	recordInLiveKitLog(t, "room", patient.room.Name())
-	browser := startPractitionerInBrowser(t, clinic, p, appt.ID, patient.join.URL, template)
+	browser := startPractitionerInBrowser(t, clinic, p, appt.ID, patient.join.URL, template, term)
 
 	eventually(t, "the Encounter in progress once the practitioner joined", func() bool {
 		return browser.running(t) && encounterOf(t, p, appt.ID).Status == "in-progress"
@@ -61,7 +62,7 @@ func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIs
 		t.Errorf("the patient was disconnected with %v, want ROOM_DELETED (the practitioner's end deletes the room)", reason)
 	}
 	finished(t, p, appt.ID)
-	patientOpensTheSignedDocument(t, clinic, p, appt.ID, template)
+	patientOpensTheSignedDocument(t, clinic, p, appt.ID, template, term)
 }
 
 // TestConsultation_ARevocationDuringTheCallRemovesThePatient: both are in the call of an appointment that has
@@ -299,9 +300,10 @@ func newDocumentTemplate(t *testing.T, clinic *bookableClinic) string {
 	return title
 }
 
-func startPractitionerInBrowser(t *testing.T, clinic *bookableClinic, p *patient, appointmentID, livekitURL, template string) *browser {
+func startPractitionerInBrowser(t *testing.T, clinic *bookableClinic, p *patient, appointmentID, livekitURL, template string, term explainedTerm) *browser {
 	t.Helper()
-	return startSpec(t, clinic, p, appointmentID, livekitURL, "consultation.spec.ts", "E2E_TEMPLATE_TITLE="+template)
+	return startSpec(t, clinic, p, appointmentID, livekitURL, "consultation.spec.ts",
+		"E2E_TEMPLATE_TITLE="+template, "E2E_TERM_LABEL="+term.label, "E2E_TERM_EXPLANATION="+term.explanation)
 }
 
 // startSpec starts a practitioner's spec of test/e2e/web in Playwright with the sign-in and the call's variables,

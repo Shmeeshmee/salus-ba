@@ -573,8 +573,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get consentForCare => 'Dijeljenje radi liječenja';
 
   @override
-  String get consentForTranscription =>
-      'Transkripcija i pomoć umjetne inteligencije';
+  String get consentForTranscription => 'Transkripcija i pomoć umjetne inteligencije';
 
   @override
   String get toFillIn => 'Za ispunjavanje';
@@ -1010,4 +1009,13 @@ class AppLocalizationsHr extends AppLocalizations {
   String transcriptTranslation(String text) {
     return 'Prijevod: $text';
   }
+
+  @override
+  String get termExplanationNote => 'Informativno, nije dijagnoza';
+
+  @override
+  String get termNotReviewed => 'Još nije provjereno';
+
+  @override
+  String get termClose => 'Zatvori';
 }

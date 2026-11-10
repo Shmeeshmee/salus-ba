@@ -14,12 +14,41 @@ import (
 
 // fakeCuration keeps the terms in memory by id and counts the transactions and writes.
 type fakeCuration struct {
-	err          error // returned by every method when set
-	terms        map[string]terminology.Term
+	err   error // returned by every method when set
+	terms map[string]terminology.Term
+	// explanations are the stored explanations by "<term id> <language>" (ImportExplanations)
+	explanations map[string]terminology.Explanation
 	gotStat      string
 	translations []string // the SetTranslationsStatus calls, "<id> <status> <at>"
 	updates      int
 	txs          int
+}
+
+func (f *fakeCuration) TermIDByWikidata(_ context.Context, wikidataID string) (string, error) {
+	if f.err != nil {
+		return "", f.err
+	}
+	for id, t := range f.terms {
+		if t.WikidataID == wikidataID {
+			return id, nil
+		}
+	}
+	return "", terminology.ErrTermNotFound
+}
+
+func (f *fakeCuration) LockEntry(_ context.Context, termID, language string) (terminology.EntryState, error) {
+	if e, ok := f.explanations[termID+" "+language]; ok {
+		return terminology.EntryState{Explanation: &e}, f.err
+	}
+	return terminology.EntryState{}, f.err
+}
+
+func (f *fakeCuration) PutExplanation(_ context.Context, e terminology.Explanation) error {
+	if f.explanations == nil {
+		f.explanations = map[string]terminology.Explanation{}
+	}
+	f.explanations[e.TermID+" "+e.Language] = e
+	return f.err
 }
 
 func newFakeCuration(terms ...terminology.Term) *fakeCuration {

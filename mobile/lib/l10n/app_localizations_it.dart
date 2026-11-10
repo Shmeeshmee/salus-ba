@@ -573,8 +573,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get consentForCare => 'Condivisione per le cure';
 
   @override
-  String get consentForTranscription =>
-      'Trascrizione e supporto dell\'intelligenza artificiale';
+  String get consentForTranscription => 'Trascrizione e supporto dell\'intelligenza artificiale';
 
   @override
   String get toFillIn => 'Da compilare';
@@ -1000,4 +999,13 @@ class AppLocalizationsIt extends AppLocalizations {
   String transcriptTranslation(String text) {
     return 'Traduzione: $text';
   }
+
+  @override
+  String get termExplanationNote => 'A titolo informativo, non è una diagnosi';
+
+  @override
+  String get termNotReviewed => 'Non ancora verificato';
+
+  @override
+  String get termClose => 'Chiudi';
 }

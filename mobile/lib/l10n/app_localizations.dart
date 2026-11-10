@@ -1838,6 +1838,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Translation: {text}'**
   String transcriptTranslation(String text);
+
+  /// [legal] SAL-13: under the plain-language explanation of a medical term: it informs, it diagnoses nothing.
+  ///
+  /// In en, this message translates to:
+  /// **'Informational, not a diagnosis'**
+  String get termExplanationNote;
+
+  /// SAL-13: beside an explanation of a medical term a doctor has not reviewed yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Not reviewed yet'**
+  String get termNotReviewed;
+
+  /// SAL-13: button: closes a medical term's explanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get termClose;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

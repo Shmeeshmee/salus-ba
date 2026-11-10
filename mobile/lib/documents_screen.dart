@@ -3,6 +3,7 @@ import 'package:salus_api/api.dart' as api;
 
 import 'booking.dart';
 import 'documents.dart';
+import 'explain.dart';
 import 'files.dart';
 import 'language_picker.dart' show languageNames;
 import 'loading.dart';
@@ -64,7 +65,8 @@ class _DocumentsScreenState extends LoadingState<DocumentsScreen, _Records> {
           for (final d in languageFirst(data.documents, appLanguage(context))) _card(d),
           if (data.transcript case final segments?)
             OutlinedButton(
-              onPressed: () => _open(() => TranscriptScreen(files: widget.files, segments: segments)),
+              onPressed: () =>
+                  _open(() => TranscriptScreen(booking: widget.booking, files: widget.files, segments: segments)),
               child: Text(t.transcript),
             ),
         ],
@@ -111,12 +113,29 @@ class DocumentScreen extends StatefulWidget {
   State<DocumentScreen> createState() => _DocumentScreenState();
 }
 
-class _DocumentScreenState extends LoadingState<DocumentScreen, DocumentContent> {
+typedef _Document = ({DocumentContent content, api.DocumentTerms? terms});
+
+class _DocumentScreenState extends LoadingState<DocumentScreen, _Document> with Explaining {
   String? _error;
   var _busy = false;
 
   @override
-  Future<DocumentContent> load() => widget.booking.fhir.composition(widget.document.compositionId);
+  Booking get booking => widget.booking;
+
+  /// The document and its explained terms (SAL-13); without the terms when they cannot be read, as plain text.
+  @override
+  Future<_Document> load() async {
+    final id = widget.document.compositionId;
+    final terms = widget.booking.documentTerms(id).then<api.DocumentTerms?>((t) => t, onError: (Object _) => null);
+    return (content: await widget.booking.fhir.composition(id), terms: await terms);
+  }
+
+  /// The spans of line [j] of section [i]; none when the terms do not have it.
+  List<api.TermSpan> _spans(api.DocumentTerms? terms, int i, int j) {
+    final sections = terms?.sections ?? const <api.DocumentTermsSection>[];
+    if (i >= sections.length || j >= sections[i].lines.length) return const [];
+    return sections[i].lines[j];
+  }
 
   Future<void> _share() async {
     setState(() {
@@ -143,13 +162,14 @@ class _DocumentScreenState extends LoadingState<DocumentScreen, DocumentContent>
       children: [
         Text(t.documentSignedOn(widget.zone.date(d.signedAt, t.localeName))),
         ...body(
-          (content) => [
-            for (final s in content.sections)
+          (doc) => [
+            for (final (i, s) in doc.content.sections.indexed)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(s.title, style: heading),
-                  for (final line in s.lines) Text(line),
+                  for (final (j, line) in s.lines.indexed)
+                    TermLine(line, spans: _spans(doc.terms, i, j), explanations: explanations),
                 ],
               ),
             if (_error != null) ui.Message(_error!, error: true),
@@ -161,19 +181,29 @@ class _DocumentScreenState extends LoadingState<DocumentScreen, DocumentContent>
   }
 }
 
-/// The patient's copy of the consultation's transcript: who spoke, what they said and its translation.
-class TranscriptScreen extends StatelessWidget {
-  const TranscriptScreen({super.key, required this.files, required this.segments});
+/// The patient's copy of the consultation's transcript: who spoke, what they said and its translation, the
+/// explained terms of each opening their explanation on a tap (SAL-13).
+class TranscriptScreen extends StatefulWidget {
+  const TranscriptScreen({super.key, required this.booking, required this.files, required this.segments});
 
+  final Booking booking;
   final Files files;
   final List<api.TranscriptEvent> segments;
+
+  @override
+  State<TranscriptScreen> createState() => _TranscriptScreenState();
+}
+
+class _TranscriptScreenState extends State<TranscriptScreen> with Explaining {
+  @override
+  Booking get booking => widget.booking;
 
   static String _speaker(BuildContext context, api.TranscriptEvent s) =>
       s.speaker == api.TranscriptEventSpeakerEnum.patient ? context.t.speakerYou : context.t.speakerPractitioner;
 
   /// The transcript as plain text for the share sheet, in the same order and words as on the screen.
   String _text(BuildContext context) => [
-    for (final s in segments)
+    for (final s in widget.segments)
       [
         '${_speaker(context, s)}: ${s.original}',
         if (s.translation.isNotEmpty) context.t.transcriptTranslation(s.translation),
@@ -184,22 +214,34 @@ class TranscriptScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.t;
     final heading = Theme.of(context).textTheme.titleSmall;
+    // The translation line's label around its text, so the text's spans keep their offsets.
+    final (before, after) = switch (t.transcriptTranslation('\u0000').split('\u0000')) {
+      [final b, final a] => (b, a),
+      _ => ('', ''),
+    };
     return ui.Page(
       title: t.transcript,
       children: [
         Text(t.transcriptNote),
-        if (segments.isEmpty) Text(t.transcriptEmpty),
-        for (final s in segments)
+        if (widget.segments.isEmpty) Text(t.transcriptEmpty),
+        for (final s in widget.segments)
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(_speaker(context, s), style: heading),
-              Text(s.original),
-              if (s.translation.isNotEmpty) Text(t.transcriptTranslation(s.translation)),
+              TermLine(s.original, spans: s.terms?.original ?? const [], explanations: explanations),
+              if (s.translation.isNotEmpty)
+                TermLine(
+                  s.translation,
+                  spans: s.terms?.translation ?? const [],
+                  explanations: explanations,
+                  prefix: before,
+                  suffix: after,
+                ),
             ],
           ),
-        if (segments.isNotEmpty)
-          FilledButton(onPressed: () => files.shareText(_text(context)), child: Text(t.shareTranscript)),
+        if (widget.segments.isNotEmpty)
+          FilledButton(onPressed: () => widget.files.shareText(_text(context)), child: Text(t.shareTranscript)),
       ],
     );
   }

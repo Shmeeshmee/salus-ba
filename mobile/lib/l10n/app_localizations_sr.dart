@@ -565,15 +565,13 @@ class AppLocalizationsSr extends AppLocalizations {
   String get stopTranscription => 'Зауставите транскрипцију';
 
   @override
-  String get transcriptionStopped =>
-      'Транскрипција је искључена. Ваше консултације с овом клиником теку без ње.';
+  String get transcriptionStopped => 'Транскрипција је искључена. Ваше консултације с овом клиником теку без ње.';
 
   @override
   String get consentForCare => 'Дијељење ради лијечења';
 
   @override
-  String get consentForTranscription =>
-      'Транскрипција и помоћ вјештачке интелигенције';
+  String get consentForTranscription => 'Транскрипција и помоћ вјештачке интелигенције';
 
   @override
   String get toFillIn => 'За попуњавање';
@@ -1009,6 +1007,15 @@ class AppLocalizationsSr extends AppLocalizations {
   String transcriptTranslation(String text) {
     return 'Пријевод: $text';
   }
+
+  @override
+  String get termExplanationNote => 'Информативно, није дијагноза';
+
+  @override
+  String get termNotReviewed => 'Још није провјерено';
+
+  @override
+  String get termClose => 'Затвори';
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -1571,15 +1578,13 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   String get stopTranscription => 'Зауставите транскрипцију';
 
   @override
-  String get transcriptionStopped =>
-      'Транскрипција је искључена. Ваше консултације с овом клиником теку без ње.';
+  String get transcriptionStopped => 'Транскрипција је искључена. Ваше консултације с овом клиником теку без ње.';
 
   @override
   String get consentForCare => 'Дијељење ради лијечења';
 
   @override
-  String get consentForTranscription =>
-      'Транскрипција и помоћ вјештачке интелигенције';
+  String get consentForTranscription => 'Транскрипција и помоћ вјештачке интелигенције';
 
   @override
   String get toFillIn => 'За попуњавање';
@@ -2015,6 +2020,15 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   String transcriptTranslation(String text) {
     return 'Пријевод: $text';
   }
+
+  @override
+  String get termExplanationNote => 'Информативно, није дијагноза';
+
+  @override
+  String get termNotReviewed => 'Још није провјерено';
+
+  @override
+  String get termClose => 'Затвори';
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -2578,15 +2592,13 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   String get stopTranscription => 'Zaustavite transkripciju';
 
   @override
-  String get transcriptionStopped =>
-      'Transkripcija je isključena. Vaše konsultacije s ovom klinikom teku bez nje.';
+  String get transcriptionStopped => 'Transkripcija je isključena. Vaše konsultacije s ovom klinikom teku bez nje.';
 
   @override
   String get consentForCare => 'Dijeljenje radi liječenja';
 
   @override
-  String get consentForTranscription =>
-      'Transkripcija i pomoć vještačke inteligencije';
+  String get consentForTranscription => 'Transkripcija i pomoć vještačke inteligencije';
 
   @override
   String get toFillIn => 'Za popunjavanje';
@@ -3023,4 +3035,13 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   String transcriptTranslation(String text) {
     return 'Prijevod: $text';
   }
+
+  @override
+  String get termExplanationNote => 'Informativno, nije dijagnoza';
+
+  @override
+  String get termNotReviewed => 'Još nije provjereno';
+
+  @override
+  String get termClose => 'Zatvori';
 }

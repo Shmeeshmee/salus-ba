@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type Dispatch } from 'react'
-import { SignRefused, TranscriptionDeclined, type ConsultActions, type ConsultMessage, type DraftEvent, type DraftField, type Template } from './consult'
+import { SignRefused, TranscriptionDeclined, type ConsultActions, type ConsultMessage, type DocumentTerms, type DraftEvent, type DraftField, type Template } from './consult'
 import { useLanguage, useT } from './i18n/useT'
+import { TermTextLines } from './terminology/Explain'
 import { Alert, Confirm } from './ui'
 
 type Props = {
@@ -130,7 +131,7 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
           {t('consultation.live.generating')}
         </p>
       )}
-      {draft?.status === 'final' && <Signed draft={draft} labels={labels} />}
+      {draft?.status === 'final' && <Signed draft={draft} labels={labels} actions={actions} />}
       {draft && draft.status !== 'final' && (
         <>
           <p className="note">{t('consultation.live.draftNote')}</p>
@@ -268,8 +269,22 @@ function FieldEdit({ field, label, edited, invalid, onEdit, onSources }: FieldPr
   )
 }
 
-function Signed({ draft, labels }: { draft: DraftEvent; labels: Map<string, string> }) {
+// Signed is a signed draft, read only, with its explained terms (SAL-13) marked once they are read: an overlay, the
+// fields are shown as they were signed. Without the terms (not read yet, or not readable) they are plain text.
+function Signed({ draft, labels, actions }: { draft: DraftEvent; labels: Map<string, string>; actions: ConsultActions }) {
   const t = useT()
+  const [terms, setTerms] = useState<DocumentTerms>()
+  useEffect(() => {
+    let open = true
+    actions.terms(draft.draft_id).then(
+      (got) => open && setTerms(got),
+      () => undefined,
+    )
+    return () => {
+      open = false
+    }
+  }, [actions, draft.draft_id, draft.version_id])
+  const lines = new Map(terms?.sections.map((s) => [s.key, s.lines]))
   return (
     <>
       <p className="note signed">{t('consultation.live.signed')}</p>
@@ -277,7 +292,9 @@ function Signed({ draft, labels }: { draft: DraftEvent; labels: Map<string, stri
         {draft.fields.map((f) => (
           <div key={f.key}>
             <dt>{labels.get(f.key) ?? f.key}</dt>
-            <dd>{f.value}</dd>
+            <dd>
+              <TermTextLines text={f.value} lines={lines.get(f.key)} />
+            </dd>
           </div>
         ))}
       </dl>

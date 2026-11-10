@@ -70,3 +70,35 @@ tr 2,507, sr-Cyrl 1,963, la 1,601, hr 1,226, bs 1,169. The gaps (Latin, Bosnian 
 curator to fill.
 
 Every term is a `draft` until the curator reviews it (SPEC.md §3 "Curation").
+
+# Plain-language explanations: DRAFTS for the doctor partner
+
+`explanations.draft.jsonl` holds a short plain-language explanation of 216 common terms in each of the ten app
+languages (SAL-13, docs/terminology/SPEC.md §3 "Explanations"): 2,160 texts. **Every one is a draft, written by
+Claude (an AI model) on 2026-11-10 and not yet checked by a doctor.** `make terminology-import` (or `salusctl
+terminology import-explanations`) loads them as `unreviewed`, with no reviewer, so each lands in the review panel's
+queue (`/term-review`), where the doctor partner approves it, corrects it or marks it as needing changes. Until it is
+approved, the app shows it with "Not reviewed yet". The import only adds what a term does not have yet: it never
+overwrites an explanation that is there, so a reviewer's work is safe from a second import.
+
+```json
+{"wikidata":"Q9368","explanations":{"bs":"Veliki organ u gornjem desnom dijelu trbuha. …","en":"A large organ in the upper right part of the belly. …"}}
+```
+
+- One term per line, by its Wikidata id (the seed's `wikidata`), and its text per app language (never Latin):
+  trimmed, 1 to 500 characters (the texts here are at most 178).
+- Which terms: the 300 most common of the seed by `rank`, less those a patient needs no explanation for or that
+  are no clinical concept met in a consultation: everyday body parts (eye, hand, knee and the like), chemical
+  elements and laboratory chemicals the drug category catches (helium, xenon, phenol), a feather, a virus
+  subfamily, social events (traffic collision, domestic violence), feelings (sadness, thirst) and a few sensitive
+  topics a tooltip should not explain (suicide, abortion, recreational drugs). One more, the tonsil (the 311th):
+  the ticket's example, tonsillitis, is no term of the seed, and the tonsil is the nearest that is.
+- How they were written: plain language, one or two short sentences, informational only: no advice, no
+  reassurance, no dose and nothing that reads as a diagnosis. The English text came first and was translated into
+  the other nine languages; Bosnian and Croatian follow their own standards, Serbian is ijekavian in both scripts and
+  `sr-Cyrl` is the Cyrillic of `sr-Latn`.
+- Points the translators were unsure of, for the partner's review: Bosnian "ugljik-dioksid" (as the seed's label;
+  "ugljen-dioksid" is common too), "tečnost" rather than "tekućina", "mokraćni mjehur"; Croatian "ugljikov dioksid"
+  (the seed's hr label "ugljikov oksid" reads as carbon monoxide); Serbian "mokraćna bešika" and "plućni mjehurići"
+  (for the alveoli); Turkish "Karbonat" for baking soda (the seed's "Kabartma tozu" is baking powder) and the seed's
+  wrong second label "Hepatit c" for jaundice; Arabic "العين الوردية" (pink eye) and "أعلى الفخذ" for the groin.

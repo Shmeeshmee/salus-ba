@@ -49,6 +49,7 @@ func (s *Service) Export(ctx context.Context, c appointment.Caller, encounterID 
 	if out == nil {
 		out = []Event{}
 	}
+	s.tagStored(ctx, out)
 	return out, nil
 }
 

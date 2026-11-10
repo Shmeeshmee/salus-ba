@@ -1,10 +1,14 @@
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { newApiClient } from './api/client'
 import { Captions, ConsultSide } from './ConsultPanels'
 import { captionOf, useConsult } from './consult'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import type { Language } from './i18n/languages'
 import { fakeActions, fakeLive, segment, suggestion } from './test/fakeConsult'
+import { fakeFetch } from './test/fakeFetch'
+import { ExplanationsProvider } from './terminology/Explain'
+import type { Explanation } from './terminology/terms'
 
 afterEach(cleanup)
 
@@ -37,10 +41,16 @@ function Panels({ fake, actions }: { fake: Fake; actions: ReturnType<typeof fake
   )
 }
 
-function renderPanels(options: Parameters<typeof fakeActions>[0] = {}, language: Language = 'en') {
+function renderPanels(options: Parameters<typeof fakeActions>[0] = {}, language: Language = 'en', explanations: Explanation[] = []) {
   const fake = fakeLive()
   const acts = fakeActions(options)
-  renderInLanguage(<Panels fake={fake} actions={acts.actions} />, language)
+  const api = newApiClient(fakeFetch({ 'GET /terminology/explanations': () => Response.json({ explanations }) }).fetch)
+  renderInLanguage(
+    <ExplanationsProvider api={api}>
+      <Panels fake={fake} actions={acts.actions} />
+    </ExplanationsProvider>,
+    language,
+  )
   return { ...fake, ...acts, emit: (...m: Parameters<Fake['emit']>) => act(() => fake.emit(...m)) }
 }
 
@@ -307,5 +317,39 @@ describe('ConsultPanels: suggestions', () => {
     emit(suggestion({ id: 'x', source_segment_ids: ['s1'] }))
     fireEvent.click(tab(/Suggestions/))
     expect(screen.getByRole('button', { name: 'Show the source line' })).toBeTruthy()
+  })
+})
+
+// A synthetic explanation of a term, not reviewed yet (SAL-13).
+const tonsil: Explanation = { termId: 't-tonsil', language: 'en', text: 'Placeholder: tissue at the back of the throat.', reviewStatus: 'unreviewed' }
+
+describe('ConsultPanels: explained terms', () => {
+  it('explains a tagged term of a transcript line on hover and focus, the line unchanged', async () => {
+    const { emit } = renderPanels({}, 'en', [tonsil])
+    emit(
+      segment({
+        speaker: 'patient', original: 'Placeholder Mandel', translation: 'Placeholder tonsil', lang: 'de',
+        terms: { original: [{ term_id: 't-tonsil', start: 12, end: 18 }], translation: [{ term_id: 't-tonsil', start: 12, end: 18 }] },
+      }),
+    )
+    const line = within(screen.getByRole('list', { name: 'Transcript' })).getAllByRole('listitem')[0]
+    const term = await within(line).findByText('tonsil')
+    expect(term.getAttribute('tabindex')).toBe('0')
+    const tip = document.getElementById(term.getAttribute('aria-describedby')!)!
+    expect(tip.textContent).toBe('Placeholder: tissue at the back of the throat.Informational, not a diagnosis · Not reviewed yet')
+    expect(within(line).getByText('Mandel').getAttribute('aria-describedby')).toBeTruthy()
+    expect(line.textContent).toContain('Placeholder tonsil')
+  })
+
+  it("underlines a caption's terms and explains them in the caption's tooltip", async () => {
+    const { emit } = renderPanels({}, 'en', [tonsil])
+    emit(segment({ original: 'Placeholder Mandel', translation: 'Placeholder tonsil', lang: 'de', terms: { translation: [{ term_id: 't-tonsil', start: 12, end: 18 }] } }))
+    const captions = screen.getByRole('group', { name: 'Captions' })
+    const caption = await within(captions).findByText((_, el) => el?.className === 'caption-text' && el.textContent === 'Placeholder tonsil')
+    await vi.waitFor(() => expect(within(caption).getByText('tonsil').className).toBe('term-mark'))
+    const tip = within(captions).getByRole('tooltip')
+    expect(tip.textContent).toContain('Original: Placeholder Mandel')
+    expect(tip.textContent).toContain('tonsil Placeholder: tissue at the back of the throat.')
+    expect(tip.textContent).toContain('Informational, not a diagnosis · Not reviewed yet')
   })
 })

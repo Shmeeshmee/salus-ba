@@ -287,5 +287,8 @@
   "speakerYou": "Siz",
   "speakerPractitioner": "Sağlık uzmanı",
   "shareTranscript": "Dökümü paylaş",
-  "transcriptTranslation": "Çeviri: {text}"
+  "transcriptTranslation": "Çeviri: {text}",
+  "termExplanationNote": "Bilgi amaçlıdır, tanı değildir",
+  "termNotReviewed": "Henüz incelenmedi",
+  "termClose": "Kapat"
 }

@@ -98,6 +98,57 @@ func (q *Queries) DeleteLabelsIn(ctx context.Context, arg DeleteLabelsInParams) 
 	return err
 }
 
+const explanationsIn = `-- name: ExplanationsIn :many
+SELECT DISTINCT ON (e.term_id) e.term_id, e.language::text AS language, e.updated_at, e.reviewed_at, e.reviewed_by,
+       e.version_id, e.review_status, e.note, e.text
+FROM term_explanation e
+WHERE e.language IN ($1::term_language, 'en') AND e.review_status <> 'needs_changes'
+ORDER BY e.term_id, e.language = $1::term_language DESC
+`
+
+type ExplanationsInRow struct {
+	TermID       pgtype.UUID
+	Language     string
+	UpdatedAt    pgtype.Timestamptz
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	VersionID    int32
+	ReviewStatus string
+	Note         pgtype.Text
+	Text         string
+}
+
+// Each term's explanation in the language, else its English one; one that needs changes is left out.
+func (q *Queries) ExplanationsIn(ctx context.Context, language TermLanguage) ([]ExplanationsInRow, error) {
+	rows, err := q.db.Query(ctx, explanationsIn, language)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExplanationsInRow
+	for rows.Next() {
+		var i ExplanationsInRow
+		if err := rows.Scan(
+			&i.TermID,
+			&i.Language,
+			&i.UpdatedAt,
+			&i.ReviewedAt,
+			&i.ReviewedBy,
+			&i.VersionID,
+			&i.ReviewStatus,
+			&i.Note,
+			&i.Text,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const glossaryTerms = `-- name: GlossaryTerms :many
 WITH found AS (
     SELECT DISTINCT ON (l.term_id) l.term_id, l.label
@@ -730,6 +781,54 @@ func (q *Queries) SyncTranslations(ctx context.Context, termID pgtype.UUID) erro
 	return err
 }
 
+const tagCandidates = `-- name: TagCandidates :many
+WITH c AS (
+    SELECT DISTINCT l.language, p.phrase, term_fold(p.phrase) AS folded
+    FROM unnest($1::text[]) WITH ORDINALITY AS l (language, n)
+    JOIN unnest($2::text[]) WITH ORDINALITY AS p (phrase, n) ON p.n = l.n
+)
+SELECT DISTINCT ON (c.language, c.phrase) c.language::text AS language, c.phrase::text AS phrase, l.term_id
+FROM c
+JOIN term_label l ON l.language = c.language::term_language AND term_fold(l.label) = c.folded
+JOIN term t ON t.id = l.term_id
+WHERE EXISTS (SELECT FROM term_explanation e WHERE e.term_id = l.term_id)
+ORDER BY c.language, c.phrase, t.rank DESC, t.id
+`
+
+type TagCandidatesParams struct {
+	Languages []string
+	Phrases   []string
+}
+
+type TagCandidatesRow struct {
+	Language string
+	Phrase   string
+	TermID   pgtype.UUID
+}
+
+// The candidates of the texts being tagged (SAL-13) that equal, both folded, a label in their language of a term
+// with an explanation, each with the most common such term. One index lookup (term_label_language_folded) per
+// distinct candidate.
+func (q *Queries) TagCandidates(ctx context.Context, arg TagCandidatesParams) ([]TagCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, tagCandidates, arg.Languages, arg.Phrases)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TagCandidatesRow
+	for rows.Next() {
+		var i TagCandidatesRow
+		if err := rows.Scan(&i.Language, &i.Phrase, &i.TermID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const termExplanationIn = `-- name: TermExplanationIn :many
 SELECT updated_at, reviewed_at, reviewed_by, version_id, review_status, note, text
 FROM term_explanation WHERE term_id = $1 AND language = $2::term_language
@@ -776,6 +875,17 @@ func (q *Queries) TermExplanationIn(ctx context.Context, arg TermExplanationInPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const termIDByWikidata = `-- name: TermIDByWikidata :one
+SELECT id FROM term WHERE wikidata_id = $1
+`
+
+func (q *Queries) TermIDByWikidata(ctx context.Context, wikidataID pgtype.Text) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, termIDByWikidata, wikidataID)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const termLabelsIn = `-- name: TermLabelsIn :many

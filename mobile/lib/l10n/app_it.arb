@@ -287,5 +287,8 @@
   "speakerYou": "Lei",
   "speakerPractitioner": "Medico",
   "shareTranscript": "Condividi la trascrizione",
-  "transcriptTranslation": "Traduzione: {text}"
+  "transcriptTranslation": "Traduzione: {text}",
+  "termExplanationNote": "A titolo informativo, non è una diagnosi",
+  "termNotReviewed": "Non ancora verificato",
+  "termClose": "Chiudi"
 }

@@ -568,8 +568,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get stopTranscription => 'إيقاف النسخ النصي';
 
   @override
-  String get transcriptionStopped =>
-      'النسخ النصي متوقف. تجري استشاراتك مع هذه العيادة بدونه.';
+  String get transcriptionStopped => 'النسخ النصي متوقف. تجري استشاراتك مع هذه العيادة بدونه.';
 
   @override
   String get consentForCare => 'المشاركة لأغراض الرعاية';
@@ -1016,4 +1015,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String transcriptTranslation(String text) {
     return 'الترجمة: $text';
   }
+
+  @override
+  String get termExplanationNote => 'للعلم فقط، وليس تشخيصًا';
+
+  @override
+  String get termNotReviewed => 'لم تتم مراجعته بعد';
+
+  @override
+  String get termClose => 'إغلاق';
 }

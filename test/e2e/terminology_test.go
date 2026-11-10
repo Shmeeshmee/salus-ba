@@ -277,3 +277,70 @@ func salusctlResult(t *testing.T, args ...string) (string, error) {
 	out, err := exec.CommandContext(t.Context(), env(t, "E2E_SALUSCTL"), args...).Output()
 	return string(out), err
 }
+
+// explainedTerm is a synthetic term with an English label and its unreviewed plain-language explanation (SAL-13).
+type explainedTerm struct {
+	id, label, explanation string
+}
+
+// spokenTerm is the label of the synthetic term the consultation journeys explain: words of the line the test
+// speech engine says ("Placeholder caption from the test speech engine", cmd/agent).
+const spokenTerm = "test speech engine"
+
+// newExplainedTerm adds a synthetic term labelled label in English with salusctl's seed import and its explanation
+// with salusctl terminology import-explanations (as unreviewed), and deletes both at the end. Its rank is the highest
+// a term can hold, so it wins over any other term with the label; every run's explanation has the same text, so a
+// term a crashed run left behind explains the same.
+func newExplainedTerm(t *testing.T, label string) explainedTerm {
+	t.Helper()
+	n, err := rand.Int(rand.Reader, big.NewInt(1e15))
+	if err != nil {
+		t.Fatal(err)
+	}
+	term := explainedTerm{label: label, explanation: "Placeholder explanation of the e2e journey's term."}
+	wikidata := fmt.Sprintf("Q8%015d", n)
+	dir := t.TempDir()
+	seed, explanations := filepath.Join(dir, "seed.jsonl"), filepath.Join(dir, "explanations.jsonl")
+	if err := os.WriteFile(seed, fmt.Appendf(nil, `{"labels":{"en":[%q]},"wikidata":%q,"category":"symptom","rank":2147483647}`+"\n", label, wikidata), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(explanations, fmt.Appendf(nil, `{"wikidata":%q,"explanations":{"en":%q}}`+"\n", wikidata, term.explanation), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out := salusctl(t, "terminology", "import", seed); !strings.HasPrefix(out, "created 1, ") {
+		t.Fatalf("salusctl terminology import of the explained term: %q", out)
+	}
+	if err := ownerConn(t).QueryRow(t.Context(), "SELECT id FROM term WHERE wikidata_id = $1", wikidata).Scan(&term.id); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		conn, err := pgx.Connect(context.Background(), env(t, "DATABASE_URL"))
+		if err != nil {
+			t.Errorf("deleting the explained term: %v", err)
+			return
+		}
+		defer func() { _ = conn.Close(context.Background()) }()
+		if _, err := conn.Exec(context.Background(), "DELETE FROM term WHERE id = $1", term.id); err != nil {
+			t.Errorf("deleting the explained term: %v", err)
+		}
+	})
+	if out := salusctl(t, "terminology", "import-explanations", explanations); !strings.HasPrefix(out, "created 1, updated 0, unchanged 0, refused 0") {
+		t.Fatalf("salusctl terminology import-explanations: %q", out)
+	}
+	return term
+}
+
+// explanationOf is the explanation the API gives a viewer in language for the term, and false when it gives none.
+func explanationOf(t *testing.T, a *api, language, termID string) (text, status string, ok bool) {
+	t.Helper()
+	var got struct {
+		Explanations []struct{ TermID, Language, Text, ReviewStatus string }
+	}
+	a.must(http.StatusOK, http.MethodGet, "/terminology/explanations?language="+language, nil, &got)
+	for _, e := range got.Explanations {
+		if e.TermID == termID {
+			return e.Text, e.ReviewStatus, true
+		}
+	}
+	return "", "", false
+}

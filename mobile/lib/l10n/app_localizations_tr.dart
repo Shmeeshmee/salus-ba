@@ -1001,4 +1001,13 @@ class AppLocalizationsTr extends AppLocalizations {
   String transcriptTranslation(String text) {
     return 'Çeviri: $text';
   }
+
+  @override
+  String get termExplanationNote => 'Bilgi amaçlıdır, tanı değildir';
+
+  @override
+  String get termNotReviewed => 'Henüz incelenmedi';
+
+  @override
+  String get termClose => 'Kapat';
 }

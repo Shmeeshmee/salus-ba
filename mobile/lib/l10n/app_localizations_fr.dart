@@ -1009,4 +1009,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String transcriptTranslation(String text) {
     return 'Traduction : $text';
   }
+
+  @override
+  String get termExplanationNote => 'À titre informatif, pas un diagnostic';
+
+  @override
+  String get termNotReviewed => 'Pas encore vérifié';
+
+  @override
+  String get termClose => 'Fermer';
 }

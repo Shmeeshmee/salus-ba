@@ -5,6 +5,7 @@
 //	salusctl reset-mfa <account-id>                             a staff member who lost their device
 //	salusctl term-reviewer grant|revoke <account-id>             the term list's reviewer permission of a staff account
 //	salusctl terminology import <seed.jsonl | terms.csv>        the term list's seed or the curator's edits
+//	salusctl terminology import-explanations <explanations.jsonl>   the drafted plain-language explanations, as unreviewed
 //	salusctl terminology export -o <terms.csv> [-status unreviewed|approved|needs_changes]   the term list for the curator
 //	salusctl document-templates seed -clinic <id> <template.json>...      the dev seed of placeholder templates
 //

@@ -14,9 +14,10 @@ import (
 // defaultLimit is the number of terms a search without limit returns.
 const defaultLimit = 10
 
-// Searcher searches the terms for a caller (Service).
+// Searcher searches the terms for a caller and gives the explanations of a language (Service).
 type Searcher interface {
 	Search(ctx context.Context, c Caller, q Search) ([]Match, error)
+	Explanations(ctx context.Context, language string) ([]Explanation, error)
 }
 
 // HTTPHandler serves the terminology search of the JSON API (api/openapi.yaml, searchTerminology). Errors are
@@ -38,6 +39,47 @@ func NewHTTPHandler(svc Searcher, caller func(ctx context.Context) (Caller, bool
 // Routes declares the terminology route on mux.
 func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /terminology/search", h.search)
+	mux.HandleFunc("GET /terminology/explanations", h.explanations)
+}
+
+// viewerExplanationJSON is the Explanation schema of getTermExplanations: what the tooltip shows, without the review's
+// reviewer, time and note.
+type viewerExplanationJSON struct {
+	TermID       string `json:"termId"`
+	Language     string `json:"language"`
+	Text         string `json:"text"`
+	ReviewStatus string `json:"reviewStatus"`
+}
+
+// explanations answers GET /terminology/explanations?language=: the plain-language explanations a viewer reads in
+// the language (SAL-13), for any signed-in caller. Reference data: cached by the browser for five minutes.
+func (h *HTTPHandler) explanations(w http.ResponseWriter, r *http.Request) {
+	if _, ok, err := h.caller(r.Context()); err != nil {
+		httpx.InternalError(w, r, h.log, err)
+		return
+	} else if !ok {
+		writeCode(w, http.StatusUnauthorized, "unauthenticated")
+		return
+	}
+	if !r.URL.Query().Has("language") {
+		writeCode(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	list, err := h.svc.Explanations(r.Context(), r.URL.Query().Get("language"))
+	switch {
+	case errors.Is(err, ErrInvalidSearch):
+		writeCode(w, http.StatusBadRequest, "invalid_request")
+		return
+	case err != nil:
+		httpx.InternalError(w, r, h.log, err)
+		return
+	}
+	out := make([]viewerExplanationJSON, len(list))
+	for i, e := range list {
+		out[i] = viewerExplanationJSON{TermID: e.TermID, Language: e.Language, Text: e.Text, ReviewStatus: e.Review.Status}
+	}
+	w.Header().Set("Cache-Control", "private, max-age=300")
+	httpx.JSON(w, http.StatusOK, map[string][]viewerExplanationJSON{"explanations": out})
 }
 
 // codesJSON is the TermCodes schema: a code is absent when the term has none.

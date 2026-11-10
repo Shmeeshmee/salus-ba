@@ -287,5 +287,8 @@
   "speakerYou": "Vi",
   "speakerPractitioner": "Liječnik",
   "shareTranscript": "Podijeli transkript",
-  "transcriptTranslation": "Prijevod: {text}"
+  "transcriptTranslation": "Prijevod: {text}",
+  "termExplanationNote": "Informativno, nije dijagnoza",
+  "termNotReviewed": "Još nije provjereno",
+  "termClose": "Zatvori"
 }

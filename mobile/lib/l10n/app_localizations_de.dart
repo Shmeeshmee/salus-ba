@@ -1006,4 +1006,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String transcriptTranslation(String text) {
     return 'Übersetzung: $text';
   }
+
+  @override
+  String get termExplanationNote => 'Zur Information, keine Diagnose';
+
+  @override
+  String get termNotReviewed => 'Noch nicht geprüft';
+
+  @override
+  String get termClose => 'Schließen';
 }

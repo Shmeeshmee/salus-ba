@@ -47,11 +47,15 @@ func (s *Live) publish(ctx context.Context, c call, sp speaker, start time.Time,
 			continue
 		}
 		if !e.IsFinal || !c.translated(sp.Speaker) {
+			if e.IsFinal {
+				s.tag(ctx, c, &e)
+			}
 			s.emit(ctx, c, e)
 			continue
 		}
 		pending.Go(func() {
 			s.translate(ctx, c, &e)
+			s.tag(ctx, c, &e)
 			if ctx.Err() == nil { // the call is over: nothing said is published after a removal
 				s.emit(ctx, c, e)
 			}

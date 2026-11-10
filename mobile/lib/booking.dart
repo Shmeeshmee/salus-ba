@@ -126,6 +126,17 @@ class Booking {
     return response.bodyBytes;
   }
 
+  /// The plain-language explanations of the medical terms in [language], else in English (SAL-13), by term id.
+  Future<Map<String, api.ExplainedTerm>> explanations(String language) async {
+    final list = await apiCall(
+      () => api.TerminologyApi(_client).getTermExplanations(api.TermLanguage.fromJson(language)!),
+    );
+    return {for (final e in list?.explanations ?? const <api.ExplainedTerm>[]) e.termId: e};
+  }
+
+  /// The explained terms of the signed document whose Composition is [id], per field and line (SAL-13).
+  Future<api.DocumentTerms?> documentTerms(String id) => apiCall(() => api.DocumentsApi(_client).getDocumentTerms(id));
+
   /// The patient's copy of the consultation's stored transcript, or null while the clinic does not share it (403).
   Future<List<api.TranscriptEvent>?> transcript(String encounterId) async {
     try {

@@ -565,8 +565,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get stopTranscription => 'Stop transcription';
 
   @override
-  String get transcriptionStopped =>
-      'Transcription is off. Your consultations with this clinic go ahead without it.';
+  String get transcriptionStopped => 'Transcription is off. Your consultations with this clinic go ahead without it.';
 
   @override
   String get consentForCare => 'Sharing for care';
@@ -993,4 +992,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String transcriptTranslation(String text) {
     return 'Translation: $text';
   }
+
+  @override
+  String get termExplanationNote => 'Informational, not a diagnosis';
+
+  @override
+  String get termNotReviewed => 'Not reviewed yet';
+
+  @override
+  String get termClose => 'Close';
 }

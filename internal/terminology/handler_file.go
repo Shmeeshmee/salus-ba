@@ -77,6 +77,39 @@ func DecodeSeed(r io.Reader) ([]ImportRow, []RowError, error) {
 	return rows, refused, nil
 }
 
+// explanationsLine is a line of the drafted explanations' file.
+type explanationsLine struct {
+	Explanations map[string]string `json:"explanations"`
+	Wikidata     string            `json:"wikidata"`
+}
+
+// DecodeExplanations reads the drafted explanations' file: one term per line, its Wikidata id and its texts by
+// language. A line that is not one is refused; blank lines are skipped.
+func DecodeExplanations(r io.Reader) ([]ExplanationRow, []RowError, error) {
+	var rows []ExplanationRow
+	var refused []RowError
+	lines := bufio.NewScanner(r)
+	lines.Buffer(nil, 1<<20)
+	for n := 1; lines.Scan(); n++ {
+		line := bytes.TrimSpace(lines.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		var e explanationsLine
+		dec := json.NewDecoder(bytes.NewReader(line))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&e); err != nil || dec.More() || e.Wikidata == "" || len(e.Explanations) == 0 {
+			refused = append(refused, RowError{Line: n, Reason: "not an explanations row"})
+			continue
+		}
+		rows = append(rows, ExplanationRow{Line: n, WikidataID: e.Wikidata, Texts: e.Explanations})
+	}
+	if err := lines.Err(); err != nil {
+		return nil, nil, fmt.Errorf("terminology: reading the explanations: %w", err)
+	}
+	return rows, refused, nil
+}
+
 // seedLanguages are the languages of labels in the enum's order, then any other key, which the import refuses.
 func seedLanguages(labels map[string][]string) []string {
 	var out, other []string

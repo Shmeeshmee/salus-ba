@@ -257,6 +257,76 @@ class DocumentsApi {
     return null;
   }
 
+  /// The explained terms of a document
+  ///
+  /// Where the terms with a plain-language explanation are in a document (SAL-13), per field and line, tagged in the language it was written in: an overlay for the tooltip, the document is never changed. Under the Composition's rule and audited as its read: the encounter's practitioner with the patient's active consent, and the encounter's patient for a signed document only.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The document's FHIR Composition.id.
+  Future<Response> getDocumentTermsWithHttpInfo(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/compositions/{id}/terms'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The explained terms of a document
+  ///
+  /// Where the terms with a plain-language explanation are in a document (SAL-13), per field and line, tagged in the language it was written in: an overlay for the tooltip, the document is never changed. Under the Composition's rule and audited as its read: the encounter's practitioner with the patient's active consent, and the encounter's patient for a signed document only.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The document's FHIR Composition.id.
+  Future<DocumentTerms?> getDocumentTerms(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getDocumentTermsWithHttpInfo(
+      id,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'DocumentTerms',
+      ) as DocumentTerms;
+    }
+    return null;
+  }
+
   /// The clinic's document templates
   ///
   /// The caller's clinic's templates (a referral, a findings report), by title, with their translations. Staff of the clinic, practitioners and admins alike. Not audited: a template holds no personal data.

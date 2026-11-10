@@ -54,6 +54,7 @@ type Ports struct {
 	Clock       clock.Clock
 	KEK         *envelope.KEK // wraps each PDF's data key
 	Log         *slog.Logger  // a failed publish: ids and the error only
+	Tagger      Tagger        // the explained terms of a document (SAL-13)
 }
 
 // Service holds the rules of the templates, the drafting and the signing (docs/plans/consult-intelligence.md,

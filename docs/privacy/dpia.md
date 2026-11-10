@@ -1602,3 +1602,35 @@ or revocation is audited with salusctl as the agent and `Account/<id>` as the en
 | A clinic admin or a bug grants the permission | `salus_app` has no write on `term_reviewer`; only salusctl, as the owner, writes it (tested) |
 | A reviewer's edit reaches every clinic unseen | An edit sets the entry back to unreviewed (the cheatsheet marks it "Not reviewed yet"), and every write is audited |
 | Patient data typed into a label, an explanation or a note | The panel asks for terms and plain-language text about them; no log line carries a label, an explanation or a note |
+
+### SAL-13: plain-language explanations of terms
+
+**Personal data.** No new field and nothing new stored. Tagging reads patient data already read: a transcript line (said
+in a consultation) or a document's line (signed by the practitioner). The spans it returns (which term is where in a
+text) are derived from that text and so are health data too: they go only to whoever reads the text, in the same
+answer or event, and are never stored (not in `transcript_segment`, not in `document_draft`). The explanations
+themselves are reference data about medical terms, the same for every patient.
+
+**Where the texts are processed.** Only where they are already read, under that read's rule, on our own servers: the
+agent tags a final line before it goes on the encounter's stream (the practitioner's, as before); the transcript copy is
+tagged in `GET /encounters/{id}/transcript` (the patient's while the clinic shares it, `access.TranscriptCopy`); a
+document is tagged in `GET /compositions/{id}/terms`, which reads it through the Composition's rule
+(`access.SignedDocument` for the patient: signed documents only; the practitioner with the active consent) and is
+audited as that read. No endpoint takes a text from a client, so no text travels anywhere it did not before, and no
+access rule is bypassed. The explanations are fetched as one list per language (`GET /terminology/explanations`), with
+no patient data in the request: which terms a patient's text holds never leaves the server for them.
+
+**Processors.** None added: the explanations were drafted once, in the development session, from the term list
+(reference data); no language model is called at runtime (docs/plans/v1-finish.md "Decisions").
+
+**Logs.** A tagging failure is logged with the session id, the speaker's role and the error, never the line; the texts
+and spans are in no log line, error, metric or trace. `GET /compositions/{id}/terms` answers `Cache-Control: no-store`.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| An explanation reads as a diagnosis or advice | Written as information only, every one labelled "Informational, not a diagnosis" on screen, "Not reviewed yet" until the doctor partner approves it in the review panel; one marked as needing changes is not shown |
+| A signed document appears altered | The spans are an overlay: the document's text, its Composition and its PDF are unchanged (tested); the explanation sits in a tooltip or dialog apart from the text |
+| A term list read gives away a patient's conditions | The page asks for all explanations of a language, not for the terms of a text |
+| The spans outlive the text | Never stored: they exist only in the answer or event that carries the text |
