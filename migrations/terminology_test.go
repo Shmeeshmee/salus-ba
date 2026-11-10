@@ -146,7 +146,11 @@ func TestTerminology_TheAppRoleReadsReviews(t *testing.T) {
 	if err := app.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM term_translation) + (SELECT count(*) FROM term_explanation)`).Scan(&n); err != nil || n != 2 {
 		t.Errorf("%s reads %d rows, %v; want 2", pgtest.AppRole, n, err)
 	}
-	for _, stmt := range []string{`DELETE FROM term_translation`, `DELETE FROM term_explanation`, `TRUNCATE term_explanation`} {
+	for _, stmt := range []string{
+		`DELETE FROM term_translation`, `DELETE FROM term_explanation`, `TRUNCATE term_explanation`,
+		`UPDATE term_translation SET language = 'hr'`, `UPDATE term_translation SET term_id = term_id`,
+		`UPDATE term_explanation SET language = 'hr'`, `UPDATE term_explanation SET created_at = now()`,
+	} {
 		if _, err := app.Exec(t.Context(), stmt); sqlState(err) != "42501" {
 			t.Errorf("%s as %s: %v, want insufficient_privilege", stmt, pgtest.AppRole, err)
 		}

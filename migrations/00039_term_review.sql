@@ -15,7 +15,10 @@ CREATE TABLE term_reviewer (
 
 GRANT SELECT ON term_reviewer TO salus_app;
 GRANT INSERT, DELETE ON term_label TO salus_app;
-GRANT INSERT, UPDATE ON term_translation, term_explanation TO salus_app;
+GRANT INSERT ON term_translation, term_explanation TO salus_app;
+-- Updates only of a review and a text, never of a row's key or creation time.
+GRANT UPDATE (updated_at, reviewed_at, reviewed_by, version_id, review_status, note) ON term_translation TO salus_app;
+GRANT UPDATE (updated_at, reviewed_at, reviewed_by, version_id, review_status, note, text) ON term_explanation TO salus_app;
 GRANT UPDATE (review_status, reviewed_at, reviewed_by, updated_at) ON term TO salus_app;
 
 -- A term has a translation in every language it has labels in (docs/terminology/SPEC.md §3 "Review"): 00037 filled
