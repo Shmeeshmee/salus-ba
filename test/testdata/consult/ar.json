@@ -1,0 +1,19 @@
+{
+  "about": "Synthetic fixture of the consultation pipeline's e2e journeys (SAL-10): an Arabic-speaking patient and a Bosnian-speaking practitioner. Written for the tests, spoken by no one: each line is a generated tone the fake speech engine maps to its text (pkg/stt/stttest), its translations and the suggestions and fields are the fake model's answers (pkg/llm/llmtest). Every text is placeholder wording, labelled as such, not clinical content and not reviewed.",
+  "lines": [
+    {"speaker": "practitioner", "tone": 1850, "lang": "bs", "text": "Primjer: Dobar dan, kako se osjećate?", "translations": {"ar": "مثال: مساء الخير، كيف تشعر؟"}},
+    {"speaker": "patient", "tone": 650, "lang": "ar", "text": "مثال: أشعر بألم في ظهري منذ أسبوع.", "translations": {"bs": "Primjer: Već sedmicu dana me bole leđa."}},
+    {"speaker": "practitioner", "tone": 1900, "lang": "bs", "text": "Primjer: Da li se bol širi u nogu?", "translations": {"ar": "مثال: هل ينتشر الألم إلى الساق؟"}},
+    {"speaker": "patient", "tone": 700, "lang": "ar", "text": "مثال: لا، يبقى في أسفل الظهر.", "translations": {"bs": "Primjer: Ne, ostaje u donjem dijelu leđa."}},
+    {"speaker": "patient", "tone": 1000, "lang": "ar", "text": "مثال: يزداد الألم عندما أجلس طويلا.", "translations": {"bs": "Primjer: Bol se pojača kad dugo sjedim."}}
+  ],
+  "suggestions": [
+    {"after": "مثال: لا، يبقى في أسفل الظهر.", "type": "question", "text": "Primjer prijedloga: pitati da li bol smeta pri spavanju.", "confidence": 0.7},
+    {"after": "مثال: أشعر بألم في ظهري منذ أسبوع.", "type": "term", "text": "Primjer prijedloga: objasniti pacijentu izraz donji dio leđa.", "confidence": 0.5}
+  ],
+  "fields": [
+    {"key": "complaint", "label": "Primjer: razlog dolaska", "required": true, "from": "مثال: أشعر بألم في ظهري منذ أسبوع.", "value": "Primjer: bol u leđima sedmicu dana."},
+    {"key": "course", "label": "Primjer: tok tegoba", "from": "مثال: يزداد الألم عندما أجلس طويلا.", "value": "Primjer: bol se pojača pri dugom sjedenju."},
+    {"key": "plan", "label": "Primjer: plan"}
+  ]
+}

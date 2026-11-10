@@ -217,17 +217,31 @@ type STT struct {
 	Engine      STTEngine // STT_ENGINE: fake (the default) or azure
 	AzureRegion string    // AZURE_SPEECH_REGION, required for azure; pkg/stt/azure accepts EU regions only
 	AzureKey    string    // AZURE_SPEECH_KEY, required for azure
+	Script      string    // FAKE_ENGINE_SCRIPT, for the fake only (fakeScript)
 }
+
+// fakeScript is FAKE_ENGINE_SCRIPT: the directory of the scripted conversations the fake engines play (stttest
+// and llmtest LoadScript), set only by make e2e's compose file (deployments/docker-compose.e2e.yml). The compose
+// default and production leave it unset; beside a real engine it is refused, so a script never stands in for
+// one and test lines never reach one.
+func fakeScript() string {
+	return os.Getenv("FAKE_ENGINE_SCRIPT")
+}
+
+var errScriptBesideARealEngine = errors.New("config: FAKE_ENGINE_SCRIPT is for the fake engines only")
 
 // LoadSTT reads the speech-to-text settings from the environment. Errors name the variable, never a value.
 func LoadSTT() (STT, error) {
 	s := STT{Engine: STTEngine(os.Getenv("STT_ENGINE"))}
 	switch s.Engine {
 	case "", STTFake:
-		return STT{Engine: STTFake}, nil
+		return STT{Engine: STTFake, Script: fakeScript()}, nil
 	case STTAzure:
 	default:
 		return STT{}, errors.New("config: STT_ENGINE is neither fake nor azure")
+	}
+	if fakeScript() != "" {
+		return STT{}, errScriptBesideARealEngine
 	}
 	s.AzureRegion, s.AzureKey = os.Getenv("AZURE_SPEECH_REGION"), os.Getenv("AZURE_SPEECH_KEY")
 	if s.AzureRegion == "" {
@@ -260,6 +274,7 @@ type LLM struct {
 	Engine       LLMEngine // LLM_ENGINE: fake (the default) or anthropic
 	AnthropicKey string    // ANTHROPIC_API_KEY, required for anthropic
 	Model        string    // LLM_MODEL, for anthropic: claude-opus-5-5 when unset
+	Script       string    // FAKE_ENGINE_SCRIPT, for the fake only (fakeScript)
 }
 
 // LoadLLM reads the language model's settings from the environment; for the fake, none but the engine. Errors
@@ -267,10 +282,13 @@ type LLM struct {
 func LoadLLM() (LLM, error) {
 	switch LLMEngine(os.Getenv("LLM_ENGINE")) {
 	case "", LLMFake:
-		return LLM{Engine: LLMFake}, nil
+		return LLM{Engine: LLMFake, Script: fakeScript()}, nil
 	case LLMAnthropic:
 	default:
 		return LLM{}, errors.New("config: LLM_ENGINE is neither fake nor anthropic")
+	}
+	if fakeScript() != "" {
+		return LLM{}, errScriptBesideARealEngine
 	}
 	l := LLM{Engine: LLMAnthropic, AnthropicKey: os.Getenv("ANTHROPIC_API_KEY"), Model: os.Getenv("LLM_MODEL")}
 	if l.AnthropicKey == "" {

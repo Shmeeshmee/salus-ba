@@ -15,11 +15,13 @@ import (
 // ErrScripted is the error of a Translator's scripted Failures.
 var ErrScripted = errors.New("llmtest: scripted failure")
 
-// Translator returns the text marked with the target language: "[de] text". It fails its first Failures calls
+// Translator returns the text marked with the target language: "[de] text", or the Script's translation of a
+// scripted line. It fails its first Failures calls
 // with ErrScripted, and holds every call for Delay (or until its context ends) before it answers. With
 // DiscardCalls it keeps none of its calls (for a long-running fake, as in cmd/agent).
 type Translator struct {
 	Err          error
+	Script       *Script
 	calls        []llm.TranslateRequest
 	Failures     int
 	Delay        time.Duration
@@ -54,6 +56,9 @@ func (f *Translator) Translate(ctx context.Context, req llm.TranslateRequest) (s
 	case fail:
 		return "", ErrScripted
 	}
+	if out, ok := f.Script.translation(req); ok {
+		return out, nil
+	}
 	return "[" + req.To + "] " + req.Text, nil
 }
 
@@ -64,10 +69,12 @@ func (f *Translator) Calls() []llm.TranslateRequest {
 	return slices.Clone(f.calls)
 }
 
-// Suggester returns Suggestions on every call. With DiscardCalls it keeps none of its calls (for a long-running
+// Suggester returns Suggestions on every call, then the Script's suggestions whose line is in the transcript.
+// With DiscardCalls it keeps none of its calls (for a long-running
 // fake engine).
 type Suggester struct {
 	Err          error
+	Script       *Script
 	Suggestions  []llm.Suggestion
 	calls        []llm.SuggestRequest
 	mu           sync.Mutex
@@ -90,7 +97,7 @@ func (f *Suggester) Suggest(_ context.Context, req llm.SuggestRequest) ([]llm.Su
 		s.SourceIDs = slices.Clone(s.SourceIDs)
 		out[i] = s
 	}
-	return out, nil
+	return append(out, f.Script.suggest(req.Transcript)...), nil
 }
 
 // Calls returns the requests so far, oldest first.
@@ -100,10 +107,12 @@ func (f *Suggester) Calls() []llm.SuggestRequest {
 	return slices.Clone(f.calls)
 }
 
-// Drafter fills each requested field from Fields by its key, and marks a field it has no entry for missing.
+// Drafter fills each requested field from Fields by its key, else from the Script's line in the transcript, and
+// marks a field it has neither for missing.
 // With DiscardCalls it keeps none of its calls (for a long-running fake engine).
 type Drafter struct {
 	Err          error
+	Script       *Script
 	Fields       map[string]llm.DraftField
 	calls        []llm.DraftRequest
 	mu           sync.Mutex
@@ -124,6 +133,9 @@ func (f *Drafter) Draft(_ context.Context, req llm.DraftRequest) ([]llm.DraftFie
 	out := make([]llm.DraftField, len(req.Fields))
 	for i, spec := range req.Fields {
 		field, ok := f.Fields[spec.Key]
+		if !ok {
+			field, ok = f.Script.field(spec.Key, req.Transcript)
+		}
 		if !ok {
 			field = llm.DraftField{Missing: true}
 		}

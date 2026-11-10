@@ -20,7 +20,7 @@ TEST_SERVICES := postgres redis mailpit livekit objectstore clamd
 GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...
 GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-suggest bench-drafting turn-check livekit-turn-cert lint i18n-check archcheck arch-gate e2e e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-suggest bench-drafting turn-check livekit-turn-cert lint i18n-check archcheck arch-gate e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	terminology-fetch terminology-import terminology-export document-templates-seed \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
@@ -154,12 +154,25 @@ arch-gate: tools-image
 ## the Go journeys (the API, Mailpit's API, salusctl built here on the owner's DATABASE_URL, LiveKit), the web
 ## journey in Chromium that the consultation journey starts (test/e2e/web), then the check that LiveKit's log
 ## holds none of the run's synthetic names, e-mails and ids. Each run first clears the login rate-limit counters
-## (ratelimit:*) in the compose Redis: a run signs in about 9 times from one IP, so back-to-back runs would reach
-## the production limit of 30 per 15 minutes. The limit itself is unchanged.
-e2e: up web-install e2e-install
+## (ratelimit:*) in the compose Redis, and each Go journey clears them again before it signs in (clearLoginLimits):
+## every sign-in comes from one IP, and a run signs in more often than the production limit of 30 per 15 minutes
+## allows. The limit itself is unchanged.
+## The stack runs with deployments/docker-compose.e2e.yml on top: the fake engines play the scripted conversations
+## of test/testdata/consult (SAL-10), and the consultation pipeline's latency report is written to
+## /e2e/consult-latency.md (make e2e-report prints it). A later `make up` puts the plain fakes back.
+e2e: e2e-up web-install e2e-install
 	$(COMPOSE) exec -T redis sh -c "redis-cli --scan --pattern 'ratelimit:*' | xargs -r redis-cli del >/dev/null"
-	$(E2E) sh -c 'rm -f /e2e/livekit-check.tsv && go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e -count=1 ./test/e2e/...'
+	$(E2E) sh -c 'rm -f /e2e/livekit-check.tsv /e2e/consult-latency.md && go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e -count=1 ./test/e2e/...'
 	$(COMPOSE) logs --no-color --no-log-prefix livekit | $(E2E) bash scripts/e2e-livekit-log.sh /e2e/livekit-check.tsv
+	$(E2E) cat /e2e/consult-latency.md
+
+## e2e-up: the stack as make e2e runs it (make up with the scripted fake engines)
+e2e-up:
+	$(COMPOSE) -f deployments/docker-compose.e2e.yml up -d --build --wait --remove-orphans
+
+## e2e-report: print the last make e2e's latency report of the consultation pipeline (Markdown)
+e2e-report:
+	$(E2E) cat /e2e/consult-latency.md
 
 ## e2e-install: the e2e image, and npm ci in test/e2e/web, only when package.json or the lockfile changed
 e2e-install: e2e-image test/e2e/web/node_modules/.package-lock.json

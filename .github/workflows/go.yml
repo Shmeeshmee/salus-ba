@@ -82,6 +82,18 @@ jobs:
       - run: make e2e
       - if: failure()
         run: docker compose -f deployments/docker-compose.yml logs --no-color
+      # The consultation pipeline's latency against the plan's targets (SAL-10), per run: the job summary and an
+      # artifact.
+      - name: Latency report
+        if: always()
+        run: |
+          make -s e2e-report > consult-latency.md || echo "No latency report: the journeys did not write one." > consult-latency.md
+          cat consult-latency.md >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: consult-latency
+          path: consult-latency.md
 
   fhir-validate:
     needs: changes

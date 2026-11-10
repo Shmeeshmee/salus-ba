@@ -588,3 +588,34 @@ func TestLoadLLM_IsCalledOnlyByACommandsMain(t *testing.T) {
 		}
 	}
 }
+
+// The fakes' scripted conversations (SAL-10's journeys): FAKE_ENGINE_SCRIPT names their directory, for the fakes
+// only, so a script can never stand beside a real engine.
+func TestLoadSTTAndLoadLLM_ReadTheFakesScript(t *testing.T) {
+	t.Setenv("FAKE_ENGINE_SCRIPT", "/consult-script")
+	for _, engine := range []string{"", "fake"} {
+		t.Setenv("STT_ENGINE", engine)
+		t.Setenv("LLM_ENGINE", engine)
+		if got, err := config.LoadSTT(); err != nil || got != (config.STT{Engine: config.STTFake, Script: "/consult-script"}) {
+			t.Errorf("STT_ENGINE=%q: LoadSTT() = %+v, %v; want the fake with its script", engine, got, err)
+		}
+		if got, err := config.LoadLLM(); err != nil || got != (config.LLM{Engine: config.LLMFake, Script: "/consult-script"}) {
+			t.Errorf("LLM_ENGINE=%q: LoadLLM() = %+v, %v; want the fake with its script", engine, got, err)
+		}
+	}
+}
+
+func TestLoadSTTAndLoadLLM_RefuseAScriptBesideARealEngineWithoutEchoingIt(t *testing.T) {
+	t.Setenv("FAKE_ENGINE_SCRIPT", "/script-marker")
+	t.Setenv("STT_ENGINE", "azure")
+	t.Setenv("AZURE_SPEECH_REGION", "westeurope")
+	t.Setenv("AZURE_SPEECH_KEY", "speech-key")
+	t.Setenv("LLM_ENGINE", "anthropic")
+	t.Setenv("ANTHROPIC_API_KEY", "llm-key")
+	if _, err := config.LoadSTT(); err == nil || !strings.Contains(err.Error(), "FAKE_ENGINE_SCRIPT") || strings.Contains(err.Error(), "marker") {
+		t.Errorf("LoadSTT() = %v, want an error naming FAKE_ENGINE_SCRIPT and no value", err)
+	}
+	if _, err := config.LoadLLM(); err == nil || !strings.Contains(err.Error(), "FAKE_ENGINE_SCRIPT") || strings.Contains(err.Error(), "marker") {
+		t.Errorf("LoadLLM() = %v, want an error naming FAKE_ENGINE_SCRIPT and no value", err)
+	}
+}

@@ -1,0 +1,15 @@
+# make e2e only, on top of docker-compose.yml: the fake engines play the scripted conversations of
+# test/testdata/consult (SAL-10, docs/plans/v1-finish.md), so the consultation pipeline's journeys can say a line
+# with a tone and see its translation, suggestions and drafted fields. Without a scripted tone they behave as the
+# plain fakes, so the other journeys are unchanged. The compose default and production never set
+# FAKE_ENGINE_SCRIPT, and internal/config refuses it beside a real engine. Paths are relative to deployments/.
+x-script: &script
+  environment:
+    FAKE_ENGINE_SCRIPT: /consult-script
+  volumes:
+    - ../test/testdata/consult:/consult-script:ro
+
+services:
+  api: *script
+  worker: *script
+  agent: *script
