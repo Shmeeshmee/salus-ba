@@ -130,19 +130,38 @@ func run(ctx context.Context, logOut io.Writer) error {
 	return nil
 }
 
-// newRecognizer is the configured engine: the fake, or Azure in its EU region (azure.New refuses any other).
+// newRecognizer is the configured engine: the fake (saying a scripted line on its tone when it has a script,
+// make e2e's), or Azure in its EU region (azure.New refuses any other).
 func newRecognizer(engine config.STT) (stt.Recognizer, error) {
 	if engine.Engine != config.STTAzure {
-		return &stttest.Recognizer{Results: placeholder, DiscardAudio: true}, nil
+		fake := &stttest.Recognizer{Results: placeholder, DiscardAudio: true}
+		if engine.Script != "" {
+			lines, err := stttest.LoadScript(os.DirFS(engine.Script))
+			if err != nil {
+				return nil, err
+			}
+			fake.Lines = lines
+		}
+		return fake, nil
 	}
 	return azure.New(azure.Config{Region: engine.AzureRegion, Key: engine.AzureKey},
 		azure.NewDialer(handshakeTimeout), clock.System{})
 }
 
-// newTranslator is the configured language model: the fake (keeping no calls), or Anthropic's Claude API.
+// newTranslator is the configured language model: the fake (keeping no calls, with make e2e's script when it has
+// one), or Anthropic's Claude API.
 func newTranslator(model config.LLM) (llm.Translator, error) {
 	if model.Engine != config.LLMAnthropic {
-		return &llmtest.Translator{DiscardCalls: true}, nil
+		script, err := fakeScript(model)
+		return &llmtest.Translator{DiscardCalls: true, Script: script}, err
 	}
 	return anthropic.New(anthropic.Config{Key: model.AnthropicKey, Model: model.Model}, &http.Client{Timeout: llmTimeout})
+}
+
+// fakeScript is the fake model's scripted conversations, or nil without a script.
+func fakeScript(model config.LLM) (*llmtest.Script, error) {
+	if model.Script == "" {
+		return nil, nil
+	}
+	return llmtest.LoadScript(os.DirFS(model.Script))
 }

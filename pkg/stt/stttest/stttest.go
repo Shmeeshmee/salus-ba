@@ -1,5 +1,6 @@
 // Package stttest is an in-memory stt.Recognizer for tests: every stream plays the same scripted results and
-// records the audio it was sent.
+// records the audio it was sent. With Lines it also says a scripted line whenever its tone is heard (tones.go),
+// which is how the end-to-end journeys play a conversation through the whole pipeline (SAL-10).
 package stttest
 
 import (
@@ -11,11 +12,13 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/stt"
 )
 
-// Recognizer gives every stream the results of Results, in order, or fails Stream with Err when set. With
-// DiscardAudio its streams keep none of the audio they are sent (for a long-running fake, as in cmd/agent).
+// Recognizer gives every stream the results of Results, in order, or fails Stream with Err when set; then each
+// line of Lines in the stream's language whenever its tone is heard in the audio. With DiscardAudio its streams
+// keep none of the audio they are sent (for a long-running fake, as in cmd/agent).
 type Recognizer struct {
 	Err          error
 	Results      []stt.Result
+	Lines        []Line
 	streams      []*Stream
 	mu           sync.Mutex
 	DiscardAudio bool
@@ -26,11 +29,11 @@ func (r *Recognizer) Stream(ctx context.Context, cfg stt.Config) (stt.Stream, er
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	results := make(chan stt.Result, len(r.Results))
+	results := make(chan stt.Result, len(r.Results)+resultsBuffer)
 	for _, res := range r.Results {
 		results <- res
 	}
-	s := &Stream{Config: cfg, ctx: ctx, results: results, closed: make(chan struct{}), discard: r.DiscardAudio}
+	s := &Stream{Config: cfg, ctx: ctx, results: results, closed: make(chan struct{}), discard: r.DiscardAudio, ear: newEar(r.Lines, cfg)}
 	r.mu.Lock()
 	r.streams = append(r.streams, s)
 	r.mu.Unlock()
@@ -50,13 +53,14 @@ type Stream struct {
 	results chan stt.Result
 	closed  chan struct{}
 	Config  stt.Config
+	ear     *ear // nil without lines in the stream's language
 	audio   []byte
 	mu      sync.Mutex
 	isDone  bool
 	discard bool
 }
 
-// Send records the audio.
+// Send records the audio and listens to it for the lines' tones.
 func (s *Stream) Send(pcm []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -66,23 +70,37 @@ func (s *Stream) Send(pcm []byte) error {
 	if !s.discard {
 		s.audio = append(s.audio, pcm...)
 	}
+	if s.ear != nil {
+		s.ear.hear(pcm, s.say)
+	}
 	return nil
 }
 
-// CloseSend ends the audio; Recv returns io.EOF once the script is played.
+// CloseSend ends the audio, and a line whose tone was still heard; Recv returns io.EOF once the script is played.
 func (s *Stream) CloseSend() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.isDone {
 		return stt.ErrClosed
 	}
+	if s.ear != nil {
+		s.ear.end(s.say)
+	}
 	s.isDone = true
 	close(s.closed)
 	return nil
 }
 
-// Recv returns the next scripted result; after the script, io.EOF once the audio is closed, or the context's
-// error once it is done.
+// say queues a result of a line for Recv; it gives up once the stream's context is done.
+func (s *Stream) say(res stt.Result) {
+	select {
+	case s.results <- res:
+	case <-s.ctx.Done():
+	}
+}
+
+// Recv returns the next scripted result, or the next line heard; once the audio is closed, the results left and
+// then io.EOF, or the context's error once it is done.
 func (s *Stream) Recv() (stt.Result, error) {
 	select {
 	case res := <-s.results:
@@ -90,9 +108,16 @@ func (s *Stream) Recv() (stt.Result, error) {
 	default:
 	}
 	select {
+	case res := <-s.results:
+		return res, nil
 	case <-s.closed:
 		if err := s.ctx.Err(); err != nil { // both ready: select picks either, the context wins
 			return stt.Result{}, err
+		}
+		select { // every line was queued before the audio closed
+		case res := <-s.results:
+			return res, nil
+		default:
 		}
 		return stt.Result{}, io.EOF
 	case <-s.ctx.Done():
