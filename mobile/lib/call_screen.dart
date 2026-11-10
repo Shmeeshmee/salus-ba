@@ -309,7 +309,11 @@ class _CallScreenState extends State<CallScreen> {
               PositionedDirectional(start: 12, top: 12, child: _badge(context.t.peerMuted(name))),
             // While the transcription agent is in the room, a badge says so (SPEC.md "Changed for SAL-3").
             if (room != null && _agent)
-              PositionedDirectional(end: 12, top: 12, child: Semantics(liveRegion: true, child: _transcriptionBadge(context.t.transcriptionOn))),
+              PositionedDirectional(
+                end: 12,
+                top: 12,
+                child: Semantics(liveRegion: true, child: _transcriptionBadge(context.t.transcriptionOn)),
+              ),
             if (room != null && _settings.camera)
               PositionedDirectional(
                 end: 12,

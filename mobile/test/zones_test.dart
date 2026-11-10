@@ -61,7 +61,20 @@ void main() {
     // intl ships its own locale data, so Bosnian does not depend on the platform's as it does in Chromium (SAL-15):
     // the Latin months (juni, juli, august: neither Croatian nor Serbian) and ijekavian weekdays, every one of them.
     test('Bosnian names every month and weekday', () {
-      const months = ['januar', 'februar', 'mart', 'april', 'maj', 'juni', 'juli', 'august', 'septembar', 'oktobar', 'novembar', 'decembar'];
+      const months = [
+        'januar',
+        'februar',
+        'mart',
+        'april',
+        'maj',
+        'juni',
+        'juli',
+        'august',
+        'septembar',
+        'oktobar',
+        'novembar',
+        'decembar',
+      ];
       const days = ['ponedjeljak', 'utorak', 'srijeda', 'četvrtak', 'petak', 'subota', 'nedjelja'];
       for (var m = 1; m <= 12; m++) {
         expect(Zone.longDate(DateTime.utc(2026, m, 15), 'bs'), endsWith('15. ${months[m - 1]} 2026.'));

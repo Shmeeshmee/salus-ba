@@ -272,5 +272,8 @@
   "speakerYou": "Vous",
   "speakerPractitioner": "Praticien",
   "shareTranscript": "Partager la transcription",
-  "transcriptTranslation": "Traduction : {text}"
+  "transcriptTranslation": "Traduction : {text}",
+  "termExplanationNote": "À titre informatif, pas un diagnostic",
+  "termNotReviewed": "Pas encore vérifié",
+  "termClose": "Fermer"
 }

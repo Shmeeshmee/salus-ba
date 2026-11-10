@@ -1334,5 +1334,17 @@
         "type": "String"
       }
     }
+  },
+  "termExplanationNote": "Informational, not a diagnosis",
+  "termNotReviewed": "Not reviewed yet",
+  "termClose": "Close",
+  "@termExplanationNote": {
+    "description": "[legal] SAL-13: under the plain-language explanation of a medical term: it informs, it diagnoses nothing."
+  },
+  "@termNotReviewed": {
+    "description": "SAL-13: beside an explanation of a medical term a doctor has not reviewed yet."
+  },
+  "@termClose": {
+    "description": "SAL-13: button: closes a medical term's explanation."
   }
 }

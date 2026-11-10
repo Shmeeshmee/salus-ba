@@ -154,6 +154,7 @@ Future<Harness> atDocuments(
 Finder documentsButtons() => find.widgetWithText(OutlinedButton, 'Documents');
 
 void main() {
+  tests13();
   testWidgets('a past appointment has its documents; one that has not started has none yet', (tester) async {
     await atDocuments(tester);
 
@@ -286,5 +287,93 @@ void main() {
   test('a file name from a title', () {
     expect(pdfName('Placeholder: report / 2'), 'Placeholder- report - 2.pdf');
     expect(pdfName('  '), 'document.pdf');
+  });
+}
+
+// SAL-13: a tagged term of a signed document or of the transcript copy is explained on a tap, in the app's language
+// (else English), labelled informational and, until a doctor approved it, not reviewed yet. The text is shown as it
+// was signed or said: an overlay only.
+Map<String, Object?> explanation(String id, String text, {bool approved = false}) => {
+  'termId': id,
+  'language': 'en',
+  'text': text,
+  'reviewStatus': approved ? 'approved' : 'unreviewed',
+};
+
+Map<String, Object?> span(String id, int start, int end) => {'term_id': id, 'start': start, 'end': end};
+
+void explainTerms(Harness h) {
+  h.api.answer('GET /terminology/explanations', 200, {
+    'explanations': [explanation('t-finding', 'Placeholder explanation of a finding.')],
+  });
+  h.api.answer('GET /compositions/$compositionEn/terms', 200, {
+    'sections': [
+      {
+        'key': 'findings',
+        'lines': [
+          [span('t-finding', 13, 20)],
+          [span('t-unexplained', 0, 6)],
+        ],
+      },
+      {'key': 'tests', 'lines': []},
+    ],
+  });
+}
+
+void tests13() {
+  testWidgets('explains a tagged term of a signed document on a tap, the document as it was signed', (tester) async {
+    final h = await atDocuments(tester);
+    explainTerms(h);
+    await tapFound(tester, documentsButtons());
+    await tapText(tester, 'Placeholder findings report');
+
+    expect(h.api.calls, contains('GET /compositions/$compositionEn/terms'));
+    expect(h.api.last('GET /terminology/explanations').url.queryParameters['language'], 'en');
+    for (final text in ['Placeholder <finding> & more', 'second line', 'Placeholder one']) {
+      expect(find.text(text), findsOneWidget, reason: text);
+    }
+    // The tap lands on the range's first box: it starts on the term (its own styled run), not on the "<" before it.
+    await tester.tapOnText(find.textRange.ofSubstring('finding>'));
+    await tester.pumpAndSettle();
+    final dialog = find.byType(AlertDialog);
+    expect(find.descendant(of: dialog, matching: find.text('finding')), findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('Placeholder explanation of a finding.')), findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('Informational, not a diagnosis')), findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('Not reviewed yet')), findsOneWidget);
+    await tapLink(tester, 'Close');
+    expect(dialog, findsNothing);
+  });
+
+  testWidgets('shows the document as text when its terms cannot be read', (tester) async {
+    final h = await atDocuments(tester);
+    h.api.answer('GET /compositions/$compositionEn/terms', 500, error('internal'));
+    await tapFound(tester, documentsButtons());
+    await tapText(tester, 'Placeholder findings report');
+
+    expect(find.text('Placeholder <finding> & more'), findsOneWidget);
+    await tester.tap(find.text('Placeholder <finding> & more'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
+  testWidgets("explains a tagged term of the transcript copy's translation on a tap", (tester) async {
+    final line = segment('practitioner', 'Placeholder pitanje', 'Placeholder question', '2026-11-02T08:02:00Z')
+      ..['terms'] = {
+        'translation': [span('t-question', 12, 20)],
+      };
+    final h = await atDocuments(tester, transcript: [line]);
+    h.api.answer('GET /terminology/explanations', 200, {
+      'explanations': [explanation('t-question', 'Placeholder explanation of a question.', approved: true)],
+    });
+    await tapFound(tester, documentsButtons());
+    await tapOutlined(tester, 'Transcript');
+
+    expect(find.text('Translation: Placeholder question'), findsOneWidget);
+    await tester.tapOnText(find.textRange.ofSubstring('question'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Placeholder explanation of a question.'), findsOneWidget);
+    expect(find.text('Informational, not a diagnosis'), findsOneWidget);
+    expect(find.text('Not reviewed yet'), findsNothing);
   });
 }
