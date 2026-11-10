@@ -62,6 +62,11 @@ func loadConversation(t *testing.T, language string) conversation {
 	if err := json.Unmarshal(b, &c); err != nil {
 		t.Fatalf("%s: %v", path, err)
 	}
+	// The journeys pin the first suggestion and dismiss the second, and expect a field filled as drafted, one to
+	// type over and one never covered.
+	if len(c.Suggestions) != 2 || len(c.Fields) != 3 || c.Fields[0].From == "" || c.Fields[1].From == "" || c.Fields[2].From != "" {
+		t.Fatalf("%s: want 2 suggestions and 3 fields, the first two filled from a line and the third never", path)
+	}
 	return c
 }
 
