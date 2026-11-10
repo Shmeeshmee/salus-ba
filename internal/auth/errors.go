@@ -41,7 +41,7 @@ var (
 	ErrInvalidName = errors.New("auth: invalid name")
 	// ErrInvalidInvite is returned for an invite token that is unknown, replaced, expired or already used.
 	ErrInvalidInvite = errors.New("auth: invalid invite")
-	// ErrNotStaff is returned when resetting MFA of a patient account (staff only).
+	// ErrNotStaff is returned when resetting MFA of a patient account or making it a term reviewer (staff only).
 	ErrNotStaff = errors.New("auth: not a staff account")
 	// ErrInvalidLanguage is returned for a language tag that is not one of the enum language
 	// (docs/i18n/SPEC.md §3 "Tags").

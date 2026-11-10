@@ -45,6 +45,9 @@ type Repository interface {
 	ResetMFA(ctx context.Context, id string) error
 	// SetPractitioner links the account to its Practitioner.
 	SetPractitioner(ctx context.Context, id, practitionerID string) error
+	// SetTermReviewer grants (true) or revokes the account's reviewer permission of the term list; granting it
+	// again or revoking it when there is none changes nothing. Only the owner's connection may (salusctl).
+	SetTermReviewer(ctx context.Context, id string, reviewer bool) error
 
 	// SetOrganization scopes the rest of the transaction in ctx to the clinic id: invites are row-level
 	// secured.

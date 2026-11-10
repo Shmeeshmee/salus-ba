@@ -78,11 +78,14 @@ type Search struct {
 	Limit      int32
 }
 
-// Caller is who searches: their account, and whether they are staff of a clinic (its admin or one of its
-// practitioners); a patient is not.
+// Caller is who searches or reviews: their account, the session's clinic (for the audit), whether they are staff of
+// a clinic (its admin or one of its practitioners; a patient is not), and whether the operator made them a reviewer
+// of the term list (docs/plans/v1-finish.md "Decisions").
 type Caller struct {
-	AccountID string
-	Staff     bool
+	AccountID      string
+	OrganizationID string
+	Staff          bool
+	Reviewer       bool
 }
 
 // Match is a term as a search returns it: Term without its Labels, which Labels holds grouped per requested
@@ -142,4 +145,80 @@ type GlossaryQuery struct {
 type GlossaryEntry struct {
 	Source string `json:"source"`
 	Target string `json:"target"`
+}
+
+// QueueQuery is what a page of the review queue asks for: the entries of the terms in Language, of review status
+// Status (any when empty), after the page whose Next is After (the first page when empty), at most Limit.
+type QueueQuery struct {
+	Language string
+	Status   string
+	After    string
+	Limit    int32
+}
+
+// QueuePage is a page of the review queue and the After of the next one, empty on the last.
+type QueuePage struct {
+	Next    string
+	Entries []QueueEntry
+}
+
+// QueueEntry is a term in the queue's language: its labels there, then in Latin and English, the review of its
+// labels in the language (nil while it has none) and its explanation there (nil while there is none), and the
+// entry's status (docs/terminology/SPEC.md §3 "Review").
+type QueueEntry struct {
+	Translation *Translation
+	Explanation *Explanation
+	Status      string
+	Labels      []Names
+	Term        Term // without Labels
+}
+
+// QueueFilter is a queue page as the repository reads it: the entries of Status (any when empty) after the entry
+// of AfterStatus, AfterRank and AfterID (from the first when AfterID is empty).
+type QueueFilter struct {
+	Language    string
+	Status      string
+	AfterStatus string
+	AfterID     string
+	AfterRank   int32
+	Limit       int32
+}
+
+// QueueRow is an entry as the repository reads it: the term with its labels in the language, Latin and English.
+type QueueRow struct {
+	Translation *Translation
+	Explanation *Explanation
+	Status      string
+	Term        Term
+}
+
+// LanguageProgress is how far the review is in one language: how many terms, and how many of their entries in the
+// language are approved or need changes.
+type LanguageProgress struct {
+	Language     string
+	Terms        int32
+	Approved     int32
+	NeedsChanges int32
+}
+
+// LabelsEdit is a reviewer's edit of a term's labels in one language.
+type LabelsEdit struct {
+	Preferred string
+	Synonyms  []string
+}
+
+// Decision is a reviewer's approval of an entry or its mark as needing changes, with the note.
+type Decision struct {
+	Status string // approved or needs_changes
+	Note   string
+}
+
+// EntryState is a term and language as a review write reads them, the term locked for the transaction: the term's
+// own review, its labels in the language, every translation of the term, and its explanation in the language (nil
+// when there is none).
+type EntryState struct {
+	Explanation  *Explanation
+	TermReview   Review
+	Labels       []Label
+	Translations []Translation
 }

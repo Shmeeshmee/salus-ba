@@ -139,8 +139,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-			terminology.NewHTTPHandler(terminology.NewService(terminology.NewPostgresRepository(pool), uiLanguage(accounts)), terminologyCaller(accounts), log).Routes,
-		}, append(questionnaireAPI, consultAPI...)...),
+		}, append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...)...),
 		Streams: append(streams, consultStream),
 		Timeout: RequestTimeout,
 	})
@@ -486,16 +485,26 @@ func appointmentCaller(accounts *auth.Service, patients *patient.Service) func(c
 	}
 }
 
+// terminologyRoutes are the term list's: the cheatsheet's search and the review panel.
+func terminologyRoutes(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, accounts *auth.Service, log *slog.Logger) []func(*http.ServeMux) {
+	return []func(*http.ServeMux){
+		terminology.NewHTTPHandler(terminology.NewService(terminology.NewPostgresRepository(pool), uiLanguage(accounts)), terminologyCaller(accounts), log).Routes,
+		terminology.NewReviewHandler(terminology.NewReviews(terminology.ReviewPorts{
+			Repo: terminology.NewPostgresReviewRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
+		}), terminologyCaller(accounts), log).Routes,
+	}
+}
+
 // terminologyCaller is the terminology's view of the signed-in session: whether the account is staff of the
-// session's clinic (its admin or a practitioner), as read from the database. A patient's session has no clinic
-// and needs no read.
+// session's clinic (its admin or a practitioner) and a reviewer of the term list, as read from the database. A
+// patient's session has no clinic and needs no read.
 func terminologyCaller(accounts *auth.Service) func(ctx context.Context) (terminology.Caller, bool, error) {
 	return func(ctx context.Context) (terminology.Caller, bool, error) {
 		s, ok := auth.SessionFrom(ctx)
 		if !ok {
 			return terminology.Caller{}, false, nil
 		}
-		c := terminology.Caller{AccountID: s.AccountID}
+		c := terminology.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}
 		if s.OrganizationID == "" {
 			return c, true, nil
 		}
@@ -504,6 +513,7 @@ func terminologyCaller(accounts *auth.Service) func(ctx context.Context) (termin
 			return terminology.Caller{}, false, err
 		}
 		c.Staff = m.Admin || m.PractitionerID != ""
+		c.Reviewer = c.Staff && m.TermReviewer
 		return c, true, nil
 	}
 }

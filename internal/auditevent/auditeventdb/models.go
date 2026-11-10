@@ -587,6 +587,11 @@ type TermLabel struct {
 	Label     string
 }
 
+type TermReviewer struct {
+	AccountID pgtype.UUID
+	GrantedAt pgtype.Timestamptz
+}
+
 type TermTranslation struct {
 	TermID       pgtype.UUID
 	UpdatedAt    pgtype.Timestamptz

@@ -224,3 +224,17 @@ func TestRules_KeepTheTermListsReviewsWithTheirReviewer(t *testing.T) {
 		t.Errorf("no rule for %s", table)
 	}
 }
+
+// The reviewer permission (00039) is kept while the operator grants it: revoking it, or deleting the account,
+// deletes the row.
+func TestRules_KeepTheReviewerPermissionWhileGranted(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "term_reviewer" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("term_reviewer then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Error("no rule for term_reviewer")
+}

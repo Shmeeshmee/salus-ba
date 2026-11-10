@@ -256,6 +256,35 @@ func (s *Service) ResetMFA(ctx context.Context, id string) error {
 	return refused
 }
 
+// SetTermReviewer grants (true) or revokes the reviewer permission of the term list on the staff account id: the
+// operator's only (salusctl term-reviewer), audited with salusctl as the agent. ErrNotStaff for a patient (audited
+// as refused), ErrNotFound for no account.
+func (s *Service) SetTermReviewer(ctx context.Context, id string, reviewer bool) error {
+	var refused error
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		a, err := s.repo.ByID(ctx, id)
+		if errors.Is(err, ErrNotFound) {
+			refused = ErrNotFound
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if a.Role == RolePatient {
+			refused = ErrNotStaff
+			return s.audit.Record(ctx, operatorUpdate(a, auditevent.OutcomeMinorFailure))
+		}
+		if err := s.repo.SetTermReviewer(ctx, a.ID, reviewer); err != nil {
+			return err
+		}
+		return s.audit.Record(ctx, operatorUpdate(a, auditevent.OutcomeSuccess))
+	})
+	if err != nil {
+		return fmt.Errorf("auth: term reviewer: %w", err)
+	}
+	return refused
+}
+
 // operatorUpdate is an update of account a by the operator command, which is no account.
 func operatorUpdate(a Account, outcome auditevent.Outcome) auditevent.AuditEvent {
 	e := event(restCoding, interaction(auditevent.CodeUpdate), auditevent.ActionUpdate, a, outcome)

@@ -1,0 +1,50 @@
+/* The term review panel (docs/terminology/SPEC.md §3 "Review"): filters and progress on top, then one card per term
+   in the chosen language, its labels and its explanation each with their status. */
+.review { display: grid; gap: 16px; }
+.review h1 { margin: 0; }
+.review-filters { display: flex; flex-wrap: wrap; gap: 12px 20px; }
+.review-progress { display: grid; gap: 6px; font-size: 15px; }
+.review-progress p { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.review-progress-changes { color: var(--color-text-muted); }
+.review-progress progress { width: 100%; height: 4px; appearance: none; border: 0; border-radius: 999px; background: var(--color-border); overflow: hidden; }
+.review-progress progress::-webkit-progress-bar { background: var(--color-border); }
+.review-progress progress::-webkit-progress-value { background: var(--color-mint); }
+.review-progress progress::-moz-progress-bar { background: var(--color-mint); }
+.review-progress details, .review-shortcuts { font-size: 14px; color: var(--color-text-muted); }
+.review-progress summary, .review-shortcuts summary { cursor: pointer; }
+.review-progress table { margin-top: 8px; border-collapse: collapse; }
+.review-progress th, .review-progress td { padding: 4px 16px 4px 0; text-align: left; font-weight: normal; }
+.review-progress th { font-weight: 600; }
+.review-shortcuts ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 2px; }
+.review-entries { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.review-entry {
+  display: grid; gap: 10px; padding: 14px 16px; background: var(--color-surface);
+  border: 1px solid var(--color-border); border-left: 3px solid var(--color-border-strong); border-radius: var(--radius);
+}
+.review-entry.approved { border-left-color: var(--color-mint); }
+.review-entry.needs_changes { border-left-color: var(--color-error); }
+.review-entry:focus-visible { outline: 2px solid var(--color-mint); outline-offset: 2px; }
+.review-entry-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.review-entry-head h2 { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
+.review-entry-head .tag { font-size: 12px; }
+.review-context { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; }
+.review-context-language { color: var(--color-text-muted); font-size: 12px; }
+.review-part { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--color-border); }
+.review-part-head { display: flex; align-items: center; gap: 8px; }
+.review-part-head h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--color-text-muted); }
+.review-status { font-size: 12px; }
+.tag.review-status.approved { color: var(--color-brand-hover); border-color: var(--color-mint); background: var(--color-mint-faint); }
+.tag.review-status.needs_changes { color: var(--color-error); border-color: var(--color-error); background: var(--color-error-faint); }
+.tag.review-status.unreviewed { background: var(--color-page); border-style: dashed; }
+.review-labels, .review-explanation, .review-missing, .review-note { margin: 0; overflow-wrap: anywhere; }
+.review-labels { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.review-synonyms, .review-missing { color: var(--color-text-muted); }
+.review-note { font-size: 14px; color: var(--color-error); }
+.review-form { gap: 10px; }
+.review-actions button { padding: 6px 12px; font-size: 14px; }
+.actions.review-actions button:not(.primary) { padding: 6px 12px; }
+
+@keyframes review-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .review-form { animation: review-in .12s ease-out; }
+}

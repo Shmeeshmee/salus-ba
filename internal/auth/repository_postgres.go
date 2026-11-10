@@ -105,6 +105,7 @@ func toAccount(row authdb.AccountByEmailRow, err error) (Account, error) {
 		// An unset language scans as "": no choice, no match.
 		Language:         string(row.Language.Language),
 		DetectedLanguage: string(row.DetectedLanguage.Language),
+		TermReviewer:     row.TermReviewer,
 	}
 	if row.OrganizationID.Valid {
 		a.OrganizationID = row.OrganizationID.String()
@@ -264,6 +265,17 @@ func (r *postgresRepository) SetPractitioner(ctx context.Context, id, practition
 	}
 	n, err := r.q(ctx).SetPractitioner(ctx, authdb.SetPractitionerParams{ID: u, PractitionerID: p})
 	return oneRow(n, err)
+}
+
+func (r *postgresRepository) SetTermReviewer(ctx context.Context, id string, reviewer bool) error {
+	u, err := uuidOf(id)
+	if err != nil {
+		return err
+	}
+	if reviewer {
+		return r.q(ctx).GrantTermReviewer(ctx, u)
+	}
+	return r.q(ctx).RevokeTermReviewer(ctx, u)
 }
 
 func (r *postgresRepository) SetOrganization(ctx context.Context, id string) error {

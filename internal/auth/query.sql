@@ -7,12 +7,14 @@ ON CONFLICT (email) DO NOTHING
 RETURNING id;
 
 -- name: AccountByEmail :one
-SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language,
+       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer
 FROM account
 WHERE email = @email;
 
 -- name: AccountByID :one
-SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language,
+       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer
 FROM account
 WHERE id = @id;
 
@@ -111,3 +113,10 @@ DELETE FROM session WHERE least(revoked_at, expires_at) < @before;
 -- Retention (salus_retention, past row-level security): an invite ends at accepted_at or expires_at,
 -- whichever comes first.
 DELETE FROM invite WHERE least(accepted_at, expires_at) < @before;
+
+-- name: GrantTermReviewer :exec
+-- The operator's (salus_app may only read term_reviewer).
+INSERT INTO term_reviewer (account_id) VALUES (@account_id) ON CONFLICT (account_id) DO NOTHING;
+
+-- name: RevokeTermReviewer :exec
+DELETE FROM term_reviewer WHERE account_id = @account_id;

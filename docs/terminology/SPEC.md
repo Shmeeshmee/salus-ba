@@ -97,6 +97,52 @@ Reopen only with the owner.
   opens the others; codes behind a tooltip; a copy button on each label; a "Not reviewed yet" mark on draft
   terms (since 00037: every term not `approved`). Keyboard first: arrows, Enter copies the preferred label in the UI language, Escape closes.
 
+### Review (SAL-14)
+
+The review panel in `web/` (`/term-review`), built on the contract of 00037 (docs/plans/v1-finish.md "Contract") and
+00039. Decided by the owner 2026-11-10 (v1-finish "Decisions"); the rest by SAL-14, recorded in its PR.
+
+- **Who.** Every staff member reads the queue and the progress; only a **reviewer** edits, approves or marks as
+  needing changes. The permission is platform-level on a staff account (`term_reviewer`, owned by `auth`), granted and
+  revoked only by the operator: `salusctl term-reviewer grant|revoke <account-id>`; `salus_app` cannot write it. The
+  web app learns it from `GET /auth/me` (`termReviewer`), shows the "Term review" link only to reviewers and the page
+  read-only to other staff.
+- **Entries.** One per term and language (all eleven term languages): the term's labels in that language (its
+  translation) and its plain-language explanation there (app languages only, never Latin). Status of an entry:
+  `needs_changes` when its translation or explanation needs changes, else `unreviewed` when the term has no label in
+  the language yet or either is unreviewed, else `approved`; an explanation that does not exist does not count.
+- **Queue.** `GET /terminology/review?language=&status=&after=&limit=`: unreviewed first, then needs changes, then
+  approved, each the more common term (rank) first; a page token (`next`, keyset on status, rank and id), so entries
+  that leave a filter while the reviewer works never shift the next page. Each entry carries the term with its labels
+  in the language, Latin and English, its translation and its explanation.
+- **Progress.** `GET /terminology/review/progress`: per language, every term and how many entries are approved or
+  need changes.
+- **Edit a translation** (`PUT /terminology/terms/{id}/translations/{language}`, If-Match the version, `W/"0"` for a
+  language with no label yet): the language's preferred label and synonyms replaced (at most 20 synonyms, each label
+  trimmed, at most 300 characters, no `|`, as the curator's import). The same labels again change nothing.
+- **Write an explanation** (`PUT /terminology/terms/{id}/explanations/{language}`, `W/"0"` for a new one): trimmed,
+  1 to 500 characters. SAL-13's drafts land here as unreviewed through the same `term_explanation` rows.
+- **Approve or mark needs changes** (`POST …/translations/{language}/review`, `POST …/explanations/{language}/review`,
+  If-Match): `reviewed_by` the reviewer, `reviewed_at` now, the note (required for needs changes, optional for an
+  approval, at most 500 characters, cleared when absent).
+- **Editing resets.** A change to an entry's labels or text sets it to `unreviewed`, whatever it was (an approved
+  entry returns to the queue, and so does one that needed changes once they are made); its last `reviewed_by`,
+  `reviewed_at` and note are kept until the next review.
+- **The term's own status** (the cheatsheet's "Not reviewed yet" mark and the curator's CSV) follows its translations
+  in Latin and the staff languages, the languages the cheatsheet shows: `needs_changes` when one needs changes,
+  `approved` when all it has are approved, else `unreviewed`; a change to approved or needs changes names the
+  reviewer and the time, one back to unreviewed keeps the last review. Explanations and the patient-only languages do
+  not move it.
+- **The curator's CSV round trip keeps working.** A term has a translation row in exactly the languages it has labels
+  in (the seed import, the CSV import and the panel keep it so; 00039 fills the ones missing). A status the CSV changes
+  is every translation's of the term too, with no reviewer (the file names no one).
+- **Audit.** Every edit, approval and request for changes is an `AuditEvent` with the reviewer as the agent,
+  `entity.name` `term_translation` or `term_explanation` and purpose `HOPERAT` (the term list is no FHIR resource,
+  like the document templates); a write by a non-reviewer is refused and audited as a minor failure. Reads are not
+  audited (reference data).
+- **Concurrency.** A write locks its term (`SELECT … FOR UPDATE`) and checks the version read: 412
+  `version_conflict` when the entry changed.
+
 ### Out of this feature (Up next, §6)
 
 Picking questionnaire answer options from the terminology (coded answers), patient-facing explanations,
@@ -105,7 +151,9 @@ transcription vocabulary, clinical-note autocomplete, a curator screen in the ap
 
 ## 4. Personal data
 
-None. The search text is not stored or logged.
+The search text is not stored or logged. Since 00037 and SAL-14 the tables hold staff data: the reviewer's account
+id on the entries they reviewed (`reviewed_by`) and the reviewer permission (`term_reviewer`), for accountability of
+the shared term list (docs/privacy/dpia.md, "Medical terminology"). No patient data.
 
 ## 5. Acceptance walk
 
@@ -125,7 +173,8 @@ None. The search text is not stored or logged.
 - Coded questionnaire answers from the terminology (`answerOption.valueCoding`, ICD-10 or Wikidata system).
 - Explanations for patients in their language.
 - A medical vocabulary for the speech-to-text engine of the transcription feature.
-- A curator screen in the app, replacing the spreadsheet round trip.
+- A curator screen in the app, replacing the spreadsheet round trip: the review panel (§3 "Review", SAL-14) covers
+  labels and explanations; codes, categories and new terms stay the spreadsheet's.
 
 ## 7. Before production
 
