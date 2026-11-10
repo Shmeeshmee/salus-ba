@@ -124,11 +124,13 @@ func run(ctx context.Context, logOut io.Writer) error {
 // timeout.
 const llmTimeout = 2 * time.Minute
 
-// newSuggester is the configured language model: the fake (keeping no calls, suggesting nothing), or Anthropic's
+// newSuggester is the configured language model: the fake (keeping no calls, suggesting nothing but make e2e's
+// script when it has one), or Anthropic's
 // Claude API (not to be enabled before its DPA, docs/privacy/processors.md).
 func newSuggester(model config.LLM) (llm.Suggester, error) {
 	if model.Engine != config.LLMAnthropic {
-		return &llmtest.Suggester{DiscardCalls: true}, nil
+		script, err := llmtest.LoadScriptDir(model.Script)
+		return &llmtest.Suggester{DiscardCalls: true, Script: script}, err
 	}
 	return anthropic.New(anthropic.Config{Key: model.AnthropicKey, Model: model.Model}, &http.Client{Timeout: llmTimeout})
 }

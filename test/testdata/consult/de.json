@@ -1,0 +1,17 @@
+{
+  "about": "Synthetic fixture of the consultation pipeline's e2e journeys (SAL-10): a German-speaking patient and a Bosnian-speaking practitioner. Written for the tests, spoken by no one: each line is a generated tone the fake speech engine maps to its text (pkg/stt/stttest), its translations and the suggestions and fields are the fake model's answers (pkg/llm/llmtest). Every text is placeholder wording, labelled as such, not clinical content and not reviewed.",
+  "lines": [
+    {"speaker": "patient", "tone": 650, "lang": "de", "text": "Platzhalter: Ich habe seit drei Tagen Kopfschmerzen.", "translations": {"bs": "Primjer: Već tri dana me boli glava."}},
+    {"speaker": "patient", "tone": 700, "lang": "de", "text": "Platzhalter: Nur manchmal nehme ich eine Tablette.", "translations": {"bs": "Primjer: Samo ponekad popijem tabletu."}},
+    {"speaker": "patient", "tone": 1000, "lang": "de", "text": "Platzhalter: Mir ist auch ein wenig schwindelig.", "translations": {"bs": "Primjer: Malo mi se i vrti u glavi."}}
+  ],
+  "suggestions": [
+    {"after": "Platzhalter: Ich habe seit drei Tagen Kopfschmerzen.", "type": "question", "text": "Primjer prijedloga: pitati kada su tegobe počele.", "confidence": 0.8},
+    {"after": "Platzhalter: Mir ist auch ein wenig schwindelig.", "type": "term", "text": "Primjer prijedloga: objasniti pacijentu izraz vrtoglavica.", "confidence": 0.6}
+  ],
+  "fields": [
+    {"key": "complaint", "label": "Primjer: razlog dolaska", "required": true, "from": "Platzhalter: Ich habe seit drei Tagen Kopfschmerzen.", "value": "Primjer: glavobolja tri dana."},
+    {"key": "course", "label": "Primjer: tok tegoba", "from": "Platzhalter: Mir ist auch ein wenig schwindelig.", "value": "Primjer: povremena vrtoglavica."},
+    {"key": "plan", "label": "Primjer: plan"}
+  ]
+}

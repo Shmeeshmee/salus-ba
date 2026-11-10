@@ -104,12 +104,14 @@ func run(ctx context.Context, logOut io.Writer) error {
 	return nil
 }
 
-// newDrafter is the configured language model for drafting: the fake (keeping no calls, every field missing), or
+// newDrafter is the configured language model for drafting: the fake (keeping no calls, every field missing but
+// those make e2e's script fills when it has one), or
 // Anthropic's Claude API (not to be enabled before its DPA, docs/privacy/processors.md), whose client's timeout
 // leaves the drafting's own (composition.DraftTimeout) to bound a call.
 func newDrafter(model config.LLM) (llm.Drafter, error) {
 	if model.Engine != config.LLMAnthropic {
-		return &llmtest.Drafter{DiscardCalls: true}, nil
+		script, err := llmtest.LoadScriptDir(model.Script)
+		return &llmtest.Drafter{DiscardCalls: true, Script: script}, err
 	}
 	return anthropic.New(anthropic.Config{Key: model.AnthropicKey, Model: model.Model}, &http.Client{Timeout: composition.DraftTimeout + 5*time.Second})
 }

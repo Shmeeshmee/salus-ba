@@ -347,6 +347,7 @@ services:
       E2E_MAILPIT_URL: http://mailpit:8025
       E2E_SALUSCTL: /tmp/salusctl
       E2E_LIVEKIT_CHECK: /e2e/livekit-check.tsv
+      E2E_LATENCY_REPORT: /e2e/consult-latency.md # the consultation pipeline's latency, per run (make e2e-report)
       TEST_LIVEKIT_URL: http://livekit:7880
       E2E_REDIS_URL: redis://redis:6379/0 # the encounter's event stream the transcription agent writes (SAL-4)
       DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable # salusctl and startAt: the owner

@@ -5,7 +5,6 @@ package e2e_test
 import (
 	"fmt"
 	"net/http"
-	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -99,14 +98,6 @@ func join(t *testing.T, client *http.Client, c *api, path string) (time.Duration
 		return 0, fmt.Errorf("status %d", resp.StatusCode)
 	}
 	return took, nil
-}
-
-// pct is the p-th percentile of d (nearest rank), rounded to 10 µs.
-func pct(d []time.Duration, p int) time.Duration {
-	s := slices.Clone(d)
-	slices.Sort(s)
-	i := max(0, (len(s)*p+99)/100-1)
-	return s[i].Round(10 * time.Microsecond)
 }
 
 // soon moves the synthetic appointment id to start 5 minutes from now, for 30 minutes, as the owner

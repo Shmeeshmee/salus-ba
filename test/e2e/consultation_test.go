@@ -301,9 +301,16 @@ func newDocumentTemplate(t *testing.T, clinic *bookableClinic) string {
 
 func startPractitionerInBrowser(t *testing.T, clinic *bookableClinic, p *patient, appointmentID, livekitURL, template string) *browser {
 	t.Helper()
+	return startSpec(t, clinic, p, appointmentID, livekitURL, "consultation.spec.ts", "E2E_TEMPLATE_TITLE="+template)
+}
+
+// startSpec starts a practitioner's spec of test/e2e/web in Playwright with the sign-in and the call's variables,
+// and the extra ones (NAME=value).
+func startSpec(t *testing.T, clinic *bookableClinic, p *patient, appointmentID, livekitURL, spec string, extra ...string) *browser {
+	t.Helper()
 	b := &browser{done: make(chan struct{}), output: &bytes.Buffer{}, signal: filepath.Join(t.TempDir(), "end")}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	cmd := exec.CommandContext(ctx, "web/node_modules/.bin/playwright", "test", "--config", "web/playwright.config.ts", "consultation.spec.ts")
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	cmd := exec.CommandContext(ctx, "web/node_modules/.bin/playwright", "test", "--config", "web/playwright.config.ts", spec)
 	cmd.Env = append(os.Environ(),
 		"E2E_APPOINTMENT_ID="+appointmentID,
 		"E2E_PRACTITIONER_EMAIL="+clinic.practitionerAddr,
@@ -313,8 +320,8 @@ func startPractitionerInBrowser(t *testing.T, clinic *bookableClinic, p *patient
 		"E2E_PATIENT_NAME="+p.name,
 		"E2E_LIVEKIT_PUBLIC_URL="+livekitURL,
 		"E2E_END_SIGNAL="+b.signal,
-		"E2E_TEMPLATE_TITLE="+template,
 	)
+	cmd.Env = append(cmd.Env, extra...)
 	cmd.Stdout, cmd.Stderr = b.output, b.output
 	if err := cmd.Start(); err != nil {
 		cancel()

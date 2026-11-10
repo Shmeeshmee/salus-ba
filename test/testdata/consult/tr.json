@@ -1,0 +1,19 @@
+{
+  "about": "Synthetic fixture of the consultation pipeline's e2e journeys (SAL-10): a Turkish-speaking patient and a Bosnian-speaking practitioner. Written for the tests, spoken by no one: each line is a generated tone the fake speech engine maps to its text (pkg/stt/stttest), its translations and the suggestions and fields are the fake model's answers (pkg/llm/llmtest). Every text is placeholder wording, labelled as such, not clinical content and not reviewed.",
+  "lines": [
+    {"speaker": "practitioner", "tone": 2300, "lang": "bs", "text": "Primjer: Dobar dan, recite mi šta Vas muči.", "translations": {"tr": "Örnek: İyi günler, sizi neyin rahatsız ettiğini anlatın."}},
+    {"speaker": "patient", "tone": 650, "lang": "tr", "text": "Örnek: İki gündür boğazım ağrıyor.", "translations": {"bs": "Primjer: Već dva dana me boli grlo."}},
+    {"speaker": "practitioner", "tone": 2350, "lang": "bs", "text": "Primjer: Imate li temperaturu?", "translations": {"tr": "Örnek: Ateşiniz var mı?"}},
+    {"speaker": "patient", "tone": 700, "lang": "tr", "text": "Örnek: Dün akşam biraz ateşim vardı.", "translations": {"bs": "Primjer: Sinoć sam imao malo temperature."}},
+    {"speaker": "patient", "tone": 1000, "lang": "tr", "text": "Örnek: Yutkunurken zorlanıyorum.", "translations": {"bs": "Primjer: Teško mi je gutati."}}
+  ],
+  "suggestions": [
+    {"after": "Örnek: Dün akşam biraz ateşim vardı.", "type": "question", "text": "Primjer prijedloga: pitati kolika je bila temperatura.", "confidence": 0.7},
+    {"after": "Örnek: Yutkunurken zorlanıyorum.", "type": "term", "text": "Primjer prijedloga: objasniti pacijentu izraz otežano gutanje.", "confidence": 0.5}
+  ],
+  "fields": [
+    {"key": "complaint", "label": "Primjer: razlog dolaska", "required": true, "from": "Örnek: İki gündür boğazım ağrıyor.", "value": "Primjer: bol u grlu dva dana."},
+    {"key": "course", "label": "Primjer: tok tegoba", "from": "Örnek: Yutkunurken zorlanıyorum.", "value": "Primjer: otežano gutanje."},
+    {"key": "plan", "label": "Primjer: plan"}
+  ]
+}

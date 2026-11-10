@@ -71,3 +71,22 @@ labels), changed M35 and iOS M15/M16 ("not recorded as audio or video"; "if you 
 and translated"), web W42 and W43; ten mobile and five web languages, `legal` where it applies (PR #49 lists them).
 
 Copilot: one comment fixed (a stale consultation status could update the call screen after leaving).
+
+## SAL-10: end-to-end tests of the consult pipeline (PR #46, merged 2026-11-11)
+
+As built (agent decisions, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| Fixtures | Synthetic, spoken by no one: `test/testdata/consult/{de,ar,tr}.json`, a German, an Arabic and a Turkish patient with a Bosnian doctor, every text labelled as a placeholder (`Platzhalter:`, `مثال:`, `Örnek:`, `Primjer:`) and checked absent from LiveKit's log. No audio files: each scripted line is a pure tone on a 50 Hz grid (500–3500 Hz), sent by the speaker's LiveKit participant as G.711 and decoded by the agent as usual |
+| Test seam | `FAKE_ENGINE_SCRIPT` (internal/config), for the fake engines only (refused beside `azure` or `anthropic`): the fake recognizer (`stttest.Recognizer.Lines`) hears the tones and gives the line's partial and final in the stream's language; the fake model (`llmtest.Script`) gives the scripted translations, suggestions and draft fields. Set only by `deployments/docker-compose.e2e.yml` (api, worker, agent; fixtures mounted read-only) through `make e2e-up`; the compose default is the plain fakes. Everything between is the real pipeline |
+| Journeys | German patient with the practitioner in Chromium (captions, translated lines, suggestions with the AI note pinned and dismissed, Generate, the missing-field flag, edit, sign, end); Arabic patient, both sides in Go (both directions, `suggestion_status` over the WebSocket, the stored transcript, a draft with sources, signed with If-Match); Turkish patient withdrawing SAL-12's transcription consent mid-call (the agent leaves, the call goes on, drafting is refused 403 `transcription_consent_required`). Every journey gives the transcription consent first |
+| Latency | Caption: first tone frame to the partial on the practitioner's WebSocket; translation: last tone frame to the translated final; draft: Generate to the fields. A journey fails only when a hop's median is over the plan's budget (1 s, 2 s, 15 s). The report goes to `/e2e/consult-latency.md`, printed by `make e2e` (and `make e2e-report`), in CI's job summary and the `consult-latency` artifact. Local medians: caption 48–53 ms, translation 68–81 ms, draft 51–410 ms: with fakes that take no time, these are Salus's own pipeline only |
+| Login limit | Every Go sign-in of the suite clears the `ratelimit:*` counters first, as `make e2e` did before the run: the suite now signs in more often than the production limit of 30 per IP in 15 minutes from the one container. The limit is unchanged |
+
+Copilot: five comments fixed, two declined (reusing a test voice's frame buffer: about 50 small allocations a second
+in a test helper, and reuse would depend on `WriteSample` not keeping it; the fake stream's mutex held while `say`
+waits: `Recv` never takes it, and it keeps results in audio order). Copilot did not review the last pushes (the merge
+of main with SAL-12 and the journeys' consent step); the orchestrator reviewed those, and CI was green.
+
+No copy; no migration.
