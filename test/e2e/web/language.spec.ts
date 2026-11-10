@@ -5,7 +5,9 @@ import { signIn } from './signin'
 // makes the synthetic clinic and passes its admin in E2E_* variables (docs/i18n/SPEC.md §6, steps 1 to 3). A browser
 // in Serbian Cyrillic shows the sign-in screen in Serbian Cyrillic. The admin signs in from a browser in English and
 // picks Hrvatski; signed in again from another browser in English, the app is in Croatian; "Use the browser's
-// language" brings English back. The texts are the catalogs' (web/src/i18n).
+// language" brings English back. In Bosnian, the open invite's expiry (made by the Go test) is a Bosnian date, not
+// Chromium's "2026 M11 17" for a locale it has no data for (SAL-15); then English again. The texts are the catalogs'
+// (web/src/i18n).
 test('the web app follows the browser, then the language the user saves', async ({ browser }) => {
   const cyrillic = await open(browser, 'sr-Cyrl')
   await cyrillic.goto('/sign-in')
@@ -30,6 +32,15 @@ test('the web app follows the browser, then the language the user saves', async 
   await second.getByLabel('Jezik').selectOption('') // L3, "Koristi jezik preglednika"
   await expect(second.getByText('Language saved.')).toBeVisible()
   await expect(second.getByRole('link', { name: 'Questionnaires' })).toBeVisible()
+
+  await second.getByLabel('Language').selectOption('bs')
+  await expect(second.getByText('Jezik je sačuvan.')).toBeVisible()
+  await second.getByRole('link', { name: 'Ljekari' }).click()
+  const invite = second.getByRole('list', { name: 'Otvorene pozivnice' }).getByRole('listitem')
+  await expect(invite).toContainText(/Ističe \d{1,2}\. (jan|feb|mar|apr|maj|jun|jul|aug|sep|okt|nov|dec) \d{4}\. \d{2}:\d{2}$/)
+  await expect(invite).not.toContainText(/M\d{2}/)
+  await second.getByLabel('Jezik').selectOption('')
+  await expect(second.getByText('Language saved.')).toBeVisible()
 })
 
 // open is a page in a browser of its own (no storage shared with the others) whose language is locale.

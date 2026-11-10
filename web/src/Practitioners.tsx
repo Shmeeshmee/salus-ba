@@ -4,7 +4,7 @@ import type { Account, ApiClient } from './api/client'
 import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
-import { useT } from './i18n/useT'
+import { useFormat, useT } from './i18n/useT'
 import { useLoad } from './load'
 import { loadStaff, type Member } from './staff'
 import { Alert, Field, Notice, Submit } from './ui'
@@ -174,7 +174,7 @@ function Invites({ api }: { api: ApiClient }) {
 
 function InviteList({ invites }: { invites: Invite[] }) {
   const t = useT()
-  const intl = useIntl()
+  const f = useFormat()
   if (invites.length === 0) return <p className="muted">{t('admin.noInvites')}</p>
   return (
     <ul className="rows" aria-label={t('admin.openInvites')}>
@@ -182,13 +182,16 @@ function InviteList({ invites }: { invites: Invite[] }) {
         <li key={i.id}>
           <span className="stack">
             <span>{i.email}</span>
-            <span className="muted small">{inviteLine(t, i, intl.formatDate(new Date(i.expiresAt), { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' }))}</span>
+            <span className="muted small">{inviteLine(t, i, f.dateTime(new Date(i.expiresAt), browserZone))}</span>
           </span>
         </li>
       ))}
     </ul>
   )
 }
+
+// An invite's expiry is shown in the admin's own time zone, as the browser keeps it.
+const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
 function inviteLine(t: T, invite: Invite, date: string): string {
   if (invite.role === 'admin') return t('admin.inviteAdmin', { date })

@@ -1,6 +1,6 @@
 import type { AnswerValue, Bundle, Questionnaire, QuestionnaireResponse, QuestionnaireResponseItem } from './api/fhir'
 import { find, isChoice, isQuestion, type Condition, type Item, type Kind } from './builder'
-import { formatDate, formatTime, intlLocale } from './i18n/format'
+import { formatCalendarDate, formatDate, formatNumber, formatTime } from './i18n/format'
 import type { Language } from './i18n/languages'
 import type { useT } from './i18n/useT'
 import { fromFHIR, isContentLanguage, type ContentLanguage, type Translation, type Version } from './questionnaire'
@@ -82,12 +82,9 @@ export function answered(items: Item[], response: QuestionnaireResponseItem[] = 
 // zone), a number as written but with the language's decimal sign.
 export function valueText(v: AnswerValue, t: T, language: Language): string {
   if (v.valueBoolean !== undefined) return t(v.valueBoolean ? 'questionnaire.yes' : 'questionnaire.no')
-  const locale = intlLocale(language)
-  if (v.valueDate !== undefined) {
-    return new Intl.DateTimeFormat(locale, { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${v.valueDate}T00:00:00Z`))
-  }
+  if (v.valueDate !== undefined) return formatCalendarDate(v.valueDate, language)
   const n = v.valueInteger ?? v.valueDecimal
-  if (n !== undefined) return new Intl.NumberFormat(locale, { maximumFractionDigits: 20, useGrouping: false }).format(n)
+  if (n !== undefined) return formatNumber(n, language, { maximumFractionDigits: 20, useGrouping: false })
   return v.valueString ?? ''
 }
 

@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import { useIntl } from 'react-intl'
-import { formatDate, formatNumber, formatTime } from './format'
+import { formatCalendarDate, formatDate, formatDateTime, formatNumber, formatTime } from './format'
 import type { Language } from './languages'
 
 export type LanguageContext = {
@@ -29,6 +29,8 @@ export function useFormat() {
   return {
     time: (instant: Date, zone: string) => formatTime(instant, zone, language),
     date: (instant: Date, zone: string, style: 'long' | 'short') => formatDate(instant, zone, language, style),
+    calendarDate: (date: string) => formatCalendarDate(date, language),
+    dateTime: (instant: Date, zone: string) => formatDateTime(instant, zone, language),
     number: (n: number) => formatNumber(n, language),
   }
 }
