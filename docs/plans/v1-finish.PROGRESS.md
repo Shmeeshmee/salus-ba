@@ -90,3 +90,26 @@ waits: `Recv` never takes it, and it keeps results in audio order). Copilot did 
 of main with SAL-12 and the journeys' consent step); the orchestrator reviewed those, and CI was green.
 
 No copy; no migration.
+
+## SAL-13: plain-language explanations of medical terms (PR #50, merged 2026-11-11)
+
+As built (agent decisions, for the owner to review; the explanations wait for the doctor partner's review in SAL-14's
+panel):
+
+| Topic | Decision |
+| --- | --- |
+| Drafts | `assets/terminology/explanations.draft.jsonl`: 216 terms in all ten app languages (2,160 texts), drafted by Claude (the English, then translated under one brief: Bosnian and Croatian standards, Serbian ijekavian in both scripts), marked as drafts in `assets/terminology/README.md`. The 300 most common terms by rank, minus 85 that need no explanation or don't belong in a tooltip (everyday body parts, chemical elements and lab chemicals, social events, feelings, suicide, abortion, recreational drugs), plus the tonsil (the ticket's example). `salusctl terminology import-explanations` (also in `make terminology-import`) writes them through SAL-14's service as `unreviewed`, no reviewer, never over an existing explanation; not audited, like the curator's CSV. No model is called at runtime; no processor |
+| Tagging | `terminology.Service.Tag`, the glossary's matching with word positions (the glossary unchanged), in the text's own language, only terms with an explanation; UTF-16 spans, never stored. Server-side only, at reads that already exist and under their rule: the agent tags each final line and its translation (`TranscriptEvent.terms`); the stored transcript is tagged as it is read (Serbian's script detected from the letters); signed documents through `GET /compositions/{id}/terms` (the Composition's rule and AuditEvent). No endpoint takes text from a client |
+| Explanations | `GET /terminology/explanations?language=` for any signed-in account: the viewer's language, else English; an explanation that needs changes is never shown. The whole list per language, so the terms found in a patient's text never leave the server |
+| Web | A dotted underline and a tooltip on hover and focus in the transcript and the signed document; in captions the terms are explained in the caption's own tooltip (the caption is clipped to two lines); "Informational, not a diagnosis" (`legal`) and "Not reviewed yet" until approved. Editable draft fields get no overlay; a signed document is never changed |
+| Mobile | Tap-to-explain in SAL-17's `DocumentScreen` and the transcript copy (its translations too); plain text when the terms can't be loaded. No device e2e in this repo: a widget tap test and an e2e API journey of the two calls the app makes |
+
+Copy waiting for approval: web `terminology.explainNote` (five languages, `legal`); mobile `termExplanationNote`
+(`legal`), `termNotReviewed`, `termClose` (ten languages); and the 2,160 explanations (the doctor partner, in the panel).
+
+For the curator (seed labels the translators flagged): tr "Hepatit c" as a label of jaundice; tr "Kabartma tozu"
+(baking powder) for sodium bicarbonate; hr "ugljikov oksid" (reads as carbon monoxide) for carbon dioxide; sr "grudna
+žlezda" for the thymus.
+
+Copilot did not review this PR (it ran on none of its pushes, requested four times); the orchestrator reviewed the
+tagging paths (access, audit, nothing of the text logged), and CI was green.
