@@ -41,8 +41,8 @@ type Generate struct {
 // replaces its fields as its next version), audited, and pushed on the encounter's stream. The access is
 // checked again after the model's answer, so a revocation meanwhile stores nothing.
 //
-// ErrNotFound, ErrForbidden, ErrConsentRequired, ErrTemplateNotFound and ErrLanguageUnavailable are refusals,
-// audited; ErrDraftingUnavailable when the model fails or takes longer than DraftTimeout.
+// It needs the patient's transcription consent too (SAL-12). ErrNotFound, ErrForbidden, ErrConsentRequired,
+// ErrTranscriptionConsentRequired, ErrTemplateNotFound and ErrLanguageUnavailable are refusals, audited; ErrDraftingUnavailable when the model fails or takes longer than DraftTimeout.
 func (s *Service) Generate(ctx context.Context, c appointment.Caller, encounterID string, in Generate) (Draft, error) {
 	d, segments, err := s.prepare(ctx, c, encounterID, in)
 	if err != nil {
@@ -56,7 +56,7 @@ func (s *Service) Generate(ctx context.Context, c appointment.Caller, encounterI
 	var refused error
 	err = s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		e := entry{c: c, interaction: auditevent.CodeCreate}
-		enc, err := s.allowed(ctx, c, encounterID, false)
+		enc, err := s.allowedDrafting(ctx, c, encounterID)
 		if refused = refusal(err); refused != nil {
 			e.reference, e.outcome = encounterRef(enc.ID), auditevent.OutcomeMinorFailure
 			return s.record(ctx, e)
@@ -89,7 +89,7 @@ func (s *Service) prepare(ctx context.Context, c appointment.Caller, encounterID
 	var segments []utterance
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		enc, err := s.allowed(ctx, c, encounterID, false)
+		enc, err := s.allowedDrafting(ctx, c, encounterID)
 		if refused = refusal(err); refused == nil && err == nil {
 			refused, err = s.drafted(ctx, &d, enc, in)
 		}

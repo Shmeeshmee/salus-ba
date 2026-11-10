@@ -56,6 +56,7 @@ part 'model/command_error.dart';
 part 'model/command_error_message.dart';
 part 'model/confirm_request.dart';
 part 'model/consent.dart';
+part 'model/consent_kind.dart';
 part 'model/consent_list.dart';
 part 'model/consult_command.dart';
 part 'model/consult_frame.dart';

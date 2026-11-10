@@ -232,6 +232,8 @@ class ApiClient {
           return ConfirmRequest.fromJson(value);
         case 'Consent':
           return Consent.fromJson(value);
+        case 'ConsentKind':
+          return ConsentKindTypeTransformer().decode(value);
         case 'ConsentList':
           return ConsentList.fromJson(value);
         case 'ConsultCommand':

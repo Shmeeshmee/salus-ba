@@ -363,6 +363,24 @@ func TestConsultationRecord_OverEveryRoleConsentAppointmentAndClinic(t *testing.
 	}
 }
 
+func TestTranscribed_OnlyWhileTheCareAndTheTranscriptionConsentAreActive(t *testing.T) {
+	revoked := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name string
+		c    access.Consent
+		want bool
+	}{
+		{"both active", access.Consent{Active: true, Transcription: true}, true},
+		{"care only", access.Consent{Active: true}, false},
+		{"transcription only", access.Consent{Transcription: true, RevokedAt: revoked}, false},
+		{"neither", access.Consent{}, false},
+	} {
+		if got := access.Transcribed(tc.c); got != tc.want {
+			t.Errorf("%s: Transcribed = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
 // SignedDocument: a signed document of appointment a's consultation (the final Composition, its DocumentReference
 // and its PDF) is its practitioner's under ConsultationRecord's rule, and the patient's own, whatever the consent:
 // their own record (GDPR Art. 15), also after a revocation. A draft is never the patient's.

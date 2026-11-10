@@ -43,6 +43,7 @@ func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIs
 	appt := p.bookFirstTime(clinic)
 	startAt(t, appt.ID, 5*time.Minute)
 	recordSynthetic(t, clinic, p, appt.ID)
+	p.giveTranscriptionConsent(clinic) // the app's notice before the call (SAL-12): the agent may join
 
 	template := newDocumentTemplate(t, clinic)
 	term := newExplainedTerm(t, spokenTerm)
@@ -73,6 +74,7 @@ func TestConsultation_ARevocationDuringTheCallRemovesThePatient(t *testing.T) {
 	appt := p.bookFirstTime(clinic)
 	startAt(t, appt.ID, -time.Minute)
 	recordSynthetic(t, clinic, p, appt.ID)
+	p.giveTranscriptionConsent(clinic) // the app's notice before the call (SAL-12): the agent may join
 
 	patient := connect(t, p.api, appt.ID, true)
 	recordInLiveKitLog(t, "room", patient.room.Name())
@@ -89,9 +91,7 @@ func TestConsultation_ARevocationDuringTheCallRemovesThePatient(t *testing.T) {
 		return got["patient partial"] && got["patient final"]
 	})
 
-	var consents struct{ Consents []struct{ ID string } }
-	p.must(http.StatusOK, http.MethodGet, "/me/consents", nil, &consents)
-	p.must(http.StatusOK, http.MethodPost, "/consents/"+consents.Consents[0].ID+"/revoke", nil, nil)
+	p.must(http.StatusOK, http.MethodPost, "/consents/"+p.activeConsent("care", clinic)+"/revoke", nil, nil)
 
 	if reason := patient.waitGone(t); reason != livekit.DisconnectReason_PARTICIPANT_REMOVED {
 		t.Errorf("the patient was disconnected with %v, want PARTICIPANT_REMOVED", reason)

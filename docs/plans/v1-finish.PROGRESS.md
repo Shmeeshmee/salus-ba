@@ -47,3 +47,27 @@ Copilot: two comments, both fixed (a page token that is no UUID is now a 400; th
 
 Noted: `internal/terminology/repository_postgres.go` is about 404 lines and `web/src/terminology/Review.tsx` 568,
 over CLAUDE.md's "about 400" (archcheck lets only `repository_postgres.go` import the sqlc package).
+
+## SAL-12: the transcription consent (PR #49, merged 2026-11-10)
+
+As built (agent decisions, for the owner to review; the copy waits for the owner, the doctor partner and the
+lawyer's Q16):
+
+| Topic | Decision |
+| --- | --- |
+| Consent | A second FHIR Consent per patient and clinic (`consent.KindTranscription`) in its own table `transcription_consent` (00040; reserved as 00038, renumbered at merge), the shape, row-level security and grants of `consent`; owner `consent`, retention `keep`. Its own table because 14 policies read `consent` as the care consent, which a transcription consent must never open. JSON: `kind` (`care`, the default, or `transcription`) on `POST /consents` and every Consent; `/me/consents` lists both. Codes as the care consent's (`patient-privacy`, `OPTIN`, `TREAT`, the clinic as `IRCP`) plus category `v3-ActCode#ICOL` and `provision.action` `consentaction#collect` and `#use` |
+| Rule | `access.Transcribed`: both consents active. Revoking the care consent also revokes the transcription consent with that clinic (same transaction, audited), so it is asked again after care is given again |
+| The agent | `transcription_join` is enqueued only when both are active; `AgentJoin` and `AgentAdmitted` (also the check once connected) refuse with `ErrConsentRequired`. A withdrawal enqueues `transcription_consent_revoked`, whose job removes only the agent from the patient's open rooms with the clinic (`videosession.EndAgentAccess`); the call goes on |
+| What else needs it | Storing the transcript, the suggestions (record and worker) and drafting (`403 transcription_consent_required`) need the transcription consent too: they process the transcript. Reading the transcript or the stream, signing and reading documents stay on the care consent: they are the care record |
+| Mobile | The notice before the device check while the consultation's status has no `transcription`: "Agree and continue" gives it, "Continue without transcription" asks for nothing. A decline is not stored: asked before every call while none is active. The "Transcription is on" badge withdraws it after a confirmation; My consents shows each kind with its own withdraw dialog. Android M35 and the iOS camera and microphone purposes changed. No "turn it back on" in the call: the next call's notice asks again. A clinic no longer in the directory gives the app no clinic to grant to: its call starts without the notice and without the agent |
+| Web | Patients never use it; the practitioner sees "Transcription is off…" while the agent is absent for want of the consent, and a refused draft says why |
+| Docs | docs/plans/consult-intelligence.md ("Gates", SAL-4 "When the agent joins"), docs/legal/BRIEF.md Q16, docs/privacy/dpia.md, docs/consultation/SPEC.md and COPY.md (M37–M48, W42, W43), docs/attachments/COPY.md (M15, M16), docs/booking/SPEC.md, docs/i18n/TRANSLATIONS.md |
+
+Merged with SAL-17 at merge time: `composition`'s access check takes SAL-17's `signed` (a patient reads signed
+documents) and SAL-12's transcription consent for drafting.
+
+Copy waiting for approval: mobile M37–M48 (the notice, agree and decline, the withdraw dialog and message, the kind
+labels), changed M35 and iOS M15/M16 ("not recorded as audio or video"; "if you agree, what is said is transcribed
+and translated"), web W42 and W43; ten mobile and five web languages, `legal` where it applies (PR #49 lists them).
+
+Copilot: one comment fixed (a stale consultation status could update the call screen after leaving).

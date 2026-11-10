@@ -112,9 +112,15 @@ func termReviewRules() []Rule {
 }
 
 // consultIntelligenceRules are the rules of the consultation's transcript, suggestions and drafts
-// (docs/plans/consult-intelligence.md): all kept with the clinical record, like the encounter.
+// (docs/plans/consult-intelligence.md), and of the patient's consent to them (SAL-12): all kept with the clinical
+// record, like the encounter and the care consent.
 func consultIntelligenceRules() []Rule {
 	return []Rule{
+		{
+			Table: "transcription_consent",
+			Basis: "Proof of the patient's decision on transcription, translation and AI assistance in their consultations (GDPR Art. 7(1)), kept with the clinical record like consent (Art. 9(2)(h)); needs a legal decision before production (docs/plans/v1-finish.md, SAL-12)",
+			Then:  ThenKeep,
+		},
 		{
 			Table: "transcript_segment",
 			Basis: "The record of what was said in the consultation, with its translation (GDPR Art. 9(2)(h), with the consent for sharing before care); kept with the clinical record like the encounter, needs a legal decision before production (docs/plans/consult-intelligence.md, \"Personal data\")",

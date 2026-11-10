@@ -6,37 +6,47 @@ import 'package:salus_api/api.dart' as api;
 import 'booking.dart';
 import 'call.dart';
 import 'device_check.dart';
+import 'fhir.dart';
 import 'messages.dart';
 import 'session.dart';
+import 'transcription_notice.dart';
 import 'ui.dart' as ui;
 
-enum _Phase { check, joining, call, reconnecting, lost, ended }
+enum _Phase { asking, notice, check, joining, call, reconnecting, lost, ended }
 
 const _nobody = Peer(present: false, camera: false, microphone: false);
 const _ink = Color(0xFF0E1512);
 const _mint = Color(0xFF34D399); // the web app's --color-mint: the transcription badge's dot
 
-/// The patient's video consultation (docs/consultation/SPEC.md "Client states"): the device check, joining,
+/// The patient's video consultation (docs/consultation/SPEC.md "Client states"): the transcription notice while the
+/// patient's transcription consent with the clinic is not active (SAL-12: agree, or go on without the agent), the
+/// device check, joining,
 /// waiting for the practitioner, the call, reconnecting, and the end. The token comes from our API on every join
 /// and rejoin; the server decides whether one is issued. Why the patient's connection ended comes from LiveKit's
 /// reason with the consultation's status: removed from the room or the room deleted, the status's reason says
 /// whether the consent was withdrawn or the appointment cancelled, and how it ended. The join endpoint is never
 /// asked why. Events of a room this screen has left are ignored (the generation), so a late event of an old
-/// connection changes nothing.
+/// connection changes nothing. While the agent is in the room, its badge withdraws the transcription consent.
 class CallScreen extends StatefulWidget {
-  const CallScreen({super.key, required this.booking, required this.media, required this.appointmentId});
+  const CallScreen({super.key, required this.booking, required this.media, required this.appointmentId, this.clinic});
 
   final Booking booking;
   final Media media;
   final String appointmentId;
+
+  /// The appointment's clinic, whose transcription consent the notice asks for; null for a clinic no longer
+  /// listed, whose call goes on without asking (and so without the agent).
+  final Organization? clinic;
 
   @override
   State<CallScreen> createState() => _CallScreenState();
 }
 
 class _CallScreenState extends State<CallScreen> {
-  var _phase = _Phase.check;
+  var _phase = _Phase.asking;
+  var _agreeing = false;
   String? _error;
+  String? _transcriptionNote;
   ({String? title, String line})? _end;
   Room? _room;
   var _peer = _nobody;
@@ -57,7 +67,90 @@ class _CallScreenState extends State<CallScreen> {
     super.dispose();
   }
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.clinic == null) {
+      _phase = _Phase.check;
+    } else {
+      _ask();
+    }
+  }
+
   bool _current(int generation) => mounted && generation == _generation;
+
+  /// The notice, unless the consultation may be transcribed already (the status says so). A status that cannot be
+  /// read asks: the answer is the patient's either way.
+  Future<void> _ask() async {
+    bool transcribed;
+    try {
+      transcribed = (await widget.booking.consultation(widget.appointmentId)).transcription ?? false;
+    } on ApiFailure {
+      transcribed = false;
+    }
+    if (mounted) setState(() => _phase = transcribed ? _Phase.check : _Phase.notice);
+  }
+
+  /// Gives the transcription consent with the clinic (one given already counts), then the device check.
+  Future<void> _agree() async {
+    setState(() {
+      _agreeing = true;
+      _error = null;
+    });
+    try {
+      await widget.booking.grantTranscription(widget.clinic!.id);
+    } on ApiFailure catch (failure) {
+      if (failure.code != 'consent_active') {
+        if (mounted) {
+          setState(() {
+            _agreeing = false;
+            _error = bookingMessage(context.t, failure);
+          });
+        }
+        return;
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _agreeing = false;
+        _phase = _Phase.check;
+      });
+    }
+  }
+
+  /// The badge's withdrawal: after the confirmation, the active transcription consent with the clinic is revoked;
+  /// the agent leaves (the server removes it) and the call goes on.
+  Future<void> _stopTranscription() async {
+    final clinic = widget.clinic;
+    if (clinic == null) return;
+    final t = context.t;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t.stopTranscriptionTitle),
+        content: Text(t.stopTranscriptionBody(clinic.name)),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(t.keepTranscription)),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: Text(t.stopTranscription)),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    String note;
+    try {
+      for (final c in await widget.booking.consents()) {
+        if (c.kind == api.ConsentKind.transcription &&
+            c.status == api.ConsentStatusEnum.active &&
+            c.organizationId == clinic.id) {
+          await widget.booking.revoke(c.id);
+        }
+      }
+      note = t.transcriptionStopped;
+    } on ApiFailure catch (failure) {
+      note = bookingMessage(t, failure);
+    }
+    if (mounted) setState(() => _transcriptionNote = note);
+  }
 
   void _join(Settings settings, bool cameraUsable) {
     setState(() {
@@ -227,6 +320,19 @@ class _CallScreenState extends State<CallScreen> {
   @override
   Widget build(BuildContext context) {
     switch (_phase) {
+      case _Phase.asking:
+        return const ui.Page(title: null, children: [ui.Loading()]);
+      case _Phase.notice:
+        return TranscriptionNotice(
+          clinicName: widget.clinic?.name ?? '',
+          busy: _agreeing,
+          error: _error,
+          onAgree: _agree,
+          onDecline: () => setState(() {
+            _error = null;
+            _phase = _Phase.check;
+          }),
+        );
       case _Phase.check || _Phase.joining:
         return DeviceCheck(media: widget.media, busy: _phase == _Phase.joining, error: _error, onJoin: _join);
       case _Phase.lost:
@@ -263,6 +369,7 @@ class _CallScreenState extends State<CallScreen> {
               Expanded(child: _stage(context)),
               const SizedBox(height: 12),
               if (_reconnected) Center(child: ui.Message(context.t.reconnected)),
+              if (_transcriptionNote != null) Center(child: ui.Message(_transcriptionNote!)),
               _controls(),
             ],
           ),
@@ -308,11 +415,20 @@ class _CallScreenState extends State<CallScreen> {
             if (_peer.present && !_peer.microphone && name.isNotEmpty)
               PositionedDirectional(start: 12, top: 12, child: _badge(context.t.peerMuted(name))),
             // While the transcription agent is in the room, a badge says so (SPEC.md "Changed for SAL-3").
+            // Tapped, it withdraws the transcription consent (SAL-12).
             if (room != null && _agent)
               PositionedDirectional(
                 end: 12,
                 top: 12,
-                child: Semantics(liveRegion: true, child: _transcriptionBadge(context.t.transcriptionOn)),
+                child: Semantics(
+                  liveRegion: true,
+                  button: true,
+                  hint: context.t.stopTranscription,
+                  child: GestureDetector(
+                    onTap: _stopTranscription,
+                    child: _transcriptionBadge(context.t.transcriptionOn),
+                  ),
+                ),
               ),
             if (room != null && _settings.camera)
               PositionedDirectional(

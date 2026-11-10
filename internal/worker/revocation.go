@@ -35,6 +35,18 @@ func (w *revocationWorker) Work(ctx context.Context, job *river.Job[consent.Revo
 	return w.sessions.EndPatientAccess(ctx, job.Args.PatientID, job.Args.OrganizationID)
 }
 
+// transcriptionRevocationWorker takes the transcription agent out of a patient's consultations with a clinic
+// after they withdrew the transcription consent there (transcription_consent_revoked, enqueued in the
+// withdrawal's transaction, SAL-12); the call goes on. It logs nothing about the patient.
+type transcriptionRevocationWorker struct {
+	river.WorkerDefaults[consent.TranscriptionRevokedArgs]
+	sessions *videosession.Service
+}
+
+func (w *transcriptionRevocationWorker) Work(ctx context.Context, job *river.Job[consent.TranscriptionRevokedArgs]) error {
+	return w.sessions.EndAgentAccess(ctx, job.Args.PatientID, job.Args.OrganizationID)
+}
+
 // newRevocations builds the appointment service on pool (salus_app) at clk for CancelForRevokedConsent: the
 // consent's state, the slots to free and the cancellation e-mails to enqueue on jobs (an insert-only client).
 func newRevocations(pool *pgxpool.Pool, jobs *river.Client[pgx.Tx], clk clock.Clock) *appointment.Service {

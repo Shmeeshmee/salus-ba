@@ -55,7 +55,7 @@ type joinJSON struct {
 	Role     Role   `json:"role"`
 }
 
-// statusJSON is the ConsultationStatus schema: the times and the reason only when set.
+// statusJSON is the ConsultationStatus schema: the times, the reason and transcription only when set.
 type statusJSON struct {
 	State                State     `json:"state"`
 	PatientJoinedAt      string    `json:"patientJoinedAt,omitempty"`
@@ -63,6 +63,7 @@ type statusJSON struct {
 	EndedAt              string    `json:"endedAt,omitempty"`
 	EndReason            EndReason `json:"endReason,omitempty"`
 	Reason               Reason    `json:"reason,omitempty"`
+	Transcription        bool      `json:"transcription,omitempty"`
 }
 
 // instant is t in UTC as RFC 3339, empty for the zero time.
@@ -76,7 +77,7 @@ func instant(t time.Time) string {
 func toStatusJSON(s Status) statusJSON {
 	return statusJSON{
 		State: s.State, PatientJoinedAt: instant(s.PatientJoinedAt), PractitionerJoinedAt: instant(s.PractitionerJoinedAt),
-		EndedAt: instant(s.EndedAt), EndReason: s.EndReason, Reason: s.Reason,
+		EndedAt: instant(s.EndedAt), EndReason: s.EndReason, Reason: s.Reason, Transcription: s.Transcription,
 	}
 }
 

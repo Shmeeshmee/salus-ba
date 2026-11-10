@@ -242,3 +242,25 @@ func TestRecordConsultationOutcome_FailsWithTheBackend(t *testing.T) {
 		t.Errorf("RecordConsultationOutcome() = %v, want the repository's error", err)
 	}
 }
+
+// The transcription consent's state comes with the care consent's (SAL-12), for the consultation's status and the
+// drafting: active only while both are.
+func TestAttendance_GivesWhetherTheConsultationMayBeTranscribed(t *testing.T) {
+	for _, tc := range []struct {
+		state access.Consent
+		want  bool
+	}{
+		{access.Consent{Active: true, Transcription: true}, true},
+		{access.Consent{Active: true}, false},
+		{access.Consent{Transcription: true, RevokedAt: revokedAt}, false},
+	} {
+		for _, c := range []appointment.Caller{me, pract} {
+			f := cancelFixture(revokedAt.Add(-time.Hour))
+			f.consents.state[patientA+clinicA] = tc.state
+			got, err := f.svc.Attendance(t.Context(), c, apptA)
+			if err != nil || got.TranscriptionConsent != tc.want {
+				t.Errorf("as %s with %+v: Attendance() = %+v, %v; want TranscriptionConsent %v", c.AccountID, tc.state, got, err, tc.want)
+			}
+		}
+	}
+}

@@ -90,6 +90,37 @@ func (s *Service) EndPatientAccess(ctx context.Context, patientID, org string) e
 	return nil
 }
 
+// EndAgentAccess is the transcription_consent_revoked job's part in the consultation (SAL-12): after the patient
+// withdrew their transcription consent with the clinic org, the transcription agent may not stay. In the
+// patient's scope it reads their sessions there whose room may still be open (the hard cap not passed) and asks
+// LiveKit to remove the agent from each, outside any transaction; the patient and the practitioner stay and the
+// call goes on. The agent's own check (AgentAdmitted) refuses it from the withdrawal's commit, so one that was
+// connecting leaves too. Nothing is audited: the agent is not a person. A failure in one room does not keep the
+// agent in another; repeated, it asks LiveKit again.
+func (s *Service) EndAgentAccess(ctx context.Context, patientID, org string) error {
+	now := s.Clock.Now()
+	var sessions []Session
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.Repo.SetPatient(ctx, patientID); err != nil {
+			return err
+		}
+		var err error
+		sessions, err = s.Repo.ClosingAfter(ctx, org, now.Add(closesAfter-hardCapAfter))
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("videosession: end agent access: %w", err)
+	}
+	var errs []error
+	for _, session := range sessions {
+		errs = append(errs, s.Provider.RemoveParticipant(ctx, session.Room, session.agentIdentity()))
+	}
+	if err := errors.Join(errs...); err != nil {
+		return fmt.Errorf("videosession: end agent access: %w", err)
+	}
+	return nil
+}
+
 // isCancelled reports whether the appointment is cancelled, read in the transaction's scope.
 func (s *Service) isCancelled(ctx context.Context, appointmentID string) (bool, error) {
 	a, err := s.Appointments.Lookup(ctx, appointmentID)

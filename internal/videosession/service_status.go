@@ -19,12 +19,13 @@ const agentEnd = "consultation_end"
 // access.Appointment lets them see the appointment (the name level or more), read in their own scope. The
 // practitioner who was in the room reads it by the room rule too, when a revocation hid the appointment from
 // the clinic (attended). Audited as a read of the appointment; ErrNotFound to anyone else, audited without the
-// entity.
+// entity. Transcription comes from the appointment's access facts; false by the room rule, which a revocation
+// leaves.
 func (s *Service) Status(ctx context.Context, c appointment.Caller, appointmentID string) (Status, error) {
 	var out Status
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		_, err := s.Appointments.Attendance(ctx, c, appointmentID)
+		att, err := s.Appointments.Attendance(ctx, c, appointmentID)
 		switch {
 		case errors.Is(err, appointment.ErrNotFound):
 			session, ok, err := s.attended(ctx, c, appointmentID)
@@ -42,6 +43,7 @@ func (s *Service) Status(ctx context.Context, c appointment.Caller, appointmentI
 			if out, err = s.ownStatus(ctx, c, appointmentID); err != nil {
 				return err
 			}
+			out.Transcription = att.TranscriptionConsent
 		}
 		return s.record(ctx, c, auditevent.CodeRead, "Appointment/"+appointmentID, auditevent.OutcomeSuccess)
 	})

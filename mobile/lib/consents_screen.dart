@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:salus_api/api.dart' show Consent, ConsentStatusEnum;
+import 'package:salus_api/api.dart' show Consent, ConsentKind, ConsentStatusEnum;
 
 import 'booking.dart';
 import 'fhir.dart';
@@ -11,8 +11,9 @@ import 'zones.dart';
 
 typedef _Consents = ({List<Consent> all, Map<String, Organization> clinics});
 
-/// The patient's consents, each revocable while active; revoking cancels the future appointments with that clinic
-/// (docs/booking/SPEC.md "Revocation").
+/// The patient's consents, of both kinds, each revocable while active: revoking the care consent cancels the future
+/// appointments with that clinic (docs/booking/SPEC.md "Revocation"); withdrawing the transcription consent stops
+/// the transcription, translation and AI assistance there and changes nothing else (SAL-12).
 class ConsentsScreen extends StatefulWidget {
   const ConsentsScreen({super.key, required this.booking});
 
@@ -34,14 +35,22 @@ class _ConsentsScreenState extends LoadingState<ConsentsScreen, _Consents> {
   }
 
   Future<void> _revoke(Consent consent, String clinic) async {
+    final t = context.t;
+    final transcription = consent.kind == ConsentKind.transcription;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(context.t.revokeTitle),
-        content: Text(context.t.revokeBody(clinic)),
+        title: Text(transcription ? t.stopTranscriptionTitle : t.revokeTitle),
+        content: Text(transcription ? t.stopTranscriptionBody(clinic) : t.revokeBody(clinic)),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(context.t.keepConsent)),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: Text(context.t.revokeConsent)),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(transcription ? t.keepTranscription : t.keepConsent),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(transcription ? t.stopTranscription : t.revokeConsent),
+          ),
         ],
       ),
     );
@@ -53,7 +62,7 @@ class _ConsentsScreenState extends LoadingState<ConsentsScreen, _Consents> {
     try {
       await widget.booking.revoke(consent.id);
       if (!mounted) return;
-      setState(() => _message = context.t.consentRevoked);
+      setState(() => _message = transcription ? context.t.transcriptionStopped : context.t.consentRevoked);
       await reload();
     } on ApiFailure catch (failure) {
       if (mounted) setState(() => _error = bookingMessage(context.t, failure));
@@ -88,6 +97,7 @@ class _ConsentsScreenState extends LoadingState<ConsentsScreen, _Consents> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ui.Heading(name),
+            Text(consent.kind == ConsentKind.transcription ? t.consentForTranscription : t.consentForCare),
             Text(t.givenOn(zone.date(consent.dateTime, t.localeName))),
             Text(active || revokedAt == null ? t.consentActive : t.revokedOn(zone.date(revokedAt, t.localeName))),
             if (active) ...[

@@ -16,9 +16,9 @@ class ConsentsApi {
 
   final ApiClient apiClient;
 
-  /// Consent to share the profile and appointments with a clinic
+  /// Consent to share the profile and appointments with a clinic, or to transcription
   ///
-  /// The signed-in patient consents to share their profile and appointments with the clinic for care (FHIR Consent, docs/booking/SPEC.md \"Consent shape\"). At most one consent per clinic is active; granting again after a revocation creates a new consent, so the history is kept. Needs a profile. Patients only. Not cached. Audited, also when refused.
+  /// The signed-in patient consents, for `care` (the default), to share their profile and appointments with the clinic (FHIR Consent, docs/booking/SPEC.md \"Consent shape\"); for `transcription`, to the transcription and translation of their consultations with the clinic, with AI assistance for the practitioner (SAL-12): the transcription agent joins a call only while both are active. At most one consent of each kind per clinic is active; granting again after a revocation creates a new consent, so the history is kept. Needs a profile. Patients only. Not cached. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -61,9 +61,9 @@ class ConsentsApi {
     );
   }
 
-  /// Consent to share the profile and appointments with a clinic
+  /// Consent to share the profile and appointments with a clinic, or to transcription
   ///
-  /// The signed-in patient consents to share their profile and appointments with the clinic for care (FHIR Consent, docs/booking/SPEC.md \"Consent shape\"). At most one consent per clinic is active; granting again after a revocation creates a new consent, so the history is kept. Needs a profile. Patients only. Not cached. Audited, also when refused.
+  /// The signed-in patient consents, for `care` (the default), to share their profile and appointments with the clinic (FHIR Consent, docs/booking/SPEC.md \"Consent shape\"); for `transcription`, to the transcription and translation of their consultations with the clinic, with AI assistance for the practitioner (SAL-12): the transcription agent joins a call only while both are active. At most one consent of each kind per clinic is active; granting again after a revocation creates a new consent, so the history is kept. Needs a profile. Patients only. Not cached. Audited, also when refused.
   ///
   /// Parameters:
   ///
@@ -99,7 +99,7 @@ class ConsentsApi {
 
   /// The signed-in patient's consents
   ///
-  /// Every consent of the signed-in patient, active and revoked, the latest granted first; none before the profile exists. Patients only. Not cached. Audited.
+  /// Every consent of the signed-in patient, of both kinds, active and revoked, the latest granted first; none before the profile exists. Patients only. Not cached. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   Future<Response> listMyConsentsWithHttpInfo({
@@ -131,7 +131,7 @@ class ConsentsApi {
 
   /// The signed-in patient's consents
   ///
-  /// Every consent of the signed-in patient, active and revoked, the latest granted first; none before the profile exists. Patients only. Not cached. Audited.
+  /// Every consent of the signed-in patient, of both kinds, active and revoked, the latest granted first; none before the profile exists. Patients only. Not cached. Audited.
   Future<ConsentList?> listMyConsents({
     Future<void>? abortTrigger,
   }) async {
@@ -156,7 +156,7 @@ class ConsentsApi {
 
   /// Revoke a consent
   ///
-  /// The signed-in patient revokes their active consent. The clinic's access to the profile and to every future appointment ends at once; past appointments stay, as the clinic's records, with the name, times and status only. Patients only. Not cached. Audited, also when refused.
+  /// The signed-in patient revokes their active consent. A care consent: the clinic's access to the profile and to every future appointment ends at once; past appointments stay, as the clinic's records, with the name, times and status only; the transcription consent with the clinic ends with it. A transcription consent: the transcription agent leaves the patient's calls with the clinic at once and joins none, the calls go on, nothing else changes. Patients only. Not cached. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -201,7 +201,7 @@ class ConsentsApi {
 
   /// Revoke a consent
   ///
-  /// The signed-in patient revokes their active consent. The clinic's access to the profile and to every future appointment ends at once; past appointments stay, as the clinic's records, with the name, times and status only. Patients only. Not cached. Audited, also when refused.
+  /// The signed-in patient revokes their active consent. A care consent: the clinic's access to the profile and to every future appointment ends at once; past appointments stay, as the clinic's records, with the name, times and status only; the transcription consent with the clinic ends with it. A transcription consent: the transcription agent leaves the patient's calls with the clinic at once and joins none, the calls go on, nothing else changes. Patients only. Not cached. Audited, also when refused.
   ///
   /// Parameters:
   ///

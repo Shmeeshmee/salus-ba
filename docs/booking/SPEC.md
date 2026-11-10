@@ -112,6 +112,18 @@ Decisions taken in this plan (reopen only with the owner):
   and how to revoke: the clinic then no longer sees the profile, keeps the name and the details of
   appointments that have already taken place as its care records, and future appointments are cancelled. The
   revoke dialog says the same (owner, 2026-11-05).
+- **The transcription consent (SAL-12).** A second kind of consent in the same domain, for the transcription and
+  translation of the patient's consultations with the clinic and AI assistance for the practitioner
+  (docs/plans/v1-finish.md "Decisions"; docs/consultation/SPEC.md "Changed for SAL-12"). Table
+  `transcription_consent`, the same columns, index, row-level security and grants as `consent` (a table of its own
+  so the care policies on `patient`, `appointment` and the rest never read it). FHIR R4: as above, with a second
+  `category` `v3-ActCode` `ICOL` (information collection) and `provision.action` `consentaction` `collect` and
+  `use`. JSON: `kind` (`care`, the default, or `transcription`) on `POST /consents` and on every `Consent`;
+  `GET /me/consents` lists both kinds, `POST /consents/{id}/revoke` revokes either. A transcription consent's
+  withdrawal enqueues `transcription_consent_revoked` (the agent leaves the patient's calls with the clinic, the
+  calls go on); a care consent's revocation also ends the transcription consent with the clinic, audited, so it
+  is asked again after the care consent is granted again. `consent.Service.State` gives `access.Consent` with
+  `Transcription`, and `access.Transcribed` is the rule: both active.
 - **Revocation (changed on approval).** `consent.Service.Revoke` sets `inactive` and `revoked_at`, audits,
   and enqueues `consent_revoked` (arguments: the patient id and the clinic id) with `InsertTx`, all in one
   transaction. Access is gone when that transaction commits: RLS and `access` read the consent's state, not

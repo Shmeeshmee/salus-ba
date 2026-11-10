@@ -25,23 +25,19 @@ class AppLocalizationsHr extends AppLocalizations {
   String get somethingWrong => 'Nešto nije u redu. Pokušajte ponovno.';
 
   @override
-  String get unreachable =>
-      'Salus trenutačno nije dostupan. Provjerite internetsku vezu i pokušajte ponovno.';
+  String get unreachable => 'Salus trenutačno nije dostupan. Provjerite internetsku vezu i pokušajte ponovno.';
 
   @override
   String get wrongCredentials => 'Adresa e-pošte ili lozinka nisu točni.';
 
   @override
-  String get wrongCode =>
-      'Kod nije točan. Provjerite vrijeme na uređaju i pokušajte ponovno.';
+  String get wrongCode => 'Kod nije točan. Provjerite vrijeme na uređaju i pokušajte ponovno.';
 
   @override
-  String get challengeEnded =>
-      'Prijava je istekla. Ponovno unesite adresu e-pošte i lozinku.';
+  String get challengeEnded => 'Prijava je istekla. Ponovno unesite adresu e-pošte i lozinku.';
 
   @override
-  String get emailTaken =>
-      'Za ovu adresu e-pošte već postoji račun. Prijavite se.';
+  String get emailTaken => 'Za ovu adresu e-pošte već postoji račun. Prijavite se.';
 
   @override
   String get invalidEmail => 'Unesite ispravnu adresu e-pošte.';
@@ -56,20 +52,16 @@ class AppLocalizationsHr extends AppLocalizations {
   String get invalidCode => 'Kod ima 6 znamenki.';
 
   @override
-  String get staffOnly =>
-      'Ova je aplikacija namijenjena pacijentima. Osoblje klinike koristi Salus web-aplikaciju.';
+  String get staffOnly => 'Ova je aplikacija namijenjena pacijentima. Osoblje klinike koristi Salus web-aplikaciju.';
 
   @override
-  String get accountReady =>
-      'Vaš je račun spreman. Prijavite se kako biste nastavili.';
+  String get accountReady => 'Vaš je račun spreman. Prijavite se kako biste nastavili.';
 
   @override
-  String get signOutFailed =>
-      'Odjava nije uspjela. Provjerite internetsku vezu i pokušajte ponovno.';
+  String get signOutFailed => 'Odjava nije uspjela. Provjerite internetsku vezu i pokušajte ponovno.';
 
   @override
-  String get tooManyAttemptsLater =>
-      'Previše pokušaja. Pokušajte ponovno kasnije.';
+  String get tooManyAttemptsLater => 'Previše pokušaja. Pokušajte ponovno kasnije.';
 
   @override
   String tooManyAttempts(int minutes) {
@@ -99,8 +91,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get createAnAccount => 'Izradite račun';
 
   @override
-  String get codePrompt =>
-      'Unesite šesteroznamenkasti kod iz aplikacije za autentifikaciju.';
+  String get codePrompt => 'Unesite šesteroznamenkasti kod iz aplikacije za autentifikaciju.';
 
   @override
   String get code => 'Kod';
@@ -126,8 +117,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get completeProfile => 'Dopunite profil';
 
   @override
-  String get completeProfileFirst =>
-      'Dopunite profil prije rezervacije termina.';
+  String get completeProfileFirst => 'Dopunite profil prije rezervacije termina.';
 
   @override
   String get bookAppointment => 'Rezerviraj termin';
@@ -187,8 +177,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get birthDateFormat => 'Unesite datum rođenja u obliku GGGG-MM-DD.';
 
   @override
-  String get birthDateRange =>
-      'Unesite datum rođenja u prošlosti, ne raniji od 1900. godine.';
+  String get birthDateRange => 'Unesite datum rođenja u prošlosti, ne raniji od 1900. godine.';
 
   @override
   String invalidPhone(String example) {
@@ -196,8 +185,7 @@ class AppLocalizationsHr extends AppLocalizations {
   }
 
   @override
-  String get profileChanged =>
-      'Vaš je profil u međuvremenu promijenjen. Provjerite ga i ponovno spremite.';
+  String get profileChanged => 'Vaš je profil u međuvremenu promijenjen. Provjerite ga i ponovno spremite.';
 
   @override
   String get chooseClinic => 'Odaberite kliniku';
@@ -243,12 +231,10 @@ class AppLocalizationsHr extends AppLocalizations {
   }
 
   @override
-  String get slotTaken =>
-      'Ovaj termin više nije slobodan. Odaberite drugi termin.';
+  String get slotTaken => 'Ovaj termin više nije slobodan. Odaberite drugi termin.';
 
   @override
-  String get consentNeeded =>
-      'Za rezervaciju termina u ovoj klinici potrebna je vaša privola.';
+  String get consentNeeded => 'Za rezervaciju termina u ovoj klinici potrebna je vaša privola.';
 
   @override
   String get appointmentBooked => 'Vaš je termin rezerviran.';
@@ -295,8 +281,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get appointmentCancelled => 'Vaš je termin otkazan.';
 
   @override
-  String get cancelWindowHint =>
-      'Termin možete otkazati u aplikaciji najkasnije 24 sata prije početka.';
+  String get cancelWindowHint => 'Termin možete otkazati u aplikaciji najkasnije 24 sata prije početka.';
 
   @override
   String get cancelWindowClosed =>
@@ -334,8 +319,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get whatFor => 'U koju svrhu';
 
   @override
-  String get whatForBody =>
-      'Isključivo za vaše liječenje u ovoj klinici: za pripremu i održavanje vaših termina.';
+  String get whatForBody => 'Isključivo za vaše liječenje u ovoj klinici: za pripremu i održavanje vaših termina.';
 
   @override
   String get whoIsResponsible => 'Tko je odgovoran';
@@ -349,8 +333,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get readPrivacyNotice => 'Pročitajte obavijest o privatnosti';
 
   @override
-  String get privacyNoticeFailed =>
-      'Obavijest o privatnosti nije moguće otvoriti.';
+  String get privacyNoticeFailed => 'Obavijest o privatnosti nije moguće otvoriti.';
 
   @override
   String get howToRevoke => 'Kako povući privolu';
@@ -380,8 +363,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get noConsents => 'Još niste dali nijednu privolu.';
 
   @override
-  String get consentsIntro =>
-      'S ovim klinikama dijelite svoj profil i termine radi svojeg liječenja.';
+  String get consentsIntro => 'S ovim klinikama dijelite svoj profil i termine radi svojeg liječenja.';
 
   @override
   String givenOn(String date) {
@@ -416,8 +398,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get checkIntro => 'Liječnik će vas vidjeti i čuti kada se pridružite.';
 
   @override
-  String get noSound =>
-      'Zvuk se ne čuje. Provjerite je li mikrofon uključen i nije li utišan.';
+  String get noSound => 'Zvuk se ne čuje. Provjerite je li mikrofon uključen i nije li utišan.';
 
   @override
   String get joinCameraOff => 'Pridruži se s isključenom kamerom';
@@ -502,8 +483,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get closeScreen => 'Možete zatvoriti ovaj zaslon.';
 
   @override
-  String get timeLimit =>
-      'Vrijeme predviđeno za konzultaciju je isteklo i konzultacija je završena.';
+  String get timeLimit => 'Vrijeme predviđeno za konzultaciju je isteklo i konzultacija je završena.';
 
   @override
   String get practitionerAbsent => 'Liječnik se nije pridružio';
@@ -513,37 +493,87 @@ class AppLocalizationsHr extends AppLocalizations {
       'Vrijeme za pridruživanje ovoj konzultaciji je isteklo. Klinika vidi da ste se pridružili. Klinika vas može kontaktirati, a možete i rezervirati novi termin.';
 
   @override
-  String get withdrewConsent =>
-      'Povukli ste privolu za ovu kliniku pa ste izašli iz konzultacije.';
+  String get withdrewConsent => 'Povukli ste privolu za ovu kliniku pa ste izašli iz konzultacije.';
 
   @override
-  String get appointmentWasCancelled =>
-      'Ovaj je termin otkazan pa je konzultacija završena.';
+  String get appointmentWasCancelled => 'Ovaj je termin otkazan pa je konzultacija završena.';
 
   @override
-  String get windowNotOpen =>
-      'Ova se konzultacija otvara 10 minuta prije početka.';
+  String get windowNotOpen => 'Ova se konzultacija otvara 10 minuta prije početka.';
 
   @override
   String get consultationEnded => 'Ova je konzultacija završena.';
 
   @override
-  String get joinNeedsConsent =>
-      'Za pridruživanje je potrebna vaša privola za ovu kliniku.';
+  String get joinNeedsConsent => 'Za pridruživanje je potrebna vaša privola za ovu kliniku.';
 
   @override
   String get consultationNotAvailable => 'Ova konzultacija nije dostupna.';
 
   @override
-  String get cannotConnect =>
-      'Videovezu nije bilo moguće pokrenuti. Provjerite internetsku vezu i pokušajte ponovno.';
+  String get cannotConnect => 'Videovezu nije bilo moguće pokrenuti. Provjerite internetsku vezu i pokušajte ponovno.';
 
   @override
   String get whyCameraAndMicrophone =>
-      'Da biste se pridružili videokonzultaciji, Salus treba pristup vašoj kameri i mikrofonu. Konzultacija se ne snima.';
+      'Da biste se pridružili videokonzultaciji, Salus treba pristup vašoj kameri i mikrofonu. Konzultacija se ne snima ni kao zvuk ni kao video. Ako pristanete, ono što se izgovori transkribira se i prevodi.';
 
   @override
   String get transcriptionOn => 'Transkripcija je uključena';
+
+  @override
+  String get transcriptionTitle => 'Transkripcija i prijevod';
+
+  @override
+  String transcriptionIntro(String clinic) {
+    return 'U vašim videokonzultacijama s klinikom $clinic ono što vi i liječnik kažete može se transkribirati dok govorite i prevesti, kako bi vas liječnik mogao pratiti na vašem jeziku.';
+  }
+
+  @override
+  String get transcriptionAssistance =>
+      'Na temelju transkripta liječnik dobiva i pomoć umjetne inteligencije (AI): prijedloge tijekom konzultacije i nacrte dokumenata. To su samo prijedlozi; liječnik ih provjerava i donosi svaku odluku.';
+
+  @override
+  String transcriptionKept(String clinic) {
+    return 'Transkript se čuva uz vašu medicinsku dokumentaciju u klinici $clinic. Konzultacija se ne snima ni kao zvuk ni kao video.';
+  }
+
+  @override
+  String get transcriptionDecline =>
+      'Ako ne pristanete, konzultacija se odvija kao i obično, bez transkripcije, prijevoda i pomoći umjetne inteligencije.';
+
+  @override
+  String get transcriptionWithdraw =>
+      'Privolu možete povući u bilo kojem trenutku, i tijekom konzultacije: dodirnite „Transkripcija je uključena” ili otvorite Moje privole. Transkripcija prestaje odmah; ono što je dotad transkribirano ostaje u vašoj dokumentaciji.';
+
+  @override
+  String get transcriptionAgree => 'Prihvati i nastavi';
+
+  @override
+  String get transcriptionWithout => 'Nastavi bez transkripcije';
+
+  @override
+  String get stopTranscriptionTitle => 'Zaustaviti transkripciju?';
+
+  @override
+  String stopTranscriptionBody(String clinic) {
+    return 'Transkripcija, prijevod i pomoć umjetne inteligencije odmah prestaju u vašim konzultacijama s klinikom $clinic. Konzultacija koja je u tijeku nastavlja se bez njih, a vaši termini ostaju nepromijenjeni. Ono što je dosad transkribirano ostaje u vašoj dokumentaciji.';
+  }
+
+  @override
+  String get keepTranscription => 'Zadrži transkripciju';
+
+  @override
+  String get stopTranscription => 'Zaustavi transkripciju';
+
+  @override
+  String get transcriptionStopped =>
+      'Transkripcija je isključena. Vaše konzultacije s ovom klinikom odvijaju se bez nje.';
+
+  @override
+  String get consentForCare => 'Dijeljenje radi liječenja';
+
+  @override
+  String get consentForTranscription => 'Transkripcija i pomoć umjetne inteligencije';
 
   @override
   String get toFillIn => 'Za ispunjavanje';
@@ -567,12 +597,10 @@ class AppLocalizationsHr extends AppLocalizations {
   String get viewAnswers => 'Pogledaj odgovore';
 
   @override
-  String get submitBeforeStart =>
-      'Molimo vas da ga pošaljete prije početka termina.';
+  String get submitBeforeStart => 'Molimo vas da ga pošaljete prije početka termina.';
 
   @override
-  String get questionnaireClosed =>
-      'Termin je počeo pa ovaj upitnik više nije moguće ispuniti.';
+  String get questionnaireClosed => 'Termin je počeo pa ovaj upitnik više nije moguće ispuniti.';
 
   @override
   String savedAsYouGo(String clinic) {
@@ -586,8 +614,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get saving => 'Spremanje…';
 
   @override
-  String get notSaved =>
-      'Nije spremljeno. Provjerite internetsku vezu. Aplikacija će pokušati ponovno.';
+  String get notSaved => 'Nije spremljeno. Provjerite internetsku vezu. Aplikacija će pokušati ponovno.';
 
   @override
   String get requiredQuestion => 'Obvezno';
@@ -674,30 +701,25 @@ class AppLocalizationsHr extends AppLocalizations {
   String get notAnswered => 'Bez odgovora';
 
   @override
-  String get leaveUnsaved =>
-      'Vaš posljednji odgovor još nije spremljen. Želite li ipak izaći?';
+  String get leaveUnsaved => 'Vaš posljednji odgovor još nije spremljen. Želite li ipak izaći?';
 
   @override
   String get stay => 'Ostani';
 
   @override
-  String get fillingNeedsConsent =>
-      'Za ispunjavanje ovog upitnika potrebna je vaša privola za ovu kliniku.';
+  String get fillingNeedsConsent => 'Za ispunjavanje ovog upitnika potrebna je vaša privola za ovu kliniku.';
 
   @override
-  String get pastDue =>
-      'Termin je počeo pa ovaj upitnik više nije moguće mijenjati.';
+  String get pastDue => 'Termin je počeo pa ovaj upitnik više nije moguće mijenjati.';
 
   @override
-  String get withdrawnByClinic =>
-      'Klinika je povukla ovaj upitnik. Ne morate ga ispunjavati.';
+  String get withdrawnByClinic => 'Klinika je povukla ovaj upitnik. Ne morate ga ispunjavati.';
 
   @override
   String get alreadySubmitted => 'Već ste poslali ovaj upitnik.';
 
   @override
-  String get changedElsewhere =>
-      'Ovi su odgovori promijenjeni na drugom uređaju. Prikazani su najnoviji odgovori.';
+  String get changedElsewhere => 'Ovi su odgovori promijenjeni na drugom uređaju. Prikazani su najnoviji odgovori.';
 
   @override
   String get questionnaireNotAvailable => 'Ovaj upitnik nije dostupan.';
@@ -774,8 +796,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get removeFileBody => 'Bit će izbrisana iz vaših odgovora.';
 
   @override
-  String get fileRejected =>
-      'Ova datoteka nije prošla sigurnosnu provjeru i izbrisana je. Odaberite drugu datoteku.';
+  String get fileRejected => 'Ova datoteka nije prošla sigurnosnu provjeru i izbrisana je. Odaberite drugu datoteku.';
 
   @override
   String fileTooLarge(int max) {
@@ -783,8 +804,7 @@ class AppLocalizationsHr extends AppLocalizations {
   }
 
   @override
-  String get fileTypeRefused =>
-      'Ovu vrstu datoteke nije moguće dodati uz ovo pitanje.';
+  String get fileTypeRefused => 'Ovu vrstu datoteke nije moguće dodati uz ovo pitanje.';
 
   @override
   String tooManyFiles(int n) {
@@ -803,20 +823,16 @@ class AppLocalizationsHr extends AppLocalizations {
       'Datoteke u ovom upitniku ukupno su dosegnule 500 MB. Uklonite neku datoteku kako biste dodali novu.';
 
   @override
-  String get fileNotUploaded =>
-      'Datoteku nije bilo moguće prenijeti. Pokušajte ponovno.';
+  String get fileNotUploaded => 'Datoteku nije bilo moguće prenijeti. Pokušajte ponovno.';
 
   @override
-  String get cannotPrepareFile =>
-      'Ovu datoteku nije bilo moguće pripremiti za prijenos. Odaberite drugu datoteku.';
+  String get cannotPrepareFile => 'Ovu datoteku nije bilo moguće pripremiti za prijenos. Odaberite drugu datoteku.';
 
   @override
-  String get filesBeingChecked =>
-      'Neke se datoteke još provjeravaju. Upitnik možete poslati kada budu spremne.';
+  String get filesBeingChecked => 'Neke se datoteke još provjeravaju. Upitnik možete poslati kada budu spremne.';
 
   @override
-  String get leaveUploading =>
-      'Datoteka se još prenosi. Želite li ipak izaći? Prijenos će se prekinuti.';
+  String get leaveUploading => 'Datoteka se još prenosi. Želite li ipak izaći? Prijenos će se prekinuti.';
 
   @override
   String fileCount(int n) {
@@ -879,8 +895,7 @@ class AppLocalizationsHr extends AppLocalizations {
       'Salus nema pristup vašoj kameri. Pristup možete dopustiti u postavkama uređaja ili umjesto toga odabrati datoteku.';
 
   @override
-  String get photosDenied =>
-      'Salus nema pristup vašim fotografijama. Pristup možete dopustiti u postavkama uređaja.';
+  String get photosDenied => 'Salus nema pristup vašim fotografijama. Pristup možete dopustiti u postavkama uređaja.';
 
   @override
   String cameraPhotoTitle(String date, String time) {
@@ -944,8 +959,7 @@ class AppLocalizationsHr extends AppLocalizations {
   }
 
   @override
-  String get languageUnavailable =>
-      'Ovaj jezik više nije dostupan za ovaj upitnik. Odaberite drugi.';
+  String get languageUnavailable => 'Ovaj jezik više nije dostupan za ovaj upitnik. Odaberite drugi.';
 
   @override
   String specialtyAtClinic(String specialty, String clinic) {
@@ -980,8 +994,7 @@ class AppLocalizationsHr extends AppLocalizations {
       'Konzultacija onako kako je automatski transkribirana i prevedena. Može sadržavati pogreške.';
 
   @override
-  String get transcriptEmpty =>
-      'U ovoj konzultaciji ništa nije transkribirano.';
+  String get transcriptEmpty => 'U ovoj konzultaciji ništa nije transkribirano.';
 
   @override
   String get speakerYou => 'Vi';

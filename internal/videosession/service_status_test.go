@@ -30,8 +30,8 @@ func TestStatus_GivesTheParticipantsAndTheAdminTheConsultationsState(t *testing.
 	practitionerJoined, patientJoined := start.Add(time.Minute), start.Add(2*time.Minute)
 	for _, tt := range []struct {
 		fixture func() *fixture
-		want    videosession.Status
 		name    string
+		want    videosession.Status
 	}{
 		{name: "no session yet", fixture: func() *fixture { return newFixture(now) }, want: videosession.Status{State: videosession.StateNotStarted}},
 		{name: "open, nobody joined", fixture: func() *fixture { return opened(now, time.Time{}, time.Time{}) }, want: videosession.Status{State: videosession.StateOpen}},
@@ -67,6 +67,26 @@ func TestStatus_GivesTheParticipantsAndTheAdminTheConsultationsState(t *testing.
 			if len(f.provider.listed)+len(f.provider.rooms)+len(f.repo.opened) != 0 {
 				t.Errorf("%s: asked LiveKit %v %v, opened %v; want a read of our own record only", tt.name, f.provider.listed, f.provider.rooms, f.repo.opened)
 			}
+		}
+	}
+}
+
+// The status says whether the consultation may be transcribed (SAL-12): the practitioner's call shows why the
+// agent is not in it, the patient's whether to ask before joining.
+func TestStatus_SaysWhetherTheConsultationMayBeTranscribed(t *testing.T) {
+	for _, transcribed := range []bool{true, false} {
+		for _, c := range []appointment.Caller{me, pract} {
+			f := opened(now, start, start)
+			f.change(func(a *appointment.Attendance) { a.TranscriptionConsent = transcribed })
+			got, err := f.svc.Status(t.Context(), c, apptA)
+			if err != nil || got.Transcription != transcribed || got.State != videosession.StateOpen {
+				t.Errorf("Status() by %s = %+v, %v; want it open with Transcription %v", c.AccountID, got, err, transcribed)
+			}
+		}
+		f := newFixture(now)
+		f.change(func(a *appointment.Attendance) { a.TranscriptionConsent = transcribed })
+		if got, err := f.svc.Status(t.Context(), me, apptA); err != nil || got.Transcription != transcribed || got.State != videosession.StateNotStarted {
+			t.Errorf("Status() before any session = %+v, %v; want not started with Transcription %v", got, err, transcribed)
 		}
 	}
 }

@@ -25,23 +25,19 @@ class AppLocalizationsIt extends AppLocalizations {
   String get somethingWrong => 'Si è verificato un errore. Riprovi.';
 
   @override
-  String get unreachable =>
-      'Impossibile raggiungere Salus. Controlli la connessione e riprovi.';
+  String get unreachable => 'Impossibile raggiungere Salus. Controlli la connessione e riprovi.';
 
   @override
   String get wrongCredentials => 'L\'e-mail o la password non sono corrette.';
 
   @override
-  String get wrongCode =>
-      'Il codice non è corretto. Controlli l\'ora del dispositivo e riprovi.';
+  String get wrongCode => 'Il codice non è corretto. Controlli l\'ora del dispositivo e riprovi.';
 
   @override
-  String get challengeEnded =>
-      'L\'accesso è scaduto. Inserisca di nuovo e-mail e password.';
+  String get challengeEnded => 'L\'accesso è scaduto. Inserisca di nuovo e-mail e password.';
 
   @override
-  String get emailTaken =>
-      'Esiste già un account con questa e-mail. Effettui l\'accesso.';
+  String get emailTaken => 'Esiste già un account con questa e-mail. Effettui l\'accesso.';
 
   @override
   String get invalidEmail => 'Inserisca un indirizzo e-mail valido.';
@@ -56,15 +52,13 @@ class AppLocalizationsIt extends AppLocalizations {
   String get invalidCode => 'Il codice è composto da 6 cifre.';
 
   @override
-  String get staffOnly =>
-      'Questa app è riservata ai pazienti. Il personale della clinica usa l\'app web di Salus.';
+  String get staffOnly => 'Questa app è riservata ai pazienti. Il personale della clinica usa l\'app web di Salus.';
 
   @override
   String get accountReady => 'Il Suo account è pronto. Acceda per continuare.';
 
   @override
-  String get signOutFailed =>
-      'Impossibile uscire. Controlli la connessione e riprovi.';
+  String get signOutFailed => 'Impossibile uscire. Controlli la connessione e riprovi.';
 
   @override
   String get tooManyAttemptsLater => 'Troppi tentativi. Riprovi più tardi.';
@@ -96,8 +90,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get createAnAccount => 'Crea un account';
 
   @override
-  String get codePrompt =>
-      'Inserisca il codice a 6 cifre generato dall\'app di autenticazione.';
+  String get codePrompt => 'Inserisca il codice a 6 cifre generato dall\'app di autenticazione.';
 
   @override
   String get code => 'Codice';
@@ -123,8 +116,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get completeProfile => 'Completa il profilo';
 
   @override
-  String get completeProfileFirst =>
-      'Completi il Suo profilo prima di prenotare.';
+  String get completeProfileFirst => 'Completi il Suo profilo prima di prenotare.';
 
   @override
   String get bookAppointment => 'Prenota un appuntamento';
@@ -175,20 +167,16 @@ class AppLocalizationsIt extends AppLocalizations {
   String get invalidGivenName => 'Inserisca il nome, al massimo 100 caratteri.';
 
   @override
-  String get invalidFamilyName =>
-      'Inserisca il cognome, al massimo 100 caratteri.';
+  String get invalidFamilyName => 'Inserisca il cognome, al massimo 100 caratteri.';
 
   @override
-  String get invalidName =>
-      'Inserisca nome e cognome, al massimo 100 caratteri ciascuno.';
+  String get invalidName => 'Inserisca nome e cognome, al massimo 100 caratteri ciascuno.';
 
   @override
-  String get birthDateFormat =>
-      'Inserisca la data di nascita nel formato AAAA-MM-GG.';
+  String get birthDateFormat => 'Inserisca la data di nascita nel formato AAAA-MM-GG.';
 
   @override
-  String get birthDateRange =>
-      'Inserisca una data di nascita passata, non anteriore al 1900.';
+  String get birthDateRange => 'Inserisca una data di nascita passata, non anteriore al 1900.';
 
   @override
   String invalidPhone(String example) {
@@ -196,8 +184,7 @@ class AppLocalizationsIt extends AppLocalizations {
   }
 
   @override
-  String get profileChanged =>
-      'Il Suo profilo è stato modificato nel frattempo. Lo controlli e salvi di nuovo.';
+  String get profileChanged => 'Il Suo profilo è stato modificato nel frattempo. Lo controlli e salvi di nuovo.';
 
   @override
   String get chooseClinic => 'Scegli una clinica';
@@ -206,8 +193,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get noClinics => 'Non ci sono ancora cliniche disponibili.';
 
   @override
-  String get noPractitioners =>
-      'Per questa clinica non sono ancora elencati medici.';
+  String get noPractitioners => 'Per questa clinica non sono ancora elencati medici.';
 
   @override
   String get choosePractitioner => 'Scelga un medico.';
@@ -247,8 +233,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get slotTaken => 'Questo orario non è più libero. Ne scelga un altro.';
 
   @override
-  String get consentNeeded =>
-      'Per prenotare presso questa clinica è necessario il Suo consenso.';
+  String get consentNeeded => 'Per prenotare presso questa clinica è necessario il Suo consenso.';
 
   @override
   String get appointmentBooked => 'L\'appuntamento è stato prenotato.';
@@ -295,8 +280,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get appointmentCancelled => 'L\'appuntamento è stato annullato.';
 
   @override
-  String get cancelWindowHint =>
-      'Annullabile nell\'app fino a 24 ore prima dell\'inizio.';
+  String get cancelWindowHint => 'Annullabile nell\'app fino a 24 ore prima dell\'inizio.';
 
   @override
   String get cancelWindowClosed =>
@@ -334,8 +318,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get whatFor => 'A quale scopo';
 
   @override
-  String get whatForBody =>
-      'Solo per le Sue cure presso questa clinica: per preparare e svolgere i Suoi appuntamenti.';
+  String get whatForBody => 'Solo per le Sue cure presso questa clinica: per preparare e svolgere i Suoi appuntamenti.';
 
   @override
   String get whoIsResponsible => 'Chi è responsabile';
@@ -349,8 +332,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get readPrivacyNotice => 'Leggi l\'informativa sulla privacy';
 
   @override
-  String get privacyNoticeFailed =>
-      'Impossibile aprire l\'informativa sulla privacy.';
+  String get privacyNoticeFailed => 'Impossibile aprire l\'informativa sulla privacy.';
 
   @override
   String get howToRevoke => 'Come revocare';
@@ -380,8 +362,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get noConsents => 'Non ha ancora dato alcun consenso.';
 
   @override
-  String get consentsIntro =>
-      'Condivide il Suo profilo e i Suoi appuntamenti con queste cliniche per le Sue cure.';
+  String get consentsIntro => 'Condivide il Suo profilo e i Suoi appuntamenti con queste cliniche per le Sue cure.';
 
   @override
   String givenOn(String date) {
@@ -416,8 +397,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get checkIntro => 'Quando entra, il medico potrà vederLa e sentirLa.';
 
   @override
-  String get noSound =>
-      'Nessun suono rilevato. Controlli che il microfono sia acceso e non disattivato.';
+  String get noSound => 'Nessun suono rilevato. Controlli che il microfono sia acceso e non disattivato.';
 
   @override
   String get joinCameraOff => 'Partecipa con la fotocamera spenta';
@@ -502,8 +482,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get closeScreen => 'Può chiudere questa schermata.';
 
   @override
-  String get timeLimit =>
-      'La visita ha raggiunto il limite di tempo ed è terminata.';
+  String get timeLimit => 'La visita ha raggiunto il limite di tempo ed è terminata.';
 
   @override
   String get practitionerAbsent => 'Il medico non si è collegato';
@@ -517,33 +496,84 @@ class AppLocalizationsIt extends AppLocalizations {
       'Ha revocato il consenso per questa clinica, quindi la Sua partecipazione alla visita è terminata.';
 
   @override
-  String get appointmentWasCancelled =>
-      'Questo appuntamento è stato annullato, quindi la visita è terminata.';
+  String get appointmentWasCancelled => 'Questo appuntamento è stato annullato, quindi la visita è terminata.';
 
   @override
-  String get windowNotOpen =>
-      'Questa visita è accessibile da 10 minuti prima dell\'inizio.';
+  String get windowNotOpen => 'Questa visita è accessibile da 10 minuti prima dell\'inizio.';
 
   @override
   String get consultationEnded => 'Questa visita è terminata.';
 
   @override
-  String get joinNeedsConsent =>
-      'Per partecipare è necessario il Suo consenso per questa clinica.';
+  String get joinNeedsConsent => 'Per partecipare è necessario il Suo consenso per questa clinica.';
 
   @override
   String get consultationNotAvailable => 'Questa visita non è disponibile.';
 
   @override
-  String get cannotConnect =>
-      'Impossibile avviare la connessione video. Controlli la connessione e riprovi.';
+  String get cannotConnect => 'Impossibile avviare la connessione video. Controlli la connessione e riprovi.';
 
   @override
   String get whyCameraAndMicrophone =>
-      'Per partecipare alla videovisita, Salus ha bisogno di accedere alla fotocamera e al microfono. La visita non viene registrata.';
+      'Per partecipare alla videovisita, Salus ha bisogno di accedere alla fotocamera e al microfono. La visita non viene registrata né in audio né in video. Se acconsente, ciò che viene detto viene trascritto e tradotto.';
 
   @override
   String get transcriptionOn => 'Trascrizione attiva';
+
+  @override
+  String get transcriptionTitle => 'Trascrizione e traduzione';
+
+  @override
+  String transcriptionIntro(String clinic) {
+    return 'Nelle Sue videovisite con $clinic, ciò che Lei e il medico dite può essere trascritto mentre parlate e tradotto, così il medico può seguirLa nella Sua lingua.';
+  }
+
+  @override
+  String get transcriptionAssistance =>
+      'Dalla trascrizione il medico riceve anche un supporto dell\'intelligenza artificiale: suggerimenti durante la visita e bozze di documenti. Sono solo suggerimenti; il medico li verifica e prende ogni decisione.';
+
+  @override
+  String transcriptionKept(String clinic) {
+    return 'La trascrizione viene conservata con la Sua documentazione sanitaria presso $clinic. La visita non viene registrata né in audio né in video.';
+  }
+
+  @override
+  String get transcriptionDecline =>
+      'Se non acconsente, la visita si svolge come di consueto, senza trascrizione, traduzione né supporto dell\'intelligenza artificiale.';
+
+  @override
+  String get transcriptionWithdraw =>
+      'Può revocare il consenso in qualsiasi momento, anche durante la visita: tocchi «Trascrizione attiva» oppure apra I miei consensi. La trascrizione si interrompe subito; ciò che è stato trascritto fino a quel momento resta nella Sua documentazione.';
+
+  @override
+  String get transcriptionAgree => 'Acconsenti e continua';
+
+  @override
+  String get transcriptionWithout => 'Continua senza trascrizione';
+
+  @override
+  String get stopTranscriptionTitle => 'Interrompere la trascrizione?';
+
+  @override
+  String stopTranscriptionBody(String clinic) {
+    return 'Trascrizione, traduzione e supporto dell\'intelligenza artificiale si interrompono subito nelle Sue visite con $clinic. Una visita in corso prosegue senza di essi e i Suoi appuntamenti restano invariati. Ciò che è stato trascritto finora resta nella Sua documentazione.';
+  }
+
+  @override
+  String get keepTranscription => 'Mantieni la trascrizione';
+
+  @override
+  String get stopTranscription => 'Interrompi la trascrizione';
+
+  @override
+  String get transcriptionStopped =>
+      'La trascrizione è disattivata. Le Sue visite con questa clinica si svolgono senza.';
+
+  @override
+  String get consentForCare => 'Condivisione per le cure';
+
+  @override
+  String get consentForTranscription => 'Trascrizione e supporto dell\'intelligenza artificiale';
 
   @override
   String get toFillIn => 'Da compilare';
@@ -567,8 +597,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get viewAnswers => 'Vedi le risposte';
 
   @override
-  String get submitBeforeStart =>
-      'Lo invii prima dell\'inizio dell\'appuntamento.';
+  String get submitBeforeStart => 'Lo invii prima dell\'inizio dell\'appuntamento.';
 
   @override
   String get questionnaireClosed =>
@@ -586,8 +615,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get saving => 'Salvataggio…';
 
   @override
-  String get notSaved =>
-      'Non salvato. Controlli la connessione. Il salvataggio verrà ritentato.';
+  String get notSaved => 'Non salvato. Controlli la connessione. Il salvataggio verrà ritentato.';
 
   @override
   String get requiredQuestion => 'Obbligatoria';
@@ -648,8 +676,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get cancel => 'Annulla';
 
   @override
-  String get requiredMissing =>
-      'Alcune domande obbligatorie non hanno risposta.';
+  String get requiredMissing => 'Alcune domande obbligatorie non hanno risposta.';
 
   @override
   String get answersSubmitted => 'Risposte inviate';
@@ -675,8 +702,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get notAnswered => 'Nessuna risposta';
 
   @override
-  String get leaveUnsaved =>
-      'L\'ultima risposta non è ancora salvata. Uscire comunque?';
+  String get leaveUnsaved => 'L\'ultima risposta non è ancora salvata. Uscire comunque?';
 
   @override
   String get stay => 'Resta';
@@ -686,12 +712,10 @@ class AppLocalizationsIt extends AppLocalizations {
       'Per compilare questo questionario è necessario il Suo consenso per questa clinica.';
 
   @override
-  String get pastDue =>
-      'L\'appuntamento è iniziato, quindi questo questionario non può più essere modificato.';
+  String get pastDue => 'L\'appuntamento è iniziato, quindi questo questionario non può più essere modificato.';
 
   @override
-  String get withdrawnByClinic =>
-      'La clinica ha ritirato questo questionario. Non è necessario compilarlo.';
+  String get withdrawnByClinic => 'La clinica ha ritirato questo questionario. Non è necessario compilarlo.';
 
   @override
   String get alreadySubmitted => 'Ha già inviato questo questionario.';
@@ -701,8 +725,7 @@ class AppLocalizationsIt extends AppLocalizations {
       'Queste risposte sono state modificate su un altro dispositivo. Vengono mostrate le risposte più recenti.';
 
   @override
-  String get questionnaireNotAvailable =>
-      'Questo questionario non è disponibile.';
+  String get questionnaireNotAvailable => 'Questo questionario non è disponibile.';
 
   @override
   String get done => 'Fine';
@@ -724,12 +747,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String upToFilesHint(int n) {
-    String _temp0 = intl.Intl.pluralLogic(
-      n,
-      locale: localeName,
-      other: 'Fino a $n file.',
-      one: 'Fino a $n file.',
-    );
+    String _temp0 = intl.Intl.pluralLogic(n, locale: localeName, other: 'Fino a $n file.', one: 'Fino a $n file.');
     return '$_temp0';
   }
 
@@ -784,8 +802,7 @@ class AppLocalizationsIt extends AppLocalizations {
   }
 
   @override
-  String get fileTypeRefused =>
-      'Questo tipo di file non può essere aggiunto a questa domanda.';
+  String get fileTypeRefused => 'Questo tipo di file non può essere aggiunto a questa domanda.';
 
   @override
   String tooManyFiles(int n) {
@@ -806,25 +823,17 @@ class AppLocalizationsIt extends AppLocalizations {
   String get fileNotUploaded => 'Impossibile caricare il file. Riprovi.';
 
   @override
-  String get cannotPrepareFile =>
-      'Impossibile preparare questo file per il caricamento. Scelga un altro file.';
+  String get cannotPrepareFile => 'Impossibile preparare questo file per il caricamento. Scelga un altro file.';
 
   @override
-  String get filesBeingChecked =>
-      'Alcuni file sono ancora in verifica. Potrà inviare quando saranno pronti.';
+  String get filesBeingChecked => 'Alcuni file sono ancora in verifica. Potrà inviare quando saranno pronti.';
 
   @override
-  String get leaveUploading =>
-      'Un file è ancora in caricamento. Uscire comunque? Il caricamento verrà interrotto.';
+  String get leaveUploading => 'Un file è ancora in caricamento. Uscire comunque? Il caricamento verrà interrotto.';
 
   @override
   String fileCount(int n) {
-    String _temp0 = intl.Intl.pluralLogic(
-      n,
-      locale: localeName,
-      other: '$n file',
-      one: '$n file',
-    );
+    String _temp0 = intl.Intl.pluralLogic(n, locale: localeName, other: '$n file', one: '$n file');
     return '$_temp0';
   }
 
@@ -877,8 +886,7 @@ class AppLocalizationsIt extends AppLocalizations {
       'Salus non ha accesso alla fotocamera. Può consentirlo nelle impostazioni del dispositivo oppure scegliere un file.';
 
   @override
-  String get photosDenied =>
-      'Salus non ha accesso alle Sue foto. Può consentirlo nelle impostazioni del dispositivo.';
+  String get photosDenied => 'Salus non ha accesso alle Sue foto. Può consentirlo nelle impostazioni del dispositivo.';
 
   @override
   String cameraPhotoTitle(String date, String time) {
@@ -942,8 +950,7 @@ class AppLocalizationsIt extends AppLocalizations {
   }
 
   @override
-  String get languageUnavailable =>
-      'Questa lingua non è più disponibile per questo questionario. Ne scelga un’altra.';
+  String get languageUnavailable => 'Questa lingua non è più disponibile per questo questionario. Ne scelga un’altra.';
 
   @override
   String specialtyAtClinic(String specialty, String clinic) {
@@ -974,12 +981,10 @@ class AppLocalizationsIt extends AppLocalizations {
   String get transcript => 'Trascrizione';
 
   @override
-  String get transcriptNote =>
-      'La visita come è stata trascritta e tradotta automaticamente. Può contenere errori.';
+  String get transcriptNote => 'La visita come è stata trascritta e tradotta automaticamente. Può contenere errori.';
 
   @override
-  String get transcriptEmpty =>
-      'In questa visita non è stato trascritto nulla.';
+  String get transcriptEmpty => 'In questa visita non è stato trascritto nulla.';
 
   @override
   String get speakerYou => 'Lei';

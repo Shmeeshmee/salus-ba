@@ -42,6 +42,14 @@ export interface ConsultActions {
   terms(draftId: string): Promise<DocumentTerms>
 }
 
+// TranscriptionDeclined is a draft refused because the patient has not agreed to transcription and AI assistance,
+// or withdrew it (SAL-12): nothing is drafted.
+export class TranscriptionDeclined extends Error {
+  constructor() {
+    super('the patient has not agreed to transcription')
+  }
+}
+
 // SignRefused is a sign refused because required fields are empty; keys names them.
 export class SignRefused extends Error {
   readonly keys: string[]

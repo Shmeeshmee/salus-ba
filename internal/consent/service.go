@@ -25,6 +25,8 @@ type Auditor interface {
 type Jobs interface {
 	// EnqueueConsentRevoked enqueues consent_revoked with the two ids.
 	EnqueueConsentRevoked(ctx context.Context, patientID, organizationID string) error
+	// EnqueueTranscriptionRevoked enqueues transcription_consent_revoked with the two ids.
+	EnqueueTranscriptionRevoked(ctx context.Context, patientID, organizationID string) error
 }
 
 // errNoProfile is a patient without a profile, mapped by each method to its own refusal.
@@ -49,12 +51,15 @@ func NewService(repo Repository, audit Auditor, tx Transactor, clk clock.Clock, 
 	return &Service{repo: repo, audit: audit, tx: tx, clock: clk, jobs: jobs}
 }
 
-// Grant gives the clinic organizationID the calling patient's consent and returns it. ErrActive when one is
-// active already, ErrProfileRequired without a profile, ErrClinicNotFound for an unknown clinic,
-// ErrForbidden to staff.
-func (s *Service) Grant(ctx context.Context, c Caller, organizationID string) (Consent, error) {
-	if !c.patient() {
+// Grant gives the clinic organizationID the calling patient's consent of the kind and returns it. ErrActive when
+// one of the kind is active already, ErrProfileRequired without a profile, ErrClinicNotFound for an unknown
+// clinic, ErrKind for an unknown kind, ErrForbidden to staff.
+func (s *Service) Grant(ctx context.Context, c Caller, organizationID string, kind Kind) (Consent, error) {
+	switch {
+	case !c.patient():
 		return Consent{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrForbidden)
+	case !kind.Valid():
+		return Consent{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrKind)
 	}
 	var out Consent
 	var refused error
@@ -67,7 +72,7 @@ func (s *Service) Grant(ctx context.Context, c Caller, organizationID string) (C
 		if err != nil {
 			return err
 		}
-		out, err = s.repo.Grant(ctx, patientID, organizationID, s.clock.Now())
+		out, err = s.repo.Grant(ctx, kind, patientID, organizationID, s.clock.Now())
 		if errors.Is(err, ErrActive) {
 			refused = ErrActive
 			return s.record(ctx, c, auditevent.CodeCreate, "", auditevent.OutcomeMinorFailure)
@@ -89,11 +94,14 @@ func (s *Service) Grant(ctx context.Context, c Caller, organizationID string) (C
 	return out, nil
 }
 
-// Revoke ends the calling patient's active consent id and returns it, and enqueues consent_revoked (the
-// patient and the clinic) in the same transaction: from its commit the clinic sees no more of the patient
-// than SPEC.md "Past and future after revocation" leaves it, and the job cancels the future appointments
-// there. ErrNotFound for a consent that is not the caller's, ErrInactive for one revoked already,
-// ErrForbidden to staff.
+// Revoke ends the calling patient's active consent id and returns it. A care consent's revocation also ends
+// the patient's transcription consent with the clinic and enqueues consent_revoked (the patient and the clinic)
+// in the same transaction: from its commit the clinic sees no more of the patient than SPEC.md "Past and future
+// after revocation" leaves it, and the job cancels the future appointments there and removes the patient, and
+// the agent with them, from the call. A transcription consent's withdrawal enqueues
+// transcription_consent_revoked instead: from its commit the agent may not join or stay, the job takes it out
+// of the call, and the call goes on. ErrNotFound for a consent that is not the caller's, ErrInactive for one
+// revoked already, ErrForbidden to staff.
 func (s *Service) Revoke(ctx context.Context, c Caller, id string) (Consent, error) {
 	if !c.patient() {
 		return Consent{}, s.refuse(ctx, c, auditevent.CodeUpdate, ErrForbidden)
@@ -108,7 +116,7 @@ func (s *Service) Revoke(ctx context.Context, c Caller, id string) (Consent, err
 		if refused != nil {
 			return s.record(ctx, c, auditevent.CodeUpdate, "", auditevent.OutcomeMinorFailure)
 		}
-		if err := s.jobs.EnqueueConsentRevoked(ctx, out.PatientID, out.OrganizationID); err != nil {
+		if err := s.revoked(ctx, c, out); err != nil {
 			return err
 		}
 		return s.record(ctx, c, auditevent.CodeUpdate, out.ID, auditevent.OutcomeSuccess)
@@ -120,6 +128,26 @@ func (s *Service) Revoke(ctx context.Context, c Caller, id string) (Consent, err
 		return Consent{}, refused
 	}
 	return out, nil
+}
+
+// revoked does what follows the revocation of consent x, in the transaction in ctx: for a transcription
+// consent, its job; for a care consent, the end of the transcription consent with the clinic (audited) and its
+// job.
+func (s *Service) revoked(ctx context.Context, c Caller, x Consent) error {
+	if x.Kind == KindTranscription {
+		return s.jobs.EnqueueTranscriptionRevoked(ctx, x.PatientID, x.OrganizationID)
+	}
+	t, err := s.repo.RevokeTranscription(ctx, x.PatientID, x.OrganizationID, s.clock.Now())
+	switch {
+	case errors.Is(err, ErrInactive):
+	case err != nil:
+		return err
+	default:
+		if err := s.record(ctx, c, auditevent.CodeUpdate, t.ID, auditevent.OutcomeSuccess); err != nil {
+			return err
+		}
+	}
+	return s.jobs.EnqueueConsentRevoked(ctx, x.PatientID, x.OrganizationID)
 }
 
 // revoke revokes the calling patient's consent id in the transaction in ctx, or gives the refusal.
@@ -140,7 +168,7 @@ func (s *Service) revoke(ctx context.Context, c Caller, id string) (out Consent,
 	case cur.Status != StatusActive:
 		return Consent{}, ErrInactive, nil
 	}
-	out, err = s.repo.Revoke(ctx, id, s.clock.Now())
+	out, err = s.repo.Revoke(ctx, cur.Kind, id, s.clock.Now())
 	if errors.Is(err, ErrInactive) { // a concurrent revocation committed first
 		return Consent{}, ErrInactive, nil
 	}
@@ -239,9 +267,10 @@ func (s *Service) read(ctx context.Context, c Caller, id string) (Consent, bool,
 	return out, out.OrganizationID == c.OrganizationID, nil
 }
 
-// State returns whether the patient has an active consent with the clinic and the latest revocation, as
-// access needs them. It runs in the caller's transaction and scope (a clinic, or the patient) and is not
-// audited: it is the access check inside the caller's audited access, and discloses no consent to anyone.
+// State returns whether the patient has an active care consent with the clinic, its latest revocation, and
+// whether their transcription consent there is active, as access needs them. It runs in the caller's
+// transaction and scope (a clinic, or the patient) and is not audited: it is the access check inside the
+// caller's audited access, and discloses no consent to anyone.
 func (s *Service) State(ctx context.Context, patientID, organizationID string) (access.Consent, error) {
 	st, err := s.repo.State(ctx, patientID, organizationID)
 	if err != nil {

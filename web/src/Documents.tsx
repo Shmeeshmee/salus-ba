@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type Dispatch } from 'react'
-import { SignRefused, type ConsultActions, type ConsultMessage, type DocumentTerms, type DraftEvent, type DraftField, type Template } from './consult'
+import { SignRefused, TranscriptionDeclined, type ConsultActions, type ConsultMessage, type DocumentTerms, type DraftEvent, type DraftField, type Template } from './consult'
 import { useLanguage, useT } from './i18n/useT'
 import { TermTextLines } from './terminology/Explain'
 import { Alert, Confirm } from './ui'
@@ -68,8 +68,8 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
     try {
       const stored = await actions.generate(appointmentId, template.id, template.language)
       dispatch({ type: 'draft', version: 1, payload: stored })
-    } catch {
-      setError(t('consultation.live.generateFailed'))
+    } catch (e) {
+      setError(t(e instanceof TranscriptionDeclined ? 'consultation.live.transcriptionConsentRequired' : 'consultation.live.generateFailed'))
     }
     setWaiting((w) => (w === template.id ? undefined : w))
   }

@@ -85,7 +85,7 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**register**](doc//AuthApi.md#register) | **POST** /auth/register | Register a patient account
 *AuthApi* | [**updateMe**](doc//AuthApi.md#updateme) | **PATCH** /auth/me | Choose the account's language
 *AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
-*ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic
+*ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic, or to transcription
 *ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
 *ConsentsApi* | [**revokeConsent**](doc//ConsentsApi.md#revokeconsent) | **POST** /consents/{id}/revoke | Revoke a consent
 *ConsultationApi* | [**endConsultation**](doc//ConsultationApi.md#endconsultation) | **POST** /appointments/{id}/consultation/end | End an appointment's video consultation
@@ -153,6 +153,7 @@ Class | Method | HTTP request | Description
  - [CommandErrorMessage](doc//CommandErrorMessage.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)
  - [Consent](doc//Consent.md)
+ - [ConsentKind](doc//ConsentKind.md)
  - [ConsentList](doc//ConsentList.md)
  - [ConsultCommand](doc//ConsultCommand.md)
  - [ConsultFrame](doc//ConsultFrame.md)

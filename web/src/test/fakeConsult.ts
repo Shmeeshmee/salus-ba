@@ -1,4 +1,4 @@
-import { SignRefused, type ConsultActions, type ConsultMessage, type DocumentTerms, type DraftEvent, type End, type LiveSource, type SuggestionEvent, type Template, type TranscriptEvent } from '../consult'
+import { SignRefused, TranscriptionDeclined, type ConsultActions, type ConsultMessage, type DocumentTerms, type DraftEvent, type End, type LiveSource, type SuggestionEvent, type Template, type TranscriptEvent } from '../consult'
 
 // The in-memory stand-ins for the live source and the consultation's actions (consult.ts), and builders of the
 // P0 envelopes. Every text is synthetic and labelled as a placeholder; no line is real medical wording.
@@ -111,7 +111,7 @@ type ActionOptions = {
   templates?: Template[] | 'fail'
   failStatus?: boolean
   failSign?: boolean | { keys: string[] }
-  failGenerate?: boolean
+  failGenerate?: boolean | 'declined'
   // terms are the documents' explained terms by draft id (SAL-13); none for a draft not named
   terms?: Record<string, DocumentTerms>
 }
@@ -137,6 +137,7 @@ export function fakeActions(options: ActionOptions = {}) {
     },
     generate(appointmentId, templateId, language) {
       generated.push([appointmentId, templateId, language])
+      if (options.failGenerate === 'declined') return Promise.reject(new TranscriptionDeclined())
       if (options.failGenerate) return Promise.reject(new Error('synthetic failure'))
       return new Promise<DraftEvent>((resolve) => waiting.push(resolve))
     },

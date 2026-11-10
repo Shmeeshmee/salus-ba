@@ -17,13 +17,14 @@ import (
 type stubConsents struct {
 	err    error
 	caller consent.Caller
-	arg    string // the clinic granted, or the consent revoked
+	arg    string       // the clinic granted, or the consent revoked
+	kind   consent.Kind // the kind granted
 	out    []consent.Consent
 	calls  []string
 }
 
-func (s *stubConsents) Grant(_ context.Context, c consent.Caller, organizationID string) (consent.Consent, error) {
-	s.caller, s.arg = c, organizationID
+func (s *stubConsents) Grant(_ context.Context, c consent.Caller, organizationID string, kind consent.Kind) (consent.Consent, error) {
+	s.caller, s.arg, s.kind = c, organizationID, kind
 	s.calls = append(s.calls, "Grant")
 	return s.first(), s.err
 }
@@ -48,8 +49,8 @@ func (s *stubConsents) first() consent.Consent {
 }
 
 var (
-	activeJSON  = `{"dateTime":"2026-11-01T08:00:00Z","id":"` + consentAA + `","organizationId":"` + clinicA + `","status":"active"}`
-	revokedJSON = `{"dateTime":"2026-11-01T08:00:00Z","revokedAt":"2026-11-02T08:00:00Z","id":"` + consentAB + `","organizationId":"` + clinicB + `","status":"inactive"}`
+	activeJSON  = `{"dateTime":"2026-11-01T08:00:00Z","id":"` + consentAA + `","organizationId":"` + clinicA + `","kind":"care","status":"active"}`
+	revokedJSON = `{"dateTime":"2026-11-01T08:00:00Z","revokedAt":"2026-11-02T08:00:00Z","id":"` + consentAB + `","organizationId":"` + clinicB + `","kind":"care","status":"inactive"}`
 )
 
 // serve runs one request through the handler as caller (nobody when signedIn is false), logging to log.
@@ -71,11 +72,22 @@ func serveWith(t *testing.T, svc *stubConsents, caller func(context.Context) (co
 func TestHandler_Grants(t *testing.T) {
 	svc := &stubConsents{out: []consent.Consent{activeAA}}
 	rec := serve(t, svc, me, true, &bytes.Buffer{}, http.MethodPost, "/consents", `{"organizationId":"`+clinicA+`"}`)
-	if rec.Code != http.StatusCreated || rec.Body.String() != activeJSON+"\n" || svc.caller != me || svc.arg != clinicA {
+	if rec.Code != http.StatusCreated || rec.Body.String() != activeJSON+"\n" || svc.caller != me || svc.arg != clinicA || svc.kind != consent.KindCare {
 		t.Errorf("POST /consents = %d %s (caller %+v, clinic %q), want 201 %s", rec.Code, rec.Body, svc.caller, svc.arg, activeJSON)
 	}
 	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
 		t.Errorf("Cache-Control %q, want no-store", got)
+	}
+}
+
+func TestHandler_GrantsTheKindAsked(t *testing.T) {
+	tc := activeAA
+	tc.Kind = consent.KindTranscription
+	svc := &stubConsents{out: []consent.Consent{tc}}
+	rec := serve(t, svc, me, true, &bytes.Buffer{}, http.MethodPost, "/consents", `{"organizationId":"`+clinicA+`","kind":"transcription"}`)
+	want := strings.Replace(activeJSON, `"kind":"care"`, `"kind":"transcription"`, 1)
+	if rec.Code != http.StatusCreated || rec.Body.String() != want+"\n" || svc.kind != consent.KindTranscription {
+		t.Errorf("POST /consents = %d %s (kind %q), want 201 %s", rec.Code, rec.Body, svc.kind, want)
 	}
 }
 
@@ -117,6 +129,7 @@ func TestHandler_MapsEveryErrorToItsCode(t *testing.T) {
 	}{
 		{err: consent.ErrForbidden, method: http.MethodGet, path: "/me/consents", status: 403, code: "forbidden"},
 		{err: consent.ErrActive, method: http.MethodPost, path: "/consents", body: `{"organizationId":"x"}`, status: 409, code: "consent_active"},
+		{err: consent.ErrKind, method: http.MethodPost, path: "/consents", body: `{"organizationId":"x","kind":"research"}`, status: 400, code: "invalid_request"},
 		{err: consent.ErrProfileRequired, method: http.MethodPost, path: "/consents", body: `{"organizationId":"x"}`, status: 409, code: "profile_required"},
 		{err: consent.ErrClinicNotFound, method: http.MethodPost, path: "/consents", body: `{"organizationId":"x"}`, status: 404, code: "not_found"},
 		{err: consent.ErrNotFound, method: http.MethodPost, path: "/consents/x/revoke", status: 404, code: "not_found"},

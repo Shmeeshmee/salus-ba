@@ -104,7 +104,9 @@ const (
 )
 
 // Status is an appointment's consultation as its participants and its clinic see it: the state, when each
-// side first joined (zero for never), and when and why it ended. No room or identity.
+// side first joined (zero for never), and when and why it ended. No room or identity. Transcription is whether
+// the consultation may be transcribed (the patient's care and transcription consents both active, SAL-12): the
+// patient's app asks before joining without it, and the practitioner's call says why the agent is not in it.
 type Status struct {
 	PatientJoinedAt      time.Time
 	PractitionerJoinedAt time.Time
@@ -112,6 +114,7 @@ type Status struct {
 	State                State
 	EndReason            EndReason
 	Reason               Reason // why it ended or the patient was removed; empty when neither
+	Transcription        bool
 }
 
 // agentIdentity is the session's agent identity: a_ and its room's random part, so the agent's identity is
