@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"strings"
 
 	"github.com/Shmeeshmee/salus/pkg/llm"
@@ -62,6 +63,15 @@ func LoadScript(fsys fs.FS) (*Script, error) {
 		return nil, errors.New("llmtest: the script has no line")
 	}
 	return s, nil
+}
+
+// LoadScriptDir is LoadScript of the directory dir (a command's FAKE_ENGINE_SCRIPT), or no script (nil) when dir is
+// empty.
+func LoadScriptDir(dir string) (*Script, error) {
+	if dir == "" {
+		return nil, nil
+	}
+	return LoadScript(os.DirFS(dir))
 }
 
 // load adds one conversation to the script and returns its number of lines.

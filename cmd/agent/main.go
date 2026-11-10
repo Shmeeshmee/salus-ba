@@ -152,16 +152,8 @@ func newRecognizer(engine config.STT) (stt.Recognizer, error) {
 // one), or Anthropic's Claude API.
 func newTranslator(model config.LLM) (llm.Translator, error) {
 	if model.Engine != config.LLMAnthropic {
-		script, err := fakeScript(model)
+		script, err := llmtest.LoadScriptDir(model.Script)
 		return &llmtest.Translator{DiscardCalls: true, Script: script}, err
 	}
 	return anthropic.New(anthropic.Config{Key: model.AnthropicKey, Model: model.Model}, &http.Client{Timeout: llmTimeout})
-}
-
-// fakeScript is the fake model's scripted conversations, or nil without a script.
-func fakeScript(model config.LLM) (*llmtest.Script, error) {
-	if model.Script == "" {
-		return nil, nil
-	}
-	return llmtest.LoadScript(os.DirFS(model.Script))
 }

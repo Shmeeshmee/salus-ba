@@ -129,3 +129,17 @@ func TestLoadScript_ReadsTheJourneysConversations(t *testing.T) {
 		t.Errorf("LoadScript(test/testdata/consult): %v", err)
 	}
 }
+
+// A command's fake model takes its script from FAKE_ENGINE_SCRIPT's directory, or has none when it is unset.
+func TestLoadScriptDir_ReadsTheDirectoryOrNothing(t *testing.T) {
+	t.Parallel()
+	if s, err := llmtest.LoadScriptDir(""); s != nil || err != nil {
+		t.Errorf(`LoadScriptDir("") = %v, %v; want no script`, s, err)
+	}
+	if s, err := llmtest.LoadScriptDir(filepath.Join("..", "..", "..", "test", "testdata", "consult")); s == nil || err != nil {
+		t.Errorf("LoadScriptDir(test/testdata/consult) = %v, %v; want the script", s, err)
+	}
+	if _, err := llmtest.LoadScriptDir(t.TempDir()); err == nil {
+		t.Error("LoadScriptDir of an empty directory: no error")
+	}
+}

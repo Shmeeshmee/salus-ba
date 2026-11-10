@@ -110,16 +110,8 @@ func run(ctx context.Context, logOut io.Writer) error {
 // leaves the drafting's own (composition.DraftTimeout) to bound a call.
 func newDrafter(model config.LLM) (llm.Drafter, error) {
 	if model.Engine != config.LLMAnthropic {
-		script, err := fakeScript(model)
+		script, err := llmtest.LoadScriptDir(model.Script)
 		return &llmtest.Drafter{DiscardCalls: true, Script: script}, err
 	}
 	return anthropic.New(anthropic.Config{Key: model.AnthropicKey, Model: model.Model}, &http.Client{Timeout: composition.DraftTimeout + 5*time.Second})
-}
-
-// fakeScript is the fake model's scripted conversations, or nil without a script.
-func fakeScript(model config.LLM) (*llmtest.Script, error) {
-	if model.Script == "" {
-		return nil, nil
-	}
-	return llmtest.LoadScript(os.DirFS(model.Script))
 }
