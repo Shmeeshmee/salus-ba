@@ -69,11 +69,12 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
     super.dispose();
   }
 
-  /// The video consultation; the list is read again after it, as its status may have changed.
-  Future<void> _join(Appointment a) async {
+  /// The video consultation at [clinic] (null for a clinic no longer listed); the list is read again after it, as
+  /// its status may have changed.
+  Future<void> _join(Appointment a, Organization? clinic) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => CallScreen(booking: widget.booking, media: widget.media, appointmentId: a.id),
+        builder: (_) => CallScreen(booking: widget.booking, media: widget.media, appointmentId: a.id, clinic: clinic),
       ),
     );
     if (mounted) await reload();
@@ -214,7 +215,7 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
             Text(_status(t, a.status)),
             if (window == JoinWindow.open) ...[
               const SizedBox(height: 8),
-              FilledButton(onPressed: () => _join(a), child: Text(t.joinConsultation)),
+              FilledButton(onPressed: () => _join(a, place?.$1), child: Text(t.joinConsultation)),
             ],
             if (window == JoinWindow.before) Text(t.joinFrom),
             if (open) ...[

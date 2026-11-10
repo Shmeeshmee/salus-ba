@@ -610,6 +610,18 @@ type TranscriptSegment struct {
 	TranslationFailed bool
 }
 
+type TranscriptionConsent struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	DateTime       pgtype.Timestamptz
+	RevokedAt      pgtype.Timestamptz
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
+}
+
 type VideoSession struct {
 	ID                   pgtype.UUID
 	CreatedAt            pgtype.Timestamptz

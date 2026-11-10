@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 )
@@ -101,12 +102,36 @@ func (s *Service) joined(ctx context.Context, e Event) error {
 
 // askAgentIn enqueues the transcription agent's join of the session, in the transaction in ctx, once its
 // practitioner has joined (SAL-4): the transcript belongs to the Encounter that join started. Every join asks
-// again, so an agent that lost the room (a restart) comes back with the next one; it joins a session once.
+// again, so an agent that lost the room (a restart) comes back with the next one; it joins a session once. It
+// asks only while the patient's care and transcription consents with the clinic are both active (SAL-12): a
+// patient who declined has the call without the agent.
 func (s *Service) askAgentIn(ctx context.Context, session Session) error {
 	if session.PractitionerJoinedAt.IsZero() {
 		return nil
 	}
+	ok, err := s.transcribed(ctx, session.AppointmentID)
+	if err != nil || !ok {
+		return err
+	}
 	return s.Jobs.EnqueueAgentJoin(ctx, session.ID, session.OrganizationID)
+}
+
+// transcribed reports whether the consultation of the appointment may be transcribed (access.Transcribed: the
+// patient's care and transcription consents with the clinic both active), read in the transaction's scope; false
+// for an appointment the scope does not show.
+func (s *Service) transcribed(ctx context.Context, appointmentID string) (bool, error) {
+	a, err := s.Appointments.Lookup(ctx, appointmentID)
+	switch {
+	case errors.Is(err, appointment.ErrNotFound):
+		return false, nil
+	case err != nil:
+		return false, err
+	}
+	consent, err := s.Consents.State(ctx, a.PatientID, a.OrganizationID)
+	if err != nil {
+		return false, err
+	}
+	return access.Transcribed(consent), nil
 }
 
 // left ends the session when a participant left or the room finished after the window closed, as the

@@ -372,7 +372,7 @@ func attendance(practitioner, patient, active bool) appointment.Attendance {
 		Appointment: appointment.Appointment{
 			ID: apptA, PatientID: patientA, PractitionerRoleID: roleA1, OrganizationID: clinicA, Start: now.Add(-10 * time.Minute),
 		},
-		ConsentActive: active, Practitioner: practitioner, Patient: patient,
+		ConsentActive: active, TranscriptionConsent: active, Practitioner: practitioner, Patient: patient,
 	}
 }
 

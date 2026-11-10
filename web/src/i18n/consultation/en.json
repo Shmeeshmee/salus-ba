@@ -67,6 +67,10 @@
   "practitionerDidNotJoin": "Practitioner did not join",
   "timePassed": "The time to join this consultation has passed.",
   "transcriptionOn": "Transcription is on",
+  "transcriptionOff": {
+    "defaultMessage": "Transcription is off: the patient has not agreed to transcription and AI assistance. The consultation goes ahead without them.",
+    "description": "legal"
+  },
   "live.panels": "Transcript, suggestions and documents",
   "live.tabTranscript": "Transcript",
   "live.tabSuggestions": "Suggestions",
@@ -101,6 +105,10 @@
   "live.regenerate": "Regenerate",
   "live.generating": "Generating the draft from the transcript…",
   "live.generateFailed": "The draft could not be generated. Try again.",
+  "live.transcriptionConsentRequired": {
+    "defaultMessage": "The patient has not agreed to transcription and AI assistance, so no draft can be generated.",
+    "description": "legal"
+  },
   "live.draftNote": "Drafted from the transcript. Check every field before you sign.",
   "live.missing": "Not covered in the conversation yet",
   "live.sign": "Sign",

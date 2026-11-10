@@ -135,11 +135,13 @@ func (a *fakeAppointments) LookupPractitioner(ctx context.Context, id string) (s
 	return att.PractitionerID, nil
 }
 
-// fakeConsents gives the state of patient A's consent with clinic A in a transaction: active unless revoked.
+// fakeConsents gives the state of patient A's consents with clinic A in a transaction: the care consent active
+// unless revoked, the transcription consent active unless revoked or declined (never given, or withdrawn).
 type fakeConsents struct {
-	err     error
-	asked   []string
-	revoked bool
+	err      error
+	asked    []string
+	revoked  bool
+	declined bool
 }
 
 func (c *fakeConsents) State(ctx context.Context, patientID, org string) (access.Consent, error) {
@@ -150,7 +152,8 @@ func (c *fakeConsents) State(ctx context.Context, patientID, org string) (access
 	if c.err != nil {
 		return access.Consent{}, c.err
 	}
-	return access.Consent{Active: !c.revoked && patientID == patientA && org == clinicA}, nil
+	ours := patientID == patientA && org == clinicA
+	return access.Consent{Active: !c.revoked && ours, Transcription: !c.revoked && !c.declined && ours}, nil
 }
 
 // fakeRepository holds the sessions by appointment, as Open stores them.

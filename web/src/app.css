@@ -301,6 +301,8 @@ p.hint.join { margin-bottom: 20px; }
 .stage .badge { position: absolute; left: 12px; top: 12px; margin: 0; padding: 4px 10px; border-radius: 999px; background: var(--color-surface); border: 1px solid var(--color-border-strong); font-size: 13px; }
 .stage .transcription { position: absolute; right: 12px; top: 12px; display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 4px 10px; border-radius: 999px; background: var(--color-surface); border: 1px solid var(--color-border-strong); font-size: 13px; animation: transcription-in .2s ease-out; }
 .stage .transcription .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-mint); }
+/* SAL-12: the patient has not agreed to transcription; a quiet note, not a badge. */
+.stage .transcription.off { max-width: min(360px, calc(100% - 24px)); border-radius: 8px; color: var(--color-text-muted); line-height: 1.4; }
 @keyframes transcription-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .stage .transcription { animation: none; } }
 .stage .own {

@@ -58,8 +58,9 @@ type Viewer struct {
 
 // Consent is the state of the patient's consents with one clinic.
 type Consent struct {
-	RevokedAt time.Time // the latest revocation; zero when none was ever revoked
-	Active    bool
+	RevokedAt     time.Time // the latest revocation of the care consent; zero when none was ever revoked
+	Active        bool      // the care consent is active
+	Transcription bool      // the transcription consent (transcription, translation, AI assistance) is active
 }
 
 // Visit is one of the patient's appointments in the clinic, of any status.
@@ -169,6 +170,14 @@ func RequestsQuestionnaire(v Viewer, f Facts, a Visit) bool {
 // that started before it. The patient's own copy comes with the export feature.
 func ConsultationRecord(v Viewer, f Facts, a Visit) bool {
 	return v.Role == RolePractitioner && staffOf(v, f) && ofPractitioner(v, a) && f.Consent.Active
+}
+
+// Transcribed reports whether the patient's consultations with the clinic may be transcribed and translated, with
+// AI assistance for the practitioner (the transcription agent in the call, the stored transcript, suggestions,
+// document drafts): only while both the care consent and the transcription consent are active (SAL-12,
+// docs/plans/v1-finish.md "Decisions"). Declined or withdrawn, the consultation goes on without them.
+func Transcribed(c Consent) bool {
+	return c.Active && c.Transcription
 }
 
 // self reports whether v is the patient the facts are about.

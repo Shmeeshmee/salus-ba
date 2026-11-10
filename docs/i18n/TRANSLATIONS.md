@@ -6,16 +6,16 @@ before production (SPEC §8).
 
 | Tag | Language | Apps | Status | `legal` strings (web + mobile + e-mail) | Reviewed by | Reviewed on | `legal` strings reviewed by a lawyer |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `bs` | Bosanski | web, mobile, e-mail | drafted | 37 (7 + 30 + 0) | | | no |
-| `hr` | Hrvatski | web, mobile, e-mail | drafted | 37 (7 + 30 + 0) | | | no |
-| `sr-Latn` | Srpski (latinica) | web, mobile, e-mail | drafted | 37 (7 + 30 + 0) | | | no |
-| `sr-Cyrl` | Српски (ћирилица) | web, mobile, e-mail | drafted | 37 (7 + 30 + 0) | | | no |
-| `en` | English | web, mobile, e-mail | source | 37 (7 + 30 + 0) | | | no |
-| `de` | Deutsch | mobile, e-mail | drafted | 30 (– + 30 + 0) | | | no |
-| `ar` | العربية | mobile, e-mail | drafted | 30 (– + 30 + 0) | | | no |
-| `tr` | Türkçe | mobile, e-mail | drafted | 30 (– + 30 + 0) | | | no |
-| `it` | Italiano | mobile, e-mail | drafted | 30 (– + 30 + 0) | | | no |
-| `fr` | Français | mobile, e-mail | drafted | 30 (– + 30 + 0) | | | no |
+| `bs` | Bosanski | web, mobile, e-mail | drafted | 49 (9 + 40 + 0) | | | no |
+| `hr` | Hrvatski | web, mobile, e-mail | drafted | 49 (9 + 40 + 0) | | | no |
+| `sr-Latn` | Srpski (latinica) | web, mobile, e-mail | drafted | 49 (9 + 40 + 0) | | | no |
+| `sr-Cyrl` | Српски (ћирилица) | web, mobile, e-mail | drafted | 49 (9 + 40 + 0) | | | no |
+| `en` | English | web, mobile, e-mail | source | 49 (9 + 40 + 0) | | | no |
+| `de` | Deutsch | mobile, e-mail | drafted | 40 (– + 40 + 0) | | | no |
+| `ar` | العربية | mobile, e-mail | drafted | 40 (– + 40 + 0) | | | no |
+| `tr` | Türkçe | mobile, e-mail | drafted | 40 (– + 40 + 0) | | | no |
+| `it` | Italiano | mobile, e-mail | drafted | 40 (– + 40 + 0) | | | no |
+| `fr` | Français | mobile, e-mail | drafted | 40 (– + 40 + 0) | | | no |
 
 Every language but the English source is `drafted` (2026-11-08, package 3.1); none is reviewed yet. The `legal` strings were counted with a
 script on 2026-11-08 (docs/i18n/PROGRESS.md, 3.1): web, the catalog entries of `web/src/i18n/*/<tag>.json` whose
@@ -33,6 +33,12 @@ The wiring follow-up to #34 (SAL-9, 2026-11-09) added one string, `consultation.
 approved by the owner on 2026-11-09), and changed `consultation.live.suggestionsNote` (W9, `legal`) to the owner's
 wording naming AI ("AI suggestions are prompts..."); both drafted in the same four languages, for a native
 speaker's check (W9 also for the lawyer's). The count of `legal` strings is unchanged.
+
+SAL-12 (2026-11-10) added the patient's transcription notice, its withdrawal and the consent kinds (mobile, all
+ten languages; `docs/consultation/COPY.md` M37 to M48) and the practitioner's two lines (web, five languages; W42,
+W43), and changed M35 and the iOS purpose strings (M15, M16); 10 mobile and 2 web strings are tagged `legal`, so
+the counts went to 9 web and 40 mobile. All drafted, waiting for the owner's approval, a native speaker's check and
+the lawyer (Q16, Q17); the English is not approved yet either.
 
 English is the source: its text is the features' COPY.md files word for word, approved by the owner.
 `mobile/lib/l10n/app_sr.arb` is a copy of `app_sr_Cyrl.arb` that Flutter needs as the base of the two Serbian

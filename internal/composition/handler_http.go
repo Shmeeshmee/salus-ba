@@ -272,6 +272,7 @@ var errorCodes = []struct {
 	{ErrNotFound, "not_found", http.StatusNotFound},
 	{ErrForbidden, "forbidden", http.StatusForbidden},
 	{ErrConsentRequired, "consent_required", http.StatusForbidden},
+	{ErrTranscriptionConsentRequired, "transcription_consent_required", http.StatusForbidden},
 	{ErrTemplateNotFound, "template_not_found", http.StatusNotFound},
 	{ErrLanguageUnavailable, "language_unavailable", http.StatusUnprocessableEntity},
 	{ErrVersionMismatch, "version_mismatch", http.StatusPreconditionFailed},

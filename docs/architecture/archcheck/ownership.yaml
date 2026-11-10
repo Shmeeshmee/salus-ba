@@ -36,6 +36,7 @@ tables:
   term_label: {owner: terminology, personal_data: false}
   term_translation: {owner: terminology, personal_data: true} # reviewed_by
   transcript_segment: {owner: transcript, personal_data: true}
+  transcription_consent: {owner: consent, personal_data: true}
   video_session: {owner: videosession, personal_data: true}
   river_job: {owner: river}
   river_leader: {owner: river}

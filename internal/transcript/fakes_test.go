@@ -227,7 +227,7 @@ func newFixture() *fixture {
 		Status: encounter.StatusInProgress, PeriodStart: start,
 	}
 	appt := appointment.Appointment{ID: apptA, OrganizationID: clinicA, PatientID: patientA, PractitionerRoleID: roleA1, Start: start}
-	f := &fixture{stream: &fakeStream{entries: map[string][]transcript.Entry{}}, consents: &fakeConsents{state: access.Consent{Active: true}}, audit: &fakeAuditor{}}
+	f := &fixture{stream: &fakeStream{entries: map[string][]transcript.Entry{}}, consents: &fakeConsents{state: access.Consent{Active: true, Transcription: true}}, audit: &fakeAuditor{}}
 	f.repo = &fakeRepository{f: f, segments: map[string]transcript.Event{}}
 	f.encounters = &fakeEncounters{f: f, encounters: map[string]encounter.Encounter{encounterID: enc}, attendance: map[string]appointment.Attendance{
 		practAcc:  {Appointment: appt, Level: access.Full, ConsentActive: true, Practitioner: true},

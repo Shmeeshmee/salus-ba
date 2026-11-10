@@ -540,10 +540,66 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get whyCameraAndMicrophone =>
-      'Per partecipare alla videovisita, Salus ha bisogno di accedere alla fotocamera e al microfono. La visita non viene registrata.';
+      'Per partecipare alla videovisita, Salus ha bisogno di accedere alla fotocamera e al microfono. La visita non viene registrata né in audio né in video. Se acconsente, ciò che viene detto viene trascritto e tradotto.';
 
   @override
   String get transcriptionOn => 'Trascrizione attiva';
+
+  @override
+  String get transcriptionTitle => 'Trascrizione e traduzione';
+
+  @override
+  String transcriptionIntro(String clinic) {
+    return 'Nelle Sue videovisite con $clinic, ciò che Lei e il medico dite può essere trascritto mentre parlate e tradotto, così il medico può seguirLa nella Sua lingua.';
+  }
+
+  @override
+  String get transcriptionAssistance =>
+      'Dalla trascrizione il medico riceve anche un supporto dell\'intelligenza artificiale: suggerimenti durante la visita e bozze di documenti. Sono solo suggerimenti; il medico li verifica e prende ogni decisione.';
+
+  @override
+  String transcriptionKept(String clinic) {
+    return 'La trascrizione viene conservata con la Sua documentazione sanitaria presso $clinic. La visita non viene registrata né in audio né in video.';
+  }
+
+  @override
+  String get transcriptionDecline =>
+      'Se non acconsente, la visita si svolge come di consueto, senza trascrizione, traduzione né supporto dell\'intelligenza artificiale.';
+
+  @override
+  String get transcriptionWithdraw =>
+      'Può revocare il consenso in qualsiasi momento, anche durante la visita: tocchi «Trascrizione attiva» oppure apra I miei consensi. La trascrizione si interrompe subito; ciò che è stato trascritto fino a quel momento resta nella Sua documentazione.';
+
+  @override
+  String get transcriptionAgree => 'Acconsenti e continua';
+
+  @override
+  String get transcriptionWithout => 'Continua senza trascrizione';
+
+  @override
+  String get stopTranscriptionTitle => 'Interrompere la trascrizione?';
+
+  @override
+  String stopTranscriptionBody(String clinic) {
+    return 'Trascrizione, traduzione e supporto dell\'intelligenza artificiale si interrompono subito nelle Sue visite con $clinic. Una visita in corso prosegue senza di essi e i Suoi appuntamenti restano invariati. Ciò che è stato trascritto finora resta nella Sua documentazione.';
+  }
+
+  @override
+  String get keepTranscription => 'Mantieni la trascrizione';
+
+  @override
+  String get stopTranscription => 'Interrompi la trascrizione';
+
+  @override
+  String get transcriptionStopped =>
+      'La trascrizione è disattivata. Le Sue visite con questa clinica si svolgono senza.';
+
+  @override
+  String get consentForCare => 'Condivisione per le cure';
+
+  @override
+  String get consentForTranscription =>
+      'Trascrizione e supporto dell\'intelligenza artificiale';
 
   @override
   String get toFillIn => 'Da compilare';

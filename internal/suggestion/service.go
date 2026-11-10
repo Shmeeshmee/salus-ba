@@ -74,8 +74,8 @@ const entityName = "suggestion"
 // encounter's clinic scope: a new suggestion is stored and the write audited. A later event of a stored one
 // changes nothing: its status was stored by whoever changed it (SetStatus) before the event was published, so an
 // old event delivered again (the stream delivers at least once) cannot set an older status back. ErrInvalid for an event the contract does not allow, ErrNotFound for an
-// encounter the clinic's scope does not show, and ErrConsentRequired, audited, once the patient's consent with
-// the clinic is no longer active.
+// encounter the clinic's scope does not show, and ErrConsentRequired, audited, once the patient's care or
+// transcription consent with the clinic is no longer active (access.Transcribed, SAL-12).
 func (s *Service) Record(ctx context.Context, agent string, e Event) error {
 	if err := e.Validate(); err != nil {
 		return err
@@ -90,7 +90,7 @@ func (s *Service) Record(ctx context.Context, agent string, e Event) error {
 		switch {
 		case err != nil:
 			return err
-		case !consent.Active:
+		case !access.Transcribed(consent):
 			refused = ErrConsentRequired
 			return s.Audit.Record(ctx, systemEvent(agent, enc, auditevent.CodeCreate, auditevent.OutcomeMinorFailure, 0))
 		}

@@ -28,8 +28,8 @@ type booking struct {
 }
 
 // seedBooking creates, as the owner, the listed clinic with a practitioner, a schedule and two busy slots, a
-// patient (Ana Example, a fresh synthetic address) with an active consent, and their two appointments: one a
-// week ahead and one that started an hour ago.
+// patient (Ana Example, a fresh synthetic address) with an active consent and an active transcription consent
+// (SAL-12), and their two appointments: one a week ahead and one that started an hour ago.
 func seedBooking(t *testing.T, owner *pgxpool.Pool) booking {
 	t.Helper()
 	ctx := t.Context()
@@ -48,6 +48,10 @@ func seedBooking(t *testing.T, owner *pgxpool.Pool) booking {
 		p AS (INSERT INTO patient (account_id, given_name, family_name, birth_date) SELECT id, 'Ana', 'Example', '1990-01-01' FROM a RETURNING id)
 		INSERT INTO consent (patient_id, organization_id, status, date_time) SELECT id, $2, 'active', now() - interval '1 day' FROM p
 		RETURNING patient_id::text`, b.email, clinicID).Scan(&b.patient); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(ctx, `INSERT INTO transcription_consent (patient_id, organization_id, status, date_time)
+		VALUES ($1, $2, 'active', now() - interval '1 day')`, b.patient, clinicID); err != nil {
 		t.Fatal(err)
 	}
 	for _, x := range []struct {

@@ -285,6 +285,23 @@ Changed for SAL-4 (2026-11-09; owner decisions of that day and agent decisions r
   is withdrawn (owner, 2026-11-09, pending `docs/legal/BRIEF.md` Q16). The permission text "The consultation is not
   recorded" stays to be reviewed before any transcript is kept (SAL-6).
 
+Changed for SAL-12 (2026-11-10, owner decision in `docs/plans/v1-finish.md` "Decisions", pending Q16):
+
+- **The transcription consent.** A second FHIR `Consent` per patient and clinic, for transcription, translation and
+  AI assistance (`consent` domain, `transcription_consent` table). The webhook enqueues `transcription_join` only
+  while it and the care consent are both active (`access.Transcribed`); `AgentJoin` and `AgentAdmitted` refuse
+  without it (`ErrConsentRequired`). The consultation's status carries `transcription: true` while both are active.
+- **Asked before the call.** The patient app shows the notice (COPY.md M37 to M43) before the device check while
+  the status does not say `transcription`: agreeing grants the consent, declining joins without it. Patients join
+  only from the app; the practitioner's call page says "Transcription is off" (W42) while the agent is not in the
+  room and the patient has not agreed.
+- **Withdrawn during the call.** From the badge (M36, now a button) or My consents. The withdrawal enqueues
+  `transcription_consent_revoked`; its job (`videosession.EndAgentAccess`) removes the agent from the patient's open
+  rooms with the clinic, never the patient; the call goes on. A care revocation ends the transcription consent
+  with it.
+- **Permission text.** M35 and the iOS purpose strings now say the consultation is not recorded as audio or video
+  and, with the patient's agreement, what is said is transcribed and translated (draft, waiting for the owner).
+
 ## 3. The LiveKit Go SDK
 
 The settled decision is to use the official server SDK (`github.com/livekit/server-sdk-go/v2`, with

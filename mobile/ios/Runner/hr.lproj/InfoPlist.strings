@@ -1,3 +1,3 @@
-"NSCameraUsageDescription" = "Salus koristi kameru kako bi vas liječnik mogao vidjeti tijekom videokonzultacije te kako biste snimili fotografije i videozapise koje dodajete u upitnik. Konzultacija se ne snima.";
-"NSMicrophoneUsageDescription" = "Salus koristi mikrofon kako bi vas liječnik mogao čuti tijekom videokonzultacije te kako bi se snimio zvuk uz videozapise koje dodajete u upitnik. Konzultacija se ne snima.";
+"NSCameraUsageDescription" = "Salus koristi kameru kako bi vas liječnik mogao vidjeti tijekom videokonzultacije te kako biste snimili fotografije i videozapise koje dodajete u upitnik. Konzultacija se ne snima ni kao zvuk ni kao video.";
+"NSMicrophoneUsageDescription" = "Salus koristi mikrofon kako bi vas liječnik mogao čuti tijekom videokonzultacije te kako bi se snimio zvuk uz videozapise koje dodajete u upitnik. Konzultacija se ne snima ni kao zvuk ni kao video; ako pristanete, ono što se izgovori transkribira se i prevodi.";
 "NSPhotoLibraryUsageDescription" = "Salus otvara vašu galeriju fotografija samo kako bi u upitnik dodao fotografije i videozapise koje odaberete.";

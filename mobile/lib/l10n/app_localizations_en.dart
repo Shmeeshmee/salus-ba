@@ -535,10 +535,65 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get whyCameraAndMicrophone =>
-      'To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded.';
+      'To join the video consultation, Salus needs your camera and microphone. The consultation is not recorded as audio or video. If you agree, what is said is transcribed and translated.';
 
   @override
   String get transcriptionOn => 'Transcription is on';
+
+  @override
+  String get transcriptionTitle => 'Transcription and translation';
+
+  @override
+  String transcriptionIntro(String clinic) {
+    return 'In your video consultations with $clinic, what you and the practitioner say can be transcribed as you speak and translated, so the practitioner can follow you in your language.';
+  }
+
+  @override
+  String get transcriptionAssistance =>
+      'From the transcript, the practitioner also gets AI assistance: suggestions during the consultation and drafts of documents. These are suggestions only; the practitioner checks them and makes every decision.';
+
+  @override
+  String transcriptionKept(String clinic) {
+    return 'The transcript is kept with your medical record at $clinic. The consultation is not recorded as audio or video.';
+  }
+
+  @override
+  String get transcriptionDecline =>
+      'If you do not agree, the consultation goes ahead as usual, without transcription, translation or AI assistance.';
+
+  @override
+  String get transcriptionWithdraw =>
+      'You can withdraw your agreement at any time, also during the consultation: tap “Transcription is on”, or open My consents. Transcription stops at once; what was transcribed until then stays in your record.';
+
+  @override
+  String get transcriptionAgree => 'Agree and continue';
+
+  @override
+  String get transcriptionWithout => 'Continue without transcription';
+
+  @override
+  String get stopTranscriptionTitle => 'Stop transcription?';
+
+  @override
+  String stopTranscriptionBody(String clinic) {
+    return 'Transcription, translation and AI assistance stop at once in your consultations with $clinic. A consultation in progress goes on without them, and your appointments stay as they are. What was transcribed until now stays in your record.';
+  }
+
+  @override
+  String get keepTranscription => 'Keep transcription';
+
+  @override
+  String get stopTranscription => 'Stop transcription';
+
+  @override
+  String get transcriptionStopped =>
+      'Transcription is off. Your consultations with this clinic go ahead without it.';
+
+  @override
+  String get consentForCare => 'Sharing for care';
+
+  @override
+  String get consentForTranscription => 'Transcription and AI assistance';
 
   @override
   String get toFillIn => 'To fill in';

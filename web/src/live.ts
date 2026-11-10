@@ -2,7 +2,7 @@ import type { components } from './api/schema'
 import type { ApiClient } from './api/client'
 import type { Bundle, FhirClient } from './api/fhir'
 import { attempt } from './api/result'
-import { decodeMessage, SignRefused, type ConsultActions, type DraftEvent, type End, type LiveSource, type SuggestionEvent, type Template } from './consult'
+import { decodeMessage, SignRefused, TranscriptionDeclined, type ConsultActions, type DraftEvent, type End, type LiveSource, type SuggestionEvent, type Template } from './consult'
 
 export type { End } from './consult'
 
@@ -155,6 +155,7 @@ export function consultSocket({ api, fhir, open = (url) => new WebSocket(url) }:
       const res = await attempt(
         api.POST('/encounters/{id}/drafts', { params: { path: { id: encounter } }, body: { templateId, language: language as Language } }),
       )
+      if (!res.ok && res.code === 'transcription_consent_required') throw new TranscriptionDeclined()
       if (!res.ok) throw new Error('not drafted')
       return res.data
     },

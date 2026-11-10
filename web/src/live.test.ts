@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { newApiClient } from './api/client'
 import { newFhirClient } from './api/fhir'
-import { SignRefused, type ConsultMessage, type DraftEvent } from './consult'
+import { SignRefused, TranscriptionDeclined, type ConsultMessage, type DraftEvent } from './consult'
 import { consultSocket, type End } from './live'
 import { apiError, fakeFetch, fhirJSON, type Route } from './test/fakeFetch'
 import { draft, segment, suggestion } from './test/fakeConsult'
@@ -335,6 +335,11 @@ describe('consultSocket: documents', () => {
   ])('fails to draft when %s', async (_, searched, posted) => {
     const { actions } = setup([searched], { [`POST /encounters/${encounter}/drafts`]: posted })
     await expect(actions.generate(appointment, 'd1000000-0000-4000-8000-000000000001', 'en')).rejects.toThrow()
+  })
+
+  it('fails to draft with TranscriptionDeclined when the patient has not agreed to transcription (SAL-12)', async () => {
+    const { actions } = setup(undefined, { [`POST /encounters/${encounter}/drafts`]: () => apiError(403, 'transcription_consent_required') })
+    await expect(actions.generate(appointment, 'd1000000-0000-4000-8000-000000000001', 'en')).rejects.toBeInstanceOf(TranscriptionDeclined)
   })
 
   const signPost = 'POST /drafts/c1000000-0000-4000-8000-000000000001/sign'

@@ -167,7 +167,7 @@ void main() {
 
     await tapButton(tester, 'Agree and book');
 
-    expect(jsonDecode(h.api.last('POST /consents').body), {'organizationId': clinicId});
+    expect(jsonDecode(h.api.last('POST /consents').body), {'organizationId': clinicId, 'kind': 'care'});
     expect(jsonDecode(h.api.last('POST /appointments').body), {'slotId': slotId});
     expect(h.api.calls.where((c) => c.startsWith('POST')).toList(), [
       'POST /appointments',

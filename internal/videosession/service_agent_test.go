@@ -56,8 +56,8 @@ func TestAgentJoin_GivesTheAgentASubscribeOnlyTokenForTheRoom(t *testing.T) {
 }
 
 // The agent gets no token for a session the clinic's scope does not show (none, or hidden by a revocation), one
-// that ended or whose window closed, an appointment no longer booked, without the patient's active consent, or
-// before the practitioner joined (no Encounter yet, SAL-4).
+// that ended or whose window closed, an appointment no longer booked, without the patient's active consent or
+// their active transcription consent (SAL-12), or before the practitioner joined (no Encounter yet, SAL-4).
 // Each refusal is audited; nothing reaches LiveKit.
 func TestAgentJoin_RefusesWhenTheConsultationIsNotOpenToIt(t *testing.T) {
 	for _, tc := range []struct {
@@ -81,6 +81,7 @@ func TestAgentJoin_RefusesWhenTheConsultationIsNotOpenToIt(t *testing.T) {
 		{name: "the window closed", at: closes, want: videosession.ErrConsultationEnded, entity: true, setup: func(*fixture) {}},
 		{name: "cancelled", at: during, want: videosession.ErrConsultationEnded, entity: true, setup: func(f *fixture) { f.cancel() }},
 		{name: "consent revoked", at: during, want: videosession.ErrConsentRequired, entity: true, setup: func(f *fixture) { f.consents.revoked = true }},
+		{name: "transcription declined", at: during, want: videosession.ErrConsentRequired, entity: true, setup: func(f *fixture) { f.consents.declined = true }},
 		{name: "the practitioner has not joined", at: during, want: videosession.ErrNotStarted, entity: true, setup: func(f *fixture) {
 			s := f.session()
 			s.PractitionerJoinedAt = time.Time{}
@@ -143,9 +144,10 @@ func TestAgentAdmitted_AnswersWithTheJoinsRules(t *testing.T) {
 		want  error
 		setup func(f *fixture)
 	}{
-		"open":            {setup: func(*fixture) {}},
-		"consent revoked": {want: videosession.ErrConsentRequired, setup: func(f *fixture) { f.consents.revoked = true }},
-		"cancelled":       {want: videosession.ErrConsultationEnded, setup: func(f *fixture) { f.cancel() }},
+		"open":                    {setup: func(*fixture) {}},
+		"consent revoked":         {want: videosession.ErrConsentRequired, setup: func(f *fixture) { f.consents.revoked = true }},
+		"transcription withdrawn": {want: videosession.ErrConsentRequired, setup: func(f *fixture) { f.consents.declined = true }},
+		"cancelled":               {want: videosession.ErrConsultationEnded, setup: func(f *fixture) { f.cancel() }},
 		"ended": {want: videosession.ErrConsultationEnded, setup: func(f *fixture) {
 			s := f.session()
 			s.EndedAt, s.EndReason = during.Add(-time.Minute), videosession.EndPractitioner
@@ -242,5 +244,45 @@ func TestAgentListen_LeavesOrNeverJoinsWithoutAccess(t *testing.T) {
 	f.listener.err = errBackend
 	if _, err := f.svc.AgentListen(t.Context(), f.session().ID, clinicA); !errors.Is(err, errBackend) {
 		t.Errorf("a failed connection: AgentListen() = %v, want its error", err)
+	}
+}
+
+// The transcription consent's withdrawal (SAL-12) takes the agent out of the patient's open consultations with the
+// clinic, read in the patient's scope, after the commit; the patient and the practitioner stay and the call goes
+// on. Nothing is audited: the agent is not a person, and no patient data is read but the sessions. Repeated, it
+// asks LiveKit again (an agent no longer there is no error).
+func TestEndAgentAccess_RemovesOnlyTheAgentFromTheOpenRoomsOfThePatientWithTheClinic(t *testing.T) {
+	f := opened(during, start, start)
+	f.consents.declined = true
+	f.provider.in = []string{"p_patient", "p_practitioner"}
+	f.repo.sessions[apptA2] = videosession.Session{
+		ID: "5e000000-0000-4000-8000-000000000002", AppointmentID: apptA2, OrganizationID: clinicB, ClosesAt: closes,
+		Room: "r_other", PatientIdentity: "p_other", PractitionerIdentity: "p_other_practitioner",
+	}
+	for range 2 {
+		f.provider.removedAgents = nil
+		if err := f.svc.EndAgentAccess(t.Context(), patientA, clinicA); err != nil {
+			t.Fatalf("EndAgentAccess() = %v", err)
+		}
+		if !slices.Equal(f.provider.removedAgents, []string{"r_room a_room"}) || len(f.provider.removed) != 0 || f.provider.inTx {
+			t.Errorf("agents removed %v, people %v (in a transaction: %t); want only clinic A's agent, outside it",
+				f.provider.removedAgents, f.provider.removed, f.provider.inTx)
+		}
+	}
+	if !f.session().EndedAt.IsZero() || len(f.provider.deleted) != 0 || len(f.audit.events) != 0 {
+		t.Errorf("session %+v, deleted %v, events %v; want the call to go on", f.session(), f.provider.deleted, f.audit.events)
+	}
+}
+
+func TestEndAgentAccess_FailsForARetry(t *testing.T) {
+	for name, setup := range map[string]func(*fixture){
+		"the sessions": func(f *fixture) { f.repo.err = errBackend },
+		"the removal":  func(f *fixture) { f.provider.removeErr = errBackend },
+	} {
+		f := opened(during, start, start)
+		setup(f)
+		if err := f.svc.EndAgentAccess(t.Context(), patientA, clinicA); !errors.Is(err, errBackend) {
+			t.Errorf("with %s failing: EndAgentAccess() = %v, want the error", name, err)
+		}
 	}
 }

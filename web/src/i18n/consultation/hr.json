@@ -67,6 +67,10 @@
   "practitionerDidNotJoin": "Liječnik se nije pridružio",
   "timePassed": "Vrijeme za pridruživanje ovoj konzultaciji je isteklo.",
   "transcriptionOn": "Transkripcija je uključena",
+  "transcriptionOff": {
+    "defaultMessage": "Transkripcija je isključena: pacijent nije dao privolu za transkripciju i AI pomoć. Konzultacija se odvija bez njih.",
+    "description": "legal"
+  },
   "live.panels": "Transkript, prijedlozi i dokumenti",
   "live.tabTranscript": "Transkript",
   "live.tabSuggestions": "Prijedlozi",
@@ -101,6 +105,10 @@
   "live.regenerate": "Generiraj ponovno",
   "live.generating": "Nacrt se generira iz transkripta…",
   "live.generateFailed": "Nacrt nije moguće generirati. Pokušajte ponovno.",
+  "live.transcriptionConsentRequired": {
+    "defaultMessage": "Pacijent nije dao privolu za transkripciju i AI pomoć pa nacrt nije moguće generirati.",
+    "description": "legal"
+  },
   "live.draftNote": "Nacrt iz transkripta. Provjerite svako polje prije potpisivanja.",
   "live.missing": "Još nije obuhvaćeno razgovorom",
   "live.sign": "Potpiši",

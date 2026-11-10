@@ -77,6 +77,19 @@ func TestRecord_WritesNothingAfterARevocation(t *testing.T) {
 	checkEvents(t, "revoked", f.audit, systemEvent(auditevent.CodeCreate, auditevent.OutcomeMinorFailure, 0))
 }
 
+// Without the patient's transcription consent nothing is written either (SAL-12); the refusal is audited.
+func TestRecord_WritesNothingWithoutTheTranscriptionConsent(t *testing.T) {
+	f := newFixture()
+	f.consents.state.Transcription = false
+	if err := f.svc.Record(t.Context(), consumer, valid()); !errors.Is(err, suggestion.ErrConsentRequired) {
+		t.Errorf("Record() error = %v, want ErrConsentRequired", err)
+	}
+	if len(f.repo.rows) != 0 {
+		t.Errorf("stored %d, want none", len(f.repo.rows))
+	}
+	checkEvents(t, "withdrawn", f.audit, systemEvent(auditevent.CodeCreate, auditevent.OutcomeMinorFailure, 0))
+}
+
 func TestRecord_FailsWithNothingStoredWhenABackendFails(t *testing.T) {
 	for name, fail := range map[string]func(*fixture){
 		"the repository": func(f *fixture) { f.repo.err = errBackend },

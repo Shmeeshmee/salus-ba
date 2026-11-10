@@ -111,6 +111,13 @@ after-revocation rule apply unchanged; the clinic scope only. A patient's access
   access uses), and leaves the room as soon as it is withdrawn: the revocation's `consent_revoked` job removes
   the agent with the patient (SAL-3), its recognitions end at once, and the agent asks again once connected, so
   a revocation that commits while it connects is seen too.
+  Extended by the owner, 2026-11-10 (docs/plans/v1-finish.md "Decisions"; SAL-12), still pending Q16: a separate,
+  granular, revocable FHIR `Consent` for transcription, translation and AI assistance, per patient and clinic
+  (`transcription_consent`, migration 00038), asked in the patient app before the call. The agent joins, and the
+  transcript, the suggestions and the drafting run, only while both the care Consent and this one are active
+  (`access.Transcribed`). Declining, the call runs without the agent; withdrawing, the call goes on and the
+  withdrawal's `transcription_consent_revoked` job removes the agent at once, which asks again once connected as
+  above. A revocation of the care Consent ends the transcription Consent with it.
 - **Logs.** No transcript text, translation, suggestion or field value in a log line, error or trace.
 - **Copy.** Every user-facing string goes to the owner first. Suggestions are labelled as suggestions.
 
@@ -119,7 +126,9 @@ after-revocation rule apply unchanged; the clinic scope only. A patient's access
 - **When the agent joins.** Every join of a person with access into an open consultation the practitioner has
   joined enqueues `transcription_join` (queue `transcription`, worked only by `cmd/agent`) in the webhook's
   transaction; the agent joins a session once and the next join asks again (a restarted agent comes back). It
-  needs the practitioner joined, because the transcript belongs to the `Encounter` that join starts.
+  needs the practitioner joined, because the transcript belongs to the `Encounter` that join starts. Since SAL-12
+  it also needs the patient's transcription Consent with the clinic (Gates, "Consent"): without it no join is
+  enqueued, and `AgentJoin` and `AgentAdmitted` refuse (`ErrConsentRequired`).
 - **Audio.** `videosession` (the only LiveKit code) joins with SAL-3's agent grant, subscribes to every audio
   track and decodes it in pure Go to 16 kHz mono PCM: Opus with `github.com/tphakala/go-opus` (a port of
   libopus that decodes every Opus mode; a transpiled libopus, `kazzmir/opus-go`, was tried and dropped: it fails

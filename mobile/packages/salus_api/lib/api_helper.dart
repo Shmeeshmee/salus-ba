@@ -65,6 +65,9 @@ String parameterToString(dynamic value) {
   if (value is DateTime) {
     return value.toUtc().toIso8601String();
   }
+  if (value is ConsentKind) {
+    return ConsentKindTypeTransformer().encode(value).toString();
+  }
   if (value is Language) {
     return LanguageTypeTransformer().encode(value).toString();
   }

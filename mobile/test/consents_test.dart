@@ -88,4 +88,39 @@ void main() {
 
     expect(find.text('You have not given any consents yet.'), findsOneWidget);
   });
+
+  // SAL-12: the transcription consent is listed with its kind; withdrawing it says what stops and what stays.
+  testWidgets('a transcription consent is withdrawn with its own warning, the care consent kept', (tester) async {
+    final h = Harness(store: FakeTokenStore(token));
+    h.api.answer('GET /auth/me', 200, account());
+    answerDirectory(h.api);
+    h.api.answer('GET /me/consents', 200, {
+      'consents': [consent('t1', kind: 'transcription'), consent('active-one')],
+    });
+    await h.pump(tester);
+    await tapOutlined(tester, 'My consents');
+
+    expect(find.text('Transcription and AI assistance'), findsOneWidget);
+    expect(find.text('Sharing for care'), findsOneWidget);
+
+    h.api.answer(
+      'POST /consents/t1/revoke',
+      200,
+      consent('t1', kind: 'transcription', revokedAt: '2026-11-04T09:00:00Z'),
+    );
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Revoke consent').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Stop transcription?'), findsOneWidget);
+    expect(find.text(revokeWarning), findsNothing);
+    expect(find.textContaining('your appointments stay as they are'), findsOneWidget);
+
+    h.api.answer('GET /me/consents', 200, {
+      'consents': [consent('t1', kind: 'transcription', revokedAt: '2026-11-04T09:00:00Z'), consent('active-one')],
+    });
+    await tapButton(tester, 'Stop transcription');
+
+    expect(h.api.calls.where((c) => c.startsWith('POST')), ['POST /consents/t1/revoke']);
+    expect(find.text('Transcription is off. Your consultations with this clinic go ahead without it.'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Revoke consent'), findsOneWidget, reason: 'the care consent stays');
+  });
 }

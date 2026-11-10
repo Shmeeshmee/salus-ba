@@ -17,6 +17,7 @@ const (
 	systemActCode           = "http://terminology.hl7.org/CodeSystem/v3-ActCode"
 	systemActReason         = "http://terminology.hl7.org/CodeSystem/v3-ActReason"
 	systemParticipationType = "http://terminology.hl7.org/CodeSystem/v3-ParticipationType"
+	systemConsentAction     = "http://terminology.hl7.org/CodeSystem/consentaction"
 )
 
 // Reader reads a consent for a caller (Service).
@@ -60,11 +61,13 @@ type resource struct {
 	Provision    provision              `json:"provision"`
 }
 
-// provision permits the clinic (IRCP, the information recipient) to use the data for treatment.
+// provision permits the clinic (IRCP, the information recipient) to use the data for treatment; a
+// transcription consent names the actions too: collect and use what is said in the consultation.
 type provision struct {
-	Type    string        `json:"type"`
-	Actor   []actor       `json:"actor"`
-	Purpose []fhir.Coding `json:"purpose"`
+	Type    string                 `json:"type"`
+	Actor   []actor                `json:"actor"`
+	Action  []fhir.CodeableConcept `json:"action,omitempty"`
+	Purpose []fhir.Coding          `json:"purpose"`
 }
 
 type actor struct {
@@ -76,10 +79,14 @@ func concept(system, code string) fhir.CodeableConcept {
 	return fhir.CodeableConcept{Coding: []fhir.Coding{{System: system, Code: code}}}
 }
 
+// toFHIR is c as a FHIR Consent. A transcription consent (SAL-12) is told apart from the care consent by its
+// second category, v3-ActCode ICOL (information collection: what is said is transcribed into the record), and
+// its provision's actions, consentaction collect and use (transcribed and translated, used for the AI
+// assistance), still for treatment. No standard code names transcription itself.
 func toFHIR(c Consent) resource {
 	patient := fhir.Reference{Reference: "Patient/" + c.PatientID}
 	clinic := fhir.Reference{Reference: "Organization/" + c.OrganizationID}
-	return resource{
+	res := resource{
 		ResourceType: "Consent", ID: c.ID, Status: c.Status, Meta: fhir.NewMeta(c.VersionID, c.LastUpdated),
 		DateTime: c.DateTime.UTC().Format(time.RFC3339),
 		Scope:    concept(systemConsentScope, "patient-privacy"),
@@ -92,6 +99,11 @@ func toFHIR(c Consent) resource {
 			Purpose: []fhir.Coding{{System: systemActReason, Code: "TREAT"}},
 		},
 	}
+	if c.Kind == KindTranscription {
+		res.Category = append(res.Category, concept(systemActCode, "ICOL"))
+		res.Provision.Action = []fhir.CodeableConcept{concept(systemConsentAction, "collect"), concept(systemConsentAction, "use")}
+	}
+	return res
 }
 
 func (h *FHIRHandler) read(w http.ResponseWriter, r *http.Request) {

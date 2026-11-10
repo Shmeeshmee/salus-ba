@@ -355,9 +355,10 @@ Map<String, Object?> patient({int version = 1}) => {
   'lastUpdated': '2026-11-01T08:00:00Z',
 };
 
-Map<String, Object?> consent(String id, {String org = clinicId, String? revokedAt}) => {
+Map<String, Object?> consent(String id, {String org = clinicId, String? revokedAt, String kind = 'care'}) => {
   'id': id,
   'organizationId': org,
+  'kind': kind,
   'status': revokedAt == null ? 'active' : 'inactive',
   'dateTime': '2026-11-01T08:00:00Z',
   'revokedAt': ?revokedAt,

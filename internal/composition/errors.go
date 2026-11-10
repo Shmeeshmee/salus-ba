@@ -42,6 +42,9 @@ var (
 	// ErrConsentRequired is returned when the patient's consent with the clinic is not active: nothing is
 	// drafted, signed or read after a revocation.
 	ErrConsentRequired = errors.New("composition: consent required")
+	// ErrTranscriptionConsentRequired is returned when a draft is asked without the patient's transcription
+	// consent with the clinic (SAL-12): the model may not read the transcript; reads and signing go on.
+	ErrTranscriptionConsentRequired = errors.New("composition: transcription consent required")
 	// ErrTemplateNotFound is returned for a template the caller's clinic does not have.
 	ErrTemplateNotFound = errors.New("composition: template not found")
 	// ErrLanguageUnavailable is returned for a drafting language the template has neither as its original nor

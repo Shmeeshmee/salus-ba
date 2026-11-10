@@ -19,6 +19,7 @@ class ConsultationStatus {
     this.endedAt,
     this.endReason,
     this.reason,
+    this.transcription,
   });
 
   ConsultationStatusStateEnum state;
@@ -55,6 +56,15 @@ class ConsultationStatus {
   /// Why the patient was removed or the consultation ended, as the clients show it: the patient was removed because their consent was withdrawn (also when that cancelled the appointment), or because the appointment was cancelled; while open, the patient who joined left on their own; the practitioner ended it or the window closed with the room empty; the window closed without the practitioner; the 2-hour limit. Absent while nobody has joined or left.
   ConsultationStatusReasonEnum? reason;
 
+  /// True while the consultation may be transcribed and translated, with AI assistance for the practitioner: the patient's care and transcription consents with the clinic are both active (SAL-12). Absent otherwise: the call runs without the transcription agent.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  bool? transcription;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -64,7 +74,8 @@ class ConsultationStatus {
           other.practitionerJoinedAt == practitionerJoinedAt &&
           other.endedAt == endedAt &&
           other.endReason == endReason &&
-          other.reason == reason;
+          other.reason == reason &&
+          other.transcription == transcription;
 
   @override
   int get hashCode =>
@@ -74,11 +85,12 @@ class ConsultationStatus {
       (practitionerJoinedAt == null ? 0 : practitionerJoinedAt!.hashCode) +
       (endedAt == null ? 0 : endedAt!.hashCode) +
       (endReason == null ? 0 : endReason!.hashCode) +
-      (reason == null ? 0 : reason!.hashCode);
+      (reason == null ? 0 : reason!.hashCode) +
+      (transcription == null ? 0 : transcription!.hashCode);
 
   @override
   String toString() =>
-      'ConsultationStatus[state=$state, patientJoinedAt=$patientJoinedAt, practitionerJoinedAt=$practitionerJoinedAt, endedAt=$endedAt, endReason=$endReason, reason=$reason]';
+      'ConsultationStatus[state=$state, patientJoinedAt=$patientJoinedAt, practitionerJoinedAt=$practitionerJoinedAt, endedAt=$endedAt, endReason=$endReason, reason=$reason, transcription=$transcription]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -110,6 +122,11 @@ class ConsultationStatus {
     } else {
       json[r'reason'] = null;
     }
+    if (this.transcription != null) {
+      json[r'transcription'] = this.transcription;
+    } else {
+      json[r'transcription'] = null;
+    }
     return json;
   }
 
@@ -138,6 +155,7 @@ class ConsultationStatus {
         endedAt: mapDateTime(json, r'endedAt', r''),
         endReason: ConsultationStatusEndReasonEnum.fromJson(json[r'endReason']),
         reason: ConsultationStatusReasonEnum.fromJson(json[r'reason']),
+        transcription: mapValueOfType<bool>(json, r'transcription'),
       );
     }
     return null;
