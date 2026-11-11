@@ -167,7 +167,7 @@ services:
   # Video (ADR 0006), configured by livekit.yaml: the synthetic dev key pair, rooms created only by the api, JSON
   # logs, the ICE settings for clients on the host and on the compose network, and TURN (TLS on 443, UDP on 3478,
   # on the compose network only). Published on 127.0.0.1 for a local browser: signalling on 7880, media on
-  # 7882/udp and 7881/tcp.
+  # 7882/udp and 7881/tcp (SALUS_LIVEKIT_PORT, SALUS_LIVEKIT_UDP_PORT and SALUS_LIVEKIT_TCP_PORT move them).
   livekit:
     image: livekit/livekit-server:v1.13.11
     command: ["--config", "/etc/livekit.yaml"]

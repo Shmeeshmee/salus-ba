@@ -35,7 +35,7 @@ toolchain in a container, with versions pinned in `build/package/`, `deployments
 | `make down` | Stop the containers (volumes and caches are kept) |
 
 Local stack ports, all on 127.0.0.1: API 8080 (`/healthz`, `/readyz`, `/fhir/R4/metadata`), Mailpit web UI
-8025, LiveKit 7880 (`deployments/livekit.yaml`, the synthetic key pair `devkey`), Vite 5173, landing page 8090, landing Vite 5174. If another project holds one, set
+8025, LiveKit 7880 and its media on 7881/tcp and 7882/udp (`deployments/livekit.yaml`, the synthetic key pair `devkey`), Vite 5173, landing page 8090, landing Vite 5174. If another project holds one, set
 the matching `SALUS_*_PORT` from `configs/.env.example` in `deployments/.env` (git-ignored). Postgres and
 Redis publish no port; use `make psql`.
 

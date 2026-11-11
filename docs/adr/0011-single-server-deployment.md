@@ -1,7 +1,7 @@
 # 11. One Hetzner Cloud server with Docker Compose, deployed from GitHub Actions
 
-Status: accepted, 2026-11-11 (docs/plans/deploy.md); amended the same day by the owner's decisions under "Decided
-before real patient data". The domain, the server type and the points under "Open before real patient data" are
+Status: accepted, 2026-11-11 (docs/plans/deploy.md); amended the same day by the owner's decisions under "Before
+real patient data". The domain, the server type and the points under "Open before real patient data" are
 not decided yet; everything that depends on them is configuration, not code.
 
 ## Context
@@ -54,11 +54,11 @@ under GDPR Art. 28 concluded in the console, no managed Postgres and no KMS.
   address: Postgres, Redis, Garage, ClamAV, the API and LiveKit's API port are on the compose network only. `ufw`
   allows exactly these; Docker's published ports are kept to the same list (Docker bypasses `ufw` for published
   ports, so the compose file is the real boundary and the bootstrap checks it).
-- **Postgres in compose**, its data on the encrypted volume (below, "Decided before real patient data"), with a nightly `pg_dump` (custom format), encrypted on the server
-  with `age` to a public key whose private half is kept offline (Bitwarden), and copied over SFTP to a Hetzner
-  Storage Box (configurable, `BACKUP_*`); 14 days kept. A restore drill is documented and run before the first real
-  data. A restore needs the dumps' `age` private key and the files' `BINARY_KEK`, both kept in Bitwarden. Garage's
-  data (the attachments) is not backed up by this decision (open point 7).
+- **Postgres in compose**, its data on the encrypted volume (point 2 below), with a nightly `pg_dump` (custom
+  format), encrypted on the server with `age` to a public key whose private half is kept offline (Bitwarden), and
+  copied over SFTP to a Hetzner Storage Box (configurable, `BACKUP_*`); 14 days kept. A restore drill is documented
+  and run before the first real data. A restore needs the dumps' `age` private key and the files' `BINARY_KEK`, both
+  kept in Bitwarden. Garage's data (the attachments) was not backed up by this decision; it is now (point 7).
 - **Deploys** from GitHub Actions on every successful image build of `main`, and by hand (`workflow_dispatch` with a
   SHA): the `production` environment needs the owner's approval; the job connects over SSH as the `deploy` user,
   writes the release's image tags, pulls, runs `migrate` as a one-shot, runs `docker compose up -d`, waits for every
@@ -67,60 +67,60 @@ under GDPR Art. 28 concluded in the console, no managed Postgres and no KMS.
   must stay compatible with the code before it (expand, then contract in a later release). Nothing checks that
   automatically yet; the reviewer of a PR with a migration does.
 - **Secrets** live in the owner's Bitwarden and are copied into GitHub Actions secrets of the `production`
-  environment; the deploy job writes them to `/opt/salus/.env` (mode 600, owner `deploy`) on each deploy. `BINARY_KEK` and `TOTP_KEY` are the
-  exception: they live in a key file on the encrypted volume (below). Nothing
-  secret is committed; `deployments/production/.env.production.example` lists every variable.
+  environment; the deploy job writes them to `/opt/salus/.env` (mode 600, owner `deploy`) on each deploy, except
+  `BINARY_KEK` and `TOTP_KEY`, which live in a key file on the encrypted volume (point 3 below). Nothing secret is
+  committed; `deployments/production/.env.production.example` lists every variable.
 - **The server** is set up by an idempotent bootstrap script (`deployments/production/bootstrap/`): a `deploy` user
   with an SSH key only, no root login and no password login, `ufw`, `fail2ban`, unattended security upgrades,
   Docker, the `/opt/salus` layout and the backup timer.
 
-## Decided before real patient data (owner, 2026-11-11)
+## Before real patient data
 
-Five of the points that were open when this ADR was accepted are settled; the work is in docs/plans/deploy.md
-(wave 3: DEP-5, DEP-6, DEP-7).
+The points below were open when this ADR was accepted. The owner settled 2 to 6 on 2026-11-11 (marked "Decided";
+the numbers stay so that references elsewhere keep pointing at the same point), and decided that the attachments
+are backed up (part of 7). The work is in docs/plans/deploy.md, wave 3: DEP-5 (points 2 and 3), DEP-6 (point 5) and
+DEP-7 (the attachments' backup and the backup alerts). Points 1 and 7 do not block building or deploying the stack
+with synthetic data; each blocks real patient data, and each is the owner's decision.
 
-- **Encryption at rest: a LUKS-encrypted Hetzner Volume, unlocked by hand.** Postgres's and Garage's data live on a
-  Hetzner Volume attached to the server and encrypted with LUKS2 (`cryptsetup`); the server's own disk holds no
-  personal data: no swap (the bootstrap checks), and container logs carry none (CLAUDE.md). The
-  passphrase is in the owner's Bitwarden only, never on the server or in GitHub. After every reboot the owner unlocks
-  and mounts the volume by hand with a script, then starts the stack; until then nothing that holds data runs, and
-  the deploy refuses to start when the volume is not mounted. **Automatic reboots stay off**
-  (`UPGRADE_AUTO_REBOOT=no`, and the bootstrap refuses `yes`): a kernel update that needs a reboot waits for the
-  owner, who reboots and unlocks in one sitting.
-- **The keys without a KMS: a root-only file on the encrypted volume.** `BINARY_KEK` and `TOTP_KEY` live in one key
-  file on the LUKS volume, owned by root and readable by no other account on the host, and reach only the containers
-  that need them. They are not in `/opt/salus/.env`, not in the `SALUS_ENV_FILE` GitHub secret, and not in the
-  release directories; the deploy refuses an env file that contains them. Bitwarden keeps the only other copy, for a
-  restore. Limits, accepted for the pilot: the `deploy` user is in the `docker` group and therefore root-equivalent,
-  so the file protects the keys from the env file's copies (GitHub, releases), from a copy of the server's disk and
-  from a detached volume, not from someone who already has `deploy` or root on the running server. This is the
-  exception to CLAUDE.md's "keys from the KMS" for the single-server deployment; a KMS replaces it when the
-  deployment outgrows one server or a customer asks for one.
-- **Plaintext between containers on the one host.** Postgres, Redis, Garage, ClamAV, LiveKit's API and the Go
-  binaries talk without TLS over the compose network, a Docker bridge that never leaves the machine; everything that
-  leaves the host is TLS (Caddy, TURN over TLS, SMTP, SFTP to the Storage Box, which also carries only `age`-encrypted
-  files). This is the exception to CLAUDE.md's "TLS inside the cluster" for one host: a second server, or any
-  service moved off this one, brings TLS on that link with it.
-- **E-mail through an EU SMTP relay, Brevo or Mailjet.** The notifier sends through an SMTP relay with
-  authentication and TLS (STARTTLS or implicit TLS), configured by `SMTP_*` and provider-agnostic: Brevo (Sendinblue
-  SAS, France) and Mailjet (Mailjet SAS, France) both qualify, and the choice is configuration. Whichever is used is
-  a processor: its DPA is signed and it is recorded in docs/privacy/processors.md before the first e-mail to a real
-  person. SES (ADR 0007) is not used. The sending domain gets SPF, DKIM and DMARC records (docs/deploy/README.md).
-- **Live speech-to-text and the language model stay on the fakes in production** (`STT_ENGINE` and `LLM_ENGINE`
-  unset or `fake`) until their DPAs are signed and recorded (docs/privacy/processors.md): until then live
-  transcription, translation, suggestions and drafting do not work in production. The production env example says
-  so, and nothing in the deploy sets a real engine.
-
-## Open before real patient data
-
-These do not block building or deploying the stack with synthetic data; each blocks real patient data, and each is
-the owner's decision.
-
-1. **Hetzner's DPA** signed (console, "Data Processing Agreement") and Hetzner moved from "Pending" to "Wired in" in
-   docs/privacy/processors.md, with the Storage Box; and the chosen SMTP relay's DPA, the same way.
-2. **Backups beyond Postgres and their retention.** Garage's attachments are not backed up: losing the server loses
-   the files the database rows point to. The 14 days of dumps keep erased data for up to 14 days after an erasure;
-   the retention rule and the DPIA note (docs/privacy/dpia.md) need the owner's confirmation.
+1. **Open: the DPAs.** Hetzner's DPA signed (console, "Data Processing Agreement") and Hetzner moved from "Pending"
+   to "Wired in" in docs/privacy/processors.md, with the Storage Box and the Volume; the chosen SMTP relay's DPA
+   (point 5) the same way.
+2. **Decided: encryption at rest on a LUKS-encrypted Hetzner Volume, unlocked by hand.** Postgres's and Garage's
+   data live on a Hetzner Volume attached to the server and encrypted with LUKS2 (`cryptsetup`). The server's own
+   disk holds no personal data: no swap (the bootstrap checks), container logs carry none (CLAUDE.md), and ClamAV
+   spools the streams it scans to a `tmpfs`, not to its disk. The passphrase is in the owner's Bitwarden only, never
+   on the server or in GitHub. After every reboot the owner unlocks and mounts the volume by hand with a script,
+   then starts the stack; until then nothing that holds data runs, and the deploy refuses to start when the volume
+   is not mounted. **Automatic reboots stay off** (`UPGRADE_AUTO_REBOOT=no`, and the bootstrap refuses `yes`): a
+   kernel update that needs a reboot waits for the owner, who reboots and unlocks in one sitting.
+3. **Decided: the keys without a KMS, in a root-only file on the encrypted volume.** `BINARY_KEK` and `TOTP_KEY`
+   live in a key file on the LUKS volume, owned by root and readable by no other account on the host, and reach
+   only the containers that need them. They are not in `/opt/salus/.env`, not in the `SALUS_ENV_FILE` GitHub
+   secret, and not in the release directories; the deploy refuses an env file that contains them. Bitwarden keeps
+   the only other copy, for a restore. Limits, accepted for the pilot: the `deploy` user is in the `docker` group
+   and therefore root-equivalent, so the file protects the keys from the env file's copies (GitHub, releases), from
+   a copy of the server's disk and from a detached volume, not from someone who already has `deploy` or root on the
+   running server. This is the exception to CLAUDE.md's "keys from the KMS" for the single-server deployment; a KMS
+   replaces it when the deployment outgrows one server or a customer asks for one.
+4. **Decided: plaintext between containers on the one host.** Postgres, Redis, Garage, ClamAV, LiveKit's API and
+   the Go binaries talk without TLS over the compose network, a Docker bridge that never leaves the machine.
+   Everything that leaves the host is encrypted in transit: TLS (Caddy, TURN over TLS, SMTP), DTLS-SRTP (WebRTC
+   media and TURN over UDP) and SSH (deploys, SFTP to the Storage Box, which also carries only `age`-encrypted
+   files). This is the exception to CLAUDE.md's "TLS inside the cluster" for one host: a second server, or any
+   service moved off this one, brings TLS on that link with it.
+5. **Decided: e-mail through an EU SMTP relay, Brevo or Mailjet.** The notifier sends through an SMTP relay with
+   authentication and TLS (STARTTLS or implicit TLS), configured by `SMTP_*` and provider-agnostic: Brevo
+   (Sendinblue SAS, France) and Mailjet (Mailjet SAS, France) both qualify, and the choice is configuration.
+   Whichever is used is a processor: its DPA is signed and it is recorded in docs/privacy/processors.md before the
+   first e-mail to a real person (point 1). SES (ADR 0007) is not used in production. The sending domain gets SPF,
+   DKIM and DMARC records (docs/deploy/README.md).
+6. **Decided: live speech-to-text and the language model stay on the fakes in production** (`STT_ENGINE` and
+   `LLM_ENGINE` unset or `fake`) until their DPAs are signed and recorded (docs/privacy/processors.md): until then
+   live transcription, translation, suggestions and drafting do not work in production. The production env example
+   says so, and nothing in the deploy sets a real engine.
+7. **Open: the backups' retention.** Decided: Garage's attachments are backed up nightly beside the Postgres dump,
+   encrypted the same way, 14 days kept (DEP-7). Open: the 14 days of backups keep erased data for up to 14 days
+   after an erasure; the retention rule and the DPIA note (docs/privacy/dpia.md) need the owner's confirmation.
 
 ## Consequences
 

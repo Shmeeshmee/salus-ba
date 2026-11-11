@@ -1,6 +1,7 @@
 # 7. AWS SES for e-mail, Mailpit locally
 
-Status: accepted, 2026-10-19
+Status: accepted, 2026-10-19; superseded for production by ADR 0011 point 5 (2026-11-11): an EU SMTP relay
+(Brevo or Mailjet) instead of SES. The port, the notifier and Mailpit locally stand.
 
 ## Context
 
