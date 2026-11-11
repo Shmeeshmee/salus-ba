@@ -59,17 +59,17 @@ func queueIDs(t *testing.T, repo terminology.ReviewRepository, f terminology.Que
 	return ids, rows
 }
 
-func TestQueue_UnreviewedFirstThenNeedsChangesThenApprovedEachByRank(t *testing.T) {
+func TestQueue_NeedsChangesFirstThenUnreviewedThenApprovedEachByRank(t *testing.T) {
 	t.Parallel()
 	_, repo := reviewDatabase(t)
 
 	all, rows := queueIDs(t, repo, terminology.QueueFilter{Language: "bs", Limit: 10})
-	want := []string{fattyLvr + " unreviewed", ulcer + " unreviewed", hepatitis + " needs_changes", liver + " approved"}
+	want := []string{hepatitis + " needs_changes", fattyLvr + " unreviewed", ulcer + " unreviewed", liver + " approved"}
 	if !reflect.DeepEqual(all, want) {
 		t.Fatalf("Queue(bs) = %v,\nwant %v", all, want)
 	}
 	first, _ := queueIDs(t, repo, terminology.QueueFilter{Language: "bs", Limit: 2})
-	next, _ := queueIDs(t, repo, terminology.QueueFilter{Language: "bs", Limit: 2, AfterStatus: "unreviewed", AfterRank: 50, AfterID: ulcer})
+	next, _ := queueIDs(t, repo, terminology.QueueFilter{Language: "bs", Limit: 2, AfterStatus: "unreviewed", AfterRank: 1000, AfterID: fattyLvr})
 	if !reflect.DeepEqual(append(first, next...), want) {
 		t.Errorf("two pages = %v + %v, want %v", first, next, want)
 	}
@@ -105,8 +105,8 @@ func TestQueue_UnreviewedFirstThenNeedsChangesThenApprovedEachByRank(t *testing.
 	if !reflect.DeepEqual(got, wantLiver) {
 		t.Errorf("the liver's entry = %+v\n%+v %+v,\nwant %+v\n%+v %+v", got, got.Translation, got.Explanation, wantLiver, wantLiver.Translation, wantLiver.Explanation)
 	}
-	if rows[0].Translation != nil || rows[0].Explanation != nil || rows[2].Translation.Review.Note != "Use the standard term." {
-		t.Errorf("fatty liver has %+v %+v, hepatitis note %q; want no translation or explanation, and the note", rows[0].Translation, rows[0].Explanation, rows[2].Translation.Review.Note)
+	if rows[1].Translation != nil || rows[1].Explanation != nil || rows[0].Translation.Review.Note != "Use the standard term." {
+		t.Errorf("fatty liver has %+v %+v, hepatitis note %q; want no translation or explanation, and the note", rows[1].Translation, rows[1].Explanation, rows[0].Translation.Review.Note)
 	}
 }
 

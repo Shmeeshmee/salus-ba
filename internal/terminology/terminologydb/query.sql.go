@@ -404,14 +404,14 @@ func (q *Queries) PutTranslation(ctx context.Context, arg PutTranslationParams) 
 const reviewProgress = `-- name: ReviewProgress :many
 SELECT l.language::text AS language, count(*)::integer AS terms,
        (count(*) FILTER (WHERE s.status_order = 2))::integer AS approved,
-       (count(*) FILTER (WHERE s.status_order = 1))::integer AS needs_changes
+       (count(*) FILTER (WHERE s.status_order = 0))::integer AS needs_changes
 FROM term t
 CROSS JOIN unnest(enum_range(NULL::term_language)) AS l(language)
 LEFT JOIN term_translation tr ON tr.term_id = t.id AND tr.language = l.language
 LEFT JOIN term_explanation ex ON ex.term_id = t.id AND ex.language = l.language
 CROSS JOIN LATERAL (
-    SELECT CASE WHEN tr.review_status = 'needs_changes' OR ex.review_status = 'needs_changes' THEN 1
-                WHEN tr.term_id IS NULL OR tr.review_status = 'unreviewed' OR ex.review_status = 'unreviewed' THEN 0
+    SELECT CASE WHEN tr.review_status = 'needs_changes' OR ex.review_status = 'needs_changes' THEN 0
+                WHEN tr.term_id IS NULL OR tr.review_status = 'unreviewed' OR ex.review_status = 'unreviewed' THEN 1
                 ELSE 2 END AS status_order
 ) s
 GROUP BY l.language
@@ -425,7 +425,7 @@ type ReviewProgressRow struct {
 	NeedsChanges int32
 }
 
-// Per language, every term and how many of its entries there are approved (2) or need changes (1), as ReviewQueue.
+// Per language, every term and how many of its entries there are approved (2) or need changes (0), as ReviewQueue.
 func (q *Queries) ReviewProgress(ctx context.Context) ([]ReviewProgressRow, error) {
 	rows, err := q.db.Query(ctx, reviewProgress)
 	if err != nil {
@@ -460,8 +460,8 @@ WITH entries AS (
            ex.term_id IS NOT NULL AS has_explanation, ex.updated_at AS ex_updated_at, ex.reviewed_at AS ex_reviewed_at,
            ex.reviewed_by AS ex_reviewed_by, ex.version_id AS ex_version_id, ex.review_status AS ex_status, ex.note AS ex_note,
            ex.text AS ex_text,
-           CASE WHEN tr.review_status = 'needs_changes' OR ex.review_status = 'needs_changes' THEN 1
-                WHEN tr.term_id IS NULL OR tr.review_status = 'unreviewed' OR ex.review_status = 'unreviewed' THEN 0
+           CASE WHEN tr.review_status = 'needs_changes' OR ex.review_status = 'needs_changes' THEN 0
+                WHEN tr.term_id IS NULL OR tr.review_status = 'unreviewed' OR ex.review_status = 'unreviewed' THEN 1
                 ELSE 2 END AS status_order
     FROM term t
     LEFT JOIN term_translation tr ON tr.term_id = t.id AND tr.language = $1::term_language
@@ -538,8 +538,8 @@ type ReviewQueueRow struct {
 }
 
 // The review panel (SAL-14), on the app's connection: docs/terminology/SPEC.md §3 "Review".
-// An entry per term in the language: status_order 0 unreviewed (no translation, or the translation or the
-// explanation unreviewed), 1 needs_changes (either needs changes), 2 approved; an explanation that does not exist
+// An entry per term in the language: status_order 0 needs_changes (either needs changes), 1 unreviewed (no
+// translation, or the translation or the explanation unreviewed), 2 approved; an explanation that does not exist
 // does not count. A page by status, rank descending and id, after the keyset (after_order, after_rank, after_id)
 // when after_id is set; each entry with its labels in the language, Latin and English.
 func (q *Queries) ReviewQueue(ctx context.Context, arg ReviewQueueParams) ([]ReviewQueueRow, error) {

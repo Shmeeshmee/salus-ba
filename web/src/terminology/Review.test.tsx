@@ -72,14 +72,17 @@ const queries = (requests: Request[]) => requests.filter((r) => new URL(r.url).p
 afterEach(cleanup)
 
 describe('the queue', () => {
-  it('reads the unreviewed entries of the UI language and shows each term with its labels, context and explanation', async () => {
+  it('reads every entry of the UI language by default, needs changes first, and shows each term with its labels, context and explanation', async () => {
     const fake = setup()
 
     expect(await screen.findByRole('heading', { name: 'Term review' })).toBeTruthy()
     await screen.findByRole('heading', { name: 'jetra' })
     expect(queries(fake.requests)[0].get('language')).toBe('en') // the UI language first
     expect(queries(fake.requests).at(-1)?.get('language')).toBe('hr')
-    expect(queries(fake.requests).at(-1)?.get('status')).toBe('unreviewed')
+    expect(queries(fake.requests).at(-1)?.has('status')).toBe(false) // All: the server orders needs changes first
+    const filter = screen.getByLabelText('Status') as HTMLSelectElement
+    expect(filter.value).toBe('all')
+    expect([...filter.options].map((o) => o.value)).toEqual(['all', 'needs_changes', 'unreviewed', 'approved'])
     const [first, second, third] = entries()
     expect(part(first, 'Labels').textContent).toContain('hepar')
     expect(part(first, 'Labels').textContent).toContain('Unreviewed')
@@ -99,17 +102,18 @@ describe('the queue', () => {
     expect(screen.getByRole('cell', { name: 'Latin' })).toBeTruthy()
   })
 
-  it('reloads from the start when a filter changes, without a status for All, and hides explanations in Latin', async () => {
+  it('reloads from the start when a filter changes, with the chosen status, and hides explanations in Latin', async () => {
     const fake = setup()
     await screen.findByRole('heading', { name: 'jetra' })
 
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'all' } })
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'unreviewed' } })
     await screen.findByRole('heading', { name: 'jetra' })
     fireEvent.change(screen.getByLabelText('Language'), { target: { value: 'la' } })
     await screen.findAllByRole('article')
 
     const asked = queries(fake.requests)
-    expect(asked.at(-2)?.has('status')).toBe(false)
+    expect(asked.at(-2)?.get('status')).toBe('unreviewed')
+    expect(asked.at(-1)?.get('status')).toBe('unreviewed')
     expect(asked.at(-1)?.get('language')).toBe('la')
     expect(asked.at(-1)?.has('after')).toBe(false)
     expect(screen.queryByRole('region', { name: 'Explanation for patients (informational)' })).toBeNull()

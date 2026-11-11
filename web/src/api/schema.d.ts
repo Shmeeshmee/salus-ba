@@ -1066,7 +1066,7 @@ export interface paths {
         };
         /**
          * The review queue of the medical terms in one language
-         * @description The review panel's queue (docs/terminology/SPEC.md §3 "Review"): one entry per term in the language, with the term's labels in that language, Latin and English, the review of those labels (the translation) and the term's explanation in that language. An entry's status is `needs_changes` when its translation or its explanation needs changes, else `unreviewed` when the term has no label in the language yet or either is unreviewed, else `approved` (an explanation that does not exist yet does not count). Unreviewed entries first, then those that need changes, then the approved ones, each the more common term first. Every staff member reads; only a reviewer writes. Not audited: reference data, no patient data.
+         * @description The review panel's queue (docs/terminology/SPEC.md §3 "Review"): one entry per term in the language, with the term's labels in that language, Latin and English, the review of those labels (the translation) and the term's explanation in that language. An entry's status is `needs_changes` when its translation or its explanation needs changes, else `unreviewed` when the term has no label in the language yet or either is unreviewed, else `approved` (an explanation that does not exist yet does not count). Entries that need changes first, then the unreviewed ones, then the approved ones, each the more common term first. Every staff member reads; only a reviewer writes. Not audited: reference data, no patient data.
          */
         get: operations["listTermReview"];
         put?: never;
