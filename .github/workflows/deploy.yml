@@ -85,6 +85,14 @@ jobs:
             echo "Not a full commit SHA: $sha" >&2
             exit 1
           fi
+          # The environment must exist with a required reviewer: a job naming a missing environment would create it
+          # unprotected, and deploy without the owner's approval.
+          reviewers=$(gh api "repos/$REPO/environments/production" \
+            --jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length' 2>/dev/null || echo 0)
+          if [ "${reviewers:-0}" -lt 1 ]; then
+            echo "The environment production does not exist or has no required reviewer (docs/deploy/README.md step 6)." >&2
+            exit 1
+          fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "deploy=true" >> "$GITHUB_OUTPUT"
       - name: The release's images exist
@@ -149,8 +157,23 @@ jobs:
             fi
           done < <(grep -E '^[A-Z0-9_]+=' deployments/production/.env.production.example | cut -d= -f1)
           [ "$missing" = 0 ]
-          if ! grep -qx "SALUS_DOMAIN=$DOMAIN" "$RUNNER_TEMP/salus/.env"; then
+          if grep -q $'\r' "$RUNNER_TEMP/salus/.env"; then
+            echo "SALUS_ENV_FILE has Windows line endings (CR): paste it again with LF only." >&2
+            exit 1
+          fi
+          # A key the example does not know is a typo or a leftover: named, not fatal.
+          while read -r key; do
+            grep -Eq "^#? ?$key=" deployments/production/.env.production.example ||
+              echo "::warning::SALUS_ENV_FILE sets $key, which .env.production.example does not know"
+          done < <(grep -oE '^[A-Z0-9_]+=' "$RUNNER_TEMP/salus/.env" | tr -d =)
+          value() { sed -n "s/^$1=//p" "$RUNNER_TEMP/salus/.env" | tail -1 | sed -E "s/^\"(.*)\"\$/\\1/; s/^'(.*)'\$/\\1/"; }
+          if [ "$(value SALUS_DOMAIN)" != "$DOMAIN" ]; then
             echo "SALUS_ENV_FILE's SALUS_DOMAIN differs from the SALUS_DOMAIN variable." >&2
+            exit 1
+          fi
+          owner=$(value GHCR_OWNER)
+          if [ "${owner:-shmeeshmee}" != "$GHCR_OWNER" ]; then
+            echo "SALUS_ENV_FILE's GHCR_OWNER differs from the GHCR_OWNER variable (images checked under $GHCR_OWNER)." >&2
             exit 1
           fi
           cat > ~/.ssh/config <<EOF
@@ -178,12 +201,28 @@ jobs:
         # Any user name goes with a GITHUB_TOKEN.
         run: echo "$TOKEN" | ssh salus "docker login ghcr.io -u salus-deploy --password-stdin" >/dev/null
       - name: Deploy, roll back on failure
+        # deploy.sh runs detached on the server (start), so a dropped connection or a cancelled run cannot stop it
+        # half-way: it finishes or rolls back on its own. This step follows its status and prints its log.
         run: |
-          # shellcheck disable=SC2029 # $SHA is a checked 40-hex SHA, expanded here on purpose
           flag=
           [ "$MIGRATE" = yes ] || flag=--no-migrate
           # shellcheck disable=SC2029
-          ssh salus "bash /opt/salus/releases/$SHA/deploy.sh deploy $SHA $flag"
+          ssh salus "bash /opt/salus/releases/$SHA/deploy.sh start $SHA $flag"
+          status=running
+          for _ in $(seq 240); do
+            sleep 10
+            # shellcheck disable=SC2029
+            status=$(ssh salus "bash /opt/salus/releases/$SHA/deploy.sh status $SHA" || echo unreachable)
+            case $status in running | unreachable) continue ;; *) break ;; esac
+          done
+          # shellcheck disable=SC2029
+          ssh salus "cat /opt/salus/releases/$SHA/deploy.log" || true
+          case $status in
+          0) echo "Deployed." ;;
+          1) echo "Not deployed: refused, or failed and rolled back (log above)." >&2; exit 1 ;;
+          2) echo "Failed, and the rollback failed too: the stack needs a person (log above)." >&2; exit 1 ;;
+          *) echo "No result within 40 minutes (status: $status); the deploy goes on on the server." >&2; exit 1 ;;
+          esac
       - name: Check the public endpoints
         id: public
         run: |

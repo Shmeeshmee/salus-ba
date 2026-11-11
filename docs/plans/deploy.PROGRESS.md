@@ -46,5 +46,9 @@ required reviewer. `deployments/production/deploy.sh` on the server: check and p
 env and tag, `up -d --wait` (migrate through `up`), and on failure the previous release back without migrate;
 the workflow then checks the public `/healthz` endpoints and rolls back if they fail. Tests:
 `deployments/production/test/deploy-test.sh` (a fake docker: deploy, rollback, failed rollback, first deploy,
-`--no-migrate`, refusals, pruning that leaves other images alone), in `make deploy-check`. `docs/deploy/README.md`:
+`--no-migrate`, refusals, pruning that leaves other images alone, a service that does not stay up, the lock, the
+detached start), in `make deploy-check`. Review: one must-fix (a dropped SSH connection or a cancelled run could stop
+the deploy half-way with no rollback: it now runs detached on the server under a lock, and the workflow follows its
+status) and nine others, fixed (among them: services that crash after `--wait` fail the deploy; the workflow refuses
+an environment without a required reviewer; the env file's line endings, quotes and image owner are checked). `docs/deploy/README.md`:
 the first-time setup step by step. The landing image's nginx no longer writes an access log.

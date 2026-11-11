@@ -34,7 +34,8 @@ setup() {
 	cat >"$WORK/bin/docker" <<'EOF'
 #!/usr/bin/env bash
 # Fake docker: logs every call with the SALUS_TAG of the release.env it was given, and fails `compose up` for the
-# tags in FAKE_FAIL_TAG (space-separated); `image ls` lists FAKE_IMAGES.
+# tags in FAKE_FAIL_TAG (space-separated); `image ls` lists FAKE_IMAGES; after `up`, `ps` shows the worker
+# restarting for the tags in FAKE_UNSTABLE_TAG.
 tag=
 args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do
@@ -46,6 +47,13 @@ echo "tag=${tag:-none} $*" >>"$FAKE_LOG"
 case " $* " in
 *" config --services "*) printf '%s\n' caddy migrate api worker postgres ;;
 *" image ls "*) for i in ${FAKE_IMAGES:-}; do echo "$i"; done ;;
+*" ps --all --format "*)
+	state=running
+	for t in ${FAKE_UNSTABLE_TAG:-}; do [[ $tag == "$t" ]] && state=restarting; done
+	printf '%s\n' "migrate exited" "caddy running" "api running" "worker $state" "postgres running"
+	;;
+*" ps -q "*) printf '%s\n' c1 c2 ;;
+*" inspect "*) printf '%s\n' 0 0 ;;
 *" up "*) for t in ${FAKE_FAIL_TAG:-}; do [[ $tag == "$t" ]] && exit 1; done ;;
 esac
 exit 0
@@ -68,7 +76,7 @@ running() {
 
 run() {
 	set +e
-	PATH="$WORK/bin:$PATH" FAKE_LOG=$LOG SALUS_ROOT=$ROOT bash "$DEPLOY" "$@" >"$WORK/out" 2>&1
+	PATH="$WORK/bin:$PATH" FAKE_LOG=$LOG SALUS_ROOT=$ROOT SALUS_SETTLE_SECONDS=0 bash "$DEPLOY" "$@" >"$WORK/out" 2>&1
 	STATUS=$?
 	set -e
 }
@@ -148,6 +156,38 @@ expect_eq "$STATUS" 0 "exit status"
 expect_eq "$(find "$ROOT/releases" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ')" "$B $C " "releases kept"
 expect_log "image rm ghcr.io/shmeeshmee/salus:$A$"
 expect_no_log "image rm .*(salus-web:$B|salus:$C|:main|other/app|postgres)"
+
+setup "a service that does not stay up after the wait fails the deploy, which rolls back" "$A" "$B"
+running "$A"
+FAKE_UNSTABLE_TAG=$B run deploy "$B"
+expect_eq "$STATUS" 1 "exit status"
+expect_eq "$(tag_of release.env)" "$A" "release.env after rollback"
+if grep -q "worker" "$WORK/out"; then ok; else fail "output does not name the unstable service"; fi
+
+setup "a second deploy while one holds the lock is refused" "$A" "$B"
+running "$A"
+exec 8>"$ROOT/.deploy.lock"
+flock 8
+run deploy "$B"
+exec 8>&-
+expect_eq "$STATUS" 1 "exit status"
+expect_no_log " up "
+if grep -q "another deploy" "$WORK/out"; then ok; else fail "output does not say another deploy runs"; fi
+
+setup "start runs the deploy detached and status reports its exit status" "$A" "$B"
+running "$A"
+run status "$B"
+expect_eq "$(cat "$WORK/out")" "none" "status before start"
+run start "$B"
+expect_eq "$STATUS" 0 "start returns at once"
+for _ in $(seq 50); do
+	run status "$B"
+	[[ $(cat "$WORK/out") == running ]] || break
+	sleep 0.1
+done
+expect_eq "$(cat "$WORK/out")" "0" "status after the detached deploy"
+expect_eq "$(tag_of release.env)" "$B" "release.env"
+if grep -q "deployed $B" "$ROOT/releases/$B/deploy.log"; then ok; else fail "the deploy log has no result"; fi
 
 echo "deploy-test: $PASSES passed, $FAILS failed"
 ((FAILS == 0))

@@ -79,15 +79,16 @@ At the end the script prints the backup's public SSH key: add it to the Storage 
 
 ## 5. The server's host key
 
-The deploy workflow pins the server's SSH host key. From your machine, once SSH works as `deploy`:
+The deploy workflow pins the server's SSH host key. From your machine, once SSH works as `deploy`, scan exactly
+the value you will put in `DEPLOY_HOST` (ssh matches the name it connects to; the IPv4 is simplest):
 
 ```sh
-ssh-keyscan -p SSH_PORT -t ed25519 SERVER_IPV4
+ssh-keyscan -p SSH_PORT -t ed25519 DEPLOY_HOST
 ```
 
 Compare its fingerprint (`ssh-keygen -lf <(ssh-keyscan …)`) with the one you accepted on your first login (or the
 server's `/etc/ssh/ssh_host_ed25519_key.pub`, `ssh-keygen -lf`). The line goes into the GitHub secret
-`DEPLOY_KNOWN_HOSTS`. For a port other than 22 the line starts `[SERVER_IPV4]:PORT`.
+`DEPLOY_KNOWN_HOSTS`. For a port other than 22 the line starts `[DEPLOY_HOST]:PORT`.
 
 ## 6. GitHub
 
@@ -95,7 +96,8 @@ In the repository's settings:
 
 1. **Environment `production`** (Settings, Environments, New environment):
    - **Required reviewers**: yourself. Every deploy waits for your approval in the Actions tab.
-   - **Deployment branches and tags**: "Selected branches", `main` only.
+   - **Deployment branches and tags**: "Selected branches and tags", `main` only.
+   - The deploy refuses to run while this environment is missing or has no required reviewer.
    - **Environment secrets**:
 
      | Secret | Value |
@@ -140,9 +142,11 @@ head. Check that the latest Images run of `main` succeeded with its `release` jo
    previous release and leaves the stack running. Look at it over SSH instead:
    `docker compose -p salus --env-file /opt/salus/.env --env-file /opt/salus/release.env -f /opt/salus/deployments/docker-compose.prod.yml ps`,
    and `curl -k --resolve app.SALUS_DOMAIN:443:127.0.0.1 https://app.SALUS_DOMAIN/healthz` on the server.
-5. When everything is healthy: remove the `SALUS_ACME_CA` line from `SALUS_ENV_FILE`, delete Caddy's staging
-   certificates (`deployments/production/README.md`, "For DEP-3 and DEP-4"), and run the deploy again. Now the
-   public check must pass.
+5. When everything is healthy: remove the `SALUS_ACME_CA` line from `SALUS_ENV_FILE` and run the deploy again
+   **with the same SHA** (so a rollback could only go back to the same code). Caddy obtains the production
+   certificates on start; the public check must pass. The staging certificates stay unused in Caddy's volume; to
+   remove them:
+   `docker compose -p salus --env-file /opt/salus/.env --env-file /opt/salus/release.env -f /opt/salus/deployments/docker-compose.prod.yml exec caddy rm -r /data/caddy/certificates/acme-staging-v02.api.letsencrypt.org-directory`.
 6. **The first clinic and its admin**, on the server as `deploy` (`salusctl` runs as the database owner, so through
    the migrate service, which has the owner's connection):
    ```sh
@@ -158,13 +162,21 @@ From then on every merge to `main` deploys after your approval: Images, then Dep
 
 ## Day to day
 
+- **A deploy takes the stack down briefly.** Every image changes with every release, so compose recreates every
+  service; the app services wait for migrate. Expect a short outage per deploy (migrate plus start-up); deploy
+  outside clinic hours.
 - **A deploy failed.** `deploy.sh` brought the previous release back without running migrate (forward-only
-  migrations: the previous code runs against the newer schema). The job's log names the services that were not
-  healthy. Fix forward with a new commit.
+  migrations: the previous code runs against the newer schema). The job's log (the server's
+  `/opt/salus/releases/<sha>/deploy.log`) names the services that were not healthy or did not stay up. Fix forward
+  with a new commit. The deploy runs detached on the server: a cancelled run or a dropped connection does not stop
+  it half-way, and a second deploy started on the server meanwhile is refused until the first is done.
 - **Go back to an older release by hand.** Actions, Deploy, "Run workflow" with its SHA and **migrate off**; the
   older code must accept the current schema (expand, then contract: ADR 0011).
-- **Change a secret.** Update the Bitwarden note, paste the whole file into `SALUS_ENV_FILE`, run Deploy (same
-  SHA). `POSTGRES_PASSWORD` cannot be changed this way (Postgres keeps the first one; `ALTER ROLE` first).
+- **Change a secret.** Update the Bitwarden note, paste the whole file into `SALUS_ENV_FILE`, run Deploy with the
+  **same SHA** as the running release, on its own (not together with new code): a rollback restores the previous
+  env file, so after `migrate` has set a rotated `APP_DATABASE_PASSWORD` or `RETENTION_DATABASE_PASSWORD`, a
+  rollback would bring back the old password and fail. `POSTGRES_PASSWORD` cannot be changed this way (Postgres
+  keeps the first one; `ALTER ROLE` first).
 - **Look at the stack.** `ssh deploy@SERVER`, then the compose command above with `ps`, `logs --tail 100 <service>`.
   Logs carry no personal data by design; keep it that way when you paste them anywhere.
 - **What the deploy keeps on the server.** `/opt/salus/releases/<sha>/` for the running and the previous release

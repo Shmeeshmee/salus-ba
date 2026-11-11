@@ -4,8 +4,14 @@
 # release's deployments/production/ directory and its .env to /opt/salus/releases/<sha>/, then runs this script
 # from there:
 #
+#   deploy.sh start <sha> [--no-migrate]    run `deploy` detached from the SSH session (the workflow's way), its
+#                                           output in releases/<sha>/deploy.log, its exit status in deploy.status
+#   deploy.sh status <sha>                  `none`, `running`, or the exit status of the detached deploy
 #   deploy.sh deploy <sha> [--no-migrate]   switch to the release; on any failure, back to the one before
 #   deploy.sh rollback                      back to the release before the running one (no migrate)
+#
+# A deploy and a rollback hold /opt/salus/.deploy.lock: a second one at the same time is refused. Detached, a dropped
+# SSH connection or a cancelled workflow run cannot stop a deploy half-way: it finishes, or rolls back, on its own.
 #
 # Layout (deployments/production/README.md): /opt/salus/deployments/ the running release's files, /opt/salus/.env
 # its variables (600), /opt/salus/release.env its SALUS_TAG, /opt/salus/release.previous.env the one before.
@@ -20,6 +26,10 @@ set -euo pipefail
 
 ROOT=${SALUS_ROOT:-/opt/salus}
 WAIT_TIMEOUT=${SALUS_WAIT_TIMEOUT:-900}
+# After `up --wait`, how long the services must stay up: worker, scheduler, notifier and agent have no healthcheck,
+# so `--wait` accepts them once they run, and one that exits at start would otherwise pass.
+SETTLE_SECONDS=${SALUS_SETTLE_SECONDS:-30}
+SELF=$(realpath "${BASH_SOURCE[0]}")
 
 log() { echo "salus-deploy: $*" >&2; }
 die() {
@@ -34,13 +44,37 @@ compose() {
 
 tag_of() { sed -n 's/^SALUS_TAG=//p' "$1" 2>/dev/null || true; }
 
+lock() {
+	exec 9>"$ROOT/.deploy.lock"
+	flock -n 9 || die "another deploy or rollback is running"
+}
+
+# settled is true when, SETTLE_SECONDS after the wait, every service but the one-shot migrate is running and none
+# has restarted.
+settled() {
+	sleep "$SETTLE_SECONDS"
+	local bad restarts
+	bad=$(compose ps --all --format '{{.Service}} {{.State}}' | awk '$1 != "migrate" && $2 != "running"')
+	if [[ -n $bad ]]; then
+		log "not running after ${SETTLE_SECONDS}s: $(echo "$bad" | tr '\n' ' ')"
+		return 1
+	fi
+	# shellcheck disable=SC2046 # one word per container id
+	restarts=$(docker inspect --format '{{.Name}} {{.RestartCount}}' $(compose ps -q) | awk '$2 > 0')
+	if [[ -n $restarts ]]; then
+		log "restarted since the deploy: $(echo "$restarts" | tr '\n' ' ')"
+		return 1
+	fi
+}
+
 # install puts the uploaded release SHA's files in place as the running release.
 install() {
 	local sha=$1 rel=$ROOT/releases/$1
 	rm -rf "$ROOT/deployments.new"
 	mkdir -p "$ROOT/deployments.new"
 	cp -a "$rel/." "$ROOT/deployments.new/"
-	rm -f "$ROOT/deployments.new/.env" "$ROOT/deployments.new/release.env"
+	rm -f "$ROOT/deployments.new/.env" "$ROOT/deployments.new/release.env" "$ROOT/deployments.new/deploy.log" \
+		"$ROOT/deployments.new/deploy.status"
 	# The env file is written mode 600 from the start, never readable by another user in between.
 	(umask 077 && cp "$rel/.env" "$ROOT/.env.new")
 	mv "$ROOT/.env.new" "$ROOT/.env"
@@ -57,7 +91,7 @@ up_without_migrate() {
 	local services
 	services=$(compose config --services | grep -vx migrate | tr '\n' ' ')
 	# shellcheck disable=SC2086 # one word per service
-	compose up -d --wait --wait-timeout "$WAIT_TIMEOUT" --remove-orphans --no-deps $services
+	compose up -d --wait --wait-timeout "$WAIT_TIMEOUT" --remove-orphans --no-deps $services && settled
 }
 
 # roll_back_to brings the release SHA back up without migrate. Exit 0 when it is up.
@@ -97,6 +131,7 @@ cmd_deploy() {
 	local rel=$ROOT/releases/$sha
 	[[ -f $rel/docker-compose.prod.yml && -f $rel/.env ]] || die "release $sha is not uploaded to $rel"
 	chmod 600 "$rel/.env"
+	lock
 
 	# Check and pull with the new files before anything running changes.
 	echo "SALUS_TAG=$sha" >"$rel/release.env"
@@ -118,7 +153,7 @@ cmd_deploy() {
 
 	local up=0
 	if ((migrate)); then
-		compose up -d --wait --wait-timeout "$WAIT_TIMEOUT" --remove-orphans || up=$?
+		{ compose up -d --wait --wait-timeout "$WAIT_TIMEOUT" --remove-orphans && settled; } || up=$?
 	else
 		up_without_migrate || up=$?
 	fi
@@ -147,6 +182,7 @@ cmd_rollback() {
 	current=$(tag_of "$ROOT/release.env")
 	previous=$(tag_of "$ROOT/release.previous.env")
 	[[ -n $previous ]] || die "no previous release to roll back to"
+	lock
 	if roll_back_to "$previous"; then
 		log "rolled back from ${current:-none} to $previous"
 		return 0
@@ -155,8 +191,37 @@ cmd_rollback() {
 	exit 2
 }
 
+# cmd_start starts `deploy` in its own session, so it outlives the SSH connection that started it.
+cmd_start() {
+	local sha=${1:-} rel
+	[[ $sha =~ ^[0-9a-f]{40}$ ]] || die "not a full commit SHA: '$sha'"
+	rel=$ROOT/releases/$sha
+	[[ -d $rel ]] || die "release $sha is not uploaded to $rel"
+	rm -f "$rel/deploy.status"
+	: >"$rel/deploy.log"
+	# shellcheck disable=SC2016 # expanded by the inner shell
+	setsid nohup bash -c 'bash "$1" deploy "${@:3}" >"$2/deploy.log" 2>&1; echo $? >"$2/deploy.status"' \
+		_ "$SELF" "$rel" "$@" </dev/null >/dev/null 2>&1 &
+	log "started the deploy of $sha (log: $rel/deploy.log)"
+}
+
+cmd_status() {
+	local sha=${1:-} rel
+	[[ $sha =~ ^[0-9a-f]{40}$ ]] || die "not a full commit SHA: '$sha'"
+	rel=$ROOT/releases/$sha
+	if [[ -s $rel/deploy.status ]]; then
+		cat "$rel/deploy.status"
+	elif [[ -f $rel/deploy.log ]]; then
+		echo running
+	else
+		echo none
+	fi
+}
+
 case ${1:-} in
+start) shift && cmd_start "$@" ;;
+status) shift && cmd_status "$@" ;;
 deploy) shift && cmd_deploy "$@" ;;
 rollback) cmd_rollback ;;
-*) die "usage: deploy.sh deploy <sha> [--no-migrate] | deploy.sh rollback" ;;
+*) die "usage: deploy.sh start|deploy <sha> [--no-migrate] | deploy.sh status <sha> | deploy.sh rollback" ;;
 esac
