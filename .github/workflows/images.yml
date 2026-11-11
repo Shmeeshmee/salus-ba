@@ -1,0 +1,168 @@
+# Images: builds the production images and pushes them to GHCR (docs/adr/0011-single-server-deployment.md):
+# salus (every Go binary under cmd/), salus-web, salus-landing and salus-caddy, as ghcr.io/<GHCR_OWNER>/<image>,
+# tagged with the full commit SHA and `main`. The server pulls by SHA, never by `main`.
+#
+# When: on every push to main, and by hand on main (workflow_dispatch). The gate job waits for this commit's CI, the
+# push runs of the go, web, mobile and landing workflows (each runs on every push to main and skips its jobs by path
+# inside, a skipped job counting as passed), and lets the build go ahead only when all four concluded success. A
+# failed or cancelled CI run (cancelled: superseded by a newer push), or no result within the gate's timeout, fails
+# this run and nothing is pushed; after re-running a failed CI workflow, re-run this run's failed jobs.
+# Why a waiting gate rather than a workflow_run trigger on the four workflows: workflow_run fires once per finished
+# workflow, so three of every four Images runs would end in success without building anything, and the deploy
+# (deploy.yml, on a successful Images run of main) could not tell a build from a skip. Here there is one run per
+# commit, and its success means every image was scanned and pushed.
+# Runs are serialised in one concurrency group and never cancelled while running, so `main` moves forward in commit
+# order; a newer queued run replaces an older queued one, which leaves that older commit without images (deploys
+# take the newest).
+#
+# Per image: build for linux/amd64 only (Hetzner CPX/CX are x86; arm64 is not built), load it locally, scan it with
+# Trivy (pinned image, by digest; not trivy-action or setup-trivy, whose tags were hijacked in March 2026), and only
+# then push it with an SBOM attestation (SPDX, stored in GHCR next to the image). The scan fails on a CRITICAL
+# vulnerability that has a fixed version (--ignore-unfixed: a finding with no fix cannot be cleared by a rebuild and
+# would block every release until upstream ships one; it shows in the scan's table and Dependabot moves the base
+# images when the fix lands). The push rebuilds from the layers the scanned build just wrote, so the pushed image
+# is the scanned one (same inputs and labels; the attestation sits beside it in the index). Layer cache: the GitHub Actions cache, one scope per image.
+name: Images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images
+  cancel-in-progress: false
+
+env:
+  # Lowercase, as GHCR requires. GITHUB_TOKEN can push only to the repository owner's packages.
+  GHCR_OWNER: ${{ vars.GHCR_OWNER || 'shmeeshmee' }}
+  TRIVY_IMAGE: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+
+jobs:
+  gate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      actions: read
+    steps:
+      - name: Wait for this commit's CI on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          workflows="go web mobile landing"
+          deadline=$(( $(date +%s) + 110 * 60 ))
+          while :; do
+            runs=$(gh api "repos/$REPO/actions/runs?head_sha=$SHA&event=push&branch=main&per_page=100" \
+              --jq '[.workflow_runs[] | {path, status, conclusion, html_url}]')
+            pending=0
+            for w in $workflows; do
+              run=$(jq -c --arg p ".github/workflows/$w.yml" 'map(select(.path == $p)) | first // empty' <<<"$runs")
+              if [ -z "$run" ] || [ "$(jq -r .status <<<"$run")" != completed ]; then
+                pending=1
+                continue
+              fi
+              conclusion=$(jq -r .conclusion <<<"$run")
+              if [ "$conclusion" != success ]; then
+                echo "::error::CI workflow $w concluded $conclusion for $SHA ($(jq -r .html_url <<<"$run")); no images are built."
+                exit 1
+              fi
+            done
+            if [ "$pending" = 0 ]; then
+              echo "CI passed for $SHA: go, web, mobile and landing."
+              exit 0
+            fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::CI for $SHA did not finish in time; re-run this job once it has."
+              exit 1
+            fi
+            sleep 30
+          done
+
+  image:
+    needs: gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: salus
+            context: .
+            file: build/package/Dockerfile
+            no-cache-filters: ''
+          # The nginx images upgrade their Alpine packages in the runtime stage; rebuilding that stage each time
+          # picks up the current fixes instead of a cached upgrade.
+          - image: salus-web
+            context: web
+            file: build/package/web.Dockerfile
+            no-cache-filters: runtime
+          - image: salus-landing
+            context: landing
+            file: build/package/landing.Dockerfile
+            no-cache-filters: runtime
+          - image: salus-caddy
+            context: build/package
+            file: build/package/caddy.Dockerfile
+            no-cache-filters: ''
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Image name
+        id: name
+        run: echo "ref=ghcr.io/$GHCR_OWNER/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+      - name: Build (loaded locally for the scan)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/amd64
+          load: true
+          tags: ${{ steps.name.outputs.ref }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          no-cache-filters: ${{ matrix.no-cache-filters }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+      - name: Trivy scan (fails on a fixable CRITICAL vulnerability)
+        run: |
+          trivy() {
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$RUNNER_TEMP/trivy:/root/.cache/trivy" \
+              "$TRIVY_IMAGE" "$@"
+          }
+          trivy image --scanners vuln --severity HIGH,CRITICAL --exit-code 0 --no-progress \
+            "${{ steps.name.outputs.ref }}:${{ github.sha }}"
+          trivy image --scanners vuln --severity CRITICAL --ignore-unfixed --exit-code 1 --skip-db-update --quiet \
+            "${{ steps.name.outputs.ref }}:${{ github.sha }}" || {
+            echo "::error::${{ matrix.image }} has a CRITICAL vulnerability with a fix available; not pushed."
+            exit 1
+          }
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Push with an SBOM attestation
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.name.outputs.ref }}:${{ github.sha }}
+            ${{ steps.name.outputs.ref }}:main
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          attests: type=sbom,generator=docker/buildkit-syft-scanner:1.12.1@sha256:873a7458c3c8ac8e32c7b796c10e1600b07b963d2aa000a72a2d97aaaa2d6315
+          cache-from: type=gha,scope=${{ matrix.image }}

@@ -1,5 +1,5 @@
-# Runtime image for every Go binary (api, migrate, worker, scheduler, notifier, agent). Compose picks the
-# binary with `command`. Static binaries on distroless, running as a non-root user.
+# Runtime image for every Go binary under cmd/ (api, migrate, worker, scheduler, notifier, agent, salusctl).
+# Compose picks the binary with `command`. Static binaries on distroless, running as a non-root user.
 FROM golang:1.27.3-trixie AS build
 ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS=-buildvcs=false
 WORKDIR /src
