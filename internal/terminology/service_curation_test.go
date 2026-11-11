@@ -18,6 +18,9 @@ type fakeCuration struct {
 	terms map[string]terminology.Term
 	// explanations are the stored explanations by "<term id> <language>" (ImportExplanations)
 	explanations map[string]terminology.Explanation
+	// stored are the translations by "<term id> <language>" and termReviews the terms' reviews by id (ImportFlags)
+	stored       map[string]terminology.Translation
+	termReviews  map[string]terminology.Review
 	gotStat      string
 	translations []string // the SetTranslationsStatus calls, "<id> <status> <at>"
 	updates      int
@@ -37,10 +40,34 @@ func (f *fakeCuration) TermIDByWikidata(_ context.Context, wikidataID string) (s
 }
 
 func (f *fakeCuration) LockEntry(_ context.Context, termID, language string) (terminology.EntryState, error) {
-	if e, ok := f.explanations[termID+" "+language]; ok {
-		return terminology.EntryState{Explanation: &e}, f.err
+	st := terminology.EntryState{TermReview: f.termReviews[termID]}
+	for _, l := range []string{"la", "bs", "hr", "sr-Latn", "sr-Cyrl", "en", "de", "ar", "tr", "it", "fr"} {
+		if tr, ok := f.stored[termID+" "+l]; ok {
+			st.Translations = append(st.Translations, tr)
+		}
 	}
-	return terminology.EntryState{}, f.err
+	for _, l := range f.terms[termID].Labels {
+		if l.Language == language {
+			st.Labels = append(st.Labels, l)
+		}
+	}
+	if e, ok := f.explanations[termID+" "+language]; ok {
+		st.Explanation = &e
+	}
+	return st, f.err
+}
+
+func (f *fakeCuration) PutTranslation(_ context.Context, tr terminology.Translation) error {
+	f.stored[tr.TermID+" "+tr.Language] = tr
+	return f.err
+}
+
+func (f *fakeCuration) SetTermReview(_ context.Context, termID string, r terminology.Review, at time.Time) error {
+	if at.IsZero() {
+		return errors.New("no updated_at")
+	}
+	f.termReviews[termID] = r
+	return f.err
 }
 
 func (f *fakeCuration) PutExplanation(_ context.Context, e terminology.Explanation) error {

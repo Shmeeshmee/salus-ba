@@ -216,33 +216,13 @@ func (s *Reviews) refuse(ctx context.Context, c Caller, table string) error {
 	return ErrForbidden
 }
 
-// putTranslation stores tr and sets the term's status from its translations with tr in place: needs_changes when
-// one in statusLanguages needs changes, approved when all of those it has are approved, else unreviewed. A status
-// that turns approved or needs_changes names c and now; one that turns unreviewed keeps the last review.
+// putTranslation stores tr and sets the term's status from its translations with tr in place (followedStatus). A
+// status that turns approved or needs_changes names c and now; one that turns unreviewed keeps the last review.
 func (s *Reviews) putTranslation(ctx context.Context, c Caller, st EntryState, tr Translation, now time.Time) error {
 	if err := s.p.Repo.PutTranslation(ctx, tr); err != nil {
 		return err
 	}
-	status := ReviewUnreviewed
-	approved, any := true, false
-	for _, l := range statusLanguages {
-		t, found := translationOf(st, tr.TermID, l)
-		if l == tr.Language {
-			t, found = tr, true
-		}
-		if !found {
-			continue
-		}
-		any = true
-		if t.Review.Status == ReviewNeedsChanges {
-			status, approved = ReviewNeedsChanges, false
-			break
-		}
-		approved = approved && t.Review.Status == ReviewApproved
-	}
-	if any && approved {
-		status = ReviewApproved
-	}
+	status := followedStatus(st, tr)
 	if status == st.TermReview.Status {
 		return nil
 	}
@@ -252,6 +232,30 @@ func (s *Reviews) putTranslation(ctx context.Context, c Caller, st EntryState, t
 		r.ReviewedBy, r.ReviewedAt = c.AccountID, now
 	}
 	return s.p.Repo.SetTermReview(ctx, tr.TermID, r, now)
+}
+
+// followedStatus is the term's status from its translations in st with tr in place: needs_changes when one in
+// statusLanguages needs changes, approved when all of those it has are approved, else unreviewed.
+func followedStatus(st EntryState, tr Translation) string {
+	approved, any := true, false
+	for _, l := range statusLanguages {
+		t, found := translationOf(st, tr.TermID, l)
+		if l == tr.Language {
+			t, found = tr, true
+		}
+		if !found {
+			continue
+		}
+		if t.Review.Status == ReviewNeedsChanges {
+			return ReviewNeedsChanges
+		}
+		any = true
+		approved = approved && t.Review.Status == ReviewApproved
+	}
+	if any && approved {
+		return ReviewApproved
+	}
+	return ReviewUnreviewed
 }
 
 // translationOf is st's translation in language, and false when there is none: then the unreviewed translation a

@@ -49,10 +49,12 @@ type CurationRepository interface {
 	CountByCategory(ctx context.Context) ([]CategoryCount, error)
 	// TermIDByWikidata returns the id of the term with the Wikidata id; ErrTermNotFound when there is none.
 	TermIDByWikidata(ctx context.Context, wikidataID string) (string, error)
-	// LockEntry and PutExplanation are ReviewRepository's (the review panel's writes, SAL-14), for the import of the
-	// drafted explanations.
+	// LockEntry, PutExplanation, PutTranslation and SetTermReview are ReviewRepository's (the review panel's
+	// writes, SAL-14), for the import of the drafted explanations and of the translation flags.
 	LockEntry(ctx context.Context, termID, language string) (EntryState, error)
 	PutExplanation(ctx context.Context, e Explanation) error
+	PutTranslation(ctx context.Context, t Translation) error
+	SetTermReview(ctx context.Context, termID string, r Review, at time.Time) error
 }
 
 // ReviewRepository reads the review queue and writes a reviewer's edits and reviews (the review panel, SAL-14), on
