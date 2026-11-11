@@ -1,0 +1,151 @@
+# Caddy in production (ADR 0011): HTTPS for every hostname under SALUS_DOMAIN, with certificates from Let's
+# Encrypt (SALUS_ACME_CA points at its staging directory for a first run), and TURN over TLS on 443.
+#
+#   SALUS_DOMAIN            the landing page
+#   app.SALUS_DOMAIN        the web app, and the API paths the web app calls on its own origin
+#   api.SALUS_DOMAIN        the API, for the mobile app
+#   livekit.SALUS_DOMAIN    LiveKit's signalling (wss://)
+#   turn.SALUS_DOMAIN       TURN over TLS, taken by the layer4 listener wrapper before HTTP
+#
+# No access logs: none is enabled, and the runtime log drops the client's address, headers and URI from any
+# request it carries, the layer4 app's `remote` fields, and every IP address in an error's text (a client IP is
+# personal data; the URI of LiveKit's signalling carries the join token). The admin API's request log is off: it
+# listens on the container's loopback only and the healthcheck calls it.
+{
+	email {$SALUS_ACME_EMAIL}
+	acme_ca {$SALUS_ACME_CA}
+
+	log default {
+		output stderr
+		exclude admin.api # every healthcheck would log a line
+		format filter {
+			wrap json
+			fields {
+				request>remote_ip delete
+				request>remote_port delete
+				request>client_ip delete
+				request>headers delete
+				request>uri delete
+				# caddy-l4 names the client's address `remote` (or `remote_addr`), and Go's network errors
+				# quote both ends of a connection.
+				remote delete
+				remote_addr delete
+				error regexp `\[[0-9A-Fa-f:.]+\](:[0-9]+)?|([0-9]{1,3}\.){3}[0-9]{1,3}(:[0-9]+)?` "[address]"
+			}
+		}
+	}
+
+	# TURN over TLS on 443 (LiveKit's single-server layout, with caddy-l4): a TLS connection whose SNI is
+	# turn.SALUS_DOMAIN is terminated here with the certificate Caddy manages for that name (the site block at the
+	# end) and forwarded as plain TCP to LiveKit's TURN listener (livekit.yaml: tls_port 5349, external_tls).
+	# ACME's TLS-ALPN challenge for that name is left to Caddy's HTTP server, so either challenge can renew it.
+	# Every other connection goes on to the tls wrapper and the HTTP server.
+	servers :443 {
+		listener_wrappers {
+			layer4 {
+				@turn {
+					tls sni turn.{$SALUS_DOMAIN}
+					not tls alpn acme-tls/1
+				}
+				route @turn {
+					tls
+					proxy tcp/livekit:5349
+				}
+			}
+			tls
+		}
+	}
+}
+
+# Imported by every site: HSTS is sent here only (the web and landing images' nginx does not send it). /readyz names
+# the api's failing dependencies; only Docker's healthcheck needs it (on 127.0.0.1), so no public host serves it.
+(common) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	handle /readyz* {
+		respond 404
+	}
+}
+
+{$SALUS_DOMAIN} {
+	import common
+	handle {
+		reverse_proxy landing:8080
+	}
+}
+
+# The web app and, on the same origin, the API paths it calls. These matchers mirror the dev server's proxy in
+# web/vite.config.ts one for one (a string key there is a path prefix, so `/x` there is `path /x*` here; a key
+# whose GETs the dev server leaves to the app has `not method GET` here). scripts/check-caddy-routes.sh, run by make
+# lint, fails when the two differ or a matcher between the markers is not handled by `reverse_proxy api:8080` alone.
+app.{$SALUS_DOMAIN} {
+	import common
+
+	# vite-proxy:begin
+	@api {
+		path /healthz*
+		path /readyz*
+		path /auth*
+		path /invites*
+		path /practitioner-roles*
+		path /questionnaire-responses*
+		path /binaries*
+		path /specialties*
+		path /terminology*
+		path /fhir*
+		path /encounters*
+		path /document-templates*
+		path /drafts*
+		path /compositions*
+	}
+	# /appointments/<id> and /appointments/<id>/call are screens of the app: only the JSON actions go to the api.
+	@apiAppointments path_regexp ^/appointments/[^/]+/(cancel|status|questionnaires|consultation(/join|/end)?)$
+	# /questionnaires and /questionnaires/<id> are screens of the app too: only their writes go to the api.
+	@apiQuestionnaires {
+		path /questionnaires*
+		not method GET
+	}
+
+	# The encounter's live events are a WebSocket under /encounters; reverse_proxy upgrades it.
+	handle @api {
+		reverse_proxy api:8080
+	}
+	handle @apiAppointments {
+		reverse_proxy api:8080
+	}
+	handle @apiQuestionnaires {
+		reverse_proxy api:8080
+	}
+	# vite-proxy:end
+	handle {
+		reverse_proxy web:8080
+	}
+}
+
+api.{$SALUS_DOMAIN} {
+	import common
+	handle {
+		reverse_proxy api:8080
+	}
+}
+
+# Signalling only: LiveKit's server API (Twirp) stays on the compose network, where the api, the worker and the agent
+# call it (ADR 0011).
+livekit.{$SALUS_DOMAIN} {
+	import common
+	handle /twirp/* {
+		respond 404
+	}
+	handle {
+		reverse_proxy livekit:7880
+	}
+}
+
+# Only so that Caddy obtains and renews turn.'s certificate for the layer4 route above, which takes every TLS
+# connection for this name on 443/tcp; what reaches HTTP here (port 80, HTTP/3) gets nothing.
+turn.{$SALUS_DOMAIN} {
+	import common
+	respond 404
+}
