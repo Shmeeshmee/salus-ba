@@ -173,10 +173,10 @@ Sources: [consultation §7](../consultation/SPEC.md#7-up-next), [consultation §
 
 ## 4. E-mail processors
 
-**Q23.** Is Amazon Web Services' data processing agreement for SES, used in an EU region, sufficient for sending
-our account and appointment e-mails, and what should we check (sub-processors, transfers) before signing it?
-SES is the chosen sender (ADR 0007) and is not wired in; nothing can be sent outside local development until
-the DPA is signed and listed.
+**Q23.** Is the data processing agreement of Brevo (Sendinblue SAS) or Mailjet (Mailjet SAS), both French SMTP
+relays, sufficient for sending our account and appointment e-mails, and what should we check (sub-processors,
+transfers, data centre locations) before signing it? The relay replaced SES as the chosen sender (ADR 0011 point 5)
+and is not wired in; nothing can be sent outside local development until the DPA is signed and listed.
 Sources: [processors.md, pending](../privacy/processors.md#pending).
 
 **Q24.** Appointment e-mails reveal that a person has an appointment with a named clinic, at a date and time,
@@ -253,11 +253,11 @@ approval?
 The processors list says data stays in the EU/EEA; the hosting provider is not chosen.
 Sources: [processors.md](../privacy/processors.md), [processors.md, pending](../privacy/processors.md#pending).
 
-**Q35.** What must the hosting provider's DPA cover, given that it will hold everything we store (health data
-included) in managed Postgres, an object store and backups, and the encryption keys in its key management
-service?
-Before production the object store must be private with versioning off and encryption at rest on, and the keys
-for TOTP secrets and file encryption come from the provider's KMS.
+**Q35.** What must Hetzner's DPA cover, given that its Cloud server in Helsinki will hold everything we store
+(health data included) in a self-hosted Postgres and object store (Garage) on a LUKS-encrypted Volume, and its
+Storage Box the `age`-encrypted backups? Hetzner has no key management service: the keys for TOTP secrets and file
+encryption sit in a root-only file on the encrypted Volume (ADR 0011 points 2 and 3). Is that acceptable for
+special-category data, or do we need an external KMS?
 Sources: [processors.md, pending](../privacy/processors.md#pending), [attachments §8](../attachments/SPEC.md#8-before-production),
 [accounts §2](../accounts/SPEC.md#2-settled-decisions).
 

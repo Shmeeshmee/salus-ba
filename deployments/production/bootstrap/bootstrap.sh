@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Prepares an Ubuntu 24.04 server for the Salus compose project (docs/adr/0011-single-server-deployment.md):
 # the deploy user, sshd hardening, ufw, fail2ban, unattended security upgrades, Docker, the /opt/salus layout and
-# the nightly Postgres backup. Idempotent: a second run changes nothing. Run as root, from a copy of this directory
+# the nightly Postgres backup, and the tools for the encrypted volume (salus-volume, volume.sh). It refuses automatic
+# reboots and reports active swap (ADR 0011: the volume is unlocked by hand, the disk holds no personal data).
+# Idempotent: a second run changes nothing. Run as root, from a copy of this directory
 # (backup.sh is installed from beside this file):
 #
 #   bootstrap.sh [--check] [--config FILE]
@@ -16,7 +18,9 @@
 #   SALUS_BOOTSTRAP_TEST_NO_SYSTEMD=1     skip every systemctl call (a container has no systemd)
 #   SALUS_BOOTSTRAP_TEST_NO_UFW_ENABLE=1  skip enabling ufw (a container cannot load its netfilter rules); the
 #                                         rules and defaults are still written
-# Both are refused on a host that runs systemd.
+#   SALUS_BOOTSTRAP_TEST_PROC_SWAPS=FILE  read the active swap from FILE, not /proc/swaps (a container sees the
+#                                         host's)
+# All are refused on a host that runs systemd.
 set -euo pipefail
 
 readonly SALUS_ROOT=/opt/salus
@@ -24,6 +28,7 @@ readonly INSTALLED_CONF=/etc/salus/bootstrap.conf
 readonly DEPLOY_USER=deploy
 readonly SSHD_DROPIN=/etc/ssh/sshd_config.d/00-salus.conf
 readonly BACKUP_BIN=/usr/local/sbin/salus-backup
+readonly VOLUME_BIN=/usr/local/sbin/salus-volume
 readonly SALUS_ETC=/etc/salus
 # The public ports of ADR 0011, beside SSH: Caddy (80, 443, 443/udp for HTTP/3), TURN/UDP, LiveKit's media.
 readonly SALUS_PORTS=(80/tcp 443/tcp 443/udp 3478/udp 7881/tcp 7882/udp)
@@ -36,6 +41,7 @@ CHANGES=0
 FAILURES=0
 NO_SYSTEMD=${SALUS_BOOTSTRAP_TEST_NO_SYSTEMD:-0}
 NO_UFW_ENABLE=${SALUS_BOOTSTRAP_TEST_NO_UFW_ENABLE:-0}
+PROC_SWAPS=${SALUS_BOOTSTRAP_TEST_PROC_SWAPS:-/proc/swaps}
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 # Settings (bootstrap.conf.example explains each).
@@ -200,6 +206,8 @@ validate_config() {
 	valid_yes_no "$DEPLOY_SUDO" || die "DEPLOY_SUDO must be yes or no"
 	valid_yes_no "$UFW_ACCEPT_BLOCKING" || die "UFW_ACCEPT_BLOCKING must be yes or no"
 	valid_yes_no "$UPGRADE_AUTO_REBOOT" || die "UPGRADE_AUTO_REBOOT must be yes or no"
+	[[ $UPGRADE_AUTO_REBOOT == no ]] ||
+		die "UPGRADE_AUTO_REBOOT=yes is refused: after a reboot the encrypted volume waits for the owner's passphrase and the stack stays down (ADR 0011); reboot by hand and unlock in one sitting"
 	valid_yes_no "$BACKUP_KEEP_LOCAL" || die "BACKUP_KEEP_LOCAL must be yes or no"
 	valid_time "$UPGRADE_TIME" || die "UPGRADE_TIME must be HH:MM"
 	valid_time "$UPGRADE_REBOOT_TIME" || die "UPGRADE_REBOOT_TIME must be HH:MM"
@@ -209,8 +217,8 @@ validate_config() {
 		die "BACKUP_RETENTION_DAYS must be a whole number of days, at least 1"
 	fi
 	[[ $BACKUP_RANDOM_DELAY =~ ^[0-9]+(s|min|h)?$ ]] || die "BACKUP_RANDOM_DELAY must be like 30min"
-	[[ -f $SCRIPT_DIR/backup.sh ]] ||
-		die "backup.sh is not beside bootstrap.sh: copy the whole bootstrap directory to the server"
+	[[ -f $SCRIPT_DIR/backup.sh && -f $SCRIPT_DIR/volume.sh ]] ||
+		die "backup.sh or volume.sh is not beside bootstrap.sh: copy the whole bootstrap directory to the server"
 }
 
 check_os() {
@@ -221,7 +229,7 @@ check_os() {
 	# shellcheck source=/dev/null
 	version=$(. /etc/os-release && echo "$VERSION_ID")
 	[[ $id == ubuntu && $version == 24.04 ]] || die "this script supports Ubuntu 24.04 only (found $id $version)"
-	if ((NO_SYSTEMD || NO_UFW_ENABLE)) && [[ -d /run/systemd/system ]]; then
+	if { ((NO_SYSTEMD || NO_UFW_ENABLE)) || [[ $PROC_SWAPS != /proc/swaps ]]; } && [[ -d /run/systemd/system ]]; then
 		die "the SALUS_BOOTSTRAP_TEST_* flags are for the container test only; this host runs systemd"
 	fi
 }
@@ -248,9 +256,9 @@ apt_get_install() {
 
 step_packages() {
 	# iproute2 for ss, openssh-client for ssh-keygen and sftp (backup), age for the backup's encryption,
-	# python3-systemd for fail2ban's journal backend.
+	# python3-systemd for fail2ban's journal backend, cryptsetup for the encrypted volume (salus-volume).
 	apt_install ca-certificates curl gnupg iproute2 openssh-server openssh-client ufw fail2ban python3-systemd \
-		unattended-upgrades age
+		unattended-upgrades age cryptsetup
 }
 
 # --- deploy user ---------------------------------------------------------------------------------------------
@@ -680,6 +688,27 @@ WantedBy=timers.target" && UNITS_CHANGED=1
 	return 0
 }
 
+# --- the encrypted volume and swap (ADR 0011) ----------------------------------------------------------------
+
+# Swap would page the stack's memory, personal data included, to the server's unencrypted disk. Reported, never
+# changed: turning swap off is the owner's call on a server that may run other software.
+check_swap() {
+	local active
+	active=$(awk 'NR > 1 {printf "%s ", $1}' "$PROC_SWAPS" 2>/dev/null || true)
+	[[ -z $active ]] ||
+		fail "swap is active (${active% }): memory, personal data included, could be written to the unencrypted disk. Turn it off (swapoff -a), remove it from /etc/fstab, and run this again"
+	if awk '$1 !~ /^#/ && $3 == "swap" {found = 1} END {exit !found}' /etc/fstab 2>/dev/null; then
+		fail "/etc/fstab has a swap entry, which comes back at the next boot: remove it"
+	fi
+}
+
+step_volume() {
+	put_file "$VOLUME_BIN" 755 root:root "$(cat "$SCRIPT_DIR/volume.sh")" || true
+	if [[ ! -f /etc/salus/volume.conf ]]; then
+		warn "the encrypted volume is not set up: attach the Hetzner Volume and run 'salus-volume setup DEVICE' (docs/deploy/README.md); until then deploys are refused"
+	fi
+}
+
 generate_backup_key() {
 	install -d -m 700 "$(dirname "$BACKUP_SSH_KEY_FILE")"
 	ssh-keygen -q -t ed25519 -N '' -C "salus-backup@$(hostname)" -f "$BACKUP_SSH_KEY_FILE"
@@ -720,6 +749,8 @@ main() {
 	step_docker
 	step_layout
 	step_backup
+	step_volume
+	check_swap
 	apply_services
 	check_docker_published
 	if [[ -f ${BACKUP_SSH_KEY_FILE}.pub ]]; then

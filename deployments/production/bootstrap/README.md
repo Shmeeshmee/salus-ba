@@ -53,15 +53,17 @@ any key at all. Choose `yes` if you prefer to run the bootstrap over SSH; the ri
 
 | Step | What | Left alone |
 | --- | --- | --- |
-| Packages | `ufw`, `fail2ban`, `unattended-upgrades`, `age`, `openssh-*`, `iproute2`, only the missing ones | Everything installed already |
+| Packages | `ufw`, `fail2ban`, `unattended-upgrades`, `age`, `cryptsetup`, `openssh-*`, `iproute2`, only the missing ones | Everything installed already |
 | `deploy` user | SSH key only (no usable password); `authorized_keys` set to exactly the `DEPLOY_SSH_KEY` lines; in the `docker` group; passwordless sudo only with `DEPLOY_SUDO=yes`. Refuses to run with no key configured | Other users |
 | ufw | Allow rules first (`SSH_PORT`/tcp, 80/tcp, 443/tcp, 443/udp, 3478/udp, 7881/tcp, 7882/udp and `UFW_EXTRA_PORTS`), then default deny incoming and allow outgoing, then enable. Before enabling ufw (or switching it to deny), it lists every port listening on a public address that no rule covers and **refuses** unless `UFW_ACCEPT_BLOCKING=yes` | Existing rules (an old SSH port rule is reported, never deleted) |
 | sshd | `/etc/ssh/sshd_config.d/00-salus.conf`: `Port`, `PermitRootLogin no`, `PasswordAuthentication no`, `KbdInteractiveAuthentication no`, `PubkeyAuthentication yes`. Written only after the deploy key is in place and kept only if `sshd -t` accepts it and the effective configuration for `deploy` (`sshd -T`) still lets it in: no `DenyUsers`/`DenyGroups` match, `AllowUsers`/`AllowGroups` include it, `AuthorizedKeysFile` reads `~/.ssh/authorized_keys`, `AuthenticationMethods` needs no more than a key; otherwise the previous file is put back. It sorts before cloud-init's `50-cloud-init.conf`, so its values win. Reloaded on every run; when the port changed, `ssh.socket` and then `ssh.service` are restarted (Ubuntu 24.04's socket activation reads the port at `daemon-reload`). Established sessions stay | The rest of `sshd_config` |
 | fail2ban | A jail for sshd on `SSH_PORT` (journal backend), reloaded on every run | Other jails |
-| Upgrades | `unattended-upgrades` from the release and security pockets only (Ubuntu's default list without `-updates`; Docker's repository is not among them), at `UPGRADE_TIME`, no automatic reboot unless `UPGRADE_AUTO_REBOOT=yes`. Warns before replacing other origins the server's own apt configuration allowed | |
+| Upgrades | `unattended-upgrades` from the release and security pockets only (Ubuntu's default list without `-updates`; Docker's repository is not among them), at `UPGRADE_TIME`, never an automatic reboot: `UPGRADE_AUTO_REBOOT=yes` is refused, as after a reboot the encrypted volume waits for the owner (ADR 0011); `/var/run/reboot-required` says when to reboot by hand and unlock. Warns before replacing other origins the server's own apt configuration allowed | |
 | Docker | Docker Engine and the compose plugin from Docker's apt repository (key checked by fingerprint, `Signed-By`), only when Docker is absent. An existing Docker is never reconfigured or restarted, and no `daemon.json` is written; if it lacks the compose plugin, the script says so and fails at the end | Other compose projects: no `prune`, no `down` |
 | `/opt/salus` | `/opt/salus` and `deployments/` (`deploy:deploy`, 750); `backups/` (`root:root`, 700: only the root backup job writes there). The settings go to `/etc/salus/bootstrap.conf` | Other directories under `/opt` |
 | Backup | `/usr/local/sbin/salus-backup` (`backup.sh`), its own SSH key `/root/.ssh/salus-backup` (generated once; the public half is printed at the end), the Storage Box's pinned host key, `salus-backup.service` (2 h timeout, hardened, `OnFailure=salus-backup-failed.service`, which logs at err priority), `salus-backup.timer` (nightly, `Persistent=true`, random delay). The timer is enabled only once the `BACKUP_*` settings are complete. See docs/deploy/backup-restore.md | |
+| Encrypted volume | `/usr/local/sbin/salus-volume` (`volume.sh`): `setup` once, `unlock` after every reboot, `keys`, `check` (deployments/production/README.md "Encrypted volume", docs/deploy/README.md). The bootstrap only installs it and warns while `/etc/salus/volume.conf` is missing; it never formats, opens or mounts anything | The volume |
+| Swap | Checks `/proc/swaps` and `/etc/fstab`: active swap or a swap line **fails the run** (after the other steps), as swap would page personal data to the unencrypted disk. Hetzner's Ubuntu images have none; `swapoff -a` and removing the line fix it | Swap is never turned off by the script |
 
 ## Security notes
 
@@ -75,11 +77,23 @@ any key at all. Choose `yes` if you prefer to run the bootstrap over SSH; the ri
 
 ## Tests
 
-`make deploy-check` (or `test/run.sh [shellcheck|bootstrap|backup|deploy]`; `deploy` tests `../deploy.sh`), all in Docker:
+`make deploy-check` (or `test/run.sh [shellcheck|bootstrap|backup|volume|deploy]`; `deploy` tests `../deploy.sh`), all in Docker:
 
 - shellcheck (pinned image) on every script;
-- `bootstrap.sh` in a fresh `ubuntu:24.04` container: refuses a missing or placeholder key, and the test flags on a
-  host with systemd; `--check` reports and changes nothing; a real run (packages, Docker from its repository, the
+- `volume.sh` in a fresh `ubuntu:24.04` container against stubs of `cryptsetup`, `mount`, `findmnt`, `lsblk`,
+  `blkid`, `mkfs.ext4` and `docker` (nothing is formatted, opened or mounted; ownership, modes and the key files are
+  real): setup writes the layout, both key files (`65532` 0400) and `volume.conf`, with no fstab or crypttab line
+  and no key echoed; it refuses a second setup, a device with a signature, a mounted device, a short key and two
+  equal keys, and a setup that fails half-way unmounts and closes the volume and writes no `volume.conf`; unlock
+  opens, mounts, lays the directories out again (another `deploy` gid), checks, then starts the stack holding
+  deploy.sh's lock (or says there is no release yet, or prints the command with `--no-start`, or refuses while a
+  deploy holds the lock), is idempotent, and stops on a wrong passphrase, a detached volume, something else at the
+  mount point, a missing key file (naming `salus-volume keys`) or a wrong mode; `keys` rewrites a missing file and
+  replaces another value only with `--replace`; `check` needs root and fails on a locked volume, a device that is
+  not `crypt` and a host account with uid 65532;
+- `bootstrap.sh` in a fresh `ubuntu:24.04` container: refuses a missing or placeholder key, `UPGRADE_AUTO_REBOOT=yes`,
+  and the test flags on a host with systemd; active swap or a swap line in `/etc/fstab` fails `--check` and a real
+  run; cryptsetup and `salus-volume` are installed; `--check` reports and changes nothing; a real run (packages, Docker from its repository, the
   user, sshd's configuration through `sshd -t` and `sshd -T`, ufw's rules and defaults, fail2ban, upgrades with the
   warning about a replaced origin, the layout, the backup's files); a second run and a `--check` report 0 changes;
   a public listener ufw would block makes `--check` fail and a real run refuse without touching ufw, unless
@@ -94,7 +108,8 @@ any key at all. Choose `yes` if you prefer to run the bootstrap over SSH; the ri
   deleted, newer dumps and other files kept; the optional local copy.
 
 Two flags exist for the container test only and default off; the script refuses them on a host that runs systemd:
-`SALUS_BOOTSTRAP_TEST_NO_SYSTEMD=1` (skips every `systemctl` call) and `SALUS_BOOTSTRAP_TEST_NO_UFW_ENABLE=1` (skips
-`ufw enable`, which needs the kernel's netfilter). What only a real server shows: ufw active with the rules, sshd
+`SALUS_BOOTSTRAP_TEST_NO_SYSTEMD=1` (skips every `systemctl` call), `SALUS_BOOTSTRAP_TEST_NO_UFW_ENABLE=1` (skips
+`ufw enable`, which needs the kernel's netfilter) and `SALUS_BOOTSTRAP_TEST_PROC_SWAPS=FILE` (reads the swap from
+FILE: a container sees the host's `/proc/swaps`). What only a real server shows: LUKS2 formatting, opening and mounting the real volume, the containers starting on it, ufw active with the rules, sshd
 reloaded and the port change through `ssh.socket`, fail2ban banning, the timers and the failure hook firing, the
 hardened unit reaching Docker, and Docker's service starting at boot.

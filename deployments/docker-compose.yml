@@ -33,7 +33,7 @@ x-livekit-env: &livekit-env
 
 # The object store and the files' key-encryption key (docs/attachments/SPEC.md §2 "Configuration"): only the api
 # and the worker load them (config.LoadObjectStore). The access key pair and the KEK are synthetic, local only;
-# production's store is the hosting provider's and its KEK comes from the KMS (SPEC §8).
+# production's KEK is the root-only key file on the encrypted volume (BINARY_KEK_FILE, ADR 0011).
 x-objectstore-env: &objectstore-env
   S3_ENDPOINT: http://objectstore:3900
   S3_REGION: garage
@@ -99,7 +99,8 @@ services:
     environment:
       <<: [*app-env, *livekit-env, *objectstore-env]
       HTTP_ADDR: ":8080"
-      # Synthetic, local only. TOTP_KEY seals TOTP secrets (production: the KMS, not decided yet);
+      # Synthetic, local only. TOTP_KEY seals TOTP secrets (production: the root-only key file on the encrypted
+      # volume, ADR 0011);
       # RATE_LIMIT_KEY names the login rate-limit counters in Redis by HMAC.
       TOTP_KEY: bG9jYWwtb25seS1zeW50aGV0aWMtdG90cC1rZXktMzI=
       RATE_LIMIT_KEY: bG9jYWwtb25seS1zeW50aGV0aWMtcmF0ZWxpbWl0LWs=
@@ -169,7 +170,7 @@ services:
   # Video (ADR 0006), configured by livekit.yaml: the synthetic dev key pair, rooms created only by the api, JSON
   # logs, the ICE settings for clients on the host and on the compose network, and TURN (TLS on 443, UDP on 3478,
   # on the compose network only). Published on 127.0.0.1 for a local browser: signalling on 7880, media on
-  # 7882/udp and 7881/tcp.
+  # 7882/udp and 7881/tcp (SALUS_LIVEKIT_PORT, SALUS_LIVEKIT_UDP_PORT and SALUS_LIVEKIT_TCP_PORT move them).
   livekit:
     image: livekit/livekit-server:v1.13.11
     command: ["--config", "/etc/livekit.yaml"]

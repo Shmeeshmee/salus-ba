@@ -59,13 +59,23 @@ EOF
 
 mkdir -p "$SALUS_ROOT/deployments"
 docker pull -q "$BUSYBOX" >/dev/null
+
+# The encrypted volume, faked: findmnt and lsblk say SALUS_DATA_DIR is mounted from a dm-crypt device, and the key
+# files are owned by the app's uid (written from a container, which may chown), as deploy.sh checks.
+mkdir -p "$WORK/bin" "$WORK/data/keys"
+printf '#!/bin/sh\necho /dev/mapper/salus-data\n' >"$WORK/bin/findmnt"
+printf '#!/bin/sh\necho crypt\n' >"$WORK/bin/lsblk"
+chmod +x "$WORK/bin/findmnt" "$WORK/bin/lsblk"
+export PATH=$WORK/bin:$PATH
+docker run --rm -v "$WORK/data/keys:/keys" "$BUSYBOX" \
+	sh -c 'for k in binary_kek totp_key; do echo synthetic >/keys/$k; chown 65532:65532 /keys/$k; chmod 400 /keys/$k; done'
 release() { # sha, env lines...
 	local sha=$1
 	shift
 	docker tag "$BUSYBOX" "ghcr.io/$OWNER/salus:$sha"
 	mkdir -p "$SALUS_ROOT/releases/$sha"
 	cp "$WORK/compose.yml" "$SALUS_ROOT/releases/$sha/docker-compose.prod.yml"
-	printf '%s\n' "SALUS_DOMAIN=test" "$@" >"$SALUS_ROOT/releases/$sha/.env"
+	printf '%s\n' "SALUS_DOMAIN=test" "SALUS_DATA_DIR=$WORK/data" "$@" >"$SALUS_ROOT/releases/$sha/.env"
 }
 running_tag() { # the release tag of a service's container
 	docker inspect --format '{{.Config.Image}}' "$(docker compose -p "$SALUS_PROJECT" -f "$SALUS_ROOT/deployments/docker-compose.prod.yml" --env-file "$SALUS_ROOT/.env" --env-file "$SALUS_ROOT/release.env" ps -q "$1")" | sed 's/.*://'
