@@ -149,3 +149,37 @@ func TestTerminologyImportExplanations_AddsTheDraftsOnce(t *testing.T) {
 		t.Errorf("import again: %q; want nothing changed", out.String())
 	}
 }
+
+// The translation flags mark a seeded term's translation as needing changes with the note, without a reviewer, and
+// the term with it when the language is one its status follows; a flag naming a term the list does not have is
+// refused (and fails the command once the rest is applied); a second import keeps them.
+func TestTerminologyImportFlags_MarksTheTranslationsOnce(t *testing.T) {
+	_, count := ownerDB(t)
+	if err := run(t.Context(), []string{"terminology", "import", writeFile(t, "seed.jsonl", strings.Join(strings.Split(seed, "\n")[:2], "\n"))}, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	path := writeFile(t, "translation-flags.jsonl",
+		`{"wikidata":"Q9368","term":"liver","language":"la","label":"iecur","note":"Placeholder: a wrong label."}`+"\n"+
+			`{"wikidata":"Q1","language":"la","label":"x","note":"Placeholder."}`+"\n")
+	var out bytes.Buffer
+	err := run(t.Context(), []string{"terminology", "import-flags", path}, &out)
+	if err == nil || !strings.Contains(err.Error(), "rows refused: 1") {
+		t.Errorf("import = %v, want an error naming the refused row", err)
+	}
+	if want := "created 0, updated 1, unchanged 0, refused 1\nline 2: wikidata: no such term\n"; out.String() != want {
+		t.Errorf("output %q, want %q", out.String(), want)
+	}
+	if n := count(`SELECT count(*) FROM term_translation WHERE language = 'la' AND review_status = 'needs_changes' AND reviewed_by IS NULL AND reviewed_at IS NOT NULL AND note = 'Placeholder: a wrong label.'`); n != 1 {
+		t.Errorf("%d flagged Latin translations, want 1", n)
+	}
+	if n := count(`SELECT count(*) FROM term WHERE wikidata_id = 'Q9368' AND review_status = 'needs_changes' AND reviewed_by IS NULL`); n != 1 {
+		t.Errorf("the liver term does not need changes")
+	}
+	out.Reset()
+	if err := run(t.Context(), []string{"terminology", "import-flags", writeFile(t, "again.jsonl", `{"wikidata":"Q9368","language":"la","label":"iecur","note":"Other."}`)}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(out.String(), "created 0, updated 0, unchanged 1, refused 0") || count(`SELECT count(*) FROM term_translation WHERE note = 'Other.'`) != 0 {
+		t.Errorf("import again: %q; want nothing changed", out.String())
+	}
+}

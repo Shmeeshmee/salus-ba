@@ -110,6 +110,41 @@ func DecodeExplanations(r io.Reader) ([]ExplanationRow, []RowError, error) {
 	return rows, refused, nil
 }
 
+type flagLine struct {
+	Wikidata string `json:"wikidata"`
+	Term     string `json:"term"` // the term's English name, for the reader
+	Language string `json:"language"`
+	Label    string `json:"label"`
+	Note     string `json:"note"`
+}
+
+// DecodeFlags reads the translation flags' file: one flag per line, the term's Wikidata id, its English name (for
+// the reader, not read), the language, the wrong label and the note. A line that is not one is refused; blank lines
+// are skipped.
+func DecodeFlags(r io.Reader) ([]FlagRow, []RowError, error) {
+	var rows []FlagRow
+	var refused []RowError
+	lines := bufio.NewScanner(r)
+	for n := 1; lines.Scan(); n++ {
+		line := bytes.TrimSpace(lines.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		var f flagLine
+		dec := json.NewDecoder(bytes.NewReader(line))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&f); err != nil || dec.More() || f.Wikidata == "" || f.Language == "" || f.Label == "" || f.Note == "" {
+			refused = append(refused, RowError{Line: n, Reason: "not a flag row"})
+			continue
+		}
+		rows = append(rows, FlagRow{Line: n, WikidataID: f.Wikidata, Language: f.Language, Label: f.Label, Note: f.Note})
+	}
+	if err := lines.Err(); err != nil {
+		return nil, nil, fmt.Errorf("terminology: reading the flags: %w", err)
+	}
+	return rows, refused, nil
+}
+
 // seedLanguages are the languages of labels in the enum's order, then any other key, which the import refuses.
 func seedLanguages(labels map[string][]string) []string {
 	var out, other []string

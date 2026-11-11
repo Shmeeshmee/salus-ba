@@ -102,3 +102,22 @@ overwrites an explanation that is there, so a reviewer's work is safe from a sec
   (the seed's hr label "ugljikov oksid" reads as carbon monoxide); Serbian "mokraćna bešika" and "plućni mjehurići"
   (for the alveoli); Turkish "Karbonat" for baking soda (the seed's "Kabartma tozu" is baking powder) and the seed's
   wrong second label "Hepatit c" for jaundice; Arabic "العين الوردية" (pink eye) and "أعلى الفخذ" for the groin.
+
+# Translation flags: wrong labels found, for the reviewer
+
+`translation-flags.jsonl` lists labels of the seed found to be wrong, so the reviewer fixes them first. `make
+terminology-import` (or `salusctl terminology import-flags`) marks each flagged term's translation in that language
+as `needs_changes`, with the flag's note and no reviewer, so it comes up under "Needs changes" in the review panel
+(`/term-review`); the term itself needs changes too when the language is Latin or a staff language. Nothing here
+changes a label: the reviewer does, in the panel. A flag applies only while its label is there and the translation
+has never been reviewed, so a second import, or one after the reviewer's fix, changes nothing.
+
+```json
+{"wikidata":"Q133244","term":"jaundice","language":"tr","label":"Hepatit c","note":"\"Hepatit c\" names hepatitis C, …"}
+```
+
+- One flag per line: the term's Wikidata id, its English name (`term`, for the reader, not read), the language, the
+  wrong label as the seed has it, and the note (1 to 500 characters), in English.
+- The flags of 2026-11-11, found while the explanations were drafted (SAL-13): Turkish "Hepatit c" under jaundice,
+  Turkish "Kabartma tozu" (baking powder) for sodium bicarbonate, Croatian "ugljikov oksid" (reads as carbon
+  monoxide) for carbon dioxide, and Serbian "grudna žlezda" / "грудна жлезда" for the thymus, in both scripts.

@@ -206,11 +206,12 @@ salusctl: tools-image
 terminology-fetch: tools-image
 	$(GO) go -C tools run ./terminology -out ../assets/terminology/seed.jsonl
 
-## terminology-import [file=<path>]: load the seed and the drafted plain-language explanations (the default; SAL-13,
-## imported as unreviewed) or a curated CSV into the compose Postgres as the owner (salusctl terminology import and
-## import-explanations; docs/terminology/SPEC.md §3 "Curation" and "Explanations")
+## terminology-import [file=<path>]: load the seed, the drafted plain-language explanations (SAL-13, imported as
+## unreviewed) and the translation flags (wrong labels found, marked as needing changes) (the default) or a curated
+## CSV into the compose Postgres as the owner (salusctl terminology import, import-explanations and import-flags;
+## docs/terminology/SPEC.md §3 "Curation" and "Explanations")
 terminology-import: tools-image
-	$(GO) sh -c 'go run ./cmd/salusctl terminology import $(or $(file),assets/terminology/seed.jsonl)$(if $(file),, && go run ./cmd/salusctl terminology import-explanations assets/terminology/explanations.draft.jsonl)'
+	$(GO) sh -c 'go run ./cmd/salusctl terminology import $(or $(file),assets/terminology/seed.jsonl)$(if $(file),, && go run ./cmd/salusctl terminology import-explanations assets/terminology/explanations.draft.jsonl && go run ./cmd/salusctl terminology import-flags assets/terminology/translation-flags.jsonl)'
 
 ## document-templates-seed clinic=<organization-id>: the two placeholder document templates
 ## (assets/document-templates: a specialist findings report and a referral, drafts for the doctor partner to review)
