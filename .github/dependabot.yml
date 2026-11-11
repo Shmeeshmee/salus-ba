@@ -1,8 +1,13 @@
 # Weekly update PRs: one per ecosystem for minor and patch updates (one per directory for the two Go modules,
 # since a group does not span directories), and one PR per major update, so a breaking change is reviewed
 # on its own. Versions stay pinned; Dependabot moves the pins. Toolchain image tags in Dockerfiles and
-# compose are covered too.
+# compose are covered too. The Playwright image (build/package/playwright) and @playwright/test (test/e2e/web)
+# update together in one PR (the multi-ecosystem group playwright): the web journeys' package must be the image's
+# version, or it looks for browser builds the image does not have.
 version: 2
+multi-ecosystem-groups:
+  playwright:
+    schedule: {interval: weekly}
 updates:
   - package-ecosystem: gomod
     directories: ["/", "/tools"]
@@ -20,6 +25,14 @@ updates:
     directory: /build/package
     schedule: {interval: weekly}
     groups: {docker: {patterns: ["*"], update-types: [minor, patch]}}
+  - package-ecosystem: docker
+    directory: /build/package/playwright
+    patterns: ["*"]
+    multi-ecosystem-group: playwright
+  - package-ecosystem: npm
+    directory: /test/e2e/web
+    patterns: ["*"]
+    multi-ecosystem-group: playwright
   - package-ecosystem: docker-compose
     directory: /deployments
     schedule: {interval: weekly}
