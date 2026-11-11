@@ -375,6 +375,7 @@ describe('Builder: moving items', () => {
   it('moves by keyboard drag: space, arrow down, space, and announces it (W42)', async () => {
     renderBuilder({})
     await screen.findByLabelText('Title')
+    await dndMounted()
     const handle = within(card('Placeholder instructions')).getByRole('button', { name: 'Drag to reorder' })
 
     handle.focus()
@@ -392,6 +393,7 @@ describe('Builder: moving items', () => {
   it('cancels a keyboard drag with escape, and says the item is back', async () => {
     renderBuilder({})
     await screen.findByLabelText('Title')
+    await dndMounted()
     const handle = within(card('Placeholder instructions')).getByRole('button', { name: 'Drag to reorder' })
 
     handle.focus()
@@ -405,6 +407,15 @@ describe('Builder: moving items', () => {
     expect(cards()[0]).toBe('Placeholder instructions')
   })
 })
+
+// dndMounted waits for @dnd-kit's live region. findByLabelText returns once the loaded builder is on the page, which
+// can be before React has run that render's effects: Testing Library's own wait (a setTimeout) and React's scheduler
+// (a setImmediate) run in either order. @dnd-kit subscribes its announcer to the drag events in such an effect, and
+// mounts the live region in the same one, so a drag started before then loses "Moving …" and announces its own
+// place instead.
+async function dndMounted() {
+  await vi.waitFor(() => expect(document.querySelector('[id^="DndLiveRegion"]')).not.toBeNull())
+}
 
 // sensorReady lets @dnd-kit's keyboard sensor attach its key listener, which it does on the next task after a
 // drag starts.
