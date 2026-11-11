@@ -58,8 +58,8 @@ x-objectstore-env: &objectstore-env
   BINARY_KEK: ${BINARY_KEK:?BINARY_KEK is required}
   BINARY_KEK_ID: ${BINARY_KEK_ID:?BINARY_KEK_ID is required}
 
-# The engines stay on the fakes (ADR 0011 open point 6): no audio or text leaves the stack until the processors
-# are signed. The keys are passed through only so that switching an engine is a change to .env alone.
+# The engines stay on the fakes in production until their DPAs are signed and recorded (ADR 0011 point 6,
+# decided): no audio or text leaves the stack. The keys are passed through only so that switching an engine is a change to .env alone.
 x-llm-env: &llm-env
   LLM_ENGINE: ${LLM_ENGINE:-fake}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -159,16 +159,21 @@ services:
       migrate: {condition: service_completed_successfully}
     mem_limit: ${SALUS_MEM_SCHEDULER:-128m}
 
-  # Sends e-mail through SMTP_ADDR (ADR 0007). The relay is not chosen (ADR 0011 open point 5): until it is, the
-  # email jobs fail and River retries them.
+  # Sends e-mail through an EU SMTP relay, Brevo or Mailjet (ADR 0011 point 5, decided; its DPA pending, point 1):
+  # STARTTLS (587) or implicit TLS (465) with the certificate verified, AUTH PLAIN with the relay's SMTP login. The
+  # notifier refuses SMTP_TLS=none with a login, and an SMTP_FROM that is not one address.
   notifier:
     <<: *app
     command: ["/usr/local/bin/notifier"]
     environment:
       <<: *app-env
       SMTP_ADDR: ${SMTP_ADDR:?SMTP_ADDR is required}
+      SMTP_TLS: ${SMTP_TLS:-starttls}
+      SMTP_USERNAME: ${SMTP_USERNAME:?SMTP_USERNAME is required}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:?SMTP_PASSWORD is required}
+      SMTP_FROM: ${SMTP_FROM:?SMTP_FROM is required}
       WEB_BASE_URL: https://app.${SALUS_DOMAIN}
-      PATIENT_APP_URL: ${PATIENT_APP_URL:-https://patient.salus.invalid}
+      PATIENT_APP_URL: ${PATIENT_APP_URL:?PATIENT_APP_URL is required}
     depends_on: *migrate-only # Postgres only (cmd/notifier)
     mem_limit: ${SALUS_MEM_NOTIFIER:-128m}
 

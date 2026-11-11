@@ -168,13 +168,16 @@ Never use the project name `salus` on a machine that runs another Salus stack.
 
 ## Blockers before go-live
 
-These are placeholders in `.env.production.example`; the stack runs without them, but e-mail does not work:
+E-mail needs these, set to real values in `SALUS_ENV_FILE` (`.env.production.example` has placeholders):
 
-- `SMTP_ADDR`: no EU relay is chosen (ADR 0011 open point 5), and the notifier's SMTP sender has no authentication
-  or TLS and sends from `no-reply@salus.invalid`. Until that changes, no e-mail is delivered: staff invitations do
-  not reach the invitee, and patients get no appointment e-mails.
-- `PATIENT_APP_URL`: the default `https://patient.salus.invalid` resolves nowhere, so every appointment e-mail links
-  to a dead address until the patient app has a link domain.
+- `SMTP_*`: decided, an EU SMTP relay, Brevo or Mailjet (ADR 0011 point 5); its DPA pending (point 1). The
+  notifier sends with STARTTLS (587) or implicit TLS (465), the certificate verified, and AUTH PLAIN with the
+  relay's SMTP login, from `SMTP_FROM` on a domain verified at the relay with SPF, DKIM and DMARC
+  (docs/deploy/README.md, "E-mail relay"). Without a working login the email jobs fail and River retries them:
+  staff invitations do not reach the invitee, and patients get no appointment e-mails. No e-mail to a real person
+  before the relay's DPA is signed and recorded in docs/privacy/processors.md.
+- `PATIENT_APP_URL`: required; every appointment e-mail links to `<PATIENT_APP_URL>/appointments`. The patient
+  app's link domain is not decided yet.
 
 ## For DEP-3 and DEP-4
 

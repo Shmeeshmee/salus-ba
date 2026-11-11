@@ -1,5 +1,5 @@
 // Command notifier sends e-mail (ADR 0007): it runs a River client that works only the email queue, through
-// SMTP (Mailpit locally; SES once its DPA is signed). It logs in as salus_app.
+// SMTP: Mailpit locally, an EU relay with TLS and a login in production (ADR 0011). It logs in as salus_app.
 package main
 
 import (
@@ -14,6 +14,7 @@ import (
 	_ "time/tzdata" // the clinics' time zones, independent of the runtime image
 
 	"github.com/Shmeeshmee/salus/internal/config"
+	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
@@ -37,12 +38,17 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if err != nil {
 		return err
 	}
+	relay, err := config.LoadSMTP()
+	if err != nil {
+		return err
+	}
 	pool, err := postgres.Open(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
-	client, err := worker.NewNotifier(pool, log, cfg.SMTPAddr, cfg.WebBaseURL, cfg.PatientAppURL)
+	sender := notification.NewSMTPSender(relay.Addr, notification.SMTPSecurity(relay.TLS), relay.Username, relay.Password, relay.From)
+	client, err := worker.NewNotifier(pool, log, sender, cfg.WebBaseURL, cfg.PatientAppURL)
 	if err != nil {
 		return err
 	}
