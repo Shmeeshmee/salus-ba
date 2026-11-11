@@ -328,7 +328,7 @@ services:
     depends_on:
       livekit: {condition: service_healthy}
 
-  # The end-to-end runner: `make e2e` (build/package/playwright.Dockerfile). The Go journeys reach the API,
+  # The end-to-end runner: `make e2e` (build/package/playwright/Dockerfile). The Go journeys reach the API,
   # Mailpit, Postgres (salusctl and the appointment's start, as the owner) and LiveKit on the compose network; the
   # consultation journey starts the web journey in Chromium (test/e2e/web), which runs the Vite dev server on its
   # own localhost (a secure context, as on a developer's host) and reaches LiveKit's media ports directly
@@ -337,7 +337,7 @@ services:
     profiles: [e2e]
     build:
       context: ..
-      dockerfile: build/package/playwright.Dockerfile
+      dockerfile: build/package/playwright/Dockerfile
     image: salus-playwright:1.65.0
     <<: *host-user
     init: true
