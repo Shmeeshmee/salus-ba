@@ -20,7 +20,8 @@ directory, so the Caddyfile, `livekit.yaml` and `garage.toml` must sit beside it
 | `Caddyfile` | TLS (Let's Encrypt) for every hostname, the routes, HSTS, the runtime log without client addresses, and TURN over TLS on 443 (the `layer4` listener wrapper) |
 | `livekit.yaml` | LiveKit: TURN behind Caddy's TLS, log level `warn`, rooms created by the api only, the webhook to the api; keys, node IP, TURN domain and the webhook's key come from the environment |
 | `garage.toml` | Garage, one node, fsync on |
-| `.env.production.example` | Every variable, with where its value comes from and which are secrets |
+| `.env.production.example` | Every variable, with where its value comes from and which are secrets (not `BINARY_KEK` or `TOTP_KEY`: "Keys") |
+| `bootstrap/volume.sh` | `salus-volume` on the server: the one-time setup of the encrypted volume, the unlock after a reboot, the key files ("Encrypted volume") |
 
 The images (DEP-1): `ghcr.io/${GHCR_OWNER}/salus` (every Go binary, distroless), `salus-web`, `salus-landing`,
 `salus-caddy` (Caddy with `github.com/mholt/caddy-l4`). Third-party images are pinned by tag and digest.
@@ -81,6 +82,87 @@ layout) is the fallback: then 7880 and 5349 listen on the host and only `ufw` ke
 the api, the worker and the agent reach LiveKit through the host gateway, and LiveKit reaches the api's webhook
 through a port published on the gateway.
 
+## Encrypted volume
+
+This layout is for a **fresh server**: no server has run an earlier release yet. A server that already ran a
+release with the named volumes (`salus_postgres`, `salus_objectstore-meta`, `salus_objectstore-data`) and the keys in
+its env file needs a one-time move first, by hand, before the first deploy of this layout:
+
+1. Stop the stack (`docker compose -p salus ... down`, no `-v`), set up the volume (`salus-volume setup`).
+2. Copy the data, as root, preserving owners: `cp -a /var/lib/docker/volumes/salus_postgres/_data/. /mnt/salus-data/postgres/`,
+   and the same for `salus_objectstore-meta` to `garage/meta/` and `salus_objectstore-data` to `garage/data/`. Then
+   `salus-volume check`, and start the stack with `salus-volume unlock`, which checks the layout again.
+3. Once the stack works on the volume, remove the old named volumes (`docker volume rm salus_postgres
+   salus_objectstore-meta salus_objectstore-data`).
+4. Delete `BINARY_KEK` and `TOTP_KEY` from `/opt/salus/.env` and from every `/opt/salus/releases/*/.env` (the deploy
+   refuses a rollback to a release whose env file has them), and from `SALUS_ENV_FILE` and Bitwarden's env note.
+5. Treat the keys as exposed: they were in GitHub and on the unencrypted disk. Rotating `BINARY_KEK` needs a new
+   `BINARY_KEK_ID` and re-wrapping every stored data key, and `TOTP_KEY` re-sealing every MFA secret; neither has a
+   tool yet. If they are not rotated, record the exposure and the owner's decision in docs/privacy/.
+
+Postgres's and Garage's data and the key files sit on a Hetzner Volume encrypted with LUKS2 (ADR 0011, "Decided
+before real patient data"), mounted at `SALUS_DATA_DIR` (default `/mnt/salus-data`). The server's own disk holds
+no personal data: no swap (the bootstrap fails while any is active), clamd's temporary files on the volume, container
+logs without personal data (CLAUDE.md).
+
+- **Set up once** with `salus-volume setup /dev/disk/by-id/scsi-0HC_Volume_<id>` (as root; docs/deploy/README.md):
+  `cryptsetup luksFormat --type luks2` asks for the passphrase (Bitwarden only, never on the server or in GitHub),
+  then the filesystem (ext4, mounted `nodev,nosuid,noexec`), the layout below and the key files, pasted from
+  Bitwarden at a prompt that does not echo. It refuses a device that holds any signature (`blkid -p`), is mounted,
+  or that `/etc/fstab` mounts (Hetzner's automatic mount).
+- **Unlocked by hand after every boot**: `salus-volume unlock` (as root) opens the volume (the passphrase), mounts
+  it, checks the layout and both key files, and starts the stack with the running release (`--no-start` prints the
+  command instead). Running it again changes nothing. Nothing opens it at boot: no `/etc/crypttab` line (so no key
+  file for it anywhere), no `/etc/fstab` line (so a boot never waits for a passphrase). Until it is unlocked the
+  bind mounts below do not exist, and Postgres, Garage, the api and the worker do not start: their mounts use
+  `create_host_path: false`, so Docker never creates an empty directory on the unencrypted disk in their place.
+  Automatic reboots stay off (the bootstrap refuses `UPGRADE_AUTO_REBOOT=yes`).
+- **The deploy refuses** (`deploy.sh`, a deploy and a rollback alike, before anything is pulled, migrated or
+  switched) when `SALUS_DATA_DIR` is not the mount point of a `crypt` device (`findmnt`, `lsblk`), when a key file is
+  missing or not `65532`'s with mode 400, and when the env file sets `BINARY_KEK` or `TOTP_KEY` (the deploy workflow
+  refuses such a `SALUS_ENV_FILE` before uploading it).
+
+| Path on the volume | Owner, mode | What |
+| --- | --- | --- |
+| `.` | `root:deploy` 0710 | The deploy user may pass (to check the key files), no other account may |
+| `postgres/` | `999:999` 0700 | Postgres's data (`/var/lib/postgresql`; the image's `postgres` uid) |
+| `garage/meta/`, `garage/data/` | `root:root` 0700 | Garage's metadata and blocks (Garage runs as root) |
+| `clamd/` | `100:101` 0700 | clamd's `TemporaryDirectory` (the clamav image's `clamav` user): the uploads it scans and what it unpacks |
+| `keys/` | `root:deploy` 0710 | The key files |
+| `keys/binary_kek`, `keys/totp_key` | `65532:65532` 0400 | The keys, base64 and a newline |
+
+`salus-volume check` (as root, the only account that reads the key files) reports every difference from this table,
+and a host account with uid 65532. `salus-volume unlock` sets the directories' owners and modes to the table before it
+checks (a volume moved from another server may carry its `deploy` gid); it never changes the key files. Unlock starts
+the stack holding `deploy.sh`'s lock (`/opt/salus/.deploy.lock`) and refuses while a deploy or rollback holds it.
+
+## Keys
+
+`BINARY_KEK` (wraps every attachment's data key) and `TOTP_KEY` (seals the MFA secrets) are in the key files on the
+encrypted volume and in Bitwarden, nowhere else: not in `/opt/salus/.env`, not in the `SALUS_ENV_FILE` GitHub
+secret, not in the release directories. They reach only the containers that read them: the api (both) and the worker
+(`BINARY_KEK`; `cmd/worker` loads the object store). migrate, scheduler, notifier and agent get neither.
+
+How: compose file-based `secrets:`. The Docker daemon, which runs as root, bind-mounts each file read-only at
+`/run/secrets/binary_kek` and `/run/secrets/totp_key`, and the binaries read them through `BINARY_KEK_FILE` and
+`TOTP_KEY_FILE` (`internal/config`, which also takes the plain variables for local runs and CI; setting both a
+variable and its `_FILE` is an error). Why this design:
+
+- The compose CLI runs as `deploy`, so an `env_file:` of a root-only file cannot be read by it; and anything that
+  goes through compose's interpolation ends up in `docker inspect`'s environment. A secret is a bind mount the daemon
+  makes, and the value never passes through the CLI or the container's environment.
+- Compose ignores `uid`/`gid`/`mode` for file secrets (it is a plain bind mount), so the file on the volume carries
+  the owner the container needs: `65532`, the distroless `nonroot` uid the Go image runs as. No host account has that
+  uid (`salus-volume check` fails if one does), so on the host only root reads the keys; the directories are
+  `root:deploy` 0710, so `deploy` can see that the files exist and what their owner and mode are, and cannot list or
+  read them.
+- Two files rather than ADR 0011's "one key file": a compose secret is one whole file, and a `_FILE` variable reads
+  one value. They sit together in one root-only directory and are written together by `salus-volume`.
+
+The limits are ADR 0011's: `deploy` is in the `docker` group and so root-equivalent; the files protect the keys from
+the env file's copies, from a copy of the server's disk and from a detached volume, not from someone with `deploy` or
+root on the running server.
+
 ## Healthchecks
 
 | Service | Check |
@@ -121,7 +203,7 @@ under load yet (docs/consultation/SPEC.md §8).
 
 | Service | Limit |
 | --- | --- |
-| clamd | 2048 MB (the signatures in memory, about 1.5 GB; `ConcurrentDatabaseReload no` keeps a reload from doubling it) |
+| clamd | 2048 MB (the signatures in memory, about 1.5 GB; `ConcurrentDatabaseReload no` keeps a reload from doubling it). The scans' temporary files are not in it: clamd spools each stream and what it unpacks to `SALUS_DATA_DIR/clamd` on the encrypted volume, not a tmpfs, because the worker runs two scans at once, each up to 250 MB streamed plus 250 MB unpacked: a tmpfs for that (1 GB) would count towards this limit and take the budget to about 7.7 GB of 8. The cost is disk I/O on the volume during a scan |
 | postgres | 1024 MB |
 | worker | 768 MB (a scan reads an upload of up to 200 MB) |
 | livekit | 768 MB |
@@ -143,7 +225,10 @@ No ports on the host, Caddy on its internal CA instead of Let's Encrypt, the ima
    `build/package/Dockerfile`, the web and Caddy images from DEP-1's Dockerfiles, the landing image from
    `build/package/landing.Dockerfile`).
 2. Write an env file from `.env.production.example` with generated values, `SALUS_DOMAIN=salus.test`,
-   `GHCR_OWNER=local`, `SALUS_TAG=local`, any `LIVEKIT_NODE_IP`.
+   `GHCR_OWNER=local`, `SALUS_TAG=local`, any `LIVEKIT_NODE_IP`, and `SALUS_DATA_DIR` set to a scratch directory
+   holding `postgres/`, `garage/meta/`, `garage/data/` and `keys/binary_kek`, `keys/totp_key` (base64 of 32
+   synthetic bytes each, owned by 65532 with mode 400: write them from a container, which may chown). The smoke
+   test's directory is not encrypted; only the server's must be.
 3. Copy the Caddyfile, replace the `email` and `acme_ca` lines with `local_certs`, and write an override that mounts
    it and removes the host ports:
    ```yaml
@@ -195,5 +280,5 @@ These are placeholders in `.env.production.example`; the stack runs without them
 - Caddy's state is the `caddy-data` volume (certificates, ACME account). Keep it across deploys; deleting it
   re-issues every certificate and can hit Let's Encrypt's rate limits. Start a new server on the staging CA
   (`SALUS_ACME_CA`), then switch and remove the staging certificates from `caddy-data`.
-- Back up the `postgres` volume through `pg_dump` (DEP-3); the `objectstore-*` volumes hold the attachments and
-  the `clamav` volume only signatures (re-downloaded if lost).
+- Back up Postgres through `pg_dump` (DEP-3); `SALUS_DATA_DIR/garage/` on the encrypted volume holds the
+  attachments and the `clamav` volume only signatures (re-downloaded if lost).

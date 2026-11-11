@@ -29,8 +29,8 @@ type Config struct {
 	// FHIRBaseURL is the FHIR API's absolute public base, https://…/fhir/R4, for the links and fullUrls of
 	// a search's Bundle (FHIR_BASE_URL; the api requires it).
 	FHIRBaseURL string
-	// TOTPKey seals TOTP secrets (TOTP_KEY, base64, 32 bytes). Local and CI only: production takes it from
-	// the KMS, which is not decided yet (docs/accounts/SPEC.md "TOTP").
+	// TOTPKey seals TOTP secrets (TOTP_KEY, base64, 32 bytes; or the file TOTP_KEY_FILE names, as production
+	// mounts it from the encrypted volume: keySetting).
 	TOTPKey []byte
 	// RateLimitKey keys the HMAC that names the login rate-limit counters (RATE_LIMIT_KEY, base64).
 	RateLimitKey []byte
@@ -60,8 +60,11 @@ func Load() (Config, error) {
 	if cfg.FHIRBaseURL != "" && !strings.HasSuffix(strings.TrimSuffix(cfg.FHIRBaseURL, "/"), fhirPath) {
 		return Config{}, errors.New("config: FHIR_BASE_URL does not end in " + fhirPath)
 	}
-	var err error
-	if cfg.TOTPKey, err = base64.StdEncoding.DecodeString(os.Getenv("TOTP_KEY")); err != nil {
+	totpKey, err := keySetting("TOTP_KEY")
+	if err != nil {
+		return Config{}, err
+	}
+	if cfg.TOTPKey, err = base64.StdEncoding.DecodeString(totpKey); err != nil {
 		return Config{}, errors.New("config: TOTP_KEY is not base64")
 	}
 	if cfg.RateLimitKey, err = base64.StdEncoding.DecodeString(os.Getenv("RATE_LIMIT_KEY")); err != nil {
@@ -142,7 +145,8 @@ func LoadLiveKit() (LiveKit, error) {
 // ObjectStore holds the S3-compatible object store's settings and the key-encryption key that wraps each
 // file's data key (docs/attachments/SPEC.md §2 "Configuration", "Encryption"). Load never reads them; only
 // cmd/api and cmd/worker call LoadObjectStore. Locally the store is the compose Garage and the KEK is
-// synthetic; production takes the KEK from the KMS (SPEC §8), never from a committed file.
+// synthetic; production takes the KEK from a key file on the encrypted volume (BINARY_KEK_FILE, ADR 0011), never
+// from a committed file or the env file.
 type ObjectStore struct {
 	Endpoint        string // S3_ENDPOINT, an absolute http(s) URL
 	Region          string // S3_REGION
@@ -150,7 +154,7 @@ type ObjectStore struct {
 	AccessKeyID     string // S3_ACCESS_KEY_ID
 	SecretAccessKey string // S3_SECRET_ACCESS_KEY
 	KEKID           string // BINARY_KEK_ID, stored with each wrapped data key
-	KEK             []byte // BINARY_KEK, base64 of 32 bytes (AES-256)
+	KEK             []byte // BINARY_KEK (or the file BINARY_KEK_FILE names: keySetting), base64 of 32 bytes (AES-256)
 }
 
 // LoadObjectStore reads the object store's settings from the environment; each is required. Errors name the
@@ -164,7 +168,10 @@ func LoadObjectStore() (ObjectStore, error) {
 		SecretAccessKey: os.Getenv("S3_SECRET_ACCESS_KEY"),
 		KEKID:           os.Getenv("BINARY_KEK_ID"),
 	}
-	kek := os.Getenv("BINARY_KEK")
+	kek, err := keySetting("BINARY_KEK")
+	if err != nil {
+		return ObjectStore{}, err
+	}
 	for _, v := range []struct{ name, value string }{
 		{"S3_ENDPOINT", s.Endpoint}, {"S3_REGION", s.Region}, {"S3_BUCKET", s.Bucket},
 		{"S3_ACCESS_KEY_ID", s.AccessKeyID}, {"S3_SECRET_ACCESS_KEY", s.SecretAccessKey},
@@ -177,11 +184,34 @@ func LoadObjectStore() (ObjectStore, error) {
 	if u, err := url.Parse(s.Endpoint); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return ObjectStore{}, errors.New("config: S3_ENDPOINT is not an absolute http(s) URL")
 	}
-	var err error
 	if s.KEK, err = base64.StdEncoding.DecodeString(kek); err != nil || len(s.KEK) != 32 {
 		return ObjectStore{}, errors.New("config: BINARY_KEK is not base64 of 32 bytes")
 	}
 	return s, nil
+}
+
+// keySetting reads a key from the variable name, or from the file the variable name_FILE names: production
+// mounts TOTP_KEY and BINARY_KEK as compose secrets from a root-only directory on the encrypted volume, so they
+// never sit in the env file (deployments/production/README.md "Keys"). Locally and in CI the variable is set.
+// Setting both is an error, and so is a file that cannot be read or holds nothing but whitespace; the
+// whitespace around the value (the file's newline) is dropped. Errors name the variable, never a value or path.
+func keySetting(name string) (string, error) {
+	value, path := os.Getenv(name), os.Getenv(name+"_FILE")
+	if path == "" {
+		return value, nil
+	}
+	if value != "" {
+		return "", errors.New("config: " + name + " and " + name + "_FILE are both set; set one")
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", errors.New("config: " + name + "_FILE cannot be read")
+	}
+	value = strings.TrimSpace(string(b))
+	if value == "" {
+		return "", errors.New("config: " + name + "_FILE is empty")
+	}
+	return value, nil
 }
 
 // Clamd holds the malware scanner's address (docs/attachments/SPEC.md §2 "Configuration"). Only cmd/worker

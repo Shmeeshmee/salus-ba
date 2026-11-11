@@ -68,7 +68,7 @@ under GDPR Art. 28 concluded in the console, no managed Postgres and no KMS.
   automatically yet; the reviewer of a PR with a migration does.
 - **Secrets** live in the owner's Bitwarden and are copied into GitHub Actions secrets of the `production`
   environment; the deploy job writes them to `/opt/salus/.env` (mode 600, owner `deploy`) on each deploy, except
-  `BINARY_KEK` and `TOTP_KEY`, which live in a key file on the encrypted volume (point 3 below). Nothing secret is
+  `BINARY_KEK` and `TOTP_KEY`, which live in key files on the encrypted volume (point 3 below). Nothing secret is
   committed; `deployments/production/.env.production.example` lists every variable.
 - **The server** is set up by an idempotent bootstrap script (`deployments/production/bootstrap/`): a `deploy` user
   with an SSH key only, no root login and no password login, `ufw`, `fail2ban`, unattended security upgrades,
@@ -93,15 +93,18 @@ with synthetic data; each blocks real patient data, and each is the owner's deci
    then starts the stack; until then nothing that holds data runs, and the deploy refuses to start when the volume
    is not mounted. **Automatic reboots stay off** (`UPGRADE_AUTO_REBOOT=no`, and the bootstrap refuses `yes`): a
    kernel update that needs a reboot waits for the owner, who reboots and unlocks in one sitting.
-3. **Decided: the keys without a KMS, in a root-only file on the encrypted volume.** `BINARY_KEK` and `TOTP_KEY`
-   live in a key file on the LUKS volume, owned by root and readable by no other account on the host, and reach
-   only the containers that need them. They are not in `/opt/salus/.env`, not in the `SALUS_ENV_FILE` GitHub
-   secret, and not in the release directories; the deploy refuses an env file that contains them. Bitwarden keeps
-   the only other copy, for a restore. Limits, accepted for the pilot: the `deploy` user is in the `docker` group
-   and therefore root-equivalent, so the file protects the keys from the env file's copies (GitHub, releases), from
-   a copy of the server's disk and from a detached volume, not from someone who already has `deploy` or root on the
-   running server. This is the exception to CLAUDE.md's "keys from the KMS" for the single-server deployment; a KMS
-   replaces it when the deployment outgrows one server or a customer asks for one.
+3. **Decided: the keys without a KMS, in a root-only file on the encrypted volume.** `BINARY_KEK` and `TOTP_KEY` live
+   on the LUKS volume, one file per key (a compose file secret takes one whole file), mode 0400, owned by the
+   containers' unprivileged uid 65532, which is no account on the host, in a directory that only root can list: no
+   login account can read them (deployments/production/README.md "Keys"). Compose's file secrets, mounted by the root
+   daemon, give them only to the containers that need them (`BINARY_KEK_FILE`, `TOTP_KEY_FILE`). They are not in
+   `/opt/salus/.env`, not in the `SALUS_ENV_FILE` GitHub secret, and not in the release directories; the deploy
+   refuses an env file that contains them. Bitwarden keeps the only other copy, for a restore. Limits, accepted for
+   the pilot: the `deploy` user is in the `docker` group and therefore root-equivalent, so the file protects the keys
+   from the env file's copies (GitHub, releases), from a copy of the server's disk and from a detached volume, not
+   from someone who already has `deploy` or root on the running server. This is the exception to CLAUDE.md's "keys
+   from the KMS" for the single-server deployment; a KMS replaces it when the deployment outgrows one server or a
+   customer asks for one.
 4. **Decided: plaintext between containers on the one host.** Postgres, Redis, Garage, ClamAV, LiveKit's API and
    the Go binaries talk without TLS over the compose network, a Docker bridge that never leaves the machine.
    Everything that leaves the host is encrypted in transit: TLS (Caddy, TURN over TLS, SMTP), DTLS-SRTP (WebRTC

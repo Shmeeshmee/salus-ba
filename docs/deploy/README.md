@@ -7,9 +7,15 @@ docs/plans/deploy.md). This page is the order of work for the first deploy; the 
 | --- | --- |
 | `deployments/production/README.md` | The stack: hostnames, ports, TURN, healthchecks, memory budget |
 | `deployments/production/.env.production.example` | Every variable, how to generate each secret |
-| `deployments/production/bootstrap/README.md` | Preparing the server (`bootstrap.sh`) |
+| `deployments/production/bootstrap/README.md` | Preparing the server (`bootstrap.sh`, `salus-volume`) |
 | `docs/deploy/backup-restore.md` | Backups to the Storage Box and the restore drill |
 | `.github/workflows/images.yml`, `deploy.yml` | Building the images; deploying them |
+
+This order is for a **fresh server**, which is the only kind there is so far: the encrypted volume (step 4) holds the
+data from the first deploy on. A server that already ran a release keeping its data in Docker's named volumes and
+`BINARY_KEK`/`TOTP_KEY` in its env file needs the one-time move in `deployments/production/README.md` ("Encrypted
+volume") first: stop the stack, move the data onto the volume, remove the named volumes, delete the keys from every
+`releases/*/.env`, and treat those keys as exposed (rotate them, or record the exposure).
 
 Nothing is deployed until step 8 sets `DEPLOY_ENABLED`. Until then every Deploy run stops at "not enabled".
 
@@ -20,7 +26,8 @@ Nothing is deployed until step 8 sets `DEPLOY_ENABLED`. Until then every Deploy 
 - **The server type** (`SALUS_SERVER_TYPE`): at least 4 vCPU and 8 GB (the memory budget in
   `deployments/production/README.md` is sized for that); x86 (the images are built for amd64 only).
 - **Before real patient data**: the two open points of ADR 0011 ("Before real patient data": the DPAs of Hetzner
-  and the SMTP relay, point 1, and the backups' retention, point 7). The stack runs without them on synthetic data;
+  and the SMTP relay, point 1, and the backups' retention, point 7). Encryption at rest and the keys are decided
+  there and set up below (the encrypted volume, step 4). The stack runs without the open points on synthetic data;
   it must not hold real patients' data until both are settled.
 
 ## 1. Keys, on a trusted machine, into Bitwarden first
@@ -31,9 +38,13 @@ Nothing is deployed until step 8 sets `DEPLOY_ENABLED`. Until then every Deploy 
 | The deploy workflow's SSH key | `ssh-keygen -t ed25519 -N '' -C salus-github-deploy -f salus-deploy` | Private half: GitHub secret `DEPLOY_SSH_KEY`; public half: a second `DEPLOY_SSH_KEY` line in `bootstrap.conf` |
 | The backups' age key | `age-keygen -o salus-backup.age` | Private half: Bitwarden only, never on the server or in GitHub; public half (`age1…`): `BACKUP_AGE_RECIPIENT` |
 | The stack's secrets | Fill in a copy of `.env.production.example` (each line says how to generate its value) | One Bitwarden secure note; GitHub secret `SALUS_ENV_FILE` (step 6) |
+| The volume's LUKS passphrase | A long random passphrase from Bitwarden's generator (e.g. 6 words or more) | Bitwarden only. Typed into `cryptsetup` on the server at setup and after every reboot; never stored on the server or in GitHub |
+| `BINARY_KEK`, `TOTP_KEY` | `openssl rand -base64 32`, once each | Two Bitwarden items of their own (not in the env file's note). Pasted into `salus-volume setup` (step 4), which writes them to the key files on the encrypted volume. Never in `SALUS_ENV_FILE`: the deploy refuses an env file that sets them |
 
 `BINARY_KEK` and `TOTP_KEY` cannot be regenerated: losing them loses every attachment and every enrolled MFA, and a
-restore needs the same values (docs/deploy/backup-restore.md).
+restore needs the same values (docs/deploy/backup-restore.md). The LUKS passphrase cannot be recovered either:
+without it the volume, and every record on it, is unreadable; a restore from the backups onto a new volume is the
+only way back.
 
 ## 2. Hetzner
 
@@ -41,12 +52,17 @@ restore needs the same values (docs/deploy/backup-restore.md).
    record Hetzner as wired in in docs/privacy/processors.md (ADR 0011 open point 1).
 2. **Project and SSH key.** Create a project (e.g. `salus`) and add your own public SSH key to it.
 3. **Server.** Add a server: location **Helsinki** (`hel1`), image **Ubuntu 24.04**, type `SALUS_SERVER_TYPE`, a
-   public IPv4 (IPv6 optional, see DNS), your SSH key, no volume. Note its IPv4 address: `LIVEKIT_NODE_IP` and the
-   DNS records.
-4. **Cloud Firewall (recommended).** Docker's published ports bypass `ufw`, so a Hetzner Cloud Firewall in front
+   public IPv4 (IPv6 optional, see DNS), your SSH key. Note its IPv4 address: `LIVEKIT_NODE_IP` and the DNS
+   records.
+4. **Volume.** Volumes, Create volume: location **Helsinki**, attached to the server, a size for the database and
+   the attachments with room to grow (it can be enlarged later; 50 GB is a start for a pilot), mount option
+   **manual** (no automatic mount and no `/etc/fstab` line: the volume is encrypted on the server, step 4). If the
+   console formats it anyway, `salus-volume setup` refuses it until you wipe it (step 4). Note the volume's id:
+   on the server it is `/dev/disk/by-id/scsi-0HC_Volume_<id>`.
+5. **Cloud Firewall (recommended).** Docker's published ports bypass `ufw`, so a Hetzner Cloud Firewall in front
    of the server is a second boundary: inbound TCP `SSH_PORT`, 80, 443, 7881 and UDP 443, 3478, 7882; nothing else.
    Apply it to the server.
-5. **Storage Box.** Order a Storage Box (BX11 is plenty for nightly dumps) in Helsinki, enable SSH support, and
+6. **Storage Box.** Order a Storage Box (BX11 is plenty for nightly dumps) in Helsinki, enable SSH support, and
    create a sub-account for the backups with its own directory. Note its host, sub-account user and port 23:
    `BACKUP_HOST`, `BACKUP_USER`, `BACKUP_PORT` (docs/deploy/backup-restore.md "Storage Box").
 
@@ -75,7 +91,28 @@ then `bootstrap.sh` from an interactive root session; check `ssh deploy@SERVER` 
 closing it.
 
 At the end the script prints the backup's public SSH key: add it to the Storage Box sub-account's
-`.ssh/authorized_keys` (docs/deploy/backup-restore.md).
+`.ssh/authorized_keys` (docs/deploy/backup-restore.md). It fails while swap is active (none on Hetzner's images) and
+warns that the encrypted volume is not set up yet:
+
+**The encrypted volume, once** (ADR 0011; deployments/production/README.md "Encrypted volume"). In the same root
+session, with Bitwarden open:
+
+```sh
+ls -l /dev/disk/by-id/ | grep HC_Volume          # the volume of step 2.4, by its id
+salus-volume setup /dev/disk/by-id/scsi-0HC_Volume_<id>
+```
+
+1. `cryptsetup` asks you to type `YES`, then for the LUKS passphrase twice (from Bitwarden, step 1), then once more
+   to open it.
+2. The script creates the filesystem, mounts it at `/mnt/salus-data`, lays out `postgres/`, `garage/` and `keys/`,
+   and asks for `BINARY_KEK` and `TOTP_KEY` (paste each from Bitwarden; nothing is shown). It writes them to
+   `/mnt/salus-data/keys/`, readable by the containers' uid only, and checks the result.
+3. If it refuses because the device already holds a filesystem (the console formatted it): check in the console that
+   the id is the new, empty volume's, then `wipefs -a /dev/disk/by-id/scsi-0HC_Volume_<id>` and run setup again.
+4. `salus-volume check` must say ok. Nothing unlocks it at boot; see "Reboots" below.
+
+A mount point other than `/mnt/salus-data` (`SALUS_DATA_DIR=... salus-volume setup ...`) also needs
+`SALUS_DATA_DIR` in `SALUS_ENV_FILE`.
 
 ## 5. The server's host key
 
@@ -102,7 +139,7 @@ In the repository's settings:
 
      | Secret | Value |
      | --- | --- |
-     | `SALUS_ENV_FILE` | The whole filled-in env file (step 1), pasted as is |
+     | `SALUS_ENV_FILE` | The whole filled-in env file (step 1), pasted as is: without `BINARY_KEK` and `TOTP_KEY`, which the deploy refuses |
      | `DEPLOY_SSH_KEY` | The deploy workflow's private SSH key (`salus-deploy`, step 1), with its BEGIN and END lines |
      | `DEPLOY_KNOWN_HOSTS` | The host key line of step 5 |
 
@@ -158,10 +195,19 @@ head. Check that the latest Images run of `main` succeeded with its `release` jo
 7. **Backups**: on the next night, check `systemctl status salus-backup.service` and the Storage Box. Then run the
    restore drill (docs/deploy/backup-restore.md) and record it, before any real data.
 
-From then on every merge to `main` deploys after your approval: Images, then Deploy.
+From then on every merge to `main` deploys after your approval: Images, then Deploy. A deploy is refused while the
+encrypted volume is locked (after a reboot, until you unlock it).
 
 ## Day to day
 
+- **Reboots.** Automatic reboots are off (the bootstrap refuses them). When `/var/run/reboot-required` exists (a
+  kernel or libc update), reboot by hand in a quiet hour and unlock in the same sitting: from Hetzner's console
+  (or `ssh` as `deploy` with `DEPLOY_SUDO=yes`), as root, `reboot`, then after the boot `salus-volume unlock` and
+  the passphrase from Bitwarden. It opens and mounts the volume, checks the layout and the key files, and starts
+  the running release (`up -d --wait`, which runs `migrate` again: a no-op). Until then the stack is down, every
+  deploy is refused, and a nightly backup that runs in between fails (run it by hand after the unlock:
+  `systemctl start salus-backup.service`). After an unplanned reboot (Hetzner maintenance, a crash) the same applies:
+  the stack waits for you.
 - **A deploy takes the stack down briefly.** Every image changes with every release, so compose recreates every
   service; the app services wait for migrate. Expect a short outage per deploy (migrate plus start-up); deploy
   outside clinic hours.

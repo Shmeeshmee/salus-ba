@@ -162,6 +162,12 @@ jobs:
             echo "SALUS_ENV_FILE has Windows line endings (CR): paste it again with LF only." >&2
             exit 1
           fi
+          # The keys live only in the key files on the encrypted volume (ADR 0011): an env file with them is not
+          # uploaded (deploy.sh refuses it on the server too). Only names are printed.
+          if grep -Eq '^[[:space:]]*(export[[:space:]]+)?(BINARY_KEK|TOTP_KEY)[[:space:]]*=' "$RUNNER_TEMP/salus/.env"; then
+            echo "SALUS_ENV_FILE sets BINARY_KEK or TOTP_KEY: remove them; they live only in the key files on the encrypted volume (docs/deploy/README.md)." >&2
+            exit 1
+          fi
           # A key the example does not know is a typo or a leftover: named, not fatal.
           while read -r key; do
             grep -Eq "^#? ?$key=" deployments/production/.env.production.example ||
