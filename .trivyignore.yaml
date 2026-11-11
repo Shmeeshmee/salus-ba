@@ -1,0 +1,9 @@
+# Reviewed exceptions to the Images workflow's Trivy gate (.github/workflows/images.yml), which fails on any
+# CRITICAL vulnerability. Empty by design. An entry is added only in a reviewed PR, and every entry has the CVE id,
+# the reason (why it does not apply or what mitigates it, and where the fix is tracked) and an expiry date at most
+# 90 days ahead; the workflow rejects an entry without `statement` or `expired_at`, and Trivy stops ignoring it after
+# that date. Example:
+#   - id: CVE-2026-00000
+#     statement: Only the decoder is affected; nginx here never decodes brotli. Fix tracked in #123.
+#     expired_at: 2027-01-31
+vulnerabilities: []

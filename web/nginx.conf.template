@@ -1,4 +1,6 @@
-# Web app (build/package/web.Dockerfile). Included in nginx's http block as default.conf. Static files only:
+# Web app (build/package/web.Dockerfile). A template: at start the image's entrypoint writes it to
+# /etc/nginx/conf.d/default.conf with ${SALUS_DOMAIN} filled in (NGINX_ENVSUBST_FILTER limits envsubst to that one
+# variable, so nginx's own $variables stay). Included in nginx's http block. Static files only:
 # Caddy sends the API paths (web/vite.config.ts) to the api service before a request reaches this server.
 # No access log: a request line can carry an appointment or encounter id, and the client address is personal data
 # (GDPR); behind Caddy the error log sees only Caddy's container address.
@@ -26,11 +28,10 @@ server {
     # Every add_header sits here: nginx drops the server's headers in a location that adds its own. Cache-Control
     # goes on successful responses only, so a 404 under /assets/ is not cached for a year.
     # The app loads only its own files. It calls the API on this origin (fetch and the consultation's WebSocket)
-    # and LiveKit on livekit.SALUS_DOMAIN (wss:, and https: for its connection checks); the domain is not known when
-    # the image is built, so connect-src allows any TLS origin and nothing in clear text. Camera and microphone
-    # are for the consultation, on this origin only.
+    # and LiveKit on livekit.${SALUS_DOMAIN}: signalling over wss:, and https: for livekit-client's connection check
+    # after a failed join. Camera and microphone are for the consultation, on this origin only. HSTS is Caddy's.
     add_header Cache-Control $salus_cache_control;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; font-src 'self'; connect-src 'self' https: wss:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; font-src 'self'; connect-src 'self' wss://livekit.${SALUS_DOMAIN} https://livekit.${SALUS_DOMAIN}; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "same-origin" always;
     add_header Permissions-Policy "camera=(self), microphone=(self), display-capture=(), geolocation=(), payment=(), usb=(), interest-cohort=()" always;

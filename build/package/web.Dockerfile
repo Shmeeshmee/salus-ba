@@ -1,7 +1,8 @@
 # Web app for practitioners and admins (web/): built with Vite and served as static files by unprivileged nginx
-# on 8080 (web/nginx.conf). The build context is web/. No API proxying here: Caddy routes the API paths of
+# on 8080 (web/nginx.conf.template). The build context is web/. No API proxying here: Caddy routes the API paths of
 # web/vite.config.ts to the api service on the same origin (docs/adr/0011-single-server-deployment.md).
-# Same Node image as node.Dockerfile.
+# SALUS_DOMAIN (set by the production compose file) names LiveKit's host in the Content-Security-Policy; the
+# default is only for local runs. Same Node image as node.Dockerfile.
 FROM node:26.13.0-trixie-slim AS build
 WORKDIR /src
 COPY package.json package-lock.json .npmrc ./
@@ -16,6 +17,8 @@ FROM nginxinc/nginx-unprivileged:1.31.7-alpine3.24@sha256:b5047b9b76845eac124358
 USER root
 RUN apk upgrade --no-cache
 USER 101
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+ENV SALUS_DOMAIN=localhost \
+    NGINX_ENVSUBST_FILTER=^SALUS_DOMAIN$
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /src/dist/ /usr/share/nginx/html/
 EXPOSE 8080

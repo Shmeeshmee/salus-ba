@@ -1,6 +1,6 @@
 # Runtime image for every Go binary under cmd/ (api, migrate, worker, scheduler, notifier, agent, salusctl).
 # Compose picks the binary with `command`. Static binaries on distroless, running as a non-root user.
-FROM golang:1.27.3-trixie AS build
+FROM golang:1.27.3-trixie@sha256:af1bfc2614ebb1dbd31af514b78740fd678850e76498762b425ecee4c5c6ea80 AS build
 ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS=-buildvcs=false
 WORKDIR /src
 COPY go.mod go.sum ./
