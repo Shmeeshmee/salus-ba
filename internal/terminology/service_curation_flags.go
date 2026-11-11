@@ -21,12 +21,14 @@ type FlagRow struct {
 
 // ImportFlags marks the flagged translations as needing changes, so they come up under the review panel's "Needs
 // changes" filter, the most common term first: the note is the flag's, trimmed; no reviewer is named (the file names no one,
-// as the curator's CSV); reviewed_at is now; the term's status follows (followedStatus), without a reviewer. Only a
+// as the curator's CSV); reviewed_at is now; the term's status follows (followedStatus), without a reviewer (one back
+// to unreviewed keeps its last review, as in the panel). Only a
 // translation never reviewed is flagged: one with a review (a reviewer's, the curator's file's or an earlier flag's)
 // is kept as it is, so a second import changes nothing and a reviewer's work is never overwritten. The report counts
 // translations: updated (flagged) and unchanged (kept). A row naming no term, a language that is no term language or
-// that the term has no labels in, a label the term does not have in the language (so a flag never lands on another
-// term or language, and one whose label a reviewer already changed is no longer applied), or a note that is not 1 to 500 characters once trimmed is refused, the rest
+// that the term has no labels in, a label the term does not have in the language of a translation never reviewed (so
+// a flag never lands on another term or language; once a reviewer fixed the label, the translation has a review and
+// is kept), or a note that is not 1 to 500 characters once trimmed is refused, the rest
 // applied, each row in its own transaction; a database error stops the import. Not audited, as the curator's file.
 func (c *Curator) ImportFlags(ctx context.Context, rows []FlagRow) (ImportReport, error) {
 	var report ImportReport
@@ -82,10 +84,10 @@ func (c *Curator) flag(ctx context.Context, r FlagRow, note string) (bool, error
 	switch {
 	case !found:
 		return false, ErrNoTranslation
-	case !slices.ContainsFunc(st.Labels, func(l Label) bool { return l.Text == r.Label }):
-		return false, errNoSuchLabel
 	case !tr.Review.ReviewedAt.IsZero():
 		return false, nil
+	case !slices.ContainsFunc(st.Labels, func(l Label) bool { return l.Text == r.Label }):
+		return false, errNoSuchLabel
 	}
 	now := c.clock.Now()
 	tr.Review = Review{Status: ReviewNeedsChanges, ReviewedAt: now, Note: note}
@@ -95,7 +97,10 @@ func (c *Curator) flag(ctx context.Context, r FlagRow, note string) (bool, error
 	}
 	if status := followedStatus(st, tr); status != st.TermReview.Status {
 		r := st.TermReview
-		r.Status, r.ReviewedBy, r.ReviewedAt = status, "", now
+		r.Status = status
+		if status != ReviewUnreviewed {
+			r.ReviewedBy, r.ReviewedAt = "", now
+		}
 		if err := c.repo.SetTermReview(ctx, id, r, now); err != nil {
 			return false, err
 		}

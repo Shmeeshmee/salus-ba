@@ -14,7 +14,10 @@ string lives, so the next run applies the decisions without guessing. Placeholde
 are filled in by the app and stay as they are.
 
 Every non-English text here was drafted by Claude and has not been read by a native speaker
-(docs/i18n/TRANSLATIONS.md: `drafted`). An approval of the English does not approve a translation.
+(docs/i18n/TRANSLATIONS.md: `drafted`). An approval of the English does not approve a translation. The same holds
+for every other translation in the apps, whose English you approved earlier (for example the call page's other
+panel strings, W1 to W23 in docs/consult-intelligence/COPY.md): those are not listed here, since only the native
+speakers' check is left for them; docs/i18n/TRANSLATIONS.md tracks it per language.
 
 ## Totals
 
@@ -24,24 +27,24 @@ Every non-English text here was drafted by Claude and has not been read by a nat
 | Patient documents (SAL-17) | 15 | 2 | 13 | 0 |
 | Term review panel (SAL-14) | 48 | 48 | 0 | 0 |
 | Term explanations (SAL-13) | 4 | 1 | 3 | 2 |
-| Call page | 4 | 3 | 1 | 1 |
-| **Total** | **91** | **56** | **35** | **18** |
+| Call page | 6 | 5 | 1 | 2 |
+| **Total** | **93** | **58** | **35** | **19** |
 
 Texts per language (a row counts once per language it has a text in):
 
 | Language | Texts |
 | --- | ---: |
-| English (`en`) | 91 |
-| Bosnian (`bs`) | 91 |
-| Croatian (`hr`) | 91 |
-| Serbian (Latin) (`sr-Latn`) | 91 |
-| Serbian (Cyrillic) (`sr-Cyrl`) | 91 |
+| English (`en`) | 93 |
+| Bosnian (`bs`) | 93 |
+| Croatian (`hr`) | 93 |
+| Serbian (Latin) (`sr-Latn`) | 93 |
+| Serbian (Cyrillic) (`sr-Cyrl`) | 93 |
 | German (`de`) | 35 |
 | Arabic (`ar`) | 35 |
 | Turkish (`tr`) | 35 |
 | Italian (`it`) | 35 |
 | French (`fr`) | 35 |
-| **All languages** | **630** |
+| **All languages** | **640** |
 
 Not counted as rows: the 2,160 drafted term explanations (216 terms × 10 languages,
 `assets/terminology/explanations.draft.jsonl`). They are the doctor partner's to review in the review panel
@@ -49,15 +52,15 @@ Not counted as rows: the 2,160 drafted term explanations (216 terms × 10 langua
 
 ## Also waiting on someone else
 
-- **The lawyer's answer to Q16** (docs/legal/BRIEF.md; Q17 covers the same consent texts): 21 rows,
-  M35, M15, M16, M37, M38, M39, M40, M41, M42, M43a, M43b, M44, M45, M46a, M46b, M47, M48a, M48b, W42, W43, W9. W9 is `legal` and goes to the lawyer with the other tagged strings, not under Q16.
+- **The lawyer's answer to Q16** (docs/legal/BRIEF.md; Q17 covers the same consent texts): 20 rows,
+  M35, M15, M16, M37, M38, M39, M40, M41, M42, M43a, M43b, M44, M45, M46a, M46b, M47, M48a, M48b, W42, W43. W9 is not among them: it is `legal` and goes to the lawyer with the other tagged strings.
 - **The doctor partner**: 20 rows, M35, M15, M16, M37, M38, M39, M40, M41, M42, M43a, M43b, M44, M45, M46a, M46b, M47, M48a, M48b, W42, W43, plus the 2,160 explanations.
-- **`legal` strings** (their wording has legal weight; the lawyer reads every one in every language): 18 rows,
-  M35, M15, M16, M38, M39, M40, M41, M42, M43a, M43b, M45, M46b, M47, W42, W43, T16, TH1, W9.
+- **`legal` strings** (their wording has legal weight; the lawyer reads every one in every language): 19 rows,
+  M35, M15, M16, M38, M39, M40, M41, M42, M43a, M43b, M45, M46b, M47, W42, W43, T16, TH1, W9, CP1.
 
 ## Who checks what
 
-- **Bosnian, Croatian, Serbian (Latin and Cyrillic)**: every row (91), web and mobile alike. Native speakers
+- **Bosnian, Croatian, Serbian (Latin and Cyrillic)**: every row (93), web and mobile alike. Native speakers
   of `sr-Latn` and `sr-Cyrl` can be the same person; Serbian is ijekavian in both scripts.
 - **German, Arabic, Turkish, Italian, French**: the 35 mobile, iOS and e-mail rows only (the web app is
   staff-only, in five languages): M35, M15, M16, M37, M38, M39, M40, M41, M42, M43a, M43b, M44, M45, M46a, M46b, M47, M48a, M48b, PD3, PD4, PD5, PD6, PD7, PD8, PD9, PD10, PD11, PD12, PD13, PD14, PD15, TH1, TH2, TH3, M36.
@@ -300,6 +303,8 @@ Not counted as rows: the 2,160 drafted term explanations (216 terms × 10 langua
 | M36 | Patient's call screen, while the transcription agent is in the call; tapping it opens the withdraw dialog (M44) (`mobile:transcriptionOn`) | Transcription is on |  | English not approved yet (SAL-3) |
 | W9 | Practitioner's call page, the suggestions panel: what a suggestion is (`web:consultation.live.suggestionsNote`) | AI suggestions are prompts drawn from the transcript, not a diagnosis. Every decision is yours. | `legal`, lawyer | English approved 2026-11-09; only the translations wait for a native speaker's check |
 | W24 | Practitioner's call page, instead of the sign confirmation while a required field is empty (`web:consultation.live.requiredEmpty`) | {count, plural, one {# required field is empty. Fill it in before you sign.} other {# required fields are empty. Fill them in before you sign.}} |  | English approved 2026-11-09; only the translations wait for a native speaker's check |
+| CP1 | Practitioner's call page, the panel beside the video once the live stream ended because the patient withdrew consent (`web:consultation.peerWithdrewConsent`) | The patient withdrew consent for this clinic, so the consultation has ended. | `legal` | Existing approved string (W-series of the consultation screens), reused on the call page; approve the reuse |
+| CP2 | Practitioner's call page, the panel beside the video once the practitioner may no longer follow the consultation (`web:consultation.notAvailable`) | This consultation is not available. |  | Existing approved string (W33), reused on the call page; approve the reuse |
 
 <details><summary>Translations</summary>
 
@@ -309,6 +314,8 @@ Not counted as rows: the 2,160 drafted term explanations (216 terms × 10 langua
 | M36 | Transkripcija je uključena | Transkripcija je uključena | Transkripcija je uključena | Транскрипција је укључена | Transkription ist aktiv | النسخ النصي مفعّل | Transkripsiyon açık | Trascrizione attiva | Transcription activée |
 | W9 | AI prijedlozi su podsticaji izvedeni iz transkripta, a ne dijagnoza. Svaka odluka je vaša. | AI prijedlozi su poticaji izvedeni iz transkripta, a ne dijagnoza. Svaka je odluka vaša. | AI prijedlozi su podsticaji izvedeni iz transkripta, a ne dijagnoza. Svaka odluka je vaša. | AI приједлози су подстицаји изведени из транскрипта, а не дијагноза. Свака одлука је ваша. |  |  |  |  |  |
 | W24 | {count, plural, one {# obavezno polje je prazno. Popunite ga prije potpisivanja.} few {# obavezna polja su prazna. Popunite ih prije potpisivanja.} other {# obaveznih polja je prazno. Popunite ih prije potpisivanja.}} | {count, plural, one {# obvezno polje je prazno. Ispunite ga prije potpisivanja.} few {# obvezna polja su prazna. Ispunite ih prije potpisivanja.} other {# obveznih polja je prazno. Ispunite ih prije potpisivanja.}} | {count, plural, one {# obavezno polje je prazno. Popunite ga prije potpisivanja.} few {# obavezna polja su prazna. Popunite ih prije potpisivanja.} other {# obaveznih polja je prazno. Popunite ih prije potpisivanja.}} | {count, plural, one {# обавезно поље је празно. Попуните га прије потписивања.} few {# обавезна поља су празна. Попуните их прије потписивања.} other {# обавезних поља је празно. Попуните их прије потписивања.}} |  |  |  |  |  |
+| CP1 | Pacijent je povukao saglasnost za ovu kliniku, pa je konsultacija završena. | Pacijent je povukao privolu za ovu kliniku pa je konzultacija završena. | Pacijent je povukao saglasnost za ovu kliniku, pa je konsultacija završena. | Пацијент је повукао сагласност за ову клинику, па је консултација завршена. |  |  |  |  |  |
+| CP2 | Ova konsultacija nije dostupna. | Ova konzultacija nije dostupna. | Ova konsultacija nije dostupna. | Ова консултација није доступна. |  |  |  |  |  |
 
 </details>
 

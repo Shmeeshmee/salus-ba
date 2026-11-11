@@ -84,9 +84,10 @@ Reopen only with the owner.
   `assets/terminology/translation-flags.jsonl`, one per term, language and wrong label, with a note;
   `salusctl terminology import-flags` (part of `make terminology-import`) marks each translation `needs_changes` with
   the note, `reviewed_at` set and no reviewer (the file names no one), and the term's status follows as in "Review".
-  It changes no label. A flag applies only while the label is there and the translation has never been reviewed, so
-  it never overwrites a reviewer's work; a row naming no term, a language without labels, a label the term does not
-  have there or a note that is not 1 to 500 characters is refused, the rest applied. Not audited, as the CSV.
+  It changes no label. A flag applies only to a translation never reviewed, so it never overwrites a reviewer's work
+  and a run after the reviewer's fix keeps it; a row naming no term, a language without labels, a label a translation
+  never reviewed does not have, or a note that is not 1 to 500 characters is refused, the rest applied. Not audited,
+  as the CSV.
 - **No personal data** in the file or the tables (until 00037): no reviewer name, only the date. Changed by the owner,
   2026-11-10: the tables hold the reviewer's account id (`reviewed_by`, retention `keep`); the file still names no
   one (docs/plans/v1-finish.md "Decisions").

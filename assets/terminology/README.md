@@ -109,8 +109,8 @@ overwrites an explanation that is there, so a reviewer's work is safe from a sec
 terminology-import` (or `salusctl terminology import-flags`) marks each flagged term's translation in that language
 as `needs_changes`, with the flag's note and no reviewer, so it comes up under "Needs changes" in the review panel
 (`/term-review`); the term itself needs changes too when the language is Latin or a staff language. Nothing here
-changes a label: the reviewer does, in the panel. A flag applies only while its label is there and the translation
-has never been reviewed, so a second import, or one after the reviewer's fix, changes nothing.
+changes a label: the reviewer does, in the panel. A flag applies only to a translation never reviewed, so a second
+import, or one after the reviewer's fix, changes nothing; a flag whose label the seed does not have is refused.
 
 ```json
 {"wikidata":"Q133244","term":"jaundice","language":"tr","label":"Hepatit c","note":"\"Hepatit c\" names hepatitis C, …"}

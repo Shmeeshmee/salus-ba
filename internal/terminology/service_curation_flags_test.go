@@ -81,6 +81,27 @@ func TestImportFlags_KeepsAReviewedTranslation(t *testing.T) {
 	}
 }
 
+// Once a reviewer fixed a flagged label (the label is gone, the translation unreviewed again, its last review kept),
+// the flag no longer applies: the import keeps the translation and refuses nothing, so make terminology-import
+// still passes.
+func TestImportFlags_KeepsATranslationAReviewerFixed(t *testing.T) {
+	f := flagFake()
+	row := []terminology.FlagRow{{Line: 1, WikidataID: "Q1", Language: "tr", Label: "wrong tr", Note: "Placeholder."}}
+	if _, err := newCurator(f).ImportFlags(t.Context(), row); err != nil {
+		t.Fatal(err)
+	}
+	term := f.terms["t1"]
+	term.Labels = labels("hr", "placeholder hr", "tr", "placeholder tr")
+	f.terms["t1"] = term
+	fixed := f.stored["t1 tr"]
+	fixed.Review.Status = terminology.ReviewUnreviewed
+	f.stored["t1 tr"] = fixed
+	report, err := newCurator(f).ImportFlags(t.Context(), row)
+	if want := (terminology.ImportReport{Unchanged: 1}); err != nil || !reflect.DeepEqual(report, want) {
+		t.Errorf("import after the fix = %+v, %v; want %+v", report, err, want)
+	}
+}
+
 // A row naming no term, a language that is no term language or that the term has no labels in, a label the term
 // does not have in the language (the file names the wrong label, so a flag never lands on another term or language),
 // or a note that is empty or over 500 characters is refused; the other rows are applied.
