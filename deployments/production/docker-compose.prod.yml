@@ -1,0 +1,368 @@
+# The production stack on one server (docs/adr/0011-single-server-deployment.md). Copied with the rest of
+# deployments/production/ to /opt/salus/deployments/ on each deploy and always run as:
+#
+#   docker compose -p salus --env-file /opt/salus/.env --env-file /opt/salus/release.env \
+#     -f /opt/salus/deployments/docker-compose.prod.yml <command>
+#
+# /opt/salus/.env holds every variable of .env.production.example; release.env holds SALUS_TAG, the commit SHA of
+# the images. Relative paths below resolve from this file's directory.
+#
+# Only Caddy (80/tcp, 443/tcp, 443/udp) and LiveKit (3478/udp TURN, 7881/tcp and 7882/udp media) publish ports.
+# Everything else is on the compose network only. Docker's published ports bypass ufw, so this list is the real
+# boundary (README.md).
+#
+# Every service has a memory limit (variables with defaults for a 4 vCPU / 8 GB server; README.md has the sum), a
+# restart policy and rotated logs. Healthchecks: every service but the River binaries (worker, scheduler,
+# notifier, agent), which listen on nothing; a fatal error ends their process and `restart` brings it back
+# (README.md "Healthchecks").
+name: salus
+
+x-logging: &logging
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+
+# Every Go binary is in one distroless image (DEP-1), nonroot, with nothing to write: a read-only root, no
+# capabilities.
+x-app: &app
+  image: ghcr.io/${GHCR_OWNER:-shmeeshmee}/salus:${SALUS_TAG:?SALUS_TAG is required (release.env)}
+  <<: *logging
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+  depends_on: &app-deps
+    migrate: {condition: service_completed_successfully}
+    redis: {condition: service_healthy}
+
+# What every app binary reads (internal/config). The binaries log in as salus_app (no superuser, no BYPASSRLS);
+# only migrate logs in as the owner. Postgres and Redis are on the compose network: no TLS between containers on
+# one host (ADR 0011 open point 4).
+x-app-env: &app-env
+  DATABASE_URL: postgres://salus_app:${APP_DATABASE_PASSWORD:?APP_DATABASE_PASSWORD is required}@postgres:5432/salus?sslmode=disable
+  REDIS_URL: redis://redis:6379/0
+
+x-livekit-env: &livekit-env
+  LIVEKIT_URL: http://livekit:7880
+  LIVEKIT_PUBLIC_URL: wss://livekit.${SALUS_DOMAIN:?SALUS_DOMAIN is required}
+  LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}
+  LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}
+
+# The object store is the Garage below; the same key pair is the one Garage creates and grants the bucket.
+x-objectstore-env: &objectstore-env
+  S3_ENDPOINT: http://objectstore:3900
+  S3_REGION: garage
+  S3_BUCKET: ${S3_BUCKET:-salus-binaries}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID is required}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is required}
+  BINARY_KEK: ${BINARY_KEK:?BINARY_KEK is required}
+  BINARY_KEK_ID: ${BINARY_KEK_ID:?BINARY_KEK_ID is required}
+
+# The engines stay on the fakes (ADR 0011 open point 6): no audio or text leaves the stack until the processors
+# are signed. The keys are passed through only so that switching an engine is a change to .env alone.
+x-llm-env: &llm-env
+  LLM_ENGINE: ${LLM_ENGINE:-fake}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  LLM_MODEL: ${LLM_MODEL:-}
+
+services:
+  # TLS for every hostname (Let's Encrypt), the routes of the Caddyfile, and TURN over TLS on 443 (its layer4
+  # listener wrapper). No capability but binding 80 and 443: the image runs Caddy as a non-root user with
+  # cap_net_bind_service on the binary (DEP-1), which needs that capability in the bounding set (checked with
+  # no-new-privileges). The named volumes take /data's and /config's owner from the image when first created.
+  caddy:
+    image: ghcr.io/${GHCR_OWNER:-shmeeshmee}/salus-caddy:${SALUS_TAG}
+    <<: *logging
+    ports: ["80:80/tcp", "443:443/tcp", "443:443/udp"]
+    environment:
+      SALUS_DOMAIN: ${SALUS_DOMAIN}
+      SALUS_ACME_EMAIL: ${SALUS_ACME_EMAIL:?SALUS_ACME_EMAIL is required}
+      SALUS_ACME_CA: ${SALUS_ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data # certificates and the ACME account: keep it, or Let's Encrypt's rate limits bite
+      - caddy-config:/config
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    healthcheck:
+      # The admin API, on the container's loopback only (Caddy's default).
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    mem_limit: ${SALUS_MEM_CADDY:-192m}
+
+  # Applies the embedded goose migrations as the owner, sets the passwords of salus_app and salus_retention, then
+  # exits. Every app service starts only after it succeeded; the deploy runs it first (DEP-4).
+  migrate:
+    <<: *app
+    command: ["/usr/local/bin/migrate", "up"]
+    environment:
+      DATABASE_URL: postgres://salus:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/salus?sslmode=disable
+      APP_DATABASE_PASSWORD: ${APP_DATABASE_PASSWORD}
+      RETENTION_DATABASE_PASSWORD: ${RETENTION_DATABASE_PASSWORD:?RETENTION_DATABASE_PASSWORD is required}
+    restart: "no"
+    depends_on:
+      postgres: {condition: service_healthy}
+    mem_limit: ${SALUS_MEM_MIGRATE:-256m}
+
+  api:
+    <<: *app
+    command: ["/usr/local/bin/api"]
+    environment:
+      <<: [*app-env, *livekit-env, *objectstore-env, *llm-env]
+      HTTP_ADDR: ":8080"
+      TOTP_KEY: ${TOTP_KEY:?TOTP_KEY is required}
+      RATE_LIMIT_KEY: ${RATE_LIMIT_KEY:?RATE_LIMIT_KEY is required}
+      # Caddy is the only client of the api (no published port) and replaces any X-Forwarded-For a client sends,
+      # so every address on Docker's private pools may be believed.
+      TRUSTED_PROXY_CIDRS: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+      # On app.: the web app downloads attachments from this base, and they are served same-origin only
+      # (docs/attachments/SPEC.md §2). The api answers the same paths on api. too.
+      FHIR_BASE_URL: https://app.${SALUS_DOMAIN}/fhir/R4
+    healthcheck:
+      # /readyz pings Postgres and Redis: a deploy waits for an api that can serve, not only one that runs.
+      test: ["CMD", "/usr/local/bin/healthcheck", "http://127.0.0.1:8080/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
+    depends_on:
+      <<: *app-deps
+      objectstore: {condition: service_healthy}
+    mem_limit: ${SALUS_MEM_API:-512m}
+
+  worker:
+    <<: *app
+    command: ["/usr/local/bin/worker"]
+    environment:
+      <<: [*app-env, *livekit-env, *objectstore-env, *llm-env]
+      CLAMD_ADDR: clamd:3310
+      # The retention_apply job's own login (BYPASSRLS, delete on the tables whose rule is delete). Only here.
+      RETENTION_DATABASE_URL: postgres://salus_retention:${RETENTION_DATABASE_PASSWORD}@postgres:5432/salus?sslmode=disable
+    depends_on:
+      <<: *app-deps
+      objectstore: {condition: service_healthy}
+      clamd: {condition: service_healthy}
+    mem_limit: ${SALUS_MEM_WORKER:-768m} # a scan reads an upload of up to 200 MB
+
+  # Enqueues the periodic jobs (retention_apply daily at 03:00 UTC); River's only leader.
+  scheduler:
+    <<: *app
+    command: ["/usr/local/bin/scheduler"]
+    environment: *app-env
+    mem_limit: ${SALUS_MEM_SCHEDULER:-128m}
+
+  # Sends e-mail through SMTP_ADDR (ADR 0007). The relay is not chosen (ADR 0011 open point 5): until it is, the
+  # email jobs fail and River retries them.
+  notifier:
+    <<: *app
+    command: ["/usr/local/bin/notifier"]
+    environment:
+      <<: *app-env
+      SMTP_ADDR: ${SMTP_ADDR:?SMTP_ADDR is required}
+      WEB_BASE_URL: https://app.${SALUS_DOMAIN}
+      PATIENT_APP_URL: ${PATIENT_APP_URL:-https://patient.salus.invalid}
+    mem_limit: ${SALUS_MEM_NOTIFIER:-128m}
+
+  # The transcription agent: joins each transcribed consultation's room. STT_ENGINE and LLM_ENGINE stay fake.
+  agent:
+    <<: *app
+    command: ["/usr/local/bin/agent"]
+    environment:
+      <<: [*app-env, *livekit-env, *llm-env]
+      STT_ENGINE: ${STT_ENGINE:-fake}
+      AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION:-}
+      AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY:-}
+    depends_on:
+      <<: *app-deps
+      livekit: {condition: service_healthy}
+    mem_limit: ${SALUS_MEM_AGENT:-384m}
+
+  # The practitioners' and admins' app: static files on unprivileged nginx (DEP-1); Caddy routes the API paths
+  # and sends HSTS. SALUS_DOMAIN goes into the CSP's connect-src (LiveKit's wss:// and https:// origins): nginx's
+  # entrypoint renders its config template into /etc/nginx/conf.d at start, so the root filesystem stays writable.
+  web:
+    image: ghcr.io/${GHCR_OWNER:-shmeeshmee}/salus-web:${SALUS_TAG}
+    <<: *logging
+    environment:
+      SALUS_DOMAIN: ${SALUS_DOMAIN}
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    mem_limit: ${SALUS_MEM_WEB:-64m}
+
+  landing:
+    image: ghcr.io/${GHCR_OWNER:-shmeeshmee}/salus-landing:${SALUS_TAG}
+    <<: *logging
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    mem_limit: ${SALUS_MEM_LANDING:-64m}
+
+  # The only durable store besides Garage: a named volume, dumped nightly by the bootstrap's backup (DEP-3). The
+  # image's entrypoint starts as root, fixes the data directory's owner and drops to postgres, so it keeps the
+  # capabilities for that and no more.
+  postgres:
+    image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
+    <<: *logging
+    environment:
+      POSTGRES_USER: salus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: salus
+    volumes: [postgres:/var/lib/postgresql]
+    read_only: true
+    tmpfs: [/tmp, /var/run/postgresql]
+    shm_size: 128m
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    # Over TCP, as every client connects (see deployments/docker-compose.yml).
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "salus", "-d", "salus"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    mem_limit: ${SALUS_MEM_POSTGRES:-1024m}
+
+  # Temporary state only (ADR 0005: holds, rate limits, MFA challenges, the consultations' streams, every key with
+  # a TTL; never the only copy of anything). So no persistence: no RDB, no AOF, no volume; a restart empties it,
+  # which costs holds and in-flight challenges, never a record. maxmemory below the container's limit, evicting
+  # the keys nearest their end (every key has a TTL) rather than being killed.
+  redis:
+    image: redis:8.10.3@sha256:1f88291b4c57bdf249f02eb085a8669889b2d2954e91d4de5118a5da6b78dd53
+    <<: *logging
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - ${SALUS_REDIS_MAXMEMORY:-192mb}
+      - --maxmemory-policy
+      - volatile-ttl
+    user: "999:999" # redis: the image's entrypoint then starts it directly, with no chown or gosu
+    read_only: true
+    tmpfs: [/data]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    mem_limit: ${SALUS_MEM_REDIS:-256m}
+
+  # Video (ADR 0006), configured by livekit.yaml; the keys, the node IP, the TURN domain and the webhook's key
+  # come from the environment (LiveKit reads LIVEKIT_KEYS, NODE_IP and LIVEKIT_<yaml path> for any setting).
+  # Signalling (7880) and the TURN listener behind Caddy (5349, plain TCP) are on the compose network only.
+  livekit:
+    image: livekit/livekit-server:v1.13.11@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20
+    <<: *logging
+    command: ["--config", "/etc/livekit.yaml"]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+      LIVEKIT_WEBHOOK_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_TURN_DOMAIN: turn.${SALUS_DOMAIN}
+      NODE_IP: ${LIVEKIT_NODE_IP:?LIVEKIT_NODE_IP is required}
+    volumes: ["./livekit.yaml:/etc/livekit.yaml:ro"]
+    ports:
+      - "3478:3478/udp" # TURN/UDP
+      - "7881:7881/tcp" # WebRTC over TCP
+      - "7882:7882/udp" # WebRTC over UDP, one port, muxed
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:7880"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    mem_limit: ${SALUS_MEM_LIVEKIT:-768m}
+
+  # The attachments' object store (ADR 0010): Garage, one node, compose network only. --single-node lays out the
+  # cluster on the first start; --default-bucket creates the bucket and the access key of the environment and
+  # grants the key the bucket, on every start (a no-op once they exist), so no init job is needed. Its data is not
+  # backed up yet (ADR 0011 open point 7).
+  objectstore:
+    image: dxflrs/garage:v2.5.0@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5
+    <<: *logging
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?GARAGE_RPC_SECRET is required}
+      GARAGE_DEFAULT_ACCESS_KEY: ${S3_ACCESS_KEY_ID}
+      GARAGE_DEFAULT_SECRET_KEY: ${S3_SECRET_ACCESS_KEY}
+      GARAGE_DEFAULT_BUCKET: ${S3_BUCKET:-salus-binaries}
+      RUST_LOG: garage=warn # at info it logs every healthcheck's connection
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - objectstore-meta:/var/lib/garage/meta
+      - objectstore-data:/var/lib/garage/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/garage", "bucket", "info", "${S3_BUCKET:-salus-binaries}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    mem_limit: ${SALUS_MEM_OBJECTSTORE:-384m}
+
+  # The malware scanner (ADR 0010): clamd on 3310, compose network only, with freshclam updating the signatures
+  # (the image's default: both daemons, freshclam checking FRESHCLAM_CHECKS times a day; it sends no personal
+  # data). The database is on a volume, so a restart does not download it again. The root filesystem stays
+  # writable: the image's entrypoint writes the CLAMD_CONF_* settings into /etc/clamav/clamd.conf and runs as
+  # root to hand the database to the clamav user. ConcurrentDatabaseReload off: a reload does not double the
+  # signatures' memory.
+  clamd:
+    image: clamav/clamav:1.5.4@sha256:45fe5149fbee5a46509c9848ef20d0c354b7b2323c9369f285939a37cf33422a
+    <<: *logging
+    environment:
+      CLAMD_CONF_StreamMaxLength: 250M
+      CLAMD_CONF_MaxFileSize: 250M
+      CLAMD_CONF_MaxScanSize: 250M
+      CLAMD_CONF_ConcurrentDatabaseReload: "no"
+      FRESHCLAM_CHECKS: "4"
+    volumes: [clamav:/var/lib/clamav]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 6
+      start_period: 10m # the first start downloads the signatures
+    mem_limit: ${SALUS_MEM_CLAMD:-2048m}
+
+volumes:
+  caddy-data:
+  caddy-config:
+  postgres:
+  objectstore-meta:
+  objectstore-data:
+  clamav:

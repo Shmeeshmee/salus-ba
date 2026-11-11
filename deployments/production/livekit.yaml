@@ -1,0 +1,38 @@
+# LiveKit in production (docs/consultation/SPEC.md §2 and §8, ADR 0011). Nothing secret and nothing
+# server-specific is in this file: docker-compose.prod.yml sets them from the environment, which LiveKit reads
+# over this file:
+#   LIVEKIT_KEYS             "<key>: <secret>", the API key pair (the api, worker and agent use the same pair)
+#   LIVEKIT_WEBHOOK_API_KEY  webhook.api_key: the key that signs the webhooks
+#   LIVEKIT_TURN_DOMAIN      turn.domain: turn.<SALUS_DOMAIN>
+#   NODE_IP                  rtc.node_ip: the server's public IPv4, offered to clients in the ICE candidates
+#
+# Rooms are created only by the api (room.auto_create off). Logs are JSON at warn: at info LiveKit logs each
+# client's IP address and port, SDK and browser, and a client IP is personal data (SPEC §8).
+#
+# Ports: signalling on 7880, inside the compose network only (Caddy serves it as wss://livekit.<SALUS_DOMAIN>);
+# media on 7882/udp (one port, muxed) and 7881/tcp, published.
+#
+# TURN, for networks that block UDP: UDP on 3478 (published), and TLS on 443 through Caddy. Caddy's layer4
+# listener takes the TLS connections for turn.<SALUS_DOMAIN> on 443, terminates them with the certificate it
+# manages for that name, and forwards the plain stream to tls_port here (5349, compose network only).
+# external_tls: LiveKit expects that plain stream and holds no certificate; it still offers clients
+# turns:turn.<SALUS_DOMAIN>:443. The node IP is public, so no allow_restricted_peer_cidrs: TURN relays only to
+# public addresses and the SFU's own media ports.
+port: 7880
+bind_addresses: ["0.0.0.0"]
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: false # NODE_IP is set; no STUN lookup to a third party at start
+turn:
+  enabled: true
+  tls_port: 5349
+  udp_port: 3478
+  external_tls: true
+webhook:
+  urls: ["http://api:8080/webhooks/livekit"]
+room:
+  auto_create: false
+logging:
+  json: true
+  level: warn

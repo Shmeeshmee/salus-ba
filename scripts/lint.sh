@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # make lint, inside the tools container: gofmt, go vet and golangci-lint over both modules, then the
-# migration immutability check.
+# migration immutability check and the check that the production Caddyfile routes the web app's API paths.
 set -euo pipefail
 
 unformatted=$(gofmt -l .)
@@ -14,3 +14,4 @@ go vet -tags e2e,loadtest ./test/... # the e2e suite and the load test beside it
 go tool -modfile=tools/go.mod golangci-lint run ./...
 (cd tools && go vet ./... && go tool golangci-lint run ./...)
 bash scripts/check-migrations.sh
+bash scripts/check-caddy-routes.sh
