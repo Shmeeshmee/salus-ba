@@ -4,6 +4,6 @@
   "type": "module",
   "description": "The web journeys of make e2e (docs/consultation package 8, docs/questionnaire package 11), each started by its Go test in test/e2e",
   "devDependencies": {
-    "@playwright/test": "1.55.0"
+    "@playwright/test": "1.65.0"
   }
 }
