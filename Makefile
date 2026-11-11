@@ -187,7 +187,7 @@ e2e-image:
 
 ## deploy-check: the server bootstrap's checks (deployments/production/bootstrap/test/run.sh): shellcheck, bootstrap.sh
 ## in a fresh ubuntu:24.04 container twice (the second run changes nothing), the backup against a throwaway Postgres
-## and SFTP server. Not part of make test.
+## and SFTP server, and deployments/production/deploy.sh against a fake docker. Not part of make test.
 deploy-check:
 	bash deployments/production/bootstrap/test/run.sh
 

@@ -171,7 +171,9 @@ everything but Caddy, then Caddy.
    - the contents of `deployments/production/` of the release that was running, into `/opt/salus/deployments/`;
    - `/opt/salus/.env` (owner `deploy`, mode 600) from Bitwarden, with **the lost server's `BINARY_KEK` and
      `TOTP_KEY`**, unchanged (see "Keys the restored data needs");
-   - `/opt/salus/release.env` with `SALUS_TAG=<that release's commit SHA>`.
+   - `/opt/salus/release.env` with `SALUS_TAG=<that release's commit SHA>`;
+   - a copy of both in `/opt/salus/releases/<that SHA>/` (the deployments files and `.env`, mode 600), so the next
+     deploy can roll back to this release (`deployments/production/deploy.sh` keeps each release there).
 
    On the server, as `deploy`:
 

@@ -182,7 +182,8 @@ These are placeholders in `.env.production.example`; the stack runs without them
   a cheap check before `up`.
 - `SALUS_TAG` must be a full SHA that exists for all four images; `GHCR_OWNER` must be lower case.
 - Deploy order: `pull`, then `up -d --wait`: every app service depends on `migrate` completing, so `up` runs it
-  first and stops if it fails (running `run --rm migrate` before is equivalent). A rollback without `migrate`
+  first and stops if it fails. The old containers are already gone by then (every image changed, so compose
+  recreates every service): a deploy is a short outage, and a failed migrate lasts until the rollback is up (running `run --rm migrate` before is equivalent). A rollback without `migrate`
   writes the previous tag and runs `up -d --wait --no-deps` with every service but `migrate` named (forward-only
   migrations, ADR 0011).
 - `ufw` opens 80/tcp, 443/tcp, 443/udp, 3478/udp, 7881/tcp, 7882/udp and SSH; nothing else is published.

@@ -75,7 +75,7 @@ any key at all. Choose `yes` if you prefer to run the bootstrap over SSH; the ri
 
 ## Tests
 
-`make deploy-check` (or `test/run.sh [shellcheck|bootstrap|backup]`), all in Docker:
+`make deploy-check` (or `test/run.sh [shellcheck|bootstrap|backup|deploy]`; `deploy` tests `../deploy.sh`), all in Docker:
 
 - shellcheck (pinned image) on every script;
 - `bootstrap.sh` in a fresh `ubuntu:24.04` container: refuses a missing or placeholder key, and the test flags on a

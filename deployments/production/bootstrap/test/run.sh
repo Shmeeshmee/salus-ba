@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # The server bootstrap's checks, all in Docker (make deploy-check): shellcheck on every script, bootstrap.sh in a
 # fresh ubuntu:24.04 container (--check, a real run, a second run that changes nothing), and the backup against a
-# throwaway Postgres and SFTP server. Everything it starts is removed at the end.
-#   run.sh [shellcheck|bootstrap|backup]...   (default: all three)
+# throwaway Postgres and SFTP server, and deployments/production/deploy.sh against a fake docker
+# (test/deploy-test.sh beside it). Everything it starts is removed at the end.
+#   run.sh [shellcheck|bootstrap|backup|deploy]...   (default: all four)
 set -euo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -15,7 +16,15 @@ export TEST_PROJECT=salus-$ID-backup-test
 shellcheck_() {
 	echo "== shellcheck"
 	docker run --rm -v "$DIR:/mnt:ro" -w /mnt "$SHELLCHECK" -x bootstrap.sh backup.sh test/run.sh test/bootstrap-test.sh test/backup-test.sh
+	docker run --rm -v "$DIR/..:/mnt:ro" -w /mnt "$SHELLCHECK" deploy.sh test/deploy-test.sh test/deploy-compose-test.sh
 	echo "shellcheck clean"
+}
+
+deploy() {
+	echo "== deploy.sh against a fake docker in ubuntu:24.04"
+	docker run --rm --name "salus-$ID-deploy-test" -v "$DIR/..:/production:ro" "$UBUNTU" bash /production/test/deploy-test.sh
+	echo "== deploy.sh against the real Docker Compose (its own project, busybox images)"
+	bash "$DIR/../test/deploy-compose-test.sh"
 }
 
 bootstrap() {
@@ -31,12 +40,13 @@ backup() {
 	"${COMPOSE_TEST[@]}" run --rm runner
 }
 
-(($#)) || set -- shellcheck bootstrap backup
+(($#)) || set -- shellcheck bootstrap backup deploy
 for step in "$@"; do
 	case $step in
 	shellcheck) shellcheck_ ;;
 	bootstrap) bootstrap ;;
 	backup) backup ;;
+	deploy) deploy ;;
 	*)
 		echo "unknown step: $step" >&2
 		exit 2
