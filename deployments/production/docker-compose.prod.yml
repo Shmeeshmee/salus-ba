@@ -308,8 +308,8 @@ services:
 
   # The attachments' object store (ADR 0010): Garage, one node, compose network only. --single-node lays out the
   # cluster on the first start; --default-bucket creates the bucket and the access key of the environment and
-  # grants the key the bucket, on every start (a no-op once they exist), so no init job is needed. Its data is not
-  # backed up yet (ADR 0011 open point 7).
+  # grants the key the bucket, on every start (a no-op once they exist), so no init job is needed. The bucket is
+  # backed up nightly through the S3 API with this key pair (bootstrap/backup.sh, `salus-backup objects`).
   objectstore:
     image: dxflrs/garage:v2.5.0@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5
     <<: *logging

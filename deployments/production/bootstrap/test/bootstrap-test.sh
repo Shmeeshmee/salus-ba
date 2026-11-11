@@ -36,6 +36,7 @@ BACKUP_HOST=storagebox.invalid
 BACKUP_USER=u000000-sub1
 BACKUP_KNOWN_HOST=[storagebox.invalid]:23 $KEY2
 BACKUP_AGE_RECIPIENT=age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p
+ALERT_EMAIL=ops@salus.invalid
 ${2:-}
 EOF
 }
@@ -66,6 +67,11 @@ rmdir /run/systemd/system
 mkdir -p /etc/apt/apt.conf.d
 printf 'Unattended-Upgrade::Allowed-Origins { "${distro_id}:${distro_codename}-updates"; };\n' >/etc/apt/apt.conf.d/51local-origins
 
+echo "== refuses an ALERT_EMAIL that is not one bare address"
+write_conf 22 'ALERT_EMAIL=Ops <ops@salus.invalid>'
+if run badmail --check --config "$WORK/bootstrap.conf"; then fail "accepted a display name in ALERT_EMAIL"; fi
+expect "says why" grep -q 'ALERT_EMAIL must be one bare e-mail address' "$WORK/badmail.log"
+
 echo "== --check on a fresh server"
 write_conf 22
 run check1 --check --config "$WORK/bootstrap.conf" || {
@@ -75,6 +81,10 @@ run check1 --check --config "$WORK/bootstrap.conf" || {
 expect "reports changes" grep -q '^would: create user deploy' "$WORK/check1.log"
 expect "reports Docker" grep -q "^would: install Docker Engine" "$WORK/check1.log"
 expect "changes nothing" bash -c '! id deploy 2>/dev/null && [[ ! -e /opt/salus && ! -e /etc/ssh/sshd_config.d/00-salus.conf ]] && ! command -v ufw'
+
+# The failure hook of the first backup release, replaced by a template unit.
+mkdir -p /etc/systemd/system
+printf '[Service]\nExecStart=/bin/true\n' >/etc/systemd/system/salus-backup-failed.service
 
 echo "== first run"
 run run1 --config "$WORK/bootstrap.conf" || {
@@ -114,7 +124,15 @@ expect "the settings are installed for root only" test "$installed" = "$(cat "$W
 expect "mode 600, root, not under /opt/salus" bash -c "[[ \$(stat -c '%a %U' /etc/salus/bootstrap.conf) == '600 root' && ! -e /opt/salus/bootstrap.conf ]]"
 expect "the backup script is installed" cmp -s /bootstrap/backup.sh /usr/local/sbin/salus-backup
 expect "the backup timer is nightly and persistent" bash -c 'grep -qx "OnCalendar=\*-\*-\* 02:30" /etc/systemd/system/salus-backup.timer && grep -qx "Persistent=true" /etc/systemd/system/salus-backup.timer'
-expect "the backup unit has a timeout, hardening and a failure hook" bash -c 'f=/etc/systemd/system/salus-backup.service; grep -qx "TimeoutStartSec=2h" $f && grep -qx "OnFailure=salus-backup-failed.service" $f && grep -qx "ProtectHome=read-only" $f && grep -q "systemd-cat -t salus-backup -p err" /etc/systemd/system/salus-backup-failed.service'
+for unit in salus-backup salus-backup-objects; do
+	expect "$unit.service has a timeout, hardening and the failure hook" bash -c "f=/etc/systemd/system/$unit.service; grep -qx 'TimeoutStartSec=2h' \$f && grep -qx 'OnFailure=salus-backup-failed@%n.service' \$f && grep -qx 'ProtectHome=read-only' \$f"
+done
+expect "the dump runs first and pulls in the objects" bash -c 'f=/etc/systemd/system/salus-backup.service; grep -qx "ExecStart=/usr/local/sbin/salus-backup postgres" $f && grep -qx "Wants=salus-backup-objects.service" $f'
+expect "the objects run after the dump" bash -c 'f=/etc/systemd/system/salus-backup-objects.service; grep -qx "ExecStart=/usr/local/sbin/salus-backup objects" $f && grep -qx "After=salus-backup.service" $f'
+expect "a failure is logged at err priority and mailed" bash -c 'f=/etc/systemd/system/salus-backup-failed@.service; grep -q "systemd-cat -t salus-backup -p err" $f && grep -qx "ExecStart=/usr/local/sbin/salus-backup alert %i" $f'
+expect "the old failure unit is gone" test ! -e /etc/systemd/system/salus-backup-failed.service
+expect "the freshness check runs daily, persistent" bash -c 'grep -qx "OnCalendar=\*-\*-\* 08:00" /etc/systemd/system/salus-backup-check.timer && grep -qx "Persistent=true" /etc/systemd/system/salus-backup-check.timer && grep -qx "ExecStart=/usr/local/sbin/salus-backup check" /etc/systemd/system/salus-backup-check.service'
+expect "the check timer is enabled with the backup's" grep -q 'systemctl enable --now salus-backup-check.timer' "$WORK/run1.log"
 expect "the backup has its own SSH key" test -s /root/.ssh/salus-backup.pub
 expect "the Storage Box host key is pinned" grep -qF '[storagebox.invalid]:23 ssh-ed25519' /etc/salus/backup_known_hosts
 
@@ -185,7 +203,8 @@ expect "then nothing again" grep -qx '0 changes made' "$WORK/run4.log"
 
 echo "== the units are valid"
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends systemd >/dev/null
-units=(/etc/systemd/system/salus-backup.service /etc/systemd/system/salus-backup.timer /etc/systemd/system/salus-backup-failed.service)
+units=(/etc/systemd/system/salus-backup.service /etc/systemd/system/salus-backup-objects.service /etc/systemd/system/salus-backup.timer
+	/etc/systemd/system/salus-backup-check.service /etc/systemd/system/salus-backup-check.timer /etc/systemd/system/salus-backup-failed@.service)
 expect "systemd-analyze verify" systemd-analyze verify "${units[@]}"
 
 echo "bootstrap tests passed"

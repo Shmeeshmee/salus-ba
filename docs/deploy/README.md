@@ -20,7 +20,7 @@ Nothing is deployed until step 8 sets `DEPLOY_ENABLED`. Until then every Deploy 
 - **The server type** (`SALUS_SERVER_TYPE`): at least 4 vCPU and 8 GB (the memory budget in
   `deployments/production/README.md` is sized for that); x86 (the images are built for amd64 only).
 - **Before real patient data**: the open points of ADR 0011 (the DPA, encryption at rest, the keys without a KMS,
-  TLS inside the host, the e-mail relay, the engines, attachment backups and backup retention). The stack runs
+  TLS inside the host, the e-mail relay, the engines and backup retention). The stack runs
   without them on synthetic data; it must not hold real patients' data until each is settled.
 
 ## 1. Keys, on a trusted machine, into Bitwarden first
@@ -155,8 +155,10 @@ head. Check that the latest Images run of `main` succeeded with its `release` jo
      run --rm --no-deps --entrypoint /usr/local/bin/salusctl migrate create-clinic -name "Clinic name" -admin-email admin@clinic.example
    ```
    The admin's invitation goes out by e-mail, which needs `SMTP_ADDR` (ADR 0011 open point 5).
-7. **Backups**: on the next night, check `systemctl status salus-backup.service` and the Storage Box. Then run the
-   restore drill (docs/deploy/backup-restore.md) and record it, before any real data.
+7. **Backups**: set `ALERT_EMAIL` in `bootstrap.conf` (and run the bootstrap again) so a failed or missing backup is
+   mailed; send a test alert with `sudo salus-backup alert salus-backup.service`. On the next night, check
+   `systemctl status salus-backup.service salus-backup-objects.service` and the Storage Box. Then run the restore
+   drill (docs/deploy/backup-restore.md) and record it, before any real data.
 
 From then on every merge to `main` deploys after your approval: Images, then Deploy.
 

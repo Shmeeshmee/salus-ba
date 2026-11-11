@@ -1641,10 +1641,12 @@ Notes for the first production deployment; nothing is deployed and no real patie
 points below are settled.
 
 - **Where the data is.** One Hetzner Cloud server in Helsinki (FI) holds every table, Redis and the attachments
-  (Garage); a Hetzner Storage Box holds the nightly Postgres dumps, encrypted on the server with `age` before they
-  leave it. Hetzner is a processor (docs/privacy/processors.md, pending its DPA).
-- **Backups and erasure.** Dumps are kept 14 days, so data erased in the database stays in the dumps for up to 14
-  days, unreadable without the `age` private key held offline. To be confirmed by the owner as the backups'
+  (Garage); a Hetzner Storage Box holds the nightly Postgres dumps and archives of Garage's objects (each object
+  already envelope-encrypted with `BINARY_KEK`), encrypted on the server with `age` before they leave it. The
+  backups' failure alerts go to the operator through the SMTP relay and carry the host, the backup kind, the time
+  and the exit status only, no personal data. Hetzner is a processor (docs/privacy/processors.md, pending its DPA).
+- **Backups and erasure.** Dumps and object archives are kept 14 days, so data erased in the database or the store
+  stays in them for up to 14 days, unreadable without the `age` private key held offline. To be confirmed by the owner as the backups'
   retention rule; a restore must re-apply the erasures recorded after the dump (`datarequest`).
 - **Logs.** Caddy writes no access log with client IP addresses; LiveKit logs at `warn`; container logs rotate.
 - **Decided (ADR 0011 "Decided before real patient data", 2026-11-11).** Postgres's and Garage's data sit on a
@@ -1652,5 +1654,4 @@ points below are settled.
   on that volume, not in the env file; traffic between containers on the one host is plaintext, everything leaving
   it is TLS; e-mail goes through an EU SMTP relay (Brevo or Mailjet), a processor once its DPA is signed; live
   speech-to-text and the language model stay on the fakes until their DPAs are signed.
-- **Open (ADR 0011 "Open before real patient data").** The DPAs (Hetzner, the SMTP relay), whether the attachments
-  are backed up, and the backups' retention.
+- **Open (ADR 0011 "Open before real patient data").** The DPAs (Hetzner, the SMTP relay) and the backups' retention.

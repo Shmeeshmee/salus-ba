@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Prepares an Ubuntu 24.04 server for the Salus compose project (docs/adr/0011-single-server-deployment.md):
 # the deploy user, sshd hardening, ufw, fail2ban, unattended security upgrades, Docker, the /opt/salus layout and
-# the nightly Postgres backup. Idempotent: a second run changes nothing. Run as root, from a copy of this directory
-# (backup.sh is installed from beside this file):
+# the nightly backups (Postgres and Garage's objects) with their alert e-mails. Idempotent: a second run changes
+# nothing. Run as root, from a copy of this directory (backup.sh is installed from beside this file):
 #
 #   bootstrap.sh [--check] [--config FILE]
 #
@@ -59,6 +59,9 @@ BACKUP_KEEP_LOCAL=no
 BACKUP_SSH_KEY_FILE=/root/.ssh/salus-backup
 BACKUP_KNOWN_HOSTS_FILE=$SALUS_ETC/backup_known_hosts
 BACKUP_STAGING_DIR=$SALUS_ROOT/backups
+BACKUP_CHECK_TIME=08:00
+BACKUP_MAX_AGE_HOURS=26
+ALERT_EMAIL=
 
 # Flags set by the steps for the service actions at the end.
 UNITS_CHANGED=0
@@ -170,10 +173,11 @@ load_config() {
 		DEPLOY_SUDO | SSH_PORT | UFW_EXTRA_PORTS | UFW_ACCEPT_BLOCKING | UPGRADE_TIME | UPGRADE_AUTO_REBOOT | UPGRADE_REBOOT_TIME | \
 			BACKUP_HOST | BACKUP_PORT | BACKUP_USER | BACKUP_TIME | BACKUP_RANDOM_DELAY | \
 			BACKUP_RETENTION_DAYS | BACKUP_KEEP_LOCAL | BACKUP_SSH_KEY_FILE | BACKUP_KNOWN_HOSTS_FILE | \
-			BACKUP_STAGING_DIR)
+			BACKUP_STAGING_DIR | BACKUP_CHECK_TIME | BACKUP_MAX_AGE_HOURS | ALERT_EMAIL)
 			printf -v "$key" '%s' "$value"
 			;;
-		BACKUP_PATH | BACKUP_COMPOSE_PROJECT | BACKUP_PG_SERVICE | BACKUP_WAIT_SECONDS) ;; # read by backup.sh only
+		BACKUP_PATH | BACKUP_OBJECTS_PATH | BACKUP_COMPOSE_PROJECT | BACKUP_PG_SERVICE | BACKUP_OBJECTS_SERVICE | \
+			BACKUP_ENV_FILE | BACKUP_WAIT_SECONDS) ;; # read by backup.sh only
 		*) die "$file line $n: unknown setting $key" ;;
 		esac
 	done <"$file"
@@ -204,6 +208,14 @@ validate_config() {
 	valid_time "$UPGRADE_TIME" || die "UPGRADE_TIME must be HH:MM"
 	valid_time "$UPGRADE_REBOOT_TIME" || die "UPGRADE_REBOOT_TIME must be HH:MM"
 	valid_time "$BACKUP_TIME" || die "BACKUP_TIME must be HH:MM"
+	valid_time "$BACKUP_CHECK_TIME" || die "BACKUP_CHECK_TIME must be HH:MM"
+	if ! [[ $BACKUP_MAX_AGE_HOURS =~ ^[0-9]+$ ]] || ((BACKUP_MAX_AGE_HOURS < 1)); then
+		die "BACKUP_MAX_AGE_HOURS must be a whole number of hours, at least 1"
+	fi
+	# A bare address: it goes into a mail header and the SMTP envelope.
+	local address='^[^[:space:]<>@"]+@[^[:space:]<>@"]+$'
+	[[ -z $ALERT_EMAIL || $ALERT_EMAIL =~ $address ]] ||
+		die "ALERT_EMAIL must be one bare e-mail address"
 	[[ $BACKUP_PORT =~ ^[0-9]+$ ]] || die "BACKUP_PORT must be a port number"
 	if ! [[ $BACKUP_RETENTION_DAYS =~ ^[0-9]+$ ]] || ((BACKUP_RETENTION_DAYS < 1)); then
 		die "BACKUP_RETENTION_DAYS must be a whole number of days, at least 1"
@@ -634,17 +646,85 @@ step_backup() {
 	if ((${#BACKUP_KNOWN_HOSTS[@]})); then
 		put_file "$BACKUP_KNOWN_HOSTS_FILE" 644 root:root "$(printf '%s\n' "${BACKUP_KNOWN_HOSTS[@]}")" || true
 	fi
-	put_file /etc/systemd/system/salus-backup.service 644 root:root "# Managed by Salus bootstrap.sh.
+	# The dump, then the objects (Wants= starts them together, After= orders the objects behind the dump, whatever
+	# its result), so every row of the dump finds its object in the archive (docs/deploy/backup-restore.md).
+	put_file /etc/systemd/system/salus-backup.service 644 root:root "$(backup_unit "Salus nightly Postgres backup to the Storage Box" \
+		postgres "Wants=salus-backup-objects.service")" && UNITS_CHANGED=1
+	put_file /etc/systemd/system/salus-backup-objects.service 644 root:root "$(backup_unit \
+		"Salus nightly backup of Garage's objects to the Storage Box" objects "After=salus-backup.service")" && UNITS_CHANGED=1
+	# A failure is logged at err priority and mailed to ALERT_EMAIL (docs/deploy/backup-restore.md "Alerting").
+	put_file /etc/systemd/system/salus-backup-failed@.service 644 root:root "# Managed by Salus bootstrap.sh.
 [Unit]
-Description=Salus nightly Postgres backup to the Storage Box
-After=docker.service network-online.target
-Wants=network-online.target
-
-OnFailure=salus-backup-failed.service
+Description=Report the failed Salus backup %i
 
 [Service]
 Type=oneshot
-ExecStart=$BACKUP_BIN
+ExecStart=/usr/bin/systemd-cat -t salus-backup -p err /bin/echo \"salus-backup FAILED: see journalctl -u %i\"
+ExecStart=$BACKUP_BIN alert %i
+TimeoutStartSec=5min
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=read-only" && UNITS_CHANGED=1
+	if [[ -e /etc/systemd/system/salus-backup-failed.service ]]; then
+		change "remove salus-backup-failed.service (replaced by salus-backup-failed@.service)" \
+			rm -f /etc/systemd/system/salus-backup-failed.service
+		UNITS_CHANGED=1
+	fi
+	# The freshness check: mails ALERT_EMAIL when a backup is missing on the Storage Box, also when no unit failed
+	# (a timer that never ran, a server that was off).
+	put_file /etc/systemd/system/salus-backup-check.service 644 root:root "# Managed by Salus bootstrap.sh.
+[Unit]
+Description=Check that the Salus backups on the Storage Box are recent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=$BACKUP_BIN check
+TimeoutStartSec=10min
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=read-only" && UNITS_CHANGED=1
+	put_file /etc/systemd/system/salus-backup-check.timer 644 root:root "# Managed by Salus bootstrap.sh.
+[Unit]
+Description=Daily check of the Salus backups
+
+[Timer]
+OnCalendar=*-*-* $BACKUP_CHECK_TIME
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target" && UNITS_CHANGED=1
+	put_file /etc/systemd/system/salus-backup.timer 644 root:root "# Managed by Salus bootstrap.sh.
+[Unit]
+Description=Salus nightly backups (Postgres, then Garage's objects)
+
+[Timer]
+OnCalendar=*-*-* $BACKUP_TIME
+RandomizedDelaySec=$BACKUP_RANDOM_DELAY
+Persistent=true
+
+[Install]
+WantedBy=timers.target" && UNITS_CHANGED=1
+	return 0
+}
+
+# backup_unit DESCRIPTION KIND DEPENDENCY: a backup's service unit.
+backup_unit() {
+	printf '%s\n' "# Managed by Salus bootstrap.sh.
+[Unit]
+Description=$1
+After=docker.service network-online.target
+Wants=network-online.target
+$3
+OnFailure=salus-backup-failed@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=$BACKUP_BIN $2
 TimeoutStartSec=2h
 Nice=10
 IOSchedulingClass=idle
@@ -656,28 +736,7 @@ ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectKernelLogs=yes
 ProtectControlGroups=yes
-ProtectClock=yes" && UNITS_CHANGED=1
-	# A failed night is logged at err priority; an alert hooks in here with a drop-in
-	# (docs/deploy/backup-restore.md "Alerting").
-	put_file /etc/systemd/system/salus-backup-failed.service 644 root:root "# Managed by Salus bootstrap.sh.
-[Unit]
-Description=Report a failed Salus backup
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/systemd-cat -t salus-backup -p err /bin/echo \"salus-backup FAILED: see journalctl -u salus-backup.service\"" && UNITS_CHANGED=1
-	put_file /etc/systemd/system/salus-backup.timer 644 root:root "# Managed by Salus bootstrap.sh.
-[Unit]
-Description=Salus nightly Postgres backup
-
-[Timer]
-OnCalendar=*-*-* $BACKUP_TIME
-RandomizedDelaySec=$BACKUP_RANDOM_DELAY
-Persistent=true
-
-[Install]
-WantedBy=timers.target" && UNITS_CHANGED=1
-	return 0
+ProtectClock=yes"
 }
 
 generate_backup_key() {
@@ -700,6 +759,11 @@ apply_services() {
 		if [[ $NO_SYSTEMD == 1 ]] || ! systemctl is-enabled --quiet salus-backup.timer 2>/dev/null; then
 			systemctl_ enable --now salus-backup.timer
 		fi
+		if [[ $NO_SYSTEMD == 1 ]] || ! systemctl is-enabled --quiet salus-backup-check.timer 2>/dev/null; then
+			systemctl_ enable --now salus-backup-check.timer
+		fi
+		[[ -n $ALERT_EMAIL ]] ||
+			warn "ALERT_EMAIL is not set: a failed or missing backup is logged on this server only, nobody is mailed"
 	else
 		warn "the backup is not configured (BACKUP_HOST, BACKUP_USER, BACKUP_KNOWN_HOST, BACKUP_AGE_RECIPIENT): the timer is installed but not enabled"
 	fi

@@ -1,7 +1,8 @@
 # The backup test (run.sh): a source Postgres with the repository's migrations (real roles, grants, row-level
-# security) and synthetic rows, a throwaway Postgres to restore into, an SFTP server standing in for the Storage
-# Box, and the runner. No host ports. The runner talks to the host's Docker
-# daemon only to `docker exec` into this project's postgres containers, as salus-backup does on the server.
+# security) and synthetic rows, a throwaway Postgres to restore into, a source Garage and one to restore into (the
+# production garage.toml, synthetic keys), an SFTP server standing in for the Storage Box, and the runner. No host
+# ports. The runner talks to the host's Docker daemon to `docker exec` into this project's postgres containers and
+# to run rclone on this project's network, as salus-backup does on the server.
 name: ${TEST_PROJECT:?set TEST_PROJECT}
 
 x-postgres: &postgres
@@ -39,6 +40,25 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
 
+  objectstore: &garage
+    image: dxflrs/garage:v2.5.0@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    environment:
+      GARAGE_RPC_SECRET: 5a1a5eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+      GARAGE_DEFAULT_ACCESS_KEY: GK5a1a5e000000000000000001
+      GARAGE_DEFAULT_SECRET_KEY: 5a1a5e0000000000000000000000000000000000000000000000000000000001
+      GARAGE_DEFAULT_BUCKET: salus-binaries
+      RUST_LOG: garage=warn
+    volumes: [../../garage.toml:/etc/garage.toml:ro]
+    tmpfs: [/var/lib/garage]
+    healthcheck:
+      test: ["CMD", "/garage", "bucket", "info", "salus-binaries"]
+      interval: 1s
+      timeout: 5s
+      retries: 60
+
+  restore-objectstore: *garage
+
   sftp:
     build: .
     image: salus-backup-test:local
@@ -50,11 +70,14 @@ services:
     depends_on:
       migrate: {condition: service_completed_successfully}
       restore-db: {condition: service_healthy}
+      objectstore: {condition: service_healthy}
+      restore-objectstore: {condition: service_healthy}
       sftp: {condition: service_started}
     environment:
       TEST_PROJECT: ${TEST_PROJECT}
     volumes:
       - keys:/keys
+      - objects:/objects # shared with the rclone containers the test runs (seed and restore)
       - ..:/bootstrap:ro
       - ../../../../migrations:/migrations:ro
       - /var/run/docker.sock:/var/run/docker.sock
@@ -62,3 +85,4 @@ services:
 
 volumes:
   keys:
+  objects:
