@@ -359,6 +359,79 @@ func TestLoadObjectStore_RefusesAMissingOrMalformedSettingWithoutEchoingIt(t *te
 	}
 }
 
+// writeKeyFile writes a key file as production's compose secrets hold them: the value and a newline.
+func writeKeyFile(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "key")
+	if err := os.WriteFile(path, []byte(content), 0o400); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// In production TOTP_KEY and BINARY_KEK come from files on the encrypted volume, mounted as compose secrets
+// (deployments/production/README.md "Keys"), never from the env file: NAME_FILE names the file, and its value,
+// without the surrounding whitespace, stands for NAME.
+func TestLoad_ReadsTOTPKeyFromTheFileTOTPKeyFileNames(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+	t.Setenv("TOTP_KEY", "")
+	t.Setenv("TOTP_KEY_FILE", writeKeyFile(t, base64.StdEncoding.EncodeToString([]byte("synthetic 32-byte key for tests!"))+"\n"))
+
+	cfg, err := config.Load()
+
+	if err != nil || string(cfg.TOTPKey) != "synthetic 32-byte key for tests!" {
+		t.Errorf("Load() = TOTPKey %q, %v; want the file's key", cfg.TOTPKey, err)
+	}
+}
+
+func TestLoadObjectStore_ReadsBinaryKEKFromTheFileBinaryKEKFileNames(t *testing.T) {
+	for name, v := range objectStoreEnv() {
+		t.Setenv(name, v)
+	}
+	t.Setenv("BINARY_KEK", "")
+	t.Setenv("BINARY_KEK_FILE", writeKeyFile(t, base64.StdEncoding.EncodeToString([]byte("synthetic 32-byte KEK for tests!"))+"\n"))
+
+	got, err := config.LoadObjectStore()
+
+	if err != nil || string(got.KEK) != "synthetic 32-byte KEK for tests!" {
+		t.Errorf("LoadObjectStore() = KEK %q, %v; want the file's key", got.KEK, err)
+	}
+}
+
+// Both a variable and its _FILE, a file that cannot be read, and an empty file are refused; the error names the
+// variable and never echoes a value.
+func TestKeyFiles_AreRefusedBesideTheirVariableOrUnreadableOrEmptyWithoutEchoingThem(t *testing.T) {
+	load := map[string]func() error{
+		"TOTP_KEY": func() error { _, err := config.Load(); return err },
+		"BINARY_KEK": func() error {
+			_, err := config.LoadObjectStore()
+			return err
+		},
+	}
+	value := base64.StdEncoding.EncodeToString([]byte("synthetic 32-byte marker for key"))
+	for name, call := range load {
+		cases := map[string]struct{ variable, file string }{
+			"both":       {value, writeKeyFile(t, value)},
+			"unreadable": {"", filepath.Join(t.TempDir(), "missing-marker")},
+			"empty":      {"", writeKeyFile(t, " \n")},
+		}
+		for label, c := range cases {
+			t.Run(name+" "+label, func(t *testing.T) {
+				t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+				for k, v := range objectStoreEnv() {
+					t.Setenv(k, v)
+				}
+				t.Setenv(name, c.variable)
+				t.Setenv(name+"_FILE", c.file)
+				err := call()
+				if err == nil || !strings.Contains(err.Error(), name+"_FILE") || strings.Contains(err.Error(), "marker") {
+					t.Errorf("got %v, want an error naming %s_FILE and no value", err, name)
+				}
+			})
+		}
+	}
+}
+
 func TestLoadClamd_ReadsTheAddress(t *testing.T) {
 	t.Setenv("CLAMD_ADDR", "clamd:3310")
 
