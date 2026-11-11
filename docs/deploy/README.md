@@ -94,11 +94,16 @@ the first e-mail to a real person (point 1).
    The notifier requires STARTTLS on 587 (a server that does not offer it gets nothing), verifies the certificate
    against the host of `SMTP_ADDR`, and logs in with AUTH PLAIN; it refuses a login with `SMTP_TLS=none`.
 
+   The stack does not start without them: the production compose file requires `SMTP_ADDR`, `SMTP_USERNAME`,
+   `SMTP_PASSWORD`, `SMTP_FROM` and `PATIENT_APP_URL` (`${…:?}`), and the deploy refuses an env file that leaves
+   any of them empty. Until the relay's DPA is signed, the example's placeholders are acceptable: the notifier
+   starts, every e-mail job fails at the login and River retries it, and nothing reaches a real person.
+
 DNS records for the sending domain (copy names and values from the console: they are per account and per domain):
 
 | Record | Brevo | Mailjet |
 | --- | --- | --- |
-| Ownership | TXT at the domain: `brevo-code:…` (given by the console) | Verified by the DKIM and SPF records (or a TXT/file the console offers) |
+| Ownership | TXT at the domain: `brevo-code:…` (given by the console) | A separate check of the domain (or sender): a TXT record, or a file to upload to the domain's website, both given by the console |
 | DKIM | Two CNAMEs, `brevo1._domainkey` and `brevo2._domainkey`, to targets under `dkim.brevo.com`; or one TXT, as the console shows | One TXT at `mailjet._domainkey`, value (the public key) from the console |
 | SPF | `include:spf.brevo.com` (see below) | `include:spf.mailjet.com` |
 | DMARC | TXT at `_dmarc`, below | TXT at `_dmarc`, below |
@@ -126,8 +131,8 @@ Sources, checked 2026-11-11: Brevo, [SMTP relay integration](https://developers.
 API key and secret key) and [SPF and DKIM validation](https://dev.mailjet.com/docs/email-api/senders-domains/spf-dkim-validation)
 (`include:spf.mailjet.com`, DKIM TXT at `mailjet._domainkey`). Not verified on a provider's own page: the Brevo SPF
 value `include:spf.brevo.com` and that SPF is optional on its shared IPs (from third-party guides quoting Brevo's FAQ),
-the exact Brevo DKIM CNAME targets, the menu paths in both consoles, and whether Mailjet's console asks for a
-separate ownership record. The console's own values win over this table.
+the exact Brevo DKIM CNAME targets, the menu paths in both consoles, and the exact form of Mailjet's ownership
+check. The console's own values win over this table.
 
 ## 4. Prepare the server
 

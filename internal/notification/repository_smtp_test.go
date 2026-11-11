@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -13,15 +14,23 @@ import (
 	netmail "net/mail"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/notification"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
 // from is the sender the tests configure (SMTP_FROM); .invalid cannot be delivered to.
 var from = netmail.Address{Name: "Salus", Address: "no-reply@salus.invalid"}
+
+// messageID is the Message-ID header the sender writes: random, on the domain of the from address.
+var messageID = regexp.MustCompile(`(?m)^Message-ID: <[0-9A-Za-z]{16,}@clinic\.example\.test>\r?$`)
+
+// sentAt is the tests' clock: the Date header.
+var sentAt = clock.Fixed{T: time.Date(2026, 3, 1, 9, 30, 0, 0, time.FixedZone("CET", 3600))}
 
 // env returns the values of the test variables names, failing without any of them, as the database tests do
 // without theirs.
@@ -45,7 +54,7 @@ func mailpit(t *testing.T) (smtpAddr, api string) {
 
 // plaintext is the Sender on the compose Mailpit, as the dev stack configures it.
 func plaintext(addr string) notification.Sender {
-	return notification.NewSMTPSender(addr, notification.SMTPPlaintext, "", "", from)
+	return notification.NewSMTPSender(addr, notification.SMTPPlaintext, "", "", from, sentAt)
 }
 
 // relay is one of the compose Mailpits that stand in for a relay: TLS and a login required.
@@ -265,7 +274,7 @@ func TestSMTPSender_DeliversThroughARelayOverTLSWithTheLogin(t *testing.T) {
 			to := "relay-" + rand.Text() + "@example.test"
 			msg := notification.Message{To: to, Subject: "Your invitation to Salus", Body: "Line one.\n"}
 
-			err := notification.NewSMTPSender(r.addr, r.security, r.username, r.password, sender).Send(t.Context(), msg)
+			err := notification.NewSMTPSender(r.addr, r.security, r.username, r.password, sender, sentAt).Send(t.Context(), msg)
 
 			if err != nil {
 				t.Fatalf("Send() error = %v", err)
@@ -278,6 +287,12 @@ func TestSMTPSender_DeliversThroughARelayOverTLSWithTheLogin(t *testing.T) {
 			if !isASCII(header) || !strings.Contains(header, "Return-Path: <"+sender.Address+">") {
 				t.Errorf("header %q: want ASCII only and the envelope sender %s", header, sender.Address)
 			}
+			if date := "\r\nDate: Sun, 01 Mar 2026 09:30:00 +0100\r\n"; !strings.Contains("\r\n"+header+"\r\n", date) {
+				t.Errorf("header %q lacks %q (RFC 5322, from the clock)", header, date)
+			}
+			if !messageID.MatchString(header) {
+				t.Errorf("header %q lacks a Message-ID on the sender's domain", header)
+			}
 		})
 	}
 }
@@ -288,7 +303,7 @@ func TestSMTPSender_ReportsAWrongLoginWithoutThePassword(t *testing.T) {
 		t.Run(string(r.security), func(t *testing.T) {
 			to := "login-" + rand.Text() + "@example.test"
 
-			err := notification.NewSMTPSender(r.addr, r.security, r.username, "wrong-password-marker", from).Send(t.Context(),
+			err := notification.NewSMTPSender(r.addr, r.security, r.username, "wrong-password-marker", from, sentAt).Send(t.Context(),
 				notification.Message{To: to, Subject: "s", Body: "b"})
 
 			if err == nil || strings.Contains(err.Error(), "marker") || strings.Contains(err.Error(), "example.test") {
@@ -307,7 +322,7 @@ func TestSMTPSender_RefusesAServerWithoutSTARTTLS(t *testing.T) {
 	r := relays(t)[0]
 	to := "starttls-" + rand.Text() + "@example.test"
 
-	err := notification.NewSMTPSender(smtpAddr, notification.SMTPStartTLS, r.username, r.password, from).Send(t.Context(),
+	err := notification.NewSMTPSender(smtpAddr, notification.SMTPStartTLS, r.username, r.password, from, sentAt).Send(t.Context(),
 		notification.Message{To: to, Subject: "s", Body: "b"})
 
 	if err == nil || !strings.Contains(err.Error(), "STARTTLS") {
@@ -333,7 +348,7 @@ func TestSMTPSender_RefusesACertificateThatDoesNotNameTheHost(t *testing.T) {
 			}
 			to := "cert-" + rand.Text() + "@example.test"
 
-			err = notification.NewSMTPSender(net.JoinHostPort(ips[0], port), r.security, r.username, r.password, from).Send(t.Context(),
+			err = notification.NewSMTPSender(net.JoinHostPort(ips[0], port), r.security, r.username, r.password, from, sentAt).Send(t.Context(),
 				notification.Message{To: to, Subject: "s", Body: "b"})
 
 			if err == nil || !strings.Contains(err.Error(), "certificate") {
@@ -351,7 +366,7 @@ func TestSMTPSender_SendsNoCredentialsInPlaintext(t *testing.T) {
 	smtpAddr, api := mailpit(t)
 	to := "plain-" + rand.Text() + "@example.test"
 
-	err := notification.NewSMTPSender(smtpAddr, notification.SMTPPlaintext, "user", "password-marker", from).Send(t.Context(),
+	err := notification.NewSMTPSender(smtpAddr, notification.SMTPPlaintext, "user", "password-marker", from, sentAt).Send(t.Context(),
 		notification.Message{To: to, Subject: "s", Body: "b"})
 
 	if err == nil || strings.Contains(err.Error(), "marker") {
@@ -359,5 +374,45 @@ func TestSMTPSender_SendsNoCredentialsInPlaintext(t *testing.T) {
 	}
 	if n := len(received(t, api, to)); n != 0 {
 		t.Errorf("%d messages delivered, want none", n)
+	}
+}
+
+// SMTP without SMTPUTF8 carries only ASCII addresses: a recipient with a UTF-8 local part or an IDN domain, which
+// net/mail accepts at registration, is refused before anything is sent, with a stable error and no address.
+func TestSMTPSender_RefusesARecipientOutsideASCII(t *testing.T) {
+	smtpAddr, _ := mailpit(t)
+	for _, to := range []string{"ćevapi@example.test", "cy@primjer-č.test"} {
+		err := plaintext(smtpAddr).Send(t.Context(), notification.Message{To: to, Subject: "s", Body: "b"})
+
+		if !errors.Is(err, notification.ErrRecipientNotASCII) || strings.Contains(err.Error(), "test") {
+			t.Errorf("Send(%q) = %v, want ErrRecipientNotASCII without the address", to, err)
+		}
+	}
+}
+
+// RFC 2047: a header line holding an encoded word is at most 76 characters, so a long subject or sender's name
+// outside ASCII is folded between encoded words; the delivered message gives both back as written.
+func TestSMTPSender_FoldsEncodedHeadersWithinTheLineLimit(t *testing.T) {
+	smtpAddr, api := mailpit(t)
+	to := "fold-" + rand.Text() + "@example.test"
+	sender := netmail.Address{Name: "Поликлиника Свети Сава, Бања Лука — одјељење за кардиологију", Address: "noreply@clinic.example.test"}
+	msg := notification.Message{To: to, Subject: "Подсјетник: ваш термин у поликлиници сутра у 09:30, видео консултација с љекаром", Body: "Тијело.\n"}
+
+	if err := notification.NewSMTPSender(smtpAddr, notification.SMTPPlaintext, "", "", sender, sentAt).Send(t.Context(), msg); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+
+	got := receivedOne(t, api, to)
+	if got.Subject != msg.Subject || got.From.Name != sender.Name || got.From.Address != sender.Address {
+		t.Errorf("delivered subject %q from %q <%s>, want %q from %q", got.Subject, got.From.Name, got.From.Address, msg.Subject, sender.String())
+	}
+	field := ""
+	for _, line := range strings.Split(rawHeader(t, api, got.ID), "\r\n") {
+		if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
+			field, _, _ = strings.Cut(line, ":")
+		}
+		if (field == "Subject" || field == "From") && len(line) > 76 {
+			t.Errorf("a %s line of %d characters, want at most 76: %q", field, len(line), line)
+		}
 	}
 }

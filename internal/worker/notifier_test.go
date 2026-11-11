@@ -21,6 +21,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/worker"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
@@ -34,14 +35,19 @@ func mailpitSender(t *testing.T) notification.Sender {
 	if addr == "" || os.Getenv("TEST_MAILPIT_URL") == "" {
 		t.Fatal("TEST_SMTP_ADDR and TEST_MAILPIT_URL are not set; run the tests with `make test`")
 	}
-	return notification.NewSMTPSender(addr, notification.SMTPPlaintext, "", "", mail.Address{Name: "Salus", Address: "no-reply@salus.invalid"})
+	return notification.NewSMTPSender(addr, notification.SMTPPlaintext, "", "", mail.Address{Name: "Salus", Address: "no-reply@salus.invalid"}, clock.System{})
 }
 
 // seedInvite creates, as the owner, the clinic and an invite to a fresh synthetic address, and returns the
 // invite's id and address.
 func seedInvite(t *testing.T, owner *pgxpool.Pool, accepted bool) (string, string) {
 	t.Helper()
-	email := "invite-" + strings.ToLower(rand.Text()) + "@example.test"
+	return seedInviteTo(t, owner, "invite-"+strings.ToLower(rand.Text())+"@example.test", accepted)
+}
+
+// seedInviteTo creates the clinic and an invite to email, and returns the invite's id and address.
+func seedInviteTo(t *testing.T, owner *pgxpool.Pool, email string, accepted bool) (string, string) {
+	t.Helper()
 	var id string
 	err := owner.QueryRow(t.Context(), `WITH o AS (INSERT INTO organization (id, name) VALUES ($1, 'Synthetic clinic') ON CONFLICT DO NOTHING)
 		INSERT INTO invite (organization_id, expires_at, role, email, accepted_at) VALUES ($1, now() + interval '72 hours', 'admin', $2, CASE WHEN $3 THEN now() END)
@@ -111,6 +117,18 @@ func TestNotifier_CancelsTheJobOfAnInviteThatIsNoLongerOpen(t *testing.T) {
 
 	if state := runJob(t, app, id); state != rivertype.JobStateCancelled {
 		t.Errorf("job state %s, want cancelled: there is nothing to send", state)
+	}
+}
+
+// An address SMTP cannot carry (a UTF-8 local part, which registration accepts) fails the same way on every retry:
+// the job is cancelled, not retried for days.
+func TestNotifier_CancelsTheJobOfAnInviteToAnAddressSMTPCannotCarry(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	id, _ := seedInviteTo(t, owner, "pozivnica-"+strings.ToLower(rand.Text())+"-ć@example.test", false)
+
+	if state := runJob(t, app, id); state != rivertype.JobStateCancelled {
+		t.Errorf("job state %s, want cancelled: a retry cannot send it either", state)
 	}
 }
 

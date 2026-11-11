@@ -78,8 +78,8 @@ func addEmailWorkers(workers *river.Workers, mail *notification.Service) {
 }
 
 // appointmentEmailWorker sends one of an appointment's e-mails. An e-mail that no longer applies sends
-// nothing and completes; an appointment that does not exist in the clinic cancels the job, as a retry would
-// find nothing either.
+// nothing and completes; an appointment that does not exist in the clinic, or a recipient address SMTP cannot
+// carry, cancels the job, as a retry would fail the same way.
 type appointmentEmailWorker[T river.JobArgs] struct {
 	river.WorkerDefaults[T]
 	send func(ctx context.Context, args T) error
@@ -87,7 +87,7 @@ type appointmentEmailWorker[T river.JobArgs] struct {
 
 func (w *appointmentEmailWorker[T]) Work(ctx context.Context, job *river.Job[T]) error {
 	err := w.send(ctx, job.Args)
-	if errors.Is(err, appointment.ErrNotFound) {
+	if errors.Is(err, appointment.ErrNotFound) || errors.Is(err, notification.ErrRecipientNotASCII) {
 		return river.JobCancel(err)
 	}
 	return err
@@ -104,6 +104,9 @@ func (w *inviteEmailWorker) Work(ctx context.Context, job *river.Job[auth.Invite
 	err := w.mail.SendInvite(ctx, job.Args.InviteID, job.Args.OrganizationID)
 	if errors.Is(err, auth.ErrInvalidInvite) {
 		return river.JobCancel(err) // replaced, accepted or expired: nothing to send, now or on a retry
+	}
+	if errors.Is(err, notification.ErrRecipientNotASCII) {
+		return river.JobCancel(err) // an address SMTP cannot carry: a retry fails the same way
 	}
 	return err
 }
