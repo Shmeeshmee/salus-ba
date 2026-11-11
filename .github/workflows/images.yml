@@ -1,0 +1,240 @@
+# Images: builds the production images and pushes them to GHCR (docs/adr/0011-single-server-deployment.md):
+# salus (every Go binary under cmd/), salus-web, salus-landing and salus-caddy, as ghcr.io/<GHCR_OWNER>/<image>,
+# tagged with the full commit SHA and, for main's head, `main`. The server pulls by SHA, never by `main`.
+#
+# When: on every push to main, and by hand on main (workflow_dispatch; the gate skips any other ref). The gate job
+# waits for this commit's CI, the push runs of the go, web, mobile and landing workflows (each runs on every push to
+# main and skips its jobs by path inside, a skipped job counting as passed), and lets the build go ahead only when all
+# four concluded success. A failed or cancelled CI run (cancelled: superseded by a newer push), a workflow with no run
+# for the commit after 10 minutes, or no result within 90 minutes fails this run and nothing is pushed; after
+# re-running a failed CI workflow, re-run this run's failed jobs.
+# Why a waiting gate rather than a workflow_run trigger on the four workflows: workflow_run fires once per finished
+# workflow, so three of every four Images runs would end in success without building anything. Here there is one run
+# per commit.
+# Runs are serialised in one concurrency group per ref and never cancelled while running; a newer queued run
+# replaces an older queued one, which leaves that older commit without images (deploys take the newest).
+#
+# Per image (the image job): build for linux/amd64 only (Hetzner CPX/CX are x86; arm64 is not built) and push it to
+# GHCR by digest, untagged, with an SBOM attestation (SPDX, in the image index). Trivy (pinned image, by digest; not
+# trivy-action or setup-trivy, whose tags were hijacked in March 2026) then scans that digest from the registry and
+# fails on any CRITICAL vulnerability, fixed upstream or not. Only a digest that passed is tagged with the SHA
+# (docker buildx imagetools create, which copies the index as it is), so the tagged image is the scanned one; a
+# failing digest stays untagged and nothing pulls it. Exceptions: .trivyignore.yaml, reviewed entries only, each with
+# a CVE id, a reason and an expiry date (the gate checks every entry has them). Layer cache: the GitHub Actions cache,
+# one scope per image.
+#
+# Release: the head job checks that this commit is still main's head once every image passed; the release job runs
+# only if it is, and moves `main` to it. A re-run of an older run, or a run overtaken by a newer push, keeps its SHA
+# tags but skips the release job (the run's summary says "not main's head"), so `main` never moves back.
+# Deployable (for deploy.yml) means: an Images run of main that succeeded and whose release job concluded success
+# (not skipped); the release job's output `sha` is the release.
+name: Images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Lowercase, as GHCR requires. GITHUB_TOKEN can push only to the repository owner's packages.
+  GHCR_OWNER: ${{ vars.GHCR_OWNER || 'shmeeshmee' }}
+  TRIVY_IMAGE: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+  TRIVY_DB_REPOSITORY: mirror.gcr.io/aquasec/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2
+
+jobs:
+  gate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Every Trivy exception has a CVE id, a reason and an expiry date
+        run: |
+          yq -e '(.vulnerabilities // []) | map(select(.id == null or .statement == null or .expired_at == null)) | length == 0' \
+            .trivyignore.yaml >/dev/null || {
+            echo "::error file=.trivyignore.yaml::every entry needs id, statement and expired_at"
+            exit 1
+          }
+      - name: Wait for this commit's CI on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          workflows="go web mobile landing"
+          start=$(date +%s)
+          while :; do
+            runs=""
+            for attempt in 1 2 3; do
+              runs=$(gh api "repos/$REPO/actions/runs?head_sha=$SHA&event=push&branch=main&per_page=100" \
+                --jq '[.workflow_runs[] | {path, status, conclusion, html_url}]') && break
+              runs=""
+              sleep $(( attempt * 10 ))
+            done
+            [ -n "$runs" ] || { echo "::error::GitHub API unavailable after 3 attempts."; exit 1; }
+            elapsed=$(( $(date +%s) - start ))
+            pending=0
+            for w in $workflows; do
+              run=$(jq -c --arg p ".github/workflows/$w.yml" 'map(select(.path == $p)) | first // empty' <<<"$runs")
+              if [ -z "$run" ]; then
+                if [ "$elapsed" -ge 600 ]; then
+                  echo "::error::CI workflow $w has no push run for $SHA after 10 minutes; no images are built."
+                  exit 1
+                fi
+                pending=1
+              elif [ "$(jq -r .status <<<"$run")" != completed ]; then
+                pending=1
+              elif [ "$(jq -r .conclusion <<<"$run")" != success ]; then
+                echo "::error::CI workflow $w concluded $(jq -r .conclusion <<<"$run") for $SHA ($(jq -r .html_url <<<"$run")); no images are built."
+                exit 1
+              fi
+            done
+            if [ "$pending" = 0 ]; then
+              echo "CI passed for $SHA: go, web, mobile and landing."
+              exit 0
+            fi
+            if [ "$elapsed" -ge 5400 ]; then
+              echo "::error::CI for $SHA did not finish within 90 minutes; re-run this job once it has."
+              exit 1
+            fi
+            sleep 30
+          done
+
+  image:
+    needs: gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: salus
+            context: .
+            file: build/package/Dockerfile
+            no-cache-filters: ''
+          # The nginx images upgrade their Alpine packages in the runtime stage; rebuilding that stage each time
+          # picks up the current fixes instead of a cached upgrade.
+          - image: salus-web
+            context: web
+            file: build/package/web.Dockerfile
+            no-cache-filters: runtime
+          - image: salus-landing
+            context: landing
+            file: build/package/landing.Dockerfile
+            no-cache-filters: runtime
+          - image: salus-caddy
+            context: build/package
+            file: build/package/caddy.Dockerfile
+            no-cache-filters: ''
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Image name
+        id: name
+        run: echo "ref=ghcr.io/$GHCR_OWNER/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+      - name: Build and push by digest, untagged, with an SBOM attestation
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/amd64
+          outputs: type=image,name=${{ steps.name.outputs.ref }},push-by-digest=true,name-canonical=true,push=true
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          attests: type=sbom,generator=docker/buildkit-syft-scanner:1.12.1@sha256:873a7458c3c8ac8e32c7b796c10e1600b07b963d2aa000a72a2d97aaaa2d6315
+          no-cache-filters: ${{ matrix.no-cache-filters }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+      - name: Trivy scan of the pushed digest (fails on any CRITICAL vulnerability)
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ github.token }}
+          IMAGE: ${{ steps.name.outputs.ref }}@${{ steps.build.outputs.digest }}
+        run: |
+          trivy() {
+            docker run --rm -e TRIVY_USERNAME -e TRIVY_PASSWORD -e TRIVY_DB_REPOSITORY \
+              -v "$RUNNER_TEMP/trivy:/root/.cache/trivy" -v "$PWD/.trivyignore.yaml:/trivyignore.yaml:ro" \
+              "$TRIVY_IMAGE" image --image-src remote --platform linux/amd64 --scanners vuln \
+              --ignorefile /trivyignore.yaml "$@" "$IMAGE"
+          }
+          trivy --severity HIGH,CRITICAL --exit-code 0 --no-progress
+          trivy --severity CRITICAL --exit-code 1 --skip-db-update --quiet || {
+            echo "::error::${{ matrix.image }} has a CRITICAL vulnerability; the digest stays untagged."
+            exit 1
+          }
+      - name: Tag the scanned digest with the SHA
+        run: >-
+          docker buildx imagetools create
+          -t "${{ steps.name.outputs.ref }}:${{ github.sha }}"
+          "${{ steps.name.outputs.ref }}@${{ steps.build.outputs.digest }}"
+
+  head:
+    needs: image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      is-head: ${{ steps.head.outputs.is-head }}
+    steps:
+      - name: Is this commit still main's head
+        id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          head=$(gh api "repos/$REPO/commits/main" --jq .sha)
+          if [ "$head" = "$SHA" ]; then
+            echo "is-head=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is-head=false" >> "$GITHUB_OUTPUT"
+            echo "Images for $SHA are tagged by SHA only: not main's head ($head), so \`main\` is not moved and this run is not a release." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+  release:
+    needs: head
+    if: needs.head.outputs.is-head == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha: ${{ github.sha }}
+    steps:
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Move main to this commit
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          for image in salus salus-web salus-landing salus-caddy; do
+            ref="ghcr.io/$GHCR_OWNER/$image"
+            docker buildx imagetools create -t "$ref:main" "$ref:$SHA"
+          done
+          echo "Released $SHA: \`main\` moved for every image." >> "$GITHUB_STEP_SUMMARY"
