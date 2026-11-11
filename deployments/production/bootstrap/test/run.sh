@@ -16,13 +16,15 @@ export TEST_PROJECT=salus-$ID-backup-test
 shellcheck_() {
 	echo "== shellcheck"
 	docker run --rm -v "$DIR:/mnt:ro" -w /mnt "$SHELLCHECK" -x bootstrap.sh backup.sh test/run.sh test/bootstrap-test.sh test/backup-test.sh
-	docker run --rm -v "$DIR/..:/mnt:ro" -w /mnt "$SHELLCHECK" deploy.sh test/deploy-test.sh
+	docker run --rm -v "$DIR/..:/mnt:ro" -w /mnt "$SHELLCHECK" deploy.sh test/deploy-test.sh test/deploy-compose-test.sh
 	echo "shellcheck clean"
 }
 
 deploy() {
 	echo "== deploy.sh against a fake docker in ubuntu:24.04"
 	docker run --rm --name "salus-$ID-deploy-test" -v "$DIR/..:/production:ro" "$UBUNTU" bash /production/test/deploy-test.sh
+	echo "== deploy.sh against the real Docker Compose (its own project, busybox images)"
+	bash "$DIR/../test/deploy-compose-test.sh"
 }
 
 bootstrap() {

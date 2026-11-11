@@ -25,6 +25,8 @@
 set -euo pipefail
 
 ROOT=${SALUS_ROOT:-/opt/salus}
+# The compose project: always salus on the server; another name only for test/deploy-compose-test.sh.
+PROJECT=${SALUS_PROJECT:-salus}
 WAIT_TIMEOUT=${SALUS_WAIT_TIMEOUT:-900}
 # After `up --wait`, how long the services must stay up: worker, scheduler, notifier and agent have no healthcheck,
 # so `--wait` accepts them once they run, and one that exits at start would otherwise pass.
@@ -38,7 +40,7 @@ die() {
 }
 
 compose() {
-	docker compose -p salus --env-file "$ROOT/.env" --env-file "$ROOT/release.env" \
+	docker compose -p "$PROJECT" --env-file "$ROOT/.env" --env-file "$ROOT/release.env" \
 		-f "$ROOT/deployments/docker-compose.prod.yml" "$@"
 }
 
@@ -135,9 +137,9 @@ cmd_deploy() {
 
 	# Check and pull with the new files before anything running changes.
 	echo "SALUS_TAG=$sha" >"$rel/release.env"
-	docker compose -p salus --env-file "$rel/.env" --env-file "$rel/release.env" \
+	docker compose -p "$PROJECT" --env-file "$rel/.env" --env-file "$rel/release.env" \
 		-f "$rel/docker-compose.prod.yml" config -q || die "the compose file of $sha does not resolve"
-	docker compose -p salus --env-file "$rel/.env" --env-file "$rel/release.env" \
+	docker compose -p "$PROJECT" --env-file "$rel/.env" --env-file "$rel/release.env" \
 		-f "$rel/docker-compose.prod.yml" pull --quiet || die "could not pull the images of $sha"
 
 	previous=$(tag_of "$ROOT/release.env")
