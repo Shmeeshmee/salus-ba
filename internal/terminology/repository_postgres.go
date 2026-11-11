@@ -258,11 +258,11 @@ func NewPostgresReviewRepository(db postgres.Querier) ReviewRepository {
 	return &postgresRepository{db: db}
 }
 
-// statusOrder is the place of a status in the queue: unreviewed first (ReviewQueue's status_order).
-var statusOrder = map[string]int32{ReviewUnreviewed: 0, ReviewNeedsChanges: 1, ReviewApproved: 2}
+// statusOrder is the place of a status in the queue: needs changes first (ReviewQueue's status_order).
+var statusOrder = map[string]int32{ReviewNeedsChanges: 0, ReviewUnreviewed: 1, ReviewApproved: 2}
 
 // orderStatus is the status at a place of the queue.
-var orderStatus = []string{ReviewUnreviewed, ReviewNeedsChanges, ReviewApproved}
+var orderStatus = []string{ReviewNeedsChanges, ReviewUnreviewed, ReviewApproved}
 
 func (r *postgresRepository) Queue(ctx context.Context, q QueueFilter) ([]QueueRow, error) {
 	p := terminologydb.ReviewQueueParams{Language: terminologydb.TermLanguage(q.Language), MaxEntries: q.Limit}

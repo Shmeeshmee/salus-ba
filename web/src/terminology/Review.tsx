@@ -16,7 +16,7 @@ type Explanation = components['schemas']['TermExplanation']
 
 // The term languages in the enum's order (api/openapi.yaml TermLanguage).
 const termLanguages: TermLanguage[] = ['la', 'bs', 'hr', 'sr-Latn', 'sr-Cyrl', 'en', 'de', 'ar', 'tr', 'it', 'fr']
-const statuses: (Status | 'all')[] = ['unreviewed', 'needs_changes', 'approved', 'all']
+const statuses: (Status | 'all')[] = ['all', 'needs_changes', 'unreviewed', 'approved']
 const pageSize = 25
 
 // Part is what a review action is on: the term's labels in the language, or its explanation there.
@@ -36,14 +36,15 @@ function useLanguageName() {
 }
 
 // Review is the review panel of the medical term list (docs/terminology/SPEC.md §3 "Review"): the queue of one
-// language, unreviewed first, with the progress; a reviewer edits, approves or requests changes, keyboard first.
+// language, needs changes first (every status by default), with the progress; a reviewer edits, approves or
+// requests changes, keyboard first.
 // Every staff member reads it; without the reviewer permission it has no controls.
 export function Review({ api, reviewer }: { api: ApiClient; reviewer: boolean }) {
   const t = useT()
   const name = useLanguageName()
   const { language: uiLanguage } = useLanguage()
   const [language, setLanguage] = useState<TermLanguage>(uiLanguage)
-  const [status, setStatus] = useState<Status | 'all'>('unreviewed')
+  const [status, setStatus] = useState<Status | 'all'>('all')
   // The queue as read for the filters and reload count in key; anything else is still loading.
   const [read, setRead] = useState<{ key: string; queue: Queue }>()
   const [progress, setProgress] = useState<Progress[]>()
@@ -78,7 +79,10 @@ export function Review({ api, reviewer }: { api: ApiClient; reviewer: boolean })
     setRead((r) => {
       if (r?.key !== key || r.queue.name !== 'loaded') return r
       if (!res.ok) return { key, queue: { name: 'failed' } }
-      return { key, queue: { name: 'loaded', entries: [...r.queue.entries, ...res.data.entries], next: res.data.next } }
+      // An entry decided since the last page moved to a later status and can come again: it stays where it is.
+      const shown = new Set(r.queue.entries.map((e) => e.term.id))
+      const added = res.data.entries.filter((e) => !shown.has(e.term.id))
+      return { key, queue: { name: 'loaded', entries: [...r.queue.entries, ...added], next: res.data.next } }
     })
   }
 

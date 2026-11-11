@@ -119,8 +119,9 @@ The review panel in `web/` (`/term-review`), built on the contract of 00037 (doc
   translation) and its plain-language explanation there (app languages only, never Latin). Status of an entry:
   `needs_changes` when its translation or explanation needs changes, else `unreviewed` when the term has no label in
   the language yet or either is unreviewed, else `approved`; an explanation that does not exist does not count.
-- **Queue.** `GET /terminology/review?language=&status=&after=&limit=`: unreviewed first, then needs changes, then
-  approved, each the more common term (rank) first; a page token (`next`, keyset on status, rank and id), so entries
+- **Queue.** `GET /terminology/review?language=&status=&after=&limit=`: needs changes first, then unreviewed, then
+  approved (owner, 2026-11-11; it was unreviewed first), each the more common term (rank) first; the panel opens on
+  every status, so the entries that need changes are the first a reviewer sees; a page token (`next`, keyset on status, rank and id), so entries
   that leave a filter while the reviewer works never shift the next page. Each entry carries the term with its labels
   in the language, Latin and English, its translation and its explanation.
 - **Progress.** `GET /terminology/review/progress`: per language, every term and how many entries are approved or
@@ -136,7 +137,8 @@ The review panel in `web/` (`/term-review`), built on the contract of 00037 (doc
 - **Editing resets.** A change to an entry's labels or text sets it to `unreviewed`, whatever it was (an approved
   entry returns to the queue, and so does one that needed changes once they are made); its last `reviewed_by`,
   `reviewed_at` and note are kept until the next review.
-- **The term's own status** (the cheatsheet's "Not reviewed yet" mark and the curator's CSV) follows its translations
+- **The term's own status** (the cheatsheet's "Not reviewed yet" mark and the curator's CSV; confirmed by the owner
+  2026-11-11: a term is approved once Latin and the five staff languages are) follows its translations
   in Latin and the staff languages, the languages the cheatsheet shows: `needs_changes` when one needs changes,
   `approved` when all it has are approved, else `unreviewed`; a change to approved or needs changes names the
   reviewer and the time, one back to unreviewed keeps the last review. Explanations and the patient-only languages do
