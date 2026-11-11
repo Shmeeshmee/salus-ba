@@ -25,7 +25,7 @@ expect() { # expect DESCRIPTION COMMAND...
 }
 
 mkdir -p "$WORK"
-write_conf() { # write_conf SSH_PORT
+write_conf() { # write_conf SSH_PORT [EXTRA-LINE]
 	cat >"$WORK/bootstrap.conf" <<EOF
 # Test settings, synthetic.
 DEPLOY_SSH_KEY=$KEY1
@@ -36,6 +36,7 @@ BACKUP_HOST=storagebox.invalid
 BACKUP_USER=u000000-sub1
 BACKUP_KNOWN_HOST=[storagebox.invalid]:23 $KEY2
 BACKUP_AGE_RECIPIENT=age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p
+${2:-}
 EOF
 }
 
@@ -54,6 +55,17 @@ if run placeholder --config "$WORK/placeholder.conf"; then fail "accepted the ex
 expect "the example's placeholder key is refused" grep -q 'not a public key line' "$WORK/placeholder.log"
 expect "nothing created" bash -c '! id deploy 2>/dev/null && [[ ! -e /opt/salus ]]'
 
+echo "== refuses the test flags on a host with systemd"
+write_conf 22
+mkdir -p /run/systemd/system
+if run flags --check --config "$WORK/bootstrap.conf"; then fail "ran with test flags under systemd"; fi
+expect "says why" grep -q 'for the container test only' "$WORK/flags.log"
+rmdir /run/systemd/system
+
+# The server's own unattended-upgrades list, with a pocket beyond security: replaced, with a warning.
+mkdir -p /etc/apt/apt.conf.d
+printf 'Unattended-Upgrade::Allowed-Origins { "${distro_id}:${distro_codename}-updates"; };\n' >/etc/apt/apt.conf.d/51local-origins
+
 echo "== --check on a fresh server"
 write_conf 22
 run check1 --check --config "$WORK/bootstrap.conf" || {
@@ -70,6 +82,7 @@ run run1 --config "$WORK/bootstrap.conf" || {
 	fail "first run failed"
 }
 grep -E '^(change|warning|error)' "$WORK/run1.log" || true
+expect "warns that the server's -updates origin is replaced" grep -q "^warning: unattended-upgrades: the server's own Allowed-Origins entry '.*-updates' is replaced" "$WORK/run1.log"
 expect "made changes" grep -Eq '^[1-9][0-9]* changes made' "$WORK/run1.log"
 expect "deploy user exists, no usable password" bash -c '[[ $(getent shadow deploy | cut -d: -f2) == "*" ]]'
 expect "deploy is in the docker group" bash -c 'id -nG deploy | tr " " "\n" | grep -qx docker'
@@ -88,7 +101,7 @@ expect "ufw denies incoming by default" grep -qx 'DEFAULT_INPUT_POLICY="DROP"' /
 expect "fail2ban watches sshd" grep -qx 'enabled = true' /etc/fail2ban/jail.d/salus-sshd.conf
 origins=$(apt-config dump | grep -A0 '^Unattended-Upgrade::Allowed-Origins::' || true)
 expect "unattended upgrades: security pockets only" bash -c \
-	"[[ \$(grep -c . <<<'$origins') -eq 3 ]] && ! grep -q -- '-updates' <<<'$origins' && grep -q -- '-security' <<<'$origins'"
+	"[[ \$(grep -c . <<<'$origins') -eq 4 ]] && ! grep -q -- '-updates' <<<'$origins' && grep -q -- '-security' <<<'$origins'"
 expect "no automatic reboot" bash -c "apt-config dump | grep -qx 'Unattended-Upgrade::Automatic-Reboot \"false\";'"
 expect "upgrade time set" grep -qx 'OnCalendar=\*-\*-\* 04:00' /etc/systemd/system/apt-daily-upgrade.timer.d/salus.conf
 expect "Docker and compose installed" bash -c 'docker --version && docker compose version >/dev/null'
@@ -96,9 +109,12 @@ expect "Docker's repository is signed-by" grep -qx 'Signed-By: /etc/apt/keyrings
 expect "no daemon.json written" test ! -e /etc/docker/daemon.json
 expect "/opt/salus is deploy's, 750" bash -c '[[ $(stat -c "%a %U:%G" /opt/salus) == "750 deploy:deploy" && $(stat -c "%a %U:%G" /opt/salus/deployments) == "750 deploy:deploy" ]]'
 expect "backup staging is root's, 700" bash -c '[[ $(stat -c "%a %U" /opt/salus/backups) == "700 root" ]]'
-expect "the settings are installed" cmp -s <(cat "$WORK/bootstrap.conf") /opt/salus/bootstrap.conf
+installed=$(cat /etc/salus/bootstrap.conf)
+expect "the settings are installed for root only" test "$installed" = "$(cat "$WORK/bootstrap.conf")"
+expect "mode 600, root, not under /opt/salus" bash -c "[[ \$(stat -c '%a %U' /etc/salus/bootstrap.conf) == '600 root' && ! -e /opt/salus/bootstrap.conf ]]"
 expect "the backup script is installed" cmp -s /bootstrap/backup.sh /usr/local/sbin/salus-backup
 expect "the backup timer is nightly and persistent" bash -c 'grep -qx "OnCalendar=\*-\*-\* 02:30" /etc/systemd/system/salus-backup.timer && grep -qx "Persistent=true" /etc/systemd/system/salus-backup.timer'
+expect "the backup unit has a timeout, hardening and a failure hook" bash -c 'f=/etc/systemd/system/salus-backup.service; grep -qx "TimeoutStartSec=2h" $f && grep -qx "OnFailure=salus-backup-failed.service" $f && grep -qx "ProtectHome=read-only" $f && grep -q "systemd-cat -t salus-backup -p err" /etc/systemd/system/salus-backup-failed.service'
 expect "the backup has its own SSH key" test -s /root/.ssh/salus-backup.pub
 expect "the Storage Box host key is pinned" grep -qF '[storagebox.invalid]:23 ssh-ed25519' /etc/salus/backup_known_hosts
 
@@ -112,12 +128,22 @@ expect "no change lines" bash -c "! grep -q '^change:' '$WORK/run2.log'"
 run check2 --check || fail "--check with the installed settings failed"
 expect "--check agrees" grep -qx '0 changes would be made' "$WORK/check2.log"
 
-echo "== warnings about ports"
+echo "== a public listener ufw would block"
 /usr/sbin/sshd -p 2222 -o PidFile=/run/sshd-test.pid
-run check3 --check || fail "--check failed"
-expect "warns about a listener ufw would block" grep -q '^warning: 2222/tcp (sshd) listens on a public address' "$WORK/check3.log"
-expect "no warning for allowed ports" bash -c "! grep -q '^warning: 22/tcp' '$WORK/check3.log'"
+if run check3 --check; then fail "--check passed although ufw would block a listener"; fi
+expect "--check names it" grep -q '^error: 2222/tcp (sshd) listens on a public address and ufw would block it' "$WORK/check3.log"
+before=$(ufw show added)
+if run refuse --config "$WORK/bootstrap.conf"; then fail "a real run went on although ufw would block a listener"; fi
+expect "a real run refuses" grep -q 'refusing to enable ufw' "$WORK/refuse.log"
+expect "and leaves ufw as it was" test "$(ufw show added)" = "$before"
+write_conf 22 UFW_ACCEPT_BLOCKING=yes
+run accept --check --config "$WORK/bootstrap.conf" || fail "--check with UFW_ACCEPT_BLOCKING=yes failed"
+expect "UFW_ACCEPT_BLOCKING=yes turns it into a warning" grep -q '^warning: 2222/tcp (sshd) listens on a public address; ufw will block it' "$WORK/accept.log"
+write_conf 22 UFW_EXTRA_PORTS=2222/tcp
+run extra --check --config "$WORK/bootstrap.conf" || fail "--check with the port in UFW_EXTRA_PORTS failed"
+expect "an allowed extra port is not blocked" bash -c "! grep -q '2222/tcp (sshd)' '$WORK/extra.log'"
 kill "$(cat /run/sshd-test.pid)"
+write_conf 22
 mkdir -p "$WORK/fake"
 cat >"$WORK/fake/docker" <<'EOF'
 #!/bin/sh
@@ -135,6 +161,15 @@ expect "warns about another project's public port" grep -q '^warning: container 
 expect "silent about allowed and loopback ports" bash -c "! grep -Eq 'salus-caddy-1|other-db-1' '$WORK/check4.log'"
 expect "reports, changes nothing" grep -qx '0 changes would be made' "$WORK/check4.log"
 
+echo "== an sshd setting that would lock the deploy user out"
+printf 'DenyUsers deploy\n' >/etc/ssh/sshd_config.d/10-test-deny.conf
+before=$(cat /etc/ssh/sshd_config.d/00-salus.conf)
+write_conf 2201
+if run deny --config "$WORK/bootstrap.conf"; then fail "went on although DenyUsers shuts out deploy"; fi
+expect "names the problem" grep -q 'sshd: DenyUsers includes deploy' "$WORK/deny.log"
+expect "puts the previous drop-in back" test "$(cat /etc/ssh/sshd_config.d/00-salus.conf)" = "$before"
+rm /etc/ssh/sshd_config.d/10-test-deny.conf
+
 echo "== a new SSH port"
 write_conf 2200
 run run3 --config "$WORK/bootstrap.conf" || {
@@ -147,5 +182,10 @@ expect "tells the operator about the old rule" grep -q "ufw delete allow 22/tcp"
 expect "fail2ban follows" grep -qx 'port = 2200' /etc/fail2ban/jail.d/salus-sshd.conf
 run run4 --config "$WORK/bootstrap.conf" || fail "fourth run failed"
 expect "then nothing again" grep -qx '0 changes made' "$WORK/run4.log"
+
+echo "== the units are valid"
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends systemd >/dev/null
+units=(/etc/systemd/system/salus-backup.service /etc/systemd/system/salus-backup.timer /etc/systemd/system/salus-backup-failed.service)
+expect "systemd-analyze verify" systemd-analyze verify "${units[@]}"
 
 echo "bootstrap tests passed"

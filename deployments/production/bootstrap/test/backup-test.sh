@@ -28,6 +28,7 @@ box_ls() { box "ls -1a $BOX" | sed -n "s#^$BOX/##p" | grep -v '^\.\{1,2\}$' | so
 stamp() { date -u -d "$1" +%Y%m%dT%H%M%SZ; } # a dump name's time, e.g. stamp '-13 days'
 
 mkdir -p "$WORK/staging"
+rm -f /keys/backup /keys/backup.pub
 ssh-keygen -q -t ed25519 -N '' -C synthetic-test-backup -f /keys/backup
 age-keygen -o "$WORK/age.key" 2>/dev/null
 recipient=$(age-keygen -y "$WORK/age.key")
@@ -53,6 +54,7 @@ BACKUP_PG_SERVICE=${4:-postgres}
 BACKUP_SSH_KEY_FILE=/keys/backup
 BACKUP_KNOWN_HOSTS_FILE=$1
 BACKUP_STAGING_DIR=$WORK/staging
+BACKUP_WAIT_SECONDS=3
 EOF
 }
 export SALUS_BACKUP_CONFIG=$WORK/bootstrap.conf
@@ -63,12 +65,12 @@ ssh-keygen -q -t ed25519 -N '' -f "$WORK/other" && printf 'sftp %s\n' "$(cut -d'
 write_conf "$WORK/wrong_known_hosts" no "$PROJECT"
 if run_backup wronghost; then fail "uploaded to a server whose host key does not match"; fi
 pass "exits non-zero"
-expect "leaves no file in staging" bash -c "[[ -z \$(ls -A '$WORK/staging') ]]"
+expect "leaves no file in staging" bash -c "[[ -z \$(ls -A '$WORK/staging' | grep -vx .lock) ]]"
 
 echo "== fails without the database"
 write_conf "$WORK/known_hosts" no no-such-project
 if run_backup nodb; then fail "succeeded without a postgres container"; fi
-expect "says why" grep -q 'no running postgres container' "$WORK/nodb.log"
+expect "waits, then says why" grep -q 'no healthy postgres container in the compose project no-such-project after 3 s' "$WORK/nodb.log"
 
 echo "== fails when pg_dump fails"
 write_conf "$WORK/known_hosts" no "$PROJECT" sftp
@@ -76,7 +78,7 @@ if run_backup nodump; then fail "succeeded although pg_dump could not run"; fi
 expect "says why" grep -q 'the dump failed' "$WORK/nodump.log"
 if box 'ls -1 salus' >/dev/null 2>&1; then fail "uploaded something"; fi
 pass "uploads nothing"
-expect "leaves no file in staging" bash -c "[[ -z \$(ls -A '$WORK/staging') ]]"
+expect "leaves no file in staging" bash -c "[[ -z \$(ls -A '$WORK/staging' | grep -vx .lock) ]]"
 
 echo "== retention: faked old dumps on the box"
 printf 'not a dump\n' >"$WORK/filler"
@@ -84,7 +86,8 @@ old1=salus-20000101T000000Z.dump.age
 old2=salus-$(stamp '-15 days').dump.age
 recent=salus-$(stamp '-13 days').dump.age
 box "-mkdir salus" "-mkdir $BOX" "put $WORK/filler $BOX/$old1" "put $WORK/filler $BOX/$old2" \
-	"put $WORK/filler $BOX/$recent" "put $WORK/filler $BOX/notes.txt" >/dev/null
+	"put $WORK/filler $BOX/$recent" "put $WORK/filler $BOX/notes.txt" \
+	"put $WORK/filler $BOX/.partial-$old1" >/dev/null
 
 echo "== a backup"
 write_conf "$WORK/known_hosts" no "$PROJECT"
@@ -100,20 +103,32 @@ expect "uploaded one new dump" test "$(grep -c . <<<"$dump")" -eq 1
 expect "deleted the dumps older than 14 days" bash -c "! grep -qxF -e '$old1' -e '$old2' <<<'$listing'"
 expect "kept the 13-day-old dump and the unrelated file" bash -c "grep -qxF '$recent' <<<'$listing' && grep -qxF notes.txt <<<'$listing'"
 expect "left no partial upload" bash -c "! grep -q '^\.partial' <<<'$listing'"
-expect "logs say how many were deleted" grep -q 'deleted 2 dumps older than 14 days' "$WORK/run1.log"
-expect "nothing left in staging but the success mark" bash -c "[[ \$(ls -A '$WORK/staging') == last-success ]]"
+expect "deleted the partial upload a failed night left" bash -c "! grep -qxF '.partial-$old1' <<<'$listing'"
+expect "logs say how many were deleted" grep -q 'deleted 2 dumps older than 14 days and 1 partial uploads' "$WORK/run1.log"
+expect "nothing left in staging but the success mark (and the lock)" bash -c "[[ \$(ls -A '$WORK/staging' | grep -vx .lock) == last-success ]]"
 expect "logs hold no row data" bash -c "! grep -qi 'testperson' '$WORK/run1.log'"
 
 echo "== restore drill"
 box "get $BOX/$dump $WORK/fetched.age" >/dev/null
 expect "the dump is age-encrypted" bash -c "[[ \$(head -c 21 '$WORK/fetched.age') == age-encryption.org/v1 ]]"
 expect "no plaintext in it" bash -c "! grep -aq 'Synthetic Testperson' '$WORK/fetched.age'"
-age -d -i "$WORK/age.key" "$WORK/fetched.age" | docker exec -i "$(container restore-db)" pg_restore -U salus -d salus --no-owner --exit-on-error
-for q in 'SELECT count(*) FROM patient' 'SELECT max(version_id) FROM goose_db_version WHERE is_applied'; do
+# The drill's steps (docs/deploy/backup-restore.md): the roles the migrations create, then the restore, which stops
+# at the first error.
+grep -ho 'CREATE ROLE [a-z_]* [A-Z ]*' /migrations/*.sql | sort -u | sed 's/ *$/;/' |
+	docker exec -i "$(container restore-db)" psql -U salus -d salus -q -v ON_ERROR_STOP=1
+age -d -i "$WORK/age.key" "$WORK/fetched.age" | docker exec -i "$(container restore-db)" pg_restore -U salus -d salus --exit-on-error
+pass "restored with --exit-on-error"
+for q in 'SELECT count(*) FROM synthetic_backup_rows' \
+	'SELECT max(version_id) FROM goose_db_version WHERE is_applied' \
+	"SELECT count(*) FROM pg_tables WHERE schemaname = 'public'" \
+	'SELECT count(*) FROM pg_policies' \
+	"SELECT string_agg(p.proname || ':' || r.rolname, ',' ORDER BY p.proname) FROM pg_proc p JOIN pg_roles r ON r.oid = p.proowner JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public'" \
+	"SELECT string_agg(grantee || ':' || privilege_type, ',' ORDER BY grantee, table_name, privilege_type) FROM information_schema.role_table_grants WHERE grantee LIKE 'salus_%'"; do
 	src=$(psql_in postgres "$q")
 	dst=$(psql_in restore-db "$q")
-	expect "restored: $q = $dst" test "$src" = "$dst"
+	expect "restored equal: ${q:0:60} (${dst:0:40})" test "$src" = "$dst"
 done
+expect "the schema is the real one" test "$(psql_in restore-db 'SELECT count(*) FROM pg_policies')" -gt 0
 pass "dump to restored in $(($(date +%s) - start)) s"
 
 echo "== a local copy when asked"

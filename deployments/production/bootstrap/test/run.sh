@@ -25,10 +25,10 @@ bootstrap() {
 
 backup() {
 	echo "== backup.sh against a throwaway Postgres and SFTP server"
-	local compose=(docker compose -f "$HERE/compose.yml")
-	trap '"${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true' RETURN
-	"${compose[@]}" build -q
-	"${compose[@]}" run --rm runner
+	COMPOSE_TEST=(docker compose -f "$HERE/compose.yml")
+	trap '"${COMPOSE_TEST[@]}" down -v --remove-orphans >/dev/null 2>&1 || true' EXIT
+	"${COMPOSE_TEST[@]}" build -q
+	"${COMPOSE_TEST[@]}" run --rm runner
 }
 
 (($#)) || set -- shellcheck bootstrap backup

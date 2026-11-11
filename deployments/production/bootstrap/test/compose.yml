@@ -1,5 +1,6 @@
-# The backup test (run.sh): a source Postgres with synthetic rows, a throwaway Postgres to restore into, an SFTP
-# server standing in for the Storage Box, and the runner. No host ports. The runner talks to the host's Docker
+# The backup test (run.sh): a source Postgres with the repository's migrations (real roles, grants, row-level
+# security) and synthetic rows, a throwaway Postgres to restore into, an SFTP server standing in for the Storage
+# Box, and the runner. No host ports. The runner talks to the host's Docker
 # daemon only to `docker exec` into this project's postgres containers, as salus-backup does on the server.
 name: ${TEST_PROJECT:?set TEST_PROJECT}
 
@@ -22,6 +23,22 @@ services:
 
   restore-db: *postgres
 
+  # The real schema: cmd/migrate from this checkout, on the dev toolchain image (build/package/dev.Dockerfile).
+  migrate:
+    build:
+      context: ../../../..
+      dockerfile: build/package/dev.Dockerfile
+    image: salus-backup-test-tools:local
+    working_dir: /src
+    volumes: [../../../..:/src:ro]
+    environment:
+      DATABASE_URL: postgres://salus:synthetic-test-only@postgres:5432/salus?sslmode=disable
+      APP_DATABASE_PASSWORD: synthetic-test-app
+      RETENTION_DATABASE_PASSWORD: synthetic-test-retention
+    command: ["go", "run", "./cmd/migrate", "up"]
+    depends_on:
+      postgres: {condition: service_healthy}
+
   sftp:
     build: .
     image: salus-backup-test:local
@@ -31,7 +48,7 @@ services:
   runner:
     image: salus-backup-test:local
     depends_on:
-      postgres: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
       restore-db: {condition: service_healthy}
       sftp: {condition: service_started}
     environment:
@@ -39,6 +56,7 @@ services:
     volumes:
       - keys:/keys
       - ..:/bootstrap:ro
+      - ../../../../migrations:/migrations:ro
       - /var/run/docker.sock:/var/run/docker.sock
     command: ["bash", "/bootstrap/test/backup-test.sh"]
 

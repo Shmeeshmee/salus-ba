@@ -5,10 +5,10 @@
 # over SFTP to the Storage Box; dumps there older than BACKUP_RETENTION_DAYS are then deleted. Any failure exits
 # non-zero (the unit fails and journald keeps the log). Logs carry file names, sizes and timings only.
 #
-# Settings: /opt/salus/bootstrap.conf (SALUS_BACKUP_CONFIG overrides the path), the BACKUP_* keys.
+# Settings: /etc/salus/bootstrap.conf (SALUS_BACKUP_CONFIG overrides the path), the BACKUP_* keys.
 set -euo pipefail
 
-CONFIG=${SALUS_BACKUP_CONFIG:-/opt/salus/bootstrap.conf}
+CONFIG=${SALUS_BACKUP_CONFIG:-/etc/salus/bootstrap.conf}
 TMP=
 
 BACKUP_HOST=
@@ -23,6 +23,7 @@ BACKUP_PG_SERVICE=postgres
 BACKUP_SSH_KEY_FILE=/root/.ssh/salus-backup
 BACKUP_KNOWN_HOSTS_FILE=/etc/salus/backup_known_hosts
 BACKUP_STAGING_DIR=/opt/salus/backups
+BACKUP_WAIT_SECONDS=600
 
 # Dump file names: the UTC time of the dump, so the retention needs no remote timestamps.
 readonly NAME_RE='^salus-[0-9]{8}T[0-9]{6}Z\.dump\.age$'
@@ -51,7 +52,7 @@ load_config() {
 		BACKUP_AGE_RECIPIENT) [[ -n $value ]] && BACKUP_AGE_RECIPIENTS+=("$value") ;;
 		BACKUP_HOST | BACKUP_PORT | BACKUP_USER | BACKUP_PATH | BACKUP_RETENTION_DAYS | BACKUP_KEEP_LOCAL | \
 			BACKUP_COMPOSE_PROJECT | BACKUP_PG_SERVICE | BACKUP_SSH_KEY_FILE | BACKUP_KNOWN_HOSTS_FILE | \
-			BACKUP_STAGING_DIR)
+			BACKUP_STAGING_DIR | BACKUP_WAIT_SECONDS)
 			printf -v "$key" '%s' "$value"
 			;;
 		esac
@@ -61,6 +62,7 @@ load_config() {
 	if ! [[ $BACKUP_RETENTION_DAYS =~ ^[0-9]+$ ]] || ((BACKUP_RETENTION_DAYS < 1)); then
 		die "BACKUP_RETENTION_DAYS must be at least 1"
 	fi
+	[[ $BACKUP_WAIT_SECONDS =~ ^[0-9]+$ ]] || die "BACKUP_WAIT_SECONDS must be a number of seconds"
 	[[ -r $BACKUP_SSH_KEY_FILE ]] || die "the SSH key $BACKUP_SSH_KEY_FILE is missing"
 	[[ -s $BACKUP_KNOWN_HOSTS_FILE ]] || die "the pinned host key file $BACKUP_KNOWN_HOSTS_FILE is missing"
 }
@@ -85,22 +87,36 @@ sftp_raw() {
 		"$BACKUP_USER@$BACKUP_HOST"
 }
 
+# postgres_container: the id of the project's postgres container once it is healthy. Waits up to
+# BACKUP_WAIT_SECONDS: after a boot, Persistent=true can start a missed backup before the stack is up.
 postgres_container() {
-	local ids
-	ids=$(docker ps -q --filter "label=com.docker.compose.project=$BACKUP_COMPOSE_PROJECT" \
-		--filter "label=com.docker.compose.service=$BACKUP_PG_SERVICE") || die "the Docker daemon is not reachable"
-	[[ -n $ids ]] || die "no running $BACKUP_PG_SERVICE container in the compose project $BACKUP_COMPOSE_PROJECT"
-	[[ $(wc -l <<<"$ids") -eq 1 ]] || die "more than one $BACKUP_PG_SERVICE container in $BACKUP_COMPOSE_PROJECT"
-	printf '%s\n' "$ids"
+	local ids state waited=0
+	while :; do
+		ids=$(docker ps -q --filter "label=com.docker.compose.project=$BACKUP_COMPOSE_PROJECT" \
+			--filter "label=com.docker.compose.service=$BACKUP_PG_SERVICE" 2>/dev/null) || ids=""
+		if [[ -n $ids ]]; then
+			[[ $(wc -l <<<"$ids") -eq 1 ]] || die "more than one $BACKUP_PG_SERVICE container in $BACKUP_COMPOSE_PROJECT"
+			state=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$ids" 2>/dev/null) || state=""
+			if [[ $state == healthy || $state == running ]]; then
+				printf '%s\n' "$ids"
+				return 0
+			fi
+		fi
+		((waited < BACKUP_WAIT_SECONDS)) ||
+			die "no healthy $BACKUP_PG_SERVICE container in the compose project $BACKUP_COMPOSE_PROJECT after ${BACKUP_WAIT_SECONDS} s"
+		sleep 5
+		waited=$((waited + 5))
+	done
 }
 
-# dump CONTAINER FILE: pg_dump as the image's superuser over the local socket, encrypted to every recipient.
+# dump CONTAINER FILE: pg_dump as the image's superuser over the local socket (the image trusts local
+# connections), encrypted to every recipient. POSTGRES_USER and POSTGRES_DB fall back to the image's defaults.
 dump() {
 	local cid=$1 out=$2 recipients=() r
 	for r in "${BACKUP_AGE_RECIPIENTS[@]}"; do recipients+=(-r "$r"); done
 	# pipefail makes a pg_dump failure fail the pipeline; its stderr names objects, not rows.
 	# shellcheck disable=SC2016 # expanded inside the container
-	docker exec -i "$cid" sh -c 'exec pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' |
+	docker exec -u postgres -i "$cid" sh -c 'u=${POSTGRES_USER:-postgres}; exec pg_dump -U "$u" -d "${POSTGRES_DB:-$u}" -Fc' |
 		age "${recipients[@]}" -o "$out"
 }
 
@@ -120,23 +136,36 @@ upload() {
 	} | sftp_batch >/dev/null
 }
 
-# prune: deletes the dumps on the Storage Box (and the local ones) whose name is older than the retention.
+# prune [KEEP]: deletes on the Storage Box the dumps whose name is older than the retention, and the .partial files
+# that earlier failed uploads left, but never the last dump: when nothing newer than the retention is there (the
+# backups have failed for that long), the old dumps stay and the log says so. The same for the local copies.
 prune() {
-	local keep=$1 cutoff listing name stale=() n=0
+	local keep=${1:-} cutoff listing name stale=() partials=() fresh=0 n=0
 	cutoff=$(date -u -d "-$BACKUP_RETENTION_DAYS days" +%Y%m%dT%H%M%SZ)
-	listing=$(printf 'ls -1 "%s"\n' "$BACKUP_PATH" | sftp_batch) || die "listing the Storage Box failed"
+	listing=$(printf 'ls -1a "%s"\n' "$BACKUP_PATH" | sftp_batch) || die "listing the Storage Box failed"
 	while IFS= read -r name; do
 		name=${name##*/}
+		if [[ $name == .partial-salus-* ]]; then
+			partials+=("$name")
+			continue
+		fi
 		[[ $name =~ $NAME_RE ]] || continue
-		[[ $name == "$keep" ]] && continue
-		[[ ${name:6:16} < $cutoff ]] && stale+=("$name")
+		if [[ $name == "$keep" || ! ${name:6:16} < $cutoff ]]; then
+			fresh=$((fresh + 1))
+		else
+			stale+=("$name")
+		fi
 	done <<<"$listing"
-	if ((${#stale[@]})); then
-		for name in "${stale[@]}"; do printf 'rm "%s/%s"\n' "$BACKUP_PATH" "$name"; done |
+	if ((${#stale[@]} && fresh == 0)); then
+		log "error: no dump newer than $BACKUP_RETENTION_DAYS days on the Storage Box; keeping the ${#stale[@]} older ones"
+		stale=()
+	fi
+	if ((${#stale[@]} + ${#partials[@]})); then
+		for name in "${stale[@]}" "${partials[@]}"; do printf 'rm "%s/%s"\n' "$BACKUP_PATH" "$name"; done |
 			sftp_batch >/dev/null || die "deleting old dumps failed"
 		n=${#stale[@]}
 	fi
-	log "deleted $n dumps older than $BACKUP_RETENTION_DAYS days on the Storage Box"
+	log "deleted $n dumps older than $BACKUP_RETENTION_DAYS days and ${#partials[@]} partial uploads on the Storage Box"
 	if [[ $BACKUP_KEEP_LOCAL == yes ]]; then
 		for name in "$BACKUP_STAGING_DIR"/salus-*.dump.age; do
 			[[ -f $name ]] || continue
@@ -152,6 +181,9 @@ main() {
 	start=$(date +%s)
 	load_config
 	umask 077
+	# One backup at a time (the timer and a manual start).
+	exec 9>"$BACKUP_STAGING_DIR/.lock"
+	flock -n 9 || die "another backup is running"
 	cid=$(postgres_container)
 	name=salus-$(date -u +%Y%m%dT%H%M%SZ).dump.age
 	TMP=$BACKUP_STAGING_DIR/.partial-$name
@@ -160,7 +192,13 @@ main() {
 	dump "$cid" "$TMP" || die "the dump failed"
 	size=$(stat -c %s "$TMP")
 	((size > 0)) || die "the dump is empty"
-	upload "$TMP" "$name" || die "the upload to the Storage Box failed"
+	if ! upload "$TMP" "$name"; then
+		# A full Storage Box shows here as a failed put (check with 'df -h' in sftp). Old dumps and partial uploads are
+		# still pruned, which frees space without ever deleting the last dump; tonight's dump is lost all the same.
+		log "error: the upload to the Storage Box failed; pruning, then failing"
+		prune || true
+		die "the upload to the Storage Box failed"
+	fi
 	log "uploaded $name ($size bytes)"
 	if [[ $BACKUP_KEEP_LOCAL == yes ]]; then
 		mv -f "$TMP" "$BACKUP_STAGING_DIR/$name"

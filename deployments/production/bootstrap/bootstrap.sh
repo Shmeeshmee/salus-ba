@@ -7,8 +7,8 @@
 #   bootstrap.sh [--check] [--config FILE]
 #
 #   --check        report what would change and change nothing
-#   --config FILE  the settings (default /opt/salus/bootstrap.conf; see bootstrap.conf.example). A file given here
-#                  is installed as /opt/salus/bootstrap.conf, which the backup reads.
+#   --config FILE  the settings (default /etc/salus/bootstrap.conf; see bootstrap.conf.example). A file given here
+#                  is installed as /etc/salus/bootstrap.conf (root, 600), which the backup reads.
 #
 # It never touches other directories under /opt, other compose projects, or an existing Docker's configuration.
 #
@@ -16,10 +16,11 @@
 #   SALUS_BOOTSTRAP_TEST_NO_SYSTEMD=1     skip every systemctl call (a container has no systemd)
 #   SALUS_BOOTSTRAP_TEST_NO_UFW_ENABLE=1  skip enabling ufw (a container cannot load its netfilter rules); the
 #                                         rules and defaults are still written
+# Both are refused on a host that runs systemd.
 set -euo pipefail
 
 readonly SALUS_ROOT=/opt/salus
-readonly INSTALLED_CONF=$SALUS_ROOT/bootstrap.conf
+readonly INSTALLED_CONF=/etc/salus/bootstrap.conf
 readonly DEPLOY_USER=deploy
 readonly SSHD_DROPIN=/etc/ssh/sshd_config.d/00-salus.conf
 readonly BACKUP_BIN=/usr/local/sbin/salus-backup
@@ -42,6 +43,7 @@ DEPLOY_SSH_KEYS=()
 DEPLOY_SUDO=no
 SSH_PORT=22
 UFW_EXTRA_PORTS=
+UFW_ACCEPT_BLOCKING=no
 UPGRADE_TIME=04:00
 UPGRADE_AUTO_REBOOT=no
 UPGRADE_REBOOT_TIME=04:30
@@ -59,9 +61,6 @@ BACKUP_KNOWN_HOSTS_FILE=$SALUS_ETC/backup_known_hosts
 BACKUP_STAGING_DIR=$SALUS_ROOT/backups
 
 # Flags set by the steps for the service actions at the end.
-SSHD_CHANGED=0
-SSH_PORT_CHANGED=0
-FAIL2BAN_CHANGED=0
 UNITS_CHANGED=0
 
 log() { printf '%s\n' "$*"; }
@@ -168,13 +167,13 @@ load_config() {
 		DEPLOY_SSH_KEY) [[ -n $value ]] && DEPLOY_SSH_KEYS+=("$value") ;;
 		BACKUP_KNOWN_HOST) [[ -n $value ]] && BACKUP_KNOWN_HOSTS+=("$value") ;;
 		BACKUP_AGE_RECIPIENT) [[ -n $value ]] && BACKUP_AGE_RECIPIENTS+=("$value") ;;
-		DEPLOY_SUDO | SSH_PORT | UFW_EXTRA_PORTS | UPGRADE_TIME | UPGRADE_AUTO_REBOOT | UPGRADE_REBOOT_TIME | \
+		DEPLOY_SUDO | SSH_PORT | UFW_EXTRA_PORTS | UFW_ACCEPT_BLOCKING | UPGRADE_TIME | UPGRADE_AUTO_REBOOT | UPGRADE_REBOOT_TIME | \
 			BACKUP_HOST | BACKUP_PORT | BACKUP_USER | BACKUP_TIME | BACKUP_RANDOM_DELAY | \
 			BACKUP_RETENTION_DAYS | BACKUP_KEEP_LOCAL | BACKUP_SSH_KEY_FILE | BACKUP_KNOWN_HOSTS_FILE | \
 			BACKUP_STAGING_DIR)
 			printf -v "$key" '%s' "$value"
 			;;
-		BACKUP_PATH | BACKUP_COMPOSE_PROJECT | BACKUP_PG_SERVICE) ;; # read by backup.sh only
+		BACKUP_PATH | BACKUP_COMPOSE_PROJECT | BACKUP_PG_SERVICE | BACKUP_WAIT_SECONDS) ;; # read by backup.sh only
 		*) die "$file line $n: unknown setting $key" ;;
 		esac
 	done <"$file"
@@ -199,6 +198,7 @@ validate_config() {
 		valid_port_spec "$port" || die "UFW_EXTRA_PORTS: '$port' is not PORT/tcp or PORT/udp"
 	done
 	valid_yes_no "$DEPLOY_SUDO" || die "DEPLOY_SUDO must be yes or no"
+	valid_yes_no "$UFW_ACCEPT_BLOCKING" || die "UFW_ACCEPT_BLOCKING must be yes or no"
 	valid_yes_no "$UPGRADE_AUTO_REBOOT" || die "UPGRADE_AUTO_REBOOT must be yes or no"
 	valid_yes_no "$BACKUP_KEEP_LOCAL" || die "BACKUP_KEEP_LOCAL must be yes or no"
 	valid_time "$UPGRADE_TIME" || die "UPGRADE_TIME must be HH:MM"
@@ -221,6 +221,9 @@ check_os() {
 	# shellcheck source=/dev/null
 	version=$(. /etc/os-release && echo "$VERSION_ID")
 	[[ $id == ubuntu && $version == 24.04 ]] || die "this script supports Ubuntu 24.04 only (found $id $version)"
+	if ((NO_SYSTEMD || NO_UFW_ENABLE)) && [[ -d /run/systemd/system ]]; then
+		die "the SALUS_BOOTSTRAP_TEST_* flags are for the container test only; this host runs systemd"
+	fi
 }
 
 # --- packages ----------------------------------------------------------------------------------------------
@@ -297,7 +300,7 @@ deploy_key_in_place() {
 current_ssh_port() { sshd -T 2>/dev/null | awk '$1 == "port" {print $2; exit}'; }
 
 step_sshd() {
-	local content old_port
+	local content previous=""
 	deploy_key_in_place || die "the deploy user's authorized_keys is not in place: not touching sshd"
 	content="# Managed by Salus bootstrap.sh; changes are overwritten. Sorts first, so these values win.
 Port $SSH_PORT
@@ -305,57 +308,93 @@ PermitRootLogin no
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PubkeyAuthentication yes"
-	old_port=$(current_ssh_port || true)
-	if [[ -f $SSHD_DROPIN ]] && [[ $(cat "$SSHD_DROPIN") == "$content" ]]; then
-		:
-	elif ((CHECK)); then
-		put_file "$SSHD_DROPIN" 644 root:root "$content" || true
-	else
-		local backup=""
-		mkdir -p /run/sshd
-		[[ -f $SSHD_DROPIN ]] && backup=$(cat "$SSHD_DROPIN")
-		put_file "$SSHD_DROPIN" 644 root:root "$content" || true
-		if ! sshd -t; then
-			if [[ -n $backup ]]; then write_file "$SSHD_DROPIN" 644 root:root "$backup"; else rm -f "$SSHD_DROPIN"; fi
-			die "sshd -t rejected the new configuration; put the previous one back"
-		fi
-		SSHD_CHANGED=1
-		[[ $old_port != "$SSH_PORT" ]] && SSH_PORT_CHANGED=1
+	if [[ -f $SSHD_DROPIN ]] && [[ $(cat "$SSHD_DROPIN") == "$content" ]] &&
+		[[ $(stat -c '%a %U:%G' "$SSHD_DROPIN") == "644 root:root" ]]; then
+		((CHECK)) || sshd_effective_ok || die "sshd's effective configuration would lock the deploy user out (see above)"
+		return 0
 	fi
-	((CHECK)) && return 0
-	verify_sshd_effective
+	if ((CHECK)); then
+		put_file "$SSHD_DROPIN" 644 root:root "$content" || true
+		return 0
+	fi
+	mkdir -p /run/sshd
+	[[ -f $SSHD_DROPIN ]] && previous=$(cat "$SSHD_DROPIN")
+	put_file "$SSHD_DROPIN" 644 root:root "$content" || true
+	# The new file is kept only when sshd accepts it and the deploy user can still log in with it.
+	if ! sshd -t || ! sshd_effective_ok; then
+		if [[ -n $previous ]]; then write_file "$SSHD_DROPIN" 644 root:root "$previous"; else rm -f "$SSHD_DROPIN"; fi
+		die "the new sshd configuration was rejected (see above); the previous one is back"
+	fi
+}
+
+# in_list WORD PATTERN...: WORD (or '*') among the patterns, ignoring an @host part.
+in_list() {
+	local want=$1 tok
+	shift
+	for tok in "$@"; do
+		tok=${tok%%@*}
+		[[ $tok == "*" || $tok == "$want" ]] && return 0
+	done
+	return 1
 }
 
 # The effective configuration for the deploy user, after every drop-in (cloud-init's 50-cloud-init.conf may set
-# PasswordAuthentication yes; ours sorts first and wins).
-verify_sshd_effective() {
-	local eff
-	eff=$(sshd -T -C "user=$DEPLOY_USER,host=localhost,addr=127.0.0.1")
-	grep -qx 'permitrootlogin no' <<<"$eff" || die "sshd's effective PermitRootLogin is not no"
-	grep -qx 'passwordauthentication no' <<<"$eff" || die "sshd's effective PasswordAuthentication is not no"
-	grep -qx 'kbdinteractiveauthentication no' <<<"$eff" || die "sshd's effective KbdInteractiveAuthentication is not no"
-	if grep -q '^allowusers ' <<<"$eff" && ! grep -Eq "^allowusers .*\b$DEPLOY_USER\b" <<<"$eff"; then
-		die "sshd's AllowUsers does not include $DEPLOY_USER: add it before running this again"
-	fi
-	grep -q '^allowgroups ' <<<"$eff" && warn "sshd has AllowGroups set: check that $DEPLOY_USER may log in"
-	return 0
+# PasswordAuthentication yes; ours sorts first and wins). Prints each problem; returns 1 when there is one.
+sshd_effective_ok() {
+	local eff bad=0 groups=() list=() g found key values
+	eff=$(sshd -T -C "user=$DEPLOY_USER,host=localhost,addr=127.0.0.1") || return 1
+	read -ra groups <<<"$(id -nG "$DEPLOY_USER") docker"
+	grep -qx 'permitrootlogin no' <<<"$eff" || { warn "sshd: PermitRootLogin is not no"; bad=1; }
+	grep -qx 'passwordauthentication no' <<<"$eff" || { warn "sshd: PasswordAuthentication is not no"; bad=1; }
+	grep -qx 'kbdinteractiveauthentication no' <<<"$eff" || { warn "sshd: KbdInteractiveAuthentication is not no"; bad=1; }
+	grep -qx 'pubkeyauthentication yes' <<<"$eff" || { warn "sshd: PubkeyAuthentication is not yes"; bad=1; }
+	while read -r key values; do
+		read -ra list <<<"$values"
+		case $key in
+		authorizedkeysfile)
+			in_list .ssh/authorized_keys "${list[@]}" || in_list %h/.ssh/authorized_keys "${list[@]}" ||
+				in_list "/home/%u/.ssh/authorized_keys" "${list[@]}" ||
+				{ warn "sshd: AuthorizedKeysFile ($values) does not read ~/.ssh/authorized_keys"; bad=1; }
+			;;
+		authenticationmethods)
+			in_list any "${list[@]}" || in_list publickey "${list[@]}" ||
+				{ warn "sshd: AuthenticationMethods ($values) asks for more than a key"; bad=1; }
+			;;
+		allowusers) in_list "$DEPLOY_USER" "${list[@]}" || { warn "sshd: AllowUsers does not include $DEPLOY_USER"; bad=1; } ;;
+		denyusers) in_list "$DEPLOY_USER" "${list[@]}" && { warn "sshd: DenyUsers includes $DEPLOY_USER"; bad=1; } ;;
+		allowgroups)
+			found=0
+			for g in "${groups[@]}"; do in_list "$g" "${list[@]}" && found=1; done
+			((found)) || { warn "sshd: AllowGroups has none of $DEPLOY_USER's groups"; bad=1; }
+			;;
+		denygroups)
+			for g in "${groups[@]}"; do
+				in_list "$g" "${list[@]}" && { warn "sshd: DenyGroups includes $g, a group of $DEPLOY_USER"; bad=1; }
+			done
+			;;
+		esac
+	done < <(grep -E '^(authorizedkeysfile|authenticationmethods|allowusers|denyusers|allowgroups|denygroups) ' <<<"$eff")
+	return "$bad"
 }
 
+# Reloads sshd on every run, not only when the file changed: an earlier run may have stopped before reloading.
+# When nothing listens on SSH_PORT yet the port changed: Ubuntu 24.04 starts sshd from ssh.socket, whose ports a
+# generator takes from sshd_config at daemon-reload, so the socket and then the service are restarted.
+# Established sessions are kept either way.
 apply_sshd() {
-	((SSHD_CHANGED)) || return 0
-	if ((SSH_PORT_CHANGED)) && [[ $NO_SYSTEMD != 1 ]] && systemctl is-enabled --quiet ssh.socket 2>/dev/null; then
-		# Ubuntu 24.04 starts sshd from ssh.socket, whose ports a generator takes from sshd_config at
-		# daemon-reload; a new Port needs the socket restarted. Established sessions are kept.
-		systemctl_ daemon-reload
-		systemctl_ restart ssh.socket
+	if ss -Hltn "sport = :$SSH_PORT" | grep -q .; then
+		systemctl try-reload-or-restart ssh.service
+		return 0
 	fi
-	systemctl_ try-reload-or-restart ssh.service
-	if ((SSH_PORT_CHANGED)) && [[ $NO_SYSTEMD != 1 ]]; then
-		if ss -Hltn "sport = :$SSH_PORT" | grep -q .; then
-			log "sshd listens on port $SSH_PORT. Keep this session open and test 'ssh -p $SSH_PORT $DEPLOY_USER@<server>' first."
-		else
-			warn "sshd does not listen on port $SSH_PORT yet: keep this session open and check 'systemctl status ssh.socket ssh.service'"
-		fi
+	systemctl daemon-reload
+	if systemctl is-enabled --quiet ssh.socket 2>/dev/null; then
+		systemctl restart ssh.socket
+	fi
+	systemctl restart ssh.service
+	if ss -Hltn "sport = :$SSH_PORT" | grep -q .; then
+		log "sshd listens on port $SSH_PORT. Keep this session open and test 'ssh -p $SSH_PORT $DEPLOY_USER@<server>' first."
+	else
+		warn "sshd does not listen on port $SSH_PORT yet: keep this session open and check 'systemctl status ssh.socket ssh.service'"
 	fi
 }
 
@@ -378,33 +417,52 @@ public_listeners() {
 	}' | sort -u
 }
 
-warn_blocked_listeners() {
-	local proto port name
+# blocked_listeners RULES: the public listeners ("port/proto (process)") no allowed port or existing ufw rule covers.
+blocked_listeners() {
+	local rules=$1 proto port name
 	while read -r proto port name; do
 		[[ -n $port ]] || continue
 		# DHCP client replies are let in by ufw's own rules.
 		[[ $proto == udp && ($port == 68 || $port == 546) ]] && continue
 		is_allowed "$port/$proto" && continue
-		if [[ $name == docker-proxy ]]; then
-			continue # published by Docker, which bypasses ufw; reported by check_docker_published
-		fi
-		warn "$port/$proto ($name) listens on a public address and ufw would block it; add it to UFW_EXTRA_PORTS to keep it"
+		grep -qE "^ufw allow $port(/$proto)?( |$)" <<<"$rules" && continue
+		# Published by Docker, which bypasses ufw; reported by check_docker_published.
+		[[ $name == docker-proxy ]] && continue
+		printf '%s/%s (%s)\n' "$port" "$proto" "$name"
 	done < <(public_listeners)
 }
 
+# Allow rules first, then the default policy, then enabling, so SSH is never blocked in between. Refuses when
+# enabling ufw (or switching its default to deny) would cut off a service listening on a public address, unless
+# UFW_ACCEPT_BLOCKING=yes.
 step_ufw() {
-	local active=0 rules spec
+	local active=0 deny=0 rules spec blocked item
 	ufw status 2>/dev/null | grep -q '^Status: active' && active=1
-	((active)) || warn_blocked_listeners
+	grep -qx 'DEFAULT_INPUT_POLICY="DROP"' /etc/default/ufw 2>/dev/null && deny=1
 	rules=$(ufw show added 2>/dev/null || true)
-	grep -qx 'DEFAULT_INPUT_POLICY="DROP"' /etc/default/ufw ||
-		change "ufw: default deny incoming" ufw default deny incoming
-	grep -qx 'DEFAULT_OUTPUT_POLICY="ACCEPT"' /etc/default/ufw ||
-		change "ufw: default allow outgoing" ufw default allow outgoing
+	if ((!active || !deny)); then
+		blocked=$(blocked_listeners "$rules")
+		if [[ -n $blocked ]]; then
+			while IFS= read -r item; do
+				if [[ $UFW_ACCEPT_BLOCKING == yes ]]; then
+					warn "$item listens on a public address; ufw will block it (UFW_ACCEPT_BLOCKING=yes)"
+				else
+					printf 'error: %s listens on a public address and ufw would block it\n' "$item" >&2
+				fi
+			done <<<"$blocked"
+			if [[ $UFW_ACCEPT_BLOCKING != yes ]]; then
+				((CHECK)) || die "refusing to enable ufw: add those ports to UFW_EXTRA_PORTS, or set UFW_ACCEPT_BLOCKING=yes to block them"
+				fail "ufw would block the ports above: add them to UFW_EXTRA_PORTS, or set UFW_ACCEPT_BLOCKING=yes"
+			fi
+		fi
+	fi
 	while read -r spec; do
 		grep -qE "^ufw allow $spec( |$)" <<<"$rules" ||
 			change "ufw: allow $spec" ufw allow "$spec" comment salus
 	done < <(allowed_ports)
+	grep -qx 'DEFAULT_OUTPUT_POLICY="ACCEPT"' /etc/default/ufw 2>/dev/null ||
+		change "ufw: default allow outgoing" ufw default allow outgoing
+	((deny)) || change "ufw: default deny incoming" ufw default deny incoming
 	if ((!active)); then
 		if ((NO_UFW_ENABLE)); then
 			log "skipped (test flag): ufw --force enable"
@@ -427,26 +485,54 @@ port = $SSH_PORT
 backend = systemd
 maxretry = 5
 findtime = 10m
-bantime = 1h" && FAIL2BAN_CHANGED=1
-	return 0
+bantime = 1h" || true
+}
+
+# The pockets unattended-upgrades installs from: Ubuntu's own default list, whose -updates line is commented out:
+# the release pocket (unchanged since the release; a security fix's new dependencies come from it) and the
+# security pockets.
+# shellcheck disable=SC2016 # apt expands these, not the shell
+readonly UPGRADE_ORIGINS=('${distro_id}:${distro_codename}' '${distro_id}:${distro_codename}-security'
+	'${distro_id}ESMApps:${distro_codename}-apps-security' '${distro_id}ESM:${distro_codename}-infra-security')
+readonly UPGRADES_CONF=/etc/apt/apt.conf.d/52salus-unattended-upgrades
+
+# The origins the rest of the server's apt configuration allows ("kind origin"): apt-config over a copy of the
+# parts directory without our file (APT_CONFIG is read before Dir::Etc::Parts).
+other_upgrade_origins() {
+	local tmp
+	command -v apt-config >/dev/null 2>&1 || return 0
+	tmp=$(mktemp -d)
+	find /etc/apt/apt.conf.d -maxdepth 1 -type f ! -name "${UPGRADES_CONF##*/}" -exec cp -t "$tmp" {} +
+	printf 'Dir::Etc::Parts "%s";\n' "$tmp" >"$tmp/.apt.conf"
+	APT_CONFIG=$tmp/.apt.conf apt-config dump 2>/dev/null |
+		sed -nE 's/^Unattended-Upgrade::(Allowed-Origins|Origins-Pattern):: "(.*)";$/\1 \2/p' || true
+	rm -r "$tmp"
 }
 
 step_upgrades() {
-	local reboot=false
+	local reboot=false content kind origin o origins=""
 	[[ $UPGRADE_AUTO_REBOOT == yes ]] && reboot=true
-	# '#clear' empties the list the package's 50unattended-upgrades fills: the security pockets only.
-	put_file /etc/apt/apt.conf.d/52salus-unattended-upgrades 644 root:root "// Managed by Salus bootstrap.sh.
+	for o in "${UPGRADE_ORIGINS[@]}"; do origins+=$'\t'"\"$o\";"$'\n'; done
+	# '#clear' empties the lists the package's 50unattended-upgrades (and any other file) fills.
+	content="// Managed by Salus bootstrap.sh.
 APT::Periodic::Update-Package-Lists \"1\";
 APT::Periodic::Unattended-Upgrade \"1\";
 #clear Unattended-Upgrade::Allowed-Origins;
 #clear Unattended-Upgrade::Origins-Pattern;
 Unattended-Upgrade::Allowed-Origins {
-	\"\${distro_id}:\${distro_codename}-security\";
-	\"\${distro_id}ESMApps:\${distro_codename}-apps-security\";
-	\"\${distro_id}ESM:\${distro_codename}-infra-security\";
-};
+${origins}};
 Unattended-Upgrade::Automatic-Reboot \"$reboot\";
-Unattended-Upgrade::Automatic-Reboot-Time \"$UPGRADE_REBOOT_TIME\";" || true
+Unattended-Upgrade::Automatic-Reboot-Time \"$UPGRADE_REBOOT_TIME\";"
+	if ! [[ -f $UPGRADES_CONF && $(cat "$UPGRADES_CONF") == "$content" ]]; then
+		while read -r kind origin; do
+			[[ -n $origin ]] || continue
+			if [[ $kind == Allowed-Origins ]] && printf '%s\n' "${UPGRADE_ORIGINS[@]}" | grep -qxF -- "$origin"; then
+				continue
+			fi
+			warn "unattended-upgrades: the server's own $kind entry '$origin' is replaced (security pockets only)"
+		done < <(other_upgrade_origins)
+	fi
+	put_file "$UPGRADES_CONF" 644 root:root "$content" || true
 	put_file /etc/systemd/system/apt-daily-upgrade.timer.d/salus.conf 644 root:root "# Managed by Salus bootstrap.sh.
 [Timer]
 OnCalendar=
@@ -527,8 +613,12 @@ step_layout() {
 	# Only the root backup job writes here.
 	put_dir "$BACKUP_STAGING_DIR" 700 root:root
 	put_dir "$SALUS_ETC" 755 root:root
+	# Root reads the settings (the backup runs as root), so they live outside the deploy-owned /opt/salus.
 	if [[ $(realpath -m "$CONFIG") != "$INSTALLED_CONF" ]]; then
-		put_file "$INSTALLED_CONF" 644 root:root "$(cat "$CONFIG")" || true
+		put_file "$INSTALLED_CONF" 600 root:root "$(cat "$CONFIG")" || true
+	elif [[ $(stat -c '%a %U:%G' "$INSTALLED_CONF") != "600 root:root" ]]; then
+		change "permissions of $INSTALLED_CONF (600 root:root)" chmod 600 "$INSTALLED_CONF"
+		((CHECK)) || chown root:root "$INSTALLED_CONF"
 	fi
 }
 
@@ -550,14 +640,32 @@ Description=Salus nightly Postgres backup to the Storage Box
 After=docker.service network-online.target
 Wants=network-online.target
 
+OnFailure=salus-backup-failed.service
+
 [Service]
 Type=oneshot
 ExecStart=$BACKUP_BIN
+TimeoutStartSec=2h
 Nice=10
 IOSchedulingClass=idle
 PrivateTmp=yes
 NoNewPrivileges=yes
-ProtectSystem=full" && UNITS_CHANGED=1
+ProtectSystem=full
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes" && UNITS_CHANGED=1
+	# A failed night is logged at err priority; an alert hooks in here with a drop-in
+	# (docs/deploy/backup-restore.md "Alerting").
+	put_file /etc/systemd/system/salus-backup-failed.service 644 root:root "# Managed by Salus bootstrap.sh.
+[Unit]
+Description=Report a failed Salus backup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemd-cat -t salus-backup -p err /bin/echo \"salus-backup FAILED: see journalctl -u salus-backup.service\"" && UNITS_CHANGED=1
 	put_file /etc/systemd/system/salus-backup.timer 644 root:root "# Managed by Salus bootstrap.sh.
 [Unit]
 Description=Salus nightly Postgres backup
@@ -580,11 +688,14 @@ generate_backup_key() {
 apply_services() {
 	((CHECK)) && return 0
 	((UNITS_CHANGED)) && systemctl_ daemon-reload
-	apply_sshd
-	if ((FAIL2BAN_CHANGED)); then
-		systemctl_ enable fail2ban.service
-		systemctl_ restart fail2ban.service
+	if ((NO_SYSTEMD)); then
+		log "skipped (test flag): reloading sshd"
+	else
+		apply_sshd
 	fi
+	# Every run, as for sshd: an earlier run may have written the jail and stopped before this.
+	systemctl_ enable fail2ban.service
+	systemctl_ reload-or-restart fail2ban.service
 	if backup_configured; then
 		if [[ $NO_SYSTEMD == 1 ]] || ! systemctl is-enabled --quiet salus-backup.timer 2>/dev/null; then
 			systemctl_ enable --now salus-backup.timer
@@ -602,8 +713,8 @@ main() {
 	((CHECK)) && log "check mode: nothing is changed"
 	step_packages
 	step_deploy_user
-	step_sshd
 	step_ufw
+	step_sshd
 	step_fail2ban
 	step_upgrades
 	step_docker
