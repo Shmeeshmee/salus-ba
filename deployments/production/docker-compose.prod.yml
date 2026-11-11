@@ -67,9 +67,9 @@ x-llm-env: &llm-env
 
 services:
   # TLS for every hostname (Let's Encrypt), the routes of the Caddyfile, and TURN over TLS on 443 (its layer4
-  # listener wrapper). No capability but binding 80 and 443: the image runs Caddy as a non-root user with
-  # cap_net_bind_service on the binary (DEP-1), which needs that capability in the bounding set (checked with
-  # no-new-privileges). The named volumes take /data's and /config's owner from the image when first created.
+  # listener wrapper). No capability but binding 80 and 443: the image runs Caddy as caddy (uid 10001) with
+  # cap_net_bind_service on the binary (build/package/caddy.Dockerfile), which needs that capability in the bounding
+  # set. The named volumes take /data's and /config's owner (10001) from the image when first created.
   caddy:
     image: ghcr.io/${GHCR_OWNER:-shmeeshmee}/salus-caddy:${SALUS_TAG}
     <<: *logging
@@ -155,6 +155,8 @@ services:
     <<: *app
     command: ["/usr/local/bin/scheduler"]
     environment: *app-env
+    depends_on: &migrate-only # Postgres only: it opens no Redis connection (cmd/scheduler)
+      migrate: {condition: service_completed_successfully}
     mem_limit: ${SALUS_MEM_SCHEDULER:-128m}
 
   # Sends e-mail through SMTP_ADDR (ADR 0007). The relay is not chosen (ADR 0011 open point 5): until it is, the
@@ -167,6 +169,7 @@ services:
       SMTP_ADDR: ${SMTP_ADDR:?SMTP_ADDR is required}
       WEB_BASE_URL: https://app.${SALUS_DOMAIN}
       PATIENT_APP_URL: ${PATIENT_APP_URL:-https://patient.salus.invalid}
+    depends_on: *migrate-only # Postgres only (cmd/notifier)
     mem_limit: ${SALUS_MEM_NOTIFIER:-128m}
 
   # The transcription agent: joins each transcribed consultation's room. STT_ENGINE and LLM_ENGINE stay fake.
@@ -185,13 +188,14 @@ services:
 
   # The practitioners' and admins' app: static files on unprivileged nginx (DEP-1); Caddy routes the API paths
   # and sends HSTS. SALUS_DOMAIN goes into the CSP's connect-src (LiveKit's wss:// and https:// origins): nginx's
-  # entrypoint renders its config template into /etc/nginx/conf.d at start, so the root filesystem stays writable.
+  # entrypoint renders its config template into /etc/nginx/conf.d at start, a tmpfs owned by nginx (uid 101).
   web:
     image: ghcr.io/${GHCR_OWNER:-shmeeshmee}/salus-web:${SALUS_TAG}
     <<: *logging
     environment:
       SALUS_DOMAIN: ${SALUS_DOMAIN}
-    tmpfs: [/tmp]
+    read_only: true
+    tmpfs: ["/tmp", "/etc/nginx/conf.d:uid=101,gid=101"]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     restart: unless-stopped

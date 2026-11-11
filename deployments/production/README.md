@@ -32,8 +32,11 @@ The images (DEP-1): `ghcr.io/${GHCR_OWNER}/salus` (every Go binary, distroless),
 | `SALUS_DOMAIN` | landing |
 | `app.SALUS_DOMAIN` | web, and the API paths of `web/vite.config.ts` to the api (`make lint` checks they match) |
 | `api.SALUS_DOMAIN` | api, everything (the mobile app) |
-| `livekit.SALUS_DOMAIN` | LiveKit's signalling (`wss://`, port 7880 inside the network) |
+| `livekit.SALUS_DOMAIN` | LiveKit's signalling (`wss://`, port 7880 inside the network); its server API (`/twirp/*`) answers 404 and stays on the compose network |
 | `turn.SALUS_DOMAIN` | TURN over TLS on 443: Caddy's layer4 wrapper terminates TLS and forwards plain TCP to `livekit:5349` |
+
+`/readyz` answers 404 on every public host: it names the api's failing dependencies, and only Docker's healthcheck
+needs it (on 127.0.0.1). `/healthz` stays public.
 
 Each hostname needs a DNS A record to the server (and AAAA if IPv6 is used, see below).
 
@@ -54,22 +57,36 @@ ACME challenge can renew the name), terminates TLS with the certificate Caddy ma
 LiveKit runs with `turn.external_tls: true`, holds no certificate, and always offers `turns:<domain>:443`. Every
 other connection on 443 goes on to Caddy's HTTP server.
 
-Two things the local smoke test cannot show, to check on the server with a real browser behind a UDP-blocking
-network:
+LiveKit stays on the compose network (bridge), with node IP `NODE_IP` (the server's public IPv4): it offers only
+that address in its ICE candidates, so every participant, including those inside the stack, sends media to
+`NODE_IP:7882/udp` or `:7881/tcp`. Two paths hairpin from the compose network to the host's own address and back
+through Docker's port publishing; both were tested here (Docker 29.9.3, default `userland-proxy`, `NODE_IP` set to
+the machine's LAN address and LiveKit's ports published on it only):
 
-- TURN relays to the SFU's public address (`NODE_IP`) from inside the LiveKit container, a hairpin through
-  Docker's port publishing. If relayed calls fail, run LiveKit with `network_mode: host` instead (the shape of
-  LiveKit's own guide), keeping 7880 and 5349 off the public interface.
-- LiveKit sees Caddy's address, not the client's, on TURN/TLS. LiveKit can take the client's address from a PROXY
-  protocol header (`turn.proxy_protocol`, and `proxy_protocol v2` on Caddy's side) if a browser rejects the mapped
-  address; not needed with Chrome or Safari so far.
+- **The agent, or any participant on the compose network.** It signals on `ws://livekit:7880` and sends media to
+  `NODE_IP`. `lk load-test` with a publisher on the compose network and a subscriber on the host network, and the
+  other way round: audio and video at 1.3 to 1.4 Mbit/s with no packet loss both ways. A capture on LiveKit's
+  interface showed the bridge client's packets arriving DNATed to LiveKit's container address.
+- **TURN relays.** LiveKit's TURN relays from inside its container to the SFU at `NODE_IP:7882`. `make turn-check`'s
+  test (`test/turn`, UDP and 7881/tcp blocked in the client's container) against this stack, through Caddy's layer4
+  route with SNI `turn.salus.test`: no connection without TURN, a call through TURN over TLS on 443. The smoke test
+  needed `allow_restricted_peer_cidrs` for the private LAN address; production's public `NODE_IP` needs none.
+
+Not tested: TURN/UDP (3478) and TURN/TLS from a real browser on the internet. LiveKit sees Caddy's address, not the
+client's, on TURN/TLS; if a browser rejects the mapped address, LiveKit can take the client's from a PROXY protocol
+header (`turn.proxy_protocol`, and `proxy_protocol v2` on Caddy's side).
+
+If a later Docker version stops hairpinning published ports, `network_mode: host` for LiveKit (LiveKit's own
+layout) is the fallback: then 7880 and 5349 listen on the host and only `ufw` keeps them off the internet, Caddy,
+the api, the worker and the agent reach LiveKit through the host gateway, and LiveKit reaches the api's webhook
+through a port published on the gateway.
 
 ## Healthchecks
 
 | Service | Check |
 | --- | --- |
 | api | `/usr/local/bin/healthcheck http://127.0.0.1:8080/readyz` (`cmd/healthcheck`, in the Go image: the distroless image has no shell or wget). `/readyz` pings Postgres and Redis, so the deploy waits for an api that can serve |
-| worker, scheduler, notifier, agent | None. They listen on nothing; a fatal error (a lost database at start, a bad setting) ends the process and `restart: unless-stopped` starts it again, which `docker compose ps` shows as restarting. A liveness endpoint in four binaries would add code for no measured need |
+| worker, scheduler, notifier, agent | None (ADR 0011, as amended). They listen on nothing; a fatal error (a lost database at start, a bad setting) ends the process and `restart: unless-stopped` starts it again, which `docker compose ps` shows as restarting. A liveness endpoint in four binaries would add code for no measured need |
 | migrate | None: one-shot. The app services wait for it to complete successfully |
 | caddy | `wget` to its admin API on the container's loopback (2019) |
 | web, landing | `wget` to nginx's `/healthz` |
@@ -148,6 +165,16 @@ No ports on the host, Caddy on its internal CA instead of Let's Encrypt, the ima
 6. `docker compose -p salus-smoke-prod down -v`.
 
 Never use the project name `salus` on a machine that runs another Salus stack.
+
+## Blockers before go-live
+
+These are placeholders in `.env.production.example`; the stack runs without them, but e-mail does not work:
+
+- `SMTP_ADDR`: no EU relay is chosen (ADR 0011 open point 5), and the notifier's SMTP sender has no authentication
+  or TLS and sends from `no-reply@salus.invalid`. Until that changes, no e-mail is delivered: staff invitations do
+  not reach the invitee, and patients get no appointment e-mails.
+- `PATIENT_APP_URL`: the default `https://patient.salus.invalid` resolves nowhere, so every appointment e-mail links
+  to a dead address until the patient app has a link domain.
 
 ## For DEP-3 and DEP-4
 
