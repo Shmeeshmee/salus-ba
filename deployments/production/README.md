@@ -187,7 +187,8 @@ the key the bucket. On every later start it finds them and changes nothing, so n
 key variables makes the next start create and grant the new key beside the old one (checked in the smoke test), so
 a rotation is: new values in `.env`, deploy, then `garage key delete <old id>` inside the container.
 
-Garage's data (the attachments) is not backed up yet (ADR 0011 open point 7).
+Garage's data (the attachments) is backed up every night right after the Postgres dump, read through its S3 API
+(docs/deploy/backup-restore.md); how long the backups are kept is ADR 0011 point 7.
 
 ## Redis
 

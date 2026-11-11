@@ -261,8 +261,10 @@ head. Check that the latest Images run of `main` succeeded with its `release` jo
    The admin's invitation goes out by e-mail, which needs the relay's `SMTP_*` settings and its verified domain
    ("E-mail relay" under step 3; decided: an EU SMTP relay, Brevo or Mailjet, ADR 0011 point 5; its DPA pending,
    point 1).
-7. **Backups**: on the next night, check `systemctl status salus-backup.service` and the Storage Box. Then run the
-   restore drill (docs/deploy/backup-restore.md) and record it, before any real data.
+7. **Backups**: set `ALERT_EMAIL` in `bootstrap.conf` (and run the bootstrap again) so a failed or missing backup is
+   mailed through the same relay; send a test alert with `sudo salus-backup alert salus-backup.service`. On the next
+   night, check `systemctl status salus-backup.service salus-backup-objects.service` and the Storage Box. Then run
+   the restore drill (docs/deploy/backup-restore.md) and record it, before any real data.
 
 From then on every merge to `main` deploys after your approval: Images, then Deploy. A deploy is refused while the
 encrypted volume is locked (after a reboot, until you unlock it).

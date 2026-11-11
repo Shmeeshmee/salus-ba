@@ -61,7 +61,7 @@ any key at all. Choose `yes` if you prefer to run the bootstrap over SSH; the ri
 | Upgrades | `unattended-upgrades` from the release and security pockets only (Ubuntu's default list without `-updates`; Docker's repository is not among them), at `UPGRADE_TIME`, never an automatic reboot: `UPGRADE_AUTO_REBOOT=yes` is refused, as after a reboot the encrypted volume waits for the owner (ADR 0011); `/var/run/reboot-required` says when to reboot by hand and unlock. Warns before replacing other origins the server's own apt configuration allowed | |
 | Docker | Docker Engine and the compose plugin from Docker's apt repository (key checked by fingerprint, `Signed-By`), only when Docker is absent. An existing Docker is never reconfigured or restarted, and no `daemon.json` is written; if it lacks the compose plugin, the script says so and fails at the end | Other compose projects: no `prune`, no `down` |
 | `/opt/salus` | `/opt/salus` and `deployments/` (`deploy:deploy`, 750); `backups/` (`root:root`, 700: only the root backup job writes there). The settings go to `/etc/salus/bootstrap.conf` | Other directories under `/opt` |
-| Backup | `/usr/local/sbin/salus-backup` (`backup.sh`), its own SSH key `/root/.ssh/salus-backup` (generated once; the public half is printed at the end), the Storage Box's pinned host key, `salus-backup.service` (2 h timeout, hardened, `OnFailure=salus-backup-failed.service`, which logs at err priority), `salus-backup.timer` (nightly, `Persistent=true`, random delay). The timer is enabled only once the `BACKUP_*` settings are complete. See docs/deploy/backup-restore.md | |
+| Backup | `/usr/local/sbin/salus-backup` (`backup.sh`), its own SSH key `/root/.ssh/salus-backup` (generated once; the public half is printed at the end), the Storage Box's pinned host key, `salus-backup.service` (the Postgres dump) and `salus-backup-objects.service` (Garage's objects, right after the dump), both 2 h timeout, hardened, `OnFailure=salus-backup-failed@%n.service` (logs at err priority and mails `ALERT_EMAIL`), `salus-backup.timer` (nightly, `Persistent=true`, random delay), `salus-backup-check.timer` (daily at `BACKUP_CHECK_TIME`: mails `ALERT_EMAIL` when a backup on the Storage Box is older than `BACKUP_MAX_AGE_HOURS` or missing; its service has the same failure hook, for a check that cannot run or send). The timers are enabled only once the `BACKUP_*` settings are complete; a missing `ALERT_EMAIL` is a warning. A `salus-backup-failed.service` of an earlier release is removed. See docs/deploy/backup-restore.md | |
 | Encrypted volume | `/usr/local/sbin/salus-volume` (`volume.sh`): `setup` once, `unlock` after every reboot, `keys`, `check` (deployments/production/README.md "Encrypted volume", docs/deploy/README.md). The bootstrap only installs it and warns while `/etc/salus/volume.conf` is missing; it never formats, opens or mounts anything | The volume |
 | Swap | Checks `/proc/swaps` and `/etc/fstab`: active swap or a swap line **fails the run** (after the other steps), as swap would page personal data to the unencrypted disk. Hetzner's Ubuntu images have none; `swapoff -a` and removing the line fix it | Swap is never turned off by the script |
 
@@ -92,7 +92,7 @@ any key at all. Choose `yes` if you prefer to run the bootstrap over SSH; the ri
   replaces another value only with `--replace`; `check` needs root and fails on a locked volume, a device that is
   not `crypt` and a host account with uid 65532;
 - `bootstrap.sh` in a fresh `ubuntu:24.04` container: refuses a missing or placeholder key, `UPGRADE_AUTO_REBOOT=yes`,
-  and the test flags on a host with systemd; active swap or a swap line in `/etc/fstab` fails `--check` and a real
+  and the test flags on a host with systemd, and an `ALERT_EMAIL` that is not one bare address; active swap or a swap line in `/etc/fstab` fails `--check` and a real
   run; cryptsetup and `salus-volume` are installed; `--check` reports and changes nothing; a real run (packages, Docker from its repository, the
   user, sshd's configuration through `sshd -t` and `sshd -T`, ufw's rules and defaults, fail2ban, upgrades with the
   warning about a replaced origin, the layout, the backup's files); a second run and a `--check` report 0 changes;
@@ -105,11 +105,23 @@ any key at all. Choose `yes` if you prefer to run the bootstrap over SSH; the ri
   a failing `pg_dump` exit non-zero and leave nothing behind; a dump is uploaded encrypted, fetched, decrypted and
   restored with the drill's steps (roles first, `--exit-on-error`) with the same row counts, migration version,
   tables, policies, function owners and grants; faked dumps older than 14 days and a stale partial upload are
-  deleted, newer dumps and other files kept; the optional local copy.
+  deleted, newer dumps and other files kept; the optional local copy. The objects backup against a throwaway Garage
+  (the production `garage.toml`) with synthetic objects: a missing objectstore container or key pair fails; the
+  archive is uploaded encrypted, fetched, decrypted and extracted into a second Garage, which `rclone check` finds
+  equal, a sample object byte for byte; its retention leaves the dumps alone. The alerts with `curl` and
+  `systemctl` stubbed (no mail leaves): STARTTLS required by default, implicit TLS with `SMTP_TLS=tls`, an unknown
+  value refused, the login through curl's config on stdin and in no argument, the envelope sender from a
+  display-name `SMTP_FROM`, CRLF lines, nothing but host, unit, time and status in the mail, a failed send and a
+  missing `ALERT_EMAIL` fail. The freshness check: fresh backups send nothing; a stale and a missing kind send one
+  alert naming both; `BACKUP_MAX_AGE_HOURS` sets the limit. Also: a wrong S3 secret, a wrong pinned host key and an
+  upload rclone cannot write all fail with nothing (no `.partial`) on the box, nothing staged and the upload
+  container removed; `BACKUP_KEEP_LOCAL=yes` keeps no archive; the last local dumps survive a failed upload; the env
+  file's junk lines, inline comments and single-quoted values; `SMTP_TLS=none` refused with a login and plain
+  without; the check exits 0 once it has mailed, fails when it cannot send, and logs at err priority under journald.
 
 Two flags exist for the container test only and default off; the script refuses them on a host that runs systemd:
 `SALUS_BOOTSTRAP_TEST_NO_SYSTEMD=1` (skips every `systemctl` call), `SALUS_BOOTSTRAP_TEST_NO_UFW_ENABLE=1` (skips
 `ufw enable`, which needs the kernel's netfilter) and `SALUS_BOOTSTRAP_TEST_PROC_SWAPS=FILE` (reads the swap from
 FILE: a container sees the host's `/proc/swaps`). What only a real server shows: LUKS2 formatting, opening and mounting the real volume, the containers starting on it, ufw active with the rules, sshd
 reloaded and the port change through `ssh.socket`, fail2ban banning, the timers and the failure hook firing, the
-hardened unit reaching Docker, and Docker's service starting at boot.
+hardened unit reaching Docker, a mail reaching the real relay, and Docker's service starting at boot.

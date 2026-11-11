@@ -9,8 +9,12 @@
 # keeps Caddy working where that sysctl is not 0. With `cap_drop: [ALL]`, add NET_BIND_SERVICE back.
 # xcaddy builds the Caddy version the builder image names (CADDY_VERSION), so the two FROM lines move together
 # (Dependabot's docker group). Check caddy-l4's go.mod when either moves: v0.1.2 requires Caddy v2.11.4 or later.
+# golang.org/x/net is raised above the version Caddy's go.mod requires (v0.60.0 in v2.11.9) to v0.62.0, the first
+# without CVE-2026-78661 (HIGH, in x/net/html). xcaddy's --with takes a package, not a bare module, so it names the
+# affected package x/net/html; drop that --with once a Caddy release requires v0.62.0 or later. Trivy still reports
+# github.com/go-jose/go-jose/v3 v3.0.5 (CVE-2026-116587, HIGH), which has no fixed release yet.
 FROM caddy:2.11.9-builder@sha256:1b828679ae08622c534d8e83ed80c6c25d343202f0586fe3b52d8e0ce33413b9 AS build
-RUN xcaddy build --with github.com/mholt/caddy-l4@v0.1.2 \
+RUN xcaddy build --with github.com/mholt/caddy-l4@v0.1.2 --with golang.org/x/net/html@v0.62.0 \
     && setcap cap_net_bind_service=+ep /usr/bin/caddy
 
 FROM caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee

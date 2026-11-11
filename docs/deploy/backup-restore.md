@@ -1,17 +1,20 @@
 # Backups and restore
 
-The production database is backed up every night to a Hetzner Storage Box, encrypted before it leaves the server
-(docs/adr/0011-single-server-deployment.md). This page covers how that works, how to set up the Storage Box, the
+The production database and Garage's objects (the attachments) are backed up every night to a Hetzner Storage
+Box, encrypted before they leave the server (docs/adr/0011-single-server-deployment.md); a failed or missing backup
+is mailed to the operator. This page covers how that works, how to set up the Storage Box, the
 restore drill to run before the first real data (and after any change to the backup), and the restore onto a new
 server.
 
 ## What is and is not backed up
 
 - **Backed up:** the Postgres database of the `salus` compose project, every night, as one `pg_dump` in custom
-  format (`-Fc`), kept 14 days (`BACKUP_RETENTION_DAYS`).
-- **Not backed up: Garage's attachments** (questionnaire uploads, documents and any other file in the object store).
-  Losing the server loses those files, while the restored rows still point to them. This is open point 7 of ADR 0011
-  and needs the owner's decision before real patient data.
+  format (`-Fc`); and right after it every object of Garage's bucket (`S3_BUCKET`: the questionnaire attachments
+  and the signed documents' PDFs under `composition/`) as one tar. Both are kept 14 days (`BACKUP_RETENTION_DAYS`);
+  how long backups are kept is still open (ADR 0011 point 7).
+- **The objects are encrypted twice.** Each object is already envelope-encrypted by the api (its data key wrapped by
+  `BINARY_KEK`, which the backup never reads); the archive is then `age`-encrypted like the dump. A restored object is
+  readable only with the restored database's wrapped key and the lost server's `BINARY_KEK`.
 - **Not in the dump:** the cluster-wide Postgres roles (`salus_app` and the others the migrations create) and their
   passwords; the restore creates the roles first and the deploy's `migrate` sets the passwords again. The secrets
   (`/opt/salus/.env`) are in Bitwarden and the GitHub `production` environment, not in the backup; `BINARY_KEK` and
@@ -23,7 +26,7 @@ server.
   with any other value the restored MFA secrets cannot be opened (every user with MFA is locked out until an operator
   resets it, `salusctl reset-mfa`) and any surviving attachment cannot be decrypted. Never generate new ones for a
   restore.
-- **Erasure.** A dump holds what the database held that night, so data erased since is still in the dumps for up
+- **Erasure.** A dump holds what the database held that night (an archive the objects of that night), so data erased since is still in the dumps for up
   to 14 days (unreadable without the age private key). A restore brings it back, and the erasures completed after
   the dump's time must be applied again before the stack is opened to users. The record of those erasures would be
   in the same database and is lost with it, so the owner has to keep a list outside the server of completed erasures
@@ -31,7 +34,7 @@ server.
   part of the subject-rights feature, which is not built yet (`internal/retention` leaves erasure to it, and
   `salusctl` has no erasure command). Until it is, an erasure would be done by hand and would have to be redone by
   hand after a restore. Building the re-application (for example a `salusctl` command that takes the list) and
-  keeping the list are open items for the owner, with open point 7 of ADR 0011.
+  keeping the list are open items for the owner, with point 7 of ADR 0011.
 
 ## How the backup works
 
@@ -52,19 +55,51 @@ one at a time and for at most 2 hours:
 4. Deletes the dumps on the Storage Box whose name is older than 14 days and the `.partial-…` files earlier failed
    uploads left; other files there are left alone. It never deletes the last dump: if no dump newer than 14 days is
    there (the backups have failed for two weeks), the old ones stay and the log says so.
-5. Deletes the local encrypted file, unless `BACKUP_KEEP_LOCAL=yes` (then local copies are pruned the same way), and
-   writes the time of the last success to `/opt/salus/backups/last-success`.
+5. Deletes the local encrypted file, unless `BACKUP_KEEP_LOCAL=yes` (then local copies of the dumps are pruned the
+   same way, never the last one), and writes the time of the last success to `/opt/salus/backups/last-success`.
 
-Any failure exits non-zero and the unit fails. Its log (file names, sizes, timings, errors; never rows) is in the
-journal:
+Then `salus-backup-objects.service` (`salus-backup objects`) backs up Garage's bucket the same way: it waits for the
+`objectstore` container to be healthy, reads `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` and `S3_BUCKET` from
+`/opt/salus/.env` (`BACKUP_ENV_FILE`, parsed, never sourced), and runs a pinned `rclone` image on that container's
+compose network as nobody, read-only, with no capabilities and the key pair in its environment only. `rclone archive
+create --format tar` streams every object under its key to stdout, through `age`, into a second container of the
+same image that writes the stream over SFTP (`rclone rcat`, the backup's SSH key and the pinned host key copied in
+with `docker cp`, so they are in no command line) to `BACKUP_OBJECTS_PATH/.partial-salus-objects-YYYYMMDDTHHMMSSZ.tar.age`
+on the Storage Box, renamed once complete. Nothing of the archive is written to the server's disk, whatever the
+bucket's size, and `BACKUP_KEEP_LOCAL` does not apply to it. When any stage fails (Garage refuses the key, the
+upload breaks) the partial file is removed and nothing that looks like an archive is left. The archives are pruned
+like the dumps (14 days, never the last one); the success goes to `last-success-objects`. It reads Garage through
+its S3 API only, so it does not depend on where Garage keeps its files on the host.
+
+**Order and consistency.** The timer starts `salus-backup.service`, which `Wants=` the objects unit; the objects
+unit is ordered `After=` it, so the archive starts once the dump has ended, whatever its result. The two are close
+together but not one snapshot, and the api keeps writing in between:
+
+- An upload stores its object before its row, and a row is never written without its object, so every row in the
+  dump has its object in the archive taken after it, except for a file deleted (by the patient, a discard or the
+  retention job, which runs at 03:00 UTC) between the dump and the archive: after a restore that row points to no
+  object and its download fails, as it would have failed on the old server a moment later.
+- Objects written after the dump (uploads of those minutes) are in the archive without a row. Nothing refers to
+  them; the retention job's purger deletes every object older than 24 hours that has no row, so they go by
+  themselves after a restore.
+
+The drill below counts both.
+
+Any failure exits non-zero and the unit fails. Its log (file names, sizes, timings, errors; never rows or object
+contents) is in the journal:
 
 ```sh
-systemctl list-timers salus-backup.timer      # next and last run
-systemctl status salus-backup.service         # last result
-journalctl -u salus-backup.service -n 50
-journalctl -t salus-backup -p err             # the failed nights
-sudo systemctl start salus-backup.service     # a backup now
+systemctl list-timers 'salus-backup*'                         # next and last runs
+systemctl status salus-backup.service salus-backup-objects.service
+journalctl -u salus-backup.service -u salus-backup-objects.service -n 50
+journalctl -t salus-backup -p err                             # the failed nights
+sudo systemctl start salus-backup.service                     # both backups now, the dump first
+sudo systemctl start salus-backup-objects.service             # the objects alone
 ```
+
+**While the encrypted volume is locked** (after a reboot, before the owner unlocks it and starts the stack), no
+`postgres` or `objectstore` container runs: both backups wait `BACKUP_WAIT_SECONDS`, fail and send an alert. That is
+the intended reminder; unlock, start the stack and run `sudo systemctl start salus-backup.service`.
 
 **A full Storage Box** shows as a failed upload. The script then still prunes (old dumps and partial uploads, never
 the last dump), so space older than the retention is freed, and fails; that night has no backup. Check the space with
@@ -72,19 +107,36 @@ the last dump), so space older than the retention is freed, and fails; that nigh
 
 ### Alerting
 
-On a failure, `OnFailure=` starts `salus-backup-failed.service`, which writes "salus-backup FAILED" to the journal at
-err priority (`journalctl -t salus-backup -p err`). Nothing outside the server is told yet. To be told, add a drop-in
-to that unit, e.g. a ping to a dead-man's-switch service that alerts when it hears nothing or a failure:
+Two things send an e-mail to `ALERT_EMAIL` (bootstrap.conf):
+
+- **A failed backup.** Each backup unit has `OnFailure=salus-backup-failed@%n.service`, which writes "salus-backup
+  FAILED" to the journal at err priority and runs `salus-backup alert <unit>`: subject "Salus backup failed on
+  HOST: UNIT", with the time, systemd's result and the exit status.
+- **A missing backup.** `salus-backup-check.timer` runs `salus-backup check` every day at `BACKUP_CHECK_TIME` (08:00,
+  `Persistent=true`). It lists both directories on the Storage Box and mails "Salus backup missing on HOST" when the
+  newest dump or archive (by the time in its name) is older than `BACKUP_MAX_AGE_HOURS` (26) or there is none, or
+  the box cannot be listed (sftp's own error is in the journal). This catches what no unit failure reports: a timer
+  that never ran, a server that was off, a file deleted on the box. Once it has sent that mail the check unit
+  succeeds (the problems are logged at err priority), so there is one mail, not two; it fails, and its
+  `OnFailure=salus-backup-failed@%n.service` tries to mail, only when the check could not run or could not send.
+
+The mail goes through the same SMTP relay as the notifier, configured in `/opt/salus/.env`: `SMTP_ADDR` (host:port),
+`SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_TLS` (`starttls`, the default when unset, requires STARTTLS; `tls` is
+implicit TLS; `none` only for a local test relay, and refused with a login, as the notifier refuses it) and
+`SMTP_FROM` (the envelope sender is the address in its angle brackets). The file is read as compose reads these
+values, never sourced: an unquoted value ends before ` #`, a line that is no `KEY=value` is skipped, and a value
+with `$`, `#`, `"` or `\` in it (a generated password often has one) must be single-quoted, as compose interpolates
+unquoted and double-quoted values. It is sent with the host's `curl`, the login passed on curl's standard input, never its command line. It
+carries the host name, the unit or backup kind, the time and the exit status only: no file contents, no personal
+data. A send that fails is logged at err priority (`journalctl -u 'salus-backup-failed@*' -u salus-backup-check`).
+With `ALERT_EMAIL` empty nothing is mailed (the bootstrap warns); check the journal weekly instead.
+
+Send a test alert after setting it up (its subject says "failed"; it is a test):
 
 ```sh
-sudo systemctl edit salus-backup-failed.service
-# [Service]
-# ExecStart=/usr/bin/curl -fsS -m 10 --retry 3 https://ALERT-SERVICE/FAILURE-URL
+sudo salus-backup alert salus-backup.service
+sudo systemctl start salus-backup-check.service && journalctl -u salus-backup-check.service -n 5
 ```
-
-The ping carries no personal data, but the service is still a third party: add it to docs/privacy/processors.md
-first. A drop-in survives bootstrap runs (the bootstrap rewrites only the unit itself). Until then, check
-`last-success` or the unit's status weekly.
 
 ## Setting up the Storage Box
 
@@ -104,15 +156,17 @@ first. A drop-in survives bootstrap runs (the bootstrap rewrites only the unit i
 7. **Authorise that key on the sub-account:** add it in the console's SSH keys for the Storage Box, or from the
    server: `ssh-copy-id -p 23 -s -i /root/.ssh/salus-backup.pub USER@HOST` (password of the sub-account, once).
    Run the bootstrap again: it enables the timer once the settings are complete.
-8. **Run a backup by hand** (`sudo systemctl start salus-backup.service`), check the log, then run the drill below.
+8. **Run a backup by hand** (`sudo systemctl start salus-backup.service`, which runs both), check both logs, then
+   run the drill below.
 
 For the drill, also authorise your own key on the sub-account (read access is all it needs); the server's key stays
 on the server.
 
 ## Restore drill
 
-Run before the first real patient data, then every quarter and after any change to the backup. It proves a dump can
-be fetched, decrypted and restored, and measures how long it takes. It runs on your own machine with Docker and a
+Run before the first real patient data, then every quarter and after any change to the backup. It proves a dump and
+an objects archive can be fetched, decrypted and restored, that the restored rows find their objects, and measures
+how long it takes. It runs on your own machine with Docker and a
 checkout of the repository; the decrypted dump only ever streams from one process to the next. Use the newest dump.
 
 ```sh
@@ -144,11 +198,54 @@ rm -rf /dev/shm/salus-drill
 $DRILL exec -T postgres psql -U salus -d salus \
   -c "SELECT max(version_id) AS migration FROM goose_db_version WHERE is_applied" \
   -c "ANALYZE" -c "SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY relname"
+
+# 7. The newest objects archive of the same night (its time just after the dump's), fetched and decrypted. The tar
+#    holds the objects as Garage stored them, still envelope-encrypted (unreadable without BINARY_KEK); keep it in
+#    the drill's directory and delete it at the end. Paste the key again as in step 4.
+echo 'ls -1 salus/objects' | sftp -q -b - -P 23 USER@HOST | grep '\.tar\.age$' | sort | tail -1   # its name
+sftp -P 23 USER@HOST:salus/objects/salus-objects-YYYYMMDDTHHMMSSZ.tar.age ./drill.objects.tar.age
+(umask 077 && mkdir -p /dev/shm/salus-drill && cat >/dev/shm/salus-drill/age.key)
+docker run --rm -v "$PWD/drill.objects.tar.age:/in.age:ro" -v /dev/shm/salus-drill/age.key:/key:ro ubuntu:24.04 sh -c \
+  'apt-get update -qq && apt-get install -y -qq age >/dev/null && age -d -i /key /in.age' >drill.objects.tar
+rm -rf /dev/shm/salus-drill
+
+# 8. Into the dev compose file's Garage (the production image) in the drill's project, with rclone (the backup's
+#    pinned image) on its network. The dev Garage's synthetic key pair and bucket are in deployments/docker-compose.yml.
+$DRILL up -d --wait objectstore
+RCLONE="docker run --rm --network salus-restore-drill_default -v $PWD/drill.objects.tar:/in.tar:ro
+  -e RCLONE_CONFIG_D_TYPE=s3 -e RCLONE_CONFIG_D_PROVIDER=Other -e RCLONE_CONFIG_D_REGION=garage
+  -e RCLONE_CONFIG_D_ENDPOINT=http://objectstore:3900 -e RCLONE_CONFIG_D_ACCESS_KEY_ID=GK5a1a50000000000000000001
+  -e RCLONE_CONFIG_D_SECRET_ACCESS_KEY=5a1a500000000000000000000000000000000000000000000000000000000001
+  rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5 --config="
+$RCLONE archive extract /in.tar D:salus-binaries
+$RCLONE size D:salus-binaries                    # objects and bytes: compare with production's (below)
+
+# 9. Rows and objects: the attachments' rows without an object, and the objects without a row (composition/ PDFs
+#    are another table's and are left out). Both should be zero or a handful from the minutes between the dump and
+#    the archive ("Order and consistency" above). Rejected files have no object by design.
+$DRILL exec -T postgres psql -U salus -d salus -Atc "SELECT id FROM \"binary\" WHERE status <> 'rejected' ORDER BY 1" >drill.rows
+$RCLONE lsf --files-only D:salus-binaries | grep -v / | sort >drill.objects
+echo "rows without an object: $(comm -23 drill.rows drill.objects | wc -l)"
+echo "objects without a row: $(comm -13 drill.rows drill.objects | wc -l)"
+
+# 10. A sample attachment downloads: one restored object's bytes equal production's. Pick an id from drill.rows,
+#     then on the server (read-only, the same rclone on the salus network with the env file's key pair):
+$RCLONE md5sum D:salus-binaries/SAMPLE-ID
+#   ssh deploy@SERVER 'set -a; . <(grep -E "^S3_(ACCESS_KEY_ID|SECRET_ACCESS_KEY|BUCKET)=" /opt/salus/.env); set +a;
+#     export RCLONE_CONFIG_P_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID RCLONE_CONFIG_P_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY;
+#     docker run --rm --network salus_default -e RCLONE_CONFIG_P_TYPE=s3 -e RCLONE_CONFIG_P_PROVIDER=Other
+#       -e RCLONE_CONFIG_P_REGION=garage -e RCLONE_CONFIG_P_ENDPOINT=http://objectstore:3900
+#       -e RCLONE_CONFIG_P_ACCESS_KEY_ID -e RCLONE_CONFIG_P_SECRET_ACCESS_KEY
+#       rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5 --config=
+#       md5sum "P:${S3_BUCKET:-salus-binaries}/SAMPLE-ID"; ...same with size "P:${S3_BUCKET:-salus-binaries}"'
+#     The key pair is passed by name (-e NAME), so it is on no command line.
+#     The two checksums must match. That the file also opens (decrypted with BINARY_KEK) is checked on a real restore
+#     ("Restoring onto a new server", steps 8 and 10), where the production key is in place.
 echo "restored in $(( $(date +%s) - start )) s"
 
-# 7. Clean up: the throwaway database and the encrypted file.
+# 11. Clean up: the throwaway database and store, the decrypted tar and the encrypted files.
 $DRILL down -v
-rm -f drill.dump.age
+rm -f drill.dump.age drill.objects.tar.age drill.objects.tar drill.rows drill.objects
 ```
 
 The migration version must equal the release's latest migration on the night of the dump, and the counts must be
@@ -161,9 +258,10 @@ hold the keys a restore needs (it refuses to change a key file without `--replac
 right copies before anything else. The LUKS passphrase is proved at every unlock; after a planned reboot, unlock
 with Bitwarden's copy, not from memory.
 
-**Record the result** in docs/deploy/restore-drills.md (one row each): date, the dump's name, its size, the time
-from fetch to restored, the migration version, who ran it, and anything that went wrong. Synthetic data only until
-real data exists; afterwards the counts, never contents.
+**Record the result** in docs/deploy/restore-drills.md (one row each): date, the dump's and the archive's names and
+sizes, the time from fetch to restored, the migration version, the objects restored, the rows without an object and
+the objects without a row, whether the sample matched, who ran it, and anything that went wrong. Synthetic data only
+until real data exists; afterwards the counts, never contents.
 
 ## Restoring onto a new server
 
@@ -184,8 +282,8 @@ everything but Caddy, then Caddy.
    If only the server was lost and its volume survived, attach that volume instead, write `/etc/salus/volume.conf`
    by hand (`DEVICE=/dev/disk/by-uuid/<cryptsetup luksUUID of the device>`, `NAME=salus-data`,
    `MOUNTPOINT=/mnt/salus-data`) and run `salus-volume unlock --no-start`: the data is all there, and no restore is
-   needed; go on with step 3, then step 7.
-2. **Keep the deploy workflow away** until step 9: do not approve a `production` deployment, so nothing runs
+   needed; go on with step 3, then steps 7 and 10 (the objects and the erasures are still there).
+2. **Keep the deploy workflow away** until step 10: do not approve a `production` deployment, so nothing runs
    `migrate` or starts the stack against an empty database.
 3. **Put the release's files in place by hand**, as the deploy job would (docs/deploy/README.md):
    - the contents of `deployments/production/` of the release that was running, into `/opt/salus/deployments/`;
@@ -238,13 +336,36 @@ everything but Caddy, then Caddy.
    $C up -d --wait $($C config --services | grep -vx caddy)
    ```
 
-8. **Re-apply the erasures** completed after the dump's time, from the owner's list ("Erasure" above), while Caddy is
+8. **Attachments**, while Caddy is still down: restore the objects of the same night. Fetch
+   and decrypt the archive on your machine as in drill step 7, and stream the tar onto the encrypted volume
+   (`SALUS_DATA_DIR`, /mnt/salus-data; never the server's own disk), then extract it into Garage with the stack's own
+   key pair, on the server as `deploy` (set `R` on both machines):
+
+   ```sh
+   R=rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5
+   # on your machine:
+   ssh deploy@NEW-SERVER "docker run --rm -i -v /mnt/salus-data:/d --entrypoint sh $R -c 'cat >/d/objects.tar'" <drill.objects.tar
+   # on the server:
+   set -a; . <(grep -E '^S3_(ACCESS_KEY_ID|SECRET_ACCESS_KEY|BUCKET)=' /opt/salus/.env); set +a
+   # the key pair by name (-e NAME), so it is on no command line
+   export RCLONE_CONFIG_P_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID RCLONE_CONFIG_P_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY
+   docker run --rm --network salus_default -v /mnt/salus-data/objects.tar:/in.tar:ro \
+     -e RCLONE_CONFIG_P_TYPE=s3 -e RCLONE_CONFIG_P_PROVIDER=Other -e RCLONE_CONFIG_P_REGION=garage \
+     -e RCLONE_CONFIG_P_ENDPOINT=http://objectstore:3900 -e RCLONE_CONFIG_P_ACCESS_KEY_ID \
+     -e RCLONE_CONFIG_P_SECRET_ACCESS_KEY "$R" --config= \
+     archive extract /in.tar "P:${S3_BUCKET:-salus-binaries}"
+   docker run --rm -v /mnt/salus-data:/d --entrypoint rm "$R" /d/objects.tar
+   ```
+
+   In step 10, once the stack is open, sign in as staff and download one attachment of a record you are entitled to see
+   (with synthetic data before real data exists): it proves row, object and `BINARY_KEK` fit together. Files
+   uploaded after the archive's time are lost; tell the clinics which (their rows point to no object).
+9. **Re-apply the erasures** completed after the dump's time, from the owner's list ("Erasure" above), while Caddy is
    still down. There is no tool for this yet: do it the same way the erasure was done, and record it.
-9. **Open it:** point the DNS records at the new IP (lower their TTL beforehand if you can) and the deploy
-   workflow's settings at the new server (docs/deploy/README.md), then `$C up -d --wait caddy`, or approve a deploy
-   of the same release, which brings up everything. Check the healthchecks and sign in.
-10. **Attachments**: the files in Garage are gone (not backed up); the rows that point to them stay. Until open point
-    7 is decided, tell the clinics which uploads were lost.
-11. Run a backup by hand on the new server and check it reaches the Storage Box.
+10. **Open it:** point the DNS records at the new IP (lower their TTL beforehand if you can) and the deploy
+    workflow's settings at the new server (docs/deploy/README.md), then `$C up -d --wait caddy`, or approve a deploy
+    of the same release, which brings up everything. Check the healthchecks, sign in and download a sample
+    attachment (step 8).
+11. Run a backup by hand on the new server and check both reach the Storage Box; send a test alert.
 
 Note the time each step took the first time, alongside the drill's, so the next restore can be planned.

@@ -1641,11 +1641,15 @@ Notes for the first production deployment; nothing is deployed and no real patie
 points below are settled.
 
 - **Where the data is.** One Hetzner Cloud server in Helsinki (FI) holds every table, Redis and the attachments
-  (Garage); a Hetzner Storage Box holds the nightly Postgres dumps, encrypted on the server with `age` before they
-  leave it. Hetzner is a processor (docs/privacy/processors.md, pending its DPA).
-- **Backups and erasure.** Dumps are kept 14 days, so data erased in the database stays in the dumps for up to 14
-  days, unreadable without the `age` private key held offline. To be confirmed by the owner as the backups'
-  retention rule; a restore must re-apply the erasures recorded after the dump (`datarequest`).
+  (Garage); a Hetzner Storage Box holds the nightly Postgres dumps and archives of Garage's objects (each object
+  already envelope-encrypted with `BINARY_KEK`), encrypted on the server with `age` before they leave it. The
+  backups' failure alerts go to the operator through the SMTP relay and carry the host, the backup kind, the time
+  and the exit status only, no personal data. Hetzner is a processor (docs/privacy/processors.md, pending its DPA).
+- **Backups and erasure.** Dumps and object archives are kept 14 days, so data erased in the database or the store
+  stays in them for up to 14 days, unreadable without the `age` private key held offline. To be confirmed by the
+  owner as the backups' retention rule. A restore must redo, by hand, the erasures completed after the dump: their
+  record is lost with the database, so the owner keeps a list of them outside the server (docs/deploy/backup-restore.md
+  "Erasure"; no tool re-applies them yet).
 - **Logs.** Caddy writes no access log with client IP addresses; LiveKit logs at `warn`; container logs rotate.
 - **Decided (ADR 0011 "Before real patient data", points 2 to 6, 2026-11-11).** Postgres's and Garage's data sit
   on a LUKS-encrypted Hetzner Volume unlocked by hand after a reboot (ClamAV's scan spool on a `tmpfs`, no swap);
