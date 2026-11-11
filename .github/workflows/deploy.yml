@@ -168,7 +168,7 @@ jobs:
       - name: Upload the release
         run: |
           # shellcheck disable=SC2029 # $SHA is a checked 40-hex SHA, expanded here on purpose
-          tar -C deployments/production -cz --exclude=./test . |
+          tar -C deployments/production -cz --exclude=./test --exclude=./bootstrap . |
             ssh salus "mkdir -p /opt/salus/releases/$SHA && tar -xz -C /opt/salus/releases/$SHA"
           # shellcheck disable=SC2029
           ssh salus "umask 077 && cat > /opt/salus/releases/$SHA/.env" < "$RUNNER_TEMP/salus/.env"
