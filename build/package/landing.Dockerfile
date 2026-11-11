@@ -9,7 +9,13 @@ RUN npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build
 
-FROM nginxinc/nginx-unprivileged:1.31.7-alpine3.24
+# The base image's Alpine packages can lag behind Alpine's security fixes (a critical brotli fix in 2026-11),
+# so the runtime stage upgrades them; the Images workflow rebuilds this stage without the layer cache
+# (no-cache-filters: runtime) so each build gets the current fixes.
+FROM nginxinc/nginx-unprivileged:1.31.7-alpine3.24@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e AS runtime
+USER root
+RUN apk upgrade --no-cache
+USER 101
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /src/dist/ /usr/share/nginx/html/
 EXPOSE 8080
