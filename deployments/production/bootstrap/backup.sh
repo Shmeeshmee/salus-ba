@@ -11,8 +11,10 @@
 #                             older than BACKUP_MAX_AGE_HOURS, or missing (salus-backup-check.timer)
 #   salus-backup alert UNIT   sends the alert for a failed UNIT (salus-backup-failed@.service, from OnFailure=)
 #
-# A backup is encrypted with age on the way out, so no plaintext touches the disk, and the encrypted file is
-# uploaded over SFTP to the Storage Box; files of that kind there older than BACKUP_RETENTION_DAYS are then deleted.
+# A backup is encrypted with age on the way out, so no plaintext touches the disk. The dump is staged encrypted in
+# BACKUP_STAGING_DIR and uploaded over SFTP; the objects archive (about the bucket's size) is never staged: it streams
+# through age into a second rclone container that writes it to the Storage Box over SFTP. Files of that kind there
+# older than BACKUP_RETENTION_DAYS are then deleted.
 # Any failure exits non-zero (the unit fails and journald keeps the log). Logs and alerts carry the host, unit and
 # file names, sizes, times and exit statuses only. An alert is an e-mail to ALERT_EMAIL through the SMTP relay of
 # /opt/salus/.env (SMTP_ADDR, SMTP_USERNAME, SMTP_PASSWORD, SMTP_TLS, SMTP_FROM), sent with curl.
@@ -55,18 +57,28 @@ die() {
 	exit 1
 }
 
-# read_kv FILE CALLBACK: calls CALLBACK KEY VALUE for each KEY=value line; '#' comment and blank lines are skipped,
-# one pair of quotes around a value is removed. The file is parsed, never sourced.
+# read_kv FILE CALLBACK [LENIENT]: calls CALLBACK KEY VALUE for each KEY=value line; '#' comment and blank lines are
+# skipped, one pair of quotes around a value is removed. The file is parsed, never sourced. bootstrap.conf is strict
+# (a line that is no KEY=value is an error). The stack's env file is read LENIENT, the way compose reads the values
+# the backup needs: a line that does not parse is skipped (a bad line elsewhere must not stop a backup or its alert),
+# and an unquoted value ends before " #". Quotes are taken literally: a value with $, #, " or \ in it has to be
+# single-quoted in the env file, where compose does not interpolate either.
 read_kv() {
-	local file=$1 callback=$2 line n=0 key value
+	local file=$1 callback=$2 lenient=${3:-} line n=0 key value
+	local quoted='^"(.*)"$|^'"'"'(.*)'"'"'$' comment='^([^[:space:]]*([[:space:]]+[^#[:space:]][^[:space:]]*)*)[[:space:]]+#'
 	while IFS= read -r line || [[ -n $line ]]; do
 		n=$((n + 1))
 		line=${line%$'\r'}
 		[[ $line =~ ^[[:space:]]*(#|$) ]] && continue
-		[[ $line =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || die "$file line $n: expected KEY=value"
+		if ! [[ $line =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+			[[ -n $lenient ]] && continue
+			die "$file line $n: expected KEY=value"
+		fi
 		key=${BASH_REMATCH[1]}
 		value=${BASH_REMATCH[2]}
-		if [[ $value =~ ^\"(.*)\"$ ]] || [[ $value =~ ^\'(.*)\'$ ]]; then
+		if [[ $value =~ $quoted ]]; then
+			value=${BASH_REMATCH[1]}${BASH_REMATCH[2]}
+		elif [[ -n $lenient && $value =~ $comment ]]; then
 			value=${BASH_REMATCH[1]}
 		fi
 		"$callback" "$key" "$value"
@@ -117,15 +129,18 @@ SMTP_FROM=
 env_key() {
 	case $1 in
 	S3_ACCESS_KEY_ID | S3_SECRET_ACCESS_KEY | S3_BUCKET | SMTP_ADDR | SMTP_USERNAME | SMTP_PASSWORD | SMTP_TLS | SMTP_FROM)
-		[[ -z $2 ]] || printf -v "$1" '%s' "$2"
+		printf -v "$1" '%s' "$2"
 		;;
 	esac
 	return 0
 }
 
+# load_env: the later of two lines wins, as in compose; an empty S3_BUCKET or SMTP_TLS takes the default.
 load_env() {
 	[[ -r $BACKUP_ENV_FILE ]] || die "cannot read $BACKUP_ENV_FILE"
-	read_kv "$BACKUP_ENV_FILE" env_key
+	read_kv "$BACKUP_ENV_FILE" env_key lenient
+	S3_BUCKET=${S3_BUCKET:-salus-binaries}
+	SMTP_TLS=${SMTP_TLS:-starttls}
 }
 
 # sftp_batch: runs the sftp commands on stdin against the Storage Box; the host key must match the pinned one.
@@ -177,11 +192,11 @@ container() {
 	done
 }
 
-# encrypt FILE: stdin encrypted to every recipient.
+# encrypt [FILE]: stdin encrypted to every recipient, into FILE or to stdout.
 encrypt() {
 	local r recipients=()
 	for r in "${BACKUP_AGE_RECIPIENTS[@]}"; do recipients+=(-r "$r"); done
-	age "${recipients[@]}" -o "$1"
+	age "${recipients[@]}" ${1:+-o "$1"}
 }
 
 # dump_postgres CONTAINER FILE: pg_dump as the image's superuser over the local socket (the image trusts local
@@ -193,37 +208,81 @@ dump_postgres() {
 		encrypt "$2"
 }
 
-# dump_objects CONTAINER FILE: the bucket as one tar (rclone's archive, streamed to stdout), every object under its
-# key. rclone runs on the objectstore container's network with the stack's own key pair, passed by name so it is in
-# no command line. The objects are envelope-encrypted with BINARY_KEK already, which the backup never reads.
-dump_objects() {
-	local network
-	network=$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' "$1" | head -1)
-	[[ -n $network ]] || return 1
+# archive_objects NETWORK: the bucket as one tar on stdout (rclone's archive), every object under its key. rclone
+# runs on the objectstore container's network with the stack's own key pair, passed by name so it is in no command
+# line. The objects are envelope-encrypted with BINARY_KEK already, which the backup never reads.
+archive_objects() {
 	RCLONE_CONFIG_SRC_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID RCLONE_CONFIG_SRC_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY \
-		docker run --rm --network "$network" --read-only --tmpfs /tmp --cap-drop ALL \
+		docker run --rm --network "$1" --read-only --tmpfs /tmp --cap-drop ALL \
 		--security-opt no-new-privileges:true --user 65534:65534 -e HOME=/tmp \
 		-e RCLONE_CONFIG_SRC_TYPE=s3 -e RCLONE_CONFIG_SRC_PROVIDER=Other -e RCLONE_CONFIG_SRC_REGION=garage \
 		-e RCLONE_CONFIG_SRC_ENDPOINT="http://$BACKUP_OBJECTS_SERVICE:3900" \
 		-e RCLONE_CONFIG_SRC_ACCESS_KEY_ID -e RCLONE_CONFIG_SRC_SECRET_ACCESS_KEY \
-		"$RCLONE_IMAGE" --config= archive create --format tar "src:$S3_BUCKET" |
-		encrypt "$2"
+		"$RCLONE_IMAGE" --config= archive create --format tar "src:$S3_BUCKET"
+}
+
+# stream_to_box NETWORK DIR NAME: stdin to DIR/NAME on the Storage Box, written by rclone's SFTP backend (rcat) with
+# the backup's SSH key and the pinned host key. Both files are copied into the container (docker cp), so they are in
+# no command line or environment and the backup works wherever the Docker client runs. No remote shell is used
+# (the Storage Box offers SFTP only).
+stream_to_box() {
+	local cid status=0 algorithms
+	# Only the pinned keys' algorithms, or the server may offer another key that the file does not list.
+	algorithms=$(awk '$1 ~ /^#/ { next } $2 == "ssh-rsa" { print "rsa-sha2-512\nrsa-sha2-256"; next } NF >= 3 { print $2 }' "$BACKUP_KNOWN_HOSTS_FILE" |
+		sort -u | paste -sd ' ')
+	cid=$(docker create -i --rm --network "$1" --cap-drop ALL --security-opt no-new-privileges:true \
+		-e RCLONE_CONFIG_BOX_HOST_KEY_ALGORITHMS="$algorithms" \
+		-e RCLONE_CONFIG_BOX_TYPE=sftp -e RCLONE_CONFIG_BOX_HOST="$BACKUP_HOST" -e RCLONE_CONFIG_BOX_PORT="$BACKUP_PORT" \
+		-e RCLONE_CONFIG_BOX_USER="$BACKUP_USER" -e RCLONE_CONFIG_BOX_KEY_FILE=/tmp/key \
+		-e RCLONE_CONFIG_BOX_KNOWN_HOSTS_FILE=/tmp/known_hosts -e RCLONE_CONFIG_BOX_SHELL_TYPE=none \
+		-e RCLONE_CONFIG_BOX_DISABLE_HASHCHECK=true \
+		"$RCLONE_IMAGE" --config= rcat "box:$2/$3") || return 1
+	if docker cp -q "$BACKUP_SSH_KEY_FILE" "$cid:/tmp/key" && docker cp -q "$BACKUP_KNOWN_HOSTS_FILE" "$cid:/tmp/known_hosts"; then
+		docker start -a -i "$cid" || status=$?
+	else
+		status=1
+		docker rm -f "$cid" >/dev/null 2>&1 || true
+	fi
+	return "$status"
+}
+
+# mkdirs DIR: DIR and its parents on the Storage Box, as sftp commands (each may exist already).
+mkdirs() {
+	local dir="" part parts=()
+	IFS=/ read -ra parts <<<"$1"
+	for part in "${parts[@]}"; do
+		[[ -n $part ]] || continue
+		dir=${dir:+$dir/}$part
+		printf -- '-mkdir "%s"\n' "$dir"
+	done
 }
 
 # upload FILE DIR NAME: put as .partial, then rename, so a broken upload never looks like a backup.
 upload() {
-	local file=$1 path=$2 name=$3 dir="" part parts=()
+	local file=$1 path=$2 name=$3
 	{
-		IFS=/ read -ra parts <<<"$path"
-		for part in "${parts[@]}"; do
-			[[ -n $part ]] || continue
-			dir=${dir:+$dir/}$part
-			printf -- '-mkdir "%s"\n' "$dir"
-		done
+		mkdirs "$path"
 		printf -- '-rm "%s/.partial-%s"\n' "$path" "$name"
 		printf 'put "%s" "%s/.partial-%s"\n' "$file" "$path" "$name"
 		printf 'rename "%s/.partial-%s" "%s/%s"\n' "$path" "$name" "$path" "$name"
 	} | sftp_batch >/dev/null
+}
+
+# backup_objects CONTAINER DIR NAME: the archive streamed to DIR/.partial-NAME, then renamed. On a failure of any
+# stage the partial upload is removed, so nothing that looks like an archive is left; prints the size.
+backup_objects() {
+	local cid=$1 path=$2 name=$3 network size
+	network=$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' "$cid" | head -1)
+	[[ -n $network ]] || die "the $BACKUP_OBJECTS_SERVICE container is on no network"
+	mkdirs "$path" | sftp_batch >/dev/null || die "creating $path on the Storage Box failed"
+	if ! archive_objects "$network" | encrypt | stream_to_box "$network" "$path" ".partial-$name"; then
+		printf -- '-rm "%s/.partial-%s"\n' "$path" "$name" | sftp_batch >/dev/null 2>&1 || true
+		die "the objects archive or its upload failed"
+	fi
+	printf 'rename "%s/.partial-%s" "%s/%s"\n' "$path" "$name" "$path" "$name" | sftp_batch >/dev/null ||
+		die "renaming the uploaded archive failed"
+	size=$(printf 'ls -ln "%s/%s"\n' "$path" "$name" | sftp_batch | awk 'NF >= 9 { print $5; exit }') || size=
+	printf '%s\n' "${size:-unknown}"
 }
 
 # prune DIR RE NOUN [KEEP]: deletes on the Storage Box the files matching RE whose name is older than the retention,
@@ -256,18 +315,32 @@ prune() {
 		n=${#stale[@]}
 	fi
 	log "deleted $n ${noun}s older than $BACKUP_RETENTION_DAYS days and ${#partials[@]} partial uploads on the Storage Box"
-	if [[ $BACKUP_KEEP_LOCAL == yes ]]; then
-		for name in "$BACKUP_STAGING_DIR"/salus-*.age; do
-			[[ -f $name ]] || continue
-			name=${name##*/}
-			[[ $name =~ $re && $name != "$keep" && ${BASH_REMATCH[1]} < $cutoff ]] && rm -f "$BACKUP_STAGING_DIR/$name"
-		done
-	fi
+	[[ $BACKUP_KEEP_LOCAL == yes ]] && prune_local "$re" "$noun" "$keep" "$cutoff"
 	return 0
 }
 
+# prune_local RE NOUN KEEP CUTOFF: the same for the local copies (the dumps only), never the last one either.
+prune_local() {
+	local re=$1 noun=$2 keep=$3 cutoff=$4 name stale=() fresh=0
+	for name in "$BACKUP_STAGING_DIR"/salus-*.age; do
+		[[ -f $name ]] || continue
+		name=${name##*/}
+		[[ $name =~ $re ]] || continue
+		if [[ $name == "$keep" || ! ${BASH_REMATCH[1]} < $cutoff ]]; then
+			fresh=$((fresh + 1))
+		else
+			stale+=("$name")
+		fi
+	done
+	if ((${#stale[@]} && fresh == 0)); then
+		log "error: no local $noun newer than $BACKUP_RETENTION_DAYS days; keeping the ${#stale[@]} older ones"
+		return 0
+	fi
+	for name in "${stale[@]}"; do rm -f "$BACKUP_STAGING_DIR/$name"; done
+}
+
 # backup KIND: the postgres dump or the objects archive, encrypted, uploaded and pruned; then the time of the
-# success in BACKUP_STAGING_DIR/last-success (postgres) or last-success-objects.
+# success in BACKUP_STAGING_DIR/last-success (postgres) or last-success-objects. BACKUP_KEEP_LOCAL keeps dumps only.
 backup() {
 	local kind=$1 start name size path re noun service lock mark cid
 	start=$(date +%s)
@@ -287,10 +360,18 @@ backup() {
 	exec 9>"$BACKUP_STAGING_DIR/$lock"
 	flock -n 9 || die "another $kind backup is running"
 	cid=$(container "$service")
+	log "backing up $kind to $name"
+	if [[ $kind == objects ]]; then
+		size=$(backup_objects "$cid" "$path" "$name")
+		log "uploaded $name ($size bytes)"
+		prune "$path" "$re" "$noun" "$name"
+		date -u +%Y-%m-%dT%H:%M:%SZ >"$BACKUP_STAGING_DIR/$mark"
+		log "done in $(($(date +%s) - start)) s"
+		return 0
+	fi
 	TMP=$BACKUP_STAGING_DIR/.partial-$name
 	trap 'rm -f "$TMP"' EXIT
-	log "backing up $kind to $name"
-	"dump_$kind" "$cid" "$TMP" || die "the $noun failed"
+	dump_postgres "$cid" "$TMP" || die "the $noun failed"
 	size=$(stat -c %s "$TMP")
 	((size > 0)) || die "the $noun is empty"
 	if ! upload "$TMP" "$path" "$name"; then
@@ -336,7 +417,10 @@ send_alert() {
 	case $SMTP_TLS in
 	tls) url=smtps://$SMTP_ADDR ;;
 	starttls) url=smtp://$SMTP_ADDR ssl=(--ssl-reqd) ;;
-	none) url=smtp://$SMTP_ADDR ;;
+	none)
+		[[ -z $SMTP_USERNAME ]] || die "SMTP_TLS=none sends the login in the clear: refused, the alert was not sent"
+		url=smtp://$SMTP_ADDR
+		;;
 	*) die "SMTP_TLS must be starttls, tls or none: the alert was not sent" ;;
 	esac
 	# SMTP_FROM may be a display name with the address in angle brackets; the envelope takes the address alone.
@@ -378,14 +462,16 @@ See docs/deploy/backup-restore.md, \"Alerting\"."
 }
 
 # check: the newest file of each kind on the Storage Box, by the time in its name, must be younger than
-# BACKUP_MAX_AGE_HOURS. Sends one alert naming every kind that is not, and fails.
+# BACKUP_MAX_AGE_HOURS. Sends one alert naming every kind that is not, logs the problems at err priority, and exits 0
+# once that alert is sent: a failure of the check unit (OnFailure=, a second mail) means the check itself could not
+# run or could not send.
 check() {
 	local now names newest stamp hours problems=() kind path re name host
 	load_config
 	now=$(date -u +%s)
 	for kind in postgres objects; do
 		if [[ $kind == postgres ]]; then path=$BACKUP_PATH re=$PG_NAME_RE; else path=$BACKUP_OBJECTS_PATH re=$OBJECTS_NAME_RE; fi
-		if ! names=$(listing "$path" 2>/dev/null); then
+		if ! names=$(listing "$path"); then
 			problems+=("$kind: the Storage Box directory $path could not be listed")
 			continue
 		fi
@@ -416,7 +502,6 @@ $(printf '%s\n' "${problems[@]}")
 On the server: systemctl list-timers 'salus-backup*'
 and journalctl -u salus-backup.service -u salus-backup-objects.service -n 50
 See docs/deploy/backup-restore.md, \"Alerting\"."
-	exit 1
 }
 
 case ${1:-postgres} in

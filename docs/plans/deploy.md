@@ -26,6 +26,8 @@ Step 0 (one PR): the owner's decisions recorded, the review queue's order, ADR 0
 Wave 1, in parallel: DEP-1 images   DEP-2 stack   DEP-3 server
 Wave 2, after all three are merged: DEP-4 deploy
 Merge order in wave 1: DEP-1, DEP-2, DEP-3, main merged into the next branch first (no force-push)
+Wave 3, in parallel: DEP-5 encrypted volume   DEP-6 e-mail relay   DEP-7 operations
+Merge order in wave 3: DEP-5, DEP-6, DEP-7, main merged into the next branch first (no force-push)
 ```
 
 Each wave-1 package runs in its own git worktree and branch, with its own compose project (`-p salus-dep1`, …) and
@@ -78,7 +80,7 @@ no published host ports when it runs the local stack.
 ### Wave 3: the owner's decisions of 2026-11-11 (ADR 0011 "Decided before real patient data")
 
 Three packages in parallel, each in its own worktree, branch and compose project (`-p salus-dep5`, …). Merge order:
-DEP-5, DEP-7, DEP-6, main merged into the next branch first (no force-push).
+DEP-5, DEP-6, DEP-7, main merged into the next branch first (no force-push).
 
 - **DEP-5 encrypted volume (branch `dep-luks`).** A documented one-time setup of a LUKS2 Hetzner Volume holding
   Postgres's and Garage's data and the key file (`BINARY_KEK`, `TOTP_KEY`, root-only); an unlock script the owner

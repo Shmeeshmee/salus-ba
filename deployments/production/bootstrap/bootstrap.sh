@@ -672,12 +672,14 @@ ProtectHome=read-only" && UNITS_CHANGED=1
 		UNITS_CHANGED=1
 	fi
 	# The freshness check: mails ALERT_EMAIL when a backup is missing on the Storage Box, also when no unit failed
-	# (a timer that never ran, a server that was off).
+	# (a timer that never ran, a server that was off). It succeeds once it has sent that mail; it fails, and the
+	# failure hook tries to mail, only when it could not run or not send.
 	put_file /etc/systemd/system/salus-backup-check.service 644 root:root "# Managed by Salus bootstrap.sh.
 [Unit]
 Description=Check that the Salus backups on the Storage Box are recent
 After=network-online.target
 Wants=network-online.target
+OnFailure=salus-backup-failed@%n.service
 
 [Service]
 Type=oneshot
