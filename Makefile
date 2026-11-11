@@ -16,11 +16,11 @@ LANDING := $(COMPOSE) run --rm -T -w /src/landing node
 E2E     := $(COMPOSE) run --rm -T playwright
 
 # The services the Go tests reach (the tools service's depends_on), and the tests themselves.
-TEST_SERVICES := postgres redis mailpit livekit objectstore clamd
+TEST_SERVICES := postgres redis mailpit mailpit-starttls mailpit-tls livekit objectstore clamd
 GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...
 GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-suggest bench-drafting turn-check livekit-turn-cert lint i18n-check archcheck arch-gate e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-suggest bench-drafting turn-check livekit-turn-cert mailpit-tls-cert lint i18n-check archcheck arch-gate e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	terminology-fetch terminology-import terminology-export document-templates-seed \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down \
@@ -125,6 +125,11 @@ turn-check: tools-image
 ## livekit-turn-cert: write a new local TURN/TLS certificate for the compose LiveKit into deployments/livekit-turn/
 livekit-turn-cert: tools-image
 	$(GO) bash scripts/livekit-turn-cert.sh
+
+## mailpit-tls-cert: write a new local SMTP/TLS certificate for the compose Mailpits of the SMTP sender's TLS tests
+## into deployments/mailpit-tls/
+mailpit-tls-cert: tools-image
+	$(GO_NODEPS) bash scripts/mailpit-tls-cert.sh
 
 ## lint: gofmt, go vet, golangci-lint (both modules), the migration immutability check, the production Caddyfile's
 ## routes against web/vite.config.ts, and the catalog check

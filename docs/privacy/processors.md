@@ -8,6 +8,8 @@ today runs in our own compose stack: Postgres, Redis, Mailpit (local e-mail catc
 and LiveKit in dev mode. Since package 5 the notifier sends invite e-mails, through SMTP to Mailpit only;
 there is no SMTP relay or SES configuration for any other environment. Since the booking feature's package 6
 it also sends appointment e-mails (confirmation, cancellation, reminder) the same way: no new processor.
+Since the deploy plan's DEP-6 the notifier can send through an SMTP relay with TLS and a login (`SMTP_*`); no
+relay is configured with real recipients until its DPA is signed (the SMTP relay row below).
 Since the consultation feature's package 1 LiveKit runs on our own configuration (`deployments/livekit.yaml`,
 no longer dev mode), self-hosted, so it is no processor (SPEC.md §2 "Processor"): it receives random room
 names and participant identities only.
