@@ -4,7 +4,7 @@
 # participant and the test that checks the API all run in one container on the compose network.
 FROM golang:1.27.3-trixie AS go
 
-FROM mcr.microsoft.com/playwright:v1.55.0-noble
+FROM mcr.microsoft.com/playwright:v1.65.0-noble
 COPY --from=go /usr/local/go /usr/local/go
 
 # Caches live in named volumes mounted under /cache, and /e2e holds the run's LiveKit log check; world-writable

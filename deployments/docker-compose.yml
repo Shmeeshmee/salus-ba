@@ -338,7 +338,7 @@ services:
     build:
       context: ..
       dockerfile: build/package/playwright.Dockerfile
-    image: salus-playwright:1.55.0
+    image: salus-playwright:1.65.0
     <<: *host-user
     init: true
     working_dir: /src
