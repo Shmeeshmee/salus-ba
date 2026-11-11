@@ -124,7 +124,7 @@ func TestConsentRevoked_CancelsTheFutureAppointmentsFreesTheirSlotsAndEnqueuesTh
 // runEmailJob starts the notifier, enqueues args on the email queue, and returns the job's final state.
 func runEmailJob(t *testing.T, app *pgxpool.Pool, args river.JobArgs) rivertype.JobState {
 	t.Helper()
-	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), smtpAddr(t), "https://app.example.test", "https://patient.example.test")
+	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), mailpitSender(t), "https://app.example.test", "https://patient.example.test")
 	if err != nil {
 		t.Fatalf("NewNotifier() error = %v", err)
 	}

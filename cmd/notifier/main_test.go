@@ -16,7 +16,7 @@ func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
 
 func TestRun_StartsTheEmailQueueAndStopsCleanly(t *testing.T) {
 	t.Setenv("DATABASE_URL", pgtest.NewDatabaseURL(t))
-	t.Setenv("SMTP_ADDR", "mailpit:1025")
+	setMailpit(t)
 	t.Setenv("WEB_BASE_URL", "https://app.example.test")
 	t.Setenv("PATIENT_APP_URL", "https://patient.example.test")
 	logs, err := runUntilStarted(t)
@@ -30,12 +30,23 @@ func TestRun_StartsTheEmailQueueAndStopsCleanly(t *testing.T) {
 	}
 }
 
+// setMailpit sets the SMTP settings of the compose Mailpit, as deployments/docker-compose.yml does.
+func setMailpit(t *testing.T) {
+	t.Helper()
+	t.Setenv("SMTP_ADDR", "mailpit:1025")
+	t.Setenv("SMTP_TLS", "none")
+	t.Setenv("SMTP_FROM", "Salus <no-reply@salus.invalid>")
+	t.Setenv("SMTP_USERNAME", "")
+	t.Setenv("SMTP_PASSWORD", "")
+}
+
 func TestRun_FailsWithoutConfig(t *testing.T) {
 	for name, env := range map[string][4]string{
 		"no DATABASE_URL":    {"", "mailpit:1025", "https://app.example.test", "https://patient.example.test"},
 		"no SMTP_ADDR":       {pgtest.NewDatabaseURL(t), "", "https://app.example.test", "https://patient.example.test"},
 		"no PATIENT_APP_URL": {pgtest.NewDatabaseURL(t), "mailpit:1025", "https://app.example.test", ""},
 	} {
+		setMailpit(t)
 		t.Setenv("DATABASE_URL", env[0])
 		t.Setenv("SMTP_ADDR", env[1])
 		t.Setenv("WEB_BASE_URL", env[2])
@@ -43,6 +54,14 @@ func TestRun_FailsWithoutConfig(t *testing.T) {
 		if err := run(t.Context(), &bytes.Buffer{}); err == nil {
 			t.Errorf("run() with %s: error = nil", name)
 		}
+	}
+	// An invalid SMTP setting stops the notifier before it connects: credentials in plaintext.
+	t.Setenv("DATABASE_URL", pgtest.NewDatabaseURL(t))
+	t.Setenv("SMTP_ADDR", "mailpit:1025")
+	t.Setenv("SMTP_USERNAME", "user")
+	t.Setenv("SMTP_PASSWORD", "synthetic")
+	if err := run(t.Context(), &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "SMTP_TLS") {
+		t.Errorf("run() with credentials and SMTP_TLS=none: error = %v, want one naming SMTP_TLS", err)
 	}
 }
 

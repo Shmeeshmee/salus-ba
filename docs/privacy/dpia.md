@@ -35,8 +35,8 @@ archcheck fails when a table marked `personal_data: true` in `ownership.yaml` ha
 | Personal data leaks into logs or errors | Audit rows and error messages carry ids and codes only; tests check that errors do not echo values |
 | The database credentials of the application are over-privileged | Only `migrate` (and later `salusctl`) connect as the owner; `api`, `worker`, `notifier` and `scheduler` connect as `salus_app` with grants per table |
 
-**Open before production.** The retention periods (legal decision), the hosting provider and its DPA, and
-the KMS (`processors.md`).
+**Open before production.** The retention periods (legal decision) and the hosting provider's DPA
+(`processors.md`). The keys: a root-only key file on the encrypted volume, no KMS (ADR 0011 point 3).
 
 ### Package 2: accounts
 
@@ -94,7 +94,7 @@ columns follow the account.
 | Risk | Measure |
 | --- | --- |
 | A stolen database gives working sessions | Only the SHA-256 of each 32-byte random token is stored |
-| A stolen database gives working TOTP secrets | Secrets are sealed with AES-256-GCM, the account id as additional data; the key is outside the database (`TOTP_KEY` locally, a KMS in production, not decided yet) |
+| A stolen database gives working TOTP secrets | Secrets are sealed with AES-256-GCM, the account id as additional data; the key is outside the database (`TOTP_KEY` locally; in production a root-only key file on the encrypted volume, ADR 0011 point 3) |
 | A signed-out or revoked session keeps working | Every request reads the session row (`revoked_at IS NULL AND expires_at > now`), so logout takes effect on the next request; there is no cached copy in Redis |
 | Password guessing | 5 failures per e-mail and 30 attempts per IP in 15 minutes; over the limit the password is not checked (429, `Retry-After`) |
 | TOTP guessing or replay | Five wrong codes end the challenge; a code is accepted one step either way and only once (`totp_last_step`) |
@@ -105,7 +105,7 @@ columns follow the account.
 | An access goes unrecorded | Each login attempt that checks a password, each enrolment step, each code verification and each logout writes an `AuditEvent` in the same transaction; a rate-limited attempt or an unknown challenge touches no account and is not audited |
 | Tokens, codes or e-mails reach logs | Handler tests assert the log holds no e-mail, password, token, challenge or code |
 
-**Open before production.** The KMS for the TOTP key, and `TRUSTED_PROXY_CIDRS` for the production load
+**Open before production.** `TRUSTED_PROXY_CIDRS` for the production load
 balancer.
 
 ### Package 4: directory
@@ -1202,7 +1202,7 @@ request's `Content-Disposition`, never from the URL, which access logs may hold.
 **Encryption.** Each file has its own random 256-bit data key; the bytes are sealed in 64 KiB AES-256-GCM
 segments bound to the file's id, the segment's index and the final flag, so segments cannot be moved, swapped or
 truncated undetected. The data key is wrapped by the key-encryption key (`BINARY_KEK` from configuration locally
-and in CI, read only in `internal/config`; from the KMS in production, SPEC §8). Deleting the row deletes the
+and in CI, read only in `internal/config`; in production from a root-only key file on the encrypted volume, ADR 0011 point 3). Deleting the row deletes the
 wrapped key, after which the stored bytes can no longer be read (crypto-shredding). The store's own encryption at
 rest comes on top in production.
 
@@ -1646,12 +1646,13 @@ points below are settled.
   backups' failure alerts go to the operator through the SMTP relay and carry the host, the backup kind, the time
   and the exit status only, no personal data. Hetzner is a processor (docs/privacy/processors.md, pending its DPA).
 - **Backups and erasure.** Dumps and object archives are kept 14 days, so data erased in the database or the store
-  stays in them for up to 14 days, unreadable without the `age` private key held offline. To be confirmed by the owner as the backups'
-  retention rule; a restore must re-apply the erasures recorded after the dump (`datarequest`).
+  stays in them for up to 14 days, unreadable without the `age` private key held offline. To be confirmed by the
+  owner as the backups' retention rule; a restore must re-apply the erasures recorded after the dump (`datarequest`).
 - **Logs.** Caddy writes no access log with client IP addresses; LiveKit logs at `warn`; container logs rotate.
-- **Decided (ADR 0011 "Decided before real patient data", 2026-11-11).** Postgres's and Garage's data sit on a
-  LUKS-encrypted Hetzner Volume unlocked by hand after a reboot; `BINARY_KEK` and `TOTP_KEY` sit in a root-only file
-  on that volume, not in the env file; traffic between containers on the one host is plaintext, everything leaving
-  it is TLS; e-mail goes through an EU SMTP relay (Brevo or Mailjet), a processor once its DPA is signed; live
-  speech-to-text and the language model stay on the fakes until their DPAs are signed.
-- **Open (ADR 0011 "Open before real patient data").** The DPAs (Hetzner, the SMTP relay) and the backups' retention.
+- **Decided (ADR 0011 "Before real patient data", points 2 to 6, 2026-11-11).** Postgres's and Garage's data sit
+  on a LUKS-encrypted Hetzner Volume unlocked by hand after a reboot (ClamAV's scan spool on a `tmpfs`, no swap);
+  `BINARY_KEK` and `TOTP_KEY` sit in a root-only file on that volume, not in the env file; traffic between
+  containers on the one host is plaintext, everything leaving it is encrypted in transit; e-mail goes through an EU
+  SMTP relay (Brevo or Mailjet), a processor once its DPA is signed; live speech-to-text and the language model stay
+  on the fakes until their DPAs are signed. The attachments are backed up nightly like the dumps (point 7).
+- **Open (ADR 0011 points 1 and 7).** The DPAs (Hetzner, the SMTP relay) and the backups' retention.

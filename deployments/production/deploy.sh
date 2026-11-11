@@ -17,6 +17,12 @@
 # its variables (600), /opt/salus/release.env its SALUS_TAG, /opt/salus/release.previous.env the one before.
 # Every compose command names the project salus; no other project, image or volume on the server is touched.
 #
+# Before anything is pulled, migrated or switched (a deploy, and a rollback too), the release's env file and the
+# encrypted volume are checked (check_release): the env file must not hold BINARY_KEK or TOTP_KEY, which live only
+# in the key files on the volume (ADR 0011), and SALUS_DATA_DIR (default /mnt/salus-data) must be the mount point
+# of a dm-crypt (LUKS) device holding both key files. A locked volume after a reboot refuses the deploy; the owner
+# unlocks it first (salus-volume unlock, docs/deploy/README.md).
+#
 # Migrations are forward-only (ADR 0004): the deploy runs migrate through `up` (every app service waits for it);
 # a rollback never runs it and brings the previous images up against the schema as it is.
 #
@@ -45,6 +51,47 @@ compose() {
 }
 
 tag_of() { sed -n 's/^SALUS_TAG=//p' "$1" 2>/dev/null || true; }
+
+# env_value FILE KEY: the last value of KEY in an env file, without quotes.
+env_value() { sed -n "s/^$2=//p" "$1" 2>/dev/null | tail -1 | sed -E "s/^\"(.*)\"\$/\1/; s/^'(.*)'\$/\1/"; }
+
+# The app image's nonroot uid (build/package/Dockerfile): the owner of the key files.
+readonly KEY_UID=65532
+
+has_keys() { grep -Eq '^[[:space:]]*(export[[:space:]]+)?(BINARY_KEK|TOTP_KEY)[[:space:]]*=' "$1"; }
+
+# check_release ENV_FILE: returns 1, saying why, when the env file holds a key or the encrypted volume is not
+# mounted with both key files. Reads only names, owners and modes, never a key.
+check_release() {
+	local env=$1 dir src type key file
+	if has_keys "$env"; then
+		log "the env file sets BINARY_KEK or TOTP_KEY: they live only in the key files on the encrypted volume (ADR 0011); remove them from SALUS_ENV_FILE and from Bitwarden's env note"
+		return 1
+	fi
+	dir=$(env_value "$env" SALUS_DATA_DIR)
+	dir=${dir:-/mnt/salus-data}
+	src=$(findmnt -n -o SOURCE --mountpoint "$dir" 2>/dev/null) || src=
+	if [[ -z $src ]]; then
+		log "the encrypted volume is not mounted at $dir: unlock it first (as root: salus-volume unlock, docs/deploy/README.md)"
+		return 1
+	fi
+	type=$(lsblk -ndo TYPE "$src" 2>/dev/null) || type=
+	if [[ $type != crypt ]]; then
+		log "$dir is mounted from $src, which is not a dm-crypt (LUKS) device: refusing to put data on it"
+		return 1
+	fi
+	for key in binary_kek totp_key; do
+		file=$dir/keys/$key
+		if [[ ! -f $file ]]; then
+			log "the key file $file is missing (as root: salus-volume keys, from Bitwarden)"
+			return 1
+		fi
+		if [[ $(stat -c '%u %a' "$file") != "$KEY_UID 400" ]]; then
+			log "the key file $file is not owned by uid $KEY_UID with mode 400 (as root: salus-volume check)"
+			return 1
+		fi
+	done
+}
 
 # lock takes /opt/salus/.deploy.lock on fd 9, or trusts the one `start` took and handed down (SALUS_LOCK_HELD).
 lock() {
@@ -112,6 +159,7 @@ roll_back_to() {
 	local sha=$1
 	[[ -f $ROOT/releases/$sha/docker-compose.prod.yml && -f $ROOT/releases/$sha/.env ]] ||
 		{ log "the files of release $sha are gone: cannot roll back"; return 1; }
+	check_release "$ROOT/releases/$sha/.env" || { log "not rolling back to $sha"; return 1; }
 	install "$sha"
 	rm -f "$ROOT/release.previous.env"
 	STARTED=$(date -u +%s)
@@ -145,6 +193,11 @@ cmd_deploy() {
 	local rel=$ROOT/releases/$sha
 	[[ -f $rel/docker-compose.prod.yml && -f $rel/.env ]] || die "release $sha is not uploaded to $rel"
 	chmod 600 "$rel/.env"
+	if ! check_release "$rel/.env"; then
+		# An env file with the keys does not stay in a release directory either.
+		has_keys "$rel/.env" && rm -f "$rel/.env" && log "removed $rel/.env"
+		die "not deployed: nothing was pulled, migrated or changed"
+	fi
 	lock
 
 	# Check and pull with the new files before anything running changes.
@@ -197,6 +250,8 @@ cmd_rollback() {
 	current=$(tag_of "$ROOT/release.env")
 	previous=$(tag_of "$ROOT/release.previous.env")
 	[[ -n $previous ]] || die "no previous release to roll back to"
+	[[ -f $ROOT/releases/$previous/.env ]] || die "the files of release $previous are gone: cannot roll back"
+	check_release "$ROOT/releases/$previous/.env" || die "not rolled back: nothing was changed"
 	lock
 	if roll_back_to "$previous"; then
 		log "rolled back from ${current:-none} to $previous"

@@ -33,7 +33,7 @@ x-livekit-env: &livekit-env
 
 # The object store and the files' key-encryption key (docs/attachments/SPEC.md §2 "Configuration"): only the api
 # and the worker load them (config.LoadObjectStore). The access key pair and the KEK are synthetic, local only;
-# production's store is the hosting provider's and its KEK comes from the KMS (SPEC §8).
+# production's KEK is the root-only key file on the encrypted volume (BINARY_KEK_FILE, ADR 0011).
 x-objectstore-env: &objectstore-env
   S3_ENDPOINT: http://objectstore:3900
   S3_REGION: garage
@@ -99,7 +99,8 @@ services:
     environment:
       <<: [*app-env, *livekit-env, *objectstore-env]
       HTTP_ADDR: ":8080"
-      # Synthetic, local only. TOTP_KEY seals TOTP secrets (production: the KMS, not decided yet);
+      # Synthetic, local only. TOTP_KEY seals TOTP secrets (production: the root-only key file on the encrypted
+      # volume, ADR 0011);
       # RATE_LIMIT_KEY names the login rate-limit counters in Redis by HMAC.
       TOTP_KEY: bG9jYWwtb25seS1zeW50aGV0aWMtdG90cC1rZXktMzI=
       RATE_LIMIT_KEY: bG9jYWwtb25seS1zeW50aGV0aWMtcmF0ZWxpbWl0LWs=
@@ -132,14 +133,16 @@ services:
     <<: *app
     command: ["/usr/local/bin/scheduler"]
 
-  # Sends e-mail (ADR 0007): works only River's email queue. SMTP to Mailpit locally; SES is not wired (needs
-  # its DPA, docs/privacy/processors.md).
+  # Sends e-mail: works only River's email queue. SMTP to Mailpit locally, in plaintext without a login
+  # (SMTP_TLS=none); production sends through an EU relay with TLS and a login (ADR 0011).
   notifier:
     <<: *app
     command: ["/usr/local/bin/notifier"]
     environment:
       <<: *app-env
       SMTP_ADDR: mailpit:1025
+      SMTP_TLS: none
+      SMTP_FROM: Salus <no-reply@salus.invalid> # .invalid: nothing can reply to a local e-mail
       WEB_BASE_URL: http://localhost:${SALUS_WEB_PORT:-5173} # invite links: <WEB_BASE_URL>/invite#<token>
       # Appointment e-mails link to <PATIENT_APP_URL>/appointments. A placeholder (.invalid resolves nowhere)
       # until the patient app has a link domain (docs/booking/PROGRESS.md, "Waiting on people").
@@ -167,7 +170,7 @@ services:
   # Video (ADR 0006), configured by livekit.yaml: the synthetic dev key pair, rooms created only by the api, JSON
   # logs, the ICE settings for clients on the host and on the compose network, and TURN (TLS on 443, UDP on 3478,
   # on the compose network only). Published on 127.0.0.1 for a local browser: signalling on 7880, media on
-  # 7882/udp and 7881/tcp.
+  # 7882/udp and 7881/tcp (SALUS_LIVEKIT_PORT, SALUS_LIVEKIT_UDP_PORT and SALUS_LIVEKIT_TCP_PORT move them).
   livekit:
     image: livekit/livekit-server:v1.13.11
     command: ["--config", "/etc/livekit.yaml"]
@@ -236,6 +239,25 @@ services:
     ports: ["127.0.0.1:${SALUS_MAILPIT_PORT:-8025}:8025"]
     restart: unless-stopped
 
+  # Two more Mailpits for the SMTP sender's tests of TLS and authentication (ADR 0011: a relay takes STARTTLS on 587
+  # or implicit TLS on 465, with AUTH): mailpit-starttls refuses mail before STARTTLS, mailpit-tls speaks TLS from
+  # the first byte; both refuse mail without the synthetic login and accept AUTH only over TLS. Their certificate
+  # (deployments/mailpit-tls, `make mailpit-tls-cert`) names both services and is signed by a throwaway CA that only
+  # the tools service trusts. Compose network only, nothing published; the dev stack sends through mailpit above.
+  mailpit-starttls:
+    image: axllent/mailpit:v1.33.1
+    command: ["--smtp-tls-cert", "/etc/mailpit-tls/smtp.crt", "--smtp-tls-key", "/etc/mailpit-tls/smtp.key", "--smtp-require-starttls"]
+    environment: &mailpit-auth
+      MP_SMTP_AUTH: "salus-test:local-only-synthetic-smtp-password"
+    volumes: ["./mailpit-tls:/etc/mailpit-tls:ro"]
+    restart: unless-stopped
+  mailpit-tls:
+    image: axllent/mailpit:v1.33.1
+    command: ["--smtp-tls-cert", "/etc/mailpit-tls/smtp.crt", "--smtp-tls-key", "/etc/mailpit-tls/smtp.key", "--smtp-require-tls"]
+    environment: *mailpit-auth
+    volumes: ["./mailpit-tls:/etc/mailpit-tls:ro"]
+    restart: unless-stopped
+
   # Marketing landing page (landing/): the prerendered React app on nginx, 127.0.0.1:8090. Fonts are bundled,
   # so the page makes no third-party request. `make landing` starts it alone.
   landing:
@@ -272,6 +294,15 @@ services:
       # The SMTP sender's tests deliver to the compose Mailpit and read its API, then delete what they sent.
       TEST_SMTP_ADDR: mailpit:1025
       TEST_MAILPIT_URL: http://mailpit:8025
+      # Its TLS tests deliver through STARTTLS and implicit TLS with the synthetic login of mailpit-starttls and
+      # mailpit-tls, whose certificate's CA (deployments/mailpit-tls/ca) is trusted beside the system roots.
+      TEST_SMTP_STARTTLS_ADDR: mailpit-starttls:1025
+      TEST_SMTP_STARTTLS_MAILPIT_URL: http://mailpit-starttls:8025
+      TEST_SMTP_TLS_ADDR: mailpit-tls:1025
+      TEST_SMTP_TLS_MAILPIT_URL: http://mailpit-tls:8025
+      TEST_SMTP_USERNAME: salus-test
+      TEST_SMTP_PASSWORD: local-only-synthetic-smtp-password
+      SSL_CERT_DIR: /etc/ssl/certs:/src/deployments/mailpit-tls/ca
       # The LiveKit provider's tests run against the compose LiveKit (its server API and its WebSocket for the
       # Go SDK's test participants), with livekit.yaml's synthetic dev pair; without them they fail.
       TEST_LIVEKIT_URL: http://livekit:7880
@@ -300,6 +331,8 @@ services:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
       mailpit: {condition: service_healthy}
+      mailpit-starttls: {condition: service_healthy}
+      mailpit-tls: {condition: service_healthy}
       livekit: {condition: service_healthy}
       objectstore: {condition: service_healthy}
       clamd: {condition: service_healthy}

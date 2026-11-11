@@ -33,8 +33,9 @@ UFW_ACCEPT_BLOCKING=no
 
 # When the daily security upgrade runs (HH:MM, server time; up to 15 minutes later at random).
 UPGRADE_TIME=04:00
-# yes reboots automatically when an upgrade needs it, at UPGRADE_REBOOT_TIME. Off by default: a reboot interrupts
-# consultations; reboot by hand in a quiet hour instead (/var/run/reboot-required says when).
+# Must stay no: the bootstrap refuses yes (ADR 0011). After a reboot the encrypted volume waits for the owner's
+# passphrase and the stack stays down, so reboot by hand in a quiet hour and unlock in the same sitting
+# (/var/run/reboot-required says when; docs/deploy/README.md "Reboots").
 UPGRADE_AUTO_REBOOT=no
 UPGRADE_REBOOT_TIME=04:30
 
@@ -56,8 +57,8 @@ BACKUP_OBJECTS_PATH=salus/objects
 # and compare its fingerprint (ssh-keygen -lf) with the one Hetzner publishes. Repeat the setting for more keys.
 BACKUP_KNOWN_HOST=[uXXXXXX.your-storagebox.de]:23 ssh-ed25519 AAAA...
 
-# The age public key the dumps and the object archives are encrypted to; its private half is kept offline (Bitwarden), never on the
-# server. Repeat the setting to encrypt to a second key as well.
+# The age public key the dumps and the object archives are encrypted to; its private half is kept offline
+# (Bitwarden), never on the server. Repeat the setting to encrypt to a second key as well.
 BACKUP_AGE_RECIPIENT=age1...
 
 # When the nightly backup starts (HH:MM, server time), and the random delay added to it: the Postgres dump, then

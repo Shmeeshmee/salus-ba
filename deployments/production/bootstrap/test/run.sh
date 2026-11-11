@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # The server bootstrap's checks, all in Docker (make deploy-check): shellcheck on every script, bootstrap.sh in a
 # fresh ubuntu:24.04 container (--check, a real run, a second run that changes nothing), and the backup against a
-# throwaway Postgres and SFTP server, and deployments/production/deploy.sh against a fake docker
-# (test/deploy-test.sh beside it). Everything it starts is removed at the end.
-#   run.sh [shellcheck|bootstrap|backup|deploy]...   (default: all four)
+# throwaway Postgres and SFTP server, volume.sh against stubs of cryptsetup and mount, and
+# deployments/production/deploy.sh against a fake docker (test/deploy-test.sh beside it). Everything it starts is
+# removed at the end.
+#   run.sh [shellcheck|bootstrap|backup|volume|deploy]...   (default: all five)
 set -euo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -15,7 +16,7 @@ export TEST_PROJECT=salus-$ID-backup-test
 
 shellcheck_() {
 	echo "== shellcheck"
-	docker run --rm -v "$DIR:/mnt:ro" -w /mnt "$SHELLCHECK" -x bootstrap.sh backup.sh test/run.sh test/bootstrap-test.sh test/backup-test.sh
+	docker run --rm -v "$DIR:/mnt:ro" -w /mnt "$SHELLCHECK" -x bootstrap.sh backup.sh volume.sh test/run.sh test/bootstrap-test.sh test/backup-test.sh test/volume-test.sh
 	docker run --rm -v "$DIR/..:/mnt:ro" -w /mnt "$SHELLCHECK" deploy.sh test/deploy-test.sh test/deploy-compose-test.sh
 	echo "shellcheck clean"
 }
@@ -32,6 +33,11 @@ bootstrap() {
 	docker run --rm --name "salus-$ID-bootstrap-test" -v "$DIR:/bootstrap:ro" "$UBUNTU" bash /bootstrap/test/bootstrap-test.sh
 }
 
+volume() {
+	echo "== volume.sh in ubuntu:24.04, against stubs (nothing is formatted or mounted)"
+	docker run --rm --name "salus-$ID-volume-test" -v "$DIR:/bootstrap:ro" "$UBUNTU" bash /bootstrap/test/volume-test.sh
+}
+
 backup() {
 	echo "== backup.sh against a throwaway Postgres and SFTP server"
 	COMPOSE_TEST=(docker compose -f "$HERE/compose.yml")
@@ -40,12 +46,13 @@ backup() {
 	"${COMPOSE_TEST[@]}" run --rm runner
 }
 
-(($#)) || set -- shellcheck bootstrap backup deploy
+(($#)) || set -- shellcheck bootstrap backup volume deploy
 for step in "$@"; do
 	case $step in
 	shellcheck) shellcheck_ ;;
 	bootstrap) bootstrap ;;
 	backup) backup ;;
+	volume) volume ;;
 	deploy) deploy ;;
 	*)
 		echo "unknown step: $step" >&2

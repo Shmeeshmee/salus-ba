@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"os"
 	"strings"
@@ -18,27 +19,35 @@ import (
 	"github.com/riverqueue/river/rivertype"
 
 	"github.com/Shmeeshmee/salus/internal/auth"
+	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/worker"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
 const clinicID = "c0000000-0000-4000-8000-00000000000c"
 
-func smtpAddr(t *testing.T) string {
+// mailpitSender is the Sender on the compose Mailpit, as the dev stack configures it (SMTP_TLS=none, no login).
+func mailpitSender(t *testing.T) notification.Sender {
 	t.Helper()
 	addr := os.Getenv("TEST_SMTP_ADDR")
 	if addr == "" || os.Getenv("TEST_MAILPIT_URL") == "" {
 		t.Fatal("TEST_SMTP_ADDR and TEST_MAILPIT_URL are not set; run the tests with `make test`")
 	}
-	return addr
+	return notification.NewSMTPSender(addr, notification.SMTPPlaintext, "", "", mail.Address{Name: "Salus", Address: "no-reply@salus.invalid"}, clock.System{})
 }
 
 // seedInvite creates, as the owner, the clinic and an invite to a fresh synthetic address, and returns the
 // invite's id and address.
 func seedInvite(t *testing.T, owner *pgxpool.Pool, accepted bool) (string, string) {
 	t.Helper()
-	email := "invite-" + strings.ToLower(rand.Text()) + "@example.test"
+	return seedInviteTo(t, owner, "invite-"+strings.ToLower(rand.Text())+"@example.test", accepted)
+}
+
+// seedInviteTo creates the clinic and an invite to email, and returns the invite's id and address.
+func seedInviteTo(t *testing.T, owner *pgxpool.Pool, email string, accepted bool) (string, string) {
+	t.Helper()
 	var id string
 	err := owner.QueryRow(t.Context(), `WITH o AS (INSERT INTO organization (id, name) VALUES ($1, 'Synthetic clinic') ON CONFLICT DO NOTHING)
 		INSERT INTO invite (organization_id, expires_at, role, email, accepted_at) VALUES ($1, now() + interval '72 hours', 'admin', $2, CASE WHEN $3 THEN now() END)
@@ -53,7 +62,7 @@ func seedInvite(t *testing.T, owner *pgxpool.Pool, accepted bool) (string, strin
 // job's final state.
 func runJob(t *testing.T, app *pgxpool.Pool, inviteID string) rivertype.JobState {
 	t.Helper()
-	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), smtpAddr(t), "https://app.example.test", "https://patient.example.test")
+	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), mailpitSender(t), "https://app.example.test", "https://patient.example.test")
 	if err != nil {
 		t.Fatalf("NewNotifier() error = %v", err)
 	}
@@ -111,15 +120,31 @@ func TestNotifier_CancelsTheJobOfAnInviteThatIsNoLongerOpen(t *testing.T) {
 	}
 }
 
+// An address SMTP cannot carry (a UTF-8 local part, which registration accepts) fails the same way on every retry:
+// the job is cancelled, not retried for days.
+func TestNotifier_CancelsTheJobOfAnInviteToAnAddressSMTPCannotCarry(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	id, _ := seedInviteTo(t, owner, "pozivnica-"+strings.ToLower(rand.Text())+"-ć@example.test", false)
+
+	if state := runJob(t, app, id); state != rivertype.JobStateCancelled {
+		t.Errorf("job state %s, want cancelled: a retry cannot send it either", state)
+	}
+}
+
 func TestNewNotifier_NeedsTheSMTPServerAndTheWebAndPatientAppAddresses(t *testing.T) {
 	_, app := pgtest.NewAppDatabase(t)
-	for _, cfg := range [][3]string{
-		{"", "https://app.example.test", "https://patient.example.test"},
-		{"mailpit:1025", "", "https://patient.example.test"},
-		{"mailpit:1025", "https://app.example.test", ""},
+	sender := mailpitSender(t)
+	for _, cfg := range []struct {
+		sender          notification.Sender
+		web, patientApp string
+	}{
+		{nil, "https://app.example.test", "https://patient.example.test"},
+		{sender, "", "https://patient.example.test"},
+		{sender, "https://app.example.test", ""},
 	} {
-		if _, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), cfg[0], cfg[1], cfg[2]); err == nil {
-			t.Errorf("NewNotifier(%q, %q, %q): error = nil", cfg[0], cfg[1], cfg[2])
+		if _, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), cfg.sender, cfg.web, cfg.patientApp); err == nil {
+			t.Errorf("NewNotifier(sender %v, %q, %q): error = nil", cfg.sender != nil, cfg.web, cfg.patientApp)
 		}
 	}
 }

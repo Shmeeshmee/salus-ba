@@ -31,11 +31,11 @@ func NewInserter(pool *pgxpool.Pool) (*river.Client[pgx.Tx], error) {
 }
 
 // NewNotifier returns the River client cmd/notifier runs: it works the email queue with the invite_email and
-// appointment e-mail workers, which send through SMTP at smtpAddr (SMTP_ADDR) with links to webBaseURL
-// (WEB_BASE_URL, invites) and patientAppURL (PATIENT_APP_URL, appointments).
-func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, smtpAddr, webBaseURL, patientAppURL string) (*river.Client[pgx.Tx], error) {
-	if smtpAddr == "" || webBaseURL == "" || patientAppURL == "" {
-		return nil, errors.New("worker: the notifier needs SMTP_ADDR, WEB_BASE_URL and PATIENT_APP_URL")
+// appointment e-mail workers, which send through sender (the SMTP server of config.LoadSMTP) with links to
+// webBaseURL (WEB_BASE_URL, invites) and patientAppURL (PATIENT_APP_URL, appointments).
+func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, sender notification.Sender, webBaseURL, patientAppURL string) (*river.Client[pgx.Tx], error) {
+	if sender == nil || webBaseURL == "" || patientAppURL == "" {
+		return nil, errors.New("worker: the notifier needs an SMTP sender, WEB_BASE_URL and PATIENT_APP_URL")
 	}
 	clk := clock.System{}
 	tx := postgres.NewTransactor(pool)
@@ -51,7 +51,7 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, smtpAddr, webBaseURL, pat
 	})
 	mail := notification.NewService(notification.Ports{
 		Invites: accounts, Appointments: appointments, Accounts: accounts, Clinics: clinics,
-		Questionnaires: newQuestionnaireResponses(pool, clk), Sender: notification.NewSMTPSender(smtpAddr), WebBaseURL: webBaseURL, PatientAppURL: patientAppURL,
+		Questionnaires: newQuestionnaireResponses(pool, clk), Sender: sender, WebBaseURL: webBaseURL, PatientAppURL: patientAppURL,
 	})
 
 	workers := river.NewWorkers()
@@ -78,8 +78,8 @@ func addEmailWorkers(workers *river.Workers, mail *notification.Service) {
 }
 
 // appointmentEmailWorker sends one of an appointment's e-mails. An e-mail that no longer applies sends
-// nothing and completes; an appointment that does not exist in the clinic cancels the job, as a retry would
-// find nothing either.
+// nothing and completes; an appointment that does not exist in the clinic, or a recipient address SMTP cannot
+// carry, cancels the job, as a retry would fail the same way.
 type appointmentEmailWorker[T river.JobArgs] struct {
 	river.WorkerDefaults[T]
 	send func(ctx context.Context, args T) error
@@ -87,7 +87,7 @@ type appointmentEmailWorker[T river.JobArgs] struct {
 
 func (w *appointmentEmailWorker[T]) Work(ctx context.Context, job *river.Job[T]) error {
 	err := w.send(ctx, job.Args)
-	if errors.Is(err, appointment.ErrNotFound) {
+	if errors.Is(err, appointment.ErrNotFound) || errors.Is(err, notification.ErrRecipientNotASCII) {
 		return river.JobCancel(err)
 	}
 	return err
@@ -104,6 +104,9 @@ func (w *inviteEmailWorker) Work(ctx context.Context, job *river.Job[auth.Invite
 	err := w.mail.SendInvite(ctx, job.Args.InviteID, job.Args.OrganizationID)
 	if errors.Is(err, auth.ErrInvalidInvite) {
 		return river.JobCancel(err) // replaced, accepted or expired: nothing to send, now or on a retry
+	}
+	if errors.Is(err, notification.ErrRecipientNotASCII) {
+		return river.JobCancel(err) // an address SMTP cannot carry: a retry fails the same way
 	}
 	return err
 }

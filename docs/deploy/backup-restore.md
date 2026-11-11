@@ -11,15 +11,18 @@ server.
 - **Backed up:** the Postgres database of the `salus` compose project, every night, as one `pg_dump` in custom
   format (`-Fc`); and right after it every object of Garage's bucket (`S3_BUCKET`: the questionnaire attachments
   and the signed documents' PDFs under `composition/`) as one tar. Both are kept 14 days (`BACKUP_RETENTION_DAYS`);
-  how long backups are kept is still open point 7 of ADR 0011.
+  how long backups are kept is still open (ADR 0011 point 7).
 - **The objects are encrypted twice.** Each object is already envelope-encrypted by the api (its data key wrapped by
   `BINARY_KEK`, which the backup never reads); the archive is then `age`-encrypted like the dump. A restored object is
   readable only with the restored database's wrapped key and the lost server's `BINARY_KEK`.
 - **Not in the dump:** the cluster-wide Postgres roles (`salus_app` and the others the migrations create) and their
   passwords; the restore creates the roles first and the deploy's `migrate` sets the passwords again. The secrets
-  (`/opt/salus/.env`) are in Bitwarden and the GitHub `production` environment, not in the backup.
+  (`/opt/salus/.env`) are in Bitwarden and the GitHub `production` environment, not in the backup; `BINARY_KEK` and
+  `TOTP_KEY` are in the key files on the encrypted volume and in Bitwarden only, and the volume's LUKS passphrase in
+  Bitwarden only.
 - **Keys the restored data needs.** `BINARY_KEK` wraps every attachment's data key and `TOTP_KEY` seals the MFA
-  secrets stored in the database. A restore must run with **exactly the values the lost server had** (Bitwarden):
+  secrets stored in the database. A restore must run with **exactly the values the lost server had** (Bitwarden,
+  written into the new volume's key files by `salus-volume setup`):
   with any other value the restored MFA secrets cannot be opened (every user with MFA is locked out until an operator
   resets it, `salusctl reset-mfa`) and any surviving attachment cannot be decrypted. Never generate new ones for a
   restore.
@@ -31,7 +34,7 @@ server.
   part of the subject-rights feature, which is not built yet (`internal/retention` leaves erasure to it, and
   `salusctl` has no erasure command). Until it is, an erasure would be done by hand and would have to be redone by
   hand after a restore. Building the re-application (for example a `salusctl` command that takes the list) and
-  keeping the list are open items for the owner, with open point 7 of ADR 0011.
+  keeping the list are open items for the owner, with point 7 of ADR 0011.
 
 ## How the backup works
 
@@ -247,10 +250,16 @@ The migration version must equal the release's latest migration on the night of 
 plausible against production's (compare `SELECT count(*)` of a few tables on the server, read-only). Do not open any
 patient's record: counts and the version are enough.
 
+**The keys and the passphrase, on the server** (as root): `salus-volume keys`, pasting `BINARY_KEK` and `TOTP_KEY`
+from Bitwarden, must answer `binary_kek unchanged` and `totp_key unchanged`. Any other answer means Bitwarden does not
+hold the keys a restore needs (it refuses to change a key file without `--replace`, so nothing changes): find the
+right copies before anything else. The LUKS passphrase is proved at every unlock; after a planned reboot, unlock
+with Bitwarden's copy, not from memory.
+
 **Record the result** in docs/deploy/restore-drills.md (one row each): date, the dump's and the archive's names and
 sizes, the time from fetch to restored, the migration version, the objects restored, the rows without an object and
-the objects without a row, whether the sample matched, who ran it, and anything that went wrong. Synthetic data only until
-real data exists; afterwards the counts, never contents.
+the objects without a row, whether the sample matched, who ran it, and anything that went wrong. Synthetic data only
+until real data exists; afterwards the counts, never contents.
 
 ## Restoring onto a new server
 
@@ -261,12 +270,23 @@ everything but Caddy, then Caddy.
 1. **Create the server** (ADR 0011: Ubuntu 24.04, Helsinki) and run the bootstrap with the same `bootstrap.conf`
    (README in `deployments/production/bootstrap/`). The new server has a new backup key: authorise it on the
    Storage Box (step 7 above) and remove the lost server's key there.
+
+   **A new encrypted volume**, before anything else runs: create a Hetzner Volume in Helsinki, attached to the new
+   server, mount option manual (docs/deploy/README.md step 2.4), and as root on the server run
+   `salus-volume setup /dev/disk/by-id/scsi-0HC_Volume_<id>` (README step 4) with a new LUKS passphrase (store it in
+   Bitwarden in place of the lost volume's) and **the lost server's `BINARY_KEK` and `TOTP_KEY` from Bitwarden**,
+   unchanged. `salus-volume check` must say ok.
+
+   If only the server was lost and its volume survived, attach that volume instead, write `/etc/salus/volume.conf`
+   by hand (`DEVICE=/dev/disk/by-uuid/<cryptsetup luksUUID of the device>`, `NAME=salus-data`,
+   `MOUNTPOINT=/mnt/salus-data`) and run `salus-volume unlock --no-start`: the data is all there, and no restore is
+   needed; go on with step 3, then steps 7 and 10 (the objects and the erasures are still there).
 2. **Keep the deploy workflow away** until step 10: do not approve a `production` deployment, so nothing runs
    `migrate` or starts the stack against an empty database.
 3. **Put the release's files in place by hand**, as the deploy job would (docs/deploy/README.md):
    - the contents of `deployments/production/` of the release that was running, into `/opt/salus/deployments/`;
-   - `/opt/salus/.env` (owner `deploy`, mode 600) from Bitwarden, with **the lost server's `BINARY_KEK` and
-     `TOTP_KEY`**, unchanged (see "Keys the restored data needs");
+   - `/opt/salus/.env` (owner `deploy`, mode 600) from Bitwarden's env note (without `BINARY_KEK` and `TOTP_KEY`:
+     they are in the key files of step 1);
    - `/opt/salus/release.env` with `SALUS_TAG=<that release's commit SHA>`;
    - a copy of both in `/opt/salus/releases/<that SHA>/` (the deployments files and `.env`, mode 600), so the next
      deploy can roll back to this release (`deployments/production/deploy.sh` keeps each release there).
@@ -276,7 +296,7 @@ everything but Caddy, then Caddy.
    ```sh
    C="docker compose -p salus --env-file /opt/salus/.env --env-file /opt/salus/release.env -f /opt/salus/deployments/docker-compose.prod.yml"
    $C pull
-   $C up -d --wait postgres          # Postgres only: no migrate, no app, no Caddy
+   $C up -d --wait postgres          # Postgres only, on the encrypted volume: no migrate, no app, no Caddy
    ```
 
 4. **Start from an empty database.** On a new volume the image created it empty. If anything ran against it, drop

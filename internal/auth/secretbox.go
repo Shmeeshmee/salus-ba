@@ -11,8 +11,9 @@ import (
 const aesKeyLen = 32
 
 // AESSecretBox seals TOTP secrets with AES-256-GCM (SPEC.md "TOTP"). The account id is the additional data,
-// so a sealed secret only opens for the account it was sealed for. Its key comes from the KMS in production
-// (not decided yet) and from TOTP_KEY locally and in CI.
+// so a sealed secret only opens for the account it was sealed for. Its key comes from TOTP_KEY locally and in CI
+// and, on the single production server, from a key file on the encrypted volume (TOTP_KEY_FILE, ADR 0011) until a
+// KMS replaces it.
 type AESSecretBox struct {
 	aead cipher.AEAD
 }
