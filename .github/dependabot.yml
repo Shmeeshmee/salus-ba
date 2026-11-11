@@ -3,7 +3,9 @@
 # on its own. Versions stay pinned; Dependabot moves the pins. Toolchain image tags in Dockerfiles and
 # compose are covered too. The Playwright image (build/package/playwright) and @playwright/test (test/e2e/web)
 # update together in one PR (the multi-ecosystem group playwright): the web journeys' package must be the image's
-# version, or it looks for browser builds the image does not have.
+# version, or it looks for browser builds the image does not have. Only those two are in the group (the Go image
+# that Dockerfile also copies from is pinned in dev.Dockerfile too; GOTOOLCHAIN=local fails e2e loudly if they
+# drift). Check that the group's PR moves both: npm can publish a version before its image tag exists.
 version: 2
 multi-ecosystem-groups:
   playwright:
@@ -27,11 +29,11 @@ updates:
     groups: {docker: {patterns: ["*"], update-types: [minor, patch]}}
   - package-ecosystem: docker
     directory: /build/package/playwright
-    patterns: ["*"]
+    patterns: ["mcr.microsoft.com/playwright"]
     multi-ecosystem-group: playwright
   - package-ecosystem: npm
     directory: /test/e2e/web
-    patterns: ["*"]
+    patterns: ["@playwright/test"]
     multi-ecosystem-group: playwright
   - package-ecosystem: docker-compose
     directory: /deployments
