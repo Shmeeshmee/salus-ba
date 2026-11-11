@@ -126,7 +126,8 @@ turn-check: tools-image
 livekit-turn-cert: tools-image
 	$(GO) bash scripts/livekit-turn-cert.sh
 
-## lint: gofmt, go vet, golangci-lint (both modules), the migration immutability check, and the catalog check
+## lint: gofmt, go vet, golangci-lint (both modules), the migration immutability check, the production Caddyfile's
+## routes against web/vite.config.ts, and the catalog check
 ## (the e-mail templates)
 lint: tools-image i18n-check
 	$(GO) bash scripts/lint.sh

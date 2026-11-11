@@ -30,8 +30,11 @@ under GDPR Art. 28 concluded in the console, no managed Postgres and no KMS.
   the plan's sizing notes give the floor). Docker Engine and the compose plugin from Docker's apt repository.
 - **One compose project, `salus`, in `/opt/salus`** (`deployments/production/`): Caddy, the Go binaries (`api`,
   `worker`, `scheduler`, `notifier`, `agent`, and `migrate` as a one-shot), the web app, the landing page, Postgres,
-  Redis, LiveKit with its built-in TURN, Garage and ClamAV. Every service has a memory limit, a healthcheck, a restart
-  policy and rotated logs. Other compose projects on the server are left alone: every command names the project.
+  Redis, LiveKit with its built-in TURN, Garage and ClamAV. Every service has a memory limit, a restart policy and
+  rotated logs, and a healthcheck except the River binaries (`worker`, `scheduler`, `notifier`, `agent`): they listen
+  on nothing, a fatal error ends their process and the restart policy starts it again, so a liveness endpoint in each
+  would be code for no measured need (deployments/production/README.md "Healthchecks"; amended by DEP-2). Other
+  compose projects on the server are left alone: every command names the project.
 - **Images** are built by GitHub Actions only after CI passed on `main`, pushed to GHCR as
   `ghcr.io/shmeeshmee/salus-<image>` tagged with the commit SHA and `main`, with an SBOM, and scanned with Trivy
   (critical vulnerabilities fail the build). The server pulls by SHA, never by `main`.

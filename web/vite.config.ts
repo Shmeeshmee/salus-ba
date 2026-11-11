@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 // The dev server proxies API calls to the api service (API_URL, set by compose), so the app calls the API
-// on its own origin.
+// on its own origin. Production routes the same paths in deployments/production/Caddyfile (app.); make lint
+// fails when the two differ (scripts/check-caddy-routes.sh).
 const apiUrl = process.env.API_URL ?? 'http://localhost:8080'
 
 export default defineConfig({

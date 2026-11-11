@@ -1,0 +1,15 @@
+# Garage in production (docker-compose.prod.yml, service objectstore): one node, the S3 API on the compose
+# network only. The RPC secret and the access key pair are in the service's environment, never here. fsync on:
+# with one node there is no replica to recover a torn write from.
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+metadata_fsync = true
+data_fsync = true
+replication_factor = 1
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
