@@ -178,8 +178,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:${SALUS_LIVEKIT_PORT:-7880}:7880"
-      - "127.0.0.1:7881:7881"
-      - "127.0.0.1:7882:7882/udp"
+      - "127.0.0.1:${SALUS_LIVEKIT_TCP_PORT:-7881}:7881"
+      - "127.0.0.1:${SALUS_LIVEKIT_UDP_PORT:-7882}:7882/udp"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:7880"]
       interval: 1s

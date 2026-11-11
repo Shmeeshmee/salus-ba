@@ -204,7 +204,9 @@ Health data is special-category data (GDPR Art. 9). Treat every patient field as
   notes, message text or video metadata. The same holds for error messages and panics.
 - **Encryption.** TLS everywhere, including inside the cluster. Postgres and the object store are encrypted
   at rest. Attachments and consultation recordings (if any are kept) are encrypted with keys from the KMS,
-  never from config files.
+  never from config files. Exceptions for the single-server deployment (ADR 0011): traffic between containers on
+  the one host may be plaintext (anything leaving the host is TLS), and without a KMS `BINARY_KEK` and `TOTP_KEY`
+  live in a root-only key file on the LUKS-encrypted data volume, never in the env file or a GitHub secret.
 - **Subject rights are features, built and tested like any other:** access and portability (export as a FHIR
   `Bundle`, `Patient/$everything`), rectification, restriction, objection, and erasure. Erasure is limited by
   medical-record retention law: the `retention` domain decides per resource what is deleted, what is

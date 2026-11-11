@@ -75,6 +75,24 @@ no published host ports when it runs the local stack.
 - `docs/deploy/README.md`: the first-time setup step by step: what to create on Hetzner and GitHub, the secrets,
   the DNS records.
 
+### Wave 3: the owner's decisions of 2026-11-11 (ADR 0011 "Decided before real patient data")
+
+Three packages in parallel, each in its own worktree, branch and compose project (`-p salus-dep5`, …). Merge order:
+DEP-5, DEP-7, DEP-6, main merged into the next branch first (no force-push).
+
+- **DEP-5 encrypted volume (branch `dep-luks`).** A documented one-time setup of a LUKS2 Hetzner Volume holding
+  Postgres's and Garage's data and the key file (`BINARY_KEK`, `TOTP_KEY`, root-only); an unlock script the owner
+  runs after a reboot; the bootstrap refuses automatic reboots and swap; the deploy refuses to start when the volume
+  is not mounted, and refuses an env file that holds the keys; compose gives the keys to the containers from the key
+  file. The restore drill restores onto the volume.
+- **DEP-6 e-mail relay (branch `dep-smtp`).** An SMTP sender with authentication and TLS, a real from address and
+  `PATIENT_APP_URL` from config, for any provider (Brevo or Mailjet); test first. SPF, DKIM and DMARC records for the
+  domain in docs/deploy/README.md.
+- **DEP-7 operations (branch `dep-ops`).** A nightly `age`-encrypted Garage backup to the Storage Box beside the
+  Postgres dump, 14 days kept, in the restore drill; an alert e-mail when a backup fails or is missing; the HIGH
+  vulnerabilities in `golang.org/x/net` and Caddy cleared where a fix exists; the flaky keyboard drag test in
+  `web/src/Builder.test.tsx` fixed at its cause (no sleeps or retries), shown by 20 runs.
+
 ## Checks per PR
 
 `make lint`, `make test`, `make archcheck`, `make e2e`; plus, for these packages, `actionlint` on the workflows,

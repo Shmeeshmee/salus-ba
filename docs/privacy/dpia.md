@@ -1647,6 +1647,10 @@ points below are settled.
   days, unreadable without the `age` private key held offline. To be confirmed by the owner as the backups'
   retention rule; a restore must re-apply the erasures recorded after the dump (`datarequest`).
 - **Logs.** Caddy writes no access log with client IP addresses; LiveKit logs at `warn`; container logs rotate.
-- **Open (ADR 0011 "Open before real patient data").** Encryption at rest of the server's disk, where `BINARY_KEK`
-  and `TOTP_KEY` are kept without a KMS, TLS inside the one host, the e-mail relay, and whether the attachments are
-  backed up.
+- **Decided (ADR 0011 "Decided before real patient data", 2026-11-11).** Postgres's and Garage's data sit on a
+  LUKS-encrypted Hetzner Volume unlocked by hand after a reboot; `BINARY_KEK` and `TOTP_KEY` sit in a root-only file
+  on that volume, not in the env file; traffic between containers on the one host is plaintext, everything leaving
+  it is TLS; e-mail goes through an EU SMTP relay (Brevo or Mailjet), a processor once its DPA is signed; live
+  speech-to-text and the language model stay on the fakes until their DPAs are signed.
+- **Open (ADR 0011 "Open before real patient data").** The DPAs (Hetzner, the SMTP relay), whether the attachments
+  are backed up, and the backups' retention.
