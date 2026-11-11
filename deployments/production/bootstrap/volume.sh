@@ -7,7 +7,8 @@
 #                                    create the filesystem, the layout and the key files, write /etc/salus/volume.conf
 #   salus-volume unlock [--no-start] after a reboot: open the volume, mount it, check it, start the stack
 #   salus-volume keys [--replace]    write the key files from Bitwarden (a restore onto a new volume); the volume open
-#   salus-volume check               is the volume open, mounted, laid out, with both key files? (exit 1 if not)
+#   salus-volume check               is the volume open, mounted, laid out, with both key files? (exit 1 if not;
+#                                    as root: only root reads the key files)
 #
 # The passphrase is typed into cryptsetup, never into this script, and is kept only in the owner's Bitwarden. The
 # keys are pasted from Bitwarden at a prompt that does not echo them. Nothing opens or mounts the volume at boot: no
@@ -18,12 +19,14 @@
 #   .                         root:deploy 0710   deploy may pass (deploy.sh checks the key files), nobody else
 #   postgres/                 999:999 0700       Postgres's data (the postgres image's uid)
 #   garage/, meta/, data/     root:root 0700     Garage's metadata and blocks (Garage runs as root)
+#   clamd/                    100:101 0700       clamd's TemporaryDirectory: the uploads it scans (the clamav user)
 #   keys/                     root:deploy 0710
 #   keys/binary_kek, totp_key 65532:65532 0400   the app image's nonroot uid, which no host account has
 #
 # Settings: /etc/salus/volume.conf (SALUS_VOLUME_CONF), KEY=value lines written by setup: DEVICE (by LUKS UUID),
 # NAME (the dm-crypt mapping) and MOUNTPOINT (SALUS_DATA_DIR at setup, default /mnt/salus-data; the compose file's
-# SALUS_DATA_DIR must match). The stack is the compose project salus in /opt/salus (SALUS_ROOT).
+# SALUS_DATA_DIR must match). The stack is the compose project salus in /opt/salus (SALUS_ROOT); unlock starts it
+# holding deploy.sh's lock, /opt/salus/.deploy.lock, so it never runs beside a deploy or a rollback.
 set -euo pipefail
 
 CONF=${SALUS_VOLUME_CONF:-/etc/salus/volume.conf}
@@ -31,6 +34,7 @@ ROOT=${SALUS_ROOT:-/opt/salus}
 readonly DEPLOY_GROUP=deploy
 readonly KEY_UID=65532 # gcr.io/distroless/static:nonroot, build/package/Dockerfile
 readonly PG_UID=999    # the postgres image's postgres user
+readonly CLAMAV_UID=100 CLAMAV_GID=101 # the clamav image's clamav user
 readonly KEYS=(binary_kek totp_key)
 readonly MOUNT_OPTIONS=nodev,nosuid,noexec
 
@@ -112,9 +116,13 @@ check_layout() {
 	expect_path "$MOUNTPOINT/garage" d 700 0:0 || bad=1
 	expect_path "$MOUNTPOINT/garage/meta" d 700 0:0 || bad=1
 	expect_path "$MOUNTPOINT/garage/data" d 700 0:0 || bad=1
+	expect_path "$MOUNTPOINT/clamd" d 700 "$CLAMAV_UID:$CLAMAV_GID" || bad=1
 	expect_path "$MOUNTPOINT/keys" d 710 "0:$gid" || bad=1
 	for key in "${KEYS[@]}"; do
-		if expect_path "$MOUNTPOINT/keys/$key" f 400 "$KEY_UID:$KEY_UID"; then
+		if [[ ! -f $MOUNTPOINT/keys/$key ]]; then
+			printf 'salus-volume: %s is missing: write it with salus-volume keys (from Bitwarden)\n' "$MOUNTPOINT/keys/$key" >&2
+			bad=1
+		elif expect_path "$MOUNTPOINT/keys/$key" f 400 "$KEY_UID:$KEY_UID"; then
 			key_ok "$MOUNTPOINT/keys/$key" || { printf 'salus-volume: %s is not base64 of 32 bytes\n' "$MOUNTPOINT/keys/$key" >&2; bad=1; }
 		else
 			bad=1
@@ -148,6 +156,7 @@ lay_out() {
 	install -d -m 710 -o root -g "$gid" "$MOUNTPOINT" "$MOUNTPOINT/keys"
 	install -d -m 700 -o "$PG_UID" -g "$PG_UID" "$MOUNTPOINT/postgres"
 	install -d -m 700 -o root -g root "$MOUNTPOINT/garage" "$MOUNTPOINT/garage/meta" "$MOUNTPOINT/garage/data"
+	install -d -m 700 -o "$CLAMAV_UID" -g "$CLAMAV_GID" "$MOUNTPOINT/clamd"
 }
 
 # read_key LABEL: the key from the owner, not echoed; checked to be base64 of 32 bytes.
@@ -162,7 +171,7 @@ read_key() {
 	fi
 	value=${value//[[:space:]]/}
 	n=$(printf '%s' "$value" | base64 -d 2>/dev/null | wc -c) || n=0
-	[[ $n == 32 ]] || die "$1 is not base64 of 32 bytes: nothing written"
+	[[ $n == 32 ]] || die "$1 is not base64 of 32 bytes: no key file was written"
 	printf '%s' "$value"
 }
 
@@ -214,11 +223,28 @@ start_stack() {
 		log "not started (--no-start). To start the stack: $cmd up -d --wait"
 		return 0
 	fi
+	# deploy.sh's lock, so the stack never starts beside a deploy or a rollback. Created as deploy's when missing:
+	# deploy.sh, run as deploy, opens it for writing.
+	[[ -e $ROOT/.deploy.lock ]] || install -m 644 -o "$DEPLOY_GROUP" -g "$DEPLOY_GROUP" /dev/null "$ROOT/.deploy.lock"
+	exec 9<"$ROOT/.deploy.lock"
+	flock -n 9 ||
+		die "a deploy or rollback is running (it holds $ROOT/.deploy.lock) and brings the stack up itself: as deploy, deploy.sh status <sha>"
 	log "starting the stack: $cmd up -d --wait"
 	# shellcheck disable=SC2086 # the command's words
 	$cmd up -d --wait --wait-timeout 900 ||
 		die "the stack did not come up healthy: look at '$cmd ps' and '$cmd logs --tail 100 <service>'"
+	exec 9<&-
 	log "the stack is up"
+}
+
+# undo_setup, on any exit of a setup before volume.conf is written: unmounts and closes the volume, so nothing is
+# left open, and says how to start again (the device now holds a LUKS header, which setup refuses).
+SETUP_DEV=
+undo_setup() {
+	if [[ -n $(mounted_from) ]]; then umount "$MOUNTPOINT"; fi
+	if is_open; then cryptsetup close "$NAME"; fi
+	printf 'salus-volume: error: setup did not finish, and the volume is closed again. Fix the cause above, then wipefs -a %s and run setup again\n' \
+		"$SETUP_DEV" >&2
 }
 
 cmd_setup() {
@@ -236,21 +262,26 @@ cmd_setup() {
 	if grep -Eq "^[^#]*($(basename "$dev")|HC_Volume)" /etc/fstab 2>/dev/null; then
 		die "/etc/fstab mounts a Hetzner Volume (the console's automatic mount): remove that line first"
 	fi
+	SETUP_DEV=$dev
+	trap undo_setup EXIT
 	log "formatting $dev with LUKS2: cryptsetup asks to confirm, then for the new passphrase twice. Use the passphrase you stored in Bitwarden; it is never stored on this server"
 	cryptsetup luksFormat --type luks2 --verify-passphrase "$dev"
 	uuid=$(cryptsetup luksUUID "$dev")
 	log "opening the volume: type the passphrase again"
 	cryptsetup open --type luks2 "$dev" "$NAME"
 	mkfs.ext4 -q -L salus-data "/dev/mapper/$NAME"
-	install -d -m 755 -o root -g root "$(dirname "$CONF")"
-	printf '# Written by salus-volume setup. The encrypted volume: no secret here.\nDEVICE=/dev/disk/by-uuid/%s\nNAME=%s\nMOUNTPOINT=%s\n' \
-		"$uuid" "$NAME" "$MOUNTPOINT" >"$CONF"
-	chmod 644 "$CONF"
 	DEVICE=/dev/disk/by-uuid/$uuid
 	mount_volume
 	lay_out
 	write_keys
 	check_layout || die "the layout check failed (see above)"
+	# Last: until volume.conf exists, a failed setup is undone (undo_setup) and can be run again.
+	install -d -m 755 -o root -g root "$(dirname "$CONF")"
+	printf '# Written by salus-volume setup. The encrypted volume: no secret here.\nDEVICE=%s\nNAME=%s\nMOUNTPOINT=%s\n' \
+		"$DEVICE" "$NAME" "$MOUNTPOINT" >"$CONF.new"
+	chmod 644 "$CONF.new"
+	mv -f "$CONF.new" "$CONF"
+	trap - EXIT
 	log "done. After every reboot: salus-volume unlock. If MOUNTPOINT is not /mnt/salus-data, set SALUS_DATA_DIR=$MOUNTPOINT in the env file"
 }
 
@@ -267,12 +298,16 @@ cmd_unlock() {
 		cryptsetup open --type luks2 "$DEVICE" "$NAME" || die "cryptsetup could not open the volume (wrong passphrase?)"
 	fi
 	mount_volume
+	# The directories' owners and modes are this script's to set (a surviving volume may carry another server's
+	# deploy gid); the key files are only checked.
+	lay_out
 	check_layout || die "the volume is mounted but not as expected (see above): the stack is not started"
 	log "the volume is open, mounted and laid out; both key files are in place"
 	start_stack "$no_start"
 }
 
 cmd_check() {
+	need_root
 	load_conf
 	check_layout || exit 1
 	log "ok: $MOUNTPOINT is the open, encrypted volume, laid out, with both key files"

@@ -11,6 +11,12 @@ docs/plans/deploy.md). This page is the order of work for the first deploy; the 
 | `docs/deploy/backup-restore.md` | Backups to the Storage Box and the restore drill |
 | `.github/workflows/images.yml`, `deploy.yml` | Building the images; deploying them |
 
+This order is for a **fresh server**, which is the only kind there is so far: the encrypted volume (step 4) holds the
+data from the first deploy on. A server that already ran a release keeping its data in Docker's named volumes and
+`BINARY_KEK`/`TOTP_KEY` in its env file needs the one-time move in `deployments/production/README.md` ("Encrypted
+volume") first: stop the stack, move the data onto the volume, remove the named volumes, delete the keys from every
+`releases/*/.env`, and treat those keys as exposed (rotate them, or record the exposure).
+
 Nothing is deployed until step 8 sets `DEPLOY_ENABLED`. Until then every Deploy run stops at "not enabled".
 
 ## 0. Decide first

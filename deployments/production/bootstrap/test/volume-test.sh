@@ -41,6 +41,7 @@ luksFormat) touch "$WORK/state/formatted" ;;
 luksUUID) echo 0b5e7a1c-0000-4000-8000-000000000001 ;;
 open) [[ -z ${FAKE_WRONG_PASSPHRASE:-} ]] || exit 2; touch "$WORK/state/open" ;;
 status) [[ -e $WORK/state/open ]] ;;
+close) rm -f "$WORK/state/open" ;;
 esac
 STUB
 	cat >"$WORK/bin/blkid" <<'STUB'
@@ -64,7 +65,8 @@ case " $* " in
 *) echo "${FAKE_DEV_TYPE:-crypt}" ;;
 esac
 STUB
-	printf '#!/usr/bin/env bash\necho "mkfs.ext4 $*" >>"$WORK/calls"\n' >"$WORK/bin/mkfs.ext4"
+	printf '#!/usr/bin/env bash\necho "umount $*" >>"$WORK/calls"\nrm -f "$WORK/state/mounted"\n' >"$WORK/bin/umount"
+	printf '#!/usr/bin/env bash\necho "mkfs.ext4 $*" >>"$WORK/calls"\n[[ -z ${FAKE_MKFS_FAIL:-} ]]\n' >"$WORK/bin/mkfs.ext4"
 	printf '#!/usr/bin/env bash\necho "docker $*" >>"$WORK/calls"\nexit ${FAKE_DOCKER_STATUS:-0}\n' >"$WORK/bin/docker"
 	chmod +x "$WORK/bin/"*
 }
@@ -75,6 +77,14 @@ run() { # run STDIN ARGS...: volume.sh with the stubs, STDIN as its input
 	set +e
 	printf '%b' "$input" | PATH="$WORK/bin:$PATH" SALUS_VOLUME_CONF=$WORK/etc/volume.conf \
 		SALUS_DATA_DIR=$WORK/mnt SALUS_ROOT=$WORK/opt setsid -w bash "$VOLUME" "$@" >"$WORK/out" 2>&1
+	STATUS=$?
+	set -e
+}
+
+run_as_deploy() { # run_as_deploy ARGS...: volume.sh as the deploy user
+	set +e
+	runuser -u deploy -- env PATH="$WORK/bin:$PATH" WORK=$WORK SALUS_VOLUME_CONF=$WORK/etc/volume.conf \
+		SALUS_DATA_DIR=$WORK/mnt SALUS_ROOT=$WORK/opt bash "$VOLUME" "$@" </dev/null >"$WORK/out" 2>&1
 	STATUS=$?
 	set -e
 }
@@ -95,6 +105,7 @@ expect_eq "$(cat "$WORK/etc/volume.conf" | grep -v '^#' | tr '\n' ' ')" \
 expect_eq "$(stat_of "$WORK/mnt")" "710 root:deploy" "the volume's root"
 expect_eq "$(stat -c '%a %u:%g' "$WORK/mnt/postgres")" "700 999:999" "postgres/"
 for d in garage garage/meta garage/data; do expect_eq "$(stat_of "$WORK/mnt/$d")" "700 root:root" "$d/"; done
+expect_eq "$(stat -c '%a %u:%g' "$WORK/mnt/clamd")" "700 100:101" "clamd/ (the clamav image's clamav user)"
 expect_eq "$(stat_of "$WORK/mnt/keys")" "710 root:deploy" "keys/"
 expect_eq "$(stat -c '%a %u:%g' "$WORK/mnt/keys/binary_kek")" "400 65532:65532" "binary_kek"
 expect_eq "$(stat -c '%a %u:%g' "$WORK/mnt/keys/totp_key")" "400 65532:65532" "totp_key"
@@ -127,8 +138,21 @@ expect_no_log "luksFormat"
 fresh "setup refuses a key that is not base64 of 32 bytes, and two equal keys"
 run "c2hvcnQ=\n$TOTP\n" setup "$WORK/dev"
 expect_eq "$STATUS" 1 "a short key"
-expect_out "BINARY_KEK is not base64 of 32 bytes"
+expect_out "BINARY_KEK is not base64 of 32 bytes: no key file was written"
 expect_eq "$(stat_of "$WORK/mnt/keys/binary_kek")" missing "nothing written"
+expect_out "setup did not finish"
+expect_log "^umount $WORK/mnt$"
+expect_log "^cryptsetup close salus-data$"
+expect_eq "$(stat_of "$WORK/etc/volume.conf")" missing "no volume.conf after a failed setup"
+
+fresh "a setup that fails half-way closes the volume again and writes no volume.conf"
+FAKE_MKFS_FAIL=1 run "$KEK\n$TOTP\n" setup "$WORK/dev"
+expect_eq "$STATUS" 1 "exit status"
+expect_out "setup did not finish.*wipefs -a $WORK/dev"
+expect_log "^cryptsetup close salus-data$"
+expect_no_log "^mount"
+expect_eq "$([[ -e $WORK/state/open ]] && echo open || echo closed)" closed "the mapping"
+expect_eq "$(stat_of "$WORK/etc/volume.conf")" missing "volume.conf"
 
 # --- unlock ----------------------------------------------------------------------------------------------------
 
@@ -197,10 +221,36 @@ rm "$WORK/mnt/keys/totp_key"
 chmod 444 "$WORK/mnt/keys/binary_kek"
 run "" unlock
 expect_eq "$STATUS" 1 "exit status"
-expect_out "totp_key is missing"
+expect_out "totp_key is missing: write it with salus-volume keys"
 expect_out "binary_kek is 444 65532:65532 \(mode uid:gid\), want 400 65532:65532"
 expect_out "the stack is not started"
 expect_no_log "^docker"
+
+locked "unlock lays the directories out again (another server's deploy gid, a surviving volume)"
+chgrp root "$WORK/mnt" "$WORK/mnt/keys"
+chmod 755 "$WORK/mnt/garage"
+run "" unlock --no-start
+expect_eq "$STATUS" 0 "exit status: $(cat "$WORK/out")"
+expect_eq "$(stat_of "$WORK/mnt")" "710 root:deploy" "the volume's root"
+expect_eq "$(stat_of "$WORK/mnt/keys")" "710 root:deploy" "keys/"
+expect_eq "$(stat_of "$WORK/mnt/garage")" "700 root:root" "garage/"
+
+locked "unlock does not start the stack while a deploy holds the lock"
+echo "SALUS_TAG=aaaa" >"$WORK/opt/release.env"
+install -m 644 -o deploy -g deploy /dev/null "$WORK/opt/.deploy.lock"
+exec 8>"$WORK/opt/.deploy.lock"
+flock 8
+run "" unlock
+exec 8>&-
+expect_eq "$STATUS" 1 "exit status"
+expect_out "a deploy or rollback is running"
+expect_no_log "^docker"
+CASE="unlock takes the deploy lock, creating it as deploy's when missing"
+rm "$WORK/opt/.deploy.lock"
+run "" unlock
+expect_eq "$STATUS" 0 "exit status: $(cat "$WORK/out")"
+expect_log "^docker compose -p salus"
+expect_eq "$(stat_of "$WORK/opt/.deploy.lock")" "644 deploy:deploy" "the lock file"
 
 # --- keys and check --------------------------------------------------------------------------------------------
 
@@ -237,6 +287,10 @@ expect_eq "$STATUS" 1 "not crypt"
 expect_out "not from the dm-crypt device"
 run "" check
 expect_eq "$STATUS" 0 "ok"
+CASE="check needs root, which alone can read the key files"
+run_as_deploy check
+expect_eq "$STATUS" 1 "as deploy"
+expect_out "run as root"
 CASE="check: a host account with the key files' uid could read them"
 useradd --uid 65532 --no-create-home synthetic-nonroot 2>/dev/null
 run "" check

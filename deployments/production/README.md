@@ -84,9 +84,25 @@ through a port published on the gateway.
 
 ## Encrypted volume
 
+This layout is for a **fresh server**: no server has run an earlier release yet. A server that already ran a
+release with the named volumes (`salus_postgres`, `salus_objectstore-meta`, `salus_objectstore-data`) and the keys in
+its env file needs a one-time move first, by hand, before the first deploy of this layout:
+
+1. Stop the stack (`docker compose -p salus ... down`, no `-v`), set up the volume (`salus-volume setup`).
+2. Copy the data, as root, preserving owners: `cp -a /var/lib/docker/volumes/salus_postgres/_data/. /mnt/salus-data/postgres/`,
+   and the same for `salus_objectstore-meta` to `garage/meta/` and `salus_objectstore-data` to `garage/data/`. Then
+   `salus-volume check`, and start the stack with `salus-volume unlock`, which checks the layout again.
+3. Once the stack works on the volume, remove the old named volumes (`docker volume rm salus_postgres
+   salus_objectstore-meta salus_objectstore-data`).
+4. Delete `BINARY_KEK` and `TOTP_KEY` from `/opt/salus/.env` and from every `/opt/salus/releases/*/.env` (the deploy
+   refuses a rollback to a release whose env file has them), and from `SALUS_ENV_FILE` and Bitwarden's env note.
+5. Treat the keys as exposed: they were in GitHub and on the unencrypted disk. Rotating `BINARY_KEK` needs a new
+   `BINARY_KEK_ID` and re-wrapping every stored data key, and `TOTP_KEY` re-sealing every MFA secret; neither has a
+   tool yet. If they are not rotated, record the exposure and the owner's decision in docs/privacy/.
+
 Postgres's and Garage's data and the key files sit on a Hetzner Volume encrypted with LUKS2 (ADR 0011, "Decided
 before real patient data"), mounted at `SALUS_DATA_DIR` (default `/mnt/salus-data`). The server's own disk holds
-no personal data: no swap (the bootstrap fails while any is active), clamd's temporary files on a tmpfs, container
+no personal data: no swap (the bootstrap fails while any is active), clamd's temporary files on the volume, container
 logs without personal data (CLAUDE.md).
 
 - **Set up once** with `salus-volume setup /dev/disk/by-id/scsi-0HC_Volume_<id>` (as root; docs/deploy/README.md):
@@ -111,10 +127,14 @@ logs without personal data (CLAUDE.md).
 | `.` | `root:deploy` 0710 | The deploy user may pass (to check the key files), no other account may |
 | `postgres/` | `999:999` 0700 | Postgres's data (`/var/lib/postgresql`; the image's `postgres` uid) |
 | `garage/meta/`, `garage/data/` | `root:root` 0700 | Garage's metadata and blocks (Garage runs as root) |
+| `clamd/` | `100:101` 0700 | clamd's `TemporaryDirectory` (the clamav image's `clamav` user): the uploads it scans and what it unpacks |
 | `keys/` | `root:deploy` 0710 | The key files |
 | `keys/binary_kek`, `keys/totp_key` | `65532:65532` 0400 | The keys, base64 and a newline |
 
-`salus-volume check` reports every difference from this table, and a host account with uid 65532.
+`salus-volume check` (as root, the only account that reads the key files) reports every difference from this table,
+and a host account with uid 65532. `salus-volume unlock` sets the directories' owners and modes to the table before it
+checks (a volume moved from another server may carry its `deploy` gid); it never changes the key files. Unlock starts
+the stack holding `deploy.sh`'s lock (`/opt/salus/.deploy.lock`) and refuses while a deploy or rollback holds it.
 
 ## Keys
 
@@ -183,7 +203,7 @@ under load yet (docs/consultation/SPEC.md §8).
 
 | Service | Limit |
 | --- | --- |
-| clamd | 2048 MB (the signatures in memory, about 1.5 GB; `ConcurrentDatabaseReload no` keeps a reload from doubling it). Its `/tmp` is a tmpfs of up to 512 MB, where clamd spools the stream it scans and what it unpacks, so no upload reaches the unencrypted disk; its pages count towards the limit only during a scan, so a scan of the largest uploads may need the headroom |
+| clamd | 2048 MB (the signatures in memory, about 1.5 GB; `ConcurrentDatabaseReload no` keeps a reload from doubling it). The scans' temporary files are not in it: clamd spools each stream and what it unpacks to `SALUS_DATA_DIR/clamd` on the encrypted volume, not a tmpfs, because the worker runs two scans at once, each up to 250 MB streamed plus 250 MB unpacked: a tmpfs for that (1 GB) would count towards this limit and take the budget to about 7.7 GB of 8. The cost is disk I/O on the volume during a scan |
 | postgres | 1024 MB |
 | worker | 768 MB (a scan reads an upload of up to 200 MB) |
 | livekit | 768 MB |

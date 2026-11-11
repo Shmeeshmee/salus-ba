@@ -359,9 +359,10 @@ services:
   # writable: the image's entrypoint writes the CLAMD_CONF_* settings into /etc/clamav/clamd.conf and runs as
   # root to hand the database to the clamav user. ConcurrentDatabaseReload off: a reload does not double the
   # signatures' memory. clamd spools every scanned stream (an upload, in plaintext) and what it unpacks from it to
-  # TemporaryDirectory: /tmp, a tmpfs, so no upload reaches the server's unencrypted disk. 512 MB holds the largest
-  # stream (StreamMaxLength 250M) and what MaxScanSize lets it unpack (250M); its pages count towards mem_limit
-  # only while a scan runs (README.md "Memory budget").
+  # TemporaryDirectory, which is on the encrypted volume (SALUS_DATA_DIR/clamd, the clamav user's), so no upload
+  # reaches the server's unencrypted disk. Not a tmpfs: the worker runs two scans at once (internal/worker), each up
+  # to 250M streamed plus 250M unpacked, and a tmpfs counts towards mem_limit (README.md "Memory budget"). /tmp is a
+  # small tmpfs for the entrypoint's own files.
   clamd:
     image: clamav/clamav:1.5.4@sha256:45fe5149fbee5a46509c9848ef20d0c354b7b2323c9369f285939a37cf33422a
     <<: *logging
@@ -370,10 +371,15 @@ services:
       CLAMD_CONF_MaxFileSize: 250M
       CLAMD_CONF_MaxScanSize: 250M
       CLAMD_CONF_ConcurrentDatabaseReload: "no"
-      CLAMD_CONF_TemporaryDirectory: /tmp
+      CLAMD_CONF_TemporaryDirectory: /var/lib/clamav-scan
       FRESHCLAM_CHECKS: "4"
-    volumes: [clamav:/var/lib/clamav]
-    tmpfs: ["/tmp:size=512m,mode=1777"]
+    volumes:
+      - clamav:/var/lib/clamav
+      - type: bind
+        source: ${SALUS_DATA_DIR:-/mnt/salus-data}/clamd
+        target: /var/lib/clamav-scan
+        bind: {create_host_path: false}
+    tmpfs: ["/tmp:size=64m,mode=1777"]
     cap_drop: [ALL]
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
     security_opt: ["no-new-privileges:true"]

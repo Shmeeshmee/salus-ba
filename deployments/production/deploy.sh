@@ -83,11 +83,11 @@ check_release() {
 	for key in binary_kek totp_key; do
 		file=$dir/keys/$key
 		if [[ ! -f $file ]]; then
-			log "the key file $file is missing (salus-volume keys, docs/deploy/README.md)"
+			log "the key file $file is missing (as root: salus-volume keys, from Bitwarden)"
 			return 1
 		fi
 		if [[ $(stat -c '%u %a' "$file") != "$KEY_UID 400" ]]; then
-			log "the key file $file is not owned by uid $KEY_UID with mode 400 (salus-volume check)"
+			log "the key file $file is not owned by uid $KEY_UID with mode 400 (as root: salus-volume check)"
 			return 1
 		fi
 	done

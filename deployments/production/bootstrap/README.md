@@ -84,11 +84,13 @@ any key at all. Choose `yes` if you prefer to run the bootstrap over SSH; the ri
   `blkid`, `mkfs.ext4` and `docker` (nothing is formatted, opened or mounted; ownership, modes and the key files are
   real): setup writes the layout, both key files (`65532` 0400) and `volume.conf`, with no fstab or crypttab line
   and no key echoed; it refuses a second setup, a device with a signature, a mounted device, a short key and two
-  equal keys; unlock opens, mounts, checks, then starts the stack (or says there is no release yet, or prints the
-  command with `--no-start`), is idempotent, and stops on a wrong passphrase, a detached volume, something else at
-  the mount point, a missing key file or a wrong mode; `keys` rewrites a missing file and replaces another value
-  only with `--replace`; `check` fails on a locked volume, a device that is not `crypt` and a host account with
-  uid 65532;
+  equal keys, and a setup that fails half-way unmounts and closes the volume and writes no `volume.conf`; unlock
+  opens, mounts, lays the directories out again (another `deploy` gid), checks, then starts the stack holding
+  deploy.sh's lock (or says there is no release yet, or prints the command with `--no-start`, or refuses while a
+  deploy holds the lock), is idempotent, and stops on a wrong passphrase, a detached volume, something else at the
+  mount point, a missing key file (naming `salus-volume keys`) or a wrong mode; `keys` rewrites a missing file and
+  replaces another value only with `--replace`; `check` needs root and fails on a locked volume, a device that is
+  not `crypt` and a host account with uid 65532;
 - `bootstrap.sh` in a fresh `ubuntu:24.04` container: refuses a missing or placeholder key, `UPGRADE_AUTO_REBOOT=yes`,
   and the test flags on a host with systemd; active swap or a swap line in `/etc/fstab` fails `--check` and a real
   run; cryptsetup and `salus-volume` are installed; `--check` reports and changes nothing; a real run (packages, Docker from its repository, the
