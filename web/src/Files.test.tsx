@@ -105,7 +105,7 @@ describe('Files: the viewer (W10, W11)', () => {
       // The percentages resolve against the space the dialog gives the body, not against the photo's own height:
       // with an implicit auto row the row grows to the photo and its lower part is cut off.
       const body = getComputedStyle(img.parentElement as HTMLElement)
-      expect([body.gridTemplateRows, body.gridTemplateColumns]).toEqual(['minmax(0, 1fr)', 'minmax(0, 1fr)'])
+      expect([body.gridTemplateRows, body.gridTemplateColumns]).toEqual(['minmax(0px, 1fr)', 'minmax(0px, 1fr)'])
       expect(body.overflow).toBe('hidden')
     } finally {
       style.remove()
