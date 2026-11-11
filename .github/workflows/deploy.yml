@@ -87,9 +87,10 @@ jobs:
           fi
           # The environment must exist with a required reviewer: a job naming a missing environment would create it
           # unprotected, and deploy without the owner's approval.
-          reviewers=$(gh api "repos/$REPO/environments/production" \
-            --jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length' 2>/dev/null || echo 0)
-          if [ "${reviewers:-0}" -lt 1 ]; then
+          # Fails closed: an API error (a missing environment is a 404) or anything but a count of at least 1 stops it.
+          if ! reviewers=$(gh api "repos/$REPO/environments/production" \
+              --jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length' 2>/dev/null) ||
+            ! [[ $reviewers =~ ^[0-9]+$ ]] || ((reviewers < 1)); then
             echo "The environment production does not exist or has no required reviewer (docs/deploy/README.md step 6)." >&2
             exit 1
           fi
@@ -206,22 +207,26 @@ jobs:
         run: |
           flag=
           [ "$MIGRATE" = yes ] || flag=--no-migrate
+          # A failed start over SSH may still have started it on the server: the status below tells.
           # shellcheck disable=SC2029
-          ssh salus "bash /opt/salus/releases/$SHA/deploy.sh start $SHA $flag"
+          ssh salus "bash /opt/salus/releases/$SHA/deploy.sh start $SHA $flag" || echo "::warning::start over SSH failed"
           status=running
-          for _ in $(seq 240); do
+          while ((SECONDS < 35 * 60)); do
             sleep 10
             # shellcheck disable=SC2029
-            status=$(ssh salus "bash /opt/salus/releases/$SHA/deploy.sh status $SHA" || echo unreachable)
+            status=$(ssh salus "bash /opt/salus/releases/$SHA/deploy.sh status $SHA" 2>/dev/null | tail -1) || status=unreachable
             case $status in running | unreachable) continue ;; *) break ;; esac
           done
           # shellcheck disable=SC2029
           ssh salus "cat /opt/salus/releases/$SHA/deploy.log" || true
           case $status in
           0) echo "Deployed." ;;
-          1) echo "Not deployed: refused, or failed and rolled back (log above)." >&2; exit 1 ;;
+          1) echo "Not deployed: refused (another deploy runs?), or failed and rolled back (log above)." >&2; exit 1 ;;
           2) echo "Failed, and the rollback failed too: the stack needs a person (log above)." >&2; exit 1 ;;
-          *) echo "No result within 40 minutes (status: $status); the deploy goes on on the server." >&2; exit 1 ;;
+          died) echo "The deploy on the server stopped without a result (killed or rebooted): check the stack by hand." >&2; exit 1 ;;
+          none) echo "The deploy did not start on the server." >&2; exit 1 ;;
+          running | unreachable) echo "No result within 35 minutes ($status); the deploy goes on on the server." >&2; exit 1 ;;
+          *) echo "Unexpected status from the server: $status" >&2; exit 1 ;;
           esac
       - name: Check the public endpoints
         id: public

@@ -6,7 +6,7 @@
 #
 #   deploy.sh start <sha> [--no-migrate]    run `deploy` detached from the SSH session (the workflow's way), its
 #                                           output in releases/<sha>/deploy.log, its exit status in deploy.status
-#   deploy.sh status <sha>                  `none`, `running`, or the exit status of the detached deploy
+#   deploy.sh status <sha>                  `none`, `running`, `died`, or the exit status of the detached deploy
 #   deploy.sh deploy <sha> [--no-migrate]   switch to the release; on any failure, back to the one before
 #   deploy.sh rollback                      back to the release before the running one (no migrate)
 #
@@ -46,25 +46,36 @@ compose() {
 
 tag_of() { sed -n 's/^SALUS_TAG=//p' "$1" 2>/dev/null || true; }
 
+# lock takes /opt/salus/.deploy.lock on fd 9, or trusts the one `start` took and handed down (SALUS_LOCK_HELD).
 lock() {
+	[[ ${SALUS_LOCK_HELD:-} == 1 ]] && return 0
 	exec 9>"$ROOT/.deploy.lock"
 	flock -n 9 || die "another deploy or rollback is running"
 }
 
-# settled is true when, SETTLE_SECONDS after the wait, every service but the one-shot migrate is running and none
-# has restarted.
+# settled is true when, SETTLE_SECONDS after the wait, every service but the one-shot migrate is running, none is
+# unhealthy, and no container this deploy created (since STARTED) has restarted. Containers it left alone (a
+# database whose image did not change) keep their old restart counts, which say nothing about this release.
+STARTED=0
 settled() {
 	sleep "$SETTLE_SECONDS"
-	local bad restarts
+	local bad name created count health
 	bad=$(compose ps --all --format '{{.Service}} {{.State}}' | awk '$1 != "migrate" && $2 != "running"')
 	if [[ -n $bad ]]; then
 		log "not running after ${SETTLE_SECONDS}s: $(echo "$bad" | tr '\n' ' ')"
 		return 1
 	fi
+	bad=
 	# shellcheck disable=SC2046 # one word per container id
-	restarts=$(docker inspect --format '{{.Name}} {{.RestartCount}}' $(compose ps -q) | awk '$2 > 0')
-	if [[ -n $restarts ]]; then
-		log "restarted since the deploy: $(echo "$restarts" | tr '\n' ' ')"
+	while read -r name created count health; do
+		[[ $health == unhealthy ]] && bad+="$name unhealthy; "
+		if ((count > 0)) && (($(date -u -d "$created" +%s) >= STARTED)); then
+			bad+="$name restarted $count times; "
+		fi
+	done < <(docker inspect --format '{{.Name}} {{.Created}} {{.RestartCount}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' \
+		$(compose ps -q))
+	if [[ -n $bad ]]; then
+		log "not stable after ${SETTLE_SECONDS}s: $bad"
 		return 1
 	fi
 }
@@ -76,7 +87,7 @@ install() {
 	mkdir -p "$ROOT/deployments.new"
 	cp -a "$rel/." "$ROOT/deployments.new/"
 	rm -f "$ROOT/deployments.new/.env" "$ROOT/deployments.new/release.env" "$ROOT/deployments.new/deploy.log" \
-		"$ROOT/deployments.new/deploy.status"
+		"$ROOT/deployments.new/deploy.status" "$ROOT/deployments.new/deploy.pid"
 	# The env file is written mode 600 from the start, never readable by another user in between.
 	(umask 077 && cp "$rel/.env" "$ROOT/.env.new")
 	mv "$ROOT/.env.new" "$ROOT/.env"
@@ -103,6 +114,7 @@ roll_back_to() {
 		{ log "the files of release $sha are gone: cannot roll back"; return 1; }
 	install "$sha"
 	rm -f "$ROOT/release.previous.env"
+	STARTED=$(date -u +%s)
 	up_without_migrate
 }
 
@@ -154,6 +166,7 @@ cmd_deploy() {
 	fi
 
 	local up=0
+	STARTED=$(date -u +%s)
 	if ((migrate)); then
 		{ compose up -d --wait --wait-timeout "$WAIT_TIMEOUT" --remove-orphans && settled; } || up=$?
 	else
@@ -193,16 +206,21 @@ cmd_rollback() {
 	exit 2
 }
 
-# cmd_start starts `deploy` in its own session, so it outlives the SSH connection that started it.
+# cmd_start starts `deploy` in its own session, so it outlives the SSH connection that started it. It takes the
+# lock first, so a start refused while another deploy runs leaves that deploy's status and log alone, and hands
+# the lock down to the detached deploy, which drops it before it writes its status: a rollback the workflow starts
+# on reading the status is never refused by the deploy it follows.
 cmd_start() {
 	local sha=${1:-} rel
 	[[ $sha =~ ^[0-9a-f]{40}$ ]] || die "not a full commit SHA: '$sha'"
 	rel=$ROOT/releases/$sha
 	[[ -d $rel ]] || die "release $sha is not uploaded to $rel"
-	rm -f "$rel/deploy.status"
+	lock
+	rm -f "$rel/deploy.status" "$rel/deploy.pid"
 	: >"$rel/deploy.log"
 	# shellcheck disable=SC2016 # expanded by the inner shell
-	setsid nohup bash -c 'bash "$1" deploy "${@:3}" >"$2/deploy.log" 2>&1; echo $? >"$2/deploy.status"' \
+	SALUS_LOCK_HELD=1 setsid nohup bash -c \
+		'echo $$ >"$2/deploy.pid"; bash "$1" deploy "${@:3}" >"$2/deploy.log" 2>&1; s=$?; exec 9>&-; echo $s >"$2/deploy.status"' \
 		_ "$SELF" "$rel" "$@" </dev/null >/dev/null 2>&1 &
 	log "started the deploy of $sha (log: $rel/deploy.log)"
 }
@@ -213,6 +231,9 @@ cmd_status() {
 	rel=$ROOT/releases/$sha
 	if [[ -s $rel/deploy.status ]]; then
 		cat "$rel/deploy.status"
+	elif [[ -s $rel/deploy.pid ]] && ! kill -0 "$(cat "$rel/deploy.pid")" 2>/dev/null; then
+		# Gone without a result (killed, or the server rebooted): the files may be switched with nothing verified.
+		echo died
 	elif [[ -f $rel/deploy.log ]]; then
 		echo running
 	else

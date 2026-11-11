@@ -170,6 +170,10 @@ From then on every merge to `main` deploys after your approval: Images, then Dep
   `/opt/salus/releases/<sha>/deploy.log`) names the services that were not healthy or did not stay up. Fix forward
   with a new commit. The deploy runs detached on the server: a cancelled run or a dropped connection does not stop
   it half-way, and a second deploy started on the server meanwhile is refused until the first is done.
+- **"Stopped without a result".** The detached deploy was killed or the server rebooted during it: the new
+  release's files may be in place with nothing verified. Check `ps` and the deploy log, then deploy again or run
+  `bash /opt/salus/releases/<sha>/deploy.sh rollback` as `deploy`. (It relies on logind's default
+  `KillUserProcesses=no`, Ubuntu's default, so a process outlives the SSH session that started it.)
 - **Go back to an older release by hand.** Actions, Deploy, "Run workflow" with its SHA and **migrate off**; the
   older code must accept the current schema (expand, then contract: ADR 0011).
 - **Change a secret.** Update the Bitwarden note, paste the whole file into `SALUS_ENV_FILE`, run Deploy with the
