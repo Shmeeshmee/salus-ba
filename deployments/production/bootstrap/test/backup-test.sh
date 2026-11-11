@@ -240,6 +240,21 @@ expect "nothing new reaches the Storage Box, no partial upload either" test "$(b
 expect "nothing in staging" bash -c "[[ -z \$(ls -A '$WORK/staging' | grep -vx -e .lock -e .lock-objects -e last-success -e 'salus-.*\.dump\.age') ]]"
 write_env
 
+echo "== objects: fails when the upload stage fails (a wrong pinned host key)"
+write_conf "$WORK/wrong_known_hosts" no "$PROJECT"
+before=$(box "ls -1a $OBJBOX" | sed -n "s#^$OBJBOX/##p" | sort)
+if run_backup badhost objects; then fail "uploaded to a server whose host key does not match"; fi
+expect "nothing reaches the Storage Box" test "$(box "ls -1a $OBJBOX" | sed -n "s#^$OBJBOX/##p" | sort)" = "$before"
+echo "== objects: fails when rclone's upload fails (a directory it cannot write)"
+EXTRA_CONF=BACKUP_OBJECTS_PATH=salus/readonly
+write_conf "$WORK/known_hosts" no "$PROJECT"
+EXTRA_CONF=
+if run_backup rofail objects; then fail "succeeded although the upload could not be written"; fi
+expect "says the upload stage failed" grep -q 'the objects archive or its upload failed' "$WORK/rofail.log"
+expect "no archive and no partial upload in that directory" test -z "$(box "ls -1a salus/readonly" | sed -n 's#^salus/readonly/##p' | grep -v '^\.\{1,2\}$')"
+expect "the upload container, which held the key, is gone" test -z "$(docker ps -aq --filter "name=^salus-backup-rcat-$PROJECT\$")"
+write_conf "$WORK/known_hosts" no "$PROJECT"
+
 echo "== objects: a backup (streamed, BACKUP_KEEP_LOCAL is for the dumps only)"
 EXTRA_CONF=BACKUP_KEEP_LOCAL=yes
 write_conf "$WORK/known_hosts" yes "$PROJECT"
@@ -369,6 +384,9 @@ stubbed check2 check || {
 }
 expect "it logs the problems" grep -q 'salus-backup: error: objects: the newest backup is from' "$WORK/check2.log"
 expect "and sftp's own error for the listing" grep -q 'not found' "$WORK/check2.log"
+JOURNAL_STREAM=8:1 stubbed check5 check || fail "the check under journald failed"
+expect "under journald the problems are at err priority (<3>)" grep -q '^<3>salus-backup: error: objects: the newest backup is from' "$WORK/check5.log"
+expect "a plain run has no priority prefix" bash -c "! grep -q '^<' '$WORK/check2.log'"
 msg=$(tr -d '\r' <"$WORK/stub/curl.msg")
 expect "one alert names the stale kind" grep -q '^objects: the newest backup is from .*, 27 hours ago (limit 26)$' <<<"$msg"
 expect "and the missing one" grep -qx 'postgres: the Storage Box directory salus/nothing-here could not be listed' <<<"$msg"

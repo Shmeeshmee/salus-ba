@@ -113,7 +113,11 @@ any key at all. Choose `yes` if you prefer to run the bootstrap over SSH; the ri
   value refused, the login through curl's config on stdin and in no argument, the envelope sender from a
   display-name `SMTP_FROM`, CRLF lines, nothing but host, unit, time and status in the mail, a failed send and a
   missing `ALERT_EMAIL` fail. The freshness check: fresh backups send nothing; a stale and a missing kind send one
-  alert naming both; `BACKUP_MAX_AGE_HOURS` sets the limit.
+  alert naming both; `BACKUP_MAX_AGE_HOURS` sets the limit. Also: a wrong S3 secret, a wrong pinned host key and an
+  upload rclone cannot write all fail with nothing (no `.partial`) on the box, nothing staged and the upload
+  container removed; `BACKUP_KEEP_LOCAL=yes` keeps no archive; the last local dumps survive a failed upload; the env
+  file's junk lines, inline comments and single-quoted values; `SMTP_TLS=none` refused with a login and plain
+  without; the check exits 0 once it has mailed, fails when it cannot send, and logs at err priority under journald.
 
 Two flags exist for the container test only and default off; the script refuses them on a host that runs systemd:
 `SALUS_BOOTSTRAP_TEST_NO_SYSTEMD=1` (skips every `systemctl` call), `SALUS_BOOTSTRAP_TEST_NO_UFW_ENABLE=1` (skips

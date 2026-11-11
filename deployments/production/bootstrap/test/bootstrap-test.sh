@@ -141,6 +141,7 @@ expect "the objects run after the dump" bash -c 'f=/etc/systemd/system/salus-bac
 expect "a failure is logged at err priority and mailed" bash -c 'f=/etc/systemd/system/salus-backup-failed@.service; grep -q "systemd-cat -t salus-backup -p err" $f && grep -qx "ExecStart=/usr/local/sbin/salus-backup alert %i" $f'
 expect "the old failure unit is gone" test ! -e /etc/systemd/system/salus-backup-failed.service
 expect "the freshness check runs daily, persistent" bash -c 'grep -qx "OnCalendar=\*-\*-\* 08:00" /etc/systemd/system/salus-backup-check.timer && grep -qx "Persistent=true" /etc/systemd/system/salus-backup-check.timer && grep -qx "ExecStart=/usr/local/sbin/salus-backup check" /etc/systemd/system/salus-backup-check.service'
+expect "every backup unit logs as salus-backup (journalctl -t salus-backup -p err)" bash -c 'for u in salus-backup salus-backup-objects salus-backup-check salus-backup-failed@; do grep -qx "SyslogIdentifier=salus-backup" /etc/systemd/system/$u.service || exit 1; done'
 expect "a check that cannot send its alert reports through the failure hook" grep -qx 'OnFailure=salus-backup-failed@%n.service' /etc/systemd/system/salus-backup-check.service
 expect "the check timer is enabled with the backup's" grep -q 'systemctl enable --now salus-backup-check.timer' "$WORK/run1.log"
 expect "the backup has its own SSH key" test -s /root/.ssh/salus-backup.pub

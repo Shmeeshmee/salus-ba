@@ -1647,7 +1647,9 @@ points below are settled.
   and the exit status only, no personal data. Hetzner is a processor (docs/privacy/processors.md, pending its DPA).
 - **Backups and erasure.** Dumps and object archives are kept 14 days, so data erased in the database or the store
   stays in them for up to 14 days, unreadable without the `age` private key held offline. To be confirmed by the
-  owner as the backups' retention rule; a restore must re-apply the erasures recorded after the dump (`datarequest`).
+  owner as the backups' retention rule. A restore must redo, by hand, the erasures completed after the dump: their
+  record is lost with the database, so the owner keeps a list of them outside the server (docs/deploy/backup-restore.md
+  "Erasure"; no tool re-applies them yet).
 - **Logs.** Caddy writes no access log with client IP addresses; LiveKit logs at `warn`; container logs rotate.
 - **Decided (ADR 0011 "Before real patient data", points 2 to 6, 2026-11-11).** Postgres's and Garage's data sit
   on a LUKS-encrypted Hetzner Volume unlocked by hand after a reboot (ClamAV's scan spool on a `tmpfs`, no swap);

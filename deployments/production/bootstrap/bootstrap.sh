@@ -667,6 +667,7 @@ Description=Report the failed Salus backup %i
 
 [Service]
 Type=oneshot
+SyslogIdentifier=salus-backup
 ExecStart=/usr/bin/systemd-cat -t salus-backup -p err /bin/echo \"salus-backup FAILED: see journalctl -u %i\"
 ExecStart=$BACKUP_BIN alert %i
 TimeoutStartSec=5min
@@ -691,6 +692,7 @@ OnFailure=salus-backup-failed@%n.service
 
 [Service]
 Type=oneshot
+SyslogIdentifier=salus-backup
 ExecStart=$BACKUP_BIN check
 TimeoutStartSec=10min
 PrivateTmp=yes
@@ -734,6 +736,7 @@ OnFailure=salus-backup-failed@%n.service
 
 [Service]
 Type=oneshot
+SyslogIdentifier=salus-backup
 ExecStart=$BACKUP_BIN $2
 TimeoutStartSec=2h
 Nice=10

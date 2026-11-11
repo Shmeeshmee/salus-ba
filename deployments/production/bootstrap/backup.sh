@@ -51,9 +51,17 @@ readonly RCLONE_IMAGE=rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1
 readonly PG_NAME_RE='^salus-([0-9]{8}T[0-9]{6}Z)\.dump\.age$'
 readonly OBJECTS_NAME_RE='^salus-objects-([0-9]{8}T[0-9]{6}Z)\.tar\.age$'
 
+# Under systemd (JOURNAL_STREAM is set) errors carry journald's err prefix, so `journalctl -t salus-backup -p err`
+# lists them; on a terminal they do not.
+ERR=
+[[ -z ${JOURNAL_STREAM:-} ]] || ERR='<3>'
 log() { printf 'salus-backup: %s\n' "$*"; }
+err() { # err LINE...: one error line each
+	local line
+	for line in "$@"; do printf '%ssalus-backup: error: %s\n' "$ERR" "$line" >&2; done
+}
 die() {
-	printf 'salus-backup: error: %s\n' "$*" >&2
+	err "$*"
 	exit 1
 }
 
@@ -224,13 +232,18 @@ archive_objects() {
 # stream_to_box NETWORK DIR NAME: stdin to DIR/NAME on the Storage Box, written by rclone's SFTP backend (rcat) with
 # the backup's SSH key and the pinned host key. Both files are copied into the container (docker cp), so they are in
 # no command line or environment and the backup works wherever the Docker client runs. No remote shell is used
-# (the Storage Box offers SFTP only).
+# (the Storage Box offers SFTP only). The container has a fixed name and is removed whatever happens (it holds a copy
+# of the key): one a killed run left is removed before, and this one on every way out (it runs in the pipeline's
+# subshell, whose EXIT trap fires on a SIGTERM as well).
 stream_to_box() {
-	local cid status=0 algorithms
+	local cid name=salus-backup-rcat-$BACKUP_COMPOSE_PROJECT status=0 algorithms
 	# Only the pinned keys' algorithms, or the server may offer another key that the file does not list.
 	algorithms=$(awk '$1 ~ /^#/ { next } $2 == "ssh-rsa" { print "rsa-sha2-512\nrsa-sha2-256"; next } NF >= 3 { print $2 }' "$BACKUP_KNOWN_HOSTS_FILE" |
 		sort -u | paste -sd ' ')
-	cid=$(docker create -i --rm --network "$1" --cap-drop ALL --security-opt no-new-privileges:true \
+	docker rm -f "$name" >/dev/null 2>&1 || true
+	trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+	trap 'exit 143' TERM INT
+	cid=$(docker create -i --name "$name" --network "$1" --cap-drop ALL --security-opt no-new-privileges:true \
 		-e RCLONE_CONFIG_BOX_HOST_KEY_ALGORITHMS="$algorithms" \
 		-e RCLONE_CONFIG_BOX_TYPE=sftp -e RCLONE_CONFIG_BOX_HOST="$BACKUP_HOST" -e RCLONE_CONFIG_BOX_PORT="$BACKUP_PORT" \
 		-e RCLONE_CONFIG_BOX_USER="$BACKUP_USER" -e RCLONE_CONFIG_BOX_KEY_FILE=/tmp/key \
@@ -241,8 +254,8 @@ stream_to_box() {
 		docker start -a -i "$cid" || status=$?
 	else
 		status=1
-		docker rm -f "$cid" >/dev/null 2>&1 || true
 	fi
+	docker rm -f "$cid" >/dev/null 2>&1 || true
 	return "$status"
 }
 
@@ -306,7 +319,7 @@ prune() {
 		fi
 	done <<<"$names"
 	if ((${#stale[@]} && fresh == 0)); then
-		log "error: no $noun newer than $BACKUP_RETENTION_DAYS days on the Storage Box; keeping the ${#stale[@]} older ones"
+		err "no $noun newer than $BACKUP_RETENTION_DAYS days on the Storage Box; keeping the ${#stale[@]} older ones"
 		stale=()
 	fi
 	if ((${#stale[@]} + ${#partials[@]})); then
@@ -333,7 +346,7 @@ prune_local() {
 		fi
 	done
 	if ((${#stale[@]} && fresh == 0)); then
-		log "error: no local $noun newer than $BACKUP_RETENTION_DAYS days; keeping the ${#stale[@]} older ones"
+		err "no local $noun newer than $BACKUP_RETENTION_DAYS days; keeping the ${#stale[@]} older ones"
 		return 0
 	fi
 	for name in "${stale[@]}"; do rm -f "$BACKUP_STAGING_DIR/$name"; done
@@ -377,7 +390,7 @@ backup() {
 	if ! upload "$TMP" "$path" "$name"; then
 		# A full Storage Box shows here as a failed put (check with 'df -h' in sftp). Old files and partial uploads
 		# are still pruned, which frees space without ever deleting the last one; tonight's is lost all the same.
-		log "error: the upload to the Storage Box failed; pruning, then failing"
+		err "the upload to the Storage Box failed; pruning, then failing"
 		prune "$path" "$re" "$noun" || true
 		die "the upload to the Storage Box failed"
 	fi
@@ -450,7 +463,7 @@ alert() {
 	host=$(hostname)
 	result=$(systemctl show -P Result "$unit" 2>/dev/null) || result=
 	status=$(systemctl show -P ExecMainStatus "$unit" 2>/dev/null) || status=
-	log "error: $unit failed (result ${result:-unknown}, exit status ${status:-unknown})"
+	err "$unit failed (result ${result:-unknown}, exit status ${status:-unknown})"
 	send_alert "Salus backup failed on $host: $unit" "The unit $unit failed on $host.
 
 Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -492,7 +505,7 @@ check() {
 		fi
 	done
 	((${#problems[@]})) || return 0
-	printf 'salus-backup: error: %s\n' "${problems[@]}" >&2
+	err "${problems[@]}"
 	host=$(hostname)
 	send_alert "Salus backup missing on $host" "A backup on $host is missing or too old.
 

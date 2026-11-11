@@ -232,11 +232,13 @@ echo "objects without a row: $(comm -13 drill.rows drill.objects | wc -l)"
 #     then on the server (read-only, the same rclone on the salus network with the env file's key pair):
 $RCLONE md5sum D:salus-binaries/SAMPLE-ID
 #   ssh deploy@SERVER 'set -a; . <(grep -E "^S3_(ACCESS_KEY_ID|SECRET_ACCESS_KEY|BUCKET)=" /opt/salus/.env); set +a;
+#     export RCLONE_CONFIG_P_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID RCLONE_CONFIG_P_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY;
 #     docker run --rm --network salus_default -e RCLONE_CONFIG_P_TYPE=s3 -e RCLONE_CONFIG_P_PROVIDER=Other
 #       -e RCLONE_CONFIG_P_REGION=garage -e RCLONE_CONFIG_P_ENDPOINT=http://objectstore:3900
-#       -e RCLONE_CONFIG_P_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID" -e RCLONE_CONFIG_P_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY"
+#       -e RCLONE_CONFIG_P_ACCESS_KEY_ID -e RCLONE_CONFIG_P_SECRET_ACCESS_KEY
 #       rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5 --config=
 #       md5sum "P:${S3_BUCKET:-salus-binaries}/SAMPLE-ID"; ...same with size "P:${S3_BUCKET:-salus-binaries}"'
+#     The key pair is passed by name (-e NAME), so it is on no command line.
 #     The two checksums must match. That the file also opens (decrypted with BINARY_KEK) is checked on a real restore
 #     ("Restoring onto a new server", steps 8 and 10), where the production key is in place.
 echo "restored in $(( $(date +%s) - start )) s"
@@ -345,10 +347,12 @@ everything but Caddy, then Caddy.
    ssh deploy@NEW-SERVER "docker run --rm -i -v /mnt/salus-data:/d --entrypoint sh $R -c 'cat >/d/objects.tar'" <drill.objects.tar
    # on the server:
    set -a; . <(grep -E '^S3_(ACCESS_KEY_ID|SECRET_ACCESS_KEY|BUCKET)=' /opt/salus/.env); set +a
+   # the key pair by name (-e NAME), so it is on no command line
+   export RCLONE_CONFIG_P_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID RCLONE_CONFIG_P_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY
    docker run --rm --network salus_default -v /mnt/salus-data/objects.tar:/in.tar:ro \
      -e RCLONE_CONFIG_P_TYPE=s3 -e RCLONE_CONFIG_P_PROVIDER=Other -e RCLONE_CONFIG_P_REGION=garage \
-     -e RCLONE_CONFIG_P_ENDPOINT=http://objectstore:3900 -e RCLONE_CONFIG_P_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID" \
-     -e RCLONE_CONFIG_P_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY" "$R" --config= \
+     -e RCLONE_CONFIG_P_ENDPOINT=http://objectstore:3900 -e RCLONE_CONFIG_P_ACCESS_KEY_ID \
+     -e RCLONE_CONFIG_P_SECRET_ACCESS_KEY "$R" --config= \
      archive extract /in.tar "P:${S3_BUCKET:-salus-binaries}"
    docker run --rm -v /mnt/salus-data:/d --entrypoint rm "$R" /d/objects.tar
    ```
