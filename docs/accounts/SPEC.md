@@ -115,7 +115,8 @@ Decisions taken in this plan (reopen only with the owner):
   drift either way): about 30 lines, no dependency. `account.totp_last_step` rejects a code already used.
   The secret (20 random bytes) is stored encrypted with AES-256-GCM through a `SecretBox` port in `auth`.
   The key comes from the KMS in production; locally and in CI from `TOTP_KEY` (synthetic, base64, in
-  `configs/.env.example`). **Needs a KMS decision before production.**
+  `configs/.env.example`). Production, decided in ADR 0011 point 3: a root-only key file on the
+  encrypted volume, no KMS.
 - **Login rate limit.** Redis fixed windows of 15 minutes, keyed by an HMAC-SHA256 (key `RATE_LIMIT_KEY`) of
   the normalised e-mail and, separately, of the client IP: 5 failed attempts per e-mail, 30 attempts per IP.
   Over the limit the API answers 429 with `Retry-After` and does not check the password. The IP is never

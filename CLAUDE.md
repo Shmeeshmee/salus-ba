@@ -97,7 +97,7 @@ in the same commit.
 | `errors.go` | Stable domain errors: `Err…` values and `…Error` types | leak vendor errors |
 | `service.go`, `service_*.go` | `Service`, the ports it consumes, every business rule, authorization, transaction boundaries | import pgx or `net/http`; call `time.Now` (take a `clock.Clock`) |
 | `repository.go` | The `Repository` interface and other outbound ports | declare a struct |
-| `repository_postgres.go`, `repository_<impl>.go` | Implementations: Postgres (through the domain's sqlc package), Redis, an HTTP client, the video provider (LiveKit), the e-mail sender (SES, Mailpit locally) | import `net/http` handlers or middleware; export anything but its constructor; hold business policy |
+| `repository_postgres.go`, `repository_<impl>.go` | Implementations: Postgres (through the domain's sqlc package), Redis, an HTTP client, the video provider (LiveKit), the e-mail sender (an SMTP relay in production, Mailpit locally) | import `net/http` handlers or middleware; export anything but its constructor; hold business policy |
 | `query.sql` → `<domain>db/` | sqlc input and its generated package (`make sqlc`, one entry per domain in the root `sqlc.yaml`), e.g. `internal/patient/patientdb`. `repository_postgres.go` maps its rows to the domain model | be imported by anything but this domain's `repository_postgres.go` (archcheck); be edited by hand |
 | `handler_http.go`, `handler_fhir.go` | Decode, call the service, encode; map domain errors to status codes / `OperationOutcome` | import pgx; hold SQL; make business decisions |
 
@@ -127,7 +127,7 @@ service → service, never service → another domain's repository.
   audit, clinical data) goes there.
 - Video goes through a provider port in `consultation`, implemented for self-hosted LiveKit. Speech-to-text
   for live transcription sits behind its own port in `cmd/agent`, so the engine can be swapped.
-- E-mail goes through a port in `notification`: SES in production (EU region), Mailpit locally.
+- E-mail goes through a port in `notification`: an EU SMTP relay in production (ADR 0011), Mailpit locally.
 - A 500 goes through `httpx.InternalError`, which logs the error and sends a fixed message; internal error
   text never reaches a client.
 - One model per domain. Introduce a separate transport type only when representations really diverge (the
@@ -205,7 +205,7 @@ Health data is special-category data (GDPR Art. 9). Treat every patient field as
 - **Encryption.** TLS everywhere, including inside the cluster. Postgres and the object store are encrypted
   at rest. Attachments and consultation recordings (if any are kept) are encrypted with keys from the KMS,
   never from config files. Exceptions for the single-server deployment (ADR 0011): traffic between containers on
-  the one host may be plaintext (anything leaving the host is TLS), and without a KMS `BINARY_KEK` and `TOTP_KEY`
+  the one host may be plaintext (anything leaving the host is encrypted in transit), and without a KMS `BINARY_KEK` and `TOTP_KEY`
   live in a root-only key file on the LUKS-encrypted data volume, never in the env file or a GitHub secret.
 - **Subject rights are features, built and tested like any other:** access and portability (export as a FHIR
   `Bundle`, `Patient/$everything`), rectification, restriction, objection, and erasure. Erasure is limited by
