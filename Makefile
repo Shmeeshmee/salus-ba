@@ -23,7 +23,8 @@ GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 .PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-suggest bench-drafting turn-check livekit-turn-cert lint i18n-check archcheck arch-gate e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	terminology-fetch terminology-import terminology-export document-templates-seed \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
-	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down
+	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down \
+	deploy-check
 
 ## test: Go tests of both modules against the compose Postgres and Redis (TESTFLAGS="-run X -count=1")
 test: tools-image
@@ -183,6 +184,12 @@ test/e2e/web/node_modules/.package-lock.json: test/e2e/web/package.json test/e2e
 ## e2e-image: build the end-to-end runner image, Playwright with the Go toolchain (cached)
 e2e-image:
 	$(COMPOSE) build -q playwright
+
+## deploy-check: the server bootstrap's checks (deployments/production/bootstrap/test/run.sh): shellcheck, bootstrap.sh
+## in a fresh ubuntu:24.04 container twice (the second run changes nothing), the backup against a throwaway Postgres
+## and SFTP server. Not part of make test.
+deploy-check:
+	bash deployments/production/bootstrap/test/run.sh
 
 ## fhir-validate: validate the golden FHIR responses with the HL7 validator
 fhir-validate:
