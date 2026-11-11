@@ -19,9 +19,9 @@ Nothing is deployed until step 8 sets `DEPLOY_ENABLED`. Until then every Deploy 
   `api.` (the API, for the mobile app), `livekit.` (video signalling) and `turn.` (TURN over TLS).
 - **The server type** (`SALUS_SERVER_TYPE`): at least 4 vCPU and 8 GB (the memory budget in
   `deployments/production/README.md` is sized for that); x86 (the images are built for amd64 only).
-- **Before real patient data**: the open points of ADR 0011 (the DPA, encryption at rest, the keys without a KMS,
-  TLS inside the host, the e-mail relay, the engines, attachment backups and backup retention). The stack runs
-  without them on synthetic data; it must not hold real patients' data until each is settled.
+- **Before real patient data**: the two open points of ADR 0011 ("Before real patient data": the DPAs of Hetzner
+  and the SMTP relay, point 1, and the backups' retention, point 7). The stack runs without them on synthetic data;
+  it must not hold real patients' data until both are settled.
 
 ## 1. Keys, on a trusted machine, into Bitwarden first
 
