@@ -79,7 +79,10 @@ export function Review({ api, reviewer }: { api: ApiClient; reviewer: boolean })
     setRead((r) => {
       if (r?.key !== key || r.queue.name !== 'loaded') return r
       if (!res.ok) return { key, queue: { name: 'failed' } }
-      return { key, queue: { name: 'loaded', entries: [...r.queue.entries, ...res.data.entries], next: res.data.next } }
+      // An entry decided since the last page moved to a later status and can come again: it stays where it is.
+      const shown = new Set(r.queue.entries.map((e) => e.term.id))
+      const added = res.data.entries.filter((e) => !shown.has(e.term.id))
+      return { key, queue: { name: 'loaded', entries: [...r.queue.entries, ...added], next: res.data.next } }
     })
   }
 

@@ -19,7 +19,7 @@ data in the EU/EEA, TLS everywhere, encryption at rest, and keys for files from 
 | Fits the load | Yes, by a wide margin for a pilot | Built for many nodes we do not need | Yes |
 | LiveKit | Host ports for media and TURN, as LiveKit's own single-VM guide | Host networking on a pinned node, the same in the end | Not offered; self-hosted anyway |
 | Cost | One server and a Storage Box | The same server plus the cluster's overhead | Several monthly bills |
-| Way back | Move the compose project to a bigger server, or split it later | | |
+| Way back | Move the compose project to a bigger server, or split it later | Back to compose, rewriting the manifests | Self-host again, a migration per service |
 
 Hetzner Cloud (the owner's choice): EU data centres (Helsinki, Finland, the owner's choice of location), a DPA
 under GDPR Art. 28 concluded in the console, no managed Postgres and no KMS.
@@ -38,11 +38,13 @@ under GDPR Art. 28 concluded in the console, no managed Postgres and no KMS.
 - **Public hostnames** under one domain, `SALUS_DOMAIN` (not chosen): the apex for the landing page, `app.` for the
   web app and the API on its own origin (the same paths as the Vite proxy in `web/vite.config.ts`), `api.` for the
   mobile app, `livekit.` for LiveKit's signalling (`wss://`), `turn.` for TURN over TLS. Caddy obtains and renews
-  every certificate (Let's Encrypt, HTTP-01 and TLS-ALPN-01).
-- **TURN over TLS on 443** (settled in docs/consultation/SPEC.md §8): Caddy is built with the `layer4` module and
-  passes the TLS connections whose SNI is `turn.SALUS_DOMAIN` through to LiveKit's TURN listener untouched; LiveKit
-  terminates them with the certificate Caddy obtained for that name. Everything else on 443 is Caddy's HTTP server.
-  This is the layout of LiveKit's own single-server deployment.
+  every certificate (Let's Encrypt).
+- **TURN over TLS on 443** (settled in docs/consultation/SPEC.md §8): Caddy is built with the `layer4` module,
+  terminates the TLS connections whose SNI is `turn.SALUS_DOMAIN` with the certificate it manages for that name, and
+  forwards the plain TCP stream to LiveKit's TURN listener (inside the compose network, not 443), which runs with
+  `turn.external_tls: true`. Every other connection on 443 goes on to Caddy's HTTP server. LiveKit never holds a
+  certificate, so a renewal needs no restart. The layer4 route has to be checked against LiveKit's current
+  self-hosting guide when it is built (DEP-2).
 - **Public ports**: 80/tcp and 443/tcp (Caddy, with TURN/TLS behind SNI), 443/udp (HTTP/3), 3478/udp (TURN/UDP),
   7881/tcp and 7882/udp (LiveKit's WebRTC media, one UDP port with muxing), and SSH. Nothing else binds to a public
   address: Postgres, Redis, Garage, ClamAV, the API and LiveKit's API port are on the compose network only. `ufw`
@@ -51,13 +53,15 @@ under GDPR Art. 28 concluded in the console, no managed Postgres and no KMS.
 - **Postgres in compose** on a named volume, with a nightly `pg_dump` (custom format), encrypted on the server
   with `age` to a public key whose private half is kept offline (Bitwarden), and copied over SFTP to a Hetzner
   Storage Box (configurable, `BACKUP_*`); 14 days kept. A restore drill is documented and run before the first real
-  data.
+  data. A restore needs the dumps' `age` private key and the files' `BINARY_KEK`, both kept in Bitwarden. Garage's
+  data (the attachments) is not backed up by this decision (open point 7).
 - **Deploys** from GitHub Actions on every successful image build of `main`, and by hand (`workflow_dispatch` with a
   SHA): the `production` environment needs the owner's approval; the job connects over SSH as the `deploy` user,
   writes the release's image tags, pulls, runs `migrate` as a one-shot, runs `docker compose up -d`, waits for every
-  healthcheck, and on a failure puts the previous release's tags back and brings them up. Migrations are
-  forward-only (ADR 0004): a rollback runs the previous code against the new schema, so a migration must stay
-  compatible with the code before it (expand, then contract in a later release).
+  healthcheck, and on a failure puts the previous release's tags back and brings them up without running `migrate`.
+  Migrations are forward-only (ADR 0004): a rollback runs the previous code against the new schema, so a migration
+  must stay compatible with the code before it (expand, then contract in a later release). Nothing checks that
+  automatically yet; the reviewer of a PR with a migration does.
 - **Secrets** live in the owner's Bitwarden and are copied into GitHub Actions secrets of the `production`
   environment; the deploy job writes them to `/opt/salus/.env` (mode 600, owner `deploy`) on each deploy. Nothing
   secret is committed; `deployments/production/.env.production.example` lists every variable.
@@ -75,7 +79,7 @@ the owner's decision.
 2. **Encryption at rest.** Hetzner does not state that a cloud server's local disk is encrypted at rest. Options:
    the Postgres and Garage volumes on a LUKS-encrypted Hetzner Volume unlocked at boot (the key has to come from
    somewhere at boot: entered by hand after a reboot, or fetched), or a provider that encrypts at rest.
-3. **The files' key-encryption key** (`BINARY_KEK`). CLAUDE.md: "keys from the KMS, never from config files".
+3. **The files' key-encryption key** (`BINARY_KEK`, and the MFA secrets' `TOTP_KEY`). CLAUDE.md: "keys from the KMS, never from config files".
    Hetzner has no KMS; on this layout the key would sit in `/opt/salus/.env`. Options: an EU KMS reached over the
    network (a processor of its own), or accept the env file for the pilot with the decision recorded here.
 4. **TLS inside the stack.** CLAUDE.md asks for TLS inside the cluster; on one host the services talk over a Docker
@@ -84,6 +88,9 @@ the owner's decision.
 5. **E-mail.** SES (ADR 0007) has no DPA yet; the notifier needs an SMTP relay in the EU (`SMTP_ADDR`).
 6. **The speech-to-text and language-model engines** stay on the fakes (`STT_ENGINE`, `LLM_ENGINE`) until their
    processors are signed (docs/privacy/processors.md): live transcription does not work in production until then.
+7. **Backups beyond Postgres and their retention.** Garage's attachments are not backed up: losing the server loses
+   the files the database rows point to. The 14 days of dumps keep erased data for up to 14 days after an erasure;
+   the retention rule and the DPIA note (docs/privacy/dpia.md) need the owner's confirmation.
 
 ## Consequences
 

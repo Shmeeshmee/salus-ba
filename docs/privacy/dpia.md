@@ -1634,3 +1634,19 @@ and spans are in no log line, error, metric or trace. `GET /compositions/{id}/te
 | A signed document appears altered | The spans are an overlay: the document's text, its Composition and its PDF are unchanged (tested); the explanation sits in a tooltip or dialog apart from the text |
 | A term list read gives away a patient's conditions | The page asks for all explanations of a language, not for the terms of a text |
 | The spans outlive the text | Never stored: they exist only in the answer or event that carries the text |
+
+## Deployment (`docs/plans/deploy.md`, ADR 0011)
+
+Notes for the first production deployment; nothing is deployed and no real patient data is processed until the
+points below are settled.
+
+- **Where the data is.** One Hetzner Cloud server in Helsinki (FI) holds every table, Redis and the attachments
+  (Garage); a Hetzner Storage Box holds the nightly Postgres dumps, encrypted on the server with `age` before they
+  leave it. Hetzner is a processor (docs/privacy/processors.md, pending its DPA).
+- **Backups and erasure.** Dumps are kept 14 days, so data erased in the database stays in the dumps for up to 14
+  days, unreadable without the `age` private key held offline. To be confirmed by the owner as the backups'
+  retention rule; a restore must re-apply the erasures recorded after the dump (`datarequest`).
+- **Logs.** Caddy writes no access log with client IP addresses; LiveKit logs at `warn`; container logs rotate.
+- **Open (ADR 0011 "Open before real patient data").** Encryption at rest of the server's disk, where `BINARY_KEK`
+  and `TOTP_KEY` are kept without a KMS, TLS inside the one host, the e-mail relay, and whether the attachments are
+  backed up.

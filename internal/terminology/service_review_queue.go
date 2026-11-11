@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-// Queue returns a page of the review queue of q.Language for staff: unreviewed entries first, then those that need
-// changes, then the approved ones, each the more common term first. ErrInvalidReview for an unknown language or
+// Queue returns a page of the review queue of q.Language for staff: the entries that need changes first, then the
+// unreviewed ones, then the approved ones, each the more common term first. ErrInvalidReview for an unknown language or
 // status, a limit outside 1 to 100 or an After that is no page token. Not audited: reference data.
 func (s *Reviews) Queue(ctx context.Context, c Caller, q QueueQuery) (QueuePage, error) {
 	if !c.Staff {

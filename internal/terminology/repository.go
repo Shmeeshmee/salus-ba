@@ -64,7 +64,7 @@ type ReviewRepository interface {
 	// Latin and English (by language, the preferred one first, then alphabetically), its translation and its
 	// explanation in the language. An entry's status is needs_changes when its translation or explanation needs
 	// changes, else unreviewed when there is no translation or either is unreviewed, else approved; only those of
-	// q.Status when set. Unreviewed first, then needs_changes, then approved, each by rank descending, then id;
+	// q.Status when set. needs_changes first, then unreviewed, then approved, each by rank descending, then id;
 	// after the entry q.AfterStatus, q.AfterRank, q.AfterID when q.AfterID is set.
 	Queue(ctx context.Context, q QueueFilter) ([]QueueRow, error)
 	// Progress returns per term language with any term how many terms there are and how many of their entries in

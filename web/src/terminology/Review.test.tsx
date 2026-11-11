@@ -132,6 +132,17 @@ describe('the queue', () => {
     expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
   })
 
+  it('shows an entry once when the next page repeats it (an entry decided moves to a later status)', async () => {
+    setup({
+      'GET /terminology/review': (r) =>
+        Response.json(new URL(r.url).searchParams.has('after') ? { entries: [ulcer, heart] } : { entries: [liver, ulcer], next: 'tok-2' }),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Load more' }))
+
+    await screen.findByRole('heading', { name: 'srce' })
+    expect(entries()).toHaveLength(3)
+  })
+
   it('says when there is nothing to review and when the queue cannot be read', async () => {
     setup({ 'GET /terminology/review': () => Response.json({ entries: [] }) })
     expect(await screen.findByText('Nothing to review here.')).toBeTruthy()

@@ -14,8 +14,9 @@ this plan's run: no server is touched, no secret is set.
 | `SSH_PORT` | The SSH port `ufw` allows (default 22) | The bootstrap's config |
 | `GHCR_OWNER` | The image namespace (default `shmeeshmee`) | Workflow env |
 
-Sizing floor (not measured, ADR 0011): ClamAV holds its signature database in memory (about 1.5 GB, double during a
-reload), LiveKit and the agent scale with the calls. 4 vCPU and 8 GB is the smallest sensible start; the memory
+Sizing floor (not measured, ADR 0011): ClamAV holds its signature database in memory (ClamAV's documentation asks for
+several GB on a host with clamd; `ConcurrentDatabaseReload no` keeps it from doubling during a reload), LiveKit and
+the agent scale with the calls. 4 vCPU and 8 GB is the smallest sensible start; the memory
 limits in `docker-compose.prod.yml` are variables with defaults for 8 GB.
 
 ## Work packages
@@ -47,9 +48,10 @@ no published host ports when it runs the local stack.
 
 - `deployments/production/docker-compose.prod.yml` (project `salus`) on the GHCR images, tags from `SALUS_TAG`.
 - `Caddyfile`: HTTPS for the apex (landing), `app.` (web, and the API paths of `web/vite.config.ts` to the api),
-  `api.` (the api), `livekit.` (signalling); the `layer4` route that passes SNI `turn.` through to LiveKit's TURN/TLS.
-- `livekit.yaml` for production: `node_ip` or the external IP, TURN on with the real certificate of `turn.` (from
-  Caddy's storage), no `allow_restricted_peer_cidrs`, log level `warn`, keys and webhook from the environment.
+  `api.` (the api), `livekit.` (signalling); the `layer4` route that terminates TLS for SNI `turn.` and forwards it to
+  LiveKit's TURN listener (`turn.external_tls: true`, the listener off 443 inside the network).
+- `livekit.yaml` for production: `node_ip` or the external IP, TURN on behind Caddy's TLS (`external_tls`), no
+  `allow_restricted_peer_cidrs`, log level `warn`, keys and webhook from the environment.
 - Postgres with a persistent volume, Redis, Garage, ClamAV, the agent and the workers; memory limits per service,
   healthchecks, restart policies, rotated logs (`json-file`, size and count).
 - `.env.production.example`: every variable the stack reads, one comment each; secrets come from GitHub Actions
@@ -68,7 +70,8 @@ no published host ports when it runs the local stack.
 
 - `.github/workflows/deploy.yml`: on a successful `Images` run of `main`, and by hand with a SHA. Environment
   `production` with the owner as required reviewer. SSH to the server, write the release's tags, pull, `migrate` as
-  a one-shot, `docker compose up -d`, wait for the healthchecks, roll back to the previous tags on failure.
+  a one-shot, `docker compose up -d`, wait for the healthchecks, roll back to the previous tags on failure (without
+  running `migrate`: forward-only migrations must stay compatible with the release before them).
 - `docs/deploy/README.md`: the first-time setup step by step: what to create on Hetzner and GitHub, the secrets,
   the DNS records.
 
