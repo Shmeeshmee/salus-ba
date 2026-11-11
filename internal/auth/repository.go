@@ -105,7 +105,8 @@ type Counters interface {
 	Get(ctx context.Context, key string) (int64, time.Duration, error)
 }
 
-// SecretBox seals TOTP secrets at rest, bound to their account (AESSecretBox; a KMS in production).
+// SecretBox seals TOTP secrets at rest, bound to their account (AESSecretBox; its key in production is the
+// root-only key file on the encrypted volume, ADR 0011).
 type SecretBox interface {
 	Seal(plaintext []byte, accountID string) ([]byte, error)
 	Open(sealed []byte, accountID string) ([]byte, error)

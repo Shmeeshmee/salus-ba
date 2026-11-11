@@ -33,8 +33,9 @@ UFW_ACCEPT_BLOCKING=no
 
 # When the daily security upgrade runs (HH:MM, server time; up to 15 minutes later at random).
 UPGRADE_TIME=04:00
-# yes reboots automatically when an upgrade needs it, at UPGRADE_REBOOT_TIME. Off by default: a reboot interrupts
-# consultations; reboot by hand in a quiet hour instead (/var/run/reboot-required says when).
+# Must stay no: the bootstrap refuses yes (ADR 0011). After a reboot the encrypted volume waits for the owner's
+# passphrase and the stack stays down, so reboot by hand in a quiet hour and unlock in the same sitting
+# (/var/run/reboot-required says when; docs/deploy/README.md "Reboots").
 UPGRADE_AUTO_REBOOT=no
 UPGRADE_REBOOT_TIME=04:30
 

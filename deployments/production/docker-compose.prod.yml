@@ -7,6 +7,12 @@
 # /opt/salus/.env holds every variable of .env.production.example; release.env holds SALUS_TAG, the commit SHA of
 # the images. Relative paths below resolve from this file's directory.
 #
+# Postgres's and Garage's data and the keys (BINARY_KEK, TOTP_KEY) are on the LUKS-encrypted volume mounted at
+# SALUS_DATA_DIR (default /mnt/salus-data), unlocked by hand after every boot (bootstrap/volume.sh, README.md
+# "Encrypted volume"). Its bind mounts never create a missing path, so with the volume locked nothing that holds
+# data starts, and nothing is written to the unencrypted disk instead. The keys reach only the api and the worker,
+# as compose secrets at /run/secrets/ (TOTP_KEY_FILE, BINARY_KEK_FILE), never through the env file.
+#
 # Only Caddy (80/tcp, 443/tcp, 443/udp) and LiveKit (3478/udp TURN, 7881/tcp and 7882/udp media) publish ports.
 # Everything else is on the compose network only. Docker's published ports bypass ufw, so this list is the real
 # boundary (README.md).
@@ -37,7 +43,7 @@ x-app: &app
 
 # What every app binary reads (internal/config). The binaries log in as salus_app (no superuser, no BYPASSRLS);
 # only migrate logs in as the owner. Postgres and Redis are on the compose network: no TLS between containers on
-# one host (ADR 0011 open point 4).
+# one host (decided, ADR 0011 point 4).
 x-app-env: &app-env
   DATABASE_URL: postgres://salus_app:${APP_DATABASE_PASSWORD:?APP_DATABASE_PASSWORD is required}@postgres:5432/salus?sslmode=disable
   REDIS_URL: redis://redis:6379/0
@@ -55,7 +61,7 @@ x-objectstore-env: &objectstore-env
   S3_BUCKET: ${S3_BUCKET:-salus-binaries}
   S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID is required}
   S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is required}
-  BINARY_KEK: ${BINARY_KEK:?BINARY_KEK is required}
+  BINARY_KEK_FILE: /run/secrets/binary_kek
   BINARY_KEK_ID: ${BINARY_KEK_ID:?BINARY_KEK_ID is required}
 
 # The engines stay on the fakes (ADR 0011 open point 6): no audio or text leaves the stack until the processors
@@ -116,7 +122,7 @@ services:
     environment:
       <<: [*app-env, *livekit-env, *objectstore-env, *llm-env]
       HTTP_ADDR: ":8080"
-      TOTP_KEY: ${TOTP_KEY:?TOTP_KEY is required}
+      TOTP_KEY_FILE: /run/secrets/totp_key
       RATE_LIMIT_KEY: ${RATE_LIMIT_KEY:?RATE_LIMIT_KEY is required}
       # Caddy is the only client of the api (no published port) and replaces any X-Forwarded-For a client sends,
       # so every address on Docker's private pools may be believed.
@@ -124,6 +130,7 @@ services:
       # On app.: the web app downloads attachments from this base, and they are served same-origin only
       # (docs/attachments/SPEC.md §2). The api answers the same paths on api. too.
       FHIR_BASE_URL: https://app.${SALUS_DOMAIN}/fhir/R4
+    secrets: [binary_kek, totp_key]
     healthcheck:
       # /readyz pings Postgres and Redis: a deploy waits for an api that can serve, not only one that runs.
       test: ["CMD", "/usr/local/bin/healthcheck", "http://127.0.0.1:8080/readyz"]
@@ -144,6 +151,7 @@ services:
       CLAMD_ADDR: clamd:3310
       # The retention_apply job's own login (BYPASSRLS, delete on the tables whose rule is delete). Only here.
       RETENTION_DATABASE_URL: postgres://salus_retention:${RETENTION_DATABASE_PASSWORD}@postgres:5432/salus?sslmode=disable
+    secrets: [binary_kek]
     depends_on:
       <<: *app-deps
       objectstore: {condition: service_healthy}
@@ -221,9 +229,9 @@ services:
       retries: 6
     mem_limit: ${SALUS_MEM_LANDING:-64m}
 
-  # The only durable store besides Garage: a named volume, dumped nightly by the bootstrap's backup (DEP-3). The
-  # image's entrypoint starts as root, fixes the data directory's owner and drops to postgres, so it keeps the
-  # capabilities for that and no more.
+  # The only durable store besides Garage: on the encrypted volume (SALUS_DATA_DIR/postgres, uid 999, 0700),
+  # dumped nightly by the bootstrap's backup (DEP-3). The image's entrypoint starts as root, fixes the data
+  # directory's owner and drops to postgres, so it keeps the capabilities for that and no more.
   postgres:
     image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
     <<: *logging
@@ -231,7 +239,11 @@ services:
       POSTGRES_USER: salus
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: salus
-    volumes: [postgres:/var/lib/postgresql]
+    volumes:
+      - type: bind
+        source: ${SALUS_DATA_DIR:-/mnt/salus-data}/postgres
+        target: /var/lib/postgresql
+        bind: {create_host_path: false}
     read_only: true
     tmpfs: [/tmp, /var/run/postgresql]
     shm_size: 128m
@@ -322,8 +334,14 @@ services:
       RUST_LOG: garage=warn # at info it logs every healthcheck's connection
     volumes:
       - ./garage.toml:/etc/garage.toml:ro
-      - objectstore-meta:/var/lib/garage/meta
-      - objectstore-data:/var/lib/garage/data
+      - type: bind # on the encrypted volume, like Postgres's data
+        source: ${SALUS_DATA_DIR:-/mnt/salus-data}/garage/meta
+        target: /var/lib/garage/meta
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${SALUS_DATA_DIR:-/mnt/salus-data}/garage/data
+        target: /var/lib/garage/data
+        bind: {create_host_path: false}
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
@@ -340,7 +358,10 @@ services:
   # data). The database is on a volume, so a restart does not download it again. The root filesystem stays
   # writable: the image's entrypoint writes the CLAMD_CONF_* settings into /etc/clamav/clamd.conf and runs as
   # root to hand the database to the clamav user. ConcurrentDatabaseReload off: a reload does not double the
-  # signatures' memory.
+  # signatures' memory. clamd spools every scanned stream (an upload, in plaintext) and what it unpacks from it to
+  # TemporaryDirectory: /tmp, a tmpfs, so no upload reaches the server's unencrypted disk. 512 MB holds the largest
+  # stream (StreamMaxLength 250M) and what MaxScanSize lets it unpack (250M); its pages count towards mem_limit
+  # only while a scan runs (README.md "Memory budget").
   clamd:
     image: clamav/clamav:1.5.4@sha256:45fe5149fbee5a46509c9848ef20d0c354b7b2323c9369f285939a37cf33422a
     <<: *logging
@@ -349,8 +370,10 @@ services:
       CLAMD_CONF_MaxFileSize: 250M
       CLAMD_CONF_MaxScanSize: 250M
       CLAMD_CONF_ConcurrentDatabaseReload: "no"
+      CLAMD_CONF_TemporaryDirectory: /tmp
       FRESHCLAM_CHECKS: "4"
     volumes: [clamav:/var/lib/clamav]
+    tmpfs: ["/tmp:size=512m,mode=1777"]
     cap_drop: [ALL]
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
     security_opt: ["no-new-privileges:true"]
@@ -366,7 +389,13 @@ services:
 volumes:
   caddy-data:
   caddy-config:
-  postgres:
-  objectstore-meta:
-  objectstore-data:
   clamav:
+
+# The keys, from the root-only directory on the encrypted volume (README.md "Keys"). The Docker daemon (root)
+# bind-mounts each file read-only at /run/secrets/<name>; the files are owned by the app image's uid (65532),
+# mode 0400, so inside the container only the binary reads them, and on the host no login account does.
+secrets:
+  binary_kek:
+    file: ${SALUS_DATA_DIR:-/mnt/salus-data}/keys/binary_kek
+  totp_key:
+    file: ${SALUS_DATA_DIR:-/mnt/salus-data}/keys/totp_key

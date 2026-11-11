@@ -8,6 +8,10 @@ set -euo pipefail
 BOOTSTRAP=/bootstrap/bootstrap.sh
 WORK=/tmp/bootstrap-test
 export SALUS_BOOTSTRAP_TEST_NO_SYSTEMD=1 SALUS_BOOTSTRAP_TEST_NO_UFW_ENABLE=1
+# The container sees the host's /proc/swaps: the test's own, with no swap unless a case adds a line.
+export SALUS_BOOTSTRAP_TEST_PROC_SWAPS=/tmp/bootstrap-test-swaps
+SWAPS_HEADER=$'Filename\t\t\t\tType\t\tSize\t\tUsed\t\tPriority'
+printf '%s\n' "$SWAPS_HEADER" >"$SALUS_BOOTSTRAP_TEST_PROC_SWAPS"
 
 # Synthetic public keys; their private halves were never kept.
 KEY1='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPjQKB4oBfeVcoQEh0NFarmldEGPWl2HAEyCzJzEunRQ synthetic-test-operator'
@@ -54,6 +58,11 @@ printf 'DEPLOY_SSH_KEY=ssh-ed25519 AAAA... operator@laptop\n' >"$WORK/placeholde
 if run placeholder --config "$WORK/placeholder.conf"; then fail "accepted the example's placeholder key"; fi
 expect "the example's placeholder key is refused" grep -q 'not a public key line' "$WORK/placeholder.log"
 expect "nothing created" bash -c '! id deploy 2>/dev/null && [[ ! -e /opt/salus ]]'
+
+echo "== refuses automatic reboots (the encrypted volume is unlocked by hand)"
+write_conf 22 UPGRADE_AUTO_REBOOT=yes
+if run reboot --check --config "$WORK/bootstrap.conf"; then fail "accepted UPGRADE_AUTO_REBOOT=yes"; fi
+expect "says why" grep -q 'UPGRADE_AUTO_REBOOT=yes is refused' "$WORK/reboot.log"
 
 echo "== refuses the test flags on a host with systemd"
 write_conf 22
@@ -117,6 +126,10 @@ expect "the backup timer is nightly and persistent" bash -c 'grep -qx "OnCalenda
 expect "the backup unit has a timeout, hardening and a failure hook" bash -c 'f=/etc/systemd/system/salus-backup.service; grep -qx "TimeoutStartSec=2h" $f && grep -qx "OnFailure=salus-backup-failed.service" $f && grep -qx "ProtectHome=read-only" $f && grep -q "systemd-cat -t salus-backup -p err" /etc/systemd/system/salus-backup-failed.service'
 expect "the backup has its own SSH key" test -s /root/.ssh/salus-backup.pub
 expect "the Storage Box host key is pinned" grep -qF '[storagebox.invalid]:23 ssh-ed25519' /etc/salus/backup_known_hosts
+expect "cryptsetup is installed" command -v cryptsetup
+expect "salus-volume is installed, root's" bash -c 'cmp -s /bootstrap/volume.sh /usr/local/sbin/salus-volume && [[ $(stat -c "%a %U" /usr/local/sbin/salus-volume) == "755 root" ]]'
+expect "says the volume is not set up yet" grep -q '^warning: the encrypted volume is not set up' "$WORK/run1.log"
+expect "no crypttab line, nothing opened at boot" bash -c '! grep -qs salus /etc/crypttab'
 
 echo "== second run changes nothing"
 run run2 --config "$WORK/bootstrap.conf" || {
@@ -127,6 +140,21 @@ expect "0 changes" grep -qx '0 changes made' "$WORK/run2.log"
 expect "no change lines" bash -c "! grep -q '^change:' '$WORK/run2.log'"
 run check2 --check || fail "--check with the installed settings failed"
 expect "--check agrees" grep -qx '0 changes would be made' "$WORK/check2.log"
+
+echo "== active swap, or a swap line in fstab, is reported and fails the run"
+printf '%s\n' "$SWAPS_HEADER" $'/swap.img                               file\t\t1048572\t\t0\t\t-2' >"$SALUS_BOOTSTRAP_TEST_PROC_SWAPS"
+if run swap1 --check; then fail "--check passed with swap active"; fi
+expect "names the swap" grep -q '^error: swap is active (/swap.img)' "$WORK/swap1.log"
+if run swap2 --config "$WORK/bootstrap.conf"; then fail "a real run passed with swap active"; fi
+expect "a real run fails too" grep -q '1 problems need attention' "$WORK/swap2.log"
+printf '%s\n' "$SWAPS_HEADER" >"$SALUS_BOOTSTRAP_TEST_PROC_SWAPS"
+cp /etc/fstab "$WORK/fstab.orig"
+printf '/swap.img none swap sw 0 0\n' >>/etc/fstab
+if run swap3 --check; then fail "--check passed with swap in fstab"; fi
+expect "names the fstab line" grep -q '^error: /etc/fstab has a swap entry' "$WORK/swap3.log"
+cp "$WORK/fstab.orig" /etc/fstab
+run swap4 --check || fail "--check without swap failed"
+expect "no swap, no error" bash -c "! grep -q swap '$WORK/swap4.log'"
 
 echo "== a public listener ufw would block"
 /usr/sbin/sshd -p 2222 -o PidFile=/run/sshd-test.pid
