@@ -70,7 +70,7 @@ services:
       retries: 30
 
   redis:
-    image: redis:8.10.2
+    image: redis:8.10.3
     # Temporary state only (ADR 0005): nothing is written to disk. 256 logical databases so redistest can
     # give each parallel test its own.
     command: ["redis-server", "--save", "", "--appendonly", "no", "--databases", "256"]
@@ -192,7 +192,7 @@ services:
   # init service is needed. Configured inline (configs: below), with no bind mount, so every worktree resolves the
   # same service. The RPC secret is synthetic, local only. The health check passes once the bucket exists.
   objectstore:
-    image: dxflrs/garage:v2.4.1
+    image: dxflrs/garage:v2.5.0
     command: ["/garage", "server", "--single-node", "--default-bucket"]
     environment:
       GARAGE_RPC_SECRET: 5a1a5fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -232,7 +232,7 @@ services:
 
   # Catches every e-mail sent locally; web UI on 127.0.0.1:8025 (SMTP 1025 on the compose network only).
   mailpit:
-    image: axllent/mailpit:v1.33.0
+    image: axllent/mailpit:v1.33.1
     ports: ["127.0.0.1:${SALUS_MAILPIT_PORT:-8025}:8025"]
     restart: unless-stopped
 
@@ -378,7 +378,7 @@ services:
   # Generates the Dart client from api/openapi.yaml: `make gen-clients`.
   openapi-generator:
     profiles: [tools]
-    image: openapitools/openapi-generator-cli:v7.26.0
+    image: openapitools/openapi-generator-cli:v7.27.0
     <<: *host-user
     working_dir: /src
     environment:
