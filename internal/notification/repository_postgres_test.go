@@ -188,3 +188,28 @@ func TestDeadLetterPurger_DeletesTheDeadLettersPastTheirPeriod(t *testing.T) {
 		t.Errorf("Purge() = %d, %v; want the older one", n, err)
 	}
 }
+
+// Any three-digit status an endpoint answers is recorded on the dead letter, beyond the registered 100 to 599 too:
+// Go's client accepts them, and the last attempt's dead letter must not be lost to a CHECK.
+func TestAddDeadLetter_RecordsAnyThreeDigitStatus(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seedAccounts(t, owner)
+	repo := notification.NewPostgresRepository(app)
+	e := notification.Endpoint{ID: "e1000000-0000-4000-8000-0000000000e1", OrganizationID: clinicID, CreatedBy: clinicAdmin, URL: "https://hooks.example.test/salus",
+		Events: []string{notification.EventMessageCreated}, SecretSealed: []byte("sealed")}
+	inTx(t, app, func(ctx context.Context) error {
+		if err := repo.SetClinic(ctx, clinicID); err != nil {
+			return err
+		}
+		if _, err := repo.CreateEndpoint(ctx, e); err != nil {
+			return err
+		}
+		return repo.AddDeadLetter(ctx, notification.DeadLetter{EndpointID: e.ID, OrganizationID: clinicID, EventID: msgID, EventType: notification.EventMessageCreated,
+			ConversationID: convID, MessageID: msgID, Attempts: 8, LastStatus: 999})
+	})
+	var status int
+	if err := owner.QueryRow(t.Context(), "SELECT last_status FROM webhook_dead_letter").Scan(&status); err != nil || status != 999 {
+		t.Errorf("last_status %d (%v), want 999", status, err)
+	}
+}

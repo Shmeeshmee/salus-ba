@@ -71,8 +71,8 @@ CREATE POLICY webhook_endpoint_clinic ON webhook_endpoint
 GRANT SELECT, INSERT, DELETE ON webhook_endpoint TO salus_app;
 
 -- A delivery that failed its last attempt: which event, to which endpoint, how often it was tried and the last
--- status (null when the endpoint never answered). Ids only; no payload. Deleted 30 days after (retention), or with
--- its endpoint.
+-- status (null when the endpoint never answered; any three-digit status, as an endpoint may answer one beyond
+-- 599). Ids only; no payload. Deleted 30 days after (retention), or with its endpoint.
 CREATE TABLE webhook_dead_letter (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     created_at timestamptz DEFAULT now() NOT NULL,
@@ -82,7 +82,7 @@ CREATE TABLE webhook_dead_letter (
     conversation_id uuid NOT NULL,
     message_id uuid NOT NULL,
     attempts integer NOT NULL CHECK (attempts > 0),
-    last_status integer CHECK (last_status BETWEEN 100 AND 599),
+    last_status integer CHECK (last_status BETWEEN 1 AND 999),
     event_type text NOT NULL CHECK (event_type IN ('message.created')),
     CONSTRAINT webhook_dead_letter_once UNIQUE (endpoint_id, event_id)
 );
