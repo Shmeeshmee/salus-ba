@@ -48,3 +48,7 @@
 @media (prefers-reduced-motion: no-preference) {
   .review-form { animation: review-in .12s ease-out; }
 }
+
+/* The two lists of the panel: the terms and the diagnosis groups' names (SAL-19). */
+.review-views { display: flex; gap: 8px; margin-bottom: 12px; }
+.review-views [role='tab'].selected { border-color: var(--color-mint); font-weight: 600; }

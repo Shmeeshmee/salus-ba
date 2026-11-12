@@ -48,8 +48,8 @@ func seedChatDB(t testing.TB, owner *pgxpool.Pool) seededChat {
 	}
 	c.conv, c.patientPart = conversation(c.patient)
 	c.otherConv, c.otherPart = conversation(c.other)
-	if err := owner.QueryRow(ctx, `INSERT INTO conversation_participant (conversation_id, practitioner_role_id, role, added_by)
-		VALUES ($1, $2, 'practitioner', $3) RETURNING id::text`, c.conv, role, account).Scan(&c.practPart); err != nil {
+	if err := owner.QueryRow(ctx, `INSERT INTO conversation_participant (conversation_id, practitioner_role_id, organization_id, role, added_by)
+		VALUES ($1, $2, $3, 'practitioner', $4) RETURNING id::text`, c.conv, role, c.clinic, account).Scan(&c.practPart); err != nil {
 		t.Fatal(err)
 	}
 	if err := owner.QueryRow(ctx, `INSERT INTO communication (conversation_id, organization_id, patient_id, staff_only, seq, sent_at,

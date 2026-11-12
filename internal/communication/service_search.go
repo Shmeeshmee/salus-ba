@@ -19,7 +19,7 @@ const (
 )
 
 // Search returns the messages of the conversation whose body has every word of q (each a word's beginning, case
-// and accents aside: chat_search, migration 00044), newest first, at most SearchSize, of those the caller reads
+// and accents aside: chat_search, migration 00045), newest first, at most SearchSize, of those the caller reads
 // (enter; after their history_from_seq), with their files and terms; audited as one search of the patient's chat.
 // ErrInvalid for a query without a word of two letters or longer than MaxQuery; access as enter's for a read.
 func (s *Service) Search(ctx context.Context, c Caller, id, q string) ([]SearchResult, error) {
@@ -33,8 +33,8 @@ func (s *Service) Search(ctx context.Context, c Caller, id, q string) ([]SearchR
 		if err != nil {
 			return err
 		}
-		if !e.who.patient() { // the search function reads the role's scope (migration 00044)
-			if err := s.Repo.SetPractitionerRole(ctx, e.who.role); err != nil {
+		if !e.who.patient() { // the search function reads the role's scope (migration 00045)
+			if err := s.Repo.SetSearchRole(ctx, e.who.role); err != nil {
 				return err
 			}
 		}
@@ -54,7 +54,7 @@ func (s *Service) Search(ctx context.Context, c Caller, id, q string) ([]SearchR
 
 // SearchAll is Search across the caller's conversations: a patient's own, never a doctor-only thread; a
 // practitioner's, those their role takes part in, after its history_from_seq and while the patient's care consent
-// is active (the practitioner role's row-level security scope, migration 00044); an admin's none (ErrForbidden).
+// is active (the practitioner role's row-level security scope, migration 00045); an admin's none (ErrForbidden).
 // Audited once for each patient whose messages it returns (recordSearch).
 func (s *Service) SearchAll(ctx context.Context, c Caller, q string) ([]SearchResult, error) {
 	query, err := searchQuery(q)
@@ -68,7 +68,7 @@ func (s *Service) SearchAll(ctx context.Context, c Caller, q string) ([]SearchRe
 			return err
 		}
 		if !w.patient() {
-			if err := s.Repo.SetPractitionerRole(ctx, w.role); err != nil {
+			if err := s.Repo.SetSearchRole(ctx, w.role); err != nil {
 				return err
 			}
 		}

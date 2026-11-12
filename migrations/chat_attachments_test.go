@@ -12,7 +12,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-// chatFileRows is seedChat (chat_test.go) with what migration 00044 adds (docs/plans/chat.md, SAL-30): a practitioner
+// chatFileRows is seedChat (chat_test.go) with what migration 00045 adds (docs/plans/chat.md, SAL-30): a practitioner
 // participant in each conversation, of the conversation's clinic, who joined inA after its first message
 // (history_from_seq 1); a second message in inA; one file per conversation attached to its first message, uploaded
 // by the patient (in staffA by the practitioner); and one file in inA not attached yet.
@@ -41,8 +41,9 @@ func seedChatFiles(t *testing.T, owner *pgxpool.Pool) chatFileRows {
 			history = 1
 		}
 		var part string
-		if err := owner.QueryRow(ctx, `INSERT INTO conversation_participant (conversation_id, practitioner_role_id, role, added_by, history_from_seq)
-			VALUES ($1, $2, 'practitioner', $3, $4) RETURNING id`, r.conv[name], r.dir[clinic].role, r.p[0].account, history).Scan(&part); err != nil {
+		if err := owner.QueryRow(ctx, `INSERT INTO conversation_participant (conversation_id, practitioner_role_id, organization_id, role, added_by,
+			history_from_seq) VALUES ($1, $2, $3, 'practitioner', $4, $5) RETURNING id`, r.conv[name], r.dir[clinic].role, clinic, r.p[0].account,
+			history).Scan(&part); err != nil {
 			t.Fatal(err)
 		}
 		r.pract[name] = part
@@ -259,7 +260,7 @@ func TestChatFiles_AreWrittenOnlyIntoTheirConversationAndAttachedOnce(t *testing
 	}
 }
 
-// The checks of migration 00044: a file has exactly one kind of parent; a chat file is a photo or a PDF; a message
+// The checks of migration 00045: a file has exactly one kind of parent; a chat file is a photo or a PDF; a message
 // it is attached to is named with its time; a thumbnail only of a clean file, whole. A text may be without a body
 // only with attachments, a system message has none.
 func TestChatFiles_HoldAConsistentState(t *testing.T) {

@@ -45,9 +45,83 @@ are in the numbers.
   seed had multi-second tails from its autovacuum and write-back.
 - The load test asserts the targets at 200 messages a second and reports 400 and 1000 as capacity.
 
+## SAL-28: group consults
+
+Migration 00044; the pure rules `access.GuestChat`, `ManagesChat`, `OpensChatThread`, `GrantsChatGuest`; in
+`internal/communication` the new `service_participants.go`, `service_threads.go`, `handler_participants.go`
+(`GroupHandler`, mounted beside `HTTPHandler` in `internal/api/chat.go`); in `internal/consent` the chat consent
+(`KindChat`, `GrantChat`, `RevokeChat`, `ChatGranted`, table `chat_consent`).
+
+As built (agent decisions, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| Invitation | A participant row with `status` `pending_consent` (no table of its own): the add and the invitation are one path, the patient's invitations are a query on it, its id is the invitation's id in `/me/chat-invitations/{id}` |
+| The patient's consent | Table `chat_consent` owned by `consent` (FHIR Consent, `KindChat`): one conversation and one practitioner role, at most one active; the patient's own, read by the conversation's clinic and by the invited doctor. Not in `GET /consents` nor the FHIR Consent reads (they list care and transcription consents): the patient sees and revokes it through the conversation's participants and `/me/chat-invitations/{id}/revoke`; the subject-rights export will carry it. Lawful basis noted as Art. 9(2)(a) |
+| A decline | Ends the invitation (the participant is removed), audited, with the system message `consent_declined`; no Consent row is written for it. It needs no active care consent; a grant does (`consent_required`) |
+| A removal by the treating practitioner | Ends the doctor's access and, for a granted doctor of another clinic, the patient's chat consent for them, in the same transaction: the clinic ends it (`consent.EndChat`, audited; policy `chat_consent_clinic_end` lets the clinic set an active one inactive and nothing else). Changed in the review (it first left the consent active, which the patient could then neither see as granted nor revoke). A new invitation of the same role asks the patient again |
+| The guest's scope | `app.organization_id` their own clinic plus `app.practitioner_role_id` their role, set by the service for every practitioner. Policy `conversation_guest` (to `salus_app`) asks `chat_guest_conversations(role, clinic)`, a `SECURITY DEFINER` function owned by the NOLOGIN role `salus_chat_guest`, which reads only the columns it needs: the conversations where the role of that clinic is an active participant of another clinic with the chat consent and the care consent active. Of their side threads, only those the role takes part in (`chat_guest_in_thread`, per row: an active participant, or no participant yet inside the opening transaction, which inserts the opener first); a restrictive policy hides the conversation's pending invitations of other doctors from the guest (both from the review). The guest also reads their own chat consents and, while one is active, the patient's care consents with that conversation's clinic (`consent_chat_guest`), so the service checks `access.GuestChat` on the same facts. Migration tests over every state (pending, granted, care revoked, consent revoked, removed) and scope (no role, no clinic, another clinic or role, a patient or account set) |
+| No policy reads another through row-level security in a cycle | `chat_consent` stores the invited role's clinic (`practitioner_organization_id`, copied at the grant, held by a foreign key to `practitioner_role (id, organization_id)`), so its guest policy compares columns: reading `practitioner_role` there recursed, after main's 00043, through `practitioner_role_shared`, `encounter` and `appointment` back to `consent` (test: appointments, roles, encounters, consents, chat consents and conversations read in a clinic's, a guest's and a patient's scope, red on the old policy in all three) |
+| The guest's care consents | `consent_chat_guest` asks `chat_guest_care_consents(role, clinic)`, a `SECURITY DEFINER` function owned by `salus_chat_guest` (like `chat_guest_conversations`), planned once per query. An `EXISTS` over `chat_consent` in the policy was repeated at every place appointment's and encounter's policies read a consent, and after main's 00043 it lifted a directory read over `jit_optimize_above_cost` (500 000). Measured: the listed schedules' read (the hourly slot generation, `internal/worker` test) took 81.7 s with JIT and 24 ms without; plan cost of `SELECT FROM schedule` in the directory scope is 337 000 on main, 538 000 with the `EXISTS` and 346 000 with the function. The migration test `ThePoliciesKeepADirectoryReadUnderJITsOptimizeCost` holds the limit. Main alone is at two thirds of it: for the owner, whether `jit = off` for `salus_app` (or a slimmer `practitioner_role_shared`) should follow |
+| Refusals to the guest | `not_found` on every path while not granted, also for a side thread of a granted conversation they are not in: nothing of the chat is disclosed to another clinic |
+| Who adds and removes | The treating practitioner (`conversation.practitioner_role_id`) while they may write; never into a side thread, never the patient or themselves. A doctor of the clinic must be an active role of it (`practitionerrole.Lookup`), one of another clinic in its public directory (`PublicByOrganization`: listed clinic, active role and practitioner), read before the conversation's transaction. `already_participant` (409) for a role there or invited already; a role that may not be added is `invalid_request` |
+| History | `full` is `history_from_seq` 0; `from` takes `from_seq` 0 to `last_seq`; the added doctor's read position starts there, so their unread count is what they may read |
+| Side threads | A side thread keeps the doctors it was opened with: the conversation's active practitioners at that moment (pending ones not). A doctor added later is not in it; one removed from the conversation leaves its side threads in the same statement (a `SECURITY DEFINER` trigger, as the patient's scope that revokes does not see the threads). Opened with no body (`POST /conversations/{id}/threads`), listed as a `ConversationList` without `next`; its practitioner role is the conversation's treating one (the foreign key wants a role of the clinic), its encounter the conversation's. The patient gets 403 on the list and the creation (they know the conversation), 404 on the thread itself |
+| System messages | Written through `appendMessage`, which `Send` now uses too (the same lock, numbering and time), published after the commit like a text. A revocation by the patient writes `participant_removed`, the contract's code: the UI cannot tell it from a removal by the doctor (see "Reported") |
+| Audit | Entity `conversation_participant` for every add, invitation, removal, decision and revocation, referenced as `ConversationParticipant/<id>` (the participant changed, an opaque id), and for the invitations' list; a revocation of no active chat consent commits the consent domain's refusal audit; the consent service audits its Consent create and update in the same transaction; a side thread's creation and list as `conversation` |
+| Decision and revocation answers | 204 without a body |
+| Additions to the contract | `ConversationParticipant.reason`; `AddParticipantRequest`, `ChatInvitation`, `ChatInvitationList`, `ChatInvitationDecision` schemas; error `already_participant` (409); from the review, `GET /me/chat-invitations?status=pending_consent\|active` and `ChatInvitation.status` |
+| Concurrent changes of one invitation | A decision or revocation re-reads the invitation under the conversation's lock, and activating or removing a participant whose row did not change is `not_found`: a grant racing a removal, two grants, a revocation racing a removal (tests on Postgres for each) |
+
+Review (fresh subagent): fixed 1 (a removal ends the chat consent; the guest's care consents need an active
+participant), 2 (races of grant, removal and revocation), 3 (granted invitations listed for revocation), 5 (a guest's
+side threads), 6 (other doctors' pending invitations hidden from a guest), 7 (the participant in the audit), 8 (the
+refused revocation's audit kept), and 4 in the plan's contract text (`from_seq` is the last message not seen, the
+backend kept); declined none.
+
+### Measured (2026-11-12)
+
+The guest's policy runs for every practitioner's query on `conversation` (the service sets their role). A first
+version of `chat_guest_conversations` started from the role's participant rows: `make bench-chat`'s doctor takes part
+in 50 000 conversations, and every send of theirs read them all (delivery at 200 a second: p95 18.9 s). It now starts
+from the role's active chat consents (none for a clinic's own doctors). Measured on the shared host (load average 14
+to 28 from other projects):
+
+| Measure | p50 | p95 |
+| --- | --- | --- |
+| A practitioner's transaction (lock the conversation, read its messages) with 50 000 participant rows of their role, without `app.practitioner_role_id` (1000 runs, interleaved) | 6.67 ms | 14.7 ms |
+| The same with the role set (the guest's policy evaluated) | 6.76 ms | 14.1 ms |
+| `make bench-chat`, this branch, three runs: latest page | 9 to 15 ms | 19 to 65 ms |
+| `make bench-chat`, this branch: a send with nothing else running | 8 to 12 ms | 18 to 96 ms |
+| `make bench-chat`, this branch: delivery at 200 a second | 16 to 19 ms | 0.48 to 5.1 s |
+| `make bench-chat`, `main` (bfc2901), one run, same host: delivery at 200 a second | 12 ms | 33 ms |
+
+The isolated measure shows no cost of the policy. The load test's 200-a-second phase failed its target in all three
+runs of this branch and passed in the one run of `main`, while its 400-a-second phase passed on this branch once (p95
+57 ms) and failed on `main` (1.5 s): the host's load decides those tails (the backends wait on `LWLock:WALWrite` and
+`IO:WalSync`, as SAL-27 found). Not settled here: the delivery target should be measured again on a quiet host before
+the merge.
+
+Reported, not changed:
+
+- The plan's contract says each wave-1 package adds its methods to the web `ChatApi`, the mobile `Chats` and their
+  fakes; this package is backend only (the brief), so they are SAL-31's. The generated clients are regenerated, and
+  the two fakes give their participants the new required `status`.
+- A revocation by the patient has no system code of its own (`participant_removed` is used); a `consent_revoked` code
+  would let the UI say who ended the access.
+
+Copy waiting for the owner: none. The API returns codes only; the UI's strings for the five system codes and the
+invitation are SAL-31's.
+
+Shared files changed: `internal/communication/{model,errors,repository,repository_postgres,service,service_messages,
+service_open,query}.go|sql`, `fakes_test.go`, `communicationdb`, every `*db/models.go` (sqlc), `internal/api/chat.go`,
+`internal/api/chat_load_test.go` (seed), `api/openapi.yaml`, `api/chat_contract_test.go`, the generated clients,
+`web/src/chat/fakeChat.ts`, `mobile/test/fake_chat.dart`, `migrations/chat_test.go` (one case gives its practitioner a
+clinic, so it still fails for the reason it names), `ownership.yaml`, `retention/rules.go`, `docs/privacy/dpia.md`.
+
 ## SAL-30: attachments, read receipts, typing, search and terms
 
-Built on SAL-27 (migration 00044; `internal/binary`, `internal/communication`, `internal/worker`, `internal/api`).
+Built on SAL-27 and SAL-28 (migration 00045; `internal/binary`, `internal/communication`, `internal/worker`, `internal/api`).
 Routes: `POST /conversations/{id}/attachments`, `GET /conversations/{id}/attachments/{attachment_id}/content` and
 `…/thumbnail`, `GET /conversations/{id}/search?q=`, `GET /conversations/search?q=`; `attachment_ids` on a send;
 `ChatMessage.attachments` and `terms`; the socket's `read`, `typing` and `receipt` frames.

@@ -21,3 +21,7 @@ RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_l
 -- The operator command only (salusctl, as the owner): salus_app has no INSERT on organization.
 INSERT INTO organization (name) VALUES (@name)
 RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy;
+
+-- name: ListLocationsForStats :many
+-- Every clinic with its time zone: the columns salus_stats may read.
+SELECT id, time_zone FROM organization ORDER BY id;

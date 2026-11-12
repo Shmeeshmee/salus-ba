@@ -59,9 +59,13 @@ type Viewer struct {
 
 // Consent is the state of the patient's consents with one clinic.
 type Consent struct {
-	RevokedAt     time.Time // the latest revocation of the care consent; zero when none was ever revoked
-	Active        bool      // the care consent is active
-	Transcription bool      // the transcription consent (transcription, translation, AI assistance) is active
+	RevokedAt time.Time // the latest revocation of the care consent; zero when none was ever revoked
+	// Shared is the encounters the history consent lists (share chosen visits from other clinics with this one,
+	// ADR 0014); empty unless History.
+	Shared        []string
+	Active        bool // the care consent is active
+	Transcription bool // the transcription consent (transcription, translation, AI assistance) is active
+	History       bool // the history consent is active
 }
 
 // Visit is one of the patient's appointments in the clinic, of any status.
@@ -72,10 +76,10 @@ type Visit struct {
 
 // Facts are what is known about one patient in one clinic.
 type Facts struct {
-	Consent Consent
 	Patient string
 	Clinic  string  // the clinic the consent and the visits are about
 	Visits  []Visit // the patient's appointments in Clinic
+	Consent Consent
 }
 
 // Profile is what viewer may see of the patient's profile: the patient themselves everything; with an active
@@ -239,4 +243,33 @@ func ReadsChat(v Viewer, f Facts, participant bool) bool {
 // active, so nothing is sent that the clinic may not read.
 func WritesChat(v Viewer, f Facts, participant bool) bool {
 	return ReadsChat(v, f, participant) && f.Consent.Active
+}
+
+// GuestChat reports whether viewer, a practitioner of another clinic than the facts' (the conversation's treating
+// clinic), may read and write in a conversation about the facts' patient (docs/plans/chat.md, SAL-28): only as an
+// active participant whose invitation the patient granted (granted: the patient's chat consent for them is active),
+// and only while the patient's care consent with the treating clinic is active, which rules every doctor's access.
+func GuestChat(v Viewer, f Facts, granted bool) bool {
+	return v.Role == RolePractitioner && v.Clinic != "" && v.Clinic != f.Clinic && v.PractitionerRole != "" &&
+		granted && f.Consent.Active
+}
+
+// ManagesChat reports whether viewer may add practitioners to and remove them from a conversation whose treating
+// practitioner role is treating: that practitioner alone, while they may write in it (WritesChat).
+func ManagesChat(v Viewer, f Facts, treating string) bool {
+	return v.Role == RolePractitioner && treating != "" && v.PractitionerRole == treating && WritesChat(v, f, true)
+}
+
+// OpensChatThread reports whether viewer may open a doctor-only side thread of a conversation, or list its side
+// threads: a practitioner of the clinic who may write in it (participant), or a guest the patient granted
+// (GuestChat); never the patient, never an admin.
+func OpensChatThread(v Viewer, f Facts, participant, granted bool) bool {
+	return (v.Role == RolePractitioner && WritesChat(v, f, participant)) || GuestChat(v, f, granted)
+}
+
+// GrantsChatGuest reports whether viewer may grant a practitioner of another clinic access to their conversation
+// with the facts' clinic: the patient themselves, while their care consent with that clinic is active (a grant
+// would otherwise open nothing). Declining is always theirs.
+func GrantsChatGuest(v Viewer, f Facts) bool {
+	return self(v, f) && f.Consent.Active
 }

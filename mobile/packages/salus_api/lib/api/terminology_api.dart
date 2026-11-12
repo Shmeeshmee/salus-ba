@@ -16,6 +16,113 @@ class TerminologyApi {
 
   final ApiClient apiClient;
 
+  /// Edit a diagnosis group's name
+  ///
+  /// Replaces the group's name in the language (trimmed, 1 to 100 characters) at the version read (If-Match); the name becomes unreviewed, keeping its last review. The same text changes nothing. For a reviewer of the term list; audited on diagnosis_group_name, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [String] code (required):
+  ///
+  /// * [Language] language (required):
+  ///
+  /// * [EditDiagnosisGroupNameRequest] editDiagnosisGroupNameRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> editDiagnosisGroupNameWithHttpInfo(
+    String ifMatch,
+    String code,
+    Language language,
+    EditDiagnosisGroupNameRequest editDiagnosisGroupNameRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/terminology/diagnosis-groups/{code}/names/{language}'
+        .replaceAll('{code}', code)
+        .replaceAll('{language}', language.toString());
+
+    // ignore: prefer_final_locals
+    Object? postBody = editDiagnosisGroupNameRequest;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+    headerParams[r'If-Match'] = parameterToString(ifMatch);
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'PUT',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Edit a diagnosis group's name
+  ///
+  /// Replaces the group's name in the language (trimmed, 1 to 100 characters) at the version read (If-Match); the name becomes unreviewed, keeping its last review. The same text changes nothing. For a reviewer of the term list; audited on diagnosis_group_name, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [String] code (required):
+  ///
+  /// * [Language] language (required):
+  ///
+  /// * [EditDiagnosisGroupNameRequest] editDiagnosisGroupNameRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<DiagnosisGroupName?> editDiagnosisGroupName(
+    String ifMatch,
+    String code,
+    Language language,
+    EditDiagnosisGroupNameRequest editDiagnosisGroupNameRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await editDiagnosisGroupNameWithHttpInfo(
+      ifMatch,
+      code,
+      language,
+      editDiagnosisGroupNameRequest,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'DiagnosisGroupName',
+      ) as DiagnosisGroupName;
+    }
+    return null;
+  }
+
   /// Edit a term's labels in one language
   ///
   /// Replaces the term's preferred label and synonyms in the language. If-Match is the translation's version read, `W/\"0\"` when the term has no label in the language yet. A change sets the translation to `unreviewed`, an approved one included, and keeps its last review; the same labels again change nothing. The term's own status follows its translations (docs/terminology/SPEC.md §3 \"Review\"). Reviewers only. Audited.
@@ -252,6 +359,203 @@ class TerminologyApi {
     return null;
   }
 
+  /// The diagnosis groups' names in one language, for review
+  ///
+  /// Every diagnosis group in its order with its name in the language, the name's review and version (docs/plans/analytics.md §3: the doctor partner reviews them in the term review panel). For staff. Not audited: reference data.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [Language] language (required):
+  Future<Response> listDiagnosisGroupReviewWithHttpInfo(
+    Language language, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/terminology/review/diagnosis-groups';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    queryParams.addAll(_queryParams('', 'language', language));
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The diagnosis groups' names in one language, for review
+  ///
+  /// Every diagnosis group in its order with its name in the language, the name's review and version (docs/plans/analytics.md §3: the doctor partner reviews them in the term review panel). For staff. Not audited: reference data.
+  ///
+  /// Parameters:
+  ///
+  /// * [Language] language (required):
+  Future<DiagnosisGroupNameList?> listDiagnosisGroupReview(
+    Language language, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await listDiagnosisGroupReviewWithHttpInfo(
+      language,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'DiagnosisGroupNameList',
+      ) as DiagnosisGroupNameList;
+    }
+    return null;
+  }
+
+  /// The diagnosis groups, named in a language
+  ///
+  /// Our own diagnosis groups on ICD-10 code ranges (docs/plans/analytics.md appendix A, ADR 0013), in their order, each with its parent group (a subgroup) and its name in the language with the name's review status. For staff. Reference data: nothing is audited, and the browser may cache it for five minutes.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [Language] language (required):
+  Future<Response> listDiagnosisGroupsWithHttpInfo(
+    Language language, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/terminology/diagnosis-groups';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    queryParams.addAll(_queryParams('', 'language', language));
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The diagnosis groups, named in a language
+  ///
+  /// Our own diagnosis groups on ICD-10 code ranges (docs/plans/analytics.md appendix A, ADR 0013), in their order, each with its parent group (a subgroup) and its name in the language with the name's review status. For staff. Reference data: nothing is audited, and the browser may cache it for five minutes.
+  ///
+  /// Parameters:
+  ///
+  /// * [Language] language (required):
+  Future<DiagnosisGroupList?> listDiagnosisGroups(
+    Language language, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await listDiagnosisGroupsWithHttpInfo(
+      language,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'DiagnosisGroupList',
+      ) as DiagnosisGroupList;
+    }
+    return null;
+  }
+
+  /// The places of a clinic's location
+  ///
+  /// Bosnia and Herzegovina's Federation, its ten cantons, Republika Srpska and Brcko District as regions, and 143 municipalities and cities (docs/plans/analytics.md §3): the entity first, then the regions, then the cities, each by parent and Latin name. Names are proper nouns in Latin and Cyrillic script. For staff. Reference data: nothing is audited, and the browser may cache it for five minutes.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  Future<Response> listPlacesWithHttpInfo({
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/places';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The places of a clinic's location
+  ///
+  /// Bosnia and Herzegovina's Federation, its ten cantons, Republika Srpska and Brcko District as regions, and 143 municipalities and cities (docs/plans/analytics.md §3): the entity first, then the regions, then the cities, each by parent and Latin name. Names are proper nouns in Latin and Cyrillic script. For staff. Reference data: nothing is audited, and the browser may cache it for five minutes.
+  Future<PlaceList?> listPlaces({
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await listPlacesWithHttpInfo(
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'PlaceList',
+      ) as PlaceList;
+    }
+    return null;
+  }
+
   /// The review queue of the medical terms in one language
   ///
   /// The review panel's queue (docs/terminology/SPEC.md §3 \"Review\"): one entry per term in the language, with the term's labels in that language, Latin and English, the review of those labels (the translation) and the term's explanation in that language. An entry's status is `needs_changes` when its translation or its explanation needs changes, else `unreviewed` when the term has no label in the language yet or either is unreviewed, else `approved` (an explanation that does not exist yet does not count). Entries that need changes first, then the unreviewed ones, then the approved ones, each the more common term first. Every staff member reads; only a reviewer writes. Not audited: reference data, no patient data.
@@ -352,6 +656,113 @@ class TerminologyApi {
         await _decodeBodyBytes(response),
         'TermReviewPage',
       ) as TermReviewPage;
+    }
+    return null;
+  }
+
+  /// Approve a diagnosis group's name or mark it as needing changes
+  ///
+  /// Records the reviewer's decision on the group's name in the language at the version read (If-Match): the reviewer and the time are the review's; needs_changes takes a note. For a reviewer of the term list; audited on diagnosis_group_name, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [String] code (required):
+  ///
+  /// * [Language] language (required):
+  ///
+  /// * [ReviewDecision] reviewDecision (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> reviewDiagnosisGroupNameWithHttpInfo(
+    String ifMatch,
+    String code,
+    Language language,
+    ReviewDecision reviewDecision, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/terminology/diagnosis-groups/{code}/names/{language}/review'
+        .replaceAll('{code}', code)
+        .replaceAll('{language}', language.toString());
+
+    // ignore: prefer_final_locals
+    Object? postBody = reviewDecision;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+    headerParams[r'If-Match'] = parameterToString(ifMatch);
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Approve a diagnosis group's name or mark it as needing changes
+  ///
+  /// Records the reviewer's decision on the group's name in the language at the version read (If-Match): the reviewer and the time are the review's; needs_changes takes a note. For a reviewer of the term list; audited on diagnosis_group_name, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [String] code (required):
+  ///
+  /// * [Language] language (required):
+  ///
+  /// * [ReviewDecision] reviewDecision (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<DiagnosisGroupName?> reviewDiagnosisGroupName(
+    String ifMatch,
+    String code,
+    Language language,
+    ReviewDecision reviewDecision, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await reviewDiagnosisGroupNameWithHttpInfo(
+      ifMatch,
+      code,
+      language,
+      reviewDecision,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'DiagnosisGroupName',
+      ) as DiagnosisGroupName;
     }
     return null;
   }

@@ -1,9 +1,11 @@
 # Analytics: clinic statistics and platform-wide trends
 
 Epic SAL-18 (SAL-19 to SAL-22). Status: approved by the owner, 2026-11-12, with the answers in section 10; the
-platform view is built behind a feature flag that stays off until the legal questions are answered (section 2a). Decision record: docs/adr/0012-icd10-diagnosis-groups-and-anonymized-analytics.md. Revised the
+platform view is built behind a feature flag that stays off until the legal questions are answered (section 2a). Decision record: docs/adr/0013-icd10-diagnosis-groups-and-anonymized-analytics.md. Revised the
 same day after two subagent reviews of PR #71 (suppression fixed over the whole month instead of per query,
 distinct patients, frozen months, the clinic rules, features that do not exist yet taken out).
+
+As built so far: docs/plans/analytics.PROGRESS.md records where a package departs from this plan.
 
 ## 1. Goal
 
@@ -258,7 +260,7 @@ GET /places?country=BA                         -> [{ "id": "BA-09", "kind": "reg
 ## 9. Work packages
 
 ```
-ANA-0 (this PR): ADR 0012 and this plan. Stops for the owner's approval.
+ANA-0 (this PR): ADR 0013 and this plan. Stops for the owner's approval.
 ANA-1 SAL-19, alone, by the lead session: condition, groups, places, confirmation, the wave-2 contract, salus_stats.
 Wave 2, in parallel after ANA-1 is merged: ANA-2 SAL-20   ANA-3 SAL-21   ANA-4 SAL-22 (mocked data first)
 Merge order: ANA-2, ANA-3, ANA-4. Before each merge: main merged into the branch (no force-push), migrations

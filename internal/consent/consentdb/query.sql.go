@@ -11,6 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const chatConsentGranted = `-- name: ChatConsentGranted :one
+SELECT EXISTS (SELECT 1 FROM chat_consent
+               WHERE conversation_id = $1 AND practitioner_role_id = $2 AND status = 'active')::boolean
+`
+
+type ChatConsentGrantedParams struct {
+	ConversationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+}
+
+func (q *Queries) ChatConsentGranted(ctx context.Context, arg ChatConsentGrantedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, chatConsentGranted, arg.ConversationID, arg.PractitionerRoleID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const consentByID = `-- name: ConsentByID :one
 SELECT 'care'::text AS kind, c.id, c.updated_at, c.date_time, c.revoked_at, c.patient_id, c.organization_id, c.version_id, c.status
 FROM consent c
@@ -53,7 +70,9 @@ func (q *Queries) ConsentByID(ctx context.Context, id pgtype.UUID) (ConsentByIDR
 const consentState = `-- name: ConsentState :one
 SELECT coalesce(bool_or(status = 'active'), false)::boolean AS active, max(revoked_at)::timestamptz AS revoked_at,
        EXISTS (SELECT 1 FROM transcription_consent t
-               WHERE t.patient_id = $1 AND t.organization_id = $2 AND t.status = 'active')::boolean AS transcription
+               WHERE t.patient_id = $1 AND t.organization_id = $2 AND t.status = 'active')::boolean AS transcription,
+       EXISTS (SELECT 1 FROM history_consent h
+               WHERE h.patient_id = $1 AND h.organization_id = $2 AND h.status = 'active')::boolean AS history
 FROM consent
 WHERE patient_id = $1 AND organization_id = $2
 `
@@ -67,13 +86,19 @@ type ConsentStateRow struct {
 	Active        bool
 	RevokedAt     pgtype.Timestamptz
 	Transcription bool
+	History       bool
 }
 
 // revoked_at is the care consent's latest revocation (access reads it for the care record).
 func (q *Queries) ConsentState(ctx context.Context, arg ConsentStateParams) (ConsentStateRow, error) {
 	row := q.db.QueryRow(ctx, consentState, arg.PatientID, arg.OrganizationID)
 	var i ConsentStateRow
-	err := row.Scan(&i.Active, &i.RevokedAt, &i.Transcription)
+	err := row.Scan(
+		&i.Active,
+		&i.RevokedAt,
+		&i.Transcription,
+		&i.History,
+	)
 	return i, err
 }
 
@@ -130,6 +155,64 @@ func (q *Queries) ConsentsByPatient(ctx context.Context, patientID pgtype.UUID) 
 	return items, nil
 }
 
+const grantChatConsent = `-- name: GrantChatConsent :one
+INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id, practitioner_organization_id, status,
+    date_time, updated_at)
+VALUES ($1, $2, $3, $4, $5, 'active', $6, $6)
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id,
+    practitioner_organization_id, version_id, status
+`
+
+type GrantChatConsentParams struct {
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	DateTime                   pgtype.Timestamptz
+}
+
+type GrantChatConsentRow struct {
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	DateTime                   pgtype.Timestamptz
+	RevokedAt                  pgtype.Timestamptz
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	VersionID                  int32
+	Status                     string
+}
+
+// chat_consent (migration 00044, SAL-28): the patient's consent for one conversation and one invited role.
+func (q *Queries) GrantChatConsent(ctx context.Context, arg GrantChatConsentParams) (GrantChatConsentRow, error) {
+	row := q.db.QueryRow(ctx, grantChatConsent,
+		arg.PatientID,
+		arg.OrganizationID,
+		arg.ConversationID,
+		arg.PractitionerRoleID,
+		arg.PractitionerOrganizationID,
+		arg.DateTime,
+	)
+	var i GrantChatConsentRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.DateTime,
+		&i.RevokedAt,
+		&i.PatientID,
+		&i.OrganizationID,
+		&i.ConversationID,
+		&i.PractitionerRoleID,
+		&i.PractitionerOrganizationID,
+		&i.VersionID,
+		&i.Status,
+	)
+	return i, err
+}
+
 const grantConsent = `-- name: GrantConsent :one
 
 INSERT INTO consent (patient_id, organization_id, status, date_time, updated_at)
@@ -155,8 +238,8 @@ type GrantConsentRow struct {
 	Status         string
 }
 
-// consent holds the care consents, transcription_consent the transcription consents (migration 00040): the same
-// shape, a kind each. A read of both is their UNION ALL, each table on its own index and under its own
+// consent holds the care consents, transcription_consent the transcription consents (migration 00040) and
+// history_consent the history consents (00043): the same shape, a kind each. A read of both is their UNION ALL, each table on its own index and under its own
 // row-level security.
 // A second active consent with the clinic inserts nothing (no row), so the transaction stays usable for the
 // audit.
@@ -216,6 +299,41 @@ func (q *Queries) GrantTranscriptionConsent(ctx context.Context, arg GrantTransc
 	return i, err
 }
 
+const historyShared = `-- name: HistoryShared :many
+SELECT s.encounter_id
+FROM history_consent_encounter s
+JOIN history_consent h ON h.id = s.consent_id
+WHERE h.patient_id = $1 AND h.organization_id = $2 AND h.status = 'active' AND s.removed_at IS NULL
+ORDER BY s.added_at, s.encounter_id
+`
+
+type HistorySharedParams struct {
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+}
+
+// The visits the patient's active history consent with the clinic lists now (migration 00043), oldest selection
+// first.
+func (q *Queries) HistoryShared(ctx context.Context, arg HistorySharedParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, historyShared, arg.PatientID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var encounter_id pgtype.UUID
+		if err := rows.Scan(&encounter_id); err != nil {
+			return nil, err
+		}
+		items = append(items, encounter_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const revokeActiveTranscriptionConsent = `-- name: RevokeActiveTranscriptionConsent :one
 UPDATE transcription_consent
 SET status = 'inactive', revoked_at = $1, updated_at = $1, version_id = version_id + 1
@@ -251,6 +369,53 @@ func (q *Queries) RevokeActiveTranscriptionConsent(ctx context.Context, arg Revo
 		&i.RevokedAt,
 		&i.PatientID,
 		&i.OrganizationID,
+		&i.VersionID,
+		&i.Status,
+	)
+	return i, err
+}
+
+const revokeChatConsent = `-- name: RevokeChatConsent :one
+UPDATE chat_consent
+SET status = 'inactive', revoked_at = $1, updated_at = $1, version_id = version_id + 1
+WHERE conversation_id = $2 AND practitioner_role_id = $3 AND status = 'active'
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id,
+    practitioner_organization_id, version_id, status
+`
+
+type RevokeChatConsentParams struct {
+	RevokedAt          pgtype.Timestamptz
+	ConversationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+}
+
+type RevokeChatConsentRow struct {
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	DateTime                   pgtype.Timestamptz
+	RevokedAt                  pgtype.Timestamptz
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	VersionID                  int32
+	Status                     string
+}
+
+func (q *Queries) RevokeChatConsent(ctx context.Context, arg RevokeChatConsentParams) (RevokeChatConsentRow, error) {
+	row := q.db.QueryRow(ctx, revokeChatConsent, arg.RevokedAt, arg.ConversationID, arg.PractitionerRoleID)
+	var i RevokeChatConsentRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.DateTime,
+		&i.RevokedAt,
+		&i.PatientID,
+		&i.OrganizationID,
+		&i.ConversationID,
+		&i.PractitionerRoleID,
+		&i.PractitionerOrganizationID,
 		&i.VersionID,
 		&i.Status,
 	)

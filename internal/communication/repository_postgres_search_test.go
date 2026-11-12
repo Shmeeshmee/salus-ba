@@ -22,8 +22,8 @@ func TestPostgres_SearchReturnsOnlyTheMessagesTheCallerMayRead(t *testing.T) {
 		f.clock.set(start.Add(time.Duration(i) * time.Minute))
 		f.send(t, me, c.ID, body)
 	}
-	if _, err := owner.Exec(t.Context(), `INSERT INTO conversation_participant (conversation_id, practitioner_role_id, role, added_by, history_from_seq)
-		VALUES ($1, $2, 'practitioner', $3, 2)`, c.ID, roleA2, pract.AccountID); err != nil {
+	if _, err := owner.Exec(t.Context(), `INSERT INTO conversation_participant (conversation_id, practitioner_role_id, organization_id, role, added_by,
+		history_from_seq) VALUES ($1, $2, $3, 'practitioner', $4, 2)`, c.ID, roleA2, clinicA, pract.AccountID); err != nil {
 		t.Fatal(err)
 	}
 	both := []string{"Mucnina again, synthetic", "Synthetic mučnina since Monday"}

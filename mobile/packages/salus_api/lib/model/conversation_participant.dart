@@ -15,8 +15,11 @@ class ConversationParticipant {
   ConversationParticipant({
     required this.id,
     required this.role,
+    required this.status,
     this.patientId,
     this.practitionerRoleId,
+    this.organizationId,
+    this.reason,
     required this.addedAt,
     required this.historyFromSeq,
   });
@@ -24,6 +27,9 @@ class ConversationParticipant {
   String id;
 
   ConversationParticipantRoleEnum role;
+
+  /// `pending_consent`: a doctor of another clinic waiting for the patient's consent, who sees nothing until then (SAL-28).
+  ConversationParticipantStatusEnum status;
 
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -41,6 +47,18 @@ class ConversationParticipant {
   ///
   String? practitionerRoleId;
 
+  /// A practitioner's clinic: another than the conversation's for an invited doctor (SAL-28).
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? organizationId;
+
+  /// Why the practitioner was added; absent for the patient and the treating practitioner.
+  ConversationParticipantReasonEnum? reason;
+
   DateTime addedAt;
 
   /// The participant reads the messages after this number; 0 for all.
@@ -52,8 +70,11 @@ class ConversationParticipant {
       other is ConversationParticipant &&
           other.id == id &&
           other.role == role &&
+          other.status == status &&
           other.patientId == patientId &&
           other.practitionerRoleId == practitionerRoleId &&
+          other.organizationId == organizationId &&
+          other.reason == reason &&
           other.addedAt == addedAt &&
           other.historyFromSeq == historyFromSeq;
 
@@ -62,19 +83,23 @@ class ConversationParticipant {
       // ignore: unnecessary_parenthesis
       (id.hashCode) +
       (role.hashCode) +
+      (status.hashCode) +
       (patientId == null ? 0 : patientId!.hashCode) +
       (practitionerRoleId == null ? 0 : practitionerRoleId!.hashCode) +
+      (organizationId == null ? 0 : organizationId!.hashCode) +
+      (reason == null ? 0 : reason!.hashCode) +
       (addedAt.hashCode) +
       (historyFromSeq.hashCode);
 
   @override
   String toString() =>
-      'ConversationParticipant[id=$id, role=$role, patientId=$patientId, practitionerRoleId=$practitionerRoleId, addedAt=$addedAt, historyFromSeq=$historyFromSeq]';
+      'ConversationParticipant[id=$id, role=$role, status=$status, patientId=$patientId, practitionerRoleId=$practitionerRoleId, organizationId=$organizationId, reason=$reason, addedAt=$addedAt, historyFromSeq=$historyFromSeq]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'id'] = this.id;
     json[r'role'] = this.role;
+    json[r'status'] = this.status;
     if (this.patientId != null) {
       json[r'patient_id'] = this.patientId;
     } else {
@@ -84,6 +109,16 @@ class ConversationParticipant {
       json[r'practitioner_role_id'] = this.practitionerRoleId;
     } else {
       json[r'practitioner_role_id'] = null;
+    }
+    if (this.organizationId != null) {
+      json[r'organization_id'] = this.organizationId;
+    } else {
+      json[r'organization_id'] = null;
+    }
+    if (this.reason != null) {
+      json[r'reason'] = this.reason;
+    } else {
+      json[r'reason'] = null;
     }
     json[r'added_at'] = this.addedAt.toUtc().toIso8601String();
     json[r'history_from_seq'] = this.historyFromSeq;
@@ -109,6 +144,10 @@ class ConversationParticipant {
             'Required key "ConversationParticipant[role]" is missing from JSON.');
         assert(json[r'role'] != null,
             'Required key "ConversationParticipant[role]" has a null value in JSON.');
+        assert(json.containsKey(r'status'),
+            'Required key "ConversationParticipant[status]" is missing from JSON.');
+        assert(json[r'status'] != null,
+            'Required key "ConversationParticipant[status]" has a null value in JSON.');
         assert(json.containsKey(r'added_at'),
             'Required key "ConversationParticipant[added_at]" is missing from JSON.');
         assert(json[r'added_at'] != null,
@@ -123,9 +162,12 @@ class ConversationParticipant {
       return ConversationParticipant(
         id: mapValueOfType<String>(json, r'id')!,
         role: ConversationParticipantRoleEnum.fromJson(json[r'role'])!,
+        status: ConversationParticipantStatusEnum.fromJson(json[r'status'])!,
         patientId: mapValueOfType<String>(json, r'patient_id'),
         practitionerRoleId:
             mapValueOfType<String>(json, r'practitioner_role_id'),
+        organizationId: mapValueOfType<String>(json, r'organization_id'),
+        reason: ConversationParticipantReasonEnum.fromJson(json[r'reason']),
         addedAt: mapDateTime(json, r'added_at', r'')!,
         historyFromSeq: mapValueOfType<int>(json, r'history_from_seq')!,
       );
@@ -186,6 +228,7 @@ class ConversationParticipant {
   static const requiredKeys = <String>{
     'id',
     'role',
+    'status',
     'added_at',
     'history_from_seq',
   };
@@ -273,4 +316,177 @@ class ConversationParticipantRoleEnumTypeTransformer {
 
   /// The singleton instance of this transformer.
   static ConversationParticipantRoleEnumTypeTransformer? _instance;
+}
+
+/// `pending_consent`: a doctor of another clinic waiting for the patient's consent, who sees nothing until then (SAL-28).
+enum ConversationParticipantStatusEnum {
+  active._(r'active'),
+  pendingConsent._(r'pending_consent'),
+  ;
+
+  /// Instantiate a new enum with the provided value.
+  const ConversationParticipantStatusEnum._(this._value);
+
+  /// The underlying value of this enum member.
+  final String _value;
+
+  @override
+  String toString() => _value;
+
+  /// Encodes this enum as a value suitable for JSON.
+  String toJson() => _value;
+
+  /// Returns the instance of [ConversationParticipantStatusEnum] that was successfully decoded
+  /// from the passed [value] on success, null otherwise.
+  static ConversationParticipantStatusEnum? fromJson(dynamic value) =>
+      ConversationParticipantStatusEnumTypeTransformer().decode(value);
+
+  /// Returns a [List] containing instances of [ConversationParticipantStatusEnum]
+  /// that were successfully decoded from the passed [JSON][json].
+  static List<ConversationParticipantStatusEnum> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final result = <ConversationParticipantStatusEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = ConversationParticipantStatusEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [ConversationParticipantStatusEnum] to String,
+/// and [decode] dynamic data back to [ConversationParticipantStatusEnum].
+class ConversationParticipantStatusEnumTypeTransformer {
+  factory ConversationParticipantStatusEnumTypeTransformer() =>
+      _instance ??= const ConversationParticipantStatusEnumTypeTransformer._();
+
+  const ConversationParticipantStatusEnumTypeTransformer._();
+
+  String encode(ConversationParticipantStatusEnum data) => data._value;
+
+  /// Returns the instance of [ConversationParticipantStatusEnum] that was successfully decoded
+  /// from the passed [data] value on success, null otherwise.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  ConversationParticipantStatusEnum? decode(dynamic data,
+      {bool allowNull = true}) {
+    if (data is ConversationParticipantStatusEnum) {
+      return data;
+    }
+    if (data != null) {
+      switch (data) {
+        case r'active':
+          return ConversationParticipantStatusEnum.active;
+        case r'pending_consent':
+          return ConversationParticipantStatusEnum.pendingConsent;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// The singleton instance of this transformer.
+  static ConversationParticipantStatusEnumTypeTransformer? _instance;
+}
+
+/// Why the practitioner was added; absent for the patient and the treating practitioner.
+enum ConversationParticipantReasonEnum {
+  secondOpinion._(r'second_opinion'),
+  specialistReview._(r'specialist_review'),
+  handover._(r'handover'),
+  ;
+
+  /// Instantiate a new enum with the provided value.
+  const ConversationParticipantReasonEnum._(this._value);
+
+  /// The underlying value of this enum member.
+  final String _value;
+
+  @override
+  String toString() => _value;
+
+  /// Encodes this enum as a value suitable for JSON.
+  String toJson() => _value;
+
+  /// Returns the instance of [ConversationParticipantReasonEnum] that was successfully decoded
+  /// from the passed [value] on success, null otherwise.
+  static ConversationParticipantReasonEnum? fromJson(dynamic value) =>
+      ConversationParticipantReasonEnumTypeTransformer().decode(value);
+
+  /// Returns a [List] containing instances of [ConversationParticipantReasonEnum]
+  /// that were successfully decoded from the passed [JSON][json].
+  static List<ConversationParticipantReasonEnum> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final result = <ConversationParticipantReasonEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = ConversationParticipantReasonEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [ConversationParticipantReasonEnum] to String,
+/// and [decode] dynamic data back to [ConversationParticipantReasonEnum].
+class ConversationParticipantReasonEnumTypeTransformer {
+  factory ConversationParticipantReasonEnumTypeTransformer() =>
+      _instance ??= const ConversationParticipantReasonEnumTypeTransformer._();
+
+  const ConversationParticipantReasonEnumTypeTransformer._();
+
+  String encode(ConversationParticipantReasonEnum data) => data._value;
+
+  /// Returns the instance of [ConversationParticipantReasonEnum] that was successfully decoded
+  /// from the passed [data] value on success, null otherwise.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  ConversationParticipantReasonEnum? decode(dynamic data,
+      {bool allowNull = true}) {
+    if (data is ConversationParticipantReasonEnum) {
+      return data;
+    }
+    if (data != null) {
+      switch (data) {
+        case r'second_opinion':
+          return ConversationParticipantReasonEnum.secondOpinion;
+        case r'specialist_review':
+          return ConversationParticipantReasonEnum.specialistReview;
+        case r'handover':
+          return ConversationParticipantReasonEnum.handover;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// The singleton instance of this transformer.
+  static ConversationParticipantReasonEnumTypeTransformer? _instance;
 }

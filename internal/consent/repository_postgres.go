@@ -3,6 +3,7 @@ package consent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -126,11 +127,24 @@ func (r *postgresRepository) State(ctx context.Context, patientID, organizationI
 	if p.Scan(patientID) != nil || o.Scan(organizationID) != nil {
 		return access.Consent{}, nil
 	}
-	row, err := consentdb.New(postgres.Conn(ctx, r.db)).ConsentState(ctx, consentdb.ConsentStateParams{PatientID: p, OrganizationID: o})
+	q := consentdb.New(postgres.Conn(ctx, r.db))
+	row, err := q.ConsentState(ctx, consentdb.ConsentStateParams{PatientID: p, OrganizationID: o})
 	if err != nil {
 		return access.Consent{}, err
 	}
-	return access.Consent{Active: row.Active, RevokedAt: row.RevokedAt.Time, Transcription: row.Transcription}, nil
+	st := access.Consent{Active: row.Active, RevokedAt: row.RevokedAt.Time, Transcription: row.Transcription, History: row.History}
+	if !st.History {
+		return st, nil
+	}
+	shared, err := q.HistoryShared(ctx, consentdb.HistorySharedParams{PatientID: p, OrganizationID: o})
+	if err != nil {
+		return access.Consent{}, err
+	}
+	st.Shared = make([]string, 0, len(shared))
+	for _, e := range shared {
+		st.Shared = append(st.Shared, e.String())
+	}
+	return st, nil
 }
 
 // toConsent maps a row of kind to the model, and no row to noRows.
@@ -146,4 +160,59 @@ func toConsent(kind Kind, row consentdb.GrantConsentRow, err, noRows error) (Con
 		Status: Status(row.Status), DateTime: row.DateTime.Time, RevokedAt: row.RevokedAt.Time,
 		LastUpdated: row.UpdatedAt.Time, VersionID: row.VersionID,
 	}, nil
+}
+
+func (r *postgresRepository) GrantChat(ctx context.Context, patientID string, g ChatGrant, at time.Time) (Consent, error) {
+	var p, o, c, role, roleOrg pgtype.UUID
+	if p.Scan(patientID) != nil || o.Scan(g.OrganizationID) != nil || c.Scan(g.ConversationID) != nil || role.Scan(g.PractitionerRoleID) != nil ||
+		roleOrg.Scan(g.PractitionerOrganizationID) != nil {
+		return Consent{}, errors.New("consent: a chat grant id is not a UUID")
+	}
+	row, err := consentdb.New(postgres.Conn(ctx, r.db)).GrantChatConsent(ctx, consentdb.GrantChatConsentParams{
+		PatientID: p, OrganizationID: o, ConversationID: c, PractitionerRoleID: role, PractitionerOrganizationID: roleOrg,
+		DateTime: pgtype.Timestamptz{Time: at, Valid: true},
+	})
+	if err != nil {
+		return Consent{}, fmt.Errorf("consent: grant chat: %w", err)
+	}
+	return chatConsent(row), nil
+}
+
+func (r *postgresRepository) RevokeChat(ctx context.Context, conversationID, roleID string, at time.Time) (Consent, error) {
+	var c, role pgtype.UUID
+	if c.Scan(conversationID) != nil || role.Scan(roleID) != nil {
+		return Consent{}, ErrInactive
+	}
+	row, err := consentdb.New(postgres.Conn(ctx, r.db)).RevokeChatConsent(ctx, consentdb.RevokeChatConsentParams{
+		ConversationID: c, PractitionerRoleID: role, RevokedAt: pgtype.Timestamptz{Time: at, Valid: true},
+	})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Consent{}, ErrInactive
+	case err != nil:
+		return Consent{}, fmt.Errorf("consent: revoke chat: %w", err)
+	}
+	return chatConsent(consentdb.GrantChatConsentRow(row)), nil
+}
+
+func (r *postgresRepository) ChatGranted(ctx context.Context, conversationID, roleID string) (bool, error) {
+	var c, role pgtype.UUID
+	if c.Scan(conversationID) != nil || role.Scan(roleID) != nil {
+		return false, nil
+	}
+	ok, err := consentdb.New(postgres.Conn(ctx, r.db)).ChatConsentGranted(ctx, consentdb.ChatConsentGrantedParams{ConversationID: c, PractitionerRoleID: role})
+	if err != nil {
+		return false, fmt.Errorf("consent: chat granted: %w", err)
+	}
+	return ok, nil
+}
+
+func chatConsent(row consentdb.GrantChatConsentRow) Consent {
+	return Consent{
+		ID: row.ID.String(), PatientID: row.PatientID.String(), OrganizationID: row.OrganizationID.String(),
+		ConversationID: row.ConversationID.String(), PractitionerRoleID: row.PractitionerRoleID.String(),
+		PractitionerOrganizationID: row.PractitionerOrganizationID.String(), Kind: KindChat,
+		Status: Status(row.Status), DateTime: row.DateTime.Time, RevokedAt: row.RevokedAt.Time, LastUpdated: row.UpdatedAt.Time,
+		VersionID: row.VersionID,
+	}
 }
