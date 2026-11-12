@@ -12,6 +12,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/consent"
+	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
@@ -330,4 +331,71 @@ func ids(c consent.Consent) []string {
 		out = append(out, v.EncounterID)
 	}
 	return out
+}
+
+// clinicBSeenBy returns what clinic A's scope sees of clinic B's organization and practitioner roles: through
+// 00046's history_shared_organizations() and history_shared_practitioner_roles(), only while a visit there is shared.
+func (r historyRepo) clinicBSeenBy(t *testing.T, app *pgxpool.Pool) (orgs, roles int) {
+	t.Helper()
+	if err := in(t, app, func(ctx context.Context) error { return r.repo.SetClinic(ctx, clinicA) }, func(ctx context.Context) error {
+		return postgres.Conn(ctx, app).QueryRow(ctx, `SELECT (SELECT count(*) FROM organization WHERE id = $1),
+			(SELECT count(*) FROM practitioner_role WHERE organization_id = $1)`, clinicB).Scan(&orgs, &roles)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return orgs, roles
+}
+
+// The shared visit's clinic and role (00046's once-per-query lookups) follow the selection at once: seen from the
+// grant, still seen while one visit there stays listed, gone when the history consent is revoked, and gone when the
+// care consent is.
+func TestHistory_TheSharedVisitsClinicAndRoleFollowTheSelectionAtOnce(t *testing.T) {
+	t.Parallel()
+	for name, end := range map[string]func(r historyRepo, at time.Time) func(ctx context.Context) error{
+		"history consent revoked": func(r historyRepo, at time.Time) func(ctx context.Context) error {
+			return func(ctx context.Context) error {
+				_, err := r.repo.RevokeHistory(ctx, patientA, clinicA, at)
+				return err
+			}
+		},
+		"care consent revoked": func(r historyRepo, at time.Time) func(ctx context.Context) error {
+			return func(ctx context.Context) error {
+				_, err := r.repo.Revoke(ctx, consent.KindCare, consentAA, at)
+				return err
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			owner, app := pgtest.NewAppDatabase(t)
+			seed(t, owner)
+			r := historyRepo{repo: consent.NewPostgresRepository(app), visits: seedEncounters(t, owner, clinicB, "finished", "finished", "finished")}
+			r.asA = func(fn func(ctx context.Context) error) error {
+				return in(t, app, func(ctx context.Context) error { return r.repo.SetPatient(ctx, patientA) }, fn)
+			}
+			if orgs, roles := r.clinicBSeenBy(t, app); orgs != 0 || roles != 0 {
+				t.Fatalf("before the grant clinic A sees %d organization and %d roles of clinic B, want none", orgs, roles)
+			}
+			h := r.grant(t)
+			if orgs, roles := r.clinicBSeenBy(t, app); orgs != 1 || roles != 1 {
+				t.Errorf("after the grant clinic A sees %d organization and %d roles of clinic B, want 1 and 1", orgs, roles)
+			}
+			later := granted.Add(time.Hour)
+			if err := r.asA(func(ctx context.Context) (err error) {
+				h, err = r.repo.ChangeHistory(ctx, h.ID, h.VersionID, nil, r.visits[:1], later)
+				return
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if orgs, roles := r.clinicBSeenBy(t, app); orgs != 1 || roles != 1 {
+				t.Errorf("one visit removed, one listed: clinic A sees %d organization and %d roles of clinic B, want 1 and 1", orgs, roles)
+			}
+			if err := r.asA(end(r, later)); err != nil {
+				t.Fatal(err)
+			}
+			if orgs, roles := r.clinicBSeenBy(t, app); orgs != 0 || roles != 0 {
+				t.Errorf("%s: clinic A sees %d organization and %d roles of clinic B, want none", name, orgs, roles)
+			}
+		})
+	}
 }
