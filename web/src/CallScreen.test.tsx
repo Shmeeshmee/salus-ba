@@ -41,11 +41,23 @@ function renderCall({ routes = {}, language = 'en', live, ...options }: Setup = 
 const button = (name: string) => screen.getByRole('button', { name })
 const peer = (present: boolean, camera = true, microphone = true) => ({ type: 'peer', peer: { present, camera, microphone } }) as const
 
-// inCall joins from the device check and waits for the room.
+// joinable waits until Join can be pressed. It renders disabled until the camera and the microphone have opened
+// or failed, which they do after the render, so a click on the button as soon as it is found can be ignored.
+async function joinable() {
+  await vi.waitFor(() => expect((button('Join') as HTMLButtonElement).disabled).toBe(false))
+  return button('Join')
+}
+
+// following waits until the screen has subscribed to the live source n times. It subscribes from an effect, which
+// React can run after the call's panels render, so a message emitted at once could reach no one.
+const following = (live: ReturnType<typeof fakeLive>, n = 1) => vi.waitFor(() => expect(live.opened).toEqual(Array(n).fill(id)))
+
+// inCall joins from the device check and waits for the room, and for the live source when there is one.
 async function inCall(setup: Setup = {}) {
   const call = renderCall(setup)
-  fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+  fireEvent.click(await joinable())
   await screen.findByRole('button', { name: 'Leave' })
+  if (setup.live) await following(setup.live)
   return call
 }
 
@@ -145,7 +157,7 @@ describe('CallScreen: the device check', () => {
     ).toBeTruthy()
     const off = screen.getByLabelText('Join with camera off') as HTMLInputElement
     expect(off.checked && off.disabled).toBe(true)
-    fireEvent.click(button('Join'))
+    fireEvent.click(await joinable())
 
     await screen.findByRole('button', { name: 'Leave' })
     expect(last().settings).toEqual({ camera: false, microphone: true, microphoneId: 'mic-1' })
@@ -161,7 +173,7 @@ describe('CallScreen: the device check', () => {
         'Your browser is not allowing the microphone. Allow it in the site settings, then reload the page. Without it, the patient cannot hear you.',
       ),
     ).toBeTruthy()
-    fireEvent.click(button('Join'))
+    fireEvent.click(await joinable())
 
     await screen.findByRole('button', { name: 'Leave' })
     expect(last().settings).toEqual({ camera: true, microphone: false, cameraId: 'cam-1' })
@@ -178,7 +190,7 @@ describe('CallScreen: the device check', () => {
     const { last } = renderCall()
 
     fireEvent.click(await screen.findByLabelText('Join with camera off'))
-    fireEvent.click(button('Join'))
+    fireEvent.click(await joinable())
 
     await screen.findByRole('button', { name: 'Leave' })
     expect(last().settings).toEqual({ camera: false, microphone: true, cameraId: 'cam-1', microphoneId: 'mic-1' })
@@ -191,7 +203,7 @@ describe('CallScreen: joining', () => {
     let answer: (r: Response) => void = () => {}
     const { requests, last } = renderCall({ routes: { [joinPost]: () => new Promise<Response>((r) => (answer = r)) } })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    fireEvent.click(await joinable())
 
     expect(((await screen.findByRole('button', { name: 'Joining…' })) as HTMLButtonElement).disabled).toBe(true)
     answer(Response.json(joined))
@@ -214,7 +226,7 @@ describe('CallScreen: joining', () => {
   ])('shows the message for a %i %s and connects nothing', async (status, code, message) => {
     const { rooms } = renderCall({ routes: { [joinPost]: () => apiError(status, code) } })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    fireEvent.click(await joinable())
 
     await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toBe(message))
     expect(rooms).toHaveLength(0)
@@ -224,7 +236,7 @@ describe('CallScreen: joining', () => {
   it('says when the video connection cannot be started', async () => {
     renderCall({ connectFails: true })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    fireEvent.click(await joinable())
 
     await vi.waitFor(() =>
       expect(screen.getByRole('alert').textContent).toBe('The video connection could not be started. Check your connection and try again.'),
@@ -491,9 +503,9 @@ describe('CallScreen: the live panels', () => {
     await screen.findByRole('button', { name: 'Join' })
     expect(live.opened).toEqual([])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Join' }))
+    fireEvent.click(await joinable())
     const side = await screen.findByRole('complementary', { name: 'Transcript, suggestions and documents' })
-    expect(live.opened).toEqual([id])
+    await following(live)
     act(() => live.emit(segment({ translation: 'Placeholder caption' })))
     expect(screen.queryByRole('group', { name: 'Captions' })).toBeNull() // the patient is not in the room
     act(() => media.last().emit(peer(true)))
@@ -563,7 +575,7 @@ describe('CallScreen: the live panels', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Join again' }))
     await screen.findByRole('button', { name: 'Leave' })
 
-    expect(live.opened).toEqual([id, id])
+    await following(live, 2)
     expect(screen.getAllByRole('tab')).toHaveLength(3)
     expect(screen.getByText('The transcript appears here as the conversation goes on.')).toBeTruthy()
   })
@@ -671,7 +683,7 @@ describe('CallScreen: unmounting', () => {
     let release: (() => void) | undefined
     const held = { ...media, connect: (...args: Parameters<typeof media.connect>) => new Promise<Awaited<ReturnType<typeof media.connect>>>((r) => (release = () => r(media.connect(...args)))) }
     const { unmount } = renderInLanguage(<CallScreen api={newApiClient(fake.fetch)} id={id} media={held} />, 'en')
-    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    fireEvent.click(await joinable())
     await vi.waitFor(() => expect(release).toBeDefined())
 
     unmount()

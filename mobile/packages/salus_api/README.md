@@ -116,6 +116,7 @@ Class | Method | HTTP request | Description
 *ChatApi* | [**searchConversations**](doc//ChatApi.md#searchconversations) | **GET** /conversations/search | Search the caller's conversations
 *ChatApi* | [**sendMessage**](doc//ChatApi.md#sendmessage) | **POST** /conversations/{id}/messages | Send a text message
 *ChatApi* | [**setChatSettings**](doc//ChatApi.md#setchatsettings) | **PUT** /clinic/chat-settings | Replace the admin's clinic's chat settings
+*ChatApi* | [**summarizeConversation**](doc//ChatApi.md#summarizeconversation) | **POST** /conversations/{id}/summary | An AI summary of a long conversation, for its practitioner
 *ChatApi* | [**unregisterDevice**](doc//ChatApi.md#unregisterdevice) | **DELETE** /me/devices | Unregister the app's push token (on sign-out)
 *ChatApi* | [**uploadChatAttachment**](doc//ChatApi.md#uploadchatattachment) | **POST** /conversations/{id}/attachments | Upload a file to send in the conversation
 *ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic, or to transcription
@@ -351,6 +352,8 @@ Class | Method | HTTP request | Description
  - [SuggestionStatusMessage](doc//SuggestionStatusMessage.md)
  - [SummaryAllergy](doc//SummaryAllergy.md)
  - [SummaryMedication](doc//SummaryMedication.md)
+ - [SummaryRequest](doc//SummaryRequest.md)
+ - [SummaryResponse](doc//SummaryResponse.md)
  - [SystemMessage](doc//SystemMessage.md)
  - [Term](doc//Term.md)
  - [TermCategory](doc//TermCategory.md)

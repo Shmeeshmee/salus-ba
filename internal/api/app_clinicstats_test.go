@@ -14,7 +14,7 @@ import (
 // refusal is audited on the clinic.
 func TestNew_ServesTheClinicsStatisticsToItsStaffAndAuditsThem(t *testing.T) {
 	cfg := testConfig(t)
-	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

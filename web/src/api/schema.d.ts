@@ -1886,6 +1886,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/conversations/{id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * An AI summary of a long conversation, for its practitioner
+         * @description SAL-31. For a practitioner who may read the conversation (never the patient), when they read at least 50 of its messages: a summary of the latest 500 they read, written by a language model (the fake, until the owner decides the basis for a real one). It is not stored, never replaces a message, and is always labelled AI generated (`ai_generated`); it states what was written, not a diagnosis. The read of the rows summarised is audited. `lang` is a staff language, `bs` when absent; the body may be empty.
+         */
+        post: operations["summarizeConversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/conversations/{id}/events": {
         parameters: {
             query?: never;
@@ -3580,6 +3600,26 @@ export interface components {
         };
         MessageRevisions: {
             revisions: components["schemas"]["MessageRevision"][];
+        };
+        SummaryRequest: {
+            /**
+             * @description The language to write the summary in.
+             * @enum {string}
+             */
+            lang?: "bs" | "hr" | "sr-Latn" | "sr-Cyrl" | "en";
+        };
+        SummaryResponse: {
+            /** @description The summary's text; never a diagnosis. */
+            summary: string;
+            /** Format: date-time */
+            generated_at: string;
+            /**
+             * Format: int64
+             * @description The number of the latest message it covers.
+             */
+            up_to_seq: number;
+            /** @description Always true; every client labels the summary AI generated. */
+            ai_generated: boolean;
         };
         ReadPosition: {
             /** Format: int64 */
@@ -8905,6 +8945,40 @@ export interface operations {
             400: components["responses"]["ChatInvalidRequest"];
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["ChatForbidden"];
+        };
+    };
+    summarizeConversation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SummaryRequest"];
+            };
+        };
+        responses: {
+            /** @description The summary, not cached. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SummaryResponse"];
+                };
+            };
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
         };
     };
     followConversation: {

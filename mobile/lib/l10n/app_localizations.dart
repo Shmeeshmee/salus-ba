@@ -69,7 +69,8 @@ import 'app_localizations_tr.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale)
+    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -77,7 +78,8 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate =
+      _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -89,12 +91,13 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
-    delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
-  ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
+      <LocalizationsDelegate<dynamic>>[
+        delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
@@ -1856,9 +1859,262 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close'**
   String get termClose;
+
+  /// Home button and the conversation list title (SAL-31).
+  ///
+  /// In en, this message translates to:
+  /// **'Messages'**
+  String get chatsTitle;
+
+  /// The conversation list without a conversation.
+  ///
+  /// In en, this message translates to:
+  /// **'You have no conversations yet.'**
+  String get chatsEmpty;
+
+  /// The unread badge of a conversation, read out.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} unread message} other{{count} unread messages}}'**
+  String chatUnread(int count);
+
+  /// A conversation's title when the doctor's name is not known.
+  ///
+  /// In en, this message translates to:
+  /// **'Your doctor'**
+  String get chatDoctorUnknown;
+
+  /// The composer field.
+  ///
+  /// In en, this message translates to:
+  /// **'Write a message'**
+  String get chatMessageHint;
+
+  /// The composer: send button tooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get chatSend;
+
+  /// The composer: add a file from the camera or the files, tooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a file'**
+  String get chatAttach;
+
+  /// A message that did not reach the API; the text stays in the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'The message was not sent. Check your connection and try again.'**
+  String get chatSendFailed;
+
+  /// An attachment the clinic's scan refused.
+  ///
+  /// In en, this message translates to:
+  /// **'This file was not accepted.'**
+  String get chatFileRejected;
+
+  /// The composer: remove a file not yet sent, tooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove the file'**
+  String get chatFileRemove;
+
+  /// An upload refused because the patient already has the most files waiting to be sent (SAL-30 too_many_files); count is the limit.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{You already have {count} file waiting to be sent. Files not sent are removed after 24 hours; try again later.} other{You already have {count} files waiting to be sent. Files not sent are removed after 24 hours; try again later.}}'**
+  String chatTooManyFiles(int count);
+
+  /// An attachment that could not be read.
+  ///
+  /// In en, this message translates to:
+  /// **'The file could not be opened. Try again.'**
+  String get chatOpenFailed;
+
+  /// The live connection ended because the session ended (4401).
+  ///
+  /// In en, this message translates to:
+  /// **'Your session has ended. Sign in again to see new messages.'**
+  String get chatEndedSession;
+
+  /// The live connection ended because access ended (4403, 4404).
+  ///
+  /// In en, this message translates to:
+  /// **'New messages can no longer be shown in this conversation.'**
+  String get chatEnded;
+
+  /// The clinic's chat hours: button tooltip and dialog title.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat hours'**
+  String get chatHours;
+
+  /// One weekday of the chat hours; day is the weekday name, start and end are HH:MM.
+  ///
+  /// In en, this message translates to:
+  /// **'{day}: {start}–{end}'**
+  String chatHoursDay(String day, String start, String end);
+
+  /// The clinic has no chat hours.
+  ///
+  /// In en, this message translates to:
+  /// **'The clinic has not set chat hours.'**
+  String get chatHoursNone;
+
+  /// The chat hours dialog: the clinic's IANA time zone the hours are in (shown as given, not converted).
+  ///
+  /// In en, this message translates to:
+  /// **'Times are in the clinic\'s time zone, {zone}.'**
+  String chatHoursZone(String zone);
+
+  /// The clinic's expected response time, in the chat hours dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'{hours, plural, one{The clinic usually answers within {hours} hour.} other{The clinic usually answers within {hours} hours.}}'**
+  String chatResponseTime(int hours);
+
+  /// The notice above the composer outside the chat hours (SAL-29 open_now false).
+  ///
+  /// In en, this message translates to:
+  /// **'{hours, plural, one{The clinic is outside its chat hours. You can still write; it usually answers within {hours} hour.} other{The clinic is outside its chat hours. You can still write; it usually answers within {hours} hours.}}'**
+  String chatOutOfHours(int hours);
+
+  /// System message participant_invited; reason is second_opinion, specialist_review or handover.
+  ///
+  /// In en, this message translates to:
+  /// **'{reason, select, second_opinion{A doctor from another clinic was invited to this conversation for a second opinion.} specialist_review{A doctor from another clinic was invited to this conversation for a specialist review.} handover{A doctor from another clinic was invited to this conversation to take over the care.} other{A doctor from another clinic was invited to this conversation.}}'**
+  String chatSystemInvited(String reason);
+
+  /// System message participant_added.
+  ///
+  /// In en, this message translates to:
+  /// **'{reason, select, second_opinion{A doctor joined the conversation for a second opinion.} specialist_review{A doctor joined the conversation for a specialist review.} handover{A doctor joined the conversation to take over the care.} other{A doctor joined the conversation.}}'**
+  String chatSystemAdded(String reason);
+
+  /// System message participant_removed.
+  ///
+  /// In en, this message translates to:
+  /// **'A doctor no longer takes part in the conversation.'**
+  String get chatSystemRemoved;
+
+  /// System message consent_granted: the patient agreed.
+  ///
+  /// In en, this message translates to:
+  /// **'You allowed a doctor from another clinic to join the conversation.'**
+  String get chatSystemGranted;
+
+  /// System message consent_declined: the patient declined.
+  ///
+  /// In en, this message translates to:
+  /// **'You declined a doctor from another clinic.'**
+  String get chatSystemDeclined;
+
+  /// A system message the app does not know.
+  ///
+  /// In en, this message translates to:
+  /// **'The conversation was updated.'**
+  String get chatSystemOther;
+
+  /// [legal] The consent prompt: its heading.
+  ///
+  /// In en, this message translates to:
+  /// **'A doctor from another clinic asks to join'**
+  String get chatInviteTitle;
+
+  /// [legal] The consent prompt: who asks and why.
+  ///
+  /// In en, this message translates to:
+  /// **'{reason, select, second_opinion{Your clinic asks a doctor from another clinic to join this conversation for a second opinion.} specialist_review{Your clinic asks a doctor from another clinic to join this conversation for a specialist review.} handover{Your clinic asks a doctor from another clinic to join this conversation to take over your care.} other{Your clinic asks a doctor from another clinic to join this conversation.}}'**
+  String chatInviteBody(String reason);
+
+  /// [legal] The consent prompt: the invited doctor's name and clinic, when known.
+  ///
+  /// In en, this message translates to:
+  /// **'Doctor: {doctor}, {clinic}'**
+  String chatInviteWho(String doctor, String clinic);
+
+  /// [legal] The consent prompt while the invited doctor's name and clinic are not known: the grant waits for them.
+  ///
+  /// In en, this message translates to:
+  /// **'The invited doctor\'s name and clinic could not be loaded. Access can be granted only once they are shown.'**
+  String get chatInviteUnresolved;
+
+  /// [legal] The consent prompt: what the doctor would see; history is full, from or unknown.
+  ///
+  /// In en, this message translates to:
+  /// **'{history, select, full{If you agree, the doctor sees the whole conversation, including the earlier messages, and can write in it.} from{If you agree, the doctor sees the conversation from a message your clinic chose onwards, and can write in it.} other{If you agree, the doctor sees the conversation and can write in it.}}'**
+  String chatInviteSees(String history);
+
+  /// [legal] The consent prompt: declining and revoking.
+  ///
+  /// In en, this message translates to:
+  /// **'You may decline. If you agree, you can revoke the doctor\'s access later in this conversation; it ends at once.'**
+  String get chatInviteChoice;
+
+  /// [legal] The consent prompt: grant button.
+  ///
+  /// In en, this message translates to:
+  /// **'Grant access'**
+  String get chatGrant;
+
+  /// [legal] The consent prompt: decline button.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline'**
+  String get chatDecline;
+
+  /// [legal] After a grant.
+  ///
+  /// In en, this message translates to:
+  /// **'Access granted. You can revoke it in this conversation at any time.'**
+  String get chatGranted;
+
+  /// [legal] After a decline.
+  ///
+  /// In en, this message translates to:
+  /// **'Declined. The doctor does not join this conversation.'**
+  String get chatDeclined;
+
+  /// [legal] The chat view's menu: revoke a granted invitation.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke the access of the doctor from another clinic'**
+  String get chatRevoke;
+
+  /// [legal] The chat view's line for a doctor of another clinic the patient granted access, beside the revoke button.
+  ///
+  /// In en, this message translates to:
+  /// **'Access granted to {doctor}, {clinic}.'**
+  String chatGrantedTo(String doctor, String clinic);
+
+  /// [legal] The granted doctor's line while their name and clinic are not known.
+  ///
+  /// In en, this message translates to:
+  /// **'Access granted to a doctor from another clinic.'**
+  String get chatGrantedToUnknown;
+
+  /// [legal] The revocation dialog: its effect.
+  ///
+  /// In en, this message translates to:
+  /// **'The doctor from the other clinic loses access to this conversation at once. The messages already written stay in it.'**
+  String get chatRevokeBody;
+
+  /// [legal] The revocation dialog: confirm button.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke access'**
+  String get chatRevokeConfirm;
+
+  /// [legal] After a revocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Access revoked.'**
+  String get chatRevoked;
 }
 
-class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -1867,8 +2123,17 @@ class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> 
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['ar', 'bs', 'de', 'en', 'fr', 'hr', 'it', 'sr', 'tr'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>[
+    'ar',
+    'bs',
+    'de',
+    'en',
+    'fr',
+    'hr',
+    'it',
+    'sr',
+    'tr',
+  ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;

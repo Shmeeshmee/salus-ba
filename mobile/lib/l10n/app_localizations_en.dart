@@ -25,19 +25,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get somethingWrong => 'Something went wrong. Try again.';
 
   @override
-  String get unreachable => 'Salus could not be reached. Check your connection and try again.';
+  String get unreachable =>
+      'Salus could not be reached. Check your connection and try again.';
 
   @override
   String get wrongCredentials => 'The e-mail or password is wrong.';
 
   @override
-  String get wrongCode => 'The code is wrong. Check the time on your device and try again.';
+  String get wrongCode =>
+      'The code is wrong. Check the time on your device and try again.';
 
   @override
-  String get challengeEnded => 'The sign-in has ended. Enter your e-mail and password again.';
+  String get challengeEnded =>
+      'The sign-in has ended. Enter your e-mail and password again.';
 
   @override
-  String get emailTaken => 'This e-mail already has an account. Sign in instead.';
+  String get emailTaken =>
+      'This e-mail already has an account. Sign in instead.';
 
   @override
   String get invalidEmail => 'Enter a valid e-mail address.';
@@ -52,13 +56,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get invalidCode => 'The code has 6 digits.';
 
   @override
-  String get staffOnly => 'This app is for patients. Clinic staff use the Salus web app.';
+  String get staffOnly =>
+      'This app is for patients. Clinic staff use the Salus web app.';
 
   @override
   String get accountReady => 'Your account is ready. Sign in to continue.';
 
   @override
-  String get signOutFailed => 'Could not sign out. Check your connection and try again.';
+  String get signOutFailed =>
+      'Could not sign out. Check your connection and try again.';
 
   @override
   String get tooManyAttemptsLater => 'Too many attempts. Try again later.';
@@ -90,7 +96,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get createAnAccount => 'Create an account';
 
   @override
-  String get codePrompt => 'Enter the 6-digit code from your authenticator app.';
+  String get codePrompt =>
+      'Enter the 6-digit code from your authenticator app.';
 
   @override
   String get code => 'Code';
@@ -167,16 +174,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get invalidGivenName => 'Enter your given name, up to 100 characters.';
 
   @override
-  String get invalidFamilyName => 'Enter your family name, up to 100 characters.';
+  String get invalidFamilyName =>
+      'Enter your family name, up to 100 characters.';
 
   @override
-  String get invalidName => 'Enter your given and family name, up to 100 characters each.';
+  String get invalidName =>
+      'Enter your given and family name, up to 100 characters each.';
 
   @override
   String get birthDateFormat => 'Enter your date of birth as YYYY-MM-DD.';
 
   @override
-  String get birthDateRange => 'Enter a date of birth in the past, from 1900 on.';
+  String get birthDateRange =>
+      'Enter a date of birth in the past, from 1900 on.';
 
   @override
   String invalidPhone(String example) {
@@ -184,7 +194,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get profileChanged => 'Your profile was changed in the meantime. Check it and save again.';
+  String get profileChanged =>
+      'Your profile was changed in the meantime. Check it and save again.';
 
   @override
   String get chooseClinic => 'Choose a clinic';
@@ -280,7 +291,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appointmentCancelled => 'Your appointment is cancelled.';
 
   @override
-  String get cancelWindowHint => 'Can be cancelled in the app until 24 hours before the start.';
+  String get cancelWindowHint =>
+      'Can be cancelled in the app until 24 hours before the start.';
 
   @override
   String get cancelWindowClosed =>
@@ -318,7 +330,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get whatFor => 'What for';
 
   @override
-  String get whatForBody => 'Only for your care at this clinic: to prepare for and hold your appointments.';
+  String get whatForBody =>
+      'Only for your care at this clinic: to prepare for and hold your appointments.';
 
   @override
   String get whoIsResponsible => 'Who is responsible';
@@ -362,7 +375,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noConsents => 'You have not given any consents yet.';
 
   @override
-  String get consentsIntro => 'You share your profile and appointments with these clinics for your care.';
+  String get consentsIntro =>
+      'You share your profile and appointments with these clinics for your care.';
 
   @override
   String givenOn(String date) {
@@ -394,10 +408,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get checkTitle => 'Check your camera and microphone';
 
   @override
-  String get checkIntro => 'The practitioner will see and hear you once you join.';
+  String get checkIntro =>
+      'The practitioner will see and hear you once you join.';
 
   @override
-  String get noSound => 'No sound detected. Check that your microphone is on and not muted.';
+  String get noSound =>
+      'No sound detected. Check that your microphone is on and not muted.';
 
   @override
   String get joinCameraOff => 'Join with camera off';
@@ -482,7 +498,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get closeScreen => 'You can close this screen.';
 
   @override
-  String get timeLimit => 'The consultation reached its time limit and has ended.';
+  String get timeLimit =>
+      'The consultation reached its time limit and has ended.';
 
   @override
   String get practitionerAbsent => 'The practitioner did not join';
@@ -492,13 +509,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'The time to join this consultation has passed. The clinic can see that you joined. The clinic may contact you, or you can book a new appointment.';
 
   @override
-  String get withdrewConsent => 'You withdrew your consent for this clinic, so you have left the consultation.';
+  String get withdrewConsent =>
+      'You withdrew your consent for this clinic, so you have left the consultation.';
 
   @override
-  String get appointmentWasCancelled => 'This appointment was cancelled, so the consultation has ended.';
+  String get appointmentWasCancelled =>
+      'This appointment was cancelled, so the consultation has ended.';
 
   @override
-  String get windowNotOpen => 'This consultation opens 10 minutes before the start.';
+  String get windowNotOpen =>
+      'This consultation opens 10 minutes before the start.';
 
   @override
   String get consultationEnded => 'This consultation has ended.';
@@ -510,7 +530,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get consultationNotAvailable => 'This consultation is not available.';
 
   @override
-  String get cannotConnect => 'The video connection could not be started. Check your connection and try again.';
+  String get cannotConnect =>
+      'The video connection could not be started. Check your connection and try again.';
 
   @override
   String get whyCameraAndMicrophone =>
@@ -565,7 +586,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get stopTranscription => 'Stop transcription';
 
   @override
-  String get transcriptionStopped => 'Transcription is off. Your consultations with this clinic go ahead without it.';
+  String get transcriptionStopped =>
+      'Transcription is off. Your consultations with this clinic go ahead without it.';
 
   @override
   String get consentForCare => 'Sharing for care';
@@ -595,10 +617,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get viewAnswers => 'View answers';
 
   @override
-  String get submitBeforeStart => 'Please submit it before your appointment starts.';
+  String get submitBeforeStart =>
+      'Please submit it before your appointment starts.';
 
   @override
-  String get questionnaireClosed => 'The appointment has started, so this questionnaire can no longer be filled in.';
+  String get questionnaireClosed =>
+      'The appointment has started, so this questionnaire can no longer be filled in.';
 
   @override
   String savedAsYouGo(String clinic) {
@@ -612,7 +636,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get saving => 'Saving…';
 
   @override
-  String get notSaved => 'Not saved. Check your connection. Saving will try again.';
+  String get notSaved =>
+      'Not saved. Check your connection. Saving will try again.';
 
   @override
   String get requiredQuestion => 'Required';
@@ -705,22 +730,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get stay => 'Stay';
 
   @override
-  String get fillingNeedsConsent => 'Filling in this questionnaire needs your consent for this clinic.';
+  String get fillingNeedsConsent =>
+      'Filling in this questionnaire needs your consent for this clinic.';
 
   @override
-  String get pastDue => 'The appointment has started, so this questionnaire can no longer be changed.';
+  String get pastDue =>
+      'The appointment has started, so this questionnaire can no longer be changed.';
 
   @override
-  String get withdrawnByClinic => 'The clinic withdrew this questionnaire. You do not need to fill it in.';
+  String get withdrawnByClinic =>
+      'The clinic withdrew this questionnaire. You do not need to fill it in.';
 
   @override
-  String get alreadySubmitted => 'You have already submitted this questionnaire.';
+  String get alreadySubmitted =>
+      'You have already submitted this questionnaire.';
 
   @override
-  String get changedElsewhere => 'These answers were changed on another device. The latest answers are shown.';
+  String get changedElsewhere =>
+      'These answers were changed on another device. The latest answers are shown.';
 
   @override
-  String get questionnaireNotAvailable => 'This questionnaire is not available.';
+  String get questionnaireNotAvailable =>
+      'This questionnaire is not available.';
 
   @override
   String get done => 'Done';
@@ -742,7 +773,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String upToFilesHint(int n) {
-    String _temp0 = intl.Intl.pluralLogic(n, locale: localeName, other: 'Up to $n files.', one: 'Up to $n file.');
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: 'Up to $n files.',
+      one: 'Up to $n file.',
+    );
     return '$_temp0';
   }
 
@@ -788,7 +824,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get removeFileBody => 'It is deleted from your answers.';
 
   @override
-  String get fileRejected => 'This file did not pass the safety check and was deleted. Choose another file.';
+  String get fileRejected =>
+      'This file did not pass the safety check and was deleted. Choose another file.';
 
   @override
   String fileTooLarge(int max) {
@@ -796,7 +833,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get fileTypeRefused => 'This kind of file cannot be added to this question.';
+  String get fileTypeRefused =>
+      'This kind of file cannot be added to this question.';
 
   @override
   String tooManyFiles(int n) {
@@ -810,23 +848,32 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get filesFull => 'The files in this questionnaire have reached 500 MB. Remove a file to add another.';
+  String get filesFull =>
+      'The files in this questionnaire have reached 500 MB. Remove a file to add another.';
 
   @override
   String get fileNotUploaded => 'The file could not be uploaded. Try again.';
 
   @override
-  String get cannotPrepareFile => 'This file could not be prepared for upload. Choose another file.';
+  String get cannotPrepareFile =>
+      'This file could not be prepared for upload. Choose another file.';
 
   @override
-  String get filesBeingChecked => 'Some files are still being checked. You can submit once they are ready.';
+  String get filesBeingChecked =>
+      'Some files are still being checked. You can submit once they are ready.';
 
   @override
-  String get leaveUploading => 'A file is still uploading. Leave anyway? The upload stops.';
+  String get leaveUploading =>
+      'A file is still uploading. Leave anyway? The upload stops.';
 
   @override
   String fileCount(int n) {
-    String _temp0 = intl.Intl.pluralLogic(n, locale: localeName, other: '$n files', one: '1 file');
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n files',
+      one: '1 file',
+    );
     return '$_temp0';
   }
 
@@ -868,7 +915,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get allowCamera => 'Allow camera access';
 
   @override
-  String get whyCameraForFiles => 'Salus needs the camera to take the photo or video you add to this questionnaire.';
+  String get whyCameraForFiles =>
+      'Salus needs the camera to take the photo or video you add to this questionnaire.';
 
   @override
   String get continueLabel => 'Continue';
@@ -878,7 +926,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Salus does not have access to your camera. You can allow it in your device settings, or choose a file instead.';
 
   @override
-  String get photosDenied => 'Salus does not have access to your photos. You can allow it in your device settings.';
+  String get photosDenied =>
+      'Salus does not have access to your photos. You can allow it in your device settings.';
 
   @override
   String cameraPhotoTitle(String date, String time) {
@@ -942,7 +991,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get languageUnavailable => 'This language is no longer available for this questionnaire. Choose another one.';
+  String get languageUnavailable =>
+      'This language is no longer available for this questionnaire. Choose another one.';
 
   @override
   String specialtyAtClinic(String specialty, String clinic) {
@@ -1001,4 +1051,220 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get termClose => 'Close';
+
+  @override
+  String get chatsTitle => 'Messages';
+
+  @override
+  String get chatsEmpty => 'You have no conversations yet.';
+
+  @override
+  String chatUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count unread messages',
+      one: '$count unread message',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDoctorUnknown => 'Your doctor';
+
+  @override
+  String get chatMessageHint => 'Write a message';
+
+  @override
+  String get chatSend => 'Send';
+
+  @override
+  String get chatAttach => 'Add a file';
+
+  @override
+  String get chatSendFailed =>
+      'The message was not sent. Check your connection and try again.';
+
+  @override
+  String get chatFileRejected => 'This file was not accepted.';
+
+  @override
+  String get chatFileRemove => 'Remove the file';
+
+  @override
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'You already have $count files waiting to be sent. Files not sent are removed after 24 hours; try again later.',
+      one:
+          'You already have $count file waiting to be sent. Files not sent are removed after 24 hours; try again later.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatOpenFailed => 'The file could not be opened. Try again.';
+
+  @override
+  String get chatEndedSession =>
+      'Your session has ended. Sign in again to see new messages.';
+
+  @override
+  String get chatEnded =>
+      'New messages can no longer be shown in this conversation.';
+
+  @override
+  String get chatHours => 'Chat hours';
+
+  @override
+  String chatHoursDay(String day, String start, String end) {
+    return '$day: $start–$end';
+  }
+
+  @override
+  String get chatHoursNone => 'The clinic has not set chat hours.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'Times are in the clinic\'s time zone, $zone.';
+  }
+
+  @override
+  String chatResponseTime(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: 'The clinic usually answers within $hours hours.',
+      one: 'The clinic usually answers within $hours hour.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatOutOfHours(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other:
+          'The clinic is outside its chat hours. You can still write; it usually answers within $hours hours.',
+      one:
+          'The clinic is outside its chat hours. You can still write; it usually answers within $hours hour.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemInvited(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'A doctor from another clinic was invited to this conversation for a second opinion.',
+      'specialist_review': 'A doctor from another clinic was invited to this conversation for a specialist review.',
+      'handover': 'A doctor from another clinic was invited to this conversation to take over the care.',
+      'other': 'A doctor from another clinic was invited to this conversation.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemAdded(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion':
+          'A doctor joined the conversation for a second opinion.',
+      'specialist_review':
+          'A doctor joined the conversation for a specialist review.',
+      'handover': 'A doctor joined the conversation to take over the care.',
+      'other': 'A doctor joined the conversation.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatSystemRemoved =>
+      'A doctor no longer takes part in the conversation.';
+
+  @override
+  String get chatSystemGranted =>
+      'You allowed a doctor from another clinic to join the conversation.';
+
+  @override
+  String get chatSystemDeclined => 'You declined a doctor from another clinic.';
+
+  @override
+  String get chatSystemOther => 'The conversation was updated.';
+
+  @override
+  String get chatInviteTitle => 'A doctor from another clinic asks to join';
+
+  @override
+  String chatInviteBody(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Your clinic asks a doctor from another clinic to join this conversation for a second opinion.',
+      'specialist_review': 'Your clinic asks a doctor from another clinic to join this conversation for a specialist review.',
+      'handover': 'Your clinic asks a doctor from another clinic to join this conversation to take over your care.',
+      'other': 'Your clinic asks a doctor from another clinic to join this conversation.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatInviteWho(String doctor, String clinic) {
+    return 'Doctor: $doctor, $clinic';
+  }
+
+  @override
+  String get chatInviteUnresolved =>
+      'The invited doctor\'s name and clinic could not be loaded. Access can be granted only once they are shown.';
+
+  @override
+  String chatInviteSees(String history) {
+    String _temp0 = intl.Intl.selectLogic(history, {
+      'full': 'If you agree, the doctor sees the whole conversation, including the earlier messages, and can write in it.',
+      'from': 'If you agree, the doctor sees the conversation from a message your clinic chose onwards, and can write in it.',
+      'other':
+          'If you agree, the doctor sees the conversation and can write in it.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatInviteChoice =>
+      'You may decline. If you agree, you can revoke the doctor\'s access later in this conversation; it ends at once.';
+
+  @override
+  String get chatGrant => 'Grant access';
+
+  @override
+  String get chatDecline => 'Decline';
+
+  @override
+  String get chatGranted =>
+      'Access granted. You can revoke it in this conversation at any time.';
+
+  @override
+  String get chatDeclined =>
+      'Declined. The doctor does not join this conversation.';
+
+  @override
+  String get chatRevoke =>
+      'Revoke the access of the doctor from another clinic';
+
+  @override
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'Access granted to $doctor, $clinic.';
+  }
+
+  @override
+  String get chatGrantedToUnknown =>
+      'Access granted to a doctor from another clinic.';
+
+  @override
+  String get chatRevokeBody =>
+      'The doctor from the other clinic loses access to this conversation at once. The messages already written stay in it.';
+
+  @override
+  String get chatRevokeConfirm => 'Revoke access';
+
+  @override
+  String get chatRevoked => 'Access revoked.';
 }

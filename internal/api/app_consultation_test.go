@@ -23,6 +23,8 @@ import (
 // testDrafter is the api's default drafting engine: the fake, keeping no calls.
 func testDrafter() llm.Drafter { return &llmtest.Drafter{DiscardCalls: true} }
 
+func testSummarizer() llm.Summarizer { return &llmtest.Summarizer{DiscardCalls: true} }
+
 // testLiveKit is a synthetic LiveKit configuration; the server URL resolves nowhere, so a test that needs
 // LiveKit itself uses the compose one through TEST_LIVEKIT_*.
 func testLiveKit() config.LiveKit {
@@ -57,7 +59,7 @@ func livekitSignature(t *testing.T, lk config.LiveKit, body []byte) string {
 func TestNew_ServesTheLiveKitWebhook(t *testing.T) {
 	var log bytes.Buffer
 	lk := testLiveKit()
-	app, err := api.New(t.Context(), testConfig(t), lk, testObjectStore(t), testDrafter(), slog.New(slog.NewJSONHandler(&log, nil)))
+	app, err := api.New(t.Context(), testConfig(t), lk, testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewJSONHandler(&log, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
