@@ -4,6 +4,8 @@ import 'package:salus_api/api.dart';
 import 'appointments_screen.dart';
 import 'booking.dart';
 import 'call.dart';
+import 'chat.dart';
+import 'chat_list_screen.dart';
 import 'files.dart';
 import 'clinics_screen.dart';
 import 'consents_screen.dart';
@@ -20,6 +22,7 @@ class HomeScreen extends StatefulWidget {
     super.key,
     required this.session,
     required this.booking,
+    this.chats,
     required this.now,
     required this.media,
     required this.files,
@@ -29,6 +32,9 @@ class HomeScreen extends StatefulWidget {
 
   final Session session;
   final Booking booking;
+
+  /// The conversations; null leaves out the Messages entry.
+  final Chats? chats;
   final DateTime Function() now;
   final Media media;
   final Files files;
@@ -151,6 +157,13 @@ class _HomeScreenState extends State<HomeScreen> {
               _open(() => AppointmentsScreen(booking: booking, now: now, media: widget.media, files: widget.files)),
           child: Text(t.myAppointments),
         ),
+        if (widget.chats case final chats?)
+          OutlinedButton(
+            onPressed: () => _open(
+              () => ChatListScreen(chats: chats, places: booking.places, files: widget.files, media: widget.media, now: now),
+            ),
+            child: Text(t.chatsTitle),
+          ),
         OutlinedButton(
           onPressed: () => _open(() => ConsentsScreen(booking: booking)),
           child: Text(t.myConsents),

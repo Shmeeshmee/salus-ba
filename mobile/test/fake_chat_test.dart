@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:salus/file_prep.dart';
 import 'package:salus/chat.dart';
 import 'package:salus_api/api.dart';
 
@@ -61,5 +62,88 @@ void main() {
     expect(ends, [ChatEnd.consentRequired]);
     stop();
     expect(ChatMessageFrameTypeEnum.message.toJson(), 'message');
+  });
+
+  test('an invitation of a doctor from another clinic is pending until the patient decides', () async {
+    final chat = FakeChat();
+    final id = chat.conversation.id;
+    final invitation = chat.invite(reason: 'second_opinion');
+    expect((await chat.invitations()).single.id, invitation.id);
+    expect(invitation.conversationId, id);
+    final invited = (await chat.messages(id)).messages.first;
+    expect(invited.kind, ChatMessageKindEnum.system);
+    expect(invited.system!.code, 'participant_invited');
+    expect(invited.system!.args, {
+      'practitioner_role_id': invitation.practitionerRoleId,
+      'organization_id': invitation.organizationId,
+      'reason': 'second_opinion',
+    });
+
+    await chat.decide(invitation.id, grant: true);
+    expect(await chat.invitations(), isEmpty);
+    expect([for (final m in (await chat.messages(id)).messages.take(2)) m.system!.code], ['participant_added', 'consent_granted']);
+    expect(() => chat.decide(invitation.id, grant: false), throwsA(isA<ChatException>().having((e) => e.code, 'code', 'not_found')));
+
+    await chat.revoke(invitation.id);
+    expect((await chat.messages(id)).messages.first.system!.code, 'participant_removed');
+    expect(chat.revoked, [invitation.id]);
+  });
+
+  test('a declined invitation writes consent_declined and cannot be revoked', () async {
+    final chat = FakeChat();
+    final invitation = chat.invite(reason: 'handover', history: 'full');
+    expect(invitation.history, 'full');
+    await chat.decide(invitation.id, grant: false);
+    final last = (await chat.messages(chat.conversation.id)).messages.first;
+    expect(last.system!.code, 'consent_declined');
+    expect(last.system!.args, {'practitioner_role_id': invitation.practitionerRoleId});
+    expect(() => chat.revoke(invitation.id), throwsA(isA<ChatException>().having((e) => e.code, 'code', 'not_found')));
+  });
+
+  test("the clinic's chat hours say whether it is open now", () async {
+    final chat = FakeChat();
+    final org = chat.conversation.organizationId;
+    expect((await chat.chatHours(org)).openNow, isTrue);
+    chat.openNow = false;
+    final hours = await chat.chatHours(org);
+    expect(hours.openNow, isFalse);
+    expect(hours.responseTimeHours, 24);
+    expect(hours.hours.first.weekday, 1);
+    expect(() => chat.chatHours('other'), throwsA(isA<ChatException>()));
+  });
+
+  test('an attachment is scanning until the test moves it, and its bytes are read once clean', () async {
+    final chat = FakeChat();
+    final id = chat.conversation.id;
+    final file = Prepared(
+      name: 'synthetic-photo.jpg',
+      size: 3,
+      kind: FileKind.photo,
+      read: () => Stream.value([1, 2, 3]),
+      discard: () async {},
+    );
+    final a = await chat.upload(id, file);
+    expect(a.status, AttachmentStatus.scanning);
+    expect(a.contentType, 'image/jpeg');
+    expect(() => chat.content(id, a.id), throwsA(isA<ChatException>()));
+
+    final m = await chat.send(id, clientId(1), '', attachmentIds: [a.id]);
+    expect(m.body, isNull);
+    expect(m.attachments.single.id, a.id);
+    expect(() => chat.send(id, clientId(2), '', attachmentIds: ['unknown']), throwsA(isA<ChatException>()));
+
+    chat.scanned(a.id, AttachmentStatus.clean);
+    final shown = (await chat.messages(id)).messages.first;
+    expect(shown.attachments.single.status, AttachmentStatus.clean);
+    expect(shown.attachments.single.thumbnail, isTrue);
+    expect(await chat.content(id, a.id), [1, 2, 3]);
+    expect(await chat.thumbnail(id, a.id), isNotEmpty);
+  });
+
+  test('the doctor sends an attachment', () async {
+    final chat = FakeChat();
+    final m = chat.deliverFile('synthetic-report.pdf', 'application/pdf', AttachmentStatus.clean);
+    expect(m.attachments.single.filename, 'synthetic-report.pdf');
+    expect(m.attachments.single.thumbnail, isFalse);
   });
 }
