@@ -32,8 +32,9 @@ func TestMessageSent_FansOutToTheOtherParticipantsDevicesEmailsAndWebhooks(t *te
 	if err := f.svc.MessageSent(t.Context(), practSent); err != nil {
 		t.Fatalf("MessageSent() = %v", err)
 	}
-	if got := []string{f.jobs.pushes[0].DeviceID, f.jobs.pushes[1].DeviceID}; len(f.jobs.pushes) != 2 || !slices.Equal(got, []string{dev1, dev2}) {
-		t.Errorf("pushes %+v, want the patient's two devices", f.jobs.pushes)
+	wantPushes := []notification.ChatPushArgs{{DeviceID: dev1, AccountID: patientAccount}, {DeviceID: dev2, AccountID: patientAccount}}
+	if !slices.Equal(f.jobs.pushes, wantPushes) {
+		t.Errorf("pushes %+v, want the patient's two devices, each with the account", f.jobs.pushes)
 	}
 	want := notification.ChatUnreadEmailArgs{ParticipantID: patientPart, ConversationID: convID, OrganizationID: clinicID, ReadSeq: 0, Seq: 2}
 	if len(f.jobs.emails) != 1 || f.jobs.emails[0] != want || !f.jobs.emailAt[0].Equal(chatNow.Add(30*time.Minute)) {
@@ -95,7 +96,7 @@ func TestMessageSent_NothingAfterARevocationAndFailuresAreRetried(t *testing.T) 
 func TestPush_SendsTheFixedAlertInTheAccountsLanguageAndForgetsAGoneToken(t *testing.T) {
 	f := newChatFixture(t)
 	dev := f.device(t, patientAccount, "synthetic-token-1", push.IOS)
-	if err := f.svc.Push(t.Context(), notification.ChatPushArgs{DeviceID: dev}); err != nil {
+	if err := f.svc.Push(t.Context(), notification.ChatPushArgs{DeviceID: dev, AccountID: patientAccount}); err != nil {
 		t.Fatalf("Push() = %v", err)
 	}
 	sent := f.pusher.Sent()
@@ -108,21 +109,37 @@ func TestPush_SendsTheFixedAlertInTheAccountsLanguageAndForgetsAGoneToken(t *tes
 	}
 
 	f.pusher.Gone("synthetic-token-1")
-	if err := f.svc.Push(t.Context(), notification.ChatPushArgs{DeviceID: dev}); err != nil {
+	if err := f.svc.Push(t.Context(), notification.ChatPushArgs{DeviceID: dev, AccountID: patientAccount}); err != nil {
 		t.Fatalf("Push(gone) = %v", err)
 	}
 	if _, ok := f.repo.devices[dev]; ok {
 		t.Error("a gone token was kept")
 	}
-	if err := f.svc.Push(t.Context(), notification.ChatPushArgs{DeviceID: dev}); err != nil {
+	if err := f.svc.Push(t.Context(), notification.ChatPushArgs{DeviceID: dev, AccountID: patientAccount}); err != nil {
 		t.Errorf("Push(unregistered) = %v, want nothing to do", err)
 	}
 
 	down := errors.New("push service down")
 	f.pusher.Err = down
 	dev = f.device(t, patientAccount, "synthetic-token-2", push.Android)
-	if err := f.svc.Push(t.Context(), notification.ChatPushArgs{DeviceID: dev}); !errors.Is(err, down) || strings.Contains(err.Error(), "synthetic-token") {
+	if err := f.svc.Push(t.Context(), notification.ChatPushArgs{DeviceID: dev, AccountID: patientAccount}); !errors.Is(err, down) || strings.Contains(err.Error(), "synthetic-token") {
 		t.Errorf("Push(down) = %v, want its error without the token", err)
+	}
+}
+
+// A push queued for one account sends nothing once its device's token moved to another account (signed out of the
+// first, into the second): the second must never learn of the first one's messages.
+func TestPush_SendsNothingOnceTheTokenMovedToAnotherAccount(t *testing.T) {
+	f := newChatFixture(t)
+	dev := f.device(t, patientAccount, "synthetic-token-1", push.IOS)
+	if moved := f.device(t, practAccount, "synthetic-token-1", push.IOS); moved != dev {
+		t.Fatalf("the fake moved the token to a new row %s, want %s", moved, dev)
+	}
+	if err := f.svc.Push(t.Context(), notification.ChatPushArgs{DeviceID: dev, AccountID: patientAccount}); err != nil {
+		t.Fatalf("Push() = %v", err)
+	}
+	if sent := f.pusher.Sent(); len(sent) != 0 {
+		t.Errorf("pushed %+v to the token's new account", sent)
 	}
 }
 
@@ -189,7 +206,7 @@ func TestUnreadEmail_CompletesWhenTheRecipientHasNoAccount(t *testing.T) {
 // What every job of a message carries, serialised as River stores it, holds no text and no name.
 func TestJobArguments_HoldIDsOnly(t *testing.T) {
 	for _, a := range []any{
-		notification.ChatPushArgs{DeviceID: "9d000000-0000-4000-8000-000000000001"},
+		notification.ChatPushArgs{DeviceID: "9d000000-0000-4000-8000-000000000001", AccountID: patientAccount},
 		notification.ChatUnreadEmailArgs{ParticipantID: patientPart, ConversationID: convID, OrganizationID: clinicID, Seq: 2},
 		notification.WebhookDeliveryArgs{EndpointID: msgID, EventID: msgID, OrganizationID: clinicID, ConversationID: convID, MessageID: msgID},
 	} {

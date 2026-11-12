@@ -160,7 +160,7 @@ func (s *Chat) tell(ctx context.Context, a communication.MessageSentArgs, p comm
 		return err
 	}
 	for _, d := range devices {
-		if err := s.Jobs.EnqueuePush(ctx, ChatPushArgs{DeviceID: d.ID}); err != nil {
+		if err := s.Jobs.EnqueuePush(ctx, ChatPushArgs{DeviceID: d.ID, AccountID: account}); err != nil {
 			return err
 		}
 	}
@@ -212,13 +212,16 @@ func eventID(event, id string) string {
 
 // Push sends the device's notification (the chat_push job): the fixed "new message from your clinic" in its
 // account's language, nothing else. A token the platform says is gone is forgotten; a device unregistered
-// meanwhile sends nothing. Errors carry no token.
+// meanwhile, or whose token moved to another account, sends nothing. Errors carry no token.
 func (s *Chat) Push(ctx context.Context, a ChatPushArgs) error {
 	var d Device
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
 		if d, err = s.Repo.Device(ctx, a.DeviceID); err != nil {
 			return err
+		}
+		if d.AccountID != a.AccountID {
+			return ErrNotFound // the token moved to another account: it gets none of this one's notifications
 		}
 		return s.recordDevices(ctx, agentPush, "", d.AccountID, 1)
 	})

@@ -67,12 +67,12 @@ func (r *fakeChatRepo) RegisterDevice(_ context.Context, d notification.Device, 
 	if r.err != nil {
 		return r.err
 	}
+	d.ID = fmt.Sprintf("9d000000-0000-4000-8000-%012d", len(r.registers)+1)
 	for id, old := range r.devices {
 		if old.Token == d.Token {
-			delete(r.devices, id)
+			d.ID = id // the token's row moves to the account, as in Postgres
 		}
 	}
-	d.ID = fmt.Sprintf("9d000000-0000-4000-8000-%012d", len(r.registers)+1)
 	r.devices[d.ID] = d
 	r.registers = append(r.registers, at)
 	return nil

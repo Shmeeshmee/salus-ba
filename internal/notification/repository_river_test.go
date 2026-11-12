@@ -37,7 +37,7 @@ func TestRiverJobs_EnqueueTheNotificationsOnTheirQueuesOnceEach(t *testing.T) {
 	unread := notification.ChatUnreadEmailArgs{ParticipantID: patientPart, ConversationID: convID, OrganizationID: clinicID, Seq: 2}
 	hook := notification.WebhookDeliveryArgs{EndpointID: msgID, EventID: convID, OrganizationID: clinicID, ConversationID: convID, MessageID: msgID}
 	enqueue := func(ctx context.Context) error {
-		if err := jobs.EnqueuePush(ctx, notification.ChatPushArgs{DeviceID: msgID}); err != nil {
+		if err := jobs.EnqueuePush(ctx, notification.ChatPushArgs{DeviceID: msgID, AccountID: patientAccount}); err != nil {
 			return err
 		}
 		if err := jobs.EnqueueUnreadEmail(ctx, unread, at); err != nil {
@@ -86,7 +86,7 @@ func TestRiverJobs_EnqueueTheNotificationsOnTheirQueuesOnceEach(t *testing.T) {
 		got = append(got, j)
 	}
 	want := []riverJob{
-		{kind: "chat_push", queue: "push", attempts: 5, args: `{"device_id": "` + msgID + `"}`},
+		{kind: "chat_push", queue: "push", attempts: 5, args: `{"device_id": "` + msgID + `", "account_id": "` + patientAccount + `"}`},
 		{kind: "chat_unread_email", queue: "email", attempts: 10, at: at,
 			args: `{"seq": 2, "read_seq": 0, "participant_id": "` + patientPart + `", "conversation_id": "` + convID + `", "organization_id": "` + clinicID + `"}`},
 		{kind: "chat_unread_email", queue: "email", attempts: 10, at: at.Add(2 * time.Minute),

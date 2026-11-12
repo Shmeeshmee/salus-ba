@@ -86,9 +86,11 @@ type DeadLetter struct {
 	LastStatus     int
 }
 
-// ChatPushArgs is the chat_push job: one notification to one device. The device's id only.
+// ChatPushArgs is the chat_push job: one notification to one device of the account. Opaque ids only; the account's
+// so that a token moved to another account meanwhile receives nothing.
 type ChatPushArgs struct {
-	DeviceID string `json:"device_id"`
+	DeviceID  string `json:"device_id"`
+	AccountID string `json:"account_id"`
 }
 
 // Kind names the job in the river_job table.
