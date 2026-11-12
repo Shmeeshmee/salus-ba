@@ -85,7 +85,7 @@ func TestWebhooks_RefuseAnyoneButTheAdminAndInvalidEndpoints(t *testing.T) {
 		"http://hooks.example.test", "https://", "https://user:pass@hooks.example.test", "https://hooks.example.test/#x",
 		"https://localhost/hook", "https://api.localhost", "https://127.0.0.1/", "https://10.0.0.5/", "https://[::1]/",
 		"https://169.254.169.254/latest", "https://[fd00::1]/", "https://192.168.1.10:8443/", "https://100.64.0.1/", "https://intranet/",
-		"https://0.0.0.0/", "https://[::ffff:127.0.0.1]/", "ftp://hooks.example.test", "https://hooks.example.test/" + strings.Repeat("a", 2048),
+		"https://0.0.0.0/", "https://[::ffff:127.0.0.1]/", "https://[64:ff9b::a00:1]/", "https://[2002:a00:1::1]/", "https://240.0.0.1/", "ftp://hooks.example.test", "https://hooks.example.test/" + strings.Repeat("a", 2048),
 	} {
 		if _, _, err := f.svc.CreateWebhook(t.Context(), clinicAdminCaller, notification.NewEndpoint{URL: url, Events: []string{notification.EventMessageCreated}}); !errors.Is(err, notification.ErrInvalid) {
 			t.Errorf("CreateWebhook(%q) = %v, want ErrInvalid", url, err)

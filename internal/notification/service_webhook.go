@@ -198,10 +198,16 @@ func validURL(raw string) bool {
 }
 
 // nonPublic are the ranges publicAddr refuses beside what netip names: the shared address space of carrier-grade
-// NAT, this network, IETF protocol assignments, and the benchmarking range.
+// NAT, this network, IETF protocol assignments, the benchmarking range, the reserved range and the limited
+// broadcast; and in IPv6 every prefix that carries an IPv4 address a gateway may forward to (NAT64, 6to4, Teredo,
+// IPv4-compatible), the documentation prefix and the discard-only prefix.
 var nonPublic = []netip.Prefix{
 	netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("0.0.0.0/8"),
 	netip.MustParsePrefix("192.0.0.0/24"), netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("240.0.0.0/4"), netip.MustParsePrefix("255.255.255.255/32"),
+	netip.MustParsePrefix("64:ff9b::/96"), netip.MustParsePrefix("64:ff9b:1::/48"),
+	netip.MustParsePrefix("2002::/16"), netip.MustParsePrefix("2001::/32"), netip.MustParsePrefix("::/96"),
+	netip.MustParsePrefix("2001:db8::/32"), netip.MustParsePrefix("100::/64"),
 }
 
 // publicAddr tells whether a webhook may connect to addr: not loopback, private (RFC 1918, unique-local), link-local,
