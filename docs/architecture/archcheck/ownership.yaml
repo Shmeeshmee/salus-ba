@@ -10,6 +10,7 @@
 # in internal/retention/rules.go (archcheck), and its personal fields a line in the feature's SPEC.md.
 tables:
   account: {owner: auth, personal_data: true}
+  allergy_intolerance: {owner: allergyintolerance, personal_data: true} # 00043, SAL-41
   appointment: {owner: appointment, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
   binary: {owner: binary, personal_data: true}
@@ -28,7 +29,10 @@ tables:
   document_template: {owner: composition, personal_data: false}
   document_template_translation: {owner: composition, personal_data: false}
   encounter: {owner: encounter, personal_data: true}
+  history_consent: {owner: consent, personal_data: true} # 00043, SAL-42
+  history_consent_encounter: {owner: consent, personal_data: true} # 00043, SAL-42
   invite: {owner: auth, personal_data: true}
+  medication_statement: {owner: medicationstatement, personal_data: true} # 00043, SAL-41
   organization: {owner: organization, personal_data: false}
   patient: {owner: patient, personal_data: true}
   place: {owner: terminology, personal_data: false}

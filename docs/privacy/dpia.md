@@ -1755,7 +1755,7 @@ SAL-21), for marketing, profiling or model training.
 clinic, the breakdown per practitioner included; a practitioner who is not an admin sees the clinic's appointment
 figures (or their own role's) and only their own role's diagnoses; anyone else is refused. Row-level security by
 clinic on both tables (one clinic's scope reads none of another's rows, tested); only `salus_stats` writes them
-(insert and delete; tested in migration 00043).
+(insert and delete; tested in migration 00044).
 
 **Audit.** Every read and every refusal writes an AuditEvent on `Organization/<clinic>`, purpose `HOPERAT`
 (v3-ActReason has no code for statistics), in the read's transaction. The builds are not audited: they read and write
@@ -1773,3 +1773,35 @@ refresh of the affected days.
 | Small counts singling out a patient within the clinic | The figures stay inside the clinic that holds the records; no count leaves it (the platform view is SAL-21's, with its own suppression) |
 | Per-practitioner workload as employee monitoring | Admins only; open question L5 for the owner's lawyer before production |
 | Stale or lost counts | The nightly pass recomputes the last 35 days of every clinic; the refresh is idempotent (tested) |
+
+## Patient history (`docs/plans/patient-history.md`, ADR 0014)
+
+### Step 0: the contract (migration 00043)
+
+**Processing added.** The patient's allergies and current medications in their profile (FHIR AllergyIntolerance,
+MedicationStatement), and a third consent, the history consent, by which the patient shares chosen visits of theirs
+at other clinics with one clinic. Lawful basis: care (Art. 9(2)(h)) for the profile, as for the rest of the record;
+the patient's explicit consent for sharing across clinics, granular per visit, off by default, revocable at once. No
+processor is added; nothing of the history goes to a language model.
+
+**Personal data added.** The four tables of the plan's "Personal data" section, all health data, all kept with the
+clinical record (retention `keep`, needs a legal decision before production). A patient's own unconfirmed entry is
+deleted when they remove it; anything confirmed or recorded by a clinic is kept as entered-in-error.
+
+**Who sees what.** ADR 0014 "Access model": the patient their whole history; a practitioner only the visits they
+held themselves at their clinic and the visits the patient shared with that clinic; the profile where the care
+consent and an appointment allow it (as the profile today); a clinic's entry only where its visit is seen; which
+clinic recorded or confirmed an entry only to the patient and that clinic. Row-level security says the same in the
+clinic's scope (tested per scope and table); the service rule (`access.HistoryVisit`) narrows it to the
+practitioner. Every read, grant, change and revocation is audited.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A visit the patient did not tick reaches the doctor | It is never selected: `history_shared` and the `*_shared` policies open only listed visits, `access.HistoryVisit` refuses the rest before anything is listed, counted, searched or summarised (migration and access tests; service tests in SAL-40) |
+| A removal or revocation that does not take effect at once | Both end access when their transaction commits, in row-level security and in the rule, which read the current state (tests); revoking the care consent revokes the history consent too |
+| A doctor's entry in the profile tells another clinic where the patient was treated | Doctor entries belong to their visit (ADR 0014 decision 4); the patient adds one to the profile only on purpose, and then it shows no clinic, no practitioner and no visit (`access.Attributed`, FHIR golden files) |
+| The patient shares another patient's visit, or one of the receiving clinic's own, or one still in progress | Refused by the insert check of `history_consent_encounter` as well as the service |
+| A shared visit exposes more than its record | Only the encounter, signed documents, completed answers and their clean files, and the entries recorded in it; never the transcript, suggestions, drafts or appointment (policy tests) |
+| History reaches the language model | Not in this epic: suggestions and drafting read only the consultation's transcript (SAL-42 adds the test) |

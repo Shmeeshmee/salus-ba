@@ -8,7 +8,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-// clinicStatInserts insert one row of each clinic aggregate (00043, docs/plans/analytics.md §4) of the clinic with
+// clinicStatInserts insert one row of each clinic aggregate (00044, docs/plans/analytics.md §4) of the clinic with
 // its role.
 var clinicStatInserts = []string{
 	`INSERT INTO clinic_appointment_stat (organization_id, practitioner_role_id, day, hour, specialty_code, status, count)

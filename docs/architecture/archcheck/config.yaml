@@ -3,7 +3,7 @@
 # package. archcheck fails on a package under internal/ that is in no list.
 contexts:
   analytics: [clinicstats]
-  clinical: [binary, composition, condition, questionnaire, questionnaireresponse]
+  clinical: [allergyintolerance, binary, composition, condition, history, medicationstatement, questionnaire, questionnaireresponse]
   consultation: [communication, encounter, suggestion, transcript, videosession]
   directory: [organization, practitioner, practitionerrole]
   identity: [auth]

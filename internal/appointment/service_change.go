@@ -16,8 +16,8 @@ const agentRevocation = "consent_revoked"
 // view is an appointment with what the caller may see of it and the facts that decided it.
 type view struct {
 	viewer access.Viewer
-	facts  access.Facts
 	a      Appointment
+	facts  access.Facts
 	level  access.Level
 }
 

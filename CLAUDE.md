@@ -79,7 +79,8 @@ patient       patient, relatedperson
 scheduling    schedule, slot, appointment
 consultation  encounter, videosession, communication, transcript, suggestion
 clinical      binary, questionnaire, questionnaireresponse, observation, condition, medicationrequest, documentreference,
-              composition
+              composition, allergyintolerance, medicationstatement, and history (the patient's history as one view
+              over the others; owns no table and no resource)
 privacy       consent, auditevent, datarequest (GDPR subject requests), retention
               and the pure rule package access (who may see what)
 notification  notification

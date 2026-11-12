@@ -56,7 +56,7 @@ As built, where it differs from the plan (agent decisions, for the owner to revi
 
 ## ANA-2 SAL-20 clinic statistics (branch `analytics-clinic`)
 
-Built: migration 00043 (`clinic_appointment_stat`, `clinic_diagnosis_stat`: RLS by clinic for `salus_app`'s reads,
+Built: migration 00044 (00043 was taken by patient history, SAL-38) (`clinic_appointment_stat`, `clinic_diagnosis_stat`: RLS by clinic for `salus_app`'s reads,
 written only by `salus_stats` with SELECT, INSERT and DELETE), the domain `internal/clinicstats` (context
 `analytics`): the `Builder` (the refresh of a clinic-day and the nightly pass, on the stats pool), the `Service`
 (rules C1 to C3), the River `Queue`, the JSON handlers, `GET /analytics/clinic/appointments` and
