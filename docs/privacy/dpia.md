@@ -1734,3 +1734,64 @@ as the other clinical tables).
 | Another clinic's diagnoses | Row-level security by clinic (tested) |
 | The aggregate builds reading identities | `salus_stats` has column grants on the source columns only (tested); patients are pseudonymised per build |
 | WHO or national-edition text used without a licence | Codes only, as identifiers; group names are our own (ADR 0013) |
+
+### SAL-21: platform-wide anonymized trends
+
+**Processing added.** The clinic's location (a city and its leaf region, places of `terminology`) and whether it
+contributes to the platform figures, each with the time it last changed, on `organization`: no personal data. The
+builds (`internal/trends`, in `cmd/worker` as `salus_stats`, or `salusctl trends build`) read every contributing
+clinic's confirmed Conditions and fulfilled appointments of a closed month, quarter or week, with each patient only
+as HMAC-SHA256 under 32 random bytes made for the build and dropped with it; inside the build a patient and a clinic
+are an int32 that never leaves memory. They write `trends_cell` (distinct-patient counts per period and table cell,
+rounded to 5, or suppressed) and `trends_rise` (region, group and week of an unusual rise, no count): no clinic,
+practitioner or patient column (A1, a test walks every response's JSON against an allow-list).
+
+**Purpose and lawful basis.** Platform-wide figures of diagnoses and appointments by region, city, specialty and
+month, for the staff of the clinics that contribute. This is a new purpose for which Salus would act as controller
+of the anonymisation step: **L1 (role) and L2 (lawful basis) are open** with the owner's lawyer, so the whole view
+and its builds are behind `ANALYTICS_PLATFORM_ENABLED`, off by default (§2a): off, the scheduler enqueues no build,
+`salusctl trends build` refuses, the routes are not mounted (404) and no figure is computed. L3 (whether the output
+is anonymous, and may stay after an erasure) is open too. Not used for marketing, profiling or model training.
+
+**Necessity and minimisation.** Only confirmed diagnosis codes and fulfilled appointments' times, through the
+owning services; no age, sex, residence or free text. Geography is the clinic's location, never the patient's (A2).
+A clinic counts in a period only when its location and its contribution did not change during it; the rises only
+with the same location through all ten weeks (§5, §6). A clinic may opt out (O6): it is left out of every build from
+the next one on, and its staff lose the view (`403 analytics_not_contributing`).
+
+**Anonymisation (plan §5, rules A1 to A13, as built).** Each closed period is built once and frozen (A3). A cell is
+published only with at least k patients (`ANALYTICS_MIN_COUNT`, at least 10) from at least 3 clinics and at least
+max(k, 0.1·x1) left once its two largest clinics are taken out (A4); every relation of every table (parents and
+children along each dimension, cells shared between tables) has none or at least two suppressed cells whose distinct
+union passes A4 (A6); every suppressed cell is audited as an LP over its neighbourhood, with the published values as
+[v-2, v+2], the inequality relations of distinct counts and the two largest clinics' own patients known, failing
+closed (more suppression, then no code level, then the period refused, A7); a code is a key only when published at
+geography = all (A8); a breakdown returns every key with null for 0 and suppressed alike (A8); sums over months are
+patient-months marked partial (A9); counts are rounded to 5 (A10). An exact integer check over 60 random synthetic
+months (`internal/trends/exact_test.go`) confirms the LP never passes a month whose integer interval is narrower
+than k.
+
+**Access.** Staff (admins and practitioners) of a contributing clinic only (O5); a patient gets 403. salus_app only
+reads the figures; salus_stats writes each period once; nobody but the owner changes or deletes them (migration
+00045, tested).
+
+**Audit.** Every read of the view, refused ones too, is an AuditEvent (entity `trends_cell` or `trends_rise`,
+purpose HRESCH). Every build is audited before it writes: its agent (`trends_build` or `salusctl`) and the number
+of Conditions or appointments read. Build logs carry the period and counts of cells, suppressed cells and rises
+only (A13).
+
+**Retention.** `trends_cell` and `trends_rise`: deleted five years after their build (retention rule, purged by
+`salus_retention`); the period row stays, so a period is never built again. `organization`'s new columns: with the
+clinic.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Re-identification through small counts | A4 with k >= 10, 3 clinics and the two-largest rule; rounding to 5 |
+| Differencing a parent and its other children, or two tables, or several queries | Suppression decided once per period over every relation of every table (A5, A6); frozen periods (A3); only the fixed table combinations are queryable |
+| Two large clinics recovering a small third | Their own patients treated as known in the A7 audit |
+| Telling 0 from 1 | Every key returned, null for 0 and suppressed alike (A8) |
+| A clinic moving or opting out | Left out of every period it changed during, and of the rises for ten weeks |
+| A rise flag read as an official alert | No count; copy "Unusual rise" with a tooltip that it is not a public-health alert (ANA-4); L6 open |
+| Processing before the legal answers | `ANALYTICS_PLATFORM_ENABLED` off by default; tests run both ways |

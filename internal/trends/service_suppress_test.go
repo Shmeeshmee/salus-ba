@@ -109,19 +109,19 @@ func patients(first int32, n int) []int32 {
 // own are taken out. A10: published counts are rounded to the nearest 5.
 func TestSuppress_A4PrimaryAndA10Rounding(t *testing.T) {
 	tests := []struct {
-		name string
 		in   trends.Contribution
+		name string
 		want int // published, or -1 for suppressed
 	}{
-		{"fewer than k", trends.Contribution{1: patients(0, 3), 2: patients(3, 3), 3: patients(6, 3)}, -1},
-		{"two clinics", trends.Contribution{1: patients(0, 30), 2: patients(30, 30)}, -1},
-		{"two largest leave fewer than k", trends.Contribution{1: patients(0, 12), 2: patients(12, 10), 3: patients(22, 8)}, -1},
-		{"the largest dominates", trends.Contribution{1: patients(0, 200), 2: patients(200, 5), 3: patients(205, 15)}, -1},
-		{"a shared patient is one", trends.Contribution{1: patients(0, 10), 2: patients(5, 10), 3: patients(10, 10)}, -1},
-		{"balanced, 30 rounds to 30", trends.Contribution{1: patients(0, 10), 2: patients(10, 10), 3: patients(20, 10)}, 30},
-		{"32 rounds to 30", trends.Contribution{1: patients(0, 10), 2: patients(10, 10), 3: patients(20, 12)}, 30},
-		{"33 rounds to 35", trends.Contribution{1: patients(0, 11), 2: patients(11, 11), 3: patients(22, 11)}, 35},
-		{"38 rounds to 40", trends.Contribution{1: patients(0, 12), 2: patients(12, 12), 3: patients(24, 14)}, 40},
+		{trends.Contribution{1: patients(0, 3), 2: patients(3, 3), 3: patients(6, 3)}, "fewer than k", -1},
+		{trends.Contribution{1: patients(0, 30), 2: patients(30, 30)}, "two clinics", -1},
+		{trends.Contribution{1: patients(0, 12), 2: patients(12, 10), 3: patients(22, 8)}, "two largest leave fewer than k", -1},
+		{trends.Contribution{1: patients(0, 200), 2: patients(200, 5), 3: patients(205, 15)}, "the largest dominates", -1},
+		{trends.Contribution{1: patients(0, 10), 2: patients(5, 10), 3: patients(10, 10)}, "a shared patient is one", -1},
+		{trends.Contribution{1: patients(0, 10), 2: patients(10, 10), 3: patients(20, 10)}, "balanced, 30 rounds to 30", 30},
+		{trends.Contribution{1: patients(0, 10), 2: patients(10, 10), 3: patients(20, 12)}, "32 rounds to 30", 30},
+		{trends.Contribution{1: patients(0, 11), 2: patients(11, 11), 3: patients(22, 11)}, "33 rounds to 35", 35},
+		{trends.Contribution{1: patients(0, 12), 2: patients(12, 12), 3: patients(24, 14)}, "38 rounds to 40", 40},
 	}
 	for _, tt := range tests {
 		r := trends.Suppress(single(tt.in))
@@ -302,5 +302,54 @@ func checkRelations(t *testing.T, m month, visits []visit, r trends.Result) {
 		if len(single.Published) == 0 {
 			t.Errorf("%v published, but fails A4", k)
 		}
+	}
+}
+
+// BenchmarkSuppress_ASyntheticMonth times a month's suppression on synthetic data: 40 clinics in 3 regions and 12
+// cities, 4,000 patients, 27 groups with 3 to 6 codes each, 12 specialties (docs/plans/analytics.PROGRESS.md).
+func BenchmarkSuppress_ASyntheticMonth(b *testing.B) {
+	rng := rand.New(rand.NewPCG(1, 2))
+	in := trends.Input{Cells: map[trends.Key]trends.Contribution{}, Parents: [3]map[string][]string{{}, {}, {}}, K: 10}
+	in.KeyCell = func(k trends.Key) (trends.Key, bool) {
+		if strings.HasPrefix(k[2], "c:") {
+			return trends.Key{"", "", k[2]}, true
+		}
+		return trends.Key{}, false
+	}
+	in.Droppable = func(k trends.Key) bool { return strings.HasPrefix(k[2], "c:") }
+	add := func(k trends.Key, clinic, patient int32) {
+		if in.Cells[k] == nil {
+			in.Cells[k] = trends.Contribution{}
+		}
+		ps := in.Cells[k][clinic]
+		if i, found := slices.BinarySearch(ps, patient); !found {
+			in.Cells[k][clinic] = slices.Insert(ps, i, patient)
+		}
+	}
+	for c := range int32(40) {
+		region, city := "r:R"+string(rune('0'+c%3)), "c:C"+string(rune('a'+c%12))
+		in.Parents[0][city], in.Parents[0][region], in.Parents[0]["e:E"] = []string{region}, []string{"e:E"}, []string{""}
+		spec := "S" + string(rune('a'+c%12))
+		in.Parents[1][spec] = []string{""}
+		for p := range int32(100) {
+			g := rng.IntN(27)
+			group, code := "g:G"+string(rune('a'+g)), "c:"+string(rune('A'+g))+string(rune('0'+rng.IntN(3+g%4)))
+			in.Parents[2][group], in.Parents[2][code] = []string{""}, []string{group}
+			patient := c*1000 + p
+			for _, geo := range []string{"", "e:E", region, city} {
+				for _, d := range []string{"", group, code} {
+					add(trends.Key{geo, "", d}, c, patient)
+				}
+				add(trends.Key{geo, spec, ""}, c, patient)
+			}
+			for _, d := range []string{"", group, code} {
+				add(trends.Key{"", spec, d}, c, patient)
+			}
+		}
+	}
+	for b.Loop() {
+		r := trends.Suppress(in)
+		b.ReportMetric(float64(len(in.Cells)), "cells")
+		b.ReportMetric(float64(len(r.Suppressed)), "suppressed")
 	}
 }

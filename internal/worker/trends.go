@@ -46,6 +46,13 @@ type trendsWorker struct {
 	log     *slog.Logger
 }
 
+// buildTimeout bounds one build: a month's audit solves an LP per suppressed cell (docs/plans/analytics.PROGRESS.md
+// has the measured times), far beyond River's default minute.
+const buildTimeout = time.Hour
+
+// Timeout is the build's bound.
+func (w *trendsWorker) Timeout(*river.Job[TrendsBuildArgs]) time.Duration { return buildTimeout }
+
 func (w *trendsWorker) Work(ctx context.Context, job *river.Job[TrendsBuildArgs]) error {
 	if w.builder == nil {
 		return errors.New("worker: the platform builds are off")

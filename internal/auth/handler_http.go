@@ -79,9 +79,9 @@ type accountJSON struct {
 	OrganizationID string   `json:"organizationId,omitempty"`
 	PractitionerID string   `json:"practitionerId,omitempty"`
 	Language       string   `json:"language,omitempty"` // the choice only: the detected language stays on the server
+	Features       []string `json:"features,omitempty"`
 	MFAEnrolled    bool     `json:"mfaEnrolled"`
 	TermReviewer   bool     `json:"termReviewer,omitempty"`
-	Features       []string `json:"features,omitempty"`
 }
 
 func toJSON(a Account) accountJSON {

@@ -21,6 +21,7 @@ class Account {
     required this.mfaEnrolled,
     this.language,
     this.termReviewer,
+    this.features = const [],
   });
 
   String id;
@@ -67,6 +68,9 @@ class Account {
   ///
   bool? termReviewer;
 
+  /// The codes of the features turned on for the deployment; absent when none is. analytics_platform: the All of Salus view (ANALYTICS_PLATFORM_ENABLED, docs/plans/analytics.md §2a).
+  List<AccountFeaturesEnum> features;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -78,7 +82,8 @@ class Account {
           other.practitionerId == practitionerId &&
           other.mfaEnrolled == mfaEnrolled &&
           other.language == language &&
-          other.termReviewer == termReviewer;
+          other.termReviewer == termReviewer &&
+          _deepEquality.equals(other.features, features);
 
   @override
   int get hashCode =>
@@ -90,11 +95,12 @@ class Account {
       (practitionerId == null ? 0 : practitionerId!.hashCode) +
       (mfaEnrolled.hashCode) +
       (language == null ? 0 : language!.hashCode) +
-      (termReviewer == null ? 0 : termReviewer!.hashCode);
+      (termReviewer == null ? 0 : termReviewer!.hashCode) +
+      (features.hashCode);
 
   @override
   String toString() =>
-      'Account[id=$id, email=$email, role=$role, organizationId=$organizationId, practitionerId=$practitionerId, mfaEnrolled=$mfaEnrolled, language=$language, termReviewer=$termReviewer]';
+      'Account[id=$id, email=$email, role=$role, organizationId=$organizationId, practitionerId=$practitionerId, mfaEnrolled=$mfaEnrolled, language=$language, termReviewer=$termReviewer, features=$features]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -122,6 +128,7 @@ class Account {
     } else {
       json[r'termReviewer'] = null;
     }
+    json[r'features'] = this.features;
     return json;
   }
 
@@ -164,6 +171,7 @@ class Account {
         mfaEnrolled: mapValueOfType<bool>(json, r'mfaEnrolled')!,
         language: Language.fromJson(json[r'language']),
         termReviewer: mapValueOfType<bool>(json, r'termReviewer'),
+        features: AccountFeaturesEnum.listFromJson(json[r'features']),
       );
     }
     return null;
@@ -311,4 +319,84 @@ class AccountRoleEnumTypeTransformer {
 
   /// The singleton instance of this transformer.
   static AccountRoleEnumTypeTransformer? _instance;
+}
+
+enum AccountFeaturesEnum {
+  analyticsPlatform._(r'analytics_platform'),
+  ;
+
+  /// Instantiate a new enum with the provided value.
+  const AccountFeaturesEnum._(this._value);
+
+  /// The underlying value of this enum member.
+  final String _value;
+
+  @override
+  String toString() => _value;
+
+  /// Encodes this enum as a value suitable for JSON.
+  String toJson() => _value;
+
+  /// Returns the instance of [AccountFeaturesEnum] that was successfully decoded
+  /// from the passed [value] on success, null otherwise.
+  static AccountFeaturesEnum? fromJson(dynamic value) =>
+      AccountFeaturesEnumTypeTransformer().decode(value);
+
+  /// Returns a [List] containing instances of [AccountFeaturesEnum]
+  /// that were successfully decoded from the passed [JSON][json].
+  static List<AccountFeaturesEnum> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final result = <AccountFeaturesEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = AccountFeaturesEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [AccountFeaturesEnum] to String,
+/// and [decode] dynamic data back to [AccountFeaturesEnum].
+class AccountFeaturesEnumTypeTransformer {
+  factory AccountFeaturesEnumTypeTransformer() =>
+      _instance ??= const AccountFeaturesEnumTypeTransformer._();
+
+  const AccountFeaturesEnumTypeTransformer._();
+
+  String encode(AccountFeaturesEnum data) => data._value;
+
+  /// Returns the instance of [AccountFeaturesEnum] that was successfully decoded
+  /// from the passed [data] value on success, null otherwise.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  AccountFeaturesEnum? decode(dynamic data, {bool allowNull = true}) {
+    if (data is AccountFeaturesEnum) {
+      return data;
+    }
+    if (data != null) {
+      switch (data) {
+        case r'analytics_platform':
+          return AccountFeaturesEnum.analyticsPlatform;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// The singleton instance of this transformer.
+  static AccountFeaturesEnumTypeTransformer? _instance;
 }

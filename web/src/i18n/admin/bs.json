@@ -39,5 +39,19 @@
   "clinicConflict": "Neko drugi je promijenio postavke klinike. Učitajte ponovo da vidite izmjene.",
   "invalidClinicName": "Unesite naziv od 1 do 200 znakova.",
   "invalidTimeZone": "Odaberite vremensku zonu s liste.",
-  "clinicForbidden": "Samo administrator klinike može mijenjati ove postavke."
+  "clinicForbidden": "Samo administrator klinike može mijenjati ove postavke.",
+  "region": "Regija",
+  "city": "Grad",
+  "chooseRegion": "Odaberite regiju",
+  "chooseCity": "Odaberite grad",
+  "locationHint": "Gdje se klinika nalazi. Podaci za cijeli Salus grupišu klinike po regiji i gradu; promjena se računa od sljedećeg punog mjeseca.",
+  "contributes": {
+    "defaultMessage": "Učestvuj u podacima za cijeli Salus",
+    "description": "legal"
+  },
+  "contributesHint": {
+    "defaultMessage": "Dijagnoze i termini klinike ulaze, anonimizirani, u podatke svih klinika. Ako se isključite, klinika se izostavlja od sljedeće obrade, a njeno osoblje više ne vidi ove podatke.",
+    "description": "legal"
+  },
+  "invalidLocation": "Odaberite grad u toj regiji."
 }

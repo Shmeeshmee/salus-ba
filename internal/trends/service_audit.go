@@ -40,17 +40,17 @@ func (u *universe) audit(passed map[Key]bool) []Key {
 // fails closed.
 func (u *universe) width(x Key) int {
 	p := u.program(x)
-	lo, err := p.solve(1)
-	if err != nil {
-		return 0
-	}
 	hi, err := p.solve(-1)
 	if err != nil {
 		return 0
 	}
 	hi = -hi
 	if hi >= p.cap-1 {
-		return math.MaxInt32 // no bound but the program's own
+		return math.MaxInt32 // no bound but the program's own: no need for the lower end
+	}
+	lo, err := p.solve(1)
+	if err != nil {
+		return 0
 	}
 	return int(math.Floor(hi+roundSlack)) - int(math.Ceil(lo-roundSlack))
 }

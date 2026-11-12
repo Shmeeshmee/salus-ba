@@ -109,19 +109,19 @@ func TestHandler_Errors(t *testing.T) {
 		svc    trends.View
 		caller func(context.Context) (trends.Caller, bool, error)
 		path   string
-		status int
 		body   string
+		status int
 	}{
-		{stubView{}, nobody, "/analytics/platform/months", 401, `{"error":"unauthenticated"}`},
-		{stubView{}, broken, "/analytics/platform/months", 500, ""},
-		{stubView{err: trends.ErrNotContributing}, as(optedOut), "/analytics/platform/rises", 403, `{"error":"analytics_not_contributing"}`},
-		{stubView{err: trends.ErrForbidden}, as(patientOne), "/analytics/platform/heatmap?quarter=2026-Q3", 403, `{"error":"forbidden"}`},
-		{stubView{err: trends.ErrInvalidQuery}, as(staff), "/analytics/platform/cells?table=gd", 400, `{"error":"invalid_request"}`},
-		{stubView{}, as(staff), "/analytics/platform/cells?table=gd&clinic=x", 400, `{"error":"invalid_request"}`},
-		{stubView{}, as(staff), "/analytics/platform/cells?table=gd&table=gs", 400, `{"error":"invalid_request"}`},
-		{stubView{}, as(staff), "/analytics/platform/heatmap?quarter=2026-Q3&age=40", 400, `{"error":"invalid_request"}`},
-		{stubView{}, as(staff), "/analytics/platform/rises?weeks=x", 400, `{"error":"invalid_request"}`},
-		{stubView{err: errors.New("down")}, as(staff), "/analytics/platform/months", 500, ""},
+		{stubView{}, nobody, "/analytics/platform/months", `{"error":"unauthenticated"}`, 401},
+		{stubView{}, broken, "/analytics/platform/months", "", 500},
+		{stubView{err: trends.ErrNotContributing}, as(optedOut), "/analytics/platform/rises", `{"error":"analytics_not_contributing"}`, 403},
+		{stubView{err: trends.ErrForbidden}, as(patientOne), "/analytics/platform/heatmap?quarter=2026-Q3", `{"error":"forbidden"}`, 403},
+		{stubView{err: trends.ErrInvalidQuery}, as(staff), "/analytics/platform/cells?table=gd", `{"error":"invalid_request"}`, 400},
+		{stubView{}, as(staff), "/analytics/platform/cells?table=gd&clinic=x", `{"error":"invalid_request"}`, 400},
+		{stubView{}, as(staff), "/analytics/platform/cells?table=gd&table=gs", `{"error":"invalid_request"}`, 400},
+		{stubView{}, as(staff), "/analytics/platform/heatmap?quarter=2026-Q3&age=40", `{"error":"invalid_request"}`, 400},
+		{stubView{}, as(staff), "/analytics/platform/rises?weeks=x", `{"error":"invalid_request"}`, 400},
+		{stubView{err: errors.New("down")}, as(staff), "/analytics/platform/months", "", 500},
 	} {
 		rec := serve(t, tt.svc, tt.caller, tt.path)
 		if rec.Code != tt.status || (tt.body != "" && strings.TrimSpace(rec.Body.String()) != tt.body) {

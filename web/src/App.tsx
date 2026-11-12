@@ -179,7 +179,7 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   if (questionnaire) return <Builder key={questionnaire[1]} api={api} fhir={fhir} id={decodeURIComponent(questionnaire[1])} />
   if (path === '/term-review') return <Review api={api} reviewer={account.termReviewer === true} />
   if (path === '/clinic' && account.role === 'admin') {
-    return <ClinicSettings fhir={fhir} organizationId={account.organizationId ?? ''} />
+    return <ClinicSettings api={api} fhir={fhir} organizationId={account.organizationId ?? ''} />
   }
   return <p className="panel">{t('shell.notFound')}</p>
 }

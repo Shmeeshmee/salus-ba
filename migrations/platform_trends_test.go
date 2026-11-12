@@ -98,8 +98,8 @@ func TestPlatformTrends_TheTablesGrants(t *testing.T) {
 	for stmt, want := range map[string]string{
 		`DELETE FROM trends_cell WHERE created_at < now() + interval '1 day'`: "",
 		`DELETE FROM trends_rise WHERE created_at < now() + interval '1 day'`: "",
-		`DELETE FROM trends_period`:                                           "42501",
-		`UPDATE trends_cell SET count = 20`:                                   "42501",
+		`DELETE FROM trends_period`:         "42501",
+		`UPDATE trends_cell SET count = 20`: "42501",
 	} {
 		if _, err := retention.Exec(t.Context(), stmt); sqlState(err) != want {
 			t.Errorf("salus_retention: %s = %v, want %q", stmt, err, want)

@@ -80,13 +80,13 @@ func TestRepository_WritesOnceReadsAndPurges(t *testing.T) {
 	}
 	t.Cleanup(retentionPool.Close)
 	purge := trends.NewPostgresRepository(retentionPool)
-	if n, err := trends.NewCellPurger(purge).Purge(t.Context(), time.Now().Add(-time.Hour)); err != nil || n != 0 {
+	if n, err := trends.NewCellPurger(purge).Purge(t.Context(), time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)); err != nil || n != 0 {
 		t.Errorf("purging nothing recent = %d, %v", n, err)
 	}
-	if n, err := trends.NewCellPurger(purge).Purge(t.Context(), time.Now().Add(time.Hour)); err != nil || n != 3 {
+	if n, err := trends.NewCellPurger(purge).Purge(t.Context(), time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)); err != nil || n != 3 {
 		t.Errorf("purging the cells = %d, %v; want 3", n, err)
 	}
-	if n, err := trends.NewFlagPurger(purge).Purge(t.Context(), time.Now().Add(time.Hour)); err != nil || n != 1 {
+	if n, err := trends.NewFlagPurger(purge).Purge(t.Context(), time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)); err != nil || n != 1 {
 		t.Errorf("purging the flags = %d, %v; want 1", n, err)
 	}
 	if built, err := app.Built(t.Context(), "2026-10"); err != nil || !built {

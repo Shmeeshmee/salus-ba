@@ -43,8 +43,8 @@ func levelOf(node string) string {
 func relationsOf(in trends.Input) []testRelation {
 	type id struct {
 		parent trends.Key
-		dim    int
 		level  string
+		dim    int
 	}
 	byID := map[id]*testRelation{}
 	var keys []trends.Key
@@ -61,7 +61,7 @@ func relationsOf(in trends.Input) []testRelation {
 				if _, ok := in.Cells[parent]; !ok {
 					continue
 				}
-				i := id{parent, d, levelOf(k[d])}
+				i := id{parent: parent, dim: d, level: levelOf(k[d])}
 				if byID[i] == nil {
 					byID[i] = &testRelation{parent: parent}
 					order = append(order, i)
@@ -93,56 +93,13 @@ type row struct {
 // in every cell, is at least k wide.
 func checkExact(t *testing.T, in trends.Input, r trends.Result) {
 	t.Helper()
-	var keys []trends.Key
-	for k := range in.Cells {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool { return strings.Join(keys[i][:], "|") < strings.Join(keys[j][:], "|") })
-	index := map[trends.Key]int{}
-	for i, k := range keys {
-		index[k] = i
-	}
+	keys := sortedCells(in)
 	rels := relationsOf(in)
-	for _, x := range keys {
+	for xi, x := range keys {
 		if !r.Suppressed[x] {
 			continue
 		}
-		known := largestTwo(in.Cells[x])
-		a := make([]int, len(keys))
-		lo, hi := make([]int, len(keys)), make([]int, len(keys))
-		upper := 0
-		for i, k := range keys {
-			ps := map[int32]bool{}
-			for _, c := range known {
-				for _, p := range in.Cells[k][c] {
-					ps[p] = true
-				}
-			}
-			a[i] = len(ps)
-			upper = max(upper, len(unionOf(in.Cells[k]))*3+10)
-		}
-		for i, k := range keys {
-			lo[i], hi[i] = 0, upper
-			if v, ok := r.Published[k]; ok {
-				lo[i], hi[i] = max(0, v-2-a[i]), v+2-a[i]
-			}
-		}
-		var rows []row
-		for _, rel := range rels {
-			p := index[rel.parent]
-			for _, c := range rel.children {
-				ci := index[c]
-				rows = append(rows, row{coef: map[int]int{ci: 1, p: -1}, rhs: a[p] - a[ci]})
-			}
-			if rel.cover {
-				coef := map[int]int{p: 1}
-				for _, c := range rel.children {
-					coef[index[c]]--
-				}
-				rows = append(rows, row{coef: coef, rhs: 0})
-			}
-		}
-		xi := index[x]
+		lo, hi, rows := systemOf(in, r, keys, rels, largestTwo(in.Cells[x]))
 		minV, maxV, ok := extremes(lo, hi, rows, xi)
 		if !ok {
 			t.Errorf("%v: no integer solution, but the true counts are one", x)
@@ -152,6 +109,56 @@ func checkExact(t *testing.T, in trends.Input, r trends.Result) {
 			t.Errorf("%v suppressed with an integer interval [%d, %d] narrower than %d", x, minV, maxV, in.K)
 		}
 	}
+}
+
+func sortedCells(in trends.Input) []trends.Key {
+	var keys []trends.Key
+	for k := range in.Cells {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return strings.Join(keys[i][:], "|") < strings.Join(keys[j][:], "|") })
+	return keys
+}
+
+// systemOf is the integer system over the cells' residuals with the known clinics' patients taken out: published
+// cells within [v-2, v+2], each child within its parent, and a cover parent's residual within its children's.
+func systemOf(in trends.Input, r trends.Result, keys []trends.Key, rels []testRelation, known []int32) (lo, hi []int, rows []row) {
+	index := map[trends.Key]int{}
+	a := make([]int, len(keys))
+	upper := 0
+	for i, k := range keys {
+		index[k] = i
+		ps := map[int32]bool{}
+		for _, c := range known {
+			for _, p := range in.Cells[k][c] {
+				ps[p] = true
+			}
+		}
+		a[i] = len(ps)
+		upper = max(upper, len(unionOf(in.Cells[k]))*3+10)
+	}
+	lo, hi = make([]int, len(keys)), make([]int, len(keys))
+	for i, k := range keys {
+		lo[i], hi[i] = 0, upper
+		if v, ok := r.Published[k]; ok {
+			lo[i], hi[i] = max(0, v-2-a[i]), v+2-a[i]
+		}
+	}
+	for _, rel := range rels {
+		p := index[rel.parent]
+		for _, c := range rel.children {
+			ci := index[c]
+			rows = append(rows, row{coef: map[int]int{ci: 1, p: -1}, rhs: a[p] - a[ci]})
+		}
+		if rel.cover {
+			coef := map[int]int{p: 1}
+			for _, c := range rel.children {
+				coef[index[c]]--
+			}
+			rows = append(rows, row{coef: coef, rhs: 0})
+		}
+	}
+	return lo, hi, rows
 }
 
 func largestTwo(c trends.Contribution) []int32 {
@@ -225,38 +232,45 @@ func propagate(l, h []int, rows []row) bool {
 	for changed := true; changed; {
 		changed = false
 		for _, r := range rows {
-			least := 0
-			for j, c := range r.coef {
-				if c > 0 {
-					least += c * l[j]
-				} else {
-					least += c * h[j]
-				}
-			}
-			if least > r.rhs {
+			tightened, ok := tighten(l, h, r)
+			if !ok {
 				return false
 			}
-			for j, c := range r.coef {
-				others := least
-				if c > 0 {
-					others -= c * l[j]
-					if nb := (r.rhs - others) / c; nb < h[j] {
-						h[j], changed = nb, true
-					}
-				} else if c < 0 {
-					others -= c * h[j]
-					// c·r_j <= rhs - others, c < 0: r_j >= ceil((rhs - others) / c)
-					if nb := ceilDiv(r.rhs-others, c); nb > l[j] {
-						l[j], changed = nb, true
-					}
-				}
-				if l[j] > h[j] {
-					return false
-				}
-			}
+			changed = changed || tightened
 		}
 	}
 	return true
+}
+
+// tighten tightens the bounds by one row; false when the row cannot hold.
+func tighten(l, h []int, r row) (changed, ok bool) {
+	least := 0
+	for j, c := range r.coef {
+		if c > 0 {
+			least += c * l[j]
+		} else {
+			least += c * h[j]
+		}
+	}
+	if least > r.rhs {
+		return false, false
+	}
+	for j, c := range r.coef {
+		switch {
+		case c > 0:
+			if nb := (r.rhs - (least - c*l[j])) / c; nb < h[j] {
+				h[j], changed = nb, true
+			}
+		case c < 0: // c·r_j <= rhs - others: r_j >= ceil((rhs - others) / c)
+			if nb := ceilDiv(r.rhs-(least-c*h[j]), c); nb > l[j] {
+				l[j], changed = nb, true
+			}
+		}
+		if l[j] > h[j] {
+			return changed, false
+		}
+	}
+	return changed, true
 }
 
 func ceilDiv(a, b int) int {

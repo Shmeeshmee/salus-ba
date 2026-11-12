@@ -51,15 +51,24 @@ import 'package:salus_api/api.dart';
 // String yourTokenGeneratorFunction() { ... }
 //defaultApiClient.getAuthentication<HttpBearerAuth>('bearerAuth').setAccessToken(yourTokenGeneratorFunction);
 
-final api_instance = AppointmentsApi();
-final bookAppointmentRequest = BookAppointmentRequest(); // BookAppointmentRequest | 
-final xSalusCSRF = xSalusCSRF_example; // String | Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+final api_instance = AnalyticsApi();
+final table = table_example; // String | 
+final from = from_example; // String | The first month, 2026-01.
+final to = to_example; // String | The last month; at most 60 months from the first.
+final by = by_example; // String | 
+final entity = entity_example; // String | 
+final region = region_example; // String | 
+final city = city_example; // String | A city's Wikidata id.
+final group = group_example; // String | 
+final subgroup = subgroup_example; // String | 
+final code = code_example; // String | An ICD-10 code.
+final specialty = specialty_example; // String | A SNOMED CT code.
 
 try {
-    final result = api_instance.bookAppointment(bookAppointmentRequest, xSalusCSRF);
+    final result = api_instance.getPlatformCells(table, from, to, by, entity, region, city, group, subgroup, code, specialty);
     print(result);
 } catch (e) {
-    print('Exception when calling AppointmentsApi->bookAppointment: $e\n');
+    print('Exception when calling AnalyticsApi->getPlatformCells: $e\n');
 }
 
 ```
@@ -70,6 +79,10 @@ All URIs are relative to *http://localhost*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
+*AnalyticsApi* | [**getPlatformCells**](doc//AnalyticsApi.md#getplatformcells) | **GET** /analytics/platform/cells | A breakdown of one All of Salus table
+*AnalyticsApi* | [**getPlatformHeatmap**](doc//AnalyticsApi.md#getplatformheatmap) | **GET** /analytics/platform/heatmap | A published quarter's fulfilled appointments by weekday and hour
+*AnalyticsApi* | [**getPlatformMonths**](doc//AnalyticsApi.md#getplatformmonths) | **GET** /analytics/platform/months | The published months and quarters of the All of Salus figures
+*AnalyticsApi* | [**getPlatformRises**](doc//AnalyticsApi.md#getplatformrises) | **GET** /analytics/platform/rises | Unusual rises of a diagnosis group in a region
 *AppointmentsApi* | [**bookAppointment**](doc//AppointmentsApi.md#bookappointment) | **POST** /appointments | Book a free slot
 *AppointmentsApi* | [**cancelAppointment**](doc//AppointmentsApi.md#cancelappointment) | **POST** /appointments/{id}/cancel | Cancel an appointment
 *AppointmentsApi* | [**setAppointmentStatus**](doc//AppointmentsApi.md#setappointmentstatus) | **POST** /appointments/{id}/status | Mark an appointment fulfilled or no-show
@@ -225,6 +238,13 @@ Class | Method | HTTP request | Description
  - [Patient](doc//Patient.md)
  - [Place](doc//Place.md)
  - [PlaceList](doc//PlaceList.md)
+ - [PlatformBreakdown](doc//PlatformBreakdown.md)
+ - [PlatformBreakdownRowsInner](doc//PlatformBreakdownRowsInner.md)
+ - [PlatformHeatmap](doc//PlatformHeatmap.md)
+ - [PlatformHeatmapCellsInner](doc//PlatformHeatmapCellsInner.md)
+ - [PlatformMonths](doc//PlatformMonths.md)
+ - [PlatformRises](doc//PlatformRises.md)
+ - [PlatformRisesRisesInner](doc//PlatformRisesRisesInner.md)
  - [Questionnaire](doc//Questionnaire.md)
  - [QuestionnaireDefault](doc//QuestionnaireDefault.md)
  - [QuestionnaireItem](doc//QuestionnaireItem.md)

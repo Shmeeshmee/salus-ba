@@ -14,21 +14,21 @@ type Organization struct {
 	// changed during it (docs/plans/analytics.md §5 "Which clinics count").
 	LocationSince    time.Time
 	ContributesSince time.Time
-	ID          string
-	Name        string
-	TimeZone    string // IANA, e.g. Europe/Sarajevo: appointment times are shown in it
+	ID               string
+	Name             string
+	TimeZone         string // IANA, e.g. Europe/Sarajevo: appointment times are shown in it
 	// DefaultLanguage is a staff language (docs/i18n/SPEC.md §3 "The clinic's default language"), bs unless
 	// an admin changes it: for e-mails to staff with no language of their own, and new questionnaires.
 	DefaultLanguage string
-	VersionID       int32 // meta.versionId; an update names the version it changes
-	Active          bool
-	Listed          bool // anyone may find the clinic and its practitioners
 	// Region and City are the clinic's location (docs/plans/analytics.md O1): a leaf region (an ISO 3166-2:BA
 	// code) and a city under it (a Wikidata id), both of terminology's places, or both empty. CityName is the
 	// city's name in Latin script, filled by Read for Organization.address.city.
-	Region   string
-	City     string
-	CityName string
+	Region    string
+	City      string
+	CityName  string
+	VersionID int32 // meta.versionId; an update names the version it changes
+	Active    bool
+	Listed    bool // anyone may find the clinic and its practitioners
 	// PatientTranscriptCopy: the clinic gives its patients a copy of their consultations' stored transcripts in
 	// the app (docs/consultation/SPEC.md "Patient documents"); off unless its admin turns it on.
 	PatientTranscriptCopy bool

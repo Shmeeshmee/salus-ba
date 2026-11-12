@@ -29,7 +29,9 @@ type fakeSources struct {
 	keys     [][]byte
 }
 
-func pseudo(key []byte, p [32]byte) [32]byte { return sha256.Sum256(append(slices.Clone(key), p[:]...)) }
+func pseudo(key []byte, p [32]byte) [32]byte {
+	return sha256.Sum256(append(slices.Clone(key), p[:]...))
+}
 
 func (f *fakeSources) Recorded(_ context.Context, org string, from, to time.Time, key []byte) ([]condition.Recorded, error) {
 	f.asked, f.keys = append(f.asked, org), append(f.keys, slices.Clone(key))
@@ -93,7 +95,10 @@ func newMemRepo() *memRepo {
 	return &memRepo{periods: map[string]trends.Period{}, cells: map[string][]trends.Row{}, flags: map[string][]trends.Flag{}}
 }
 
-func (m *memRepo) Built(_ context.Context, p string) (bool, error) { _, ok := m.periods[p]; return ok, m.err }
+func (m *memRepo) Built(_ context.Context, p string) (bool, error) {
+	_, ok := m.periods[p]
+	return ok, m.err
+}
 
 func (m *memRepo) SavePeriod(ctx context.Context, p trends.Period) error {
 	if ctx.Value(txKey{}) == nil {
@@ -172,8 +177,8 @@ func (fakeTx) WithTx(ctx context.Context, fn func(ctx context.Context) error) er
 }
 
 type fakeAudit struct {
-	events []auditevent.AuditEvent
 	err    error
+	events []auditevent.AuditEvent
 }
 
 func (a *fakeAudit) Record(_ context.Context, e auditevent.AuditEvent) error {

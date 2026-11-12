@@ -154,7 +154,7 @@ func (h *Handler) rises(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]riseJSON, len(flags))
 	for i, f := range flags {
-		out[i] = riseJSON{Week: f.Week, Region: f.Region, Group: f.Group}
+		out[i] = riseJSON(f)
 	}
 	httpx.JSON(w, http.StatusOK, map[string][]riseJSON{"rises": out})
 }

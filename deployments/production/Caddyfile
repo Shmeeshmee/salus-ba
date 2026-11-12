@@ -100,6 +100,7 @@ app.{$SALUS_DOMAIN} {
 		path /drafts*
 		path /compositions*
 		path /places*
+		path /analytics/platform*
 	}
 	# /appointments/<id> and /appointments/<id>/call are screens of the app: only the JSON actions go to the api.
 	@apiAppointments path_regexp ^/appointments/[^/]+/(cancel|status|questionnaires|consultation(/join|/end)?)$

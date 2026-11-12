@@ -112,10 +112,10 @@ type relation struct {
 // suppression.
 type universe struct {
 	cells     map[Key]*cell
-	keys      []Key
-	relations []relation
 	of        map[Key][]int // the relations each cell is in, as parent or child
 	keyCell   func(Key) (Key, bool)
+	keys      []Key
+	relations []relation
 	k         int
 	largest   int // the most patients of any cell
 }
@@ -130,8 +130,8 @@ func newUniverse(in Input) *universe {
 	slices.SortFunc(u.keys, compareKeys)
 	type relKey struct {
 		parent Key
-		dim    int
 		level  string
+		dim    int
 	}
 	index := map[relKey]int{}
 	for _, k := range u.keys {

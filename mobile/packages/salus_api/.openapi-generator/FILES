@@ -2,6 +2,7 @@
 README.md
 analysis_options.yaml
 lib/api.dart
+lib/api/analytics_api.dart
 lib/api/appointments_api.dart
 lib/api/attachments_api.dart
 lib/api/auth_api.dart
@@ -96,6 +97,13 @@ lib/model/open_conversation_request.dart
 lib/model/patient.dart
 lib/model/place.dart
 lib/model/place_list.dart
+lib/model/platform_breakdown.dart
+lib/model/platform_breakdown_rows_inner.dart
+lib/model/platform_heatmap.dart
+lib/model/platform_heatmap_cells_inner.dart
+lib/model/platform_months.dart
+lib/model/platform_rises.dart
+lib/model/platform_rises_rises_inner.dart
 lib/model/questionnaire.dart
 lib/model/questionnaire_default.dart
 lib/model/questionnaire_item.dart
