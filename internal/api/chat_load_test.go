@@ -111,8 +111,8 @@ func seedLoad(t *testing.T, owner *pgxpool.Pool, total int) {
 			FROM generate_series(1, ` + strconv.Itoa(loadSmall+loadLong) + `) i`,
 		`INSERT INTO conversation_participant (conversation_id, patient_id, role, added_by, added_at)
 			SELECT id, patient_id, 'patient', created_by, created_at FROM conversation`,
-		`INSERT INTO conversation_participant (conversation_id, practitioner_role_id, role, added_by, added_at)
-			SELECT id, practitioner_role_id, 'practitioner', created_by, created_at FROM conversation`,
+		`INSERT INTO conversation_participant (conversation_id, practitioner_role_id, organization_id, role, added_by, added_at)
+			SELECT id, practitioner_role_id, organization_id, 'practitioner', created_by, created_at FROM conversation`,
 		// The messages: n per conversation, spread evenly from 2024-11-01 over 24 months, alternating sender.
 		`WITH c AS (
 			SELECT cv.id, cv.patient_id, row_number() OVER (ORDER BY cv.id) AS i,

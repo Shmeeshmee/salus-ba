@@ -300,6 +300,21 @@ type Binary struct {
 	WrappedKey              []byte
 }
 
+type ChatConsent struct {
+	ID                         pgtype.UUID
+	CreatedAt                  pgtype.Timestamptz
+	UpdatedAt                  pgtype.Timestamptz
+	DateTime                   pgtype.Timestamptz
+	RevokedAt                  pgtype.Timestamptz
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	VersionID                  int32
+	Status                     string
+}
+
 type Communication struct {
 	ID                  pgtype.UUID
 	SentAt              pgtype.Timestamptz
@@ -386,6 +401,9 @@ type ConversationParticipant struct {
 	HistoryFromSeq     int64
 	ReadSeq            int64
 	Role               string
+	OrganizationID     pgtype.UUID
+	Status             string
+	Reason             pgtype.Text
 }
 
 type DiagnosisGroup struct {

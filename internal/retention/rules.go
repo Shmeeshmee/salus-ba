@@ -108,6 +108,11 @@ func chatRules() []Rule {
 		{Table: "conversation_participant", Basis: basis, Then: ThenKeep},
 		{Table: "communication", Basis: basis, Then: ThenKeep},
 		{Table: "communication_revision", Basis: basis, Then: ThenKeep},
+		{
+			Table: "chat_consent",
+			Basis: "Proof of the patient's decision to let a doctor of another clinic into their conversation (GDPR Art. 7(1), Art. 9(2)(a)), kept with the clinical record like consent; needs a legal decision before production (docs/plans/chat.md, SAL-28)",
+			Then:  ThenKeep,
+		},
 	}
 }
 

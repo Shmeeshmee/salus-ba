@@ -210,6 +210,8 @@ class ApiClient {
           return Acceptance.fromJson(value);
         case 'Account':
           return Account.fromJson(value);
+        case 'AddParticipantRequest':
+          return AddParticipantRequest.fromJson(value);
         case 'AllergyCategory':
           return AllergyCategoryTypeTransformer().decode(value);
         case 'AllergyClinicalStatus':
@@ -240,6 +242,12 @@ class ApiClient {
           return ChatCommandErrorFrame.fromJson(value);
         case 'ChatFrame':
           return ChatFrame.fromJson(value);
+        case 'ChatInvitation':
+          return ChatInvitation.fromJson(value);
+        case 'ChatInvitationDecision':
+          return ChatInvitationDecision.fromJson(value);
+        case 'ChatInvitationList':
+          return ChatInvitationList.fromJson(value);
         case 'ChatMessage':
           return ChatMessage.fromJson(value);
         case 'ChatMessageFrame':
