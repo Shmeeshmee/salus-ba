@@ -1,4 +1,4 @@
--- The notification domain's queries (migration 00043): the push devices of the accounts, and the clinics' webhook
+-- The notification domain's queries (migration 00046): the push devices of the accounts, and the clinics' webhook
 -- endpoints with the dead letters of their deliveries.
 
 -- name: RegisterDevice :exec

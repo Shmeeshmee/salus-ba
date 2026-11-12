@@ -1,5 +1,5 @@
--- consent holds the care consents, transcription_consent the transcription consents (migration 00040): the same
--- shape, a kind each. A read of both is their UNION ALL, each table on its own index and under its own
+-- consent holds the care consents, transcription_consent the transcription consents (migration 00040) and
+-- history_consent the history consents (00043): the same shape, a kind each. A read of both is their UNION ALL, each table on its own index and under its own
 -- row-level security.
 
 -- A second active consent with the clinic inserts nothing (no row), so the transaction stays usable for the
@@ -59,6 +59,36 @@ ORDER BY date_time DESC, id;
 -- name: ConsentState :one
 SELECT coalesce(bool_or(status = 'active'), false)::boolean AS active, max(revoked_at)::timestamptz AS revoked_at,
        EXISTS (SELECT 1 FROM transcription_consent t
-               WHERE t.patient_id = @patient_id AND t.organization_id = @organization_id AND t.status = 'active')::boolean AS transcription
+               WHERE t.patient_id = @patient_id AND t.organization_id = @organization_id AND t.status = 'active')::boolean AS transcription,
+       EXISTS (SELECT 1 FROM history_consent h
+               WHERE h.patient_id = @patient_id AND h.organization_id = @organization_id AND h.status = 'active')::boolean AS history
 FROM consent
 WHERE patient_id = @patient_id AND organization_id = @organization_id;
+
+-- chat_consent (migration 00044, SAL-28): the patient's consent for one conversation and one invited role.
+-- name: GrantChatConsent :one
+INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id, practitioner_organization_id, status,
+    date_time, updated_at)
+VALUES (@patient_id, @organization_id, @conversation_id, @practitioner_role_id, @practitioner_organization_id, 'active', @date_time, @date_time)
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id,
+    practitioner_organization_id, version_id, status;
+
+-- name: RevokeChatConsent :one
+UPDATE chat_consent
+SET status = 'inactive', revoked_at = @revoked_at, updated_at = @revoked_at, version_id = version_id + 1
+WHERE conversation_id = @conversation_id AND practitioner_role_id = @practitioner_role_id AND status = 'active'
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id,
+    practitioner_organization_id, version_id, status;
+
+-- name: ChatConsentGranted :one
+SELECT EXISTS (SELECT 1 FROM chat_consent
+               WHERE conversation_id = @conversation_id AND practitioner_role_id = @practitioner_role_id AND status = 'active')::boolean;
+
+-- The visits the patient's active history consent with the clinic lists now (migration 00043), oldest selection
+-- first.
+-- name: HistoryShared :many
+SELECT s.encounter_id
+FROM history_consent_encounter s
+JOIN history_consent h ON h.id = s.consent_id
+WHERE h.patient_id = @patient_id AND h.organization_id = @organization_id AND h.status = 'active' AND s.removed_at IS NULL
+ORDER BY s.added_at, s.encounter_id;

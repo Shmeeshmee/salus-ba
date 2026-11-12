@@ -23,7 +23,7 @@ type ChatSettingsRow struct {
 	EmailAfterMinutes int32
 }
 
-// The clinic's chat settings (00043); row-level security shows only the clinic set.
+// The clinic's chat settings (00046); row-level security shows only the clinic set.
 func (q *Queries) ChatSettings(ctx context.Context, organizationID pgtype.UUID) (ChatSettingsRow, error) {
 	row := q.db.QueryRow(ctx, chatSettings, organizationID)
 	var i ChatSettingsRow
@@ -64,6 +64,36 @@ func (q *Queries) CreateOrganization(ctx context.Context, name string) (CreateOr
 		&i.PatientTranscriptCopy,
 	)
 	return i, err
+}
+
+const listLocationsForStats = `-- name: ListLocationsForStats :many
+SELECT id, time_zone FROM organization ORDER BY id
+`
+
+type ListLocationsForStatsRow struct {
+	ID       pgtype.UUID
+	TimeZone string
+}
+
+// Every clinic with its time zone: the columns salus_stats may read.
+func (q *Queries) ListLocationsForStats(ctx context.Context) ([]ListLocationsForStatsRow, error) {
+	rows, err := q.db.Query(ctx, listLocationsForStats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListLocationsForStatsRow
+	for rows.Next() {
+		var i ListLocationsForStatsRow
+		if err := rows.Scan(&i.ID, &i.TimeZone); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listedOrganizations = `-- name: ListedOrganizations :many

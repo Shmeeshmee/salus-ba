@@ -50,11 +50,16 @@ func newChat(p chatPorts, log *slog.Logger) (routes, stream func(*http.ServeMux)
 	hub = redis.NewHub(context.Background(), p.rdb, chatHubBuffer)
 	svc := communication.NewService(communication.Ports{
 		Repo: communication.NewPostgresRepository(p.db), Publisher: hub, Consents: p.consents, Visits: p.visits,
-		Roles: p.roles, Encounters: p.encounters, Audit: p.audit, Tx: p.tx, Clock: clock.System{}, Log: log,
-		Jobs: communication.NewRiverJobs(p.jobs),
+		Roles: p.roles, Encounters: p.encounters, ChatConsents: p.consents, Directory: p.roles, Audit: p.audit, Tx: p.tx,
+		Clock: clock.System{}, Log: log, Jobs: communication.NewRiverJobs(p.jobs),
 	})
 	h := communication.NewHTTPHandler(svc, hub, p.caller, p.active, clock.System{}, communication.CheckEvery, log)
-	return h.Routes, h.StreamRoutes, hub
+	group := communication.NewGroupHandler(svc, h)
+	routes = func(mux *http.ServeMux) {
+		h.Routes(mux)
+		group.Routes(mux) // the group consult (SAL-28)
+	}
+	return routes, h.StreamRoutes, hub
 }
 
 // chatNotificationPorts are what the chat's settings, devices and webhooks are built on.

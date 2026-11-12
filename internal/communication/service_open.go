@@ -32,8 +32,9 @@ func (s *Service) Open(ctx context.Context, c Caller, in Open) (Conversation, bo
 			return err
 		}
 		now := s.Clock.Now().UTC()
-		patient := Participant{Role: RolePatient, PatientID: want.PatientID, AddedBy: c.AccountID, AddedAt: now}
-		doctor := Participant{Role: RolePractitioner, PractitionerRoleID: want.PractitionerRoleID, AddedBy: c.AccountID, AddedAt: now}
+		patient := Participant{Role: RolePatient, PatientID: want.PatientID, AddedBy: c.AccountID, AddedAt: now, Status: StatusActive}
+		doctor := Participant{Role: RolePractitioner, PractitionerRoleID: want.PractitionerRoleID, OrganizationID: want.OrganizationID,
+			AddedBy: c.AccountID, AddedAt: now, Status: StatusActive}
 		want.Created, want.CreatedBy = now, c.AccountID
 		out, created, err = s.Repo.CreateConversation(ctx, want, []Participant{patient, doctor})
 		if err != nil {

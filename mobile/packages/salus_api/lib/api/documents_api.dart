@@ -456,7 +456,7 @@ class DocumentsApi {
 
   /// Sign a draft
   ///
-  /// Signs the draft, as it was read (If-Match), with the value the practitioner left in every field: a value as drafted keeps its sources, an edited or typed one has none, an empty one is missing. The draft becomes the final FHIR Composition, attested by the encounter's practitioner; its PDF is stored encrypted as a DocumentReference, and a Provenance records the signature. The final draft is pushed on the event stream. For the encounter's practitioner with the patient's active consent only. Audited, also when refused.
+  /// Signs the draft, as it was read (If-Match), with the value the practitioner left in every field: a value as drafted keeps its sources, an edited or typed one has none, an empty one is missing. The draft becomes the final FHIR Composition, attested by the encounter's practitioner; its PDF is stored encrypted as a DocumentReference, and a Provenance records the signature. The final draft is pushed on the event stream. For the encounter's practitioner with the patient's active consent only. Every filled coded field (an ICD-10 diagnosis) needs the practitioner's confirmation (`confirmed`) and becomes a confirmed FHIR Condition of the encounter's patient, written and audited with the signature (SAL-19, docs/plans/analytics.md §3). Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -510,7 +510,7 @@ class DocumentsApi {
 
   /// Sign a draft
   ///
-  /// Signs the draft, as it was read (If-Match), with the value the practitioner left in every field: a value as drafted keeps its sources, an edited or typed one has none, an empty one is missing. The draft becomes the final FHIR Composition, attested by the encounter's practitioner; its PDF is stored encrypted as a DocumentReference, and a Provenance records the signature. The final draft is pushed on the event stream. For the encounter's practitioner with the patient's active consent only. Audited, also when refused.
+  /// Signs the draft, as it was read (If-Match), with the value the practitioner left in every field: a value as drafted keeps its sources, an edited or typed one has none, an empty one is missing. The draft becomes the final FHIR Composition, attested by the encounter's practitioner; its PDF is stored encrypted as a DocumentReference, and a Provenance records the signature. The final draft is pushed on the event stream. For the encounter's practitioner with the patient's active consent only. Every filled coded field (an ICD-10 diagnosis) needs the practitioner's confirmation (`confirmed`) and becomes a confirmed FHIR Condition of the encounter's patient, written and audited with the signature (SAL-19, docs/plans/analytics.md §3). Audited, also when refused.
   ///
   /// Parameters:
   ///

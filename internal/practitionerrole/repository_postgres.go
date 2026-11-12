@@ -133,3 +133,28 @@ func toRole(row practitionerroledb.PractitionerRolesByOrganizationRow) Practitio
 		SpecialtyCode: row.SpecialtyCode.String, VersionID: row.VersionID, Active: row.Active, LastUpdated: row.UpdatedAt.Time,
 	}
 }
+
+type postgresStatsRepository struct {
+	db postgres.Querier
+}
+
+// NewPostgresStatsRepository returns the StatsRepository on db, the salus_stats pool.
+func NewPostgresStatsRepository(db postgres.Querier) StatsRepository {
+	return &postgresStatsRepository{db: db}
+}
+
+func (r *postgresStatsRepository) Specialties(ctx context.Context, orgID string) (map[string]string, error) {
+	var org pgtype.UUID
+	if err := org.Scan(orgID); err != nil {
+		return nil, err
+	}
+	rows, err := practitionerroledb.New(postgres.Conn(ctx, r.db)).ListSpecialtiesForStats(ctx, org)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(rows))
+	for _, row := range rows {
+		out[row.ID.String()] = row.SpecialtyCode.String
+	}
+	return out, nil
+}

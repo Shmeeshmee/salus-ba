@@ -10,24 +10,34 @@
 # in internal/retention/rules.go (archcheck), and its personal fields a line in the feature's SPEC.md.
 tables:
   account: {owner: auth, personal_data: true}
+  allergy_intolerance: {owner: allergyintolerance, personal_data: true} # 00043, SAL-41
   appointment: {owner: appointment, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
   binary: {owner: binary, personal_data: true}
+  chat_consent: {owner: consent, personal_data: true}
   communication: {owner: communication, personal_data: true}
   communication_revision: {owner: communication, personal_data: true}
+  condition: {owner: condition, personal_data: true}
   consent: {owner: consent, personal_data: true}
   conversation: {owner: communication, personal_data: true}
   conversation_participant: {owner: communication, personal_data: true}
+  diagnosis_group: {owner: terminology, personal_data: false}
+  diagnosis_group_name: {owner: terminology, personal_data: false}
+  diagnosis_group_range: {owner: terminology, personal_data: false}
   document_draft: {owner: composition, personal_data: true}
   document_template: {owner: composition, personal_data: false}
   document_template_translation: {owner: composition, personal_data: false}
   encounter: {owner: encounter, personal_data: true}
+  history_consent: {owner: consent, personal_data: true} # 00043, SAL-42
+  history_consent_encounter: {owner: consent, personal_data: true} # 00043, SAL-42
   invite: {owner: auth, personal_data: true}
+  medication_statement: {owner: medicationstatement, personal_data: true} # 00043, SAL-41
   organization: {owner: organization, personal_data: false}
-  organization_chat_settings: {owner: organization, personal_data: false} # chat hours and delays (00043)
+  organization_chat_settings: {owner: organization, personal_data: false} # chat hours and delays (00046)
   patient: {owner: patient, personal_data: true}
+  place: {owner: terminology, personal_data: false}
   practitioner: {owner: practitioner, personal_data: true}
-  push_device: {owner: notification, personal_data: true} # an account's device token (00043)
+  push_device: {owner: notification, personal_data: true} # an account's device token (00046)
   practitioner_role: {owner: practitionerrole, personal_data: true}
   questionnaire: {owner: questionnaire, personal_data: false}
   questionnaire_default: {owner: questionnaire, personal_data: false}
@@ -45,8 +55,8 @@ tables:
   transcript_segment: {owner: transcript, personal_data: true}
   transcription_consent: {owner: consent, personal_data: true}
   video_session: {owner: videosession, personal_data: true}
-  webhook_dead_letter: {owner: notification, personal_data: true} # ids of a patient's message (00043)
-  webhook_endpoint: {owner: notification, personal_data: true} # created_by (00043)
+  webhook_dead_letter: {owner: notification, personal_data: true} # ids of a patient's message (00046)
+  webhook_endpoint: {owner: notification, personal_data: true} # created_by (00046)
   river_job: {owner: river}
   river_leader: {owner: river}
   river_queue: {owner: river}

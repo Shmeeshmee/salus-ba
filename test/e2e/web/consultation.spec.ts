@@ -38,16 +38,25 @@ test('the practitioner signs in, joins from the appointment, sees and hears the 
   await expect(patientLine).toContainText('Placeholder caption from the test speech engine')
 
   // Drafting (SAL-8) on the fake model, which leaves every field missing: the required field blocks the sign until
-  // the practitioner fills it in; then the document is signed (W15 to W24).
+  // the practitioner fills it in, and a diagnosis code until they confirm it (SAL-19); then the document is signed
+  // (W15 to W24).
   await side.getByRole('tab', { name: 'Documents' }).click()
   await side.getByRole('combobox', { name: 'Template' }).selectOption({ label: required('E2E_TEMPLATE_TITLE') })
   await side.getByRole('button', { name: 'Generate' }).click()
   const reason = side.getByRole('textbox', { name: 'Placeholder reason' })
   await expect(reason).toHaveValue('')
-  await expect(side.getByText('Not covered in the conversation yet')).toHaveCount(2)
+  await expect(side.getByText('Not covered in the conversation yet')).toHaveCount(3)
   await side.getByRole('button', { name: 'Sign' }).click()
   await expect(side.getByRole('alert')).toHaveText('1 required field is empty. Fill it in before you sign.')
   await reason.fill(`Placeholder reason typed in the e2e journey about the ${label}`)
+  // A typed code counts as confirmed; unconfirmed, it blocks the sign.
+  await side.getByRole('textbox', { name: 'Placeholder diagnosis' }).fill('J06.9')
+  const confirmCode = side.getByRole('checkbox', { name: 'I confirm this diagnosis code' })
+  await expect(confirmCode).toBeChecked()
+  await confirmCode.uncheck()
+  await side.getByRole('button', { name: 'Sign' }).click()
+  await expect(side.getByRole('alert')).toHaveText('Confirm each diagnosis code before you sign.')
+  await confirmCode.check()
   await side.getByRole('button', { name: 'Sign' }).click()
   const ask = side.getByRole('alertdialog', { name: 'Sign this document?' })
   await expect(ask.getByText('1 field is empty and stays empty.')).toBeVisible()

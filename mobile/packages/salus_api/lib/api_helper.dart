@@ -65,11 +65,32 @@ String parameterToString(dynamic value) {
   if (value is DateTime) {
     return value.toUtc().toIso8601String();
   }
+  if (value is AllergyCategory) {
+    return AllergyCategoryTypeTransformer().encode(value).toString();
+  }
+  if (value is AllergyClinicalStatus) {
+    return AllergyClinicalStatusTypeTransformer().encode(value).toString();
+  }
+  if (value is AllergySeverity) {
+    return AllergySeverityTypeTransformer().encode(value).toString();
+  }
   if (value is ConsentKind) {
     return ConsentKindTypeTransformer().encode(value).toString();
   }
+  if (value is DoseUnit) {
+    return DoseUnitTypeTransformer().encode(value).toString();
+  }
+  if (value is HistoryItemType) {
+    return HistoryItemTypeTypeTransformer().encode(value).toString();
+  }
   if (value is Language) {
     return LanguageTypeTransformer().encode(value).toString();
+  }
+  if (value is MedicationStatus) {
+    return MedicationStatusTypeTransformer().encode(value).toString();
+  }
+  if (value is PeriodUnit) {
+    return PeriodUnitTypeTransformer().encode(value).toString();
   }
   if (value is ReviewStatus) {
     return ReviewStatusTypeTransformer().encode(value).toString();

@@ -68,3 +68,10 @@ type ChatHours struct {
 	ResponseTimeHours int        `json:"response_time_hours"`
 	OpenNow           bool       `json:"open_now"`
 }
+
+// Location is a clinic as the aggregate builds need it (docs/plans/analytics.md §3): its id and time zone (the
+// local day and hour of its figures). No name.
+type Location struct {
+	ID       string
+	TimeZone string
+}

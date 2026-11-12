@@ -74,19 +74,11 @@ func (s *Service) Send(ctx context.Context, c Caller, id, clientMessageID, body 
 		case !errors.Is(err, ErrNotFound):
 			return err
 		}
-		sent := s.Clock.Now().UTC().Truncate(time.Microsecond)
-		if sent.Before(e.conv.LastSentAt) {
-			sent = e.conv.LastSentAt
-		}
-		out, err = s.Repo.InsertMessage(ctx, Message{
-			SentAt: sent, ConversationID: id, OrganizationID: e.conv.OrganizationID, PatientID: e.conv.PatientID,
-			StaffOnly: e.conv.StaffOnly, Seq: e.conv.LastSeq + 1, SenderParticipantID: e.part.ID, SenderAccountID: c.AccountID,
-			SenderRole: e.part.Role, ClientMessageID: clientMessageID, Kind: KindText, Body: body, VersionID: 1,
+		out, err = s.appendMessage(ctx, e.conv, Message{
+			SenderParticipantID: e.part.ID, SenderAccountID: c.AccountID, SenderRole: e.part.Role, ClientMessageID: clientMessageID,
+			Kind: KindText, Body: body,
 		})
 		if err != nil {
-			return err
-		}
-		if err := s.Repo.Advance(ctx, id, out.Seq, out.SentAt); err != nil {
 			return err
 		}
 		if err := s.Repo.MarkRead(ctx, e.part.ID, out.Seq); err != nil {
@@ -105,6 +97,23 @@ func (s *Service) Send(ctx context.Context, c Caller, id, clientMessageID, body 
 		s.publish(ctx, MessageType, out)
 	}
 	return out, created, nil
+}
+
+// appendMessage stores m as the next message of conv, whose row the transaction holds locked (docs/plans/chat.md
+// "Ordering"): the next number, a time that never goes back, the conversation's copies for the row-level security;
+// then it advances the conversation. Send's texts and the system messages of a group consult (SAL-28) take this path.
+func (s *Service) appendMessage(ctx context.Context, conv Conversation, m Message) (Message, error) {
+	sent := s.Clock.Now().UTC().Truncate(time.Microsecond)
+	if sent.Before(conv.LastSentAt) {
+		sent = conv.LastSentAt
+	}
+	m.SentAt, m.ConversationID, m.OrganizationID, m.PatientID, m.StaffOnly = sent, conv.ID, conv.OrganizationID, conv.PatientID, conv.StaffOnly
+	m.Seq, m.VersionID = conv.LastSeq+1, 1
+	out, err := s.Repo.InsertMessage(ctx, m)
+	if err != nil {
+		return Message{}, err
+	}
+	return out, s.Repo.Advance(ctx, conv.ID, out.Seq, out.SentAt)
 }
 
 // Edit replaces the body of the caller's own text message when version is its current version, and returns it

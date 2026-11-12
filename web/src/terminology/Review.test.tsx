@@ -351,3 +351,20 @@ describe('in another language', () => {
     expect(screen.getByRole('option', { name: 'Njemački' })).toBeTruthy()
   })
 })
+
+describe('the diagnosis groups', () => {
+  it('switches to the groups\' names and back to the terms', async () => {
+    setup({
+      'GET /terminology/review/diagnosis-groups': () =>
+        Response.json({ groups: [{ code: 'other', language: 'en', text: 'Other', review: { status: 'unreviewed' }, versionId: 1 }] }),
+    })
+    await screen.findByRole('heading', { name: 'jetra' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Diagnosis groups' }))
+    expect(await screen.findByRole('heading', { name: 'Other' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'jetra' })).toBeNull()
+    expect(screen.getByRole('tab', { name: 'Diagnosis groups' }).getAttribute('aria-selected')).toBe('true')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Terms' }))
+    expect(await screen.findByRole('heading', { name: 'jetra' })).toBeTruthy()
+  })
+})

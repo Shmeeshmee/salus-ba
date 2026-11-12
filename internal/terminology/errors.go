@@ -27,4 +27,10 @@ var (
 	ErrNoTranslation = errors.New("terminology: no labels in the language")
 	// ErrNoExplanation is returned for a review of an explanation that does not exist.
 	ErrNoExplanation = errors.New("terminology: no explanation in the language")
+	// ErrNoGroupName is returned for a review of a diagnosis group or language that has no name.
+	ErrNoGroupName = errors.New("terminology: no such diagnosis group name")
+	// ErrInvalidGroups is returned when the diagnosis groups do not form one grouping: a range of an unknown group
+	// or of "other", reversed or with ends of different lengths, two ranges of one level that share a code, a
+	// subgroup's range outside its group, a subgroup of a subgroup, or no group "other".
+	ErrInvalidGroups = errors.New("terminology: invalid diagnosis groups")
 )

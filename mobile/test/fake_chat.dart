@@ -26,8 +26,8 @@ class FakeChat implements Chats {
       unread: 0,
       staffOnly: false,
       participants: [
-        ConversationParticipant(id: _me, role: ConversationParticipantRoleEnum.patient, patientId: _uuid(1, 'b'), addedAt: at, historyFromSeq: 0),
-        ConversationParticipant(id: _doctor, role: ConversationParticipantRoleEnum.practitioner, practitionerRoleId: _uuid(1, 'e'), addedAt: at, historyFromSeq: 0),
+        ConversationParticipant(id: _me, role: ConversationParticipantRoleEnum.patient, status: ConversationParticipantStatusEnum.active, patientId: _uuid(1, 'b'), addedAt: at, historyFromSeq: 0),
+        ConversationParticipant(id: _doctor, role: ConversationParticipantRoleEnum.practitioner, status: ConversationParticipantStatusEnum.active, practitionerRoleId: _uuid(1, 'e'), organizationId: _uuid(1, 'a'), addedAt: at, historyFromSeq: 0),
       ],
     );
     for (var i = 0; i < history; i++) {

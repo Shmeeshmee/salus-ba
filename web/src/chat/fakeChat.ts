@@ -49,8 +49,11 @@ export function fakeChat({
     id: uuid(1, 'c'), organization_id: uuid(1, 'a'), patient_id: uuid(1, 'b'), practitioner_role_id: uuid(1, 'e'),
     created_at: start.toISOString(), last_seq: 0, cursor: cursorOf(0), unread: 0, staff_only: false,
     participants: [
-      { id: uuid(1, 'd'), role: 'patient', patient_id: uuid(1, 'b'), added_at: start.toISOString(), history_from_seq: 0 },
-      { id: uuid(2, 'd'), role: 'practitioner', practitioner_role_id: uuid(1, 'e'), added_at: start.toISOString(), history_from_seq: 0 },
+      { id: uuid(1, 'd'), role: 'patient', status: 'active', patient_id: uuid(1, 'b'), added_at: start.toISOString(), history_from_seq: 0 },
+      {
+        id: uuid(2, 'd'), role: 'practitioner', status: 'active', practitioner_role_id: uuid(1, 'e'), organization_id: uuid(1, 'a'),
+        added_at: start.toISOString(), history_from_seq: 0,
+      },
     ],
   }
   const conversations = [conversation]

@@ -15,29 +15,50 @@ class DraftValue {
   DraftValue({
     required this.key,
     required this.value,
+    this.confirmed,
   });
 
   String key;
 
   String value;
 
+  /// The practitioner confirmed the value of a coded field (an ICD-10 diagnosis), whether it was suggested by the drafting or typed by them. Required for a filled coded field; ignored for the other types.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  bool? confirmed;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is DraftValue && other.key == key && other.value == value;
+      other is DraftValue &&
+          other.key == key &&
+          other.value == value &&
+          other.confirmed == confirmed;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (key.hashCode) + (value.hashCode);
+      (key.hashCode) +
+      (value.hashCode) +
+      (confirmed == null ? 0 : confirmed!.hashCode);
 
   @override
-  String toString() => 'DraftValue[key=$key, value=$value]';
+  String toString() =>
+      'DraftValue[key=$key, value=$value, confirmed=$confirmed]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'key'] = this.key;
     json[r'value'] = this.value;
+    if (this.confirmed != null) {
+      json[r'confirmed'] = this.confirmed;
+    } else {
+      json[r'confirmed'] = null;
+    }
     return json;
   }
 
@@ -66,6 +87,7 @@ class DraftValue {
       return DraftValue(
         key: mapValueOfType<String>(json, r'key')!,
         value: mapValueOfType<String>(json, r'value')!,
+        confirmed: mapValueOfType<bool>(json, r'confirmed'),
       );
     }
     return null;

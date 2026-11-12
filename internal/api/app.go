@@ -21,6 +21,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/composition"
+	"github.com/Shmeeshmee/salus/internal/condition"
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
@@ -232,7 +233,8 @@ func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointm
 		Repo: composition.NewPostgresRepository(p.pool), Encounters: p.encounters, Transcripts: transcripts, Drafter: p.drafter,
 		Store:     binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, p.files.Endpoint, p.files.Region, p.files.Bucket, p.files.AccessKeyID, p.files.SecretAccessKey, s3PageSize),
 		Publisher: transcript.NewRedisPublisher(p.rdb), Jobs: composition.NewRiverJobs(p.jobs), // a signature enqueues the patient's e-mail
-		Audit: p.audit, Tx: p.tx, Clock: clock.System{}, KEK: p.kek, Log: log, Tagger: terms,
+		Conditions: condition.NewService(condition.NewPostgresRepository(p.pool)), // the diagnoses of a signature (SAL-19)
+		Audit:      p.audit, Tx: p.tx, Clock: clock.System{}, KEK: p.kek, Log: log, Tagger: terms,
 	})
 	suggestions := suggestion.NewService(suggestion.Ports{
 		Repo: suggestion.NewPostgresRepository(p.pool), Encounters: p.encounters, Consents: p.consents, Records: transcripts,
@@ -243,6 +245,9 @@ func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointm
 		transcriptHandler.Routes,
 		composition.NewHTTPHandler(documents, caller, log).Routes,
 		composition.NewFHIRHandler(documents, caller, fhirBase, log).Routes,
+		condition.NewFHIRHandler(condition.NewReads(condition.ReadPorts{
+			Repo: condition.NewPostgresReadRepository(p.pool), Encounters: p.encounters, Audit: p.audit, Tx: p.tx,
+		}), caller, log).Routes,
 	}, transcriptHandler.StreamRoutes
 }
 
@@ -494,12 +499,17 @@ func appointmentCaller(accounts *auth.Service, patients *patient.Service) func(c
 	}
 }
 
-// terminologyRoutes are the term list's: the cheatsheet's search and the review panel.
+// terminologyRoutes are the term list's: the cheatsheet's search, the review panel, and the diagnosis groups and
+// places of the analytics (docs/plans/analytics.md §3).
 func terminologyRoutes(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, accounts *auth.Service, log *slog.Logger) []func(*http.ServeMux) {
 	return []func(*http.ServeMux){
 		terminology.NewHTTPHandler(terminology.NewService(terminology.NewPostgresRepository(pool), uiLanguage(accounts)), terminologyCaller(accounts), log).Routes,
 		terminology.NewReviewHandler(terminology.NewReviews(terminology.ReviewPorts{
 			Repo: terminology.NewPostgresReviewRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
+		}), terminologyCaller(accounts), log).Routes,
+		terminology.NewCatalogHandler(terminology.NewCatalog(terminology.NewPostgresCatalogRepository(pool)), terminologyCaller(accounts), log).Routes,
+		terminology.NewGroupReviewHandler(terminology.NewGroupReviews(terminology.GroupReviewPorts{
+			Repo: terminology.NewPostgresGroupReviewRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
 		}), terminologyCaller(accounts), log).Routes,
 	}
 }

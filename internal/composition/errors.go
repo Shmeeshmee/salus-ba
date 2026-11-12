@@ -60,9 +60,13 @@ var (
 	ErrInvalidValues = errors.New("composition: invalid values")
 	// ErrRequiredMissing is returned for a sign that leaves a required field empty (FieldsError).
 	ErrRequiredMissing = errors.New("composition: required field missing")
+	// ErrDiagnosisUnconfirmed is returned for a sign that fills a coded field (a diagnosis) the practitioner did
+	// not confirm (FieldsError): a code the drafting suggested becomes a diagnosis only once they confirm it
+	// (docs/plans/analytics.md §2).
+	ErrDiagnosisUnconfirmed = errors.New("composition: diagnosis not confirmed")
 )
 
-// FieldsError is ErrInvalidValues or ErrRequiredMissing with the keys of the fields concerned, in the draft's
+// FieldsError is ErrInvalidValues, ErrRequiredMissing or ErrDiagnosisUnconfirmed with the keys of the fields concerned, in the draft's
 // order. It names keys, never a value.
 type FieldsError struct {
 	Err  error

@@ -23,7 +23,7 @@ INSERT INTO organization (name) VALUES (@name)
 RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy;
 
 -- name: ChatSettings :one
--- The clinic's chat settings (00043); row-level security shows only the clinic set.
+-- The clinic's chat settings (00046); row-level security shows only the clinic set.
 SELECT hours, response_time_hours, email_after_minutes
 FROM organization_chat_settings
 WHERE organization_id = @organization_id;
@@ -34,3 +34,7 @@ VALUES (@organization_id, @hours, @response_time_hours, @email_after_minutes, @u
 ON CONFLICT (organization_id) DO UPDATE
 SET hours = EXCLUDED.hours, response_time_hours = EXCLUDED.response_time_hours,
     email_after_minutes = EXCLUDED.email_after_minutes, updated_at = EXCLUDED.updated_at;
+
+-- name: ListLocationsForStats :many
+-- Every clinic with its time zone: the columns salus_stats may read.
+SELECT id, time_zone FROM organization ORDER BY id;

@@ -1,4 +1,4 @@
-import { SignRefused, TranscriptionDeclined, type ConsultActions, type ConsultMessage, type DocumentTerms, type DraftEvent, type End, type LiveSource, type SuggestionEvent, type Template, type TranscriptEvent } from '../consult'
+import { DiagnosisUnconfirmed, SignRefused, TranscriptionDeclined, type ConsultActions, type ConsultMessage, type DocumentTerms, type DraftEvent, type End, type LiveSource, type SuggestionEvent, type SignValue, type Template, type TranscriptEvent } from '../consult'
 
 // The in-memory stand-ins for the live source and the consultation's actions (consult.ts), and builders of the
 // P0 envelopes. Every text is synthetic and labelled as a placeholder; no line is real medical wording.
@@ -110,7 +110,7 @@ export function fakeLive() {
 type ActionOptions = {
   templates?: Template[] | 'fail'
   failStatus?: boolean
-  failSign?: boolean | { keys: string[] }
+  failSign?: boolean | { keys: string[] } | { unconfirmed: string[] }
   failGenerate?: boolean | 'declined'
   // terms are the documents' explained terms by draft id (SAL-13); none for a draft not named
   terms?: Record<string, DocumentTerms>
@@ -121,7 +121,7 @@ type ActionOptions = {
 export function fakeActions(options: ActionOptions = {}) {
   const statuses: [string, SuggestionEvent['status']][] = []
   const generated: [string, string, string][] = []
-  const signed: [string, number | undefined, { key: string; value: string }[]][] = []
+  const signed: [string, number | undefined, SignValue[]][] = []
   const languages: string[] = []
   const waiting: ((d: DraftEvent) => void)[] = []
   const termsAsked: string[] = []
@@ -143,9 +143,10 @@ export function fakeActions(options: ActionOptions = {}) {
     },
     async sign(d, fields) {
       signed.push([d.draft_id, d.version_id, fields])
+      if (typeof options.failSign === 'object' && 'unconfirmed' in options.failSign) throw new DiagnosisUnconfirmed(options.failSign.unconfirmed)
       if (typeof options.failSign === 'object') throw new SignRefused(options.failSign.keys)
       if (options.failSign) throw new Error('synthetic failure')
-      return { ...d, status: 'final', version_id: (d.version_id ?? 0) + 1, fields: fields.map((f) => ({ ...f, missing: f.value === '' })) }
+      return { ...d, status: 'final', version_id: (d.version_id ?? 0) + 1, fields: fields.map(({ key, value }) => ({ key, value, missing: value === '' })) }
     },
     async terms(id) {
       termsAsked.push(id)

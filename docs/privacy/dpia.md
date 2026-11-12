@@ -1695,6 +1695,29 @@ and comes with the subject-rights feature (export through `Patient/$everything` 
 
 **Open before production.** The retention period of the chat with the clinical record (legal decision).
 
+### SAL-28: group consults
+
+**Processing added.** The treating practitioner adds a doctor of their clinic to a conversation, or invites a doctor of
+another clinic (listed in the public directory), with a reason code and how much of the history they read; doctors
+open doctor-only side threads of a conversation. New: `conversation_participant.organization_id`, `status` and
+`reason`, and the table `chat_consent` (consent domain): the patient's consent for one conversation and one invited
+practitioner role, with its grant and revocation times. System messages in the conversation say who joined, left,
+was invited, granted or declined, as codes and opaque ids. No new processor: the other clinic is a controller of its
+own for the care it gives, and receives the conversation only on the patient's consent.
+
+**Purpose and lawful basis.** Care between visits within the treating clinic (Art. 9(2)(h)), as SAL-27. Sharing with
+another clinic rests on the patient's explicit, granular consent (Art. 9(2)(a), Art. 7): that conversation and that
+doctor, revocable at any time, with effect at once. The care consent with the treating clinic still rules: its
+revocation ends every doctor's access, the invited ones' too.
+
+**Necessity and minimisation.** Before the patient consents, the invited doctor sees nothing: not the conversation,
+its participants, its messages or side threads, nor that the invitation exists. A doctor added from a chosen point
+reads only what follows it. A side thread keeps the doctors it was opened with; a doctor added later is not in it.
+The system messages carry no name.
+
+**Retention.** `chat_consent` is kept with the clinical record (`ThenKeep`) as proof of the decision, like `consent`;
+the participant columns with the conversation. Needs a legal decision before production.
+
 ### SAL-29: notifications, chat hours and webhooks
 
 **Processing added.** Three tables with personal data: `push_device` (the push token of a patient's app, by account
@@ -1738,3 +1761,84 @@ admin, with its dead letters. `webhook_dead_letter`: 30 days.
 
 **Open before production.** The DPAs and transfer basis of Google (FCM) and Apple (APNs) before either is switched
 on (docs/deploy/push.md).
+
+## Analytics (`docs/plans/analytics.md`, ADR 0013)
+
+### SAL-19: coded diagnoses and diagnosis groups
+
+**Processing added.** `condition`: one FHIR Condition per filled coded field of a signed document (an ICD-10 code,
+the patient, the encounter, the clinic, the signing practitioner role, the signing time): health data (Art. 9)
+already in the signed document, now kept as a coded record. The documents signed before this feature got theirs
+by a backfill, marked unconfirmed and not counted. The diagnosis groups and the places are reference data with no
+personal data. A new database role, `salus_stats`, may read the source columns of the future aggregates (codes,
+times, statuses, clinic, practitioner role, and the patient id of `condition` and `appointment`); no binary logs in
+as it yet.
+
+**Purpose and lawful basis.** The clinical record (Art. 9(2)(h)), as the signed document it comes from; it is the
+source of the clinic's statistics (SAL-20) on the clinic's behalf. The platform-wide figures (SAL-21) are behind a
+feature flag that stays off until the owner confirms the legal answers (plan, L1 to L8).
+
+**Necessity and minimisation.** The columns are listed in the plan, §3, each with its reason. No free text, no
+transcript, no questionnaire answer is read. `salus_stats` reads no name, contact detail, document field or
+transcript (tested in the migration); a patient id leaves `condition` and `appointment` only as HMAC-SHA256 under a
+key that lives for one build (`pkg/pseudonym`).
+
+**Access.** Row-level security: the clinic's scope sees its own Conditions and inserts them, the patient's scope
+sees their own, a video room's scope and an account's see none; the application never updates or deletes one
+(tested, migration 00042). Signing refuses a filled diagnosis code the practitioner did not confirm.
+
+**Audit.** Each Condition's creation is audited with the signature, in its transaction. The group-name reviews are
+audited on `diagnosis_group_name`, also when refused.
+
+**Retention.** `condition`: kept with the clinical record, as `document_draft` (a legal decision before production,
+as the other clinical tables).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| An invited doctor reads the conversation before the patient consents, or after a revocation, a decline or a removal | Row-level security: a doctor of another clinic (their clinic and role set) sees a conversation, and those of its side threads they take part in, only while they are an active participant, the patient's chat consent for them is active and the care consent with the treating clinic is active (never another doctor's pending invitation); one `SECURITY DEFINER` function, owned by a role that reads only the columns it needs, decides it (migration tests over every state and scope). The service checks `access.GuestChat` as well (service tests on fakes and on Postgres, app test). An open socket checks again every 5 s |
+| The patient sees a doctor-only side thread | The patient's policies exclude every `staff_only` conversation and its messages; the service refuses the side threads' list and their creation to the patient (service tests on every path, app test) |
+| A doctor removed from a conversation keeps its side threads | A trigger removes them from the conversation's side threads in the same statement, whoever removes them (migration test) |
+| A doctor is added who should not be | Only the treating practitioner adds and removes (`access.ManagesChat`); a doctor of the clinic must be an active role of it, one of another clinic in the public directory |
+| No proof of what the patient decided | Every invitation, add, removal, grant, decline and revocation is audited in its transaction, naming the participant by its opaque id; a refused revocation too; a grant is a stored Consent with its time, a revocation keeps the row |
+| A consent left granted to a doctor who was removed, which the patient can no longer see or withdraw | A removal by the treating practitioner ends the patient's chat consent for that doctor in the same transaction, as the clinic, audited (the clinic may end a chat consent, never grant one: migration test); the patient lists their granted invitations (`GET /me/chat-invitations?status=active`) and revokes each (Art. 7(3)) |
+
+**Open before production.** The retention of `chat_consent` with the clinical record (legal decision).
+
+| A model-suggested code recorded as a diagnosis nobody made | The practitioner confirms each code before the signature (tested in the service, the API and the browser journey); the backfilled codes are unconfirmed and not counted |
+| Another clinic's diagnoses | Row-level security by clinic (tested) |
+| The aggregate builds reading identities | `salus_stats` has column grants on the source columns only (tested); patients are pseudonymised per build |
+| WHO or national-edition text used without a licence | Codes only, as identifiers; group names are our own (ADR 0013) |
+
+## Patient history (`docs/plans/patient-history.md`, ADR 0014)
+
+### Step 0: the contract (migration 00043)
+
+**Processing added.** The patient's allergies and current medications in their profile (FHIR AllergyIntolerance,
+MedicationStatement), and a third consent, the history consent, by which the patient shares chosen visits of theirs
+at other clinics with one clinic. Lawful basis: care (Art. 9(2)(h)) for the profile, as for the rest of the record;
+the patient's explicit consent for sharing across clinics, granular per visit, off by default, revocable at once. No
+processor is added; nothing of the history goes to a language model.
+
+**Personal data added.** The four tables of the plan's "Personal data" section, all health data, all kept with the
+clinical record (retention `keep`, needs a legal decision before production). A patient's own unconfirmed entry is
+deleted when they remove it; anything confirmed or recorded by a clinic is kept as entered-in-error.
+
+**Who sees what.** ADR 0014 "Access model": the patient their whole history; a practitioner only the visits they
+held themselves at their clinic and the visits the patient shared with that clinic; the profile where the care
+consent and an appointment allow it (as the profile today); a clinic's entry only where its visit is seen; which
+clinic recorded or confirmed an entry only to the patient and that clinic. Row-level security says the same in the
+clinic's scope (tested per scope and table); the service rule (`access.HistoryVisit`) narrows it to the
+practitioner. Every read, grant, change and revocation is audited.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A visit the patient did not tick reaches the doctor | It is never selected: `history_shared` and the `*_shared` policies open only listed visits, `access.HistoryVisit` refuses the rest before anything is listed, counted, searched or summarised (migration and access tests; service tests in SAL-40) |
+| A removal or revocation that does not take effect at once | Both end access when their transaction commits, in row-level security and in the rule, which read the current state (tests); revoking the care consent revokes the history consent too |
+| A doctor's entry in the profile tells another clinic where the patient was treated | Doctor entries belong to their visit (ADR 0014 decision 4); the patient adds one to the profile only on purpose, and then it shows no clinic, no practitioner and no visit (`access.Attributed`, FHIR golden files) |
+| The patient shares another patient's visit, or one of the receiving clinic's own, or one still in progress | Refused by the insert check of `history_consent_encounter` as well as the service |
+| A shared visit exposes more than its record | Only the encounter, signed documents, completed answers and their clean files, and the entries recorded in it; never the transcript, suggestions, drafts or appointment (policy tests) |
+| History reaches the language model | Not in this epic: suggestions and drafting read only the consultation's transcript (SAL-42 adds the test) |

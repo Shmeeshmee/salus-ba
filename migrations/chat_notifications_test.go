@@ -11,7 +11,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-// notificationRows is the seeded state of 00043: clinics A and B with chat settings, a webhook endpoint each with a
+// notificationRows is the seeded state of 00046: clinics A and B with chat settings, a webhook endpoint each with a
 // dead letter, and the two patients' accounts with a device each.
 type notificationRows struct {
 	endpoint map[string]string // by clinic
