@@ -307,10 +307,10 @@ func TestDecideInvitation_RefusesAnyoneButThePatientAndAGrantWithoutTheCareConse
 	t.Parallel()
 	tests := []struct {
 		want     error
-		name     string
-		caller   appointment.Caller
-		decision communication.Decision
 		id       func(invited, colleague communication.Participant) string
+		name     string
+		decision communication.Decision
+		caller   appointment.Caller
 		revoke   bool
 	}{
 		{name: "staff", caller: pract, decision: communication.DecisionGrant, want: communication.ErrForbidden},
@@ -396,8 +396,8 @@ func TestRevokeInvitation_RefusesWhatIsNoGrantedInvitationOfThePatient(t *testin
 	colleague := f.add(t, conv.ID, roleA2, clinicA)
 	for name, tt := range map[string]struct {
 		want   error
-		caller appointment.Caller
 		id     string
+		caller appointment.Caller
 	}{
 		"staff":                     {caller: pract, id: granted.ID, want: communication.ErrForbidden},
 		"another patient":           {caller: other, id: granted.ID, want: communication.ErrNotFound},
@@ -451,8 +451,8 @@ func TestRemoveParticipant_RefusesThePatientTheTreatingPractitionerAndAnyoneElse
 	colleague := f.add(t, conv.ID, roleA2, clinicA)
 	for name, tt := range map[string]struct {
 		want   error
-		caller appointment.Caller
 		id     string
+		caller appointment.Caller
 	}{
 		"the patient's row":               {caller: pract, id: conv.Participants[0].ID, want: communication.ErrForbidden},
 		"the treating practitioner's row": {caller: pract, id: conv.Participants[1].ID, want: communication.ErrForbidden},

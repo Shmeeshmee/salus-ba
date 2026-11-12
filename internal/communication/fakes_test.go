@@ -288,20 +288,20 @@ type scope struct{ patient, clinic, conversation, role string }
 // a patient sees their own conversations but no doctor-only one; a clinic its own; messages only with the
 // conversation set, or to their patient.
 type fakeRepo struct {
-	since      time.Time // the last MessageByClientID's window
-	failNext   error
-	convs      map[string]communication.Conversation
-	parts      map[string][]communication.Participant
-	msgs       map[string][]communication.Message
-	revs       map[string][]communication.Revision
-	locks      map[string]*sync.Mutex
-	partitions []string // the AddPartitions calls, "<from>/<months>"
+	since    time.Time // the last MessageByClientID's window
+	failNext error
+	convs    map[string]communication.Conversation
+	parts    map[string][]communication.Participant
+	msgs     map[string][]communication.Message
+	revs     map[string][]communication.Revision
+	locks    map[string]*sync.Mutex
 	// consented reports whether the chat consent for the conversation and role and the care consent of the patient
 	// with the clinic are active (the fixture's), for the guest's row-level security.
-	consented func(conv, role, patient, clinic string) bool
-	nextID    int
-	clientSeq int
-	mu        sync.Mutex
+	consented  func(conv, role, patient, clinic string) bool
+	partitions []string // the AddPartitions calls, "<from>/<months>"
+	nextID     int
+	clientSeq  int
+	mu         sync.Mutex
 }
 
 func newFakeRepo() *fakeRepo {

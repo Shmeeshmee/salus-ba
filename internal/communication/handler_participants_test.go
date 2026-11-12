@@ -18,11 +18,11 @@ import (
 // stubGroup answers the group consult's calls with what the test set, and keeps what it was asked.
 type stubGroup struct {
 	err         error
-	part        communication.Participant
 	invitations []communication.Invitation
 	threads     []communication.Conversation
-	thread      communication.Conversation
 	asked       []string
+	part        communication.Participant
+	thread      communication.Conversation
 }
 
 func (s *stubGroup) AddParticipant(_ context.Context, _ communication.Caller, id string, in communication.AddParticipant) (communication.Participant, error) {

@@ -7,15 +7,26 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/Shmeeshmee/salus/internal/api"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-// The group consult through api.New with row-level security on, as in production (docs/plans/chat.md, SAL-28): the
-// treating practitioner invites a doctor of another, listed clinic, who sees nothing until the patient consents; then
-// the doctor reads the history, writes and opens a doctor-only side thread the patient never sees; the patient's
-// revocation ends the doctor's access to both. No message text reaches the log.
-func TestNew_ServesTheGroupConsultAcrossClinicsUnderRowLevelSecurity(t *testing.T) {
+// groupConsult is the app with row-level security on, the directory, the patient's conversation with its practitioner
+// (with one message), and a practitioner of another, listed clinic (the guest).
+type groupConsult struct {
+	d         directory
+	owner     *pgxpool.Pool
+	guest     *client
+	logs      *syncBuffer
+	path      string
+	convID    string
+	guestRole string
+}
+
+func newGroupConsult(t *testing.T) groupConsult {
+	t.Helper()
 	cfg := testConfig(t)
 	owner := ownerPool(t, cfg)
 	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)
@@ -62,6 +73,17 @@ func TestNew_ServesTheGroupConsultAcrossClinicsUnderRowLevelSecurity(t *testing.
 	if rec := d.patient.do(http.MethodPost, path+"/messages", `{"client_message_id":"c1000000-0000-4000-8000-0000000000c1","body":"Synthetic placeholder question"}`); rec.Code != http.StatusCreated {
 		t.Fatalf("send = %d %s", rec.Code, rec.Body)
 	}
+	return groupConsult{d: d, owner: owner, guest: guest, logs: logs, path: path, convID: conv.ID, guestRole: guestRole}
+}
+
+// The group consult through api.New with row-level security on, as in production (docs/plans/chat.md, SAL-28): the
+// treating practitioner invites a doctor of another, listed clinic, who sees nothing until the patient consents; then
+// the doctor reads the history, writes and opens a doctor-only side thread the patient never sees; the patient's
+// revocation ends the doctor's access to both. No message text reaches the log.
+func TestNew_ServesTheGroupConsultAcrossClinicsUnderRowLevelSecurity(t *testing.T) {
+	g := newGroupConsult(t)
+	d, owner, guest, logs, path, guestRole := g.d, g.owner, g.guest, g.logs, g.path, g.guestRole
+	conv := struct{ ID string }{g.convID}
 	rec := d.practitioner.do(http.MethodPost, path+"/participants",
 		`{"practitioner_role_id":"`+guestRole+`","organization_id":"`+otherClinic+`","reason":"second_opinion","history":"full"}`)
 	var invited struct{ ID, Status string }

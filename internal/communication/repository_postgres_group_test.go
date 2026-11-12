@@ -1,6 +1,7 @@
 package communication_test
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -14,8 +15,35 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-// pgGroupFixture is the fixture's service on Postgres as the app role, with the real consent service for the care
-// and chat consents (the guest's row-level security reads them), clinic B with its role B1 and the guest's account.
+// scopedChatConsents writes and reads the patient's chat consents in the caller's transaction and scope, as the consent
+// service does, so the guest's row-level security reads them (the consent domain's repository is its own;
+// internal/api's test runs the real service).
+type scopedChatConsents struct{ db *pgxpool.Pool }
+
+func (o scopedChatConsents) GrantChat(ctx context.Context, by consent.Caller, g consent.ChatGrant) (consent.Consent, error) {
+	_, err := postgres.Conn(ctx, o.db).Exec(ctx, `INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id, status, date_time)
+		VALUES ($1, $2, $3, $4, 'active', now())`, by.PatientID, g.OrganizationID, g.ConversationID, g.PractitionerRoleID)
+	return consent.Consent{Kind: consent.KindChat}, err
+}
+
+func (o scopedChatConsents) RevokeChat(ctx context.Context, _ consent.Caller, conv, role string) (consent.Consent, error) {
+	tag, err := postgres.Conn(ctx, o.db).Exec(ctx, `UPDATE chat_consent SET status = 'inactive', revoked_at = now()
+		WHERE conversation_id = $1 AND practitioner_role_id = $2 AND status = 'active'`, conv, role)
+	if err == nil && tag.RowsAffected() == 0 {
+		err = consent.ErrInactive
+	}
+	return consent.Consent{Kind: consent.KindChat}, err
+}
+
+func (o scopedChatConsents) ChatGranted(ctx context.Context, conv, role string) (bool, error) {
+	var ok bool
+	err := postgres.Conn(ctx, o.db).QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM chat_consent WHERE conversation_id = $1 AND practitioner_role_id = $2
+		AND status = 'active')`, conv, role).Scan(&ok)
+	return ok, err
+}
+
+// pgGroupFixture is the fixture's service on Postgres as the app role, with the chat consents in Postgres (the
+// guest's row-level security reads them), clinic B with its role B1 and the guest's account.
 func pgGroupFixture(t *testing.T) (*fixture, *pgxpool.Pool) {
 	t.Helper()
 	owner, app := pgtest.NewAppDatabase(t)
@@ -36,10 +64,9 @@ func pgGroupFixture(t *testing.T) (*fixture, *pgxpool.Pool) {
 	}
 	repo, tx := communication.NewPostgresRepository(app), postgres.NewTransactor(app)
 	f := newFixtureOn(t, repo, tx)
-	consents := consent.NewService(consent.NewPostgresRepository(app), f.audit, tx, f.clock, nil)
 	f.svc = communication.NewService(communication.Ports{
-		Repo: repo, Publisher: f.pub, Consents: consents, Visits: fakeVisits{f}, Roles: fakeRoles{}, Encounters: fakeEncounters{},
-		ChatConsents: consents, Directory: fakeDirectory{}, Audit: f.audit, Tx: tx, Clock: f.clock,
+		Repo: repo, Publisher: f.pub, Consents: fakeConsents{f}, Visits: fakeVisits{f}, Roles: fakeRoles{}, Encounters: fakeEncounters{},
+		ChatConsents: scopedChatConsents{app}, Directory: fakeDirectory{}, Audit: f.audit, Tx: tx, Clock: f.clock,
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	return f, owner
@@ -113,6 +140,7 @@ func TestPostgres_AGuestSeesTheConversationOnlyWhileTheirInvitationIsGranted(t *
 	if _, err := owner.Exec(ctx, `UPDATE consent SET status = 'inactive', revoked_at = now() WHERE patient_id = $1`, patientA); err != nil {
 		t.Fatal(err)
 	}
+	f.revoke() // the fake's state, which the service reads
 	checkNothing(t, f, guest, conv.ID)
 	if err := f.svc.RevokeInvitation(ctx, me, again.ID); err != nil {
 		t.Errorf("a revocation after the care consent's: %v", err)
