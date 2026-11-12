@@ -1694,3 +1694,45 @@ and comes with the subject-rights feature (export through `Patient/$everything` 
 | A lost message or a duplicate | Postgres is the record; pub/sub only transport. Numbers without gaps under the conversation's lock; a socket fills any gap from Postgres; a retried send with the same client id returns the first message (concurrency test on Postgres) |
 
 **Open before production.** The retention period of the chat with the clinical record (legal decision).
+
+### SAL-30: attachments, read receipts, typing, search and terms
+
+**Processing added.** Files a participant sends in a conversation (photos and PDFs, lab results among them) go through
+the questionnaire attachments' pipeline (`binary`, ADR 0010): the type from the bytes, encrypted with a key per file
+in the self-hosted object store, scanned by the self-hosted ClamAV before anyone opens them. A `binary` row now has
+one of two parents, a questionnaire answer or a conversation (`conversation_id`, the uploading participant, the
+message once sent). A clean image gets a thumbnail (a JPEG of at most 320 pixels a side), made on our worker from the
+clean file and stored encrypted like it. The message counts its files (`communication.attachment_count`). Read
+receipts (how far each participant has read) and typing go through the Redis pub/sub channel of the conversation; the
+receipts are also kept in a Redis hash for 7 days so a socket opening later shows them, and typing leaves a key of one
+second (its rate). Neither is stored in Postgres. Search is Postgres full-text search over the message texts, with an
+index per partition; the query is never logged or stored. Terms are tagged on read against the reference term list
+(SAL-13) and never stored. No new processor: the object store, ClamAV and Redis are self-hosted.
+
+**Purpose and lawful basis.** Care between visits (Art. 9(2)(h)) under the care consent, as the messages. Thumbnails
+are a preview of the file for the same care, made by us, never by a third party. The questionnaire SPEC's "no
+thumbnails without a separate basis and SPEC" (docs/attachments/SPEC.md section 4) concerns questionnaire files; the
+chat's thumbnails are asked for by the chat's plan (SAL-30), not made for questionnaire files.
+
+**Necessity and minimisation.** A file keeps its name (so the reader can tell files apart; never logged), its type,
+size and SHA-1; nothing else of the file is read but by the scan and the thumbnail. Receipts carry a participant id
+and a number, typing a participant id; both opaque. A search returns only messages the caller may read, at most 50.
+
+**Retention.** A file attached to a message is part of the record with it: kept with the clinical record, never
+deleted while attached (a trigger refuses it for every role, the owner included, unless the file was rejected). A
+file never sent is deleted 24 hours after its upload, a rejected one 24 hours after its scan, an object without a row
+(a file's or a thumbnail's) 24 hours after it was written. Receipts expire after 7 days, typing after one second.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Malware reaches a doctor's or a patient's device | Nobody opens a file before the scan says it is clean (409 `scanning`); an infected file is rejected, its key cleared and its object deleted (worker test with the EICAR string); a file that cannot be scanned is rejected after the last attempt, never left opening later |
+| A file is read by someone who may not read its message | Row-level security on chat files mirrors the messages' (migration tests over every scope: the patient never in a doctor-only thread, a clinic only with the consent active and the conversation set, the scan job only its conversation); the service opens a file only for whoever reads its message, after their `history_from_seq`, or before it is sent for its uploader only (service and app tests) |
+| A search shows another patient's or a revoked conversation's messages | The practitioner's search across conversations runs in a read-only role scope whose policy checks participation, `history_from_seq` and the consent; the service checks every result's conversation as it checks a page; tests on Postgres and through the API (after a revocation the practitioner finds nothing) |
+| Receipts become a stored record of who read what | Only the reader's own position is stored (owner, 2026-11-12); receipts and typing live in Redis with a TTL and on the socket |
+| A file name, a query or a message leaks into logs | No log line holds a file name, a search query or a message (app and worker tests check the logs); job arguments carry opaque ids only |
+
+**Open before production.** The production object store and its storage classes (the "cheaper storage" for older
+attachments is deferred until it is chosen); the retention of chat files with the clinical record (legal decision,
+with the messages').

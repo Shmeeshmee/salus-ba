@@ -95,10 +95,10 @@ func TestUploadChat_RefusesWhatTheChatDoesNotTakeAndLeavesNothing(t *testing.T) 
 	huge := chatUpload(pdf())
 	huge.Size = binary.MaxPhotoSize + 1
 	for _, tt := range []struct {
-		in        binary.ChatUpload
 		name      string
 		commitErr error
 		want      error
+		in        binary.ChatUpload
 	}{
 		{name: "no length", in: none, want: binary.ErrLengthRequired},
 		{name: "too large", in: huge, want: binary.ErrTooLarge},
@@ -193,9 +193,9 @@ func TestOpenChat_OpensACleanFileOfTheConversationOrItsThumbnail(t *testing.T) {
 	clean, scanning, rejected := f.chatFile(t, body, binary.StatusClean), f.chatFile(t, pdf(), binary.StatusQuarantined), f.chatFile(t, pdf(), binary.StatusRejected)
 	err := f.inChat(t, func(ctx context.Context) error {
 		for _, tt := range []struct {
+			want      error
 			id, conv  string
 			thumbnail bool
-			want      error
 		}{
 			{id: scanning.ID, conv: convC, want: binary.ErrScanning},
 			{id: rejected.ID, conv: convC, want: binary.ErrNotFound},
@@ -272,9 +272,9 @@ func TestScan_ChatFilesAreScannedInTheirConversationAndCleanImagesGetAThumbnail(
 	}
 	for _, tt := range []struct {
 		name      string
-		body      []byte
 		result    clamd.Result
 		want      binary.Status
+		body      []byte
 		thumbnail image.Point
 	}{
 		{name: "a wide JPEG", body: b.Bytes(), want: binary.StatusClean, thumbnail: image.Pt(binary.ThumbnailEdge, binary.ThumbnailEdge*2/3)},

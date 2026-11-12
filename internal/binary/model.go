@@ -91,9 +91,9 @@ type Binary struct {
 	Title          string // the file's name as uploaded, at most MaxTitle characters; personal data
 	KEKID          string
 	Status         Status
-	Thumbnail      Thumbnail // a clean chat image's; zero for none
 	SHA1           []byte    // of the plaintext: Attachment.hash and the identical-retry check
 	WrappedKey     []byte    // nil once rejected
+	Thumbnail      Thumbnail // a clean chat image's; zero for none
 	Size           int64     // plaintext bytes
 	SegmentSize    int32
 }

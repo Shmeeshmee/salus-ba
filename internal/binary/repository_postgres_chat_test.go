@@ -243,10 +243,10 @@ func TestPostgres_TheRetentionRoleDeletesOldUnattachedChatFilesAndKnowsThumbnail
 	old, fresh, attached := c.chatFile(c.patientPart, 10), c.chatFile(c.patientPart, 20), c.chatFile(c.patientPart, 30)
 	thumb := binaryID()
 	for _, f := range []struct {
-		b       binary.Binary
-		at      time.Time
 		message any
-	}{{old, cut.Add(-time.Second), nil}, {fresh, cut.Add(time.Second), nil}, {attached, cut.Add(-time.Hour), c.message}} {
+		at      time.Time
+		b       binary.Binary
+	}{{nil, cut.Add(-time.Second), old}, {nil, cut.Add(time.Second), fresh}, {c.message, cut.Add(-time.Hour), attached}} {
 		if _, err := owner.Exec(t.Context(), `INSERT INTO "binary" (id, organization_id, patient_id, conversation_id, conversation_participant_id,
 				content_type, size, title, sha1, kek_id, wrapped_key, segment_size, created_at, updated_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)`, f.b.ID, f.b.OrganizationID, f.b.PatientID, f.b.ConversationID,

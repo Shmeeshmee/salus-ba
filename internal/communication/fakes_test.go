@@ -74,7 +74,7 @@ type fixture struct {
 	audit   *fakeAudit
 	pub     *fakePublisher
 	clock   *testClock
-	sal30   sal30Fakes // the files, terms, languages and presence (SAL-30)
+	sal30   sal30Fakes                // the files, terms, languages and presence (SAL-30)
 	consent map[string]access.Consent // by patient+clinic
 	visits  map[string][]access.Visit
 	mu      sync.Mutex

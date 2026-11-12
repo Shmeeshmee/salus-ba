@@ -102,8 +102,8 @@ func TestSend_AttachesTheSendersUploadsToTheMessage(t *testing.T) {
 		t.Fatalf("Send() = %+v, %v", m, err)
 	}
 	var live struct {
-		Attachments []communication.Attachment `json:"attachments"`
 		Body        *string                    `json:"body"`
+		Attachments []communication.Attachment `json:"attachments"`
 	}
 	if frames := f.pub.published(); len(frames) == 0 || json.Unmarshal(frames[len(frames)-1].Payload, &live) != nil || len(live.Attachments) != 2 {
 		t.Errorf("live frame = %+v", frames)
@@ -176,14 +176,14 @@ func TestAttachment_OpensForWhoeverReadsItsMessageOnceClean(t *testing.T) {
 	f.sal30.files.set(draft.ID, binary.StatusClean, false)
 	f.repo.addPractitioner(c.ID, roleA2, 1) // joined after message 1: reads message 2, the file's
 	for _, tt := range []struct {
-		who       communication.Caller
-		id        string
-		thumbnail bool
 		want      error
+		id        string
+		who       communication.Caller
+		thumbnail bool
 	}{
-		{pract, sent.ID, false, nil}, {pract, sent.ID, true, nil}, {me, sent.ID, true, nil}, {pract2, sent.ID, false, nil},
-		{me, draft.ID, false, nil}, {pract, draft.ID, false, communication.ErrNotFound}, {me, draft.ID, true, communication.ErrNotFound},
-		{other, sent.ID, false, communication.ErrNotFound}, {me, unknownID, false, communication.ErrNotFound}, {me, "x", false, communication.ErrNotFound},
+		{nil, sent.ID, pract, false}, {nil, sent.ID, pract, true}, {nil, sent.ID, me, true}, {nil, sent.ID, pract2, false},
+		{nil, draft.ID, me, false}, {communication.ErrNotFound, draft.ID, pract, false}, {communication.ErrNotFound, draft.ID, me, true},
+		{communication.ErrNotFound, sent.ID, other, false}, {communication.ErrNotFound, unknownID, me, false}, {communication.ErrNotFound, "x", me, false},
 	} {
 		file, err := f.svc.Attachment(t.Context(), tt.who, c.ID, tt.id, tt.thumbnail)
 		if !errors.Is(err, tt.want) || (err == nil && file.ID != tt.id) {

@@ -1331,6 +1331,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/conversations/{id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a file to send in the conversation
+         * @description A participant who may write uploads one file (SAL-30), then names it in `attachment_ids` of their next message. The body is the file's bytes, streamed; `Content-Length` is required. The type is detected from the bytes, never from `Content-Type` or the name: a photo (JPEG, PNG) or a PDF (lab results among them), at most 20 MB. The file name is the `filename*` of `Content-Disposition` (RFC 6266), cut to 200 characters, the path removed; never put it in the query string. The file is encrypted, stored and `scanning` until the malware scan says it is `clean` (an image then gets a thumbnail) or `rejected`; only its uploader sees it before it is sent. A file never sent is deleted after 24 hours. Audited, also when refused.
+         */
+        post: operations["uploadChatAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/attachments/{attachment_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a message's file
+         * @description The file's bytes, decrypted, once the scan says it is `clean`, for whoever may read its message (a participant who joined later only from their starting point; staff never after the patient's revocation), or, before it is sent, for its uploader. One `Range` gives 206 with that part. Shown inline, never sniffed, never cached. Every request is audited.
+         */
+        get: operations["getChatAttachmentContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/attachments/{attachment_id}/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a message's image thumbnail
+         * @description A JPEG of at most 320 pixels a side, made by the server from the clean image (`thumbnail` true on the attachment); none for a PDF (404). Read as the file is, audited.
+         */
+        get: operations["getChatAttachmentThumbnail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search a conversation's messages
+         * @description The messages of the conversation whose text has every word of `q`, each as a word's beginning, case and accents aside, in any of the app's languages; newest first, at most 50; only those the caller reads. Audited as a search; `q` is never logged or stored.
+         */
+        get: operations["searchConversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search the caller's conversations
+         * @description As `searchConversation`, across the caller's conversations: a patient's own (never a doctor-only thread); a practitioner's, those they take part in, from their starting point, while the patient's care consent with the clinic is active. Audited as a search.
+         */
+        get: operations["searchConversations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/conversations/{id}/events": {
         parameters: {
             query?: never;
@@ -1340,7 +1440,7 @@ export interface paths {
         };
         /**
          * The conversation's messages, live, over a WebSocket
-         * @description A WebSocket (RFC 6455) upgrade (ADR 0012). Every message after `after` is replayed from the record, in order, then the live ones follow as `message` frames, and edits as `message_edited` (`ChatFrame`); a client drops a message whose `seq` it has. Without `after`, only messages sent from now on. The handshake must come from the API's own origin, or carry no Origin (the mobile app, with its bearer token). Access is checked again at least every 5 seconds, the session too: when it ends the socket closes with 4401 `unauthenticated` (a logout, a revoked or expired session), 4403 `consent_required` or `forbidden`, or 4404 `not_found` (staff after the patient's revocation); 1011 on a server error. The subscription is audited. The client may send `send` frames (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of the JSON API, or `rate_limited` past five at once and one every 200 ms. Pass the conversation's or the last message's `cursor` as `after`.
+         * @description A WebSocket (RFC 6455) upgrade (ADR 0012). Every message after `after` is replayed from the record, in order, then the live ones follow as `message` frames, and edits as `message_edited` (`ChatFrame`); a client drops a message whose `seq` it has. Without `after`, only messages sent from now on. The handshake must come from the API's own origin, or carry no Origin (the mobile app, with its bearer token). Access is checked again at least every 5 seconds, the session too: when it ends the socket closes with 4401 `unauthenticated` (a logout, a revoked or expired session), 4403 `consent_required` or `forbidden`, or 4404 `not_found` (staff after the patient's revocation); 1011 on a server error. The subscription is audited. The client may send `send` frames (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of the JSON API, or `rate_limited` past five at once and one every 200 ms. Pass the conversation's or the last message's `cursor` as `after`. Receipts and typing (SAL-30), ephemeral: once replayed, the socket sends a `receipt` frame per participant who has read (as kept for 7 days), then the others' `receipt` and `typing` frames as they come; a client drops its own. The client's `read` frame (`ChatReadCommand`) moves its read position as `markConversationRead` does and counts against the same limit as `send`; its `typing` frame (`ChatTypingCommand`) goes out at most once a second; neither is answered unless refused. An app shows a participant typing for 5 seconds after their last `typing` frame. Message frames carry their `attachments` but no `terms` (the JSON API's reads do).
          */
         get: operations["followConversation"];
         put?: never;
@@ -2436,7 +2536,7 @@ export interface components {
             sender_role: "patient" | "practitioner" | "system";
             /** @enum {string} */
             kind: "text" | "system";
-            /** @description A text's body, 1 to 4000 characters. */
+            /** @description A text's body, 1 to 4000 characters; absent for a message of files alone. */
             body?: string;
             system?: components["schemas"]["SystemMessage"];
             /** Format: uuid */
@@ -2450,6 +2550,10 @@ export interface components {
             edited_at?: string;
             /** Format: int32 */
             version_id: number;
+            /** @description The message's files, oldest first; absent for none (SAL-30). */
+            attachments?: components["schemas"]["ChatAttachment"][];
+            /** @description The explained terms found in `body` (SAL-13), in the reader's language then English, as UTF-16 offsets; computed on read, never stored, the body unchanged; absent for none and in socket frames. */
+            terms?: components["schemas"]["TermSpan"][];
         };
         /** @description The code the apps render from their catalogs, and its opaque ids. */
         SystemMessage: {
@@ -2469,7 +2573,10 @@ export interface components {
              * @description The client's id of the message; a retry repeats it.
              */
             client_message_id: string;
+            /** @description 1 to 4000 characters after trimming; may be empty with `attachment_ids`. */
             body: string;
+            /** @description The sender's uploads to the conversation (`uploadChatAttachment`), scanning or clean, not yet sent; at most 10. */
+            attachment_ids?: string[];
         };
         EditMessageRequest: {
             body: string;
@@ -2525,14 +2632,85 @@ export interface components {
             payload: components["schemas"]["ChatCommandError"];
         };
         /** @description A frame the conversation's socket sends. */
-        ChatFrame: components["schemas"]["ChatMessageFrame"] | components["schemas"]["SendAckFrame"] | components["schemas"]["ChatCommandErrorFrame"];
-        /** @description A frame the client sends on the conversation's socket. */
+        ChatFrame: components["schemas"]["ChatMessageFrame"] | components["schemas"]["SendAckFrame"] | components["schemas"]["ChatCommandErrorFrame"] | components["schemas"]["ChatReceiptFrame"] | components["schemas"]["ChatTypingFrame"];
+        /** @description A frame the client sends on the conversation's socket; also `ChatReadCommand` and `ChatTypingCommand`. */
         ChatCommand: {
             /** @constant */
             type: "send";
             /** @constant */
             version: 1;
             payload: components["schemas"]["SendMessageRequest"];
+        };
+        /** @description A message's file (SAL-30): an image or a PDF, through the upload and malware scan pipeline. Its bytes (`getChatAttachmentContent`) and, for an image, its thumbnail open once `clean`; a `rejected` file never opens. */
+        ChatAttachment: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description Detected from the bytes.
+             * @enum {string}
+             */
+            content_type: "application/pdf" | "image/jpeg" | "image/png";
+            /**
+             * Format: int64
+             * @description Bytes.
+             */
+            size: number;
+            /** @description The name it was uploaded with. */
+            filename: string;
+            /** @enum {string} */
+            status: "scanning" | "clean" | "rejected";
+            /** @description An image's thumbnail is there to read (`getChatAttachmentThumbnail`). */
+            thumbnail: boolean;
+        };
+        /** @description The client has read the messages up to `seq` (as `markConversationRead`); the others get a `receipt`. */
+        ChatReadCommand: {
+            /** @constant */
+            type: "read";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["ReadPosition"];
+        };
+        /** @description The client's participant types; sent at most once a second, the others get a `typing` frame. */
+        ChatTypingCommand: {
+            /** @constant */
+            type: "typing";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["ChatTyping"];
+        };
+        /** @description How far a participant has read. Ephemeral, never stored as anyone's but the reader's own position. */
+        ChatReceipt: {
+            /** Format: uuid */
+            participant_id: string;
+            /** Format: int64 */
+            seq: number;
+        };
+        ChatReceiptFrame: {
+            /** @constant */
+            type: "receipt";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["ChatReceipt"];
+        };
+        /** @description The participant who types; the server's frame names them, the client's names none. */
+        ChatTyping: {
+            /** Format: uuid */
+            participant_id?: string;
+        };
+        ChatTypingFrame: {
+            /** @constant */
+            type: "typing";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["ChatTyping"];
+        };
+        ChatSearchResult: {
+            /** Format: uuid */
+            conversation_id: string;
+            message: components["schemas"]["ChatMessage"];
+        };
+        ChatSearchResults: {
+            results: components["schemas"]["ChatSearchResult"][];
         };
     };
     responses: {
@@ -2547,7 +2725,17 @@ export interface components {
                 "application/json": components["schemas"]["ChatMessage"];
             };
         };
-        /** @description `invalid_request`: a body that is not the request, an id that is no UUID, a body of 0 or over 4000 characters, a limit out of range, a `seq` past the last message; `invalid_cursor`: a cursor the API did not give. */
+        /** @description The messages found, newest first. */
+        ChatSearchResults: {
+            headers: {
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ChatSearchResults"];
+            };
+        };
+        /** @description `invalid_request`: a body that is not the request, an id that is no UUID, a body of 0 or over 4000 characters (0 only with files), a limit out of range, a `seq` past the last message, files that are not the sender's uploads to the conversation or more than 10, a search without a word; `invalid_cursor`: a cursor the API did not give. */
         ChatInvalidRequest: {
             headers: {
                 [name: string]: unknown;
@@ -2844,6 +3032,9 @@ export interface components {
         };
     };
     parameters: {
+        ChatAttachmentID: string;
+        /** @description Words to find, 1 to 200 characters: runs of letters and digits, of two or more, the first eight count; anything else separates them. */
+        ChatSearchQuery: string;
         /** @description The conversation's id. */
         ConversationID: string;
         /** @description The message's id (FHIR Communication.id). */
@@ -6306,6 +6497,214 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["ChatForbidden"];
             404: components["responses"]["ChatNotFound"];
+        };
+    };
+    uploadChatAttachment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The file's size in bytes. */
+                "Content-Length": number;
+                /** @description `attachment; filename*=UTF-8''<percent-encoded name>`, the file's name. */
+                "Content-Disposition"?: string;
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description The file, `scanning`. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatAttachment"];
+                };
+            };
+            /** @description `invalid_request`: the body ended before `Content-Length` bytes, or an id that is no UUID. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+            /** @description `length_required`: no `Content-Length`. */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `too_large`: over 20 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unsupported_type`: the bytes are no JPEG, PNG or PDF. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getChatAttachmentContent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description One byte range, `bytes=<first>-<last>`, `bytes=<first>-` or `bytes=-<suffix length>`. */
+                Range?: string;
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+                attachment_id: components["parameters"]["ChatAttachmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["BinaryContent"];
+            206: components["responses"]["BinaryContent"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            /** @description `not_found`: no such file of the conversation, a rejected one, or the caller may not read it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `scanning`: the file is still being checked; try again later. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `range_not_satisfiable`: the range starts past the end of the file. */
+            416: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getChatAttachmentThumbnail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+                attachment_id: components["parameters"]["ChatAttachmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The thumbnail. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            /** @description `not_found`: as for the content, or a file without a thumbnail. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `scanning`: the file is still being checked. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    searchConversation: {
+        parameters: {
+            query: {
+                /** @description Words to find, 1 to 200 characters: runs of letters and digits, of two or more, the first eight count; anything else separates them. */
+                q: components["parameters"]["ChatSearchQuery"];
+            };
+            header?: never;
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ChatSearchResults"];
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
+    searchConversations: {
+        parameters: {
+            query: {
+                /** @description Words to find, 1 to 200 characters: runs of letters and digits, of two or more, the first eight count; anything else separates them. */
+                q: components["parameters"]["ChatSearchQuery"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ChatSearchResults"];
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
         };
     };
     followConversation: {

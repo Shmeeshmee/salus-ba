@@ -87,13 +87,18 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
 *ChatApi* | [**editMessage**](doc//ChatApi.md#editmessage) | **PATCH** /conversations/{id}/messages/{message_id} | Edit the body of one's own text message
 *ChatApi* | [**followConversation**](doc//ChatApi.md#followconversation) | **GET** /conversations/{id}/events | The conversation's messages, live, over a WebSocket
+*ChatApi* | [**getChatAttachmentContent**](doc//ChatApi.md#getchatattachmentcontent) | **GET** /conversations/{id}/attachments/{attachment_id}/content | Download a message's file
+*ChatApi* | [**getChatAttachmentThumbnail**](doc//ChatApi.md#getchatattachmentthumbnail) | **GET** /conversations/{id}/attachments/{attachment_id}/thumbnail | Download a message's image thumbnail
 *ChatApi* | [**getConversation**](doc//ChatApi.md#getconversation) | **GET** /conversations/{id} | One conversation with its active participants
 *ChatApi* | [**listConversations**](doc//ChatApi.md#listconversations) | **GET** /conversations | The caller's conversations, newest activity first, with their unread counts
 *ChatApi* | [**listMessageRevisions**](doc//ChatApi.md#listmessagerevisions) | **GET** /conversations/{id}/messages/{message_id}/revisions | The earlier bodies of an edited message, oldest first
 *ChatApi* | [**listMessages**](doc//ChatApi.md#listmessages) | **GET** /conversations/{id}/messages | A page of the conversation's messages, newest first
 *ChatApi* | [**markConversationRead**](doc//ChatApi.md#markconversationread) | **PUT** /conversations/{id}/read | Move the caller's read position
 *ChatApi* | [**openConversation**](doc//ChatApi.md#openconversation) | **POST** /conversations | Open the conversation with a patient or a practitioner, or return the one there is
+*ChatApi* | [**searchConversation**](doc//ChatApi.md#searchconversation) | **GET** /conversations/{id}/search | Search a conversation's messages
+*ChatApi* | [**searchConversations**](doc//ChatApi.md#searchconversations) | **GET** /conversations/search | Search the caller's conversations
 *ChatApi* | [**sendMessage**](doc//ChatApi.md#sendmessage) | **POST** /conversations/{id}/messages | Send a text message
+*ChatApi* | [**uploadChatAttachment**](doc//ChatApi.md#uploadchatattachment) | **POST** /conversations/{id}/attachments | Upload a file to send in the conversation
 *ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic, or to transcription
 *ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
 *ConsentsApi* | [**revokeConsent**](doc//ConsentsApi.md#revokeconsent) | **POST** /consents/{id}/revoke | Revoke a consent
@@ -158,12 +163,21 @@ Class | Method | HTTP request | Description
  - [AvailabilityRule](doc//AvailabilityRule.md)
  - [Binary](doc//Binary.md)
  - [BookAppointmentRequest](doc//BookAppointmentRequest.md)
+ - [ChatAttachment](doc//ChatAttachment.md)
  - [ChatCommand](doc//ChatCommand.md)
  - [ChatCommandError](doc//ChatCommandError.md)
  - [ChatCommandErrorFrame](doc//ChatCommandErrorFrame.md)
  - [ChatFrame](doc//ChatFrame.md)
  - [ChatMessage](doc//ChatMessage.md)
  - [ChatMessageFrame](doc//ChatMessageFrame.md)
+ - [ChatReadCommand](doc//ChatReadCommand.md)
+ - [ChatReceipt](doc//ChatReceipt.md)
+ - [ChatReceiptFrame](doc//ChatReceiptFrame.md)
+ - [ChatSearchResult](doc//ChatSearchResult.md)
+ - [ChatSearchResults](doc//ChatSearchResults.md)
+ - [ChatTyping](doc//ChatTyping.md)
+ - [ChatTypingCommand](doc//ChatTypingCommand.md)
+ - [ChatTypingFrame](doc//ChatTypingFrame.md)
  - [CommandError](doc//CommandError.md)
  - [CommandErrorMessage](doc//CommandErrorMessage.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)

@@ -20,6 +20,7 @@ import (
 
 // stubChats answers every call with what the test set, and keeps what it was asked.
 type stubChats struct {
+	sal30        sal30Stub // the files, searches, receipts and typing (SAL-30)
 	err          error
 	afterErr     error
 	next         *communication.ListCursor
@@ -31,7 +32,6 @@ type stubChats struct {
 	asked        []string
 	sent         communication.Message
 	conv         communication.Conversation
-	sal30        sal30Stub // the files, searches, receipts and typing (SAL-30)
 	mu           sync.Mutex
 	sessionEnded bool
 	created      bool

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/communication"
+	"github.com/Shmeeshmee/salus/internal/terminology"
 )
 
 // keys are the JSON keys v encodes to.
@@ -32,8 +33,10 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 	s := schemas(t)
 	at := time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC)
 	id := "00000000-0000-4000-8000-000000000001"
+	attachment := communication.Attachment{ID: id, ContentType: "image/png", Filename: "x.png", Status: communication.AttachmentClean, Size: 1, Thumbnail: true}
 	full := communication.Message{SentAt: at, EditedAt: at, ID: id, ConversationID: id, SenderParticipantID: id, ClientMessageID: id,
-		Body: "x", SenderRole: communication.RolePatient, Kind: communication.KindText, Seq: 1, VersionID: 2}
+		Body: "x", SenderRole: communication.RolePatient, Kind: communication.KindText, Seq: 1, VersionID: 2,
+		Attachments: []communication.Attachment{attachment}, Terms: []terminology.Span{{TermID: id, Start: 0, End: 1}}}
 	system := communication.Message{SentAt: at, ID: id, ConversationID: id, ClientMessageID: id, SenderRole: communication.RoleSystem,
 		Kind: communication.KindSystem, SystemCode: "participant_added", SystemArgs: map[string]string{"practitioner_role_id": id}, Seq: 2, VersionID: 1}
 	part := communication.Participant{AddedAt: at, ID: id, PatientID: id, PractitionerRoleID: id, Role: communication.RolePatient}
@@ -45,13 +48,18 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 		also          []string // keys of the other variant (a system message's `system`)
 	}{
 		{"ChatMessage", full, communication.Message{}, []string{"system"}},
-		{"ChatMessage", system, communication.Message{}, []string{"body", "edited_at", "sender_participant_id"}},
+		{"ChatMessage", system, communication.Message{}, []string{"attachments", "body", "edited_at", "sender_participant_id", "terms"}},
 		{"Conversation", conv, communication.Conversation{}, nil},
 		{"ConversationParticipant", part, communication.Participant{}, nil},
 		{"MessageRevision", communication.Revision{}, communication.Revision{}, nil},
 		{"SendAck", communication.SendAck{}, communication.SendAck{}, nil},
-		{"SendMessageRequest", communication.SendCommand{}, communication.SendCommand{}, nil},
+		{"SendMessageRequest", communication.SendCommand{AttachmentIDs: []string{id}}, communication.SendCommand{}, nil},
 		{"ChatCommandError", communication.CommandError{ID: "x"}, communication.CommandError{}, nil},
+		{"ChatAttachment", attachment, communication.Attachment{}, nil},
+		{"ChatReceipt", communication.Receipt{ParticipantID: id, Seq: 1}, communication.Receipt{}, nil},
+		{"ChatTyping", communication.Typing{ParticipantID: id}, communication.Typing{}, nil},
+		{"ReadPosition", communication.ReadCommand{Seq: 1}, communication.ReadCommand{}, nil},
+		{"ChatSearchResult", communication.SearchResult{ConversationID: id, Message: full}, communication.SearchResult{}, nil},
 	} {
 		sc, ok := s[tt.name]
 		if !ok {
@@ -74,7 +82,15 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 	if got := s["ChatMessage"].Properties["sender_role"].Enum; !slices.Equal(got, []string{"patient", "practitioner", "system"}) {
 		t.Errorf("sender_role enum = %v", got)
 	}
-	for frame, typ := range map[string]string{"SendAckFrame": communication.SendAckType, "ChatCommandErrorFrame": communication.CommandErrorType, "ChatCommand": communication.SendType} {
+	statuses := []string{string(communication.AttachmentScanning), string(communication.AttachmentClean), string(communication.AttachmentRejected)}
+	if got := s["ChatAttachment"].Properties["status"].Enum; !slices.Equal(got, statuses) {
+		t.Errorf("ChatAttachment status enum = %v, want %v", got, statuses)
+	}
+	for frame, typ := range map[string]string{
+		"SendAckFrame": communication.SendAckType, "ChatCommandErrorFrame": communication.CommandErrorType, "ChatCommand": communication.SendType,
+		"ChatReadCommand": communication.ReadType, "ChatTypingCommand": communication.TypingType, "ChatReceiptFrame": communication.ReceiptType,
+		"ChatTypingFrame": communication.TypingType,
+	} {
 		if got := s[frame].Properties["type"].Const; got != typ {
 			t.Errorf("%s type = %v, want %s", frame, got, typ)
 		}
