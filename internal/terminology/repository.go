@@ -92,3 +92,14 @@ type CatalogRepository interface {
 	// Places returns the entity, the regions and the cities, each by parent and Latin name.
 	Places(ctx context.Context) ([]Place, error)
 }
+
+// GroupReviewRepository reads the groups for the review panel and writes a reviewer's edits and reviews of their
+// names (diagnosis_group_name), on the app's connection, which may update only those columns.
+type GroupReviewRepository interface {
+	CatalogRepository
+	// LockGroupName locks the group's name in language for the transaction in ctx and returns it; ErrNoGroupName
+	// when there is none.
+	LockGroupName(ctx context.Context, group, language string) (GroupName, error)
+	// PutGroupName stores n, as it is, as the group's name in n.Language, updated at at.
+	PutGroupName(ctx context.Context, group string, n GroupName, at time.Time) error
+}

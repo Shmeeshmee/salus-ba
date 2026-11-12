@@ -296,3 +296,16 @@ ORDER BY g.position, r.from_code;
 SELECT id, kind, parent_id, name_latn, name_cyrl
 FROM place
 ORDER BY CASE kind WHEN 'entity' THEN 0 WHEN 'region' THEN 1 ELSE 2 END, parent_id NULLS FIRST, name_latn, id;
+
+-- name: LockGroupName :one
+-- A group's name in a language, locked for a review write.
+SELECT language::text AS language, text, review_status::text AS review_status, reviewed_at, reviewed_by, note, version_id
+FROM diagnosis_group_name
+WHERE group_code = @group_code AND language::text = @language::text
+FOR UPDATE;
+
+-- name: UpdateGroupName :exec
+UPDATE diagnosis_group_name
+SET text = sqlc.arg(name_text)::text, review_status = sqlc.arg(review_status)::text, reviewed_at = @reviewed_at, reviewed_by = @reviewed_by,
+    note = @note, version_id = @version_id, updated_at = @updated_at
+WHERE group_code = @group_code AND language::text = @language::text;

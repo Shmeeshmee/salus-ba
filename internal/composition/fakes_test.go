@@ -445,14 +445,14 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	f := &fixture{
-		repo:      &fakeRepository{templates: map[string]composition.Template{}, drafts: map[string]composition.Draft{}},
-		drafter:   &llmtest.Drafter{},
-		store:     &fakeStore{objects: map[string][]byte{}},
-		publisher: &fakePublisher{},
-		jobs:      &fakeJobs{},
+		repo:       &fakeRepository{templates: map[string]composition.Template{}, drafts: map[string]composition.Draft{}},
+		drafter:    &llmtest.Drafter{},
+		store:      &fakeStore{objects: map[string][]byte{}},
+		publisher:  &fakePublisher{},
+		jobs:       &fakeJobs{},
 		conditions: &fakeConditions{},
-		audit:     &fakeAuditor{},
-		logs:      &bytes.Buffer{},
+		audit:      &fakeAuditor{},
+		logs:       &bytes.Buffer{},
 		transcripts: &fakeTranscripts{segments: []transcript.Event{
 			{EncounterID: encA, SegmentID: seg1, Speaker: transcript.SpeakerPatient, Lang: "de", Original: "Placeholder complaint", IsFinal: true, TsStart: now.Add(-5 * time.Minute)},
 			{EncounterID: encA, SegmentID: seg2, Speaker: transcript.SpeakerPractitioner, Lang: "bs", Original: "Placeholder question", IsFinal: true, TsStart: now.Add(-4 * time.Minute)},

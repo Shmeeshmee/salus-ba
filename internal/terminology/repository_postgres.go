@@ -499,3 +499,35 @@ func (r *postgresCatalogRepository) Places(ctx context.Context) ([]Place, error)
 	}
 	return places, nil
 }
+
+// NewPostgresGroupReviewRepository returns the GroupReviewRepository on db (salus_app), using the transaction in
+// the context when there is one.
+func NewPostgresGroupReviewRepository(db postgres.Querier) GroupReviewRepository {
+	return &postgresCatalogRepository{db: db}
+}
+
+func (r *postgresCatalogRepository) LockGroupName(ctx context.Context, group, language string) (GroupName, error) {
+	row, err := terminologydb.New(postgres.Conn(ctx, r.db)).LockGroupName(ctx, terminologydb.LockGroupNameParams{GroupCode: group, Language: language})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return GroupName{}, ErrNoGroupName
+	case err != nil:
+		return GroupName{}, err
+	}
+	return GroupName{
+		Review: review(row.ReviewStatus, row.ReviewedAt, row.ReviewedBy, row.Note), Language: row.Language, Text: row.Text,
+		VersionID: row.VersionID,
+	}, nil
+}
+
+func (r *postgresCatalogRepository) PutGroupName(ctx context.Context, group string, n GroupName, at time.Time) error {
+	by, ok := optionalUUID(n.Review.ReviewedBy)
+	if !ok {
+		return ErrInvalidReview
+	}
+	return terminologydb.New(postgres.Conn(ctx, r.db)).UpdateGroupName(ctx, terminologydb.UpdateGroupNameParams{
+		NameText: n.Text, ReviewStatus: n.Status, ReviewedAt: instant(n.ReviewedAt), ReviewedBy: by,
+		Note: pgtype.Text{String: n.Note, Valid: n.Note != ""}, VersionID: n.VersionID,
+		UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true}, GroupCode: group, Language: n.Language,
+	})
+}

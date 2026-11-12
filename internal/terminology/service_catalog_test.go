@@ -19,12 +19,12 @@ func (f fakeCatalog) DiagnosisGroups(context.Context) ([]terminology.DiagnosisGr
 		}
 	}
 	return []terminology.DiagnosisGroup{
-			{Code: "respiratory-infections", Names: name("Respiratory infections")},
-			{Code: "common-cold", Parent: "respiratory-infections", Names: name("Common cold")},
-			{Code: "other", Names: name("Other")},
-		}, []terminology.GroupRange{
-			{Group: "respiratory-infections", From: "J00", To: "J22"}, {Group: "common-cold", From: "J00", To: "J00"},
-		}, f.err
+		{Code: "respiratory-infections", Names: name("Respiratory infections")},
+		{Code: "common-cold", Parent: "respiratory-infections", Names: name("Common cold")},
+		{Code: "other", Names: name("Other")},
+	}, []terminology.GroupRange{
+		{Group: "respiratory-infections", From: "J00", To: "J22"}, {Group: "common-cold", From: "J00", To: "J00"},
+	}, f.err
 }
 
 func (f fakeCatalog) Places(context.Context) ([]terminology.Place, error) {

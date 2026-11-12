@@ -47,6 +47,36 @@ func (q *Queries) CreatePractitionerRole(ctx context.Context, arg CreatePractiti
 	return i, err
 }
 
+const listSpecialtiesForStats = `-- name: ListSpecialtiesForStats :many
+SELECT id, specialty_code FROM practitioner_role WHERE organization_id = $1 ORDER BY id
+`
+
+type ListSpecialtiesForStatsRow struct {
+	ID            pgtype.UUID
+	SpecialtyCode pgtype.Text
+}
+
+// A clinic's roles with their specialty: the columns salus_stats may read.
+func (q *Queries) ListSpecialtiesForStats(ctx context.Context, organizationID pgtype.UUID) ([]ListSpecialtiesForStatsRow, error) {
+	rows, err := q.db.Query(ctx, listSpecialtiesForStats, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSpecialtiesForStatsRow
+	for rows.Next() {
+		var i ListSpecialtiesForStatsRow
+		if err := rows.Scan(&i.ID, &i.SpecialtyCode); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const practitionerRoleByID = `-- name: PractitionerRoleByID :one
 SELECT id, updated_at, organization_id, practitioner_id, version_id, active, specialty_code
 FROM practitioner_role

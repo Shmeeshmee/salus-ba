@@ -1,9 +1,13 @@
 package terminology_test
 
 import (
+	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/terminology"
+	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
@@ -75,5 +79,52 @@ func TestCatalogRepository_ListsThePlaces(t *testing.T) {
 	}
 	if places[0].Kind != "entity" || places[len(places)-1].Kind != "city" {
 		t.Errorf("places are not listed entity, regions, cities: first %+v, last %+v", places[0], places[len(places)-1])
+	}
+}
+
+// The panel's writes of a group's name: locked in the transaction, stored with its review and version, and read
+// back by the catalog; no name for an unknown group.
+func TestGroupReviewRepository_LocksAndPutsAName(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	var account string
+	if err := owner.QueryRow(t.Context(), `INSERT INTO account (email, password_hash, role) VALUES ('reviewer@example.test', 'h', 'patient') RETURNING id::text`).Scan(&account); err != nil {
+		t.Fatal(err)
+	}
+	repo := terminology.NewPostgresGroupReviewRepository(app)
+	at := time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC)
+	err := postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+		n, err := repo.LockGroupName(ctx, "common-cold", "en")
+		if err != nil {
+			return err
+		}
+		if n.Text != "Common cold" || n.VersionID != 1 || n.Status != terminology.ReviewUnreviewed {
+			t.Errorf("LockGroupName = %+v", n)
+		}
+		n.Text, n.VersionID = "Head cold", 2
+		n.Review = terminology.Review{Status: terminology.ReviewNeedsChanges, ReviewedBy: account, ReviewedAt: at, Note: "Placeholder note"}
+		return repo.PutGroupName(ctx, "common-cold", n, at)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	groups, _, err := repo.DiagnosisGroups(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, g := range groups {
+		for _, n := range g.Names {
+			if g.Code == "common-cold" && n.Language == "en" && (n.Text != "Head cold" || n.VersionID != 2 || n.Status != terminology.ReviewNeedsChanges ||
+				n.ReviewedBy != account || !n.ReviewedAt.Equal(at) || n.Note != "Placeholder note") {
+				t.Errorf("stored %+v", n)
+			}
+		}
+	}
+	err = postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+		_, err := repo.LockGroupName(ctx, "nothing", "en")
+		return err
+	})
+	if !errors.Is(err, terminology.ErrNoGroupName) {
+		t.Errorf("an unknown group: %v", err)
 	}
 }

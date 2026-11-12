@@ -451,6 +451,44 @@ func (q *Queries) ListTerms(ctx context.Context, arg ListTermsParams) ([]ListTer
 	return items, nil
 }
 
+const lockGroupName = `-- name: LockGroupName :one
+SELECT language::text AS language, text, review_status::text AS review_status, reviewed_at, reviewed_by, note, version_id
+FROM diagnosis_group_name
+WHERE group_code = $1 AND language::text = $2::text
+FOR UPDATE
+`
+
+type LockGroupNameParams struct {
+	GroupCode string
+	Language  string
+}
+
+type LockGroupNameRow struct {
+	Language     string
+	Text         string
+	ReviewStatus string
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	Note         pgtype.Text
+	VersionID    int32
+}
+
+// A group's name in a language, locked for a review write.
+func (q *Queries) LockGroupName(ctx context.Context, arg LockGroupNameParams) (LockGroupNameRow, error) {
+	row := q.db.QueryRow(ctx, lockGroupName, arg.GroupCode, arg.Language)
+	var i LockGroupNameRow
+	err := row.Scan(
+		&i.Language,
+		&i.Text,
+		&i.ReviewStatus,
+		&i.ReviewedAt,
+		&i.ReviewedBy,
+		&i.Note,
+		&i.VersionID,
+	)
+	return i, err
+}
+
 const lockTerm = `-- name: LockTerm :one
 SELECT review_status, reviewed_at, reviewed_by FROM term WHERE id = $1 FOR UPDATE
 `
@@ -1102,6 +1140,40 @@ func (q *Queries) TermTranslations(ctx context.Context, termID pgtype.UUID) ([]T
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateGroupName = `-- name: UpdateGroupName :exec
+UPDATE diagnosis_group_name
+SET text = $1::text, review_status = $2::text, reviewed_at = $3, reviewed_by = $4,
+    note = $5, version_id = $6, updated_at = $7
+WHERE group_code = $8 AND language::text = $9::text
+`
+
+type UpdateGroupNameParams struct {
+	NameText     string
+	ReviewStatus string
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	Note         pgtype.Text
+	VersionID    int32
+	UpdatedAt    pgtype.Timestamptz
+	GroupCode    string
+	Language     string
+}
+
+func (q *Queries) UpdateGroupName(ctx context.Context, arg UpdateGroupNameParams) error {
+	_, err := q.db.Exec(ctx, updateGroupName,
+		arg.NameText,
+		arg.ReviewStatus,
+		arg.ReviewedAt,
+		arg.ReviewedBy,
+		arg.Note,
+		arg.VersionID,
+		arg.UpdatedAt,
+		arg.GroupCode,
+		arg.Language,
+	)
+	return err
 }
 
 const updateTerm = `-- name: UpdateTerm :execrows

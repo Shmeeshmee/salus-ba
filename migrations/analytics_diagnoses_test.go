@@ -175,16 +175,16 @@ func TestAnalyticsDiagnoses_SeedsTheGroupsAndThePlaces(t *testing.T) {
 	t.Parallel()
 	db := pgtest.NewDatabase(t)
 	for q, want := range map[string]int{
-		`SELECT count(*) FROM diagnosis_group`:                                            34,
-		`SELECT count(*) FROM diagnosis_group WHERE parent_code IS NOT NULL`:              7,
-		`SELECT count(*) FROM diagnosis_group_name`:                                       340,
-		`SELECT count(*) FROM diagnosis_group_name WHERE review_status <> 'unreviewed'`:   0,
-		`SELECT count(DISTINCT group_code) FROM diagnosis_group_name`:                     34,
-		`SELECT count(*) FROM place WHERE kind = 'entity'`:                                1,
-		`SELECT count(*) FROM place WHERE kind = 'region'`:                                12,
-		`SELECT count(*) FROM place WHERE kind = 'city'`:                                  143,
+		`SELECT count(*) FROM diagnosis_group`:                                                                        34,
+		`SELECT count(*) FROM diagnosis_group WHERE parent_code IS NOT NULL`:                                          7,
+		`SELECT count(*) FROM diagnosis_group_name`:                                                                   340,
+		`SELECT count(*) FROM diagnosis_group_name WHERE review_status <> 'unreviewed'`:                               0,
+		`SELECT count(DISTINCT group_code) FROM diagnosis_group_name`:                                                 34,
+		`SELECT count(*) FROM place WHERE kind = 'entity'`:                                                            1,
+		`SELECT count(*) FROM place WHERE kind = 'region'`:                                                            12,
+		`SELECT count(*) FROM place WHERE kind = 'city'`:                                                              143,
 		`SELECT count(*) FROM place c JOIN place r ON r.id = c.parent_id WHERE c.kind = 'city' AND r.kind = 'region'`: 143,
-		`SELECT count(*) FROM place WHERE kind = 'region' AND parent_id IS NULL`:          2,
+		`SELECT count(*) FROM place WHERE kind = 'region' AND parent_id IS NULL`:                                      2,
 	} {
 		var got int
 		if err := db.QueryRow(t.Context(), q).Scan(&got); err != nil || got != want {
