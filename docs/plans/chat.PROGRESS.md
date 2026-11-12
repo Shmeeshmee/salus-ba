@@ -70,6 +70,29 @@ As built (agent decisions, for the owner to review):
 | Decision and revocation answers | 204 without a body |
 | Additions to the contract | `ConversationParticipant.reason`; `AddParticipantRequest`, `ChatInvitation`, `ChatInvitationList`, `ChatInvitationDecision` schemas; error `already_participant` (409) |
 
+### Measured (2026-11-12)
+
+The guest's policy runs for every practitioner's query on `conversation` (the service sets their role). A first
+version of `chat_guest_conversations` started from the role's participant rows: `make bench-chat`'s doctor takes part
+in 50 000 conversations, and every send of theirs read them all (delivery at 200 a second: p95 18.9 s). It now starts
+from the role's active chat consents (none for a clinic's own doctors). Measured on the shared host (load average 14
+to 28 from other projects):
+
+| Measure | p50 | p95 |
+| --- | --- | --- |
+| A practitioner's transaction (lock the conversation, read its messages) with 50 000 participant rows of their role, without `app.practitioner_role_id` (1000 runs, interleaved) | 6.67 ms | 14.7 ms |
+| The same with the role set (the guest's policy evaluated) | 6.76 ms | 14.1 ms |
+| `make bench-chat`, this branch, three runs: latest page | 9 to 15 ms | 19 to 65 ms |
+| `make bench-chat`, this branch: a send with nothing else running | 8 to 12 ms | 18 to 96 ms |
+| `make bench-chat`, this branch: delivery at 200 a second | 16 to 19 ms | 0.48 to 5.1 s |
+| `make bench-chat`, `main` (bfc2901), one run, same host: delivery at 200 a second | 12 ms | 33 ms |
+
+The isolated measure shows no cost of the policy. The load test's 200-a-second phase failed its target in all three
+runs of this branch and passed in the one run of `main`, while its 400-a-second phase passed on this branch once (p95
+57 ms) and failed on `main` (1.5 s): the host's load decides those tails (the backends wait on `LWLock:WALWrite` and
+`IO:WalSync`, as SAL-27 found). Not settled here: the delivery target should be measured again on a quiet host before
+the merge.
+
 Reported, not changed:
 
 - The plan's contract says each wave-1 package adds its methods to the web `ChatApi`, the mobile `Chats` and their
