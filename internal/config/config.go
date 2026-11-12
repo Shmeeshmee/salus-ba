@@ -304,6 +304,24 @@ type LLM struct {
 	Script       string    // FAKE_ENGINE_SCRIPT, for the fake only (fakeScript)
 }
 
+// ChatSummary holds the engine of the chat's AI summary (SAL-31). It is always the fake: a patient's messages may
+// reach a third-party model only under a basis the owner has not decided yet (the transcription consent of SAL-12
+// covers the consultation, not the chat; docs/plans/chat.md "Notes for the wave-1 packages"), so LoadChatSummary
+// refuses any other engine, whatever LLM_ENGINE names for the consultation's tasks.
+type ChatSummary struct {
+	Engine LLMEngine // CHAT_SUMMARY_ENGINE: fake (the default and the only one)
+}
+
+// LoadChatSummary reads the summary's engine from the environment: unset or fake. Errors name the variable, never
+// a value.
+func LoadChatSummary() (ChatSummary, error) {
+	switch LLMEngine(os.Getenv("CHAT_SUMMARY_ENGINE")) {
+	case "", LLMFake:
+		return ChatSummary{Engine: LLMFake}, nil
+	}
+	return ChatSummary{}, errors.New("config: CHAT_SUMMARY_ENGINE may only be fake until the owner decides the basis for a real model")
+}
+
 // LoadLLM reads the language model's settings from the environment; for the fake, none but the engine. Errors
 // name the variable, never a value.
 func LoadLLM() (LLM, error) {

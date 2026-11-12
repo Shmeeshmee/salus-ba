@@ -691,3 +691,23 @@ func TestLoadSTTAndLoadLLM_RefuseAScriptBesideARealEngineWithoutEchoingIt(t *tes
 		t.Errorf("LoadLLM() = %v, want an error naming FAKE_ENGINE_SCRIPT and no value", err)
 	}
 }
+
+// The chat's summary runs on the fake only: no real model reads a patient's messages until the owner decides the
+// basis (docs/plans/chat.md "Notes for the wave-1 packages", SAL-31), whatever LLM_ENGINE says.
+func TestLoadChatSummary_IsTheFakeAndRefusesARealEngineWithoutEchoingIt(t *testing.T) {
+	t.Setenv("LLM_ENGINE", "anthropic")
+	t.Setenv("ANTHROPIC_API_KEY", "llm-key-marker")
+	for _, engine := range []string{"", "fake"} {
+		t.Setenv("CHAT_SUMMARY_ENGINE", engine)
+		if got, err := config.LoadChatSummary(); err != nil || got != (config.ChatSummary{Engine: config.LLMFake}) {
+			t.Errorf("CHAT_SUMMARY_ENGINE=%q: LoadChatSummary() = %+v, %v; want the fake", engine, got, err)
+		}
+	}
+	for _, engine := range []string{"anthropic", "engine-marker"} {
+		t.Setenv("CHAT_SUMMARY_ENGINE", engine)
+		_, err := config.LoadChatSummary()
+		if err == nil || !strings.Contains(err.Error(), "CHAT_SUMMARY_ENGINE") || strings.Contains(err.Error(), "marker") {
+			t.Errorf("CHAT_SUMMARY_ENGINE=%q: LoadChatSummary() = %v, want an error naming the variable and no value", engine, err)
+		}
+	}
+}
