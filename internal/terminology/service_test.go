@@ -23,9 +23,9 @@ type fakeRepo struct {
 	tagged       []terminology.CandidateTerm
 	tagQuery     []terminology.Candidate
 	explanations []terminology.Explanation
+	labelled     [2]string         // what DrugLabelled was asked: the id and the label
 	drugs        map[string]string // DrugCodes's answer
 	drugIDs      []string          // what DrugCodes was asked
-	labelled     [2]string         // what DrugLabelled was asked: the id and the label
 }
 
 func (f *fakeRepo) Tag(_ context.Context, candidates []terminology.Candidate) ([]terminology.CandidateTerm, error) {
