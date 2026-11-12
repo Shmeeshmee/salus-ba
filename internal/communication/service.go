@@ -47,10 +47,12 @@ type Encounters interface {
 }
 
 // ChatConsents grants, revokes and checks the patient's consents for doctors of other clinics in their
-// conversations (consent.Service, SAL-28), in the caller's transaction and scope.
+// conversations (consent.Service, SAL-28), in the caller's transaction and scope; the clinic ends one when it removes
+// the doctor (EndChat).
 type ChatConsents interface {
 	GrantChat(ctx context.Context, c consent.Caller, g consent.ChatGrant) (consent.Consent, error)
 	RevokeChat(ctx context.Context, c consent.Caller, conversationID, roleID string) (consent.Consent, error)
+	EndChat(ctx context.Context, c consent.Caller, conversationID, roleID string) (consent.Consent, error)
 	ChatGranted(ctx context.Context, conversationID, roleID string) (bool, error)
 }
 

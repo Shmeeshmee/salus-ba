@@ -101,6 +101,14 @@ CREATE POLICY chat_consent_clinic ON chat_consent FOR SELECT TO salus_app
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
            AND organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
+-- The treating clinic ends an active one when it removes the doctor from the conversation, and changes nothing else:
+-- it never grants one (the patient alone does).
+CREATE POLICY chat_consent_clinic_end ON chat_consent FOR UPDATE TO salus_app
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+           AND status = 'active')
+    WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid AND status = 'inactive');
 -- The guest's own, while their role is of the clinic set. Columns only: reading practitioner_role here recursed
 -- through its policies (00043) to encounter, appointment and consent.
 CREATE POLICY chat_consent_guest ON chat_consent FOR SELECT TO salus_app
@@ -174,7 +182,8 @@ REVOKE EXECUTE ON FUNCTION chat_guest_conversations(uuid, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION chat_guest_conversations(uuid, uuid) TO salus_app;
 
 -- The care consents the guest reads: the patient's with a clinic while a chat consent there for the role of that
--- clinic is active (the care consent rules every doctor's access to the chat). A function, not an EXISTS over
+-- clinic is active and the role still takes part in that conversation (the care consent rules every doctor's access
+-- to the chat). A function, not an EXISTS over
 -- chat_consent in the policy: appointment's and encounter's policies read consent in many places, and each EXISTS
 -- added to all of them lifted a directory read's plan over jit_optimize_above_cost (the listed schedules' read
 -- took 80 s instead of 25 ms; test TestChatGroup_ThePoliciesKeepADirectoryReadUnderJITsOptimizeCost). Planned once
@@ -191,6 +200,12 @@ AS $$
     WHERE g.practitioner_role_id = chat_guest_care_consents.role_id
       AND g.practitioner_organization_id = chat_guest_care_consents.organization_id
       AND g.status = 'active'
+      AND EXISTS (SELECT 1 FROM public.conversation_participant AS p
+                  WHERE p.conversation_id = g.conversation_id
+                    AND p.practitioner_role_id = g.practitioner_role_id
+                    AND p.organization_id = g.practitioner_organization_id
+                    AND p.status = 'active'
+                    AND p.removed_at IS NULL)
 $$;
 
 ALTER FUNCTION chat_guest_care_consents(uuid, uuid) OWNER TO salus_chat_guest;

@@ -267,15 +267,23 @@ func (r *postgresRepository) InsertParticipant(ctx context.Context, p Participan
 }
 
 func (r *postgresRepository) ActivateParticipant(ctx context.Context, id string) error {
-	if err := r.q(ctx).ActivateParticipant(ctx, uid(id)); err != nil {
+	n, err := r.q(ctx).ActivateParticipant(ctx, uid(id))
+	switch {
+	case err != nil:
 		return fmt.Errorf("communication: activate participant: %w", err)
+	case n == 0:
+		return ErrNotFound
 	}
 	return nil
 }
 
 func (r *postgresRepository) RemoveParticipant(ctx context.Context, id string, at time.Time) error {
-	if err := r.q(ctx).RemoveParticipant(ctx, communicationdb.RemoveParticipantParams{ID: uid(id), RemovedAt: ts(at)}); err != nil {
+	n, err := r.q(ctx).RemoveParticipant(ctx, communicationdb.RemoveParticipantParams{ID: uid(id), RemovedAt: ts(at)})
+	switch {
+	case err != nil:
 		return fmt.Errorf("communication: remove participant: %w", err)
+	case n == 0:
+		return ErrNotFound
 	}
 	return nil
 }

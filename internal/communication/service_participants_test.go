@@ -3,6 +3,7 @@ package communication_test
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
@@ -466,5 +467,31 @@ func TestRemoveParticipant_RefusesThePatientTheTreatingPractitionerAndAnyoneElse
 	}
 	if got, _ := f.svc.Get(t.Context(), pract, conv.ID); len(got.Participants) != 3 {
 		t.Errorf("participants = %+v", got.Participants)
+	}
+}
+
+// The treating practitioner's removal of a granted guest ends the patient's chat consent for them in the same
+// transaction, as the clinic and audited (SAL-28 review, finding 1): it is not left active with nobody to revoke it.
+func TestRemoveParticipant_AGrantedGuestsRemovalEndsTheirChatConsent(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	conv := f.open(t)
+	invited := f.invite(t, conv.ID)
+	events := f.audit.count()
+	if err := f.svc.RemoveParticipant(t.Context(), pract, conv.ID, invited.ID); err != nil {
+		t.Fatal(err)
+	}
+	if f.chat[conv.ID+roleB1] {
+		t.Error("the removed guest's chat consent is still active")
+	}
+	var ended bool
+	for _, e := range f.audit.events[events:] {
+		ended = ended || (strings.HasPrefix(e.EntityReference, "Consent/") && e.AgentAccountID == pract.AccountID)
+	}
+	if !ended {
+		t.Errorf("the consent's end is not audited: %+v", f.audit.events[events:])
+	}
+	if err := f.svc.RevokeInvitation(t.Context(), me, invited.ID); !errors.Is(err, communication.ErrNotFound) {
+		t.Errorf("a revocation after the removal: %v, want ErrNotFound", err)
 	}
 }

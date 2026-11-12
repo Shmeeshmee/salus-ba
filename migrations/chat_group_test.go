@@ -157,10 +157,11 @@ func TestChatGroup_TheGuestScopeOpensNothingElse(t *testing.T) {
 }
 
 // The patient's chat consents: the patient sees and writes their own, the treating clinic reads them, the guest
-// reads their own; and the guest reads the patient's care consent with the treating clinic only while granted.
+// reads their own; and the guest reads the patient's care consent with the treating clinic only while granted and
+// still a participant (a removal ends it, SAL-28 review, finding 1).
 func TestChatGroup_ChatConsentsAreSeenByThePatientTheClinicAndTheGuest(t *testing.T) {
 	t.Parallel()
-	for _, state := range []string{guestPending, guestGranted} {
+	for _, state := range []string{guestPending, guestGranted, guestRemoved} {
 		t.Run(state, func(t *testing.T) {
 			t.Parallel()
 			owner, app := pgtest.NewAppDatabase(t)
@@ -192,6 +193,37 @@ func TestChatGroup_ChatConsentsAreSeenByThePatientTheClinicAndTheGuest(t *testin
 				t.Errorf("the guest reads the care consents of %v, want %v", got, care)
 			}
 		})
+	}
+}
+
+// The treating clinic ends a chat consent when it removes the doctor (SAL-28 review, finding 1), and never grants
+// one again: it sets an active one inactive, and changes nothing else; the guest ends none.
+func TestChatGroup_TheClinicEndsAChatConsentAndNeverGrantsOne(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	g := seedGuest(t, owner, guestGranted)
+	clinic := map[string]string{"app.organization_id": clinicA, "app.practitioner_role_id": g.dir[clinicA].role}
+	exec := func(scope map[string]string, stmt string) (int64, error) {
+		var n int64
+		err := asApp(t, app, scope, func(ctx context.Context, db postgres.Querier) error {
+			tag, err := db.Exec(ctx, stmt)
+			n = tag.RowsAffected()
+			return err
+		})
+		return n, err
+	}
+	const end = `UPDATE chat_consent SET status = 'inactive', revoked_at = now(), updated_at = now(), version_id = version_id + 1`
+	if n, err := exec(g.scope(), end); err != nil || n != 0 {
+		t.Errorf("the guest ends their consent: %d rows, %v; want none", n, err)
+	}
+	if _, err := exec(clinic, "UPDATE chat_consent SET version_id = version_id + 1"); sqlState(err) != "42501" {
+		t.Errorf("the clinic changes an active consent but its end: %v, want a row-level security violation (42501)", err)
+	}
+	if n, err := exec(clinic, end); err != nil || n != 1 {
+		t.Errorf("the clinic ends the consent: %d rows, %v; want 1", n, err)
+	}
+	if n, err := exec(clinic, `UPDATE chat_consent SET status = 'active', revoked_at = NULL`); err != nil || n != 0 {
+		t.Errorf("the clinic grants the consent again: %d rows, %v; want none", n, err)
 	}
 }
 

@@ -57,9 +57,10 @@ type Repository interface {
 	// InsertParticipant stores p, who has read the history before them (read_seq is their history_from_seq), and
 	// returns it with its id.
 	InsertParticipant(ctx context.Context, p Participant) (Participant, error)
-	// ActivateParticipant makes the pending participant id active.
+	// ActivateParticipant makes the pending participant id active; ErrNotFound when it is not pending or not there.
 	ActivateParticipant(ctx context.Context, id string) error
 	// RemoveParticipant ends the participant id at at; a practitioner leaves the conversation's side threads with it.
+	// ErrNotFound when it was removed already.
 	RemoveParticipant(ctx context.Context, id string, at time.Time) error
 	// CreateThread stores the side thread c of its parent with its participants and returns it with them.
 	CreateThread(ctx context.Context, c Conversation, participants []Participant) (Conversation, error)

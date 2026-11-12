@@ -129,10 +129,12 @@ SELECT id, added_at, removed_at, conversation_id, patient_id, practitioner_role_
 FROM conversation_participant
 WHERE id = @id AND removed_at IS NULL;
 
--- name: ActivateParticipant :exec
+-- name: ActivateParticipant :execrows
+-- No row when the participant is no longer pending or no longer there.
 UPDATE conversation_participant SET status = 'active' WHERE id = @id AND status = 'pending_consent' AND removed_at IS NULL;
 
--- name: RemoveParticipant :exec
+-- name: RemoveParticipant :execrows
+-- No row when the participant was removed already.
 -- The trigger of 00044 removes the role from the conversation's side threads in the same statement.
 UPDATE conversation_participant SET removed_at = @removed_at WHERE id = @id AND removed_at IS NULL;
 

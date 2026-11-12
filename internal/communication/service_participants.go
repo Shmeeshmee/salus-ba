@@ -141,7 +141,7 @@ func (s *Service) manage(ctx context.Context, c Caller, id string) (entered, err
 
 // RemoveParticipant removes the practitioner participantID from the conversation id, as its treating practitioner
 // asks: an active one or an invitation, never the patient or the treating practitioner. They leave its side threads
-// with it and see nothing of it from the commit. A system message names the role; the removal is audited.
+// with it and see nothing of it from the commit; a granted doctor of another clinic's chat consent ends with it. A system message names the role; the removal is audited.
 // ErrNotFound for a participant who is not in it; access as AddParticipant's.
 func (s *Service) RemoveParticipant(ctx context.Context, c Caller, id, participantID string) error {
 	var msg Message
@@ -157,6 +157,9 @@ func (s *Service) RemoveParticipant(ctx context.Context, c Caller, id, participa
 		case e.conv.Participants[i].Role != RolePractitioner || e.conv.Participants[i].PractitionerRoleID == e.conv.PractitionerRoleID:
 			return ErrForbidden
 		}
+		if err := s.endGrant(ctx, c, e.conv, e.conv.Participants[i]); err != nil {
+			return err
+		}
 		msg, err = s.leave(ctx, c, e.conv, e.conv.Participants[i], SystemParticipantRemoved)
 		return err
 	})
@@ -165,6 +168,19 @@ func (s *Service) RemoveParticipant(ctx context.Context, c Caller, id, participa
 	}
 	s.publish(ctx, MessageType, msg)
 	return nil
+}
+
+// endGrant ends the patient's chat consent for p, a granted doctor of another clinic, as the clinic c removes them:
+// it ends with their part in the conversation (consent.Service.EndChat, audited there).
+func (s *Service) endGrant(ctx context.Context, c Caller, conv Conversation, p Participant) error {
+	if p.Status != StatusActive || p.OrganizationID == conv.OrganizationID {
+		return nil
+	}
+	_, err := s.ChatConsents.EndChat(ctx, consent.Caller{AccountID: c.AccountID, OrganizationID: c.OrganizationID}, conv.ID, p.PractitionerRoleID)
+	if errors.Is(err, consent.ErrInactive) { // nothing left to end
+		return nil
+	}
+	return err
 }
 
 // leave ends the participant p of conv with the system message code, audited as an update by c.
@@ -277,7 +293,7 @@ func (s *Service) RevokeInvitation(ctx context.Context, c Caller, id string) err
 }
 
 // invitation is the calling patient's practitioner participant id of status in one of their conversations, which it
-// enters locked (for a write when write is set). ErrForbidden to staff, ErrNotFound otherwise.
+// enters locked (for a write when write is set), as the participant is under the lock. ErrForbidden to staff, ErrNotFound otherwise.
 func (s *Service) invitation(ctx context.Context, c Caller, id string, status ParticipantStatus, write bool) (entered, Participant, error) {
 	if c.OrganizationID != "" {
 		return entered{}, Participant{}, ErrForbidden
@@ -288,21 +304,24 @@ func (s *Service) invitation(ctx context.Context, c Caller, id string, status Pa
 	if _, err := s.identify(ctx, c); err != nil {
 		return entered{}, Participant{}, err
 	}
-	p, err := s.Repo.Participant(ctx, id)
-	switch {
-	case err != nil:
-		return entered{}, Participant{}, err
-	case p.Role != RolePractitioner || p.Status != status:
-		return entered{}, Participant{}, ErrNotFound
-	}
-	e, err := s.enter(ctx, c, p.ConversationID, write, true)
+	read, err := s.Repo.Participant(ctx, id)
 	if err != nil {
 		return entered{}, Participant{}, err
 	}
-	if !e.who.patient() || e.conv.PatientID != c.PatientID { // not on row-level security alone
+	e, err := s.enter(ctx, c, read.ConversationID, write, true)
+	if err != nil {
+		return entered{}, Participant{}, err
+	}
+	// The participant as it is under the conversation's lock: another decision, revocation or removal may have
+	// committed since the read.
+	i := slices.IndexFunc(e.conv.Participants, func(p Participant) bool { return p.ID == id })
+	switch {
+	case !e.who.patient() || e.conv.PatientID != c.PatientID: // not on row-level security alone
+		return entered{}, Participant{}, ErrNotFound
+	case i < 0 || e.conv.Participants[i].Role != RolePractitioner || e.conv.Participants[i].Status != status:
 		return entered{}, Participant{}, ErrNotFound
 	}
-	return e, p, nil
+	return e, e.conv.Participants[i], nil
 }
 
 // patientCaller is the patient c as the consent domain names them.

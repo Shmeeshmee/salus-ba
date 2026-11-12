@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
@@ -69,6 +70,22 @@ func (c fakeChatConsents) RevokeChat(_ context.Context, by consent.Caller, conv,
 	}
 	c.f.chat[conv+role] = false
 	return consent.Consent{Kind: consent.KindChat, Status: consent.StatusInactive}, nil
+}
+
+// EndChat ends the chat consent as the conversation's clinic, audited (consent.Service.EndChat).
+func (c fakeChatConsents) EndChat(ctx context.Context, by consent.Caller, conv, role string) (consent.Consent, error) {
+	c.f.mu.Lock()
+	defer c.f.mu.Unlock()
+	if by.OrganizationID != clinicA {
+		return consent.Consent{}, consent.ErrForbidden
+	}
+	if !c.f.chat[conv+role] {
+		return consent.Consent{}, consent.ErrInactive
+	}
+	c.f.chat[conv+role] = false
+	return consent.Consent{Kind: consent.KindChat, Status: consent.StatusInactive}, c.f.audit.Record(ctx, auditevent.AuditEvent{
+		EntityReference: "Consent/f9000000-0000-4000-8000-0000000000f9", Action: auditevent.ActionUpdate, AgentAccountID: by.AccountID,
+	})
 }
 
 func (c fakeChatConsents) ChatGranted(_ context.Context, conv, role string) (bool, error) {
@@ -139,12 +156,13 @@ func (r *fakeRepo) ActivateParticipant(_ context.Context, id string) error {
 	defer r.mu.Unlock()
 	for conv, parts := range r.parts {
 		for i, p := range parts {
-			if p.ID == id {
+			if p.ID == id && p.Status == communication.StatusPendingConsent {
 				r.parts[conv][i].Status = communication.StatusActive
+				return nil
 			}
 		}
 	}
-	return nil
+	return communication.ErrNotFound
 }
 
 // RemoveParticipant drops the row, and the role's rows in the conversation's side threads (the trigger of 00044).

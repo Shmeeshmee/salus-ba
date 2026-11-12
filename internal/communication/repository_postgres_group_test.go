@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,7 +21,11 @@ import (
 // internal/api's test runs the real service).
 type scopedChatConsents struct{ db *pgxpool.Pool }
 
+// GrantChat ends an earlier active one for the conversation and role first, as consent.Service.GrantChat does.
 func (o scopedChatConsents) GrantChat(ctx context.Context, by consent.Caller, g consent.ChatGrant) (consent.Consent, error) {
+	if _, err := o.RevokeChat(ctx, by, g.ConversationID, g.PractitionerRoleID); err != nil && !errors.Is(err, consent.ErrInactive) {
+		return consent.Consent{}, err
+	}
 	_, err := postgres.Conn(ctx, o.db).Exec(ctx, `INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id,
 		practitioner_organization_id, status, date_time) VALUES ($1, $2, $3, $4, $5, 'active', now())`,
 		by.PatientID, g.OrganizationID, g.ConversationID, g.PractitionerRoleID, g.PractitionerOrganizationID)
@@ -36,6 +41,10 @@ func (o scopedChatConsents) RevokeChat(ctx context.Context, _ consent.Caller, co
 	return consent.Consent{Kind: consent.KindChat}, err
 }
 
+func (o scopedChatConsents) EndChat(ctx context.Context, by consent.Caller, conv, role string) (consent.Consent, error) {
+	return o.RevokeChat(ctx, by, conv, role)
+}
+
 func (o scopedChatConsents) ChatGranted(ctx context.Context, conv, role string) (bool, error) {
 	var ok bool
 	err := postgres.Conn(ctx, o.db).QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM chat_consent WHERE conversation_id = $1 AND practitioner_role_id = $2
@@ -43,9 +52,36 @@ func (o scopedChatConsents) ChatGranted(ctx context.Context, conv, role string) 
 	return ok, err
 }
 
+// racingRepo is the Postgres repository that runs race once, right after the service read a participant and before
+// it locks the conversation: what another request commits in between (race runs its own transactions).
+type racingRepo struct {
+	communication.Repository
+	race func()
+	mu   sync.Mutex
+}
+
+func (r *racingRepo) Participant(ctx context.Context, id string) (communication.Participant, error) {
+	p, err := r.Repository.Participant(ctx, id)
+	r.mu.Lock()
+	race := r.race
+	r.race = nil
+	r.mu.Unlock()
+	if race != nil {
+		race()
+	}
+	return p, err
+}
+
 // pgGroupFixture is the fixture's service on Postgres as the app role, with the chat consents in Postgres (the
 // guest's row-level security reads them), clinic B with its role B1 and the guest's account.
 func pgGroupFixture(t *testing.T) (*fixture, *pgxpool.Pool) {
+	t.Helper()
+	f, owner, _ := pgRaceFixture(t)
+	return f, owner
+}
+
+// pgRaceFixture is pgGroupFixture with its repository's race to set.
+func pgRaceFixture(t *testing.T) (*fixture, *pgxpool.Pool, *racingRepo) {
 	t.Helper()
 	owner, app := pgtest.NewAppDatabase(t)
 	seedChat(t, owner)
@@ -63,14 +99,14 @@ func pgGroupFixture(t *testing.T) (*fixture, *pgxpool.Pool) {
 			t.Fatal(err)
 		}
 	}
-	repo, tx := communication.NewPostgresRepository(app), postgres.NewTransactor(app)
+	repo, tx := &racingRepo{Repository: communication.NewPostgresRepository(app)}, postgres.NewTransactor(app)
 	f := newFixtureOn(t, repo, tx)
 	f.svc = communication.NewService(communication.Ports{
 		Repo: repo, Publisher: f.pub, Consents: fakeConsents{f}, Visits: fakeVisits{f}, Roles: fakeRoles{}, Encounters: fakeEncounters{},
 		ChatConsents: scopedChatConsents{app}, Directory: fakeDirectory{}, Audit: f.audit, Tx: tx, Clock: f.clock,
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
-	return f, owner
+	return f, owner, repo
 }
 
 // The group consult on Postgres (SAL-28 acceptance): the invited doctor of clinic B sees nothing before the patient
@@ -183,4 +219,108 @@ func TestPostgres_ADoctorOfTheClinicIsAddedFromAPointAndRemoved(t *testing.T) {
 	}
 	m := f.lastMessage(t, me, conv.ID)
 	checkSystem(t, m, communication.SystemParticipantRemoved, map[string]string{"practitioner_role_id": roleA2})
+}
+
+// systemCount is how many system messages of code the conversation holds, and activeChat how many of its chat consents
+// are active, read as the owner.
+func systemCount(t *testing.T, owner *pgxpool.Pool, conv, code string) (systems, activeChat int) {
+	t.Helper()
+	if err := owner.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM communication WHERE conversation_id = $1 AND system_code = $2),
+		(SELECT count(*) FROM chat_consent WHERE conversation_id = $1 AND status = 'active')`, conv, code).Scan(&systems, &activeChat); err != nil {
+		t.Fatal(err)
+	}
+	return systems, activeChat
+}
+
+// A decision or a revocation that reads the invitation while another request changes it decides on the participant
+// as it is once the conversation is locked: a grant after a removal grants nothing, a second grant adds nothing, and a
+// revocation after a removal removes nothing twice (SAL-28 review, finding 2).
+func TestPostgres_ADecisionRacingAnotherChangeOfTheInvitationActsOnItsStateUnderTheLock(t *testing.T) {
+	t.Parallel()
+	for name, tt := range map[string]struct {
+		granted bool                                                           // the invitation is granted before the race
+		race    func(ctx context.Context, f *fixture, conv, part string) error // the other request
+		act     func(ctx context.Context, f *fixture, part string) error       // the request that read the invitation first
+		code    string                                                         // the system message there is one of
+		chat    int                                                            // the active chat consents after both
+	}{
+		"a grant after a removal": {
+			race: func(ctx context.Context, f *fixture, conv, part string) error {
+				return f.svc.RemoveParticipant(ctx, pract, conv, part)
+			},
+			act: func(ctx context.Context, f *fixture, part string) error {
+				return f.svc.DecideInvitation(ctx, me, part, communication.DecisionGrant)
+			},
+			code: communication.SystemParticipantRemoved,
+		},
+		"two grants": {
+			race: func(ctx context.Context, f *fixture, _, part string) error {
+				return f.svc.DecideInvitation(ctx, me, part, communication.DecisionGrant)
+			},
+			act: func(ctx context.Context, f *fixture, part string) error {
+				return f.svc.DecideInvitation(ctx, me, part, communication.DecisionGrant)
+			},
+			code: communication.SystemConsentGranted, chat: 1,
+		},
+		"a revocation after a removal": {
+			granted: true,
+			race: func(ctx context.Context, f *fixture, conv, part string) error {
+				return f.svc.RemoveParticipant(ctx, pract, conv, part)
+			},
+			act:  func(ctx context.Context, f *fixture, part string) error { return f.svc.RevokeInvitation(ctx, me, part) },
+			code: communication.SystemParticipantRemoved,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f, owner, repo := pgRaceFixture(t)
+			conv := f.open(t)
+			part := f.add(t, conv.ID, roleB1, clinicB)
+			if tt.granted {
+				if err := f.svc.DecideInvitation(t.Context(), me, part.ID, communication.DecisionGrant); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var raced error
+			repo.mu.Lock()
+			repo.race = func() { raced = tt.race(t.Context(), f, conv.ID, part.ID) }
+			repo.mu.Unlock()
+			if err := tt.act(t.Context(), f, part.ID); !errors.Is(err, communication.ErrNotFound) {
+				t.Errorf("the request that read first: %v, want ErrNotFound", err)
+			}
+			if raced != nil {
+				t.Fatalf("the other request: %v", raced)
+			}
+			if systems, chat := systemCount(t, owner, conv.ID, tt.code); systems != 1 || chat != tt.chat {
+				t.Errorf("%d system messages %s and %d active chat consents, want 1 and %d", systems, tt.code, chat, tt.chat)
+			}
+		})
+	}
+}
+
+// Activating or removing a participant who is no longer pending, or no longer there, changes no row and says so.
+func TestPostgres_ActivatingOrRemovingAParticipantTwiceIsNotFound(t *testing.T) {
+	t.Parallel()
+	f, _, repo := pgRaceFixture(t)
+	conv := f.open(t)
+	part := f.add(t, conv.ID, roleB1, clinicB)
+	colleague := f.add(t, conv.ID, roleA2, clinicA)
+	if err := f.svc.RemoveParticipant(t.Context(), pract, conv.ID, part.ID); err != nil {
+		t.Fatal(err)
+	}
+	for name, change := range map[string]func(ctx context.Context) error{
+		"activate a removed invitation": func(ctx context.Context) error { return repo.ActivateParticipant(ctx, part.ID) },
+		"activate an active doctor":     func(ctx context.Context) error { return repo.ActivateParticipant(ctx, colleague.ID) },
+		"remove a removed invitation":   func(ctx context.Context) error { return repo.RemoveParticipant(ctx, part.ID, start) },
+	} {
+		err := f.svc.Tx.WithTx(t.Context(), func(ctx context.Context) error {
+			if err := repo.SetClinic(ctx, clinicA); err != nil {
+				return err
+			}
+			return change(ctx)
+		})
+		if !errors.Is(err, communication.ErrNotFound) {
+			t.Errorf("%s: %v, want ErrNotFound", name, err)
+		}
+	}
 }

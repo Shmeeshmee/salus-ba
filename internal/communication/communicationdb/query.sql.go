@@ -11,13 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const activateParticipant = `-- name: ActivateParticipant :exec
+const activateParticipant = `-- name: ActivateParticipant :execrows
 UPDATE conversation_participant SET status = 'active' WHERE id = $1 AND status = 'pending_consent' AND removed_at IS NULL
 `
 
-func (q *Queries) ActivateParticipant(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, activateParticipant, id)
-	return err
+// No row when the participant is no longer pending or no longer there.
+func (q *Queries) ActivateParticipant(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, activateParticipant, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const addPartitions = `-- name: AddPartitions :exec
@@ -838,7 +842,7 @@ func (q *Queries) Participants(ctx context.Context, conversationID pgtype.UUID) 
 	return items, nil
 }
 
-const removeParticipant = `-- name: RemoveParticipant :exec
+const removeParticipant = `-- name: RemoveParticipant :execrows
 UPDATE conversation_participant SET removed_at = $1 WHERE id = $2 AND removed_at IS NULL
 `
 
@@ -847,10 +851,14 @@ type RemoveParticipantParams struct {
 	ID        pgtype.UUID
 }
 
+// No row when the participant was removed already.
 // The trigger of 00044 removes the role from the conversation's side threads in the same statement.
-func (q *Queries) RemoveParticipant(ctx context.Context, arg RemoveParticipantParams) error {
-	_, err := q.db.Exec(ctx, removeParticipant, arg.RemovedAt, arg.ID)
-	return err
+func (q *Queries) RemoveParticipant(ctx context.Context, arg RemoveParticipantParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeParticipant, arg.RemovedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const revisions = `-- name: Revisions :many

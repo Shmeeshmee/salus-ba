@@ -403,6 +403,32 @@ func (s *Service) RevokeChat(ctx context.Context, c Caller, conversationID, role
 	return out, nil
 }
 
+// EndChat ends the active chat consent for the conversation and role as the conversation's clinic (staff of
+// c.OrganizationID), when its treating practitioner removes the invited doctor (SAL-28): the consent ends with their
+// part in the conversation, so the patient never sees it granted to nobody. It runs in the caller's transaction, in
+// the clinic's scope, whose row-level security lets it end a consent and never grant one; audited. ErrInactive when
+// none is active, ErrForbidden to a patient.
+func (s *Service) EndChat(ctx context.Context, c Caller, conversationID, roleID string) (Consent, error) {
+	if c.patient() {
+		return Consent{}, s.refuse(ctx, c, auditevent.CodeUpdate, ErrForbidden)
+	}
+	var out Consent
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetClinic(ctx, c.OrganizationID); err != nil {
+			return err
+		}
+		var err error
+		if out, err = s.repo.RevokeChat(ctx, conversationID, roleID, s.clock.Now()); err != nil {
+			return err
+		}
+		return s.record(ctx, c, auditevent.CodeUpdate, out.ID, auditevent.OutcomeSuccess)
+	})
+	if err != nil {
+		return Consent{}, fmt.Errorf("consent: end chat: %w", err)
+	}
+	return out, nil
+}
+
 // ChatGranted reports whether the chat consent for the conversation and the practitioner role is active, as the
 // caller's scope shows it (the patient's, the conversation's clinic's, or the invited doctor's own). Like State, it
 // is the access check inside the caller's audited access and is not audited itself.

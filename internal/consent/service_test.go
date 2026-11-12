@@ -756,3 +756,46 @@ func TestRevokeChat_EndsTheActiveConsentAndAuditsIt(t *testing.T) {
 		t.Error("ChatGranted() after the revocation: true")
 	}
 }
+
+// The treating practitioner's removal of the invited doctor ends the patient's chat consent for them as the
+// conversation's clinic, audited (SAL-28 review, finding 1): the patient sees it ended, never still granted.
+func TestEndChat_TheClinicEndsTheActiveConsentAndAuditsIt(t *testing.T) {
+	f := newFixture()
+	granted, err := f.svc.GrantChat(t.Context(), me, chatGrant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.repo.calls = nil
+	got, err := f.svc.EndChat(t.Context(), staff, chatConversation, chatRole)
+	if err != nil || got.ID != granted.ID || got.Status != consent.StatusInactive || !got.RevokedAt.Equal(now) {
+		t.Fatalf("EndChat() = %+v, %v", got, err)
+	}
+	if want := []string{"SetClinic", "RevokeChat"}; !slices.Equal(f.repo.calls, want) || f.repo.clinic != clinicA {
+		t.Errorf("calls %v in clinic %q, want %v in clinic A", f.repo.calls, f.repo.clinic, want)
+	}
+	if e := f.audit.events[len(f.audit.events)-1]; e != event(staff, auditevent.CodeUpdate, got.ID, auditevent.OutcomeSuccess) {
+		t.Errorf("audit = %+v", e)
+	}
+	if _, err := f.svc.EndChat(t.Context(), staff, chatConversation, chatRole); !errors.Is(err, consent.ErrInactive) {
+		t.Errorf("a second EndChat() = %v, want ErrInactive", err)
+	}
+	if ok, _ := f.svc.ChatGranted(t.Context(), chatConversation, chatRole); ok {
+		t.Error("ChatGranted() after EndChat: true")
+	}
+}
+
+func TestEndChat_RefusesAPatient(t *testing.T) {
+	f := newFixture()
+	if _, err := f.svc.GrantChat(t.Context(), me, chatGrant); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.EndChat(t.Context(), me, chatConversation, chatRole); !errors.Is(err, consent.ErrForbidden) {
+		t.Errorf("EndChat() as the patient = %v, want ErrForbidden", err)
+	}
+	if e := f.audit.events[len(f.audit.events)-1]; e.Outcome != auditevent.OutcomeMinorFailure {
+		t.Errorf("the refusal's audit = %+v", e)
+	}
+	if ok, _ := f.svc.ChatGranted(t.Context(), chatConversation, chatRole); !ok {
+		t.Error("the patient's EndChat ended the consent")
+	}
+}
