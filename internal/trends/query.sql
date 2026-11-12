@@ -23,7 +23,11 @@ SELECT @period::text, r.region, r.grp
 FROM (SELECT unnest(@regions::text[]) AS region, unnest(@groups::text[]) AS grp) AS r;
 
 -- name: PeriodsOfKind :many
-SELECT created_at, min_count, code_level, period, kind, status FROM trends_period WHERE kind = @kind ORDER BY period;
+-- A month or a quarter whose cells retention has deleted is no longer listed (a week has flags, not cells).
+SELECT created_at, min_count, code_level, period, kind, status
+FROM trends_period p
+WHERE kind = @kind AND (kind = 'week' OR EXISTS (SELECT 1 FROM trends_cell c WHERE c.period = p.period))
+ORDER BY period;
 
 -- name: CellsOfTable :many
 -- A table's cells over a range of its periods ('2026-01' to '2026-10', '2026-Q3'): the service picks the query's.

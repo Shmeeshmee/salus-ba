@@ -16,7 +16,7 @@ type Repository interface {
 	SaveCells(ctx context.Context, period string, rows []Row) error
 	// SaveFlags stores the week's rise flags.
 	SaveFlags(ctx context.Context, period string, flags []Flag) error
-	// Periods returns the built periods of a kind, oldest first.
+	// Periods returns the built periods of a kind, oldest first; a month or quarter whose cells are deleted is left out.
 	Periods(ctx context.Context, kind string) ([]Period, error)
 	// Cells returns a table's cells of the periods from to to, inclusive.
 	Cells(ctx context.Context, table, from, to string) ([]Row, error)

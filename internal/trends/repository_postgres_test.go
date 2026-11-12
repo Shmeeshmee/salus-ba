@@ -16,7 +16,7 @@ import (
 func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
 
 // A build writes its period once, as salus_stats, with its cells and flags; the app reads them back; the retention
-// role deletes old cells and flags and keeps the period.
+// role deletes old cells and flags and keeps the period, which is then no longer listed.
 func TestRepository_WritesOnceReadsAndPurges(t *testing.T) {
 	t.Parallel()
 	dbURL := pgtest.NewDatabaseURL(t)
@@ -91,5 +91,8 @@ func TestRepository_WritesOnceReadsAndPurges(t *testing.T) {
 	}
 	if built, err := app.Built(t.Context(), "2026-10"); err != nil || !built {
 		t.Errorf("after the purge Built = %v, %v; want the period kept, so it is never built again", built, err)
+	}
+	if ps, err := app.Periods(t.Context(), trends.KindMonth); err != nil || len(ps) != 0 {
+		t.Errorf("after the purge Periods = %+v, %v; want a month whose cells are gone no longer listed", ps, err)
 	}
 }

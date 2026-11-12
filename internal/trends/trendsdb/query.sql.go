@@ -202,9 +202,13 @@ func (q *Queries) PeriodBuilt(ctx context.Context, period string) (bool, error) 
 }
 
 const periodsOfKind = `-- name: PeriodsOfKind :many
-SELECT created_at, min_count, code_level, period, kind, status FROM trends_period WHERE kind = $1 ORDER BY period
+SELECT created_at, min_count, code_level, period, kind, status
+FROM trends_period p
+WHERE kind = $1 AND (kind = 'week' OR EXISTS (SELECT 1 FROM trends_cell c WHERE c.period = p.period))
+ORDER BY period
 `
 
+// A month or a quarter whose cells retention has deleted is no longer listed (a week has flags, not cells).
 func (q *Queries) PeriodsOfKind(ctx context.Context, kind string) ([]TrendsPeriod, error) {
 	rows, err := q.db.Query(ctx, periodsOfKind, kind)
 	if err != nil {
