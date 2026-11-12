@@ -69,7 +69,8 @@ import 'app_localizations_tr.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale)
+    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -77,7 +78,8 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate =
+      _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -89,12 +91,13 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
-    delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
-  ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
+      <LocalizationsDelegate<dynamic>>[
+        delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
@@ -1856,9 +1859,106 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close'**
   String get termClose;
+
+  /// SAL-39: the home screen button and the title of the patient's history across every clinic.
+  ///
+  /// In en, this message translates to:
+  /// **'My history'**
+  String get myHistory;
+
+  /// SAL-39: the history before it holds anything.
+  ///
+  /// In en, this message translates to:
+  /// **'There is nothing in your history yet. Your visits, documents and answers appear here.'**
+  String get historyEmpty;
+
+  /// SAL-39: the history when the filters chosen leave nothing.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing in your history matches these filters.'**
+  String get historyNoMatch;
+
+  /// SAL-39: the label of the history's clinic filter.
+  ///
+  /// In en, this message translates to:
+  /// **'Clinic'**
+  String get historyClinic;
+
+  /// SAL-39: the clinic filter's choice that does not narrow.
+  ///
+  /// In en, this message translates to:
+  /// **'All clinics'**
+  String get historyAllClinics;
+
+  /// SAL-39: the type filter for visits (consultations).
+  ///
+  /// In en, this message translates to:
+  /// **'Visits'**
+  String get historyVisits;
+
+  /// SAL-39: the title of a visit in the history.
+  ///
+  /// In en, this message translates to:
+  /// **'Visit'**
+  String get historyVisit;
+
+  /// SAL-39: the type filter for completed questionnaire answers, and the title of one in the history.
+  ///
+  /// In en, this message translates to:
+  /// **'Questionnaire answers'**
+  String get historyAnswers;
+
+  /// SAL-39: the type filter for the files attached to questionnaire answers.
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get historyFiles;
+
+  /// SAL-39: the title of a file in the history that has no name.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get historyFile;
+
+  /// SAL-39: the date filter's button while no dates are chosen.
+  ///
+  /// In en, this message translates to:
+  /// **'Any date'**
+  String get historyAnyDate;
+
+  /// SAL-39: the date filter's button with the days chosen, both long dates, the last included.
+  ///
+  /// In en, this message translates to:
+  /// **'{from} to {to}'**
+  String historyDateRange(String from, String to);
+
+  /// SAL-39: removes the date filter.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear dates'**
+  String get historyClearDates;
+
+  /// SAL-39: loads the next page of the history (it also loads as the list scrolls).
+  ///
+  /// In en, this message translates to:
+  /// **'Show more'**
+  String get historyShowMore;
+
+  /// SAL-39: under the history when its next page could not be read; Try again follows.
+  ///
+  /// In en, this message translates to:
+  /// **'More of your history could not be loaded.'**
+  String get historyMoreFailed;
+
+  /// SAL-39: an item of the history could not be opened.
+  ///
+  /// In en, this message translates to:
+  /// **'This item could not be opened. Try again.'**
+  String get historyOpenFailed;
 }
 
-class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -1867,8 +1967,17 @@ class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> 
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['ar', 'bs', 'de', 'en', 'fr', 'hr', 'it', 'sr', 'tr'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>[
+    'ar',
+    'bs',
+    'de',
+    'en',
+    'fr',
+    'hr',
+    'it',
+    'sr',
+    'tr',
+  ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;

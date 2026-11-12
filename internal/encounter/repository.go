@@ -3,6 +3,8 @@ package encounter
 import (
 	"context"
 	"time"
+
+	"github.com/Shmeeshmee/salus/pkg/keyset"
 )
 
 // Repository stores the encounters. Row-level security shows a transaction the encounters of the patient set
@@ -26,4 +28,7 @@ type Repository interface {
 	Organization(ctx context.Context, id string) (string, error)
 	// Search returns the encounters of the appointment and the patient of f, when set, that the scope shows.
 	Search(ctx context.Context, f Filter) ([]Encounter, error)
+	// PatientHistory returns the patient's encounters the scope shows, at the clinic org when set, after the page's
+	// position (by start, then "Encounter/<id>"), newest first, p.Limit at most.
+	PatientHistory(ctx context.Context, patientID, org string, p keyset.Page) ([]Encounter, error)
 }

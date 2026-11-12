@@ -97,6 +97,101 @@ func (q *Queries) CompleteQuestionnaireResponse(ctx context.Context, arg Complet
 	return i, err
 }
 
+const completedOf = `-- name: CompletedOf :many
+SELECT id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
+       series_id, version_id, source, status, '[]'::jsonb AS answers, '[]'::jsonb AS attachments, language
+FROM questionnaire_response
+WHERE patient_id = $1 AND status = 'completed'
+  AND ($2::uuid IS NULL OR organization_id = $2::uuid)
+  AND ($3::timestamptz IS NULL OR authored_at >= $3::timestamptz)
+  AND ($4::timestamptz IS NULL OR authored_at < $4::timestamptz)
+  AND ($5::timestamptz IS NULL
+       OR authored_at < $5::timestamptz
+       OR (authored_at = $5::timestamptz
+           AND ('QuestionnaireResponse/' || id::text) COLLATE "C" < $6::text COLLATE "C"))
+ORDER BY authored_at DESC, id DESC
+LIMIT $7
+`
+
+type CompletedOfParams struct {
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	FromAt         pgtype.Timestamptz
+	ToAt           pgtype.Timestamptz
+	AfterAt        pgtype.Timestamptz
+	AfterRef       string
+	Lim            int32
+}
+
+type CompletedOfRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	DueAt              pgtype.Timestamptz
+	AuthoredAt         pgtype.Timestamptz
+	OrganizationID     pgtype.UUID
+	AppointmentID      pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	QuestionnaireID    pgtype.UUID
+	SeriesID           pgtype.UUID
+	VersionID          int32
+	Source             string
+	Status             string
+	Answers            []byte
+	Attachments        []byte
+	Language           NullLanguage
+}
+
+// The patient's timeline (SAL-39): their completed responses after the page's position, newest first by
+// submission, the reference ("QuestionnaireResponse/<id>", compared byte by byte) breaking a tie; a null bound does
+// not narrow. Without the answers and files, which the timeline does not show.
+func (q *Queries) CompletedOf(ctx context.Context, arg CompletedOfParams) ([]CompletedOfRow, error) {
+	rows, err := q.db.Query(ctx, completedOf,
+		arg.PatientID,
+		arg.OrganizationID,
+		arg.FromAt,
+		arg.ToAt,
+		arg.AfterAt,
+		arg.AfterRef,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CompletedOfRow
+	for rows.Next() {
+		var i CompletedOfRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DueAt,
+			&i.AuthoredAt,
+			&i.OrganizationID,
+			&i.AppointmentID,
+			&i.PatientID,
+			&i.PractitionerRoleID,
+			&i.QuestionnaireID,
+			&i.SeriesID,
+			&i.VersionID,
+			&i.Source,
+			&i.Status,
+			&i.Answers,
+			&i.Attachments,
+			&i.Language,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteQuestionnaireResponsesOfAppointment = `-- name: DeleteQuestionnaireResponsesOfAppointment :many
 DELETE FROM questionnaire_response
 WHERE appointment_id = $1
@@ -137,6 +232,106 @@ func (q *Queries) DeleteUnsubmittedQuestionnaireResponses(ctx context.Context, b
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const filesOf = `-- name: FilesOf :many
+SELECT r.id, r.created_at, r.updated_at, r.due_at, r.authored_at, r.organization_id, r.appointment_id, r.patient_id,
+       r.practitioner_role_id, r.questionnaire_id, r.series_id, r.version_id, r.source, r.status, '[]'::jsonb AS answers,
+       '[]'::jsonb AS attachments, r.language, f.file::jsonb AS file
+FROM questionnaire_response r
+CROSS JOIN LATERAL jsonb_array_elements(r.attachments) AS f (file)
+WHERE r.patient_id = $1 AND r.status = 'completed'
+  AND NOT coalesce((f.file ->> 'pending')::boolean, false)
+  AND ($2::uuid IS NULL OR r.organization_id = $2::uuid)
+  AND ($3::timestamptz IS NULL OR r.authored_at >= $3::timestamptz)
+  AND ($4::timestamptz IS NULL OR r.authored_at < $4::timestamptz)
+  AND ($5::timestamptz IS NULL
+       OR r.authored_at < $5::timestamptz
+       OR (r.authored_at = $5::timestamptz
+           AND ('Binary/' || (f.file ->> 'binaryId')) COLLATE "C" < $6::text COLLATE "C"))
+ORDER BY r.authored_at DESC, ('Binary/' || (f.file ->> 'binaryId')) COLLATE "C" DESC
+LIMIT $7
+`
+
+type FilesOfParams struct {
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	FromAt         pgtype.Timestamptz
+	ToAt           pgtype.Timestamptz
+	AfterAt        pgtype.Timestamptz
+	AfterRef       string
+	Lim            int32
+}
+
+type FilesOfRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	DueAt              pgtype.Timestamptz
+	AuthoredAt         pgtype.Timestamptz
+	OrganizationID     pgtype.UUID
+	AppointmentID      pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	QuestionnaireID    pgtype.UUID
+	SeriesID           pgtype.UUID
+	VersionID          int32
+	Source             string
+	Status             string
+	Answers            []byte
+	Attachments        []byte
+	Language           NullLanguage
+	File               []byte
+}
+
+// The files of the patient's timeline: those of their completed responses no longer pending, each with its
+// response (without the answers), after the page's position by the response's submission, the reference
+// ("Binary/<id>") breaking a tie.
+func (q *Queries) FilesOf(ctx context.Context, arg FilesOfParams) ([]FilesOfRow, error) {
+	rows, err := q.db.Query(ctx, filesOf,
+		arg.PatientID,
+		arg.OrganizationID,
+		arg.FromAt,
+		arg.ToAt,
+		arg.AfterAt,
+		arg.AfterRef,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FilesOfRow
+	for rows.Next() {
+		var i FilesOfRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DueAt,
+			&i.AuthoredAt,
+			&i.OrganizationID,
+			&i.AppointmentID,
+			&i.PatientID,
+			&i.PractitionerRoleID,
+			&i.QuestionnaireID,
+			&i.SeriesID,
+			&i.VersionID,
+			&i.Source,
+			&i.Status,
+			&i.Answers,
+			&i.Attachments,
+			&i.Language,
+			&i.File,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertQuestionnaireResponse = `-- name: InsertQuestionnaireResponse :one

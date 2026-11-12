@@ -25,25 +25,31 @@ class AppLocalizationsFr extends AppLocalizations {
   String get somethingWrong => 'Une erreur s’est produite. Réessayez.';
 
   @override
-  String get unreachable => 'Impossible de joindre Salus. Vérifiez votre connexion et réessayez.';
+  String get unreachable =>
+      'Impossible de joindre Salus. Vérifiez votre connexion et réessayez.';
 
   @override
-  String get wrongCredentials => 'L’adresse e-mail ou le mot de passe est incorrect.';
+  String get wrongCredentials =>
+      'L’adresse e-mail ou le mot de passe est incorrect.';
 
   @override
-  String get wrongCode => 'Le code est incorrect. Vérifiez l’heure de votre appareil et réessayez.';
+  String get wrongCode =>
+      'Le code est incorrect. Vérifiez l’heure de votre appareil et réessayez.';
 
   @override
-  String get challengeEnded => 'La connexion a expiré. Saisissez à nouveau votre adresse e-mail et votre mot de passe.';
+  String get challengeEnded =>
+      'La connexion a expiré. Saisissez à nouveau votre adresse e-mail et votre mot de passe.';
 
   @override
-  String get emailTaken => 'Un compte existe déjà avec cette adresse e-mail. Connectez-vous plutôt.';
+  String get emailTaken =>
+      'Un compte existe déjà avec cette adresse e-mail. Connectez-vous plutôt.';
 
   @override
   String get invalidEmail => 'Saisissez une adresse e-mail valide.';
 
   @override
-  String get invalidPassword => 'Le mot de passe doit comporter entre 12 et 128 caractères.';
+  String get invalidPassword =>
+      'Le mot de passe doit comporter entre 12 et 128 caractères.';
 
   @override
   String get missingPassword => 'Saisissez votre mot de passe.';
@@ -56,10 +62,12 @@ class AppLocalizationsFr extends AppLocalizations {
       'Cette application est destinée aux patients. Le personnel des cliniques utilise l’application web Salus.';
 
   @override
-  String get accountReady => 'Votre compte est prêt. Connectez-vous pour continuer.';
+  String get accountReady =>
+      'Votre compte est prêt. Connectez-vous pour continuer.';
 
   @override
-  String get signOutFailed => 'Impossible de vous déconnecter. Vérifiez votre connexion et réessayez.';
+  String get signOutFailed =>
+      'Impossible de vous déconnecter. Vérifiez votre connexion et réessayez.';
 
   @override
   String get tooManyAttemptsLater => 'Trop de tentatives. Réessayez plus tard.';
@@ -91,7 +99,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get createAnAccount => 'Créer un compte';
 
   @override
-  String get codePrompt => 'Saisissez le code à 6 chiffres de votre application d’authentification.';
+  String get codePrompt =>
+      'Saisissez le code à 6 chiffres de votre application d’authentification.';
 
   @override
   String get code => 'Code';
@@ -117,7 +126,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get completeProfile => 'Compléter votre profil';
 
   @override
-  String get completeProfileFirst => 'Complétez votre profil avant de prendre rendez-vous.';
+  String get completeProfileFirst =>
+      'Complétez votre profil avant de prendre rendez-vous.';
 
   @override
   String get bookAppointment => 'Prendre rendez-vous';
@@ -165,19 +175,24 @@ class AppLocalizationsFr extends AppLocalizations {
   String get notNow => 'Pas maintenant';
 
   @override
-  String get invalidGivenName => 'Saisissez votre prénom (100 caractères maximum).';
+  String get invalidGivenName =>
+      'Saisissez votre prénom (100 caractères maximum).';
 
   @override
-  String get invalidFamilyName => 'Saisissez votre nom (100 caractères maximum).';
+  String get invalidFamilyName =>
+      'Saisissez votre nom (100 caractères maximum).';
 
   @override
-  String get invalidName => 'Saisissez votre prénom et votre nom (100 caractères maximum chacun).';
+  String get invalidName =>
+      'Saisissez votre prénom et votre nom (100 caractères maximum chacun).';
 
   @override
-  String get birthDateFormat => 'Saisissez votre date de naissance au format AAAA-MM-JJ.';
+  String get birthDateFormat =>
+      'Saisissez votre date de naissance au format AAAA-MM-JJ.';
 
   @override
-  String get birthDateRange => 'Saisissez une date de naissance passée, à partir de 1900.';
+  String get birthDateRange =>
+      'Saisissez une date de naissance passée, à partir de 1900.';
 
   @override
   String invalidPhone(String example) {
@@ -185,7 +200,8 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get profileChanged => 'Votre profil a été modifié entre-temps. Vérifiez-le et enregistrez à nouveau.';
+  String get profileChanged =>
+      'Votre profil a été modifié entre-temps. Vérifiez-le et enregistrez à nouveau.';
 
   @override
   String get chooseClinic => 'Choisir une clinique';
@@ -194,13 +210,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get noClinics => 'Aucune clinique n’est encore répertoriée.';
 
   @override
-  String get noPractitioners => 'Aucun praticien n’est encore répertorié pour cette clinique.';
+  String get noPractitioners =>
+      'Aucun praticien n’est encore répertorié pour cette clinique.';
 
   @override
   String get choosePractitioner => 'Choisissez un praticien.';
 
   @override
-  String get noOpenTimes => 'Ce praticien n’a pas encore de créneaux disponibles.';
+  String get noOpenTimes =>
+      'Ce praticien n’a pas encore de créneaux disponibles.';
 
   @override
   String timesIn(String zone) {
@@ -231,10 +249,12 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get slotTaken => 'Ce créneau n’est plus disponible. Choisissez-en un autre.';
+  String get slotTaken =>
+      'Ce créneau n’est plus disponible. Choisissez-en un autre.';
 
   @override
-  String get consentNeeded => 'Pour prendre rendez-vous dans cette clinique, votre consentement est nécessaire.';
+  String get consentNeeded =>
+      'Pour prendre rendez-vous dans cette clinique, votre consentement est nécessaire.';
 
   @override
   String get appointmentBooked => 'Votre rendez-vous est réservé.';
@@ -281,7 +301,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get appointmentCancelled => 'Votre rendez-vous est annulé.';
 
   @override
-  String get cancelWindowHint => 'Annulable dans l’application jusqu’à 24 heures avant le début.';
+  String get cancelWindowHint =>
+      'Annulable dans l’application jusqu’à 24 heures avant le début.';
 
   @override
   String get cancelWindowClosed =>
@@ -319,7 +340,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get whatFor => 'Dans quel but';
 
   @override
-  String get whatForBody => 'Uniquement pour vos soins dans cette clinique : préparer et tenir vos rendez-vous.';
+  String get whatForBody =>
+      'Uniquement pour vos soins dans cette clinique : préparer et tenir vos rendez-vous.';
 
   @override
   String get whoIsResponsible => 'Qui est responsable';
@@ -333,7 +355,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get readPrivacyNotice => 'Lire la politique de confidentialité';
 
   @override
-  String get privacyNoticeFailed => 'Impossible d’ouvrir la politique de confidentialité.';
+  String get privacyNoticeFailed =>
+      'Impossible d’ouvrir la politique de confidentialité.';
 
   @override
   String get howToRevoke => 'Comment retirer votre consentement';
@@ -363,7 +386,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get noConsents => 'Vous n’avez encore donné aucun consentement.';
 
   @override
-  String get consentsIntro => 'Vous partagez votre profil et vos rendez-vous avec ces cliniques pour vos soins.';
+  String get consentsIntro =>
+      'Vous partagez votre profil et vos rendez-vous avec ces cliniques pour vos soins.';
 
   @override
   String givenOn(String date) {
@@ -389,16 +413,19 @@ class AppLocalizationsFr extends AppLocalizations {
   String get joinConsultation => 'Rejoindre la consultation';
 
   @override
-  String get joinFrom => 'Vous pouvez la rejoindre à partir de 10 minutes avant le début.';
+  String get joinFrom =>
+      'Vous pouvez la rejoindre à partir de 10 minutes avant le début.';
 
   @override
   String get checkTitle => 'Vérifiez votre caméra et votre micro';
 
   @override
-  String get checkIntro => 'Le praticien vous verra et vous entendra dès que vous aurez rejoint la consultation.';
+  String get checkIntro =>
+      'Le praticien vous verra et vous entendra dès que vous aurez rejoint la consultation.';
 
   @override
-  String get noSound => 'Aucun son détecté. Vérifiez que votre micro est activé et n’est pas coupé.';
+  String get noSound =>
+      'Aucun son détecté. Vérifiez que votre micro est activé et n’est pas coupé.';
 
   @override
   String get joinCameraOff => 'Rejoindre caméra désactivée';
@@ -483,10 +510,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get closeScreen => 'Vous pouvez fermer cet écran.';
 
   @override
-  String get timeLimit => 'La consultation a atteint sa durée maximale et s’est terminée.';
+  String get timeLimit =>
+      'La consultation a atteint sa durée maximale et s’est terminée.';
 
   @override
-  String get practitionerAbsent => 'Le praticien n’a pas rejoint la consultation';
+  String get practitionerAbsent =>
+      'Le praticien n’a pas rejoint la consultation';
 
   @override
   String get timePassed =>
@@ -497,10 +526,12 @@ class AppLocalizationsFr extends AppLocalizations {
       'Vous avez retiré votre consentement pour cette clinique ; vous avez donc quitté la consultation.';
 
   @override
-  String get appointmentWasCancelled => 'Ce rendez-vous a été annulé ; la consultation est donc terminée.';
+  String get appointmentWasCancelled =>
+      'Ce rendez-vous a été annulé ; la consultation est donc terminée.';
 
   @override
-  String get windowNotOpen => 'Cette consultation s’ouvre 10 minutes avant le début.';
+  String get windowNotOpen =>
+      'Cette consultation s’ouvre 10 minutes avant le début.';
 
   @override
   String get consultationEnded => 'Cette consultation est terminée.';
@@ -510,10 +541,12 @@ class AppLocalizationsFr extends AppLocalizations {
       'Pour rejoindre la consultation, votre consentement pour cette clinique est nécessaire.';
 
   @override
-  String get consultationNotAvailable => 'Cette consultation n’est pas disponible.';
+  String get consultationNotAvailable =>
+      'Cette consultation n’est pas disponible.';
 
   @override
-  String get cannotConnect => 'La connexion vidéo n’a pas pu être établie. Vérifiez votre connexion et réessayez.';
+  String get cannotConnect =>
+      'La connexion vidéo n’a pas pu être établie. Vérifiez votre connexion et réessayez.';
 
   @override
   String get whyCameraAndMicrophone =>
@@ -599,10 +632,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get viewAnswers => 'Voir les réponses';
 
   @override
-  String get submitBeforeStart => 'Merci de l’envoyer avant le début de votre rendez-vous.';
+  String get submitBeforeStart =>
+      'Merci de l’envoyer avant le début de votre rendez-vous.';
 
   @override
-  String get questionnaireClosed => 'Le rendez-vous a commencé ; ce questionnaire ne peut donc plus être rempli.';
+  String get questionnaireClosed =>
+      'Le rendez-vous a commencé ; ce questionnaire ne peut donc plus être rempli.';
 
   @override
   String savedAsYouGo(String clinic) {
@@ -616,7 +651,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get saving => 'Enregistrement…';
 
   @override
-  String get notSaved => 'Non enregistré. Vérifiez votre connexion. L’enregistrement sera relancé.';
+  String get notSaved =>
+      'Non enregistré. Vérifiez votre connexion. L’enregistrement sera relancé.';
 
   @override
   String get requiredQuestion => 'Obligatoire';
@@ -677,7 +713,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get cancel => 'Annuler';
 
   @override
-  String get requiredMissing => 'Certaines questions obligatoires n’ont pas de réponse.';
+  String get requiredMissing =>
+      'Certaines questions obligatoires n’ont pas de réponse.';
 
   @override
   String get answersSubmitted => 'Réponses envoyées';
@@ -703,7 +740,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get notAnswered => 'Sans réponse';
 
   @override
-  String get leaveUnsaved => 'Votre dernière réponse n’est pas encore enregistrée. Quitter quand même ?';
+  String get leaveUnsaved =>
+      'Votre dernière réponse n’est pas encore enregistrée. Quitter quand même ?';
 
   @override
   String get stay => 'Rester';
@@ -713,10 +751,12 @@ class AppLocalizationsFr extends AppLocalizations {
       'Pour remplir ce questionnaire, votre consentement pour cette clinique est nécessaire.';
 
   @override
-  String get pastDue => 'Le rendez-vous a commencé ; ce questionnaire ne peut donc plus être modifié.';
+  String get pastDue =>
+      'Le rendez-vous a commencé ; ce questionnaire ne peut donc plus être modifié.';
 
   @override
-  String get withdrawnByClinic => 'La clinique a retiré ce questionnaire. Vous n’avez pas besoin de le remplir.';
+  String get withdrawnByClinic =>
+      'La clinique a retiré ce questionnaire. Vous n’avez pas besoin de le remplir.';
 
   @override
   String get alreadySubmitted => 'Vous avez déjà envoyé ce questionnaire.';
@@ -726,7 +766,8 @@ class AppLocalizationsFr extends AppLocalizations {
       'Ces réponses ont été modifiées sur un autre appareil. Les réponses les plus récentes sont affichées.';
 
   @override
-  String get questionnaireNotAvailable => 'Ce questionnaire n’est pas disponible.';
+  String get questionnaireNotAvailable =>
+      'Ce questionnaire n’est pas disponible.';
 
   @override
   String get done => 'OK';
@@ -808,7 +849,8 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get fileTypeRefused => 'Ce type de fichier ne peut pas être ajouté à cette question.';
+  String get fileTypeRefused =>
+      'Ce type de fichier ne peut pas être ajouté à cette question.';
 
   @override
   String tooManyFiles(int n) {
@@ -829,18 +871,25 @@ class AppLocalizationsFr extends AppLocalizations {
   String get fileNotUploaded => 'Le fichier n’a pas pu être envoyé. Réessayez.';
 
   @override
-  String get cannotPrepareFile => 'Ce fichier n’a pas pu être préparé pour l’envoi. Choisissez un autre fichier.';
+  String get cannotPrepareFile =>
+      'Ce fichier n’a pas pu être préparé pour l’envoi. Choisissez un autre fichier.';
 
   @override
   String get filesBeingChecked =>
       'Certains fichiers sont encore en cours de vérification. Vous pourrez envoyer vos réponses une fois qu’ils seront prêts.';
 
   @override
-  String get leaveUploading => 'Un fichier est encore en cours d’envoi. Quitter quand même ? L’envoi sera interrompu.';
+  String get leaveUploading =>
+      'Un fichier est encore en cours d’envoi. Quitter quand même ? L’envoi sera interrompu.';
 
   @override
   String fileCount(int n) {
-    String _temp0 = intl.Intl.pluralLogic(n, locale: localeName, other: '$n fichiers', one: '$n fichier');
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n fichiers',
+      one: '$n fichier',
+    );
     return '$_temp0';
   }
 
@@ -994,7 +1043,8 @@ class AppLocalizationsFr extends AppLocalizations {
       'La consultation telle qu’elle a été transcrite et traduite automatiquement. Elle peut contenir des erreurs.';
 
   @override
-  String get transcriptEmpty => 'Rien n’a été transcrit pendant cette consultation.';
+  String get transcriptEmpty =>
+      'Rien n’a été transcrit pendant cette consultation.';
 
   @override
   String get speakerYou => 'Vous';
@@ -1018,4 +1068,58 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get termClose => 'Fermer';
+
+  @override
+  String get myHistory => 'Mon historique';
+
+  @override
+  String get historyEmpty =>
+      'Votre historique est encore vide. Vos consultations, documents et réponses apparaissent ici.';
+
+  @override
+  String get historyNoMatch =>
+      'Rien dans votre historique ne correspond à ces filtres.';
+
+  @override
+  String get historyClinic => 'Clinique';
+
+  @override
+  String get historyAllClinics => 'Toutes les cliniques';
+
+  @override
+  String get historyVisits => 'Consultations';
+
+  @override
+  String get historyVisit => 'Consultation';
+
+  @override
+  String get historyAnswers => 'Réponses au questionnaire';
+
+  @override
+  String get historyFiles => 'Fichiers';
+
+  @override
+  String get historyFile => 'Fichier';
+
+  @override
+  String get historyAnyDate => 'Toutes les dates';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return 'du $from au $to';
+  }
+
+  @override
+  String get historyClearDates => 'Effacer les dates';
+
+  @override
+  String get historyShowMore => 'Afficher plus';
+
+  @override
+  String get historyMoreFailed =>
+      'La suite de votre historique n’a pas pu être chargée.';
+
+  @override
+  String get historyOpenFailed =>
+      'Cet élément n’a pas pu être ouvert. Réessayez.';
 }

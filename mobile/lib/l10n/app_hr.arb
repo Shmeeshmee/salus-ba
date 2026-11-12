@@ -290,5 +290,21 @@
   "transcriptTranslation": "Prijevod: {text}",
   "termExplanationNote": "Informativno, nije dijagnoza",
   "termNotReviewed": "Još nije provjereno",
-  "termClose": "Zatvori"
+  "termClose": "Zatvori",
+  "myHistory": "Moja povijest",
+  "historyEmpty": "Vaša je povijest još prazna. Ovdje se pojavljuju vaši posjeti, dokumenti i odgovori.",
+  "historyNoMatch": "Ništa u vašoj povijesti ne odgovara ovim filtrima.",
+  "historyClinic": "Klinika",
+  "historyAllClinics": "Sve klinike",
+  "historyVisits": "Posjeti",
+  "historyVisit": "Posjet",
+  "historyAnswers": "Odgovori na upitnik",
+  "historyFiles": "Datoteke",
+  "historyFile": "Datoteka",
+  "historyAnyDate": "Bilo koji datum",
+  "historyDateRange": "od {from} do {to}",
+  "historyClearDates": "Poništi datume",
+  "historyShowMore": "Prikaži više",
+  "historyMoreFailed": "Ostatak vaše povijesti nije se mogao učitati.",
+  "historyOpenFailed": "Ova se stavka nije mogla otvoriti. Pokušajte ponovno."
 }

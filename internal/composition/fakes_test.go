@@ -23,6 +23,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/transcript"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/envelope"
+	"github.com/Shmeeshmee/salus/pkg/keyset"
 	"github.com/Shmeeshmee/salus/pkg/llm"
 	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/wire"
@@ -92,6 +93,13 @@ type fakeRepository struct {
 	templates map[string]composition.Template
 	drafts    map[string]composition.Draft
 	scope     string
+	history   historyAsk
+}
+
+// historyAsk is what SignedOf was last asked.
+type historyAsk struct {
+	page       keyset.Page
+	encounters []string
 }
 
 func (r *fakeRepository) SetClinic(ctx context.Context, id string) error {
@@ -239,6 +247,30 @@ func (r *fakeRepository) Signed(ctx context.Context, encounterID string) ([]comp
 	return slices.DeleteFunc(all, func(d composition.Draft) bool { return d.Status != composition.StatusFinal }), err
 }
 
+// SignedOf gives the final drafts of the encounters the scope shows after the page's position, newest first by
+// signature.
+func (r *fakeRepository) SignedOf(ctx context.Context, encounterIDs []string, p keyset.Page) ([]composition.Draft, error) {
+	if err := r.check(ctx); err != nil {
+		return nil, err
+	}
+	r.history = historyAsk{page: p, encounters: encounterIDs}
+	var out []composition.Draft
+	for _, d := range r.drafts {
+		ref := "Composition/" + d.ID
+		after := p.At.IsZero() || d.SignedAt.Before(p.At) || (d.SignedAt.Equal(p.At) && ref < p.Ref)
+		if d.Status == composition.StatusFinal && r.visible(d) && slices.Contains(encounterIDs, d.EncounterID) && after {
+			out = append(out, d)
+		}
+	}
+	slices.SortFunc(out, func(a, b composition.Draft) int {
+		if c := b.SignedAt.Compare(a.SignedAt); c != 0 {
+			return c
+		}
+		return strings.Compare(b.ID, a.ID)
+	})
+	return out[:min(len(out), p.Limit)], nil
+}
+
 func (r *fakeRepository) Sign(ctx context.Context, d composition.Draft, at time.Time) (composition.Draft, error) {
 	if err := r.check(ctx); err != nil {
 		return composition.Draft{}, err
@@ -286,6 +318,21 @@ func (e *fakeEncounters) Access(ctx context.Context, c appointment.Caller, id st
 		e.f.repo.scope = patientScope + c.PatientID
 	}
 	return e.enc, all[min(n, len(all)-1)], nil
+}
+
+// Own gives the encounter to its patient, at its clinic or every clinic, as the encounter's service does.
+func (e *fakeEncounters) Own(ctx context.Context, c appointment.Caller, org string) ([]encounter.Encounter, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	if e.err != nil {
+		return nil, e.err
+	}
+	if c.OrganizationID != "" || c.PatientID != e.enc.PatientID || (org != "" && org != e.enc.OrganizationID) {
+		return nil, nil
+	}
+	e.f.repo.scope = patientScope + c.PatientID
+	return []encounter.Encounter{e.enc}, nil
 }
 
 // fakeTranscripts gives the stored segments, and counts the calls.

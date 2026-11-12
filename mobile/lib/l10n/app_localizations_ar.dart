@@ -25,25 +25,30 @@ class AppLocalizationsAr extends AppLocalizations {
   String get somethingWrong => 'حدث خطأ ما. يُرجى المحاولة مرة أخرى.';
 
   @override
-  String get unreachable => 'تعذّر الاتصال بـ Salus. يُرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
+  String get unreachable =>
+      'تعذّر الاتصال بـ Salus. يُرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
 
   @override
   String get wrongCredentials => 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
 
   @override
-  String get wrongCode => 'الرمز غير صحيح. يُرجى التحقق من الوقت على جهازك والمحاولة مرة أخرى.';
+  String get wrongCode =>
+      'الرمز غير صحيح. يُرجى التحقق من الوقت على جهازك والمحاولة مرة أخرى.';
 
   @override
-  String get challengeEnded => 'انتهت مهلة تسجيل الدخول. يُرجى إدخال بريدك الإلكتروني وكلمة المرور مرة أخرى.';
+  String get challengeEnded =>
+      'انتهت مهلة تسجيل الدخول. يُرجى إدخال بريدك الإلكتروني وكلمة المرور مرة أخرى.';
 
   @override
-  String get emailTaken => 'يوجد حساب مسجّل بهذا البريد الإلكتروني. يُرجى تسجيل الدخول بدلًا من ذلك.';
+  String get emailTaken =>
+      'يوجد حساب مسجّل بهذا البريد الإلكتروني. يُرجى تسجيل الدخول بدلًا من ذلك.';
 
   @override
   String get invalidEmail => 'يُرجى إدخال عنوان بريد إلكتروني صحيح.';
 
   @override
-  String get invalidPassword => 'يجب أن تتكوّن كلمة المرور من 12 إلى 128 حرفًا.';
+  String get invalidPassword =>
+      'يجب أن تتكوّن كلمة المرور من 12 إلى 128 حرفًا.';
 
   @override
   String get missingPassword => 'يُرجى إدخال كلمة المرور.';
@@ -52,25 +57,31 @@ class AppLocalizationsAr extends AppLocalizations {
   String get invalidCode => 'يتكوّن الرمز من 6 أرقام.';
 
   @override
-  String get staffOnly => 'هذا التطبيق مخصّص للمرضى. يستخدم موظفو العيادات تطبيق الويب الخاص بـ Salus.';
+  String get staffOnly =>
+      'هذا التطبيق مخصّص للمرضى. يستخدم موظفو العيادات تطبيق الويب الخاص بـ Salus.';
 
   @override
   String get accountReady => 'حسابك جاهز. يُرجى تسجيل الدخول للمتابعة.';
 
   @override
-  String get signOutFailed => 'تعذّر تسجيل الخروج. يُرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
+  String get signOutFailed =>
+      'تعذّر تسجيل الخروج. يُرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
 
   @override
-  String get tooManyAttemptsLater => 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى لاحقًا.';
+  String get tooManyAttemptsLater =>
+      'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى لاحقًا.';
 
   @override
   String tooManyAttempts(int minutes) {
     String _temp0 = intl.Intl.pluralLogic(
       minutes,
       locale: localeName,
-      other: 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد $minutes دقيقة.',
-      many: 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد $minutes دقيقة.',
-      few: 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد $minutes دقائق.',
+      other:
+          'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد $minutes دقيقة.',
+      many:
+          'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد $minutes دقيقة.',
+      few:
+          'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد $minutes دقائق.',
       two: 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد دقيقتين.',
       one: 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد دقيقة واحدة.',
       zero: 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد قليل.',
@@ -94,7 +105,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get createAnAccount => 'إنشاء حساب';
 
   @override
-  String get codePrompt => 'يُرجى إدخال الرمز المكوّن من 6 أرقام من تطبيق المصادقة.';
+  String get codePrompt =>
+      'يُرجى إدخال الرمز المكوّن من 6 أرقام من تطبيق المصادقة.';
 
   @override
   String get code => 'الرمز';
@@ -174,13 +186,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get invalidFamilyName => 'يُرجى إدخال اسم عائلتك، بحد أقصى 100 حرف.';
 
   @override
-  String get invalidName => 'يُرجى إدخال اسمك الأول واسم عائلتك، بحد أقصى 100 حرف لكل منهما.';
+  String get invalidName =>
+      'يُرجى إدخال اسمك الأول واسم عائلتك، بحد أقصى 100 حرف لكل منهما.';
 
   @override
   String get birthDateFormat => 'يُرجى إدخال تاريخ ميلادك بالصيغة YYYY-MM-DD.';
 
   @override
-  String get birthDateRange => 'يُرجى إدخال تاريخ ميلاد في الماضي، من عام 1900 فما بعد.';
+  String get birthDateRange =>
+      'يُرجى إدخال تاريخ ميلاد في الماضي، من عام 1900 فما بعد.';
 
   @override
   String invalidPhone(String example) {
@@ -188,7 +202,8 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get profileChanged => 'تم تغيير ملفك الشخصي في هذه الأثناء. يُرجى مراجعته وحفظه مرة أخرى.';
+  String get profileChanged =>
+      'تم تغيير ملفك الشخصي في هذه الأثناء. يُرجى مراجعته وحفظه مرة أخرى.';
 
   @override
   String get chooseClinic => 'اختر عيادة';
@@ -284,10 +299,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get appointmentCancelled => 'تم إلغاء موعدك.';
 
   @override
-  String get cancelWindowHint => 'يمكن إلغاؤه عبر التطبيق حتى 24 ساعة قبل موعد البدء.';
+  String get cancelWindowHint =>
+      'يمكن إلغاؤه عبر التطبيق حتى 24 ساعة قبل موعد البدء.';
 
   @override
-  String get cancelWindowClosed => 'يبدأ هذا الموعد خلال أقل من 24 ساعة، ولم يعد من الممكن إلغاؤه عبر التطبيق.';
+  String get cancelWindowClosed =>
+      'يبدأ هذا الموعد خلال أقل من 24 ساعة، ولم يعد من الممكن إلغاؤه عبر التطبيق.';
 
   @override
   String get appointmentClosed => 'لم يعد هذا الموعد محجوزًا.';
@@ -321,7 +338,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get whatFor => 'لأي غرض';
 
   @override
-  String get whatForBody => 'لرعايتك في هذه العيادة فقط: للتحضير لمواعيدك وإجرائها.';
+  String get whatForBody =>
+      'لرعايتك في هذه العيادة فقط: للتحضير لمواعيدك وإجرائها.';
 
   @override
   String get whoIsResponsible => 'من المسؤول';
@@ -365,7 +383,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get noConsents => 'لم تقدّم أي موافقات حتى الآن.';
 
   @override
-  String get consentsIntro => 'تشارك ملفك الشخصي ومواعيدك مع هذه العيادات لأغراض رعايتك.';
+  String get consentsIntro =>
+      'تشارك ملفك الشخصي ومواعيدك مع هذه العيادات لأغراض رعايتك.';
 
   @override
   String givenOn(String date) {
@@ -400,7 +419,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get checkIntro => 'سيراك الطبيب ويسمعك بمجرد انضمامك.';
 
   @override
-  String get noSound => 'لم يُكتشف أي صوت. يُرجى التحقق من أن الميكروفون يعمل وغير مكتوم.';
+  String get noSound =>
+      'لم يُكتشف أي صوت. يُرجى التحقق من أن الميكروفون يعمل وغير مكتوم.';
 
   @override
   String get joinCameraOff => 'الانضمام والكاميرا مطفأة';
@@ -495,10 +515,12 @@ class AppLocalizationsAr extends AppLocalizations {
       'انقضى وقت الانضمام إلى هذه الاستشارة. يمكن للعيادة أن ترى أنك انضممت. وقد تتواصل العيادة معك، أو يمكنك حجز موعد جديد.';
 
   @override
-  String get withdrewConsent => 'لقد سحبت موافقتك لهذه العيادة، ولذلك غادرت الاستشارة.';
+  String get withdrewConsent =>
+      'لقد سحبت موافقتك لهذه العيادة، ولذلك غادرت الاستشارة.';
 
   @override
-  String get appointmentWasCancelled => 'أُلغي هذا الموعد، ولذلك انتهت الاستشارة.';
+  String get appointmentWasCancelled =>
+      'أُلغي هذا الموعد، ولذلك انتهت الاستشارة.';
 
   @override
   String get windowNotOpen => 'تُفتح هذه الاستشارة قبل موعد البدء بـ 10 دقائق.';
@@ -513,7 +535,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get consultationNotAvailable => 'هذه الاستشارة غير متاحة.';
 
   @override
-  String get cannotConnect => 'تعذّر بدء اتصال الفيديو. يُرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
+  String get cannotConnect =>
+      'تعذّر بدء اتصال الفيديو. يُرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
 
   @override
   String get whyCameraAndMicrophone =>
@@ -568,7 +591,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get stopTranscription => 'إيقاف النسخ النصي';
 
   @override
-  String get transcriptionStopped => 'النسخ النصي متوقف. تجري استشاراتك مع هذه العيادة بدونه.';
+  String get transcriptionStopped =>
+      'النسخ النصي متوقف. تجري استشاراتك مع هذه العيادة بدونه.';
 
   @override
   String get consentForCare => 'المشاركة لأغراض الرعاية';
@@ -601,7 +625,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get submitBeforeStart => 'يُرجى إرساله قبل بدء موعدك.';
 
   @override
-  String get questionnaireClosed => 'بدأ الموعد، ولذلك لم يعد من الممكن تعبئة هذا الاستبيان.';
+  String get questionnaireClosed =>
+      'بدأ الموعد، ولذلك لم يعد من الممكن تعبئة هذا الاستبيان.';
 
   @override
   String savedAsYouGo(String clinic) {
@@ -615,7 +640,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get saving => 'جارٍ الحفظ…';
 
   @override
-  String get notSaved => 'لم يتم الحفظ. يُرجى التحقق من اتصالك بالإنترنت. ستُعاد محاولة الحفظ تلقائيًا.';
+  String get notSaved =>
+      'لم يتم الحفظ. يُرجى التحقق من اتصالك بالإنترنت. ستُعاد محاولة الحفظ تلقائيًا.';
 
   @override
   String get requiredQuestion => 'إلزامي';
@@ -682,7 +708,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get answersSubmitted => 'تم إرسال الإجابات';
 
   @override
-  String get answersSubmittedBody => 'يمكن لطبيبك الاطلاع عليها قبل موعدك. ويمكنك عرضها من قسم مواعيدي.';
+  String get answersSubmittedBody =>
+      'يمكن لطبيبك الاطلاع عليها قبل موعدك. ويمكنك عرضها من قسم مواعيدي.';
 
   @override
   String get yourAnswers => 'إجاباتك';
@@ -701,25 +728,30 @@ class AppLocalizationsAr extends AppLocalizations {
   String get notAnswered => 'لم تتم الإجابة';
 
   @override
-  String get leaveUnsaved => 'لم تُحفظ إجابتك الأخيرة بعد. هل تريد المغادرة على أي حال؟';
+  String get leaveUnsaved =>
+      'لم تُحفظ إجابتك الأخيرة بعد. هل تريد المغادرة على أي حال؟';
 
   @override
   String get stay => 'البقاء';
 
   @override
-  String get fillingNeedsConsent => 'تتطلّب تعبئة هذا الاستبيان موافقتك لهذه العيادة.';
+  String get fillingNeedsConsent =>
+      'تتطلّب تعبئة هذا الاستبيان موافقتك لهذه العيادة.';
 
   @override
-  String get pastDue => 'بدأ الموعد، ولذلك لم يعد من الممكن تغيير هذا الاستبيان.';
+  String get pastDue =>
+      'بدأ الموعد، ولذلك لم يعد من الممكن تغيير هذا الاستبيان.';
 
   @override
-  String get withdrawnByClinic => 'سحبت العيادة هذا الاستبيان. لست بحاجة إلى تعبئته.';
+  String get withdrawnByClinic =>
+      'سحبت العيادة هذا الاستبيان. لست بحاجة إلى تعبئته.';
 
   @override
   String get alreadySubmitted => 'لقد أرسلت هذا الاستبيان من قبل.';
 
   @override
-  String get changedElsewhere => 'تم تغيير هذه الإجابات على جهاز آخر. تُعرض أحدث الإجابات.';
+  String get changedElsewhere =>
+      'تم تغيير هذه الإجابات على جهاز آخر. تُعرض أحدث الإجابات.';
 
   @override
   String get questionnaireNotAvailable => 'هذا الاستبيان غير متاح.';
@@ -799,7 +831,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get removeFileBody => 'سيُحذف من إجاباتك.';
 
   @override
-  String get fileRejected => 'لم يجتز هذا الملف فحص الأمان وتم حذفه. يُرجى اختيار ملف آخر.';
+  String get fileRejected =>
+      'لم يجتز هذا الملف فحص الأمان وتم حذفه. يُرجى اختيار ملف آخر.';
 
   @override
   String fileTooLarge(int max) {
@@ -807,7 +840,8 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get fileTypeRefused => 'لا يمكن إضافة هذا النوع من الملفات إلى هذا السؤال.';
+  String get fileTypeRefused =>
+      'لا يمكن إضافة هذا النوع من الملفات إلى هذا السؤال.';
 
   @override
   String tooManyFiles(int n) {
@@ -825,19 +859,23 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get filesFull => 'بلغ حجم الملفات في هذا الاستبيان 500 MB. يُرجى إزالة ملف لإضافة ملف آخر.';
+  String get filesFull =>
+      'بلغ حجم الملفات في هذا الاستبيان 500 MB. يُرجى إزالة ملف لإضافة ملف آخر.';
 
   @override
   String get fileNotUploaded => 'تعذّر رفع الملف. يُرجى المحاولة مرة أخرى.';
 
   @override
-  String get cannotPrepareFile => 'تعذّر تحضير هذا الملف للرفع. يُرجى اختيار ملف آخر.';
+  String get cannotPrepareFile =>
+      'تعذّر تحضير هذا الملف للرفع. يُرجى اختيار ملف آخر.';
 
   @override
-  String get filesBeingChecked => 'لا يزال فحص بعض الملفات جاريًا. يمكنك الإرسال بمجرد أن تصبح جاهزة.';
+  String get filesBeingChecked =>
+      'لا يزال فحص بعض الملفات جاريًا. يمكنك الإرسال بمجرد أن تصبح جاهزة.';
 
   @override
-  String get leaveUploading => 'لا يزال رفع أحد الملفات جاريًا. هل تريد المغادرة على أي حال؟ سيتوقف الرفع.';
+  String get leaveUploading =>
+      'لا يزال رفع أحد الملفات جاريًا. هل تريد المغادرة على أي حال؟ سيتوقف الرفع.';
 
   @override
   String fileCount(int n) {
@@ -903,7 +941,8 @@ class AppLocalizationsAr extends AppLocalizations {
       'لا يملك Salus إذنًا بالوصول إلى الكاميرا. يمكنك السماح بذلك من إعدادات جهازك، أو اختيار ملف بدلًا من ذلك.';
 
   @override
-  String get photosDenied => 'لا يملك Salus إذنًا بالوصول إلى صورك. يمكنك السماح بذلك من إعدادات جهازك.';
+  String get photosDenied =>
+      'لا يملك Salus إذنًا بالوصول إلى صورك. يمكنك السماح بذلك من إعدادات جهازك.';
 
   @override
   String cameraPhotoTitle(String date, String time) {
@@ -967,7 +1006,8 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get languageUnavailable => 'لم تعد هذه اللغة متاحة لهذا الاستبيان. اختر لغة أخرى.';
+  String get languageUnavailable =>
+      'لم تعد هذه اللغة متاحة لهذا الاستبيان. اختر لغة أخرى.';
 
   @override
   String specialtyAtClinic(String specialty, String clinic) {
@@ -978,7 +1018,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get documents => 'المستندات';
 
   @override
-  String get noDocuments => 'لا توجد بعد مستندات موقعة لهذا الموعد. يظهر المستند هنا بعد أن يوقعه طبيبك.';
+  String get noDocuments =>
+      'لا توجد بعد مستندات موقعة لهذا الموعد. يظهر المستند هنا بعد أن يوقعه طبيبك.';
 
   @override
   String documentSignedOn(String date) {
@@ -997,7 +1038,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get transcript => 'النص المكتوب';
 
   @override
-  String get transcriptNote => 'الاستشارة كما تم تحويلها إلى نص وترجمتها تلقائيًا. قد تحتوي على أخطاء.';
+  String get transcriptNote =>
+      'الاستشارة كما تم تحويلها إلى نص وترجمتها تلقائيًا. قد تحتوي على أخطاء.';
 
   @override
   String get transcriptEmpty => 'لم يُحوَّل أي شيء إلى نص في هذه الاستشارة.';
@@ -1024,4 +1066,55 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get termClose => 'إغلاق';
+
+  @override
+  String get myHistory => 'سجلي';
+
+  @override
+  String get historyEmpty =>
+      'سجلك فارغ حتى الآن. تظهر هنا زياراتك ومستنداتك وإجاباتك.';
+
+  @override
+  String get historyNoMatch => 'لا يوجد في سجلك ما يطابق عوامل التصفية هذه.';
+
+  @override
+  String get historyClinic => 'العيادة';
+
+  @override
+  String get historyAllClinics => 'كل العيادات';
+
+  @override
+  String get historyVisits => 'الزيارات';
+
+  @override
+  String get historyVisit => 'زيارة';
+
+  @override
+  String get historyAnswers => 'إجابات الاستبيان';
+
+  @override
+  String get historyFiles => 'الملفات';
+
+  @override
+  String get historyFile => 'ملف';
+
+  @override
+  String get historyAnyDate => 'أي تاريخ';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return 'من $from إلى $to';
+  }
+
+  @override
+  String get historyClearDates => 'مسح التواريخ';
+
+  @override
+  String get historyShowMore => 'عرض المزيد';
+
+  @override
+  String get historyMoreFailed => 'تعذر تحميل المزيد من سجلك.';
+
+  @override
+  String get historyOpenFailed => 'تعذر فتح هذا العنصر. حاول مرة أخرى.';
 }

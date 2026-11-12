@@ -133,6 +133,49 @@ func (q *Queries) BinaryByID(ctx context.Context, id pgtype.UUID) (Binary, error
 	return i, err
 }
 
+const cleanBinaries = `-- name: CleanBinaries :many
+SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key FROM "binary" WHERE id = ANY($1::uuid[]) AND status = 'clean' ORDER BY id
+`
+
+// The clean files among ids that the scope shows: the patient's timeline (SAL-39).
+func (q *Queries) CleanBinaries(ctx context.Context, ids []pgtype.UUID) ([]Binary, error) {
+	rows, err := q.db.Query(ctx, cleanBinaries, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Binary
+	for rows.Next() {
+		var i Binary
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ScannedAt,
+			&i.OrganizationID,
+			&i.PatientID,
+			&i.AppointmentID,
+			&i.QuestionnaireResponseID,
+			&i.Size,
+			&i.SegmentSize,
+			&i.LinkID,
+			&i.ContentType,
+			&i.Title,
+			&i.Status,
+			&i.KekID,
+			&i.Sha1,
+			&i.WrappedKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteBinary = `-- name: DeleteBinary :execrows
 DELETE FROM "binary" WHERE id = $1
 `

@@ -290,5 +290,21 @@
   "transcriptTranslation": "Traduction : {text}",
   "termExplanationNote": "À titre informatif, pas un diagnostic",
   "termNotReviewed": "Pas encore vérifié",
-  "termClose": "Fermer"
+  "termClose": "Fermer",
+  "myHistory": "Mon historique",
+  "historyEmpty": "Votre historique est encore vide. Vos consultations, documents et réponses apparaissent ici.",
+  "historyNoMatch": "Rien dans votre historique ne correspond à ces filtres.",
+  "historyClinic": "Clinique",
+  "historyAllClinics": "Toutes les cliniques",
+  "historyVisits": "Consultations",
+  "historyVisit": "Consultation",
+  "historyAnswers": "Réponses au questionnaire",
+  "historyFiles": "Fichiers",
+  "historyFile": "Fichier",
+  "historyAnyDate": "Toutes les dates",
+  "historyDateRange": "du {from} au {to}",
+  "historyClearDates": "Effacer les dates",
+  "historyShowMore": "Afficher plus",
+  "historyMoreFailed": "La suite de votre historique n’a pas pu être chargée.",
+  "historyOpenFailed": "Cet élément n’a pas pu être ouvert. Réessayez."
 }

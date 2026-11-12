@@ -105,3 +105,42 @@ WHERE id = @id AND attachments @> jsonb_build_array(jsonb_build_object('binaryId
 
 -- name: QuestionnaireResponseAttachments :one
 SELECT attachments FROM questionnaire_response WHERE id = @id;
+
+-- name: CompletedOf :many
+-- The patient's timeline (SAL-39): their completed responses after the page's position, newest first by
+-- submission, the reference ("QuestionnaireResponse/<id>", compared byte by byte) breaking a tie; a null bound does
+-- not narrow. Without the answers and files, which the timeline does not show.
+SELECT id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
+       series_id, version_id, source, status, '[]'::jsonb AS answers, '[]'::jsonb AS attachments, language
+FROM questionnaire_response
+WHERE patient_id = @patient_id AND status = 'completed'
+  AND (sqlc.narg(organization_id)::uuid IS NULL OR organization_id = sqlc.narg(organization_id)::uuid)
+  AND (sqlc.narg(from_at)::timestamptz IS NULL OR authored_at >= sqlc.narg(from_at)::timestamptz)
+  AND (sqlc.narg(to_at)::timestamptz IS NULL OR authored_at < sqlc.narg(to_at)::timestamptz)
+  AND (sqlc.narg(after_at)::timestamptz IS NULL
+       OR authored_at < sqlc.narg(after_at)::timestamptz
+       OR (authored_at = sqlc.narg(after_at)::timestamptz
+           AND ('QuestionnaireResponse/' || id::text) COLLATE "C" < sqlc.arg(after_ref)::text COLLATE "C"))
+ORDER BY authored_at DESC, id DESC
+LIMIT @lim;
+
+-- name: FilesOf :many
+-- The files of the patient's timeline: those of their completed responses no longer pending, each with its
+-- response (without the answers), after the page's position by the response's submission, the reference
+-- ("Binary/<id>") breaking a tie.
+SELECT r.id, r.created_at, r.updated_at, r.due_at, r.authored_at, r.organization_id, r.appointment_id, r.patient_id,
+       r.practitioner_role_id, r.questionnaire_id, r.series_id, r.version_id, r.source, r.status, '[]'::jsonb AS answers,
+       '[]'::jsonb AS attachments, r.language, f.file::jsonb AS file
+FROM questionnaire_response r
+CROSS JOIN LATERAL jsonb_array_elements(r.attachments) AS f (file)
+WHERE r.patient_id = @patient_id AND r.status = 'completed'
+  AND NOT coalesce((f.file ->> 'pending')::boolean, false)
+  AND (sqlc.narg(organization_id)::uuid IS NULL OR r.organization_id = sqlc.narg(organization_id)::uuid)
+  AND (sqlc.narg(from_at)::timestamptz IS NULL OR r.authored_at >= sqlc.narg(from_at)::timestamptz)
+  AND (sqlc.narg(to_at)::timestamptz IS NULL OR r.authored_at < sqlc.narg(to_at)::timestamptz)
+  AND (sqlc.narg(after_at)::timestamptz IS NULL
+       OR r.authored_at < sqlc.narg(after_at)::timestamptz
+       OR (r.authored_at = sqlc.narg(after_at)::timestamptz
+           AND ('Binary/' || (f.file ->> 'binaryId')) COLLATE "C" < sqlc.arg(after_ref)::text COLLATE "C"))
+ORDER BY r.authored_at DESC, ('Binary/' || (f.file ->> 'binaryId')) COLLATE "C" DESC
+LIMIT @lim;

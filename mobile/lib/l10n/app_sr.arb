@@ -290,5 +290,21 @@
   "transcriptTranslation": "Пријевод: {text}",
   "termExplanationNote": "Информативно, није дијагноза",
   "termNotReviewed": "Још није провјерено",
-  "termClose": "Затвори"
+  "termClose": "Затвори",
+  "myHistory": "Моја историја",
+  "historyEmpty": "Ваша историја је још празна. Овдје се појављују ваше посјете, документи и одговори.",
+  "historyNoMatch": "Ништа у вашој историји не одговара овим филтерима.",
+  "historyClinic": "Клиника",
+  "historyAllClinics": "Све клинике",
+  "historyVisits": "Посјете",
+  "historyVisit": "Посјета",
+  "historyAnswers": "Одговори на упитник",
+  "historyFiles": "Датотеке",
+  "historyFile": "Датотека",
+  "historyAnyDate": "Било који датум",
+  "historyDateRange": "од {from} до {to}",
+  "historyClearDates": "Поништи датуме",
+  "historyShowMore": "Прикажи више",
+  "historyMoreFailed": "Остатак ваше историје није се могао учитати.",
+  "historyOpenFailed": "Ова ставка се није могла отворити. Покушајте поново."
 }

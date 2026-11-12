@@ -290,5 +290,21 @@
   "transcriptTranslation": "Traduzione: {text}",
   "termExplanationNote": "A titolo informativo, non è una diagnosi",
   "termNotReviewed": "Non ancora verificato",
-  "termClose": "Chiudi"
+  "termClose": "Chiudi",
+  "myHistory": "La mia cronologia",
+  "historyEmpty": "La Sua cronologia è ancora vuota. Qui compaiono le Sue visite, i Suoi documenti e le Sue risposte.",
+  "historyNoMatch": "Nulla nella Sua cronologia corrisponde a questi filtri.",
+  "historyClinic": "Clinica",
+  "historyAllClinics": "Tutte le cliniche",
+  "historyVisits": "Visite",
+  "historyVisit": "Visita",
+  "historyAnswers": "Risposte al questionario",
+  "historyFiles": "File",
+  "historyFile": "File",
+  "historyAnyDate": "Qualsiasi data",
+  "historyDateRange": "dal {from} al {to}",
+  "historyClearDates": "Cancella le date",
+  "historyShowMore": "Mostra altro",
+  "historyMoreFailed": "Non è stato possibile caricare il resto della Sua cronologia.",
+  "historyOpenFailed": "Non è stato possibile aprire questo elemento. Riprovi."
 }

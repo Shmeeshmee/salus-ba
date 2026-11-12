@@ -108,6 +108,74 @@ func (q *Queries) FinishEncounter(ctx context.Context, arg FinishEncounterParams
 	return i, err
 }
 
+const patientHistoryEncounters = `-- name: PatientHistoryEncounters :many
+SELECT id, created_at, updated_at, period_start, period_end, appointment_id, organization_id, patient_id, practitioner_role_id,
+       version_id, status
+FROM encounter
+WHERE patient_id = $1
+  AND ($2::uuid IS NULL OR organization_id = $2::uuid)
+  AND ($3::timestamptz IS NULL OR period_start >= $3::timestamptz)
+  AND ($4::timestamptz IS NULL OR period_start < $4::timestamptz)
+  AND ($5::timestamptz IS NULL
+       OR period_start < $5::timestamptz
+       OR (period_start = $5::timestamptz
+           AND ('Encounter/' || id::text) COLLATE "C" < $6::text COLLATE "C"))
+ORDER BY period_start DESC, id DESC
+LIMIT $7
+`
+
+type PatientHistoryEncountersParams struct {
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	FromAt         pgtype.Timestamptz
+	ToAt           pgtype.Timestamptz
+	AfterAt        pgtype.Timestamptz
+	AfterRef       string
+	Lim            int32
+}
+
+// The patient's timeline (SAL-39): their encounters after the page's position, newest first by start, the
+// reference ("Encounter/<id>", compared byte by byte) breaking a tie; a null bound does not narrow.
+func (q *Queries) PatientHistoryEncounters(ctx context.Context, arg PatientHistoryEncountersParams) ([]Encounter, error) {
+	rows, err := q.db.Query(ctx, patientHistoryEncounters,
+		arg.PatientID,
+		arg.OrganizationID,
+		arg.FromAt,
+		arg.ToAt,
+		arg.AfterAt,
+		arg.AfterRef,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Encounter
+	for rows.Next() {
+		var i Encounter
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PeriodStart,
+			&i.PeriodEnd,
+			&i.AppointmentID,
+			&i.OrganizationID,
+			&i.PatientID,
+			&i.PractitionerRoleID,
+			&i.VersionID,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchEncounters = `-- name: SearchEncounters :many
 SELECT id, created_at, updated_at, period_start, period_end, appointment_id, organization_id, patient_id, practitioner_role_id,
        version_id, status

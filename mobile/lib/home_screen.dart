@@ -5,6 +5,7 @@ import 'appointments_screen.dart';
 import 'booking.dart';
 import 'call.dart';
 import 'files.dart';
+import 'history_screen.dart';
 import 'clinics_screen.dart';
 import 'consents_screen.dart';
 import 'language_picker.dart';
@@ -13,8 +14,8 @@ import 'profile_screen.dart';
 import 'session.dart';
 import 'ui.dart' as ui;
 
-/// The signed-in patient: the profile first when there is none, then booking, appointments, consents and
-/// sign-out.
+/// The signed-in patient: the profile first when there is none, then booking, appointments, their history,
+/// consents and sign-out.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
@@ -150,6 +151,11 @@ class _HomeScreenState extends State<HomeScreen> {
           onPressed: () =>
               _open(() => AppointmentsScreen(booking: booking, now: now, media: widget.media, files: widget.files)),
           child: Text(t.myAppointments),
+        ),
+        OutlinedButton(
+          onPressed: () =>
+              _open(() => HistoryScreen(booking: booking, media: widget.media, files: widget.files, now: now)),
+          child: Text(t.myHistory),
         ),
         OutlinedButton(
           onPressed: () => _open(() => ConsentsScreen(booking: booking)),

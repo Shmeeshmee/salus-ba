@@ -49,3 +49,7 @@ DELETE FROM "binary" WHERE status = 'rejected' AND scanned_at < @before;
 -- name: ExistingBinaries :many
 -- The purger, as salus_retention: which of the stored objects' keys still have a row.
 SELECT id FROM "binary" WHERE id = ANY(@ids::uuid[]);
+
+-- name: CleanBinaries :many
+-- The clean files among ids that the scope shows: the patient's timeline (SAL-39).
+SELECT * FROM "binary" WHERE id = ANY(@ids::uuid[]) AND status = 'clean' ORDER BY id;

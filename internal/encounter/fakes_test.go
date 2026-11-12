@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
@@ -11,6 +12,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/keyset"
 )
 
 // Synthetic ids.
@@ -79,10 +81,18 @@ func inTx(ctx context.Context) error {
 // clinic's.
 type fakeRepository struct {
 	err        error
-	encounters []encounter.Encounter
+	history    historyAsk
 	patient    string
 	clinic     string
+	encounters []encounter.Encounter
 	searched   []encounter.Filter
+}
+
+// historyAsk is what PatientHistory was last asked.
+type historyAsk struct {
+	patient string
+	org     string
+	page    keyset.Page
 }
 
 func (r *fakeRepository) visible(e encounter.Encounter) bool {
@@ -180,6 +190,37 @@ func (r *fakeRepository) Search(ctx context.Context, f encounter.Filter) ([]enco
 		}
 	}
 	return out, nil
+}
+
+// PatientHistory gives the patient's encounters the scope shows after the page's position, newest first by start.
+func (r *fakeRepository) PatientHistory(ctx context.Context, patientID, org string, p keyset.Page) ([]encounter.Encounter, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	r.history = historyAsk{page: p, patient: patientID, org: org}
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []encounter.Encounter
+	for _, e := range r.encounters {
+		ref := "Encounter/" + e.ID
+		if r.visible(e) && e.PatientID == patientID && (org == "" || e.OrganizationID == org) && inPage(p, e.PeriodStart, ref) {
+			out = append(out, e)
+		}
+	}
+	slices.SortFunc(out, func(a, b encounter.Encounter) int {
+		if c := b.PeriodStart.Compare(a.PeriodStart); c != 0 {
+			return c
+		}
+		return strings.Compare(b.ID, a.ID)
+	})
+	return out[:min(len(out), p.Limit)], nil
+}
+
+// inPage reports whether an item at at with the reference ref is in the page: after its position, in its range.
+func inPage(p keyset.Page, at time.Time, ref string) bool {
+	after := p.At.IsZero() || at.Before(p.At) || (at.Equal(p.At) && ref < p.Ref)
+	return after && (p.From.IsZero() || !at.Before(p.From)) && (p.To.IsZero() || at.Before(p.To))
 }
 
 // fakeAppointments holds the appointments (for Lookup, in clinic A's scope), each caller's attendance of

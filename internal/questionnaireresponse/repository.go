@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/pkg/keyset"
 )
 
 // Repository stores the responses. Row-level security shows a transaction the responses of the patient set
@@ -56,6 +57,13 @@ type Repository interface {
 	ClearAttachment(ctx context.Context, id, binaryID string, at time.Time) error
 	// Attachments returns the attachments of the response id, or ErrNotFound.
 	Attachments(ctx context.Context, id string) ([]binary.Attachment, error)
+	// CompletedOf returns the patient's completed responses the scope shows, at the clinic org when set, without
+	// their answers or files, after the page's position (by submission, then "QuestionnaireResponse/<id>"),
+	// newest first, p.Limit at most.
+	CompletedOf(ctx context.Context, patientID, org string, p keyset.Page) ([]Response, error)
+	// FilesOf returns the files of those responses that are no longer pending, each with its response, after the
+	// page's position (by the response's submission, then "Binary/<id>"), newest first, p.Limit at most.
+	FilesOf(ctx context.Context, patientID, org string, p keyset.Page) ([]Attached, error)
 }
 
 // Jobs enqueues the background work a change of the answers causes, in the caller's transaction (River's

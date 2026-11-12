@@ -33,6 +33,8 @@ type Auditor interface {
 // scope, unaudited (encounter.Service): composition applies its own rule and audits its decision.
 type Encounters interface {
 	Access(ctx context.Context, c appointment.Caller, id string) (encounter.Encounter, appointment.Attendance, error)
+	// Own gives the calling patient's own encounters, at the clinic org when set (none to staff).
+	Own(ctx context.Context, c appointment.Caller, org string) ([]encounter.Encounter, error)
 }
 
 // Transcripts gives the encounter's stored transcript to its practitioner (transcript.Service), auditing the

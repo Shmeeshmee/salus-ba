@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Shmeeshmee/salus/internal/encounter/encounterdb"
+	"github.com/Shmeeshmee/salus/pkg/keyset"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
@@ -112,6 +113,27 @@ func (r *postgresRepository) Search(ctx context.Context, f Filter) ([]Encounter,
 	}
 	return out, nil
 }
+
+func (r *postgresRepository) PatientHistory(ctx context.Context, patientID, org string, p keyset.Page) ([]Encounter, error) {
+	arg := encounterdb.PatientHistoryEncountersParams{
+		FromAt: optTS(p.From), ToAt: optTS(p.To), AfterAt: optTS(p.At), AfterRef: p.Ref, Lim: int32(min(p.Limit, 1000)), //nolint:gosec // bounded
+	}
+	if arg.PatientID.Scan(patientID) != nil || (org != "" && arg.OrganizationID.Scan(org) != nil) {
+		return nil, nil // an id that is not a UUID matches nothing
+	}
+	rows, err := r.q(ctx).PatientHistoryEncounters(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Encounter, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toEncounter(row))
+	}
+	return out, nil
+}
+
+// optTS is t, or null when it is zero.
+func optTS(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: !t.IsZero()} }
 
 func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
 

@@ -39,3 +39,20 @@ ORDER BY period_start, id;
 -- name: EncounterOrganization :one
 -- The clinic of an encounter whatever the scope (migration 00033), null for an unknown id.
 SELECT encounter_organization(@id::uuid)::uuid AS organization_id;
+
+-- name: PatientHistoryEncounters :many
+-- The patient's timeline (SAL-39): their encounters after the page's position, newest first by start, the
+-- reference ("Encounter/<id>", compared byte by byte) breaking a tie; a null bound does not narrow.
+SELECT id, created_at, updated_at, period_start, period_end, appointment_id, organization_id, patient_id, practitioner_role_id,
+       version_id, status
+FROM encounter
+WHERE patient_id = @patient_id
+  AND (sqlc.narg(organization_id)::uuid IS NULL OR organization_id = sqlc.narg(organization_id)::uuid)
+  AND (sqlc.narg(from_at)::timestamptz IS NULL OR period_start >= sqlc.narg(from_at)::timestamptz)
+  AND (sqlc.narg(to_at)::timestamptz IS NULL OR period_start < sqlc.narg(to_at)::timestamptz)
+  AND (sqlc.narg(after_at)::timestamptz IS NULL
+       OR period_start < sqlc.narg(after_at)::timestamptz
+       OR (period_start = sqlc.narg(after_at)::timestamptz
+           AND ('Encounter/' || id::text) COLLATE "C" < sqlc.arg(after_ref)::text COLLATE "C"))
+ORDER BY period_start DESC, id DESC
+LIMIT @lim;

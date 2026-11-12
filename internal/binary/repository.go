@@ -41,6 +41,8 @@ type Repository interface {
 	Insert(ctx context.Context, b Binary, at time.Time) (Binary, error)
 	// ByID returns the file, or ErrNotFound (also outside the scope, or for an id that is not a UUID).
 	ByID(ctx context.Context, id string) (Binary, error)
+	// Clean returns the clean files among ids that the scope shows; an id that is no UUID matches none.
+	Clean(ctx context.Context, ids []string) ([]Binary, error)
 	// OfItem returns the files of the response's item linkID that are not rejected, oldest first.
 	OfItem(ctx context.Context, responseID, linkID string) ([]Binary, error)
 	// ResponseSize is the plaintext bytes of the response's files that are not rejected.
