@@ -50,6 +50,10 @@ CREATE TABLE allergy_intolerance (
     severity text CHECK (severity IN ('mild', 'moderate', 'severe')),
     clinical_status text DEFAULT 'active' NOT NULL CHECK (clinical_status IN ('active', 'inactive', 'resolved')),
     verification_status text NOT NULL CHECK (verification_status IN ('unconfirmed', 'confirmed', 'entered-in-error')),
+    CONSTRAINT allergy_intolerance_recorder_fkey FOREIGN KEY (recorder_role_id, organization_id)
+        REFERENCES practitioner_role (id, organization_id),
+    CONSTRAINT allergy_intolerance_confirmer_fkey FOREIGN KEY (confirmed_by_role_id, confirmed_organization_id)
+        REFERENCES practitioner_role (id, organization_id),
     CONSTRAINT allergy_intolerance_source CHECK (num_nulls(organization_id, encounter_id, recorder_role_id) IN (0, 3)),
     CONSTRAINT allergy_intolerance_own_in_profile CHECK (organization_id IS NOT NULL OR in_profile),
     CONSTRAINT allergy_intolerance_confirmation CHECK (num_nulls(confirmed_at, confirmed_by_role_id, confirmed_organization_id) IN (0, 3)),
@@ -82,6 +86,10 @@ CREATE TABLE medication_statement (
     dose_unit text CHECK (dose_unit IN ('mg', 'g', 'ug', 'mL', '[iU]', '{tablet}', '{capsule}', '{drop}', '{puff}', '{patch}')),
     period_unit text CHECK (period_unit IN ('h', 'd', 'wk', 'mo')), -- UCUM, as FHIR Timing.repeat.periodUnit
     status text DEFAULT 'active' NOT NULL CHECK (status IN ('active', 'stopped', 'entered-in-error')),
+    CONSTRAINT medication_statement_recorder_fkey FOREIGN KEY (recorder_role_id, organization_id)
+        REFERENCES practitioner_role (id, organization_id),
+    CONSTRAINT medication_statement_confirmer_fkey FOREIGN KEY (confirmed_by_role_id, confirmed_organization_id)
+        REFERENCES practitioner_role (id, organization_id),
     CONSTRAINT medication_statement_source CHECK (num_nulls(organization_id, encounter_id, recorder_role_id) IN (0, 3)),
     CONSTRAINT medication_statement_own_in_profile CHECK (organization_id IS NOT NULL OR in_profile),
     CONSTRAINT medication_statement_confirmation CHECK (num_nulls(confirmed_at, confirmed_by_role_id, confirmed_organization_id) IN (0, 3)),
@@ -227,6 +235,19 @@ CREATE POLICY practitioner_role_shared ON practitioner_role FOR SELECT TO salus_
     USING (EXISTS (SELECT 1 FROM history_consent_encounter s JOIN encounter e ON e.id = s.encounter_id
                    WHERE s.removed_at IS NULL AND e.practitioner_role_id = practitioner_role.id
                      AND history_shared(e.id, e.patient_id)));
+-- The drafts and signed documents a clinic writes are its own encounters' (00031's document_draft_clinic followed
+-- encounter's visibility and relied on the template's to stay closed): recreated for the clinic's own encounters,
+-- otherwise as 00031. A shared visit's signed documents are read through document_draft_shared only.
+DROP POLICY document_draft_clinic ON document_draft;
+CREATE POLICY document_draft_clinic ON document_draft
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.video_room', true), '') IS NULL
+           AND EXISTS (SELECT 1 FROM encounter e
+                       WHERE e.id = document_draft.encounter_id
+                         AND e.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid)
+           AND EXISTS (SELECT 1 FROM document_template t WHERE t.id = document_draft.template_id));
+
 -- The transcript and the suggestions are the clinic's own: 00031 opened them wherever the clinic's scope sees the
 -- encounter, which encounter_shared would now stretch to another clinic's shared visit. Recreated for the clinic's own
 -- encounters only, otherwise as 00031.
@@ -274,10 +295,12 @@ CREATE POLICY allergy_intolerance_clinic_insert ON allergy_intolerance FOR INSER
                 AND NULLIF(current_setting('app.account_id', true), '') IS NULL
                 AND NOT in_profile
                 AND organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                AND (confirmed_organization_id IS NULL OR confirmed_organization_id = organization_id)
                 AND EXISTS (SELECT 1 FROM encounter e
                             WHERE e.id = allergy_intolerance.encounter_id
                               AND e.organization_id = allergy_intolerance.organization_id
                               AND e.patient_id = allergy_intolerance.patient_id));
+-- A clinic updates the profile under its care consent, and its own visits' entries only: a shared visit is read-only.
 CREATE POLICY allergy_intolerance_clinic_update ON allergy_intolerance FOR UPDATE TO salus_app
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
@@ -285,7 +308,8 @@ CREATE POLICY allergy_intolerance_clinic_update ON allergy_intolerance FOR UPDAT
                                         WHERE c.patient_id = allergy_intolerance.patient_id
                                           AND c.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
                                           AND c.status = 'active'))
-                OR EXISTS (SELECT 1 FROM encounter e WHERE e.id = allergy_intolerance.encounter_id)));
+                OR (organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                    AND EXISTS (SELECT 1 FROM encounter e WHERE e.id = allergy_intolerance.encounter_id))));
 
 ALTER TABLE medication_statement ENABLE ROW LEVEL SECURITY;
 CREATE POLICY medication_statement_own ON medication_statement FOR SELECT TO salus_app
@@ -311,10 +335,12 @@ CREATE POLICY medication_statement_clinic_insert ON medication_statement FOR INS
                 AND NULLIF(current_setting('app.account_id', true), '') IS NULL
                 AND NOT in_profile
                 AND organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                AND (confirmed_organization_id IS NULL OR confirmed_organization_id = organization_id)
                 AND EXISTS (SELECT 1 FROM encounter e
                             WHERE e.id = medication_statement.encounter_id
                               AND e.organization_id = medication_statement.organization_id
                               AND e.patient_id = medication_statement.patient_id));
+-- A clinic updates the profile under its care consent, and its own visits' entries only: a shared visit is read-only.
 CREATE POLICY medication_statement_clinic_update ON medication_statement FOR UPDATE TO salus_app
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
@@ -322,7 +348,8 @@ CREATE POLICY medication_statement_clinic_update ON medication_statement FOR UPD
                                         WHERE c.patient_id = medication_statement.patient_id
                                           AND c.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
                                           AND c.status = 'active'))
-                OR EXISTS (SELECT 1 FROM encounter e WHERE e.id = medication_statement.encounter_id)));
+                OR (organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                    AND EXISTS (SELECT 1 FROM encounter e WHERE e.id = medication_statement.encounter_id))));
 
 -- What a scope may change of an entry, which row-level security cannot say (it does not see the old row): the patient
 -- never confirms, edits only their own entries and, of a clinic's, only adds it to the profile or removes it
@@ -346,12 +373,21 @@ DECLARE
     confirmation_changed boolean := (NEW.confirmed_at, NEW.confirmed_by_role_id, NEW.confirmed_organization_id)
         IS DISTINCT FROM (OLD.confirmed_at, OLD.confirmed_by_role_id, OLD.confirmed_organization_id);
 BEGIN
-    IF current_user <> 'salus_app' THEN
+    -- The table's owner (migrations, salusctl) only; every other role is checked.
+    IF current_user = (SELECT r.rolname FROM pg_class c JOIN pg_roles r ON r.oid = c.relowner WHERE c.oid = TG_RELID) THEN
         RETURN NEW;
+    END IF;
+    -- A confirmation vouches for the content it confirmed: an edit keeps it only when the confirming clinic makes it.
+    IF content_changed AND NEW.confirmed_at IS NOT NULL AND NOT confirmation_changed
+       AND NEW.confirmed_organization_id IS DISTINCT FROM clinic THEN
+        RAISE EXCEPTION 'an edit of a confirmed entry clears or renews the confirmation' USING ERRCODE = 'insufficient_privilege';
     END IF;
     IF NULLIF(current_setting('app.patient_id', true), '') IS NOT NULL THEN
         IF confirmation_changed AND (NEW.confirmed_at IS NOT NULL OR OLD.organization_id IS NOT NULL) THEN
             RAISE EXCEPTION 'a patient does not confirm an entry' USING ERRCODE = 'insufficient_privilege';
+        END IF;
+        IF content_changed AND NEW.confirmed_at IS NOT NULL THEN
+            RAISE EXCEPTION 'a patient''s edit clears the confirmation' USING ERRCODE = 'insufficient_privilege';
         END IF;
         IF OLD.organization_id IS NOT NULL
            AND (content_changed OR (new_state IS DISTINCT FROM old_state AND new_state <> 'entered-in-error')) THEN
@@ -361,6 +397,9 @@ BEGIN
     END IF;
     IF NEW.in_profile IS DISTINCT FROM OLD.in_profile THEN
         RAISE EXCEPTION 'a clinic does not change the profile' USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    IF confirmation_changed AND OLD.confirmed_organization_id IS DISTINCT FROM clinic AND OLD.confirmed_at IS NOT NULL THEN
+        RAISE EXCEPTION 'a clinic does not overwrite another clinic''s confirmation' USING ERRCODE = 'insufficient_privilege';
     END IF;
     IF confirmation_changed
        AND NOT (NEW.confirmed_organization_id IS NOT DISTINCT FROM clinic

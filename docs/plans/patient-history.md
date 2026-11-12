@@ -27,6 +27,7 @@ Settled by this plan, within those decisions:
 | What a shared visit brings | Its encounter, its signed documents (Composition, DocumentReference, PDF), its completed questionnaire responses and their clean files, the entries recorded in it. Never the transcript, suggestions, drafts or the appointment |
 | Only finished visits | A visit is shareable once its encounter is finished; row-level security refuses another |
 | An empty selection | An active history consent lists at least one visit: saving none revokes it (`PUT /history-sharing/{organizationId}` with `[]`) |
+| Proof timestamps | `date_time`, `revoked_at`, `added_at` and `removed_at` are set by the service from its injected clock, as for the care and transcription consents; the database does not pin them to `now()` (a review asked; declined for consistency with CLAUDE.md's clock rule) |
 | Changing a selection | Optimistic locking: `PUT /history-sharing/{organizationId}` with If-Match of the sharing's version (none for a first grant); a removal and a revocation are final, adding again adds a row |
 | Revoking the care consent | Also revokes the history consent with that clinic, in the same transaction (as the transcription consent) |
 | The visit's title in the preview | The title of its first signed document, else none (the app shows the specialty); the same fields the receiving clinic sees, so the preview is exactly what the doctor will see |
@@ -59,7 +60,8 @@ Settled by this plan, within those decisions:
   `Summary` and its rows, and the ports `Allergies` and `Medications` that SAL-41's services implement with exactly
   that method (`Seen(ctx, appointment.Caller, patientID)`), with their fakes in `fakes_test.go`.
 - **`api/openapi.yaml`**: the paths and schemas of all four tickets (tag `history`), the generated clients, and
-  `api/contract_history_test.go` keeping the schemas equal to the Go types and enums. A ticket that needs to change a
+  `api/contract_history_test.go` keeping the schemas equal to the Go types and enums (`EntryWritten`'s Go type comes
+  with SAL-41's handlers, which add it to that test). A ticket that needs to change a
   schema changes the Go type with it (the contract test fails otherwise) and says so in its PR.
 
 ## Packages

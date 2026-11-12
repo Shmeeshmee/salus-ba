@@ -1170,11 +1170,14 @@ class HistoryApi {
 
   /// Remove an allergy
   ///
-  /// SAL-41. The patient removes an entry from what anyone sees: their own unconfirmed entry is deleted; a confirmed one or one a clinic recorded is kept with the record as entered-in-error. Audited.
+  /// SAL-41. The patient removes an entry from what anyone sees: their own unconfirmed entry is deleted; a confirmed one or one a clinic recorded is kept with the record as entered-in-error. Send If-Match with the version read. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
   /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
   ///
   /// * [String] id (required):
   ///   The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id).
@@ -1182,6 +1185,7 @@ class HistoryApi {
   /// * [String] xSalusCSRF:
   ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
   Future<Response> removeAllergyWithHttpInfo(
+    String ifMatch,
     String id, {
     String? xSalusCSRF,
     Future<void>? abortTrigger,
@@ -1199,6 +1203,7 @@ class HistoryApi {
     if (xSalusCSRF != null) {
       headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
     }
+    headerParams[r'If-Match'] = parameterToString(ifMatch);
 
     const contentTypes = <String>[];
 
@@ -1216,9 +1221,12 @@ class HistoryApi {
 
   /// Remove an allergy
   ///
-  /// SAL-41. The patient removes an entry from what anyone sees: their own unconfirmed entry is deleted; a confirmed one or one a clinic recorded is kept with the record as entered-in-error. Audited.
+  /// SAL-41. The patient removes an entry from what anyone sees: their own unconfirmed entry is deleted; a confirmed one or one a clinic recorded is kept with the record as entered-in-error. Send If-Match with the version read. Audited.
   ///
   /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
   ///
   /// * [String] id (required):
   ///   The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id).
@@ -1226,11 +1234,13 @@ class HistoryApi {
   /// * [String] xSalusCSRF:
   ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
   Future<void> removeAllergy(
+    String ifMatch,
     String id, {
     String? xSalusCSRF,
     Future<void>? abortTrigger,
   }) async {
     final response = await removeAllergyWithHttpInfo(
+      ifMatch,
       id,
       xSalusCSRF: xSalusCSRF,
       abortTrigger: abortTrigger,
@@ -1248,12 +1258,16 @@ class HistoryApi {
   ///
   /// Parameters:
   ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
   /// * [String] id (required):
   ///   The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id).
   ///
   /// * [String] xSalusCSRF:
   ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
   Future<Response> removeMedicationWithHttpInfo(
+    String ifMatch,
     String id, {
     String? xSalusCSRF,
     Future<void>? abortTrigger,
@@ -1271,6 +1285,7 @@ class HistoryApi {
     if (xSalusCSRF != null) {
       headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
     }
+    headerParams[r'If-Match'] = parameterToString(ifMatch);
 
     const contentTypes = <String>[];
 
@@ -1292,17 +1307,22 @@ class HistoryApi {
   ///
   /// Parameters:
   ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
   /// * [String] id (required):
   ///   The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id).
   ///
   /// * [String] xSalusCSRF:
   ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
   Future<void> removeMedication(
+    String ifMatch,
     String id, {
     String? xSalusCSRF,
     Future<void>? abortTrigger,
   }) async {
     final response = await removeMedicationWithHttpInfo(
+      ifMatch,
       id,
       xSalusCSRF: xSalusCSRF,
       abortTrigger: abortTrigger,

@@ -106,3 +106,18 @@ type Candidate struct {
 	Title            string    `json:"title,omitempty"`
 	Selected         bool      `json:"selected"`
 }
+
+// Sharing is what the patient shares with one clinic now (api/openapi.yaml HistorySharing): the history consent, its
+// version, and the encounters it lists; ConsentID and VersionID empty when nothing is shared.
+type Sharing struct {
+	OrganizationID string   `json:"organizationId"`
+	ConsentID      string   `json:"consentId,omitempty"`
+	VersionID      string   `json:"versionId,omitempty"`
+	Shared         []string `json:"shared"`
+}
+
+// SetSharing is the patient's choice of visits to share with a clinic (api/openapi.yaml SetHistorySharingRequest); an
+// empty list revokes the sharing.
+type SetSharing struct {
+	EncounterIDs []string `json:"encounterIds"`
+}

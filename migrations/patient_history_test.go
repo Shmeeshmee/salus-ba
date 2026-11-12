@@ -22,6 +22,7 @@ type historyRows struct {
 	r          responseRows
 	a          appointmentRows
 	consent    string // patient A's history consent with clinic A
+	unshared   string // a finished visit of patient A's at clinic B that is never shared
 	patients   [2]patientRow
 }
 
@@ -63,6 +64,19 @@ func seedHistory(t *testing.T, owner *pgxpool.Pool) historyRows {
 		}
 	}
 	seedVideoSessions(t, owner, a)
+	// A second finished visit of patient A's at clinic B, never shared, with its signed document.
+	if err := owner.QueryRow(ctx, `WITH a AS (
+			INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period, status)
+			VALUES ($1, $2, $3, gen_random_uuid(), tstzrange('2026-10-28T10:00:00Z', '2026-10-28T10:30:00Z'), 'fulfilled')
+			RETURNING id, patient_id, practitioner_role_id, organization_id, lower(period) AS start),
+		e AS (INSERT INTO encounter (appointment_id, organization_id, patient_id, practitioner_role_id, status, period_start, period_end)
+			SELECT id, organization_id, patient_id, practitioner_role_id, 'finished', start, start + interval '20 minutes' FROM a
+			RETURNING id, organization_id)
+		INSERT INTO document_draft (encounter_id, template_id, status, fields)
+		SELECT e.id, t.id, 'final', '[{"key":"a","missing":true}]' FROM e JOIN document_template t ON t.organization_id = e.organization_id
+		RETURNING encounter_id`, p[0].patient, r.roles[clinicB], clinicB).Scan(&h.unshared); err != nil {
+		t.Fatal(err)
+	}
 	for appt, response := range r.completed {
 		var id string
 		if err := owner.QueryRow(ctx, insertFile, response).Scan(&id); err != nil {
@@ -189,8 +203,8 @@ func TestHistorySharing_OnlyWhatIsFinalOfAVisitIsShared(t *testing.T) {
 		t.Errorf("clinic A sees the unscanned files %v of the shared visit, want none", got)
 	}
 	// Clinic B's view of its own visit is unchanged, and patient B's scope sees nothing of patient A.
-	if got := idsIn(t, app, map[string]string{"app.organization_id": clinicB}, `SELECT id::text FROM encounter`); !slices.Equal(got, sorted(h.encounters[h.a.bPast])) {
-		t.Errorf("clinic B sees the encounters %v, want its past one only", got)
+	if got := idsIn(t, app, map[string]string{"app.organization_id": clinicB}, `SELECT id::text FROM encounter`); !slices.Equal(got, sorted(h.encounters[h.a.bPast], h.unshared)) {
+		t.Errorf("clinic B sees the encounters %v, want its past ones only", got)
 	}
 	if got := idsIn(t, app, map[string]string{"app.patient_id": h.patients[1].patient},
 		`SELECT id::text FROM encounter WHERE patient_id = '`+h.patients[0].patient+`'`); len(got) != 0 {
@@ -495,7 +509,8 @@ var closedQueries = map[string]string{
 	"video_session":      `SELECT id::text FROM video_session WHERE organization_id = '` + clinicB + `'`,
 	"document_template":  `SELECT id::text FROM document_template WHERE organization_id = '` + clinicB + `'`,
 	"open drafts":        `SELECT d.id::text FROM document_draft d JOIN encounter e ON e.id = d.encounter_id WHERE e.organization_id = '` + clinicB + `' AND d.status <> 'final'`,
-	"unshared visits":    `SELECT id::text FROM encounter WHERE organization_id = '` + clinicB + `' AND status <> 'finished'`,
+	"unshared visits":    `SELECT id::text FROM encounter WHERE organization_id = '` + clinicB + `' AND id NOT IN (SELECT encounter_id FROM history_consent_encounter)`,
+	"unshared documents": `SELECT d.id::text FROM document_draft d WHERE d.encounter_id IN (SELECT id FROM encounter WHERE organization_id = '` + clinicB + `') AND d.encounter_id NOT IN (SELECT encounter_id FROM history_consent_encounter)`,
 }
 
 // ADR 0013: a shared visit brings its signed record and nothing else, in every scope a clinic's transaction may carry
@@ -524,9 +539,10 @@ func TestHistorySharing_WhatAVisitNeverBringsStaysClosed(t *testing.T) {
 			VALUES (gen_random_uuid(), '` + e + `', 'patient', 'bs', 'x', 'x', now(), now())`,
 		"add a suggestion": `INSERT INTO suggestion (encounter_id, type, text, confidence, source_segment_ids)
 			SELECT '` + e + `', 'question', 'x', 0.5, ARRAY[gen_random_uuid()]`,
-		"change a suggestion":  `UPDATE suggestion SET status = 'pinned' WHERE encounter_id = '` + e + `'`,
-		"change the document":  `UPDATE document_draft SET status = 'entered-in-error' WHERE encounter_id = '` + e + `'`,
-		"finish the encounter": `UPDATE encounter SET version_id = version_id + 1 WHERE id = '` + e + `'`,
+		"change a suggestion":          `UPDATE suggestion SET status = 'pinned' WHERE encounter_id = '` + e + `'`,
+		"change the document":          `UPDATE document_draft SET status = 'entered-in-error' WHERE encounter_id = '` + e + `'`,
+		"change the document's fields": `UPDATE document_draft SET fields = '[{"key":"b","missing":true}]' WHERE encounter_id = '` + e + `'`,
+		"finish the encounter":         `UPDATE encounter SET version_id = version_id + 1 WHERE id = '` + e + `'`,
 	} {
 		_ = asApp(t, app, map[string]string{"app.organization_id": clinicA}, func(ctx context.Context, db postgres.Querier) error {
 			tag, err := db.Exec(ctx, stmt)
@@ -584,18 +600,28 @@ func TestHistoryConsent_AClinicSeesOnlyTheOpenSelectionAndTheProofStays(t *testi
 // role, $3 a clinic.
 var entryWrites = map[string]map[string]string{
 	"allergy_intolerance": {
-		"confirm": `UPDATE allergy_intolerance SET verification_status = 'confirmed', confirmed_at = now(), confirmed_by_role_id = $2, confirmed_organization_id = $3 WHERE id = $1`,
-		"edit":    `UPDATE allergy_intolerance SET code_text = 'Changed substance' WHERE id = $1`,
-		"profile": `UPDATE allergy_intolerance SET in_profile = NOT in_profile WHERE id = $1`,
-		"remove":  `UPDATE allergy_intolerance SET verification_status = 'entered-in-error' WHERE id = $1`,
+		"confirm":          `UPDATE allergy_intolerance SET verification_status = 'confirmed', confirmed_at = now(), confirmed_by_role_id = $2, confirmed_organization_id = $3 WHERE id = $1`,
+		"edit":             `UPDATE allergy_intolerance SET code_text = code_text || ' changed' WHERE id = $1`,
+		"profile":          `UPDATE allergy_intolerance SET in_profile = NOT in_profile WHERE id = $1`,
+		"remove":           `UPDATE allergy_intolerance SET verification_status = 'entered-in-error' WHERE id = $1`,
+		"edit unconfirmed": `UPDATE allergy_intolerance SET code_text = 'Changed again', verification_status = 'unconfirmed', confirmed_at = NULL, confirmed_by_role_id = NULL, confirmed_organization_id = NULL WHERE id = $1`,
+		"record as": `INSERT INTO allergy_intolerance (patient_id, organization_id, encounter_id, recorder_role_id, in_profile, code_text, verification_status, recorded_date, confirmed_at, confirmed_by_role_id, confirmed_organization_id)
+			SELECT patient_id, $3, encounter_id, $2, false, 'x', 'confirmed', now(), now(), $2, $3 FROM allergy_intolerance WHERE id = $1`,
+		"record confirmed as": `INSERT INTO allergy_intolerance (patient_id, organization_id, encounter_id, recorder_role_id, in_profile, code_text, verification_status, recorded_date, confirmed_at, confirmed_by_role_id, confirmed_organization_id)
+			SELECT patient_id, organization_id, encounter_id, recorder_role_id, false, 'x', 'confirmed', now(), now(), $2, $3 FROM allergy_intolerance WHERE id = $1`,
 		"insert confirmed": `INSERT INTO allergy_intolerance (patient_id, code_text, verification_status, recorded_date, confirmed_at, confirmed_by_role_id, confirmed_organization_id)
 			SELECT patient_id, 'x', 'confirmed', now(), now(), $2, $3 FROM allergy_intolerance WHERE id = $1`,
 	},
 	"medication_statement": {
-		"confirm": `UPDATE medication_statement SET confirmed_at = now(), confirmed_by_role_id = $2, confirmed_organization_id = $3 WHERE id = $1`,
-		"edit":    `UPDATE medication_statement SET medication_text = 'Changed medication' WHERE id = $1`,
-		"profile": `UPDATE medication_statement SET in_profile = NOT in_profile WHERE id = $1`,
-		"remove":  `UPDATE medication_statement SET status = 'entered-in-error' WHERE id = $1`,
+		"confirm":          `UPDATE medication_statement SET confirmed_at = now(), confirmed_by_role_id = $2, confirmed_organization_id = $3 WHERE id = $1`,
+		"edit":             `UPDATE medication_statement SET medication_text = medication_text || ' changed' WHERE id = $1`,
+		"profile":          `UPDATE medication_statement SET in_profile = NOT in_profile WHERE id = $1`,
+		"remove":           `UPDATE medication_statement SET status = 'entered-in-error' WHERE id = $1`,
+		"edit unconfirmed": `UPDATE medication_statement SET medication_text = 'Changed again', confirmed_at = NULL, confirmed_by_role_id = NULL, confirmed_organization_id = NULL WHERE id = $1`,
+		"record as": `INSERT INTO medication_statement (patient_id, organization_id, encounter_id, recorder_role_id, in_profile, medication_text, date_asserted, confirmed_at, confirmed_by_role_id, confirmed_organization_id)
+			SELECT patient_id, $3, encounter_id, $2, false, 'x', now(), now(), $2, $3 FROM medication_statement WHERE id = $1`,
+		"record confirmed as": `INSERT INTO medication_statement (patient_id, organization_id, encounter_id, recorder_role_id, in_profile, medication_text, date_asserted, confirmed_at, confirmed_by_role_id, confirmed_organization_id)
+			SELECT patient_id, organization_id, encounter_id, recorder_role_id, false, 'x', now(), now(), $2, $3 FROM medication_statement WHERE id = $1`,
 		"insert confirmed": `INSERT INTO medication_statement (patient_id, medication_text, date_asserted, confirmed_at, confirmed_by_role_id, confirmed_organization_id)
 			SELECT patient_id, 'x', now(), now(), $2, $3 FROM medication_statement WHERE id = $1`,
 	},
@@ -635,6 +661,14 @@ func TestProfileEntries_NoScopeWritesWhatIsNotItsOwn(t *testing.T) {
 				{clinic, "the clinic confirms as another clinic", w["confirm"], r.own, roleB, clinicB, false},
 				{clinic, "the clinic confirms with another clinic's role", w["confirm"], r.own, roleB, clinicA, false},
 				{clinic, "the clinic confirms the profile entry as itself", w["confirm"], r.own, roleA, clinicA, true},
+				{clinic, "the clinic re-confirms the shared visit's entry as itself", w["confirm"], r.atB, roleA, clinicA, false},
+				{clinic, "the clinic confirms again over its own confirmation", w["confirm"], r.own, roleA, clinicA, true},
+				{map[string]string{"app.organization_id": clinicA, "app.video_room": "r_x"}, "the clinic in a room moves an entry into the profile", w["profile"], r.atA, roleA, clinicA, false},
+				{clinic, "the clinic records with another clinic's recorder", w["record as"], r.atA, roleB, clinicA, false},
+				{clinic, "the clinic records with another clinic's confirmation", w["record confirmed as"], r.atA, roleB, clinicB, false},
+				{clinic, "the clinic records in its own visit", w["record as"], r.atA, roleA, clinicA, true},
+				{patientA, "the patient edits the entry a clinic confirmed", w["edit"], r.own, roleA, clinicA, false},
+				{patientA, "the patient edits it and clears the confirmation", w["edit unconfirmed"], r.own, roleA, clinicA, true},
 			} {
 				var changed int64
 				err := asApp(t, app, tt.scope, func(ctx context.Context, db postgres.Querier) error {

@@ -1317,7 +1317,7 @@ export interface paths {
         post?: never;
         /**
          * Remove an allergy
-         * @description SAL-41. The patient removes an entry from what anyone sees: their own unconfirmed entry is deleted; a confirmed one or one a clinic recorded is kept with the record as entered-in-error. Audited.
+         * @description SAL-41. The patient removes an entry from what anyone sees: their own unconfirmed entry is deleted; a confirmed one or one a clinic recorded is kept with the record as entered-in-error. Send If-Match with the version read. Audited.
          */
         delete: operations["removeAllergy"];
         options?: never;
@@ -6426,9 +6426,11 @@ export interface operations {
     removeAllergy: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
                 /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
                 "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
@@ -6448,6 +6450,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["EntryForbidden"];
             404: components["responses"]["EntryNotFound"];
+            412: components["responses"]["EntryConflict"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -6592,9 +6595,11 @@ export interface operations {
     removeMedication: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
                 /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
                 "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path: {
                 /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
@@ -6614,6 +6619,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["EntryForbidden"];
             404: components["responses"]["EntryNotFound"];
+            412: components["responses"]["EntryConflict"];
             500: components["responses"]["InternalError"];
         };
     };

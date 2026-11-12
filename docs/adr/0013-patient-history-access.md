@@ -74,7 +74,10 @@ policies that follow encounter's visibility (the transcript's and the suggestion
 clinic's own encounters. The patient lists only their own finished visits at other clinics; a removal and a
 revocation are final; the clinic sees only the open selections of an active consent. A trigger
 (`profile_entry_update_check`) says what row-level security cannot: the patient never confirms an entry or edits a
-clinic's, a clinic never moves an entry into or out of the profile, confirms only as itself and edits only its own.
+clinic's, a clinic never moves an entry into or out of the profile, confirms only as itself, never over another
+clinic's confirmation, and edits only its own; an edit of a confirmed entry clears or renews the confirmation unless
+the confirming clinic makes it. A shared visit is read-only for the receiving clinic, its drafts included (00031's
+`document_draft_clinic` is narrowed to the clinic's own encounters like the transcript's).
 Which practitioner of the clinic sees a shared visit is the service's rule, as for the clinic's own rows.
 
 **Everything audited.** Every read of a history item is an AuditEvent by its owning domain (who, the resource, when,
