@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/encounter"
@@ -32,6 +33,8 @@ type patientFixture struct {
 	files     *fakeFiles
 	clinics   *fakeClinics
 	roles     *fakeRoles
+	audit     *fakeAudit
+	tx        *fakeTx
 }
 
 // newPatientFixture is patient A's history at two clinics: a visit at clinic A with a signed document, and at
@@ -56,9 +59,12 @@ func newPatientFixture() *patientFixture {
 		files:   &fakeFiles{unclean: []string{fileX}},
 		clinics: &fakeClinics{},
 		roles:   &fakeRoles{},
+		audit:   &fakeAudit{},
+		tx:      &fakeTx{},
 	}
 	f.svc = history.NewService(history.Ports{
 		Visits: f.visits, Documents: f.documents, Responses: f.responses, Files: f.files, Clinics: f.clinics, Roles: f.roles,
+		Audit: f.audit, Tx: f.tx,
 	})
 	return f
 }
@@ -94,6 +100,9 @@ func TestTimeline_MergesEverySourceNewestFirst(t *testing.T) {
 	}
 	if !reflect.DeepEqual(f.files.asked, [][]string{{fileX, fileB}}) || f.files.callers[0] != (binary.Caller{AccountID: accountA, PatientID: patientA}) {
 		t.Errorf("files asked %v by %+v, want both files as the patient", f.files.asked, f.files.callers)
+	}
+	if want := []map[string][]string{{clinicA: {roleA}, clinicB: {roleB}}}; !reflect.DeepEqual(f.roles.asked, want) {
+		t.Errorf("roles asked %v, want each clinic's roles once, in one call (finding 5)", f.roles.asked)
 	}
 }
 
@@ -186,5 +195,69 @@ func TestTimeline_FailsWithASource(t *testing.T) {
 		if _, err := f.svc.Timeline(t.Context(), me, history.Filter{}, history.Cursor{}, 10); !errors.Is(err, errBackend) {
 			t.Errorf("%s: Timeline() = %v, want its error", name, err)
 		}
+	}
+}
+
+// searched is the audit event of the page's item ref at its clinic: a search of the patient's own request.
+func searched(ref, org string) auditevent.AuditEvent {
+	return auditevent.AuditEvent{
+		Type:           auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
+		Subtype:        auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: auditevent.CodeSearchType},
+		Purpose:        auditevent.Coding{System: auditevent.SystemActReason, Code: auditevent.CodePATRQT},
+		Action:         auditevent.ActionExecute,
+		Outcome:        auditevent.OutcomeSuccess,
+		AgentAccountID: accountA, EntityReference: ref, OrganizationID: org,
+	}
+}
+
+// Only what the page returns is audited, each item once with its own reference and its clinic, in one insert in
+// the transaction the sources read in: not the extra item each source gives to know of a next page, not a file
+// binary does not find clean (the review of SAL-39, finding 1 and 8).
+func TestTimeline_AuditsWhatThePageReturns(t *testing.T) {
+	f := newPatientFixture()
+	got, err := f.svc.Timeline(t.Context(), me, history.Filter{}, history.Cursor{}, 2)
+	if err != nil || len(got.Items) != 2 {
+		t.Fatalf("Timeline() = %+v, %v", got, err)
+	}
+	want := []auditevent.AuditEvent{searched("Encounter/"+visitB, clinicB), searched("QuestionnaireResponse/"+responseB, clinicB)}
+	if len(f.audit.batches) != 1 || !slices.Equal(f.audit.batches[0], want) || !f.audit.inTx[0] {
+		t.Errorf("audited %+v, want one insert in the transaction of %+v", f.audit.batches, want)
+	}
+	if f.tx.n != 1 || !slices.Equal(f.visits.inTx, []bool{true}) {
+		t.Errorf("%d transactions, visits read in one %v; want the sources and the audit in one", f.tx.n, f.visits.inTx)
+	}
+
+	f = newPatientFixture()
+	if _, err := f.svc.Timeline(t.Context(), me, history.Filter{}, history.Cursor{}, 10); err != nil {
+		t.Fatal(err)
+	}
+	var refs []string
+	for _, e := range f.audit.batches[0] {
+		refs = append(refs, e.EntityReference)
+	}
+	wantRefs := []string{"Encounter/" + visitB, "QuestionnaireResponse/" + responseB, "Binary/" + fileB, "Composition/" + docA, "Encounter/" + visitA}
+	if !slices.Equal(refs, wantRefs) {
+		t.Errorf("audited %v, want %v: the unclean file left out", refs, wantRefs)
+	}
+}
+
+// An empty page is one event without an entity; a failing source audits nothing and fails the page.
+func TestTimeline_AuditsAnEmptyPageAndNothingOnAFailure(t *testing.T) {
+	f := newPatientFixture()
+	if _, err := f.svc.Timeline(t.Context(), me, history.Filter{}, history.Cursor{Date: day.Add(-time.Hour), Reference: "Encounter/x"}, 10); err != nil {
+		t.Fatal(err)
+	}
+	if want := []auditevent.AuditEvent{searched("", "")}; len(f.audit.batches) != 1 || !slices.Equal(f.audit.batches[0], want) {
+		t.Errorf("audited %+v, want %+v", f.audit.batches, want)
+	}
+	f = newPatientFixture()
+	f.documents.err = errBackend
+	if _, err := f.svc.Timeline(t.Context(), me, history.Filter{}, history.Cursor{}, 10); !errors.Is(err, errBackend) || len(f.audit.batches) != 0 {
+		t.Errorf("Timeline() = %v with %d inserts, want the error and nothing audited", err, len(f.audit.batches))
+	}
+	f = newPatientFixture()
+	f.audit.err = errBackend
+	if _, err := f.svc.Timeline(t.Context(), me, history.Filter{}, history.Cursor{}, 10); !errors.Is(err, errBackend) {
+		t.Errorf("Timeline() = %v, want the audit's error", err)
 	}
 }

@@ -6,43 +6,29 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
-	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/pkg/keyset"
 )
 
 // PatientHistory returns the calling patient's own encounters at every clinic, or at the clinic org when set,
 // after the page's position, newest first by start, p.Limit at most: the visits of their timeline (SAL-39,
 // docs/plans/patient-history.md), which the patient always sees (access.HistoryVisit). Read in the patient's own
-// scope and audited, each one returned as a search of their own request (in one insert); none is one event without an entity.
-// The timeline is the patient's: staff get ErrForbidden, audited. A patient without a profile has none.
+// scope, joining the transaction in ctx, unaudited: history.Timeline audits the items of the page it returns. The
+// timeline is the patient's: staff get ErrForbidden. A patient without a profile has none.
 func (s *Service) PatientHistory(ctx context.Context, c appointment.Caller, org string, p keyset.Page) ([]Encounter, error) {
-	var out []Encounter
-	staff := c.OrganizationID != ""
-	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		switch {
-		case staff:
-			return s.record(ctx, c, auditevent.CodeSearchType, "", auditevent.OutcomeMinorFailure)
-		case c.PatientID != "":
-			all, err := s.ownPage(ctx, c, org, p)
-			if err != nil {
-				return err
-			}
-			out = all
-		}
-		if len(out) == 0 {
-			return s.record(ctx, c, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess)
-		}
-		events := make([]auditevent.AuditEvent, len(out))
-		for i, e := range out {
-			events[i] = callerEntry(c, auditevent.CodeSearchType, e.ID, auditevent.OutcomeSuccess)
-		}
-		return s.Audit.RecordAll(ctx, events) // one insert for the page
-	})
 	switch {
-	case err != nil:
-		return nil, fmt.Errorf("encounter: patient history: %w", err)
-	case staff:
+	case c.OrganizationID != "":
 		return nil, ErrForbidden
+	case c.PatientID == "":
+		return nil, nil
+	}
+	var out []Encounter
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		var err error
+		out, err = s.ownPage(ctx, c, org, p)
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("encounter: patient history: %w", err)
 	}
 	return out, nil
 }
@@ -80,7 +66,7 @@ func (s *Service) Own(ctx context.Context, c appointment.Caller, org string) ([]
 		if err := s.Repo.SetPatient(ctx, c.PatientID); err != nil {
 			return err
 		}
-		all, err := s.Repo.Search(ctx, Filter{PatientID: c.PatientID})
+		all, err := s.Repo.OfPatient(ctx, c.PatientID)
 		for _, e := range all {
 			if e.PatientID == c.PatientID && (org == "" || e.OrganizationID == org) {
 				out = append(out, e)

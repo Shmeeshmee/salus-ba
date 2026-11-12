@@ -75,6 +75,49 @@ func (q *Queries) EncounterOrganization(ctx context.Context, id pgtype.UUID) (pg
 	return organization_id, err
 }
 
+const encountersOfPatient = `-- name: EncountersOfPatient :many
+SELECT id, created_at, updated_at, period_start, period_end, appointment_id, organization_id, patient_id, practitioner_role_id,
+       version_id, status
+FROM encounter
+WHERE patient_id = $1
+ORDER BY period_start, id
+`
+
+// The patient's encounters the scope shows, oldest first: the visits whose signed documents a patient's timeline
+// lists (SAL-39). One fixed condition, so its prepared plan is kept, where SearchEncounters is planned again for
+// every set of absent parameters.
+func (q *Queries) EncountersOfPatient(ctx context.Context, patientID pgtype.UUID) ([]Encounter, error) {
+	rows, err := q.db.Query(ctx, encountersOfPatient, patientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Encounter
+	for rows.Next() {
+		var i Encounter
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PeriodStart,
+			&i.PeriodEnd,
+			&i.AppointmentID,
+			&i.OrganizationID,
+			&i.PatientID,
+			&i.PractitionerRoleID,
+			&i.VersionID,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const finishEncounter = `-- name: FinishEncounter :one
 UPDATE encounter
 SET status = 'finished', period_end = $1, updated_at = $1, version_id = version_id + 1

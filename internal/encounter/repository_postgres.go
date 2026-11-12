@@ -132,6 +132,22 @@ func (r *postgresRepository) PatientHistory(ctx context.Context, patientID, org 
 	return out, nil
 }
 
+func (r *postgresRepository) OfPatient(ctx context.Context, patientID string) ([]Encounter, error) {
+	var id pgtype.UUID
+	if id.Scan(patientID) != nil {
+		return nil, nil // an id that is not a UUID matches nothing
+	}
+	rows, err := r.q(ctx).EncountersOfPatient(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Encounter, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toEncounter(row))
+	}
+	return out, nil
+}
+
 // optTS is t, or null when it is zero.
 func optTS(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: !t.IsZero()} }
 

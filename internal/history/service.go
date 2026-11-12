@@ -34,6 +34,8 @@ type Ports struct {
 	Files     Files
 	Clinics   Clinics
 	Roles     Roles
+	Audit     Auditor
+	Tx        Transactor
 }
 
 // Service builds the history from the services of the domains that own it; it holds no data of its own.

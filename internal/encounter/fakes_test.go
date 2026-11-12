@@ -192,6 +192,23 @@ func (r *fakeRepository) Search(ctx context.Context, f encounter.Filter) ([]enco
 	return out, nil
 }
 
+// OfPatient gives the patient's encounters the scope shows.
+func (r *fakeRepository) OfPatient(ctx context.Context, patientID string) ([]encounter.Encounter, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []encounter.Encounter
+	for _, e := range r.encounters {
+		if r.visible(e) && e.PatientID == patientID {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
 // PatientHistory gives the patient's encounters the scope shows after the page's position, newest first by start.
 func (r *fakeRepository) PatientHistory(ctx context.Context, patientID, org string, p keyset.Page) ([]encounter.Encounter, error) {
 	if err := inTx(ctx); err != nil {
@@ -278,9 +295,8 @@ func (a *fakeAppointments) RecordConsultationOutcome(ctx context.Context, agent,
 
 // fakeAuditor records events; recording outside a transaction is an error.
 type fakeAuditor struct {
-	err     error
-	events  []auditevent.AuditEvent
-	batches int // RecordAll calls
+	err    error
+	events []auditevent.AuditEvent
 }
 
 func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error {
@@ -291,16 +307,6 @@ func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error
 		return a.err
 	}
 	a.events = append(a.events, e)
-	return nil
-}
-
-func (a *fakeAuditor) RecordAll(ctx context.Context, es []auditevent.AuditEvent) error {
-	a.batches++
-	for _, e := range es {
-		if err := a.Record(ctx, e); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 

@@ -97,8 +97,11 @@ func query(q url.Values) (Filter, Cursor, int, bool) {
 		limit = n
 	}
 	s := q.Get("cursor")
+	if len(s) > maxCursor { // before decoding it
+		return Filter{}, Cursor{}, 0, false
+	}
 	cur, err := ParseCursor(s)
-	if err != nil || len(s) > maxCursor {
+	if err != nil {
 		return Filter{}, Cursor{}, 0, false
 	}
 	if f.OrganizationID = q.Get("organization"); f.OrganizationID != "" && !fhir.IsUUID(f.OrganizationID) {

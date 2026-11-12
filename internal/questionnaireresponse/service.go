@@ -22,7 +22,6 @@ type Transactor interface {
 // Auditor records an AuditEvent inside the caller's transaction (auditevent.Service).
 type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
-	RecordAll(ctx context.Context, es []auditevent.AuditEvent) error
 }
 
 // Appointments gives a response its appointment with the caller's access facts, read in the caller's scope

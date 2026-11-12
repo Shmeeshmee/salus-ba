@@ -79,3 +79,33 @@ func TestPatientHistory_PagesThePatientsEncountersNewestFirst(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// OfPatient gives the patient's encounters the scope shows, oldest first: their own in their scope, none in
+// another patient's.
+func TestOfPatient_GivesThePatientsEncounters(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 2, 0, 0, time.UTC)
+	s, other := seedDB(t, owner, at), seedDB(t, owner, at)
+	first, _, err := startIn(t, app, s, s.encounter(0, at))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _, err := startIn(t, app, s, s.encounter(1, at.Add(time.Hour)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for scope, want := range map[string][]string{s.patient: {first.ID, second.ID}, other.patient: nil} {
+		var ids []string
+		err := inScope(t, app, "", scope, func(ctx context.Context, r encounter.Repository) error {
+			got, err := r.OfPatient(ctx, s.patient)
+			for _, e := range got {
+				ids = append(ids, e.ID)
+			}
+			return err
+		})
+		if err != nil || !slices.Equal(ids, want) {
+			t.Errorf("OfPatient() in %s's scope = %v, %v; want %v", scope, ids, err, want)
+		}
+	}
+}

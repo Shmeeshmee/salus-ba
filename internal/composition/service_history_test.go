@@ -5,14 +5,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/pkg/keyset"
 )
 
 // SAL-39: the patient's timeline lists the signed documents of their own encounters (encounter.Service.Own), with
-// each one's encounter, after the page's position, in their scope, never a draft; each audited as a search of the
-// patient's own request in the encounter's clinic.
+// each one's encounter, after the page's position, in their scope, never a draft, unaudited
+// (history.Timeline audits the page it returns).
 func TestPatientHistory_GivesThePatientTheirSignedDocuments(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -26,18 +25,12 @@ func TestPatientHistory_GivesThePatientTheirSignedDocuments(t *testing.T) {
 	if f.repo.history.page != p || !slices.Equal(f.repo.history.encounters, []string{encA}) {
 		t.Errorf("asked %+v, want the page for encounter A", f.repo.history)
 	}
-	if want := []string{"search-type 0 Composition/" + signed.ID}; !slices.Equal(f.codes(), want) {
-		t.Errorf("audited %v, want %v", f.codes(), want)
-	}
-	if e := f.audit.events[0]; e.Purpose.Code != auditevent.CodePATRQT || e.OrganizationID != clinicA || e.AgentAccountID != accountA {
-		t.Errorf("audited %+v, want the patient's own request in clinic A", e)
-	}
-	if f.audit.batches != 1 {
-		t.Errorf("audited in %d inserts, want the page in one", f.audit.batches)
+	if len(f.audit.events) != 0 {
+		t.Errorf("audited %v, want nothing: history.Timeline audits the page it returns", f.codes())
 	}
 }
 
-// No encounter at the clinic asked (or none at all) is no document: one event without an entity, nothing read.
+// No encounter at the clinic asked (or none at all) is no document: nothing read or audited.
 func TestPatientHistory_NoEncounterIsNone(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -46,20 +39,20 @@ func TestPatientHistory_NoEncounterIsNone(t *testing.T) {
 	if err != nil || len(got) != 0 || f.repo.history.encounters != nil {
 		t.Fatalf("PatientHistory(clinic B) = %+v, %v, asked %+v; want none and nothing read", got, err, f.repo.history)
 	}
-	if want := []string{"search-type 0 "}; !slices.Equal(f.codes(), want) {
-		t.Errorf("audited %v, want %v", f.codes(), want)
+	if len(f.audit.events) != 0 {
+		t.Errorf("audited %v, want nothing", f.codes())
 	}
 }
 
-// The timeline is the patient's: staff get ErrForbidden, audited.
+// The timeline is the patient's: staff get ErrForbidden.
 func TestPatientHistory_IsForbiddenToStaff(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	if _, err := f.svc.PatientHistory(t.Context(), pract, "", keyset.Page{Limit: 7}); !errors.Is(err, composition.ErrForbidden) {
 		t.Errorf("PatientHistory() = %v, want ErrForbidden", err)
 	}
-	if want := []string{"search-type 4 "}; !slices.Equal(f.codes(), want) {
-		t.Errorf("audited %v, want %v", f.codes(), want)
+	if len(f.audit.events) != 0 {
+		t.Errorf("audited %v, want nothing", f.codes())
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/encounter"
@@ -63,14 +64,40 @@ func page[T any](all []T, p keyset.Page, key func(T) (time.Time, string)) []T {
 	return out[:min(len(out), p.Limit)]
 }
 
+// txKey marks the context fakeTx hands its function, as postgres.Transactor carries its transaction.
+type txKey struct{}
+
+func inTx(ctx context.Context) bool { return ctx.Value(txKey{}) != nil }
+
+// fakeTx counts its transactions.
+type fakeTx struct{ n int }
+
+func (f *fakeTx) WithTx(ctx context.Context, fn func(ctx context.Context) error) error {
+	f.n++
+	return fn(context.WithValue(ctx, txKey{}, true))
+}
+
+// fakeAudit keeps each RecordAll's events and whether it ran in the transaction.
+type fakeAudit struct {
+	err     error
+	batches [][]auditevent.AuditEvent
+	inTx    []bool
+}
+
+func (f *fakeAudit) RecordAll(ctx context.Context, es []auditevent.AuditEvent) error {
+	f.batches, f.inTx = append(f.batches, es), append(f.inTx, inTx(ctx))
+	return f.err
+}
+
 type fakeVisits struct {
 	err   error
 	all   []encounter.Encounter
 	asked []asked
+	inTx  []bool
 }
 
-func (f *fakeVisits) PatientHistory(_ context.Context, c appointment.Caller, org string, p keyset.Page) ([]encounter.Encounter, error) {
-	f.asked = append(f.asked, asked{c, org, p})
+func (f *fakeVisits) PatientHistory(ctx context.Context, c appointment.Caller, org string, p keyset.Page) ([]encounter.Encounter, error) {
+	f.asked, f.inTx = append(f.asked, asked{c, org, p}), append(f.inTx, inTx(ctx))
 	return page(f.all, p, func(e encounter.Encounter) (time.Time, string) { return e.PeriodStart, "Encounter/" + e.ID }), f.err
 }
 
@@ -140,22 +167,30 @@ func (f *fakeClinics) Names(_ context.Context, ids []string) (map[string]string,
 // fakeRoles gives role A a specialty, role B none.
 type fakeRoles struct {
 	err   error
-	asked []string
+	asked []map[string][]string
 }
 
-func (f *fakeRoles) Lookup(_ context.Context, org, id string) (practitionerrole.PractitionerRole, error) {
-	f.asked = append(f.asked, org+"/"+id)
-	if id == roleA {
-		return practitionerrole.PractitionerRole{ID: id, OrganizationID: org, SpecialtyCode: "394579002"}, f.err
+func (f *fakeRoles) LookupAll(_ context.Context, ids map[string][]string) (map[string]practitionerrole.PractitionerRole, error) {
+	f.asked = append(f.asked, ids)
+	out := map[string]practitionerrole.PractitionerRole{}
+	for org, roles := range ids {
+		for _, id := range roles {
+			out[id] = practitionerrole.PractitionerRole{ID: id, OrganizationID: org}
+			if id == roleA {
+				out[id] = practitionerrole.PractitionerRole{ID: id, OrganizationID: org, SpecialtyCode: "394579002"}
+			}
+		}
 	}
-	return practitionerrole.PractitionerRole{ID: id, OrganizationID: org}, f.err
+	return out, f.err
 }
 
 var (
-	_ history.Visits    = (*fakeVisits)(nil)
-	_ history.Documents = (*fakeDocuments)(nil)
-	_ history.Responses = (*fakeResponses)(nil)
-	_ history.Files     = (*fakeFiles)(nil)
-	_ history.Clinics   = (*fakeClinics)(nil)
-	_ history.Roles     = (*fakeRoles)(nil)
+	_ history.Visits     = (*fakeVisits)(nil)
+	_ history.Documents  = (*fakeDocuments)(nil)
+	_ history.Responses  = (*fakeResponses)(nil)
+	_ history.Files      = (*fakeFiles)(nil)
+	_ history.Clinics    = (*fakeClinics)(nil)
+	_ history.Roles      = (*fakeRoles)(nil)
+	_ history.Auditor    = (*fakeAudit)(nil)
+	_ history.Transactor = (*fakeTx)(nil)
 )

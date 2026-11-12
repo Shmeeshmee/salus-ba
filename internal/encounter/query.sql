@@ -56,3 +56,13 @@ WHERE patient_id = @patient_id
            AND ('Encounter/' || id::text) COLLATE "C" < sqlc.arg(after_ref)::text COLLATE "C"))
 ORDER BY period_start DESC, id DESC
 LIMIT @lim;
+
+-- name: EncountersOfPatient :many
+-- The patient's encounters the scope shows, oldest first: the visits whose signed documents a patient's timeline
+-- lists (SAL-39). One fixed condition, so its prepared plan is kept, where SearchEncounters is planned again for
+-- every set of absent parameters.
+SELECT id, created_at, updated_at, period_start, period_end, appointment_id, organization_id, patient_id, practitioner_role_id,
+       version_id, status
+FROM encounter
+WHERE patient_id = @patient_id
+ORDER BY period_start, id;

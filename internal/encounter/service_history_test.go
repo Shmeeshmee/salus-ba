@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
-	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/pkg/keyset"
 )
 
 // SAL-39: the patient's timeline lists their own visits at every clinic, newest first, after the page's position,
-// in their own scope, each one audited as a search of their own request; another patient's are not theirs.
+// in their own scope, unaudited (history.Timeline audits the page it returns); another patient's are not theirs.
 func TestPatientHistory_GivesThePatientTheirOwnVisitsNewestFirst(t *testing.T) {
 	f := started()
 	got, err := f.svc.PatientHistory(t.Context(), me, "", keyset.Page{Limit: 10})
@@ -22,12 +21,7 @@ func TestPatientHistory_GivesThePatientTheirOwnVisitsNewestFirst(t *testing.T) {
 	if f.repo.patient != patientA || f.repo.clinic != "" {
 		t.Errorf("read in patient %q, clinic %q; want patient A's scope", f.repo.patient, f.repo.clinic)
 	}
-	checkEvents(t, "PatientHistory", f.audit,
-		event(me, auditevent.CodeSearchType, encounterOf(apptA2), auditevent.OutcomeSuccess),
-		event(me, auditevent.CodeSearchType, encounterOf(apptA), auditevent.OutcomeSuccess))
-	if f.audit.batches != 1 {
-		t.Errorf("audited in %d inserts, want the page in one", f.audit.batches)
-	}
+	checkEvents(t, "PatientHistory", f.audit)
 }
 
 // The page's position, range, clinic and limit reach the repository as asked.
@@ -43,19 +37,19 @@ func TestPatientHistory_AsksForThePage(t *testing.T) {
 	}
 }
 
-// None is one event without an entity; a patient without a profile has none and is not scoped at all.
-func TestPatientHistory_NoneIsOneEvent(t *testing.T) {
+// None is none, unaudited; a patient without a profile has none and is not scoped at all.
+func TestPatientHistory_NoneIsUnaudited(t *testing.T) {
 	for name, c := range map[string]appointment.Caller{"no visits": other, "no profile": noProfile} {
 		f := newFixture()
 		got, err := f.svc.PatientHistory(t.Context(), c, "", keyset.Page{Limit: 10})
 		if err != nil || len(got) != 0 {
 			t.Errorf("%s: PatientHistory() = %+v, %v; want none", name, got, err)
 		}
-		checkEvents(t, name, f.audit, event(c, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess))
+		checkEvents(t, name, f.audit)
 	}
 }
 
-// The timeline is the patient's own: staff get ErrForbidden, audited, and nothing is read.
+// The timeline is the patient's own: staff get ErrForbidden and nothing is read.
 func TestPatientHistory_IsForbiddenToStaff(t *testing.T) {
 	for name, c := range map[string]appointment.Caller{"practitioner": pract, "admin": admin} {
 		f := started()
@@ -65,14 +59,13 @@ func TestPatientHistory_IsForbiddenToStaff(t *testing.T) {
 		if f.repo.history.patient != "" {
 			t.Errorf("%s: read %+v, want nothing", name, f.repo.history)
 		}
-		checkEvents(t, name, f.audit, event(c, auditevent.CodeSearchType, "", auditevent.OutcomeMinorFailure))
+		checkEvents(t, name, f.audit)
 	}
 }
 
 func TestPatientHistory_FailsWithTheBackend(t *testing.T) {
 	for name, fail := range map[string]func(f *fixture){
 		"repository": func(f *fixture) { f.repo.err = errBackend },
-		"audit":      func(f *fixture) { f.audit.err = errBackend },
 	} {
 		f := started()
 		fail(f)
@@ -100,6 +93,9 @@ func TestOwn_GivesThePatientsEncountersUnaudited(t *testing.T) {
 		}
 	}
 	checkEvents(t, "Own", f.audit)
+	if len(f.repo.searched) != 0 {
+		t.Errorf("Own searched %v, want the patient's own query: the general search is planned again on every call (finding 3)", f.repo.searched)
+	}
 	f.repo.err = errBackend
 	if _, err := f.svc.Own(t.Context(), me, ""); !errors.Is(err, errBackend) {
 		t.Errorf("Own() = %v, want its error", err)

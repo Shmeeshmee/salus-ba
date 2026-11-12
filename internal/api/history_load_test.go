@@ -8,7 +8,6 @@ import (
 	"os"
 	"slices"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -141,6 +140,8 @@ func historyService(app *pgxpool.Pool, spent map[string]time.Duration) *history.
 		Files:     binary.NewService(binary.Ports{Repo: binary.NewPostgresRepository(app), Holder: responses, Audit: audit, Tx: tx, Clock: clock.System{}}),
 		Clinics:   clinics,
 		Roles:     roles,
+		Audit:     audit,
+		Tx:        tx,
 	}
 	if spent != nil {
 		ports = timedPorts(ports, spent)
@@ -276,7 +277,6 @@ func seedHistoryPatient(t *testing.T, owner *pgxpool.Pool, clinics [2]historyCli
 type timedVisits struct {
 	history.Visits
 	spent map[string]time.Duration
-	mu    *sync.Mutex // the sources run at once
 }
 
 func (t timedVisits) PatientHistory(ctx context.Context, c appointment.Caller, org string, p keyset.Page) ([]encounter.Encounter, error) {
@@ -284,11 +284,7 @@ func (t timedVisits) PatientHistory(ctx context.Context, c appointment.Caller, o
 	return t.Visits.PatientHistory(ctx, c, org, p)
 }
 
-func (t timedVisits) add(name string, began time.Time) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.spent[name] += loadWall.Now().Sub(began)
-}
+func (t timedVisits) add(name string, began time.Time) { t.spent[name] += loadWall.Now().Sub(began) }
 
 type timedDocuments struct {
 	history.Documents
@@ -340,15 +336,26 @@ type timedRoles struct {
 	timedVisits
 }
 
-func (t timedRoles) Lookup(ctx context.Context, org, id string) (practitionerrole.PractitionerRole, error) {
+func (t timedRoles) LookupAll(ctx context.Context, ids map[string][]string) (map[string]practitionerrole.PractitionerRole, error) {
 	defer t.add("roles", loadWall.Now())
-	return t.Roles.Lookup(ctx, org, id)
+	return t.Roles.LookupAll(ctx, ids)
+}
+
+type timedAudit struct {
+	history.Auditor
+	timedVisits
+}
+
+func (t timedAudit) RecordAll(ctx context.Context, es []auditevent.AuditEvent) error {
+	defer t.add("audit", loadWall.Now())
+	return t.Auditor.RecordAll(ctx, es)
 }
 
 func timedPorts(p history.Ports, spent map[string]time.Duration) history.Ports {
-	base := timedVisits{Visits: p.Visits, spent: spent, mu: &sync.Mutex{}}
+	base := timedVisits{Visits: p.Visits, spent: spent}
 	return history.Ports{
 		Visits: base, Documents: timedDocuments{p.Documents, base}, Responses: timedResponses{p.Responses, base},
 		Files: timedFiles{p.Files, base}, Clinics: timedClinics{p.Clinics, base}, Roles: timedRoles{p.Roles, base},
+		Audit: timedAudit{p.Audit, base}, Tx: p.Tx,
 	}
 }

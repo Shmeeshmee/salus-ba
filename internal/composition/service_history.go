@@ -5,7 +5,6 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
-	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/pkg/keyset"
 )
@@ -13,29 +12,19 @@ import (
 // PatientHistory returns the signed documents of the calling patient's own encounters at every clinic, or at the
 // clinic org when set, each with its encounter, after the page's position, newest first by signature, p.Limit at
 // most: the documents of their timeline (SAL-39), which the patient always sees (access.SignedDocument). Never a
-// draft. Read in the patient's own scope and audited, each one returned as a search of their own request in its
-// clinic; none is one event without an entity. The timeline is the patient's: staff get ErrForbidden, audited.
+// draft. Read in the patient's own scope, joining the transaction in ctx, unaudited: history.Timeline audits the
+// items of the page it returns. The timeline is the patient's: staff get ErrForbidden.
 func (s *Service) PatientHistory(ctx context.Context, c appointment.Caller, org string, p keyset.Page) ([]Document, error) {
+	if c.OrganizationID != "" {
+		return nil, ErrForbidden
+	}
 	var out []Document
-	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		e := entry{c: c, interaction: auditevent.CodeSearchType}
-		if c.OrganizationID != "" {
-			refused, e.outcome = ErrForbidden, auditevent.OutcomeMinorFailure
-			return s.record(ctx, e)
-		}
 		var err error
-		if out, err = s.signedOf(ctx, c, org, p); err != nil || len(out) == 0 {
-			return firstErr(err, s.record(ctx, e))
-		}
-		events := make([]auditevent.AuditEvent, len(out))
-		for i, d := range out {
-			e.reference, e.org = "Composition/"+d.Draft.ID, d.Encounter.OrganizationID
-			events[i] = e.event()
-		}
-		return s.Audit.RecordAll(ctx, events) // one insert for the page
+		out, err = s.signedOf(ctx, c, org, p)
+		return err
 	})
-	return out, wrapErr("patient history", err, refused)
+	return out, wrapErr("patient history", err, nil)
 }
 
 // signedOf reads the page of the signed documents of the patient's encounters in their scope, in the transaction
@@ -67,14 +56,4 @@ func (s *Service) signedOf(ctx context.Context, c appointment.Caller, org string
 		}
 	}
 	return out, nil
-}
-
-// firstErr is the first error that is not nil.
-func firstErr(errs ...error) error {
-	for _, err := range errs {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }

@@ -74,3 +74,37 @@ gains nothing measurable under this noise, as expected with nothing to run besid
 50 ms) is not shown on this machine: it needs a run on a quiet one. Each source costs 30 to 150 ms here for 31 rows,
 which points at the row-level security of the patient's scope rather than at the audit; that is the next thing to
 profile (EXPLAIN ANALYZE per source) if the quiet run misses the target.
+
+**Review (fresh subagent), 2026-11-13:** ten findings, no access hole; 1, 2, 4 to 10 fixed test-first, 3 measured
+and fixed differently (below).
+
+- Audit (1, 2, 8): the sources read unaudited, in the one transaction `Timeline` opens, one after the other; the
+  transaction then audits the page it returns (after the cut and binary's check), each item once with its own
+  reference and clinic, in one `RecordAll`. The concurrent sources and the per-domain batches above are gone.
+- 00050 (4): history_shared's own scope conditions in front of the call in `encounter_shared`,
+  `document_draft_shared`, `questionnaire_response_shared`, `binary_shared`. A patient's read of the four tables
+  called history_shared 44 times on the test fixture, now never
+  (`TestHistorySharing_APatientsReadDoesNotCallHistoryShared`); the policies admit exactly 00043's rows in twelve
+  scopes and seven sharing states (`TestHistorySharing_TheGuardedPoliciesAdmitWhat00043Admitted`).
+- 3: reading every encounter of the patient costs 0.7 ms of execution (EXPLAIN ANALYZE, 500 encounters); the cost
+  was planning, since `Own` used the FHIR search's query, re-planned on every call for its optional parameters. A
+  read of the documents in the patient's scope without the encounter list was tried and dropped: its policy tree
+  is costed at 390 000, above `jit_above_cost`, and each call spent 950 ms in JIT for a 5 ms scan. `Own` now has
+  its own fixed query (`EncountersOfPatient`): 7.4 to 2.8 ms a call, documents 10.0 to 6.1 ms.
+- 5: clinic names in one transaction, the roles in one `LookupAll`. 9: `FilesOf` lists a file once. 10: the
+  cursor's length is checked before it is decoded; neither Caddy (no access log, URIs dropped) nor the API's request
+  log (the route pattern only) records a query string. 6: the app opens a questionnaire's answers by reading that
+  response and its version (`Questionnaire?url=&version=`), not every response of the patient. 7: an empty page
+  with a next page shows Show more, not "nothing yet".
+
+`make bench-history` (same seed as above), load average in brackets:
+
+| Read, p50 / p95 | Before (one tx, audit fixed) [12 → 9] | After 00050, `Own`, 5 [12 → 9] |
+| --- | --- | --- |
+| first page | 125.5 / 168.4 ms | 21.3 / 35.0 ms |
+| any page | 124.9 / 175.8 ms | 21.9 / 33.8 ms |
+| one clinic | 79.6 / 99.2 ms | 19.2 / 31.1 ms |
+| documents only | 73.6 / 124.2 ms | 15.0 / 24.1 ms |
+| mean per source: visits, documents, responses, attachments | 13.6, 60.6, 26.7, 27.2 ms | 1.0, 6.4, 1.9, 2.2 ms |
+
+The first page is under the plan's 50 ms at p95.

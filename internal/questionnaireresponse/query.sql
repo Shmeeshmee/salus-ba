@@ -127,8 +127,9 @@ LIMIT @lim;
 -- name: FilesOf :many
 -- The files of the patient's timeline: those of their completed responses no longer pending, each with its
 -- response (without the answers), after the page's position by the response's submission, the reference
--- ("Binary/<id>") breaking a tie.
-SELECT r.id, r.created_at, r.updated_at, r.due_at, r.authored_at, r.organization_id, r.appointment_id, r.patient_id,
+-- ("Binary/<id>") breaking a tie. A file its response lists twice is one row.
+SELECT DISTINCT ON (r.authored_at, ('Binary/' || (f.file ->> 'binaryId')) COLLATE "C")
+       r.id, r.created_at, r.updated_at, r.due_at, r.authored_at, r.organization_id, r.appointment_id, r.patient_id,
        r.practitioner_role_id, r.questionnaire_id, r.series_id, r.version_id, r.source, r.status, '[]'::jsonb AS answers,
        '[]'::jsonb AS attachments, r.language, f.file::jsonb AS file
 FROM questionnaire_response r

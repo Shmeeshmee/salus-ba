@@ -97,3 +97,28 @@ func timelineOf(t *testing.T, app *pgxpool.Pool, patientID, scopePatient, org st
 	}
 	return responses, files
 }
+
+// A file listed twice by its response is one file of the timeline: two rows with the same position would tie, and
+// the page after the first would drop the second (the review of SAL-39, finding 9).
+func TestPostgres_FilesOfListsAFileOnce(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seedDB(t, owner, dbStart)
+	done := insert(t, app, s, 0, 0)
+	authored := dbStart.Add(-time.Hour)
+	err := inScope(t, app, "", s.patient, func(ctx context.Context, r questionnaireresponse.Repository) error {
+		for range 2 {
+			if err := r.AddAttachment(ctx, done, file(fileA, false), authored); err != nil {
+				return err
+			}
+		}
+		_, err := r.Complete(ctx, done, nil, authored)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, files := timelineOf(t, app, s.patient, s.patient, "", keyset.Page{Limit: 10}); !slices.Equal(files, []string{fileA}) {
+		t.Errorf("FilesOf() = %v, want %s once", files, fileA)
+	}
+}

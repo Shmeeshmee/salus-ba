@@ -21,7 +21,6 @@ type Transactor interface {
 // Auditor records an AuditEvent inside the caller's transaction (auditevent.Service).
 type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
-	RecordAll(ctx context.Context, es []auditevent.AuditEvent) error
 }
 
 // Holder is the owner of the files: the questionnaire response whose answers hold them

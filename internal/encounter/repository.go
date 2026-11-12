@@ -30,5 +30,7 @@ type Repository interface {
 	Search(ctx context.Context, f Filter) ([]Encounter, error)
 	// PatientHistory returns the patient's encounters the scope shows, at the clinic org when set, after the page's
 	// position (by start, then "Encounter/<id>"), newest first, p.Limit at most.
+	// OfPatient returns the patient's encounters the scope shows, oldest first.
+	OfPatient(ctx context.Context, patientID string) ([]Encounter, error)
 	PatientHistory(ctx context.Context, patientID, org string, p keyset.Page) ([]Encounter, error)
 }

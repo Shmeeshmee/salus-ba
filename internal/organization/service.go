@@ -122,23 +122,29 @@ func (s *Service) byID(ctx context.Context, organizationID string) (Organization
 }
 
 // Names returns the name of each clinic ids names, by id, listed or not: the clinics of a patient's own records
-// (their timeline, SAL-39), whose names the patient's scope cannot read. Each is read in its own scope, as
-// DefaultLanguage reads it, so it is called outside the caller's transaction; unaudited, as nothing in a clinic is
-// personal data. An unknown clinic is left out.
+// (their timeline, SAL-39), whose names the patient's scope cannot read. All are read in one transaction, each in its
+// own clinic's scope, as DefaultLanguage reads it, so it is called outside the caller's transaction; unaudited, as
+// nothing in a clinic is personal data. An unknown clinic is left out.
 func (s *Service) Names(ctx context.Context, ids []string) (map[string]string, error) {
 	out := make(map[string]string, len(ids))
-	for _, id := range ids {
-		if _, done := out[id]; done {
-			continue
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		for _, id := range ids {
+			if _, done := out[id]; done || id == "" {
+				continue
+			}
+			o, err := s.byID(ctx, id)
+			switch {
+			case errors.Is(err, ErrNotFound):
+				continue
+			case err != nil:
+				return err
+			}
+			out[id] = o.Name
 		}
-		o, err := s.byID(ctx, id)
-		switch {
-		case errors.Is(err, ErrNotFound):
-			continue
-		case err != nil:
-			return nil, fmt.Errorf("organization: names: %w", err)
-		}
-		out[id] = o.Name
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("organization: names: %w", err)
 	}
 	return out, nil
 }

@@ -2,11 +2,9 @@ package questionnaireresponse_test
 
 import (
 	"errors"
-	"slices"
 	"testing"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
-	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/pkg/keyset"
@@ -43,28 +41,25 @@ func TestPatientHistory_GivesThePatientTheirCompletedResponses(t *testing.T) {
 	if f.repo.patient != patientA || f.repo.history.page != p || f.repo.history.org != clinicA {
 		t.Errorf("read in patient %q, asked %+v; want patient A's scope and the page", f.repo.patient, f.repo.history)
 	}
-	if want := []auditevent.AuditEvent{event(me, auditevent.CodeSearchType, done, auditevent.OutcomeSuccess)}; !slices.Equal(f.audit.events, want) {
-		t.Errorf("audited %+v, want %+v", f.audit.events, want)
-	}
-	if f.audit.batches != 1 {
-		t.Errorf("audited in %d inserts, want the page in one", f.audit.batches)
+	if len(f.audit.events) != 0 {
+		t.Errorf("audited %+v, want nothing: history.Timeline audits the page it returns", f.audit.events)
 	}
 }
 
 // The files of the timeline are the clean files of the patient's completed responses, each with its response,
-// audited as a search of the response that lists it; a pending one is not listed.
+// unaudited; a pending one is not listed.
 func TestPatientAttachments_GivesTheCleanFilesOfCompletedResponses(t *testing.T) {
 	f, done := historyFixture()
 	got, err := f.svc.PatientAttachments(t.Context(), me, "", keyset.Page{Limit: 5})
 	if err != nil || len(got) != 1 || got[0].File.BinaryID != fileClean || got[0].Response.ID != done || got[0].Response.Answers != nil {
 		t.Fatalf("PatientAttachments() = %+v, %v; want the clean file with its response", got, err)
 	}
-	if want := []auditevent.AuditEvent{event(me, auditevent.CodeSearchType, done, auditevent.OutcomeSuccess)}; !slices.Equal(f.audit.events, want) {
-		t.Errorf("audited %+v, want %+v", f.audit.events, want)
+	if len(f.audit.events) != 0 {
+		t.Errorf("audited %+v, want nothing", f.audit.events)
 	}
 }
 
-// None is one event without an entity; a patient without a profile has none; staff get ErrForbidden, audited.
+// None is none, unaudited; a patient without a profile has none; staff get ErrForbidden.
 func TestPatientHistory_NoneAndStaff(t *testing.T) {
 	for name, list := range map[string]func(*fixture, appointment.Caller) error{
 		"responses": func(f *fixture, c appointment.Caller) error {
@@ -81,16 +76,16 @@ func TestPatientHistory_NoneAndStaff(t *testing.T) {
 			if err := list(f, c); err != nil {
 				t.Errorf("%s: %v, want none", name, err)
 			}
-			if want := []auditevent.AuditEvent{event(c, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess)}; !slices.Equal(f.audit.events, want) {
-				t.Errorf("%s: audited %+v, want %+v", name, f.audit.events, want)
+			if len(f.audit.events) != 0 {
+				t.Errorf("%s: audited %+v, want nothing", name, f.audit.events)
 			}
 		}
 		f, _ := historyFixture()
 		if err := list(f, pract); !errors.Is(err, questionnaireresponse.ErrForbidden) {
 			t.Errorf("%s as staff: %v, want ErrForbidden", name, err)
 		}
-		if want := []auditevent.AuditEvent{event(pract, auditevent.CodeSearchType, "", auditevent.OutcomeMinorFailure)}; !slices.Equal(f.audit.events, want) {
-			t.Errorf("%s as staff: audited %+v, want %+v", name, f.audit.events, want)
+		if len(f.audit.events) != 0 {
+			t.Errorf("%s as staff: audited %+v, want nothing", name, f.audit.events)
 		}
 		f, _ = historyFixture()
 		f.repo.err = errBackend

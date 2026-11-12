@@ -76,21 +76,8 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 }
 
 type fakeAudit struct {
-	events  []auditevent.AuditEvent
-	batches int // RecordAll calls
-	mu      sync.Mutex
-}
-
-func (a *fakeAudit) RecordAll(ctx context.Context, es []auditevent.AuditEvent) error {
-	a.mu.Lock()
-	a.batches++
-	a.mu.Unlock()
-	for _, e := range es {
-		if err := a.Record(ctx, e); err != nil {
-			return err
-		}
-	}
-	return nil
+	events []auditevent.AuditEvent
+	mu     sync.Mutex
 }
 
 func (a *fakeAudit) Record(ctx context.Context, e auditevent.AuditEvent) error {
