@@ -313,7 +313,8 @@ func (s *Chat) checkAgain(ctx context.Context, a ChatUnreadEmailArgs, readSeq, l
 	return nil
 }
 
-// recipient is the participant's address and language, and the template and link of their e-mail.
+// recipient is the participant's address and language, and the template and link of their e-mail; a practitioner's
+// account is looked up in their own clinic.
 func (s *Chat) recipient(ctx context.Context, org string, p communication.Participant) (to, language, kind, link string, err error) {
 	if p.Role == communication.RolePatient {
 		account, err := s.Patients.NoticeAccount(ctx, agentUnread, org, p.PatientID)
@@ -322,6 +323,9 @@ func (s *Chat) recipient(ctx context.Context, org string, p communication.Partic
 		}
 		to, language, err = s.Accounts.AccountEmail(ctx, agentUnread, account)
 		return to, language, "chat_unread", s.PatientAppURL + "/chat", err
+	}
+	if p.OrganizationID != "" {
+		org = p.OrganizationID // a doctor of another clinic the patient granted (SAL-28) is that clinic's
 	}
 	role, err := s.Roles.Lookup(ctx, org, p.PractitionerRoleID)
 	if err != nil {

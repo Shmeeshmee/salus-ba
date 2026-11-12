@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 	"sync"
 	"testing"
 
@@ -326,5 +327,40 @@ func TestPostgres_ActivatingOrRemovingAParticipantTwiceIsNotFound(t *testing.T) 
 		if !errors.Is(err, communication.ErrNotFound) {
 			t.Errorf("%s: %v, want ErrNotFound", name, err)
 		}
+	}
+}
+
+// On Postgres, the notifier's read in the clinic's scope gives the granted guest and the clinic's own (SAL-29 after
+// SAL-28): the invitation pending, the guest is left out; granted, they are in; revoked, out again.
+func TestPostgres_NoticeConversationGivesTheGuestOnlyWhileGranted(t *testing.T) {
+	t.Parallel()
+	f, _ := pgGroupFixture(t)
+	conv := f.open(t)
+	p := f.add(t, conv.ID, roleB1, clinicB)
+	roles := func() []string {
+		c, err := f.svc.NoticeConversation(t.Context(), "chat_message_sent", clinicA, conv.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, q := range c.Participants {
+			out = append(out, q.PractitionerRoleID)
+		}
+		return out
+	}
+	if got := roles(); slices.Contains(got, roleB1) || len(got) != 2 {
+		t.Errorf("pending: %v, want the patient and role A1", got)
+	}
+	if err := f.svc.DecideInvitation(t.Context(), me, p.ID, communication.DecisionGrant); err != nil {
+		t.Fatal(err)
+	}
+	if got := roles(); !slices.Contains(got, roleB1) || len(got) != 3 {
+		t.Errorf("granted: %v, want the guest too", got)
+	}
+	if err := f.svc.RevokeInvitation(t.Context(), me, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := roles(); slices.Contains(got, roleB1) {
+		t.Errorf("revoked: %v, want the guest left out", got)
 	}
 }

@@ -210,8 +210,7 @@ func TestUnreadEmail_ChecksAgainWhenALaterMessageIsStillUnread(t *testing.T) {
 	}
 }
 
-// A recipient whose account cannot be found (a practitioner's role or account gone, or of another clinic: SAL-28's
-// participants) gets nothing, and the job completes instead of retrying what cannot change.
+// A recipient whose account cannot be found (a practitioner's role or account gone) gets nothing, and the job completes instead of retrying what cannot change.
 func TestUnreadEmail_CompletesWhenTheRecipientHasNoAccount(t *testing.T) {
 	f := newChatFixture(t)
 	f.chats.parts[1].PractitionerRoleID = "b9000000-0000-4000-8000-0000000000b9" // no such role in the clinic
@@ -224,6 +223,21 @@ func TestUnreadEmail_CompletesWhenTheRecipientHasNoAccount(t *testing.T) {
 	}
 	if len(f.mail.sent) != 0 {
 		t.Errorf("sent %+v", f.mail.sent)
+	}
+}
+
+// A doctor of another clinic the patient granted into the conversation (SAL-28; NoticeConversation gives them only
+// while their chat consent and the care consent are active) is e-mailed like the clinic's own: their role and
+// account are looked up in their own clinic, not in the conversation's.
+func TestUnreadEmail_MailsAGrantedGuestThroughTheirOwnClinic(t *testing.T) {
+	f := newChatFixture(t)
+	f.chats.parts = append(f.chats.parts, communication.Participant{ID: guestPart, ConversationID: convID, PractitionerRoleID: guestRole,
+		OrganizationID: guestClinic, Role: communication.RolePractitioner, Status: communication.StatusActive, ReadSeq: 1})
+	if err := f.svc.UnreadEmail(t.Context(), notification.ChatUnreadEmailArgs{ParticipantID: guestPart, ConversationID: convID, OrganizationID: clinicID, ReadSeq: 1, Seq: 2}); err != nil {
+		t.Fatalf("UnreadEmail(guest) = %v", err)
+	}
+	if len(f.mail.sent) != 1 || f.mail.sent[0].To != "guest.example@example.test" || !strings.HasSuffix(f.mail.sent[0].Body, "https://app.example.test/chat\n") {
+		t.Errorf("sent %+v, want the guest's e-mail with the web app's link", f.mail.sent)
 	}
 }
 

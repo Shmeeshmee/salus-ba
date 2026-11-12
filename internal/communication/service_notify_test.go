@@ -159,3 +159,66 @@ func TestNoticeMessage_ReadsTheMessageInTheClinicsScopeAuditedWithTheJob(t *test
 		t.Errorf("after the revocation: %v, want ErrNotFound", err)
 	}
 }
+
+// noticed is the participants, by role id ("patient" for the patient), that NoticeConversation gives the notifier for the conversation id of clinic A.
+func noticed(t *testing.T, f *fixture, id string) map[string]communication.Participant {
+	t.Helper()
+	conv, err := f.svc.NoticeConversation(t.Context(), "chat_message_sent", clinicA, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]communication.Participant{}
+	for _, p := range conv.Participants {
+		key := p.PractitionerRoleID
+		if p.Role == communication.RolePatient {
+			key = "patient"
+		}
+		out[key] = p
+	}
+	return out
+}
+
+// Only those who may read the conversation now are told of a message (SAL-28's rules): a doctor of another clinic
+// waiting for the patient's consent is not, nor one whose chat consent is no longer active; a granted one is.
+func TestNoticeConversation_GivesOnlyActiveParticipantsAndGrantedGuests(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	c := f.open(t)
+	invited := f.add(t, c.ID, roleB1, clinicB) // pending the patient's consent
+	if got := noticed(t, f, c.ID); len(got) != 2 || got[roleB1].ID != "" {
+		t.Errorf("with a pending invitation: %+v, want the patient and the treating practitioner only", got)
+	}
+	if err := f.svc.DecideInvitation(t.Context(), me, invited.ID, communication.DecisionGrant); err != nil {
+		t.Fatal(err)
+	}
+	if got := noticed(t, f, c.ID); len(got) != 3 || got[roleB1].Status != communication.StatusActive {
+		t.Errorf("after the grant: %+v, want the guest too", got)
+	}
+	f.mu.Lock()
+	f.chat[c.ID+roleB1] = false // the chat consent ended while the participant row is still active
+	f.mu.Unlock()
+	if got := noticed(t, f, c.ID); len(got) != 2 || got[roleB1].ID != "" {
+		t.Errorf("without the chat consent: %+v, want the guest left out", got)
+	}
+}
+
+// A side thread is the doctors' only: its notices never name the patient, whatever its rows say.
+func TestNoticeConversation_ASideThreadNeverNotifiesThePatient(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	c := f.open(t)
+	f.add(t, c.ID, roleA2, clinicA)
+	thread, err := f.svc.OpenThread(t.Context(), pract, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.repo.mu.Lock()
+	f.repo.parts[thread.ID] = append(f.repo.parts[thread.ID], communication.Participant{
+		ID: "f1000000-0000-4000-8000-0000000000f1", ConversationID: thread.ID, PatientID: patientA, Role: communication.RolePatient,
+		Status: communication.StatusActive,
+	})
+	f.repo.mu.Unlock()
+	if got := noticed(t, f, thread.ID); len(got) != 2 || got["patient"].ID != "" {
+		t.Errorf("the side thread's notices: %+v, want its two doctors only", got)
+	}
+}

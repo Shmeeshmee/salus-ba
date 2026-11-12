@@ -34,6 +34,11 @@ const (
 	secretText      = "Synthetic secret text 7f3a: never in a notification"
 	patientName     = "Ada Example"
 	practitionerNam = "Dr Synthetic Example"
+	// A doctor of another clinic the patient granted into the conversation (SAL-28).
+	guestClinic       = "c1000000-0000-4000-8000-00000000001c"
+	guestPart         = "f3000000-0000-4000-8000-0000000000f3"
+	guestRole         = "b3000000-0000-4000-8000-0000000000b3"
+	guestPractitioner = "b4000000-0000-4000-8000-0000000000b4"
 )
 
 var chatNow = time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC)
@@ -285,13 +290,16 @@ func (p *fakePatients) NoticeAccount(_ context.Context, agent, org, id string) (
 type fakeRoles struct{}
 
 func (fakeRoles) Lookup(_ context.Context, org, id string) (practitionerrole.PractitionerRole, error) {
+	if org == guestClinic && id == guestRole {
+		return practitionerrole.PractitionerRole{ID: guestRole, OrganizationID: guestClinic, PractitionerID: guestPractitioner}, nil
+	}
 	if org != clinicID || id != roleID {
 		return practitionerrole.PractitionerRole{}, practitionerrole.ErrNotFound
 	}
 	return practitionerrole.PractitionerRole{ID: roleID, OrganizationID: clinicID, PractitionerID: practitionerID}, nil
 }
 
-// fakeChatAccounts gives the two accounts' e-mails and languages.
+// fakeChatAccounts gives the accounts' e-mails and languages.
 type fakeChatAccounts struct {
 	language map[string]string
 	asked    []string
@@ -312,6 +320,9 @@ func (a *fakeChatAccounts) AccountLanguage(_ context.Context, agent, id string) 
 
 func (a *fakeChatAccounts) PractitionerAccount(_ context.Context, agent, org, practitioner string) (string, string, string, error) {
 	a.asked = append(a.asked, agent+"/practitioner/"+practitioner)
+	if org == guestClinic && practitioner == guestPractitioner {
+		return "a4000000-0000-4000-8000-0000000000a4", "guest.example@example.test", "en", nil
+	}
 	if org != clinicID || practitioner != practitionerID {
 		return "", "", "", auth.ErrNotFound
 	}

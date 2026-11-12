@@ -28,10 +28,10 @@ type Jobs interface {
 	EnqueueMessageSent(ctx context.Context, a MessageSentArgs) error
 }
 
-// NoticeConversation returns the conversation id of the clinic org with its active participants and their read
-// positions, and its last message's number, for the job agent that tells them of a new message: in the clinic's
-// scope, so nothing after the patient's revocation (ErrNotFound), audited as a read of the patient's participants
-// with the job as agent.
+// NoticeConversation returns the conversation id of the clinic org with the participants who may read it now and
+// their read positions, and its last message's number, for the job agent that tells them of a new message: in the
+// clinic's scope, so nothing after the patient's revocation (ErrNotFound), audited as a read of the patient's
+// participants with the job as agent. Who may read it follows SAL-28's rules (noticed).
 func (s *Service) NoticeConversation(ctx context.Context, agent, org, id string) (Conversation, error) {
 	if !validUUID(id) {
 		return Conversation{}, ErrNotFound
@@ -42,7 +42,7 @@ func (s *Service) NoticeConversation(ctx context.Context, agent, org, id string)
 		if out, err = s.clinicConversation(ctx, org, id); err != nil {
 			return err
 		}
-		if out.Participants, err = s.Repo.Participants(ctx, id); err != nil {
+		if out.Participants, err = s.noticed(ctx, out); err != nil {
 			return err
 		}
 		return s.recordJob(ctx, agent, org, "Patient/"+out.PatientID, "conversation_participant", int64(len(out.Participants)))
@@ -76,6 +76,33 @@ func (s *Service) NoticeMessage(ctx context.Context, agent, org, id, messageID s
 	})
 	if err != nil {
 		return Message{}, wrap("notice message", err)
+	}
+	return out, nil
+}
+
+// noticed is the participants of conv who may read it now (SAL-28): active ones only, never one waiting for the
+// patient's consent; a doctor of another clinic only while the patient's chat consent for them is active (the care
+// consent with the clinic is clinicConversation's); never the patient in a doctor-only side thread.
+func (s *Service) noticed(ctx context.Context, conv Conversation) ([]Participant, error) {
+	parts, err := s.Repo.Participants(ctx, conv.ID)
+	if err != nil {
+		return nil, err
+	}
+	out := parts[:0]
+	for _, p := range parts {
+		switch {
+		case p.Status != StatusActive, conv.StaffOnly && p.Role == RolePatient:
+			continue
+		case p.Role == RolePractitioner && p.OrganizationID != "" && p.OrganizationID != conv.OrganizationID:
+			granted, err := s.ChatConsents.ChatGranted(ctx, root(conv), p.PractitionerRoleID)
+			if err != nil {
+				return nil, err
+			}
+			if !granted {
+				continue
+			}
+		}
+		out = append(out, p)
 	}
 	return out, nil
 }
