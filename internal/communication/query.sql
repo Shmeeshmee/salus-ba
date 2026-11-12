@@ -118,21 +118,21 @@ SELECT communication_add_partitions(@from_day::date, @months::integer);
 
 -- name: SearchConversation :many
 -- A conversation's messages whose body matches the query (chat_search, migration 00044), newest first, of numbers
--- above from_seq.
+-- above from_seq: found by communication_search (the text index, which row-level security cannot use), read by
+-- their keys through the policies.
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
        client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
-WHERE conversation_id = @conversation_id AND seq > @from_seq
-  AND to_tsvector('public.chat_search'::regconfig, body) @@ to_tsquery('public.chat_search'::regconfig, @query)
-ORDER BY sent_at DESC, seq DESC
-LIMIT @lim;
+WHERE (id, sent_at) IN (SELECT s.id, s.sent_at FROM communication_search(to_tsquery('public.chat_search'::regconfig, @query), @conversation_id::uuid, @lim::integer) s)
+  AND conversation_id = @conversation_id AND seq > @from_seq
+ORDER BY sent_at DESC, seq DESC;
 
 -- name: SearchMessages :many
--- The messages the scope shows whose body matches the query, newest first: the patient's own conversations, or
--- those of the practitioner role's scope, after its history_from_seq (row-level security decides which).
+-- The messages the scope may read whose body matches the query, newest first: the patient's own conversations, or
+-- those of the practitioner role's scope after its history_from_seq; found by communication_search, read through the
+-- policies.
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
        client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
-WHERE to_tsvector('public.chat_search'::regconfig, body) @@ to_tsquery('public.chat_search'::regconfig, @query)
-ORDER BY sent_at DESC, seq DESC
-LIMIT @lim;
+WHERE (id, sent_at) IN (SELECT s.id, s.sent_at FROM communication_search(to_tsquery('public.chat_search'::regconfig, @query), NULL, @lim::integer) s)
+ORDER BY sent_at DESC, seq DESC;

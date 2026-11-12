@@ -1,11 +1,14 @@
 package communication_test
 
 import (
+	"context"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/communication"
+	"github.com/Shmeeshmee/salus/pkg/postgres"
+	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
 // Search returns only messages the user may see (SAL-30, acceptance), on Postgres's text search and row-level
@@ -62,5 +65,32 @@ func TestPostgres_SearchReturnsOnlyTheMessagesTheCallerMayRead(t *testing.T) {
 	}
 	if got, err := f.svc.SearchAll(t.Context(), me, "mucnina"); err != nil || len(got) != 2 {
 		t.Errorf("the patient after the revocation: %v, %v; want their own two", bodies(got), err)
+	}
+}
+
+// A search is planned for its own query and conversation every time (plan_cache_mode force_custom_plan, for the
+// rest of its transaction): a generic plan cannot see that a conversation holds 100 000 messages and reads every
+// one's text vector where the index of the word reads twenty (make bench-chat, docs/plans/chat.PROGRESS.md).
+func TestPostgres_SearchIsPlannedForItsOwnQuery(t *testing.T) {
+	t.Parallel()
+	_, app := pgtest.NewAppDatabase(t)
+	repo := communication.NewPostgresRepository(app)
+	for name, search := range map[string]func(ctx context.Context) error{
+		"within": func(ctx context.Context) error { _, err := repo.SearchConversation(ctx, unknownID, "'x':*", 0, 1); return err },
+		"across": func(ctx context.Context) error { _, err := repo.Search(ctx, "'x':*", 1); return err },
+	} {
+		err := postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+			if err := search(ctx); err != nil {
+				return err
+			}
+			var mode string
+			if err := postgres.Conn(ctx, app).QueryRow(ctx, "SHOW plan_cache_mode").Scan(&mode); err != nil || mode != "force_custom_plan" {
+				t.Errorf("%s: plan_cache_mode %q, %v; want force_custom_plan", name, mode, err)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }

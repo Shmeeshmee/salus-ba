@@ -33,6 +33,11 @@ func (s *Service) Search(ctx context.Context, c Caller, id, q string) ([]SearchR
 		if err != nil {
 			return err
 		}
+		if !e.who.patient() { // the search function reads the role's scope (migration 00044)
+			if err := s.Repo.SetPractitionerRole(ctx, e.who.role); err != nil {
+				return err
+			}
+		}
 		if out, err = s.Repo.SearchConversation(ctx, id, query, e.fromSeq(), SearchSize); err != nil {
 			return err
 		}

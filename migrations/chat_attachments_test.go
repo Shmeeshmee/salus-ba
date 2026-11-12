@@ -334,3 +334,46 @@ func TestChatSearch_MatchesWordsCaseAndAccentsAsideOnEveryPartition(t *testing.T
 		t.Errorf("partitions without the search index: %v", missing)
 	}
 }
+
+// The search function (SAL-30) finds through the text index, which row-level security cannot use (the match operator
+// is not leakproof), so it decides what a scope may read itself, as the policies do: the patient their conversations
+// but no doctor-only one; the practitioner role, with its clinic, the conversations it takes part in after its
+// history_from_seq while the consent is active; nothing else. It returns keys only; the app reads the rows through the
+// policies.
+func TestChatSearch_TheSearchFunctionFindsOnlyWhatTheScopeMayRead(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	r := seedChatFiles(t, owner)
+	pA, pB := r.p[0].patient, r.p[1].patient
+	search := `SELECT id::text FROM communication_search(to_tsquery('public.chat_search', 'synth:*'), NULLIF($1, '')::uuid, 50)`
+	for _, tt := range []struct {
+		scope map[string]string
+		name  string
+		only  string
+		want  []string
+	}{
+		{name: "no scope"},
+		{name: "patient A", scope: map[string]string{"app.patient_id": pA}, want: sorted(r.msg["inA"], r.second, r.msg["inB"])},
+		{name: "patient A in inA", scope: map[string]string{"app.patient_id": pA}, only: r.conv["inA"], want: sorted(r.msg["inA"], r.second)},
+		{name: "patient A in their doctor-only thread", scope: map[string]string{"app.patient_id": pA}, only: r.conv["staffA"]},
+		{name: "patient B", scope: map[string]string{"app.patient_id": pB}, want: r.msgs("other")},
+		{name: "role A of clinic A", scope: chatRole(clinicA, r.dir[clinicA].role), want: sorted(r.second, r.msg["staffA"])},
+		{name: "role A in staffA", scope: chatRole(clinicA, r.dir[clinicA].role), only: r.conv["staffA"], want: r.msgs("staffA")},
+		{name: "role B after the revocation", scope: chatRole(clinicB, r.dir[clinicB].role)},
+		{name: "role A in clinic B", scope: chatRole(clinicB, r.dir[clinicA].role)},
+		{name: "role A without its clinic", scope: map[string]string{"app.chat_practitioner_role_id": r.dir[clinicA].role}},
+		{name: "role A with an account set", scope: map[string]string{"app.account_id": r.p[0].account, "app.organization_id": clinicA,
+			"app.chat_practitioner_role_id": r.dir[clinicA].role}},
+		{name: "clinic A with a conversation set", scope: map[string]string{"app.organization_id": clinicA, "app.conversation_id": r.conv["inA"]}},
+	} {
+		if got := idsWith(t, app, tt.scope, search, tt.only); !slices.Equal(got, tt.want) {
+			t.Errorf("%s: finds %v, want %v", tt.name, got, tt.want)
+		}
+	}
+	if _, err := owner.Exec(t.Context(), `UPDATE conversation_participant SET removed_at = now() WHERE id = $1`, r.pract["staffA"]); err != nil {
+		t.Fatal(err)
+	}
+	if got := idsWith(t, app, chatRole(clinicA, r.dir[clinicA].role), search, ""); !slices.Equal(got, []string{r.second}) {
+		t.Errorf("role A once removed from staffA: finds %v", got)
+	}
+}

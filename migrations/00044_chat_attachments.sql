@@ -156,3 +156,61 @@ ALTER TEXT SEARCH CONFIGURATION public.chat_search
     WITH public.unaccent, pg_catalog.simple;
 
 CREATE INDEX communication_search ON communication USING gin (to_tsvector('public.chat_search'::regconfig, body));
+
+-- communication_search finds the messages a scope may read whose body matches q, newest first, at most lim, in one
+-- conversation or across the scope's (only_conversation null): their keys only. Row-level security cannot use the
+-- text index (the match operator is not leakproof, so the policies run first over every message the scope sees:
+-- 24 s for a doctor in 50 000 conversations, make bench-chat), so this function, owned by the schema owner and
+-- SECURITY DEFINER, decides itself what the scope may read, as the policies do: the patient (app.patient_id) their
+-- conversations but no doctor-only one; the practitioner role (app.chat_practitioner_role_id with app.organization_id,
+-- no patient or account) the conversations it takes part in, after its history_from_seq, while the consent is active;
+-- nothing else. The app then reads the rows by these keys through the policies. EXECUTE plans each query for its own
+-- values (a generic plan cannot see a conversation of 100 000 messages).
+-- +goose StatementBegin
+CREATE FUNCTION communication_search(q tsquery, only_conversation uuid, lim integer)
+    RETURNS TABLE (id uuid, sent_at timestamptz)
+    LANGUAGE plpgsql
+    STABLE
+    ROWS 50
+    SECURITY DEFINER
+    SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    patient uuid := NULLIF(current_setting('app.patient_id', true), '')::uuid;
+    org uuid := NULLIF(current_setting('app.organization_id', true), '')::uuid;
+    role uuid := NULLIF(current_setting('app.chat_practitioner_role_id', true), '')::uuid;
+    account text := NULLIF(current_setting('app.account_id', true), '');
+BEGIN
+    IF lim IS NULL OR lim < 1 OR lim > 100 THEN
+        RAISE EXCEPTION 'communication_search: lim must be 1 to 100';
+    END IF;
+    IF patient IS NOT NULL THEN
+        RETURN QUERY EXECUTE
+            'SELECT m.id, m.sent_at FROM public.communication m
+             WHERE m.patient_id = $1 AND NOT m.staff_only
+               AND ($3::uuid IS NULL OR m.conversation_id = $3)
+               AND to_tsvector(''public.chat_search''::regconfig, m.body) @@ $2
+             ORDER BY m.sent_at DESC, m.seq DESC LIMIT $4'
+            USING patient, q, only_conversation, lim;
+    ELSIF account IS NULL AND org IS NOT NULL AND role IS NOT NULL THEN
+        RETURN QUERY EXECUTE
+            'WITH readable AS (
+                 SELECT p.conversation_id, p.history_from_seq FROM public.conversation_participant p
+                 JOIN public.conversation c ON c.id = p.conversation_id
+                 WHERE p.practitioner_role_id = $1 AND p.removed_at IS NULL AND c.organization_id = $2
+                   AND ($4::uuid IS NULL OR c.id = $4)
+                   AND EXISTS (SELECT 1 FROM public.consent k
+                               WHERE k.patient_id = c.patient_id AND k.organization_id = c.organization_id AND k.status = ''active''))
+             SELECT m.id, m.sent_at FROM public.communication m
+             JOIN readable r ON r.conversation_id = m.conversation_id AND m.seq > r.history_from_seq
+             WHERE ($4::uuid IS NULL OR m.conversation_id = $4)
+               AND to_tsvector(''public.chat_search''::regconfig, m.body) @@ $3
+             ORDER BY m.sent_at DESC, m.seq DESC LIMIT $5'
+            USING role, org, q, only_conversation, lim;
+    END IF;
+END
+$$;
+-- +goose StatementEnd
+
+REVOKE ALL ON FUNCTION communication_search(tsquery, uuid, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION communication_search(tsquery, uuid, integer) TO salus_app;

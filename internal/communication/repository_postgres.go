@@ -43,7 +43,17 @@ func (r *postgresRepository) SetPractitionerRole(ctx context.Context, id string)
 	return postgres.SetLocal(ctx, "app.chat_practitioner_role_id", id)
 }
 
+// customPlans plans each of the transaction's statements for its own arguments: a search's generic plan cannot see
+// that a conversation holds 100 000 messages, and reads every one's text vector where the word's index reads twenty
+// (measured, docs/plans/chat.PROGRESS.md SAL-30).
+func customPlans(ctx context.Context) error {
+	return postgres.SetLocal(ctx, "plan_cache_mode", "force_custom_plan")
+}
+
 func (r *postgresRepository) SearchConversation(ctx context.Context, conversationID, query string, fromSeq int64, limit int) ([]Message, error) {
+	if err := customPlans(ctx); err != nil {
+		return nil, err
+	}
 	rows, err := r.q(ctx).SearchConversation(ctx, communicationdb.SearchConversationParams{
 		ConversationID: uid(conversationID), FromSeq: fromSeq, Query: query, Lim: int32(limit), //nolint:gosec // SearchSize
 	})
@@ -54,6 +64,9 @@ func (r *postgresRepository) SearchConversation(ctx context.Context, conversatio
 }
 
 func (r *postgresRepository) Search(ctx context.Context, query string, limit int) ([]Message, error) {
+	if err := customPlans(ctx); err != nil {
+		return nil, err
+	}
 	rows, err := r.q(ctx).SearchMessages(ctx, communicationdb.SearchMessagesParams{Query: query, Lim: int32(limit)}) //nolint:gosec // SearchSize
 	if err != nil {
 		return nil, fmt.Errorf("communication: search: %w", err)

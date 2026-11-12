@@ -695,27 +695,27 @@ const searchConversation = `-- name: SearchConversation :many
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
        client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
-WHERE conversation_id = $1 AND seq > $2
-  AND to_tsvector('public.chat_search'::regconfig, body) @@ to_tsquery('public.chat_search'::regconfig, $3)
+WHERE (id, sent_at) IN (SELECT s.id, s.sent_at FROM communication_search(to_tsquery('public.chat_search'::regconfig, $1), $2::uuid, $3::integer) s)
+  AND conversation_id = $2 AND seq > $4
 ORDER BY sent_at DESC, seq DESC
-LIMIT $4
 `
 
 type SearchConversationParams struct {
-	ConversationID pgtype.UUID
-	FromSeq        int64
 	Query          string
+	ConversationID pgtype.UUID
 	Lim            int32
+	FromSeq        int64
 }
 
 // A conversation's messages whose body matches the query (chat_search, migration 00044), newest first, of numbers
-// above from_seq.
+// above from_seq: found by communication_search (the text index, which row-level security cannot use), read by
+// their keys through the policies.
 func (q *Queries) SearchConversation(ctx context.Context, arg SearchConversationParams) ([]Communication, error) {
 	rows, err := q.db.Query(ctx, searchConversation,
-		arg.ConversationID,
-		arg.FromSeq,
 		arg.Query,
+		arg.ConversationID,
 		arg.Lim,
+		arg.FromSeq,
 	)
 	if err != nil {
 		return nil, err
@@ -758,9 +758,8 @@ const searchMessages = `-- name: SearchMessages :many
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
        client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
-WHERE to_tsvector('public.chat_search'::regconfig, body) @@ to_tsquery('public.chat_search'::regconfig, $1)
+WHERE (id, sent_at) IN (SELECT s.id, s.sent_at FROM communication_search(to_tsquery('public.chat_search'::regconfig, $1), NULL, $2::integer) s)
 ORDER BY sent_at DESC, seq DESC
-LIMIT $2
 `
 
 type SearchMessagesParams struct {
@@ -768,8 +767,9 @@ type SearchMessagesParams struct {
 	Lim   int32
 }
 
-// The messages the scope shows whose body matches the query, newest first: the patient's own conversations, or
-// those of the practitioner role's scope, after its history_from_seq (row-level security decides which).
+// The messages the scope may read whose body matches the query, newest first: the patient's own conversations, or
+// those of the practitioner role's scope after its history_from_seq; found by communication_search, read through the
+// policies.
 func (q *Queries) SearchMessages(ctx context.Context, arg SearchMessagesParams) ([]Communication, error) {
 	rows, err := q.db.Query(ctx, searchMessages, arg.Query, arg.Lim)
 	if err != nil {
