@@ -143,37 +143,8 @@ func TestChatNotifications_NeverCarryTheMessageText(t *testing.T) {
 	ctx := t.Context()
 	var logs syncBuffer
 	log := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	pusher, mails := &pushtest.Sender{}, &captureSender{}
-	notifier, err := worker.NewNotifier(db.app, log, mails, pusher, "https://app.example.test", "https://patient.example.test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	jobs, err := worker.New(db.app, db.retention, liveKit(t), testFiles(t), webhookKey, log)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, c := range []interface {
-		Start(context.Context) error
-		Stop(context.Context) error
-	}{notifier, jobs} {
-		if err := c.Start(ctx); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { _ = c.Stop(context.WithoutCancel(ctx)) })
-	}
-
-	inserter, err := worker.NewInserter(db.app)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tx := postgres.NewTransactor(db.app)
-	audit := auditevent.NewService(auditevent.NewPostgresRepository(db.app), tx, clock.System{})
-	chat := communication.NewService(communication.Ports{
-		Repo: communication.NewPostgresRepository(db.app), Publisher: nopPublisher{},
-		Consents: consent.NewService(consent.NewPostgresRepository(db.app), audit, tx, clock.System{}, nil),
-		Roles:    practitionerrole.NewService(practitionerrole.Ports{Repo: practitionerrole.NewPostgresRepository(db.app), Audit: audit, Tx: tx, Clock: clock.System{}}),
-		Audit:    audit, Tx: tx, Clock: clock.System{}, Jobs: communication.NewRiverJobs(inserter), Log: log,
-	})
+	pusher, mails := startChatJobs(t, db, log)
+	chat := sendingChat(t, db, log)
 	pract := appointment.Caller{AccountID: r.practAccount, OrganizationID: clinicID, PractitionerID: r.practitioner}
 	if _, _, err := chat.Send(ctx, pract, r.conv, "c1000000-0000-4000-8000-0000000000c1", secretChatText); err != nil {
 		t.Fatalf("Send() = %v", err)
@@ -204,5 +175,183 @@ func TestChatNotifications_NeverCarryTheMessageText(t *testing.T) {
 		if strings.Contains(everything, never) {
 			t.Errorf("%q is in what was sent, enqueued or logged", never)
 		}
+	}
+}
+
+// startChatJobs starts the notifier and the worker as they run, with a captured push sender and mailbox.
+func startChatJobs(t *testing.T, db logins, log *slog.Logger) (*pushtest.Sender, *captureSender) {
+	t.Helper()
+	ctx := t.Context()
+	pusher, mails := &pushtest.Sender{}, &captureSender{}
+	notifier, err := worker.NewNotifier(db.app, log, mails, pusher, "https://app.example.test", "https://patient.example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs, err := worker.New(db.app, db.retention, liveKit(t), testFiles(t), webhookKey, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []interface {
+		Start(context.Context) error
+		Stop(context.Context) error
+	}{notifier, jobs} {
+		if err := c.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = c.Stop(context.WithoutCancel(ctx)) })
+	}
+	return pusher, mails
+}
+
+// sendingChat is the chat's service as the api builds it for sending.
+func sendingChat(t *testing.T, db logins, log *slog.Logger) *communication.Service {
+	t.Helper()
+	inserter, err := worker.NewInserter(db.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx := postgres.NewTransactor(db.app)
+	audit := auditevent.NewService(auditevent.NewPostgresRepository(db.app), tx, clock.System{})
+	consents := consent.NewService(consent.NewPostgresRepository(db.app), audit, tx, clock.System{}, nil)
+	return communication.NewService(communication.Ports{
+		Repo: communication.NewPostgresRepository(db.app), Publisher: nopPublisher{}, Consents: consents, ChatConsents: consents,
+		Roles: practitionerrole.NewService(practitionerrole.Ports{Repo: practitionerrole.NewPostgresRepository(db.app), Audit: audit, Tx: tx, Clock: clock.System{}}),
+		Audit: audit, Tx: tx, Clock: clock.System{}, Jobs: communication.NewRiverJobs(inserter), Log: log,
+	})
+}
+
+// guestClinicID is the second clinic of seedChatGuest.
+const guestClinicID = "0a000000-0000-4000-8000-0000000000b2"
+
+// seedChatGuest adds, as the owner, a doctor of a second clinic to r's conversation, with their account, as an active
+// participant the patient granted a chat consent for (SAL-28).
+func seedChatGuest(t *testing.T, owner *pgxpool.Pool, b booking, r chatRows) {
+	t.Helper()
+	ctx := t.Context()
+	var practitioner, role string
+	if err := owner.QueryRow(ctx, `WITH o AS (INSERT INTO organization (id, name, listed) VALUES ($1, 'Synthetic guest clinic', true) RETURNING id),
+		p AS (INSERT INTO practitioner (organization_id, given_name, family_name) SELECT id, 'Gus', 'Example' FROM o RETURNING id, organization_id)
+		INSERT INTO practitioner_role (organization_id, practitioner_id) SELECT organization_id, id FROM p RETURNING practitioner_id::text, id::text`,
+		guestClinicID).Scan(&practitioner, &role); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []struct {
+		sql  string
+		args []any
+	}{
+		{`INSERT INTO account (email, password_hash, role, organization_id, practitioner_id, language) VALUES ($1, 'h', 'practitioner', $2, $3, 'en')`,
+			[]any{"guest-" + strings.ToLower(rand.Text()) + "@example.test", guestClinicID, practitioner}},
+		{`INSERT INTO conversation_participant (conversation_id, role, practitioner_role_id, organization_id, status, added_by)
+			VALUES ($1, 'practitioner', $2, $3, 'active', $4)`, []any{r.conv, role, guestClinicID, r.practAccount}},
+		{`INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id, practitioner_organization_id, status, date_time)
+			VALUES ($1, $2, $3, $4, $5, 'active', now() - interval '1 hour')`, []any{b.patient, clinicID, r.conv, role, guestClinicID}},
+	} {
+		if _, err := owner.Exec(ctx, q.sql, q.args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// failedChatJobs is every chat notification job that recorded an error, but the webhook's attempts at a host that
+// never resolves, which fail by design; those must fail on the host and nothing else.
+func failedChatJobs(t *testing.T, owner *pgxpool.Pool) []string {
+	t.Helper()
+	rows, err := owner.Query(t.Context(), `SELECT kind, array_to_string(errors, ' ') FROM river_job WHERE cardinality(errors) > 0`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var failed []string
+	for rows.Next() {
+		var kind, errs string
+		if err := rows.Scan(&kind, &errs); err != nil {
+			t.Fatal(err)
+		}
+		if kind != "webhook_delivery" || strings.Contains(errs, "panic") {
+			failed = append(failed, kind+" "+errs)
+		}
+	}
+	return failed
+}
+
+// A conversation with a doctor of another clinic the patient granted (SAL-28, SAL-29): the notifier and the worker
+// check the guest's chat consent, and the patient still gets the push and the unread e-mail, the guest their e-mail,
+// with no job failing on the way.
+func TestChatNotifications_ReachAConversationWithAGrantedGuest(t *testing.T) {
+	t.Parallel()
+	db := newLogins(t)
+	b := seedBooking(t, db.owner)
+	r := seedChatNotifications(t, db.owner, b)
+	seedChatGuest(t, db.owner, b, r)
+	ctx := t.Context()
+	var logs syncBuffer
+	log := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	pusher, mails := startChatJobs(t, db, log)
+	pract := appointment.Caller{AccountID: r.practAccount, OrganizationID: clinicID, PractitionerID: r.practitioner}
+	if _, _, err := sendingChat(t, db, log).Send(ctx, pract, r.conv, "c2000000-0000-4000-8000-0000000000c2", secretChatText); err != nil {
+		t.Fatalf("Send() = %v", err)
+	}
+
+	eventually(t, "the fan-out's first attempt", func() bool {
+		var done bool
+		_ = db.owner.QueryRow(ctx, `SELECT state = 'completed' OR cardinality(errors) > 0 FROM river_job WHERE kind = $1`,
+			communication.MessageSentArgs{}.Kind()).Scan(&done)
+		return done
+	})
+	if failed := failedChatJobs(t, db.owner); failed != nil {
+		t.Fatalf("jobs failed:\n%s", strings.Join(failed, "\n"))
+	}
+	eventually(t, "the push", func() bool { return len(pusher.Sent()) == 1 })
+	if _, err := db.owner.Exec(ctx, `UPDATE river_job SET scheduled_at = now(), state = 'available' WHERE kind = 'chat_unread_email'`); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "the patient's and the guest's unread e-mails", func() bool { return len(mails.messages()) == 2 })
+	eventually(t, "the webhook's failed attempt", func() bool {
+		var n int
+		_ = db.owner.QueryRow(ctx, `SELECT count(*) FROM river_job WHERE kind = 'webhook_delivery' AND cardinality(errors) > 0`).Scan(&n)
+		return n == 1
+	})
+	var toPatient bool
+	for _, m := range mails.messages() {
+		toPatient = toPatient || m.To == b.email
+	}
+	if !toPatient {
+		t.Errorf("mailed %+v, want the patient among them", mails.messages())
+	}
+	if failed := failedChatJobs(t, db.owner); failed != nil {
+		t.Errorf("jobs failed:\n%s", strings.Join(failed, "\n"))
+	}
+}
+
+// The patient revokes the care consent with the treating clinic after the message (SAL-29): its fan-out tells nobody,
+// the granted guest included.
+func TestChatNotifications_TellNobodyOnceTheCareConsentIsRevoked(t *testing.T) {
+	t.Parallel()
+	db := newLogins(t)
+	b := seedBooking(t, db.owner)
+	r := seedChatNotifications(t, db.owner, b)
+	seedChatGuest(t, db.owner, b, r)
+	ctx := t.Context()
+	log := slog.New(slog.DiscardHandler)
+	pract := appointment.Caller{AccountID: r.practAccount, OrganizationID: clinicID, PractitionerID: r.practitioner}
+	if _, _, err := sendingChat(t, db, log).Send(ctx, pract, r.conv, "c3000000-0000-4000-8000-0000000000c3", secretChatText); err != nil {
+		t.Fatalf("Send() = %v", err)
+	}
+	if _, err := db.owner.Exec(ctx, `UPDATE consent SET status = 'inactive', revoked_at = now() WHERE patient_id = $1 AND organization_id = $2`, b.patient, clinicID); err != nil {
+		t.Fatal(err)
+	}
+	pusher, mails := startChatJobs(t, db, log)
+
+	eventually(t, "the fan-out", func() bool {
+		var state string
+		_ = db.owner.QueryRow(ctx, `SELECT state FROM river_job WHERE kind = $1`, communication.MessageSentArgs{}.Kind()).Scan(&state)
+		return state == "completed"
+	})
+	var n int
+	if err := db.owner.QueryRow(ctx, `SELECT count(*) FROM river_job WHERE kind <> $1`, communication.MessageSentArgs{}.Kind()).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 || len(pusher.Sent()) != 0 || len(mails.messages()) != 0 {
+		t.Errorf("%d jobs enqueued, %d pushes, %d e-mails after the revocation; want none", n, len(pusher.Sent()), len(mails.messages()))
 	}
 }

@@ -35,11 +35,12 @@ const webhookTimeout = 10 * time.Second
 // webhookKeyLen is WEBHOOK_KEY's length: AES-256.
 const webhookKeyLen = 32
 
-// noticeChats is the chat's service for the notifications' reads alone: the repository, the consent check, the
-// audit, the transaction and the clock.
+// noticeChats is the chat's service for the notifications' reads alone: the repository, the care and chat consent
+// checks (a doctor of another clinic is told only while the patient's chat consent for them is active), the audit,
+// the transaction and the clock.
 func noticeChats(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, clk clock.Clock) *communication.Service {
 	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clk, nil)
-	return communication.NewService(communication.Ports{Repo: communication.NewPostgresRepository(pool), Consents: consents, Audit: audit, Tx: tx, Clock: clk})
+	return communication.NewService(communication.Ports{Repo: communication.NewPostgresRepository(pool), Consents: consents, ChatConsents: consents, Audit: audit, Tx: tx, Clock: clk})
 }
 
 // chatNotifierPorts are what the notifier's chat notifications run on.
