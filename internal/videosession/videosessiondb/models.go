@@ -277,6 +277,23 @@ type Binary struct {
 	WrappedKey              []byte
 }
 
+type Condition struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	RecordedAt         pgtype.Timestamptz
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	EncounterID        pgtype.UUID
+	DocumentDraftID    pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	VersionID          int32
+	FieldKey           string
+	CodeSystem         string
+	Code               string
+	VerificationStatus string
+}
+
 type Consent struct {
 	ID             pgtype.UUID
 	CreatedAt      pgtype.Timestamptz
@@ -287,6 +304,30 @@ type Consent struct {
 	OrganizationID pgtype.UUID
 	VersionID      int32
 	Status         string
+}
+
+type DiagnosisGroup struct {
+	Position   int32
+	Code       string
+	ParentCode pgtype.Text
+}
+
+type DiagnosisGroupName struct {
+	UpdatedAt    pgtype.Timestamptz
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	VersionID    int32
+	Language     Language
+	ReviewStatus string
+	GroupCode    string
+	Text         string
+	Note         pgtype.Text
+}
+
+type DiagnosisGroupRange struct {
+	GroupCode string
+	FromCode  string
+	ToCode    string
 }
 
 type DocumentDraft struct {
@@ -382,6 +423,14 @@ type Patient struct {
 	GivenName  string
 	FamilyName string
 	Phone      pgtype.Text
+}
+
+type Place struct {
+	ID       string
+	Kind     string
+	ParentID pgtype.Text
+	NameLatn string
+	NameCyrl string
 }
 
 type Practitioner struct {

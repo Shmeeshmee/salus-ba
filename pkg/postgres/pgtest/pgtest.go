@@ -38,10 +38,15 @@ const AppRole = "salus_app"
 // and DELETE on the tables whose rows are deleted after their period.
 const RetentionRole = "salus_retention"
 
+// StatsRole is the aggregate builds' role (docs/plans/analytics.md, ADR 0012): BYPASSRLS, no superuser, owner of
+// nothing, granted SELECT on the source columns only.
+const StatsRole = "salus_stats"
+
 // The variables that hold the passwords Main sets on the roles, and the tests log in with.
 const (
 	appPasswordVar       = "TEST_APP_DATABASE_PASSWORD"
 	retentionPasswordVar = "TEST_RETENTION_DATABASE_PASSWORD"
+	statsPasswordVar     = "TEST_STATS_DATABASE_PASSWORD"
 )
 
 // server is set once by Main, before any test runs, and only read afterwards: TestMain has no other way to
@@ -86,7 +91,7 @@ func run(m *testing.M, migrations fs.FS) int {
 			return 1
 		}
 	}
-	for role, variable := range map[string]string{AppRole: appPasswordVar, RetentionRole: retentionPasswordVar} {
+	for role, variable := range map[string]string{AppRole: appPasswordVar, RetentionRole: retentionPasswordVar, StatsRole: statsPasswordVar} {
 		if err := setRolePassword(ctx, admin, role, os.Getenv(variable)); err != nil {
 			fmt.Fprintln(os.Stderr, "pgtest: set the", role, "password:", err)
 			return 1
@@ -118,12 +123,19 @@ func migrate(ctx context.Context, dbURL string, migrations fs.FS) error {
 // when the test ends.
 func NewDatabaseURL(t testing.TB) string {
 	t.Helper()
+	return newDatabaseURL(t, " TEMPLATE "+server.template)
+}
+
+// newDatabaseURL creates a database with the CREATE DATABASE options opts and returns its URL; it is dropped when
+// the test ends.
+func newDatabaseURL(t testing.TB, opts string) string {
+	t.Helper()
 	if server.admin == nil {
 		t.Fatal("pgtest: call pgtest.Main(m, migrations) from TestMain")
 	}
 	ctx := context.Background()
 	name := uniqueName("salus_test")
-	if _, err := server.admin.Exec(ctx, "CREATE DATABASE "+name+" TEMPLATE "+server.template); err != nil {
+	if _, err := server.admin.Exec(ctx, "CREATE DATABASE "+name+opts); err != nil {
 		t.Fatalf("pgtest: create database: %v", err)
 	}
 	t.Cleanup(func() {
@@ -153,6 +165,25 @@ func NewAppDatabase(t testing.TB) (owner, app *pgxpool.Pool) {
 func NewRetentionDatabase(t testing.TB) (owner, retention *pgxpool.Pool) {
 	t.Helper()
 	return newRoleDatabase(t, RetentionRole, retentionPasswordVar)
+}
+
+// NewStatsDatabase is NewAppDatabase for StatsRole, with the password Main set from TEST_STATS_DATABASE_PASSWORD.
+func NewStatsDatabase(t testing.TB) (owner, stats *pgxpool.Pool) {
+	t.Helper()
+	return newRoleDatabase(t, StatsRole, statsPasswordVar)
+}
+
+// StatsURL returns dbURL logged in as StatsRole, for a test that hands a binary its URL.
+func StatsURL(t testing.TB, dbURL string) string {
+	t.Helper()
+	return roleURL(t, dbURL, StatsRole, statsPasswordVar)
+}
+
+// NewEmptyDatabaseURL creates an empty database, not cloned from the template, and returns its URL, for a test
+// that migrates it step by step (a backfill's test). The database is dropped when the test ends.
+func NewEmptyDatabaseURL(t testing.TB) string {
+	t.Helper()
+	return newDatabaseURL(t, "")
 }
 
 // AppURL returns dbURL logged in as AppRole, for a test that needs it beside another role's login.

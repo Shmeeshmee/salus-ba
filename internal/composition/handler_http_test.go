@@ -190,6 +190,10 @@ func TestHTTP_DraftsAndSigns(t *testing.T) {
 	if w.Code != 200 || svc.got.id != svc.draft.ID || svc.got.version != 3 || len(svc.got.values) != 1 || svc.got.values[0] != (composition.Value{Key: "findings", Value: "x"}) {
 		t.Errorf("sign = %d %s, got %+v", w.Code, w.Body, svc.got)
 	}
+	w = serve(t, svc, true, "POST", "/drafts/"+svc.draft.ID+"/sign", `{"fields":[{"key":"diagnosis","value":"J06.9","confirmed":true}]}`, map[string]string{"If-Match": `W/"3"`})
+	if w.Code != 200 || len(svc.got.values) != 1 || svc.got.values[0] != (composition.Value{Key: "diagnosis", Value: "J06.9", Confirmed: true}) {
+		t.Errorf("sign with a confirmed diagnosis = %d %s, got %+v", w.Code, w.Body, svc.got)
+	}
 	if w := serve(t, svc, true, "POST", "/drafts/"+svc.draft.ID+"/sign", `{"fields":[]}`, nil); w.Code != 400 {
 		t.Errorf("sign without If-Match = %d, want 400", w.Code)
 	}
@@ -230,6 +234,7 @@ func TestHTTP_MapsTheErrors(t *testing.T) {
 		{&composition.InvalidTemplateError{}, `{"error":"invalid_template","keys":[]}`, 422},
 		{&composition.FieldsError{Err: composition.ErrInvalidValues, Keys: []string{"b"}}, `{"error":"invalid_values","keys":["b"]}`, 422},
 		{&composition.FieldsError{Err: composition.ErrRequiredMissing, Keys: []string{"c"}}, `{"error":"required_missing","keys":["c"]}`, 422},
+		{&composition.FieldsError{Err: composition.ErrDiagnosisUnconfirmed, Keys: []string{"d"}}, `{"error":"diagnosis_unconfirmed","keys":["d"]}`, 422},
 		{errBackend, `{"error":"internal error"}`, 500},
 	} {
 		svc := stubbed()

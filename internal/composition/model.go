@@ -251,6 +251,9 @@ func (d Draft) Event() Event {
 type Value struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+	// Confirmed is the practitioner's confirmation of a coded field's value (a diagnosis); a filled coded field
+	// without it is refused. Ignored for the other field types.
+	Confirmed bool `json:"confirmed,omitempty"`
 }
 
 // SignedEmailArgs is the document_signed_email job on the notifier's email queue, enqueued with every signature:

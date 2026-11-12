@@ -18,6 +18,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/composition"
+	"github.com/Shmeeshmee/salus/internal/condition"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/transcript"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -64,14 +65,14 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 	}
 	t.f.mu.Lock()
 	events, templates, drafts := len(t.f.audit.events), maps.Clone(t.f.repo.templates), maps.Clone(t.f.repo.drafts)
-	jobs := len(t.f.jobs.signed)
+	jobs, conds := len(t.f.jobs.signed), len(t.f.conditions.recorded)
 	t.f.mu.Unlock()
 	defer func() { t.f.repo.scope = "" }()
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
 		t.f.mu.Lock()
 		t.f.audit.events, t.f.repo.templates, t.f.repo.drafts = t.f.audit.events[:events], templates, drafts
-		t.f.jobs.signed = t.f.jobs.signed[:jobs]
+		t.f.jobs.signed, t.f.conditions.recorded = t.f.jobs.signed[:jobs], t.f.conditions.recorded[:conds]
 		t.f.mu.Unlock()
 	}
 	return err
@@ -379,6 +380,23 @@ func (j *fakeJobs) EnqueueSigned(ctx context.Context, appointmentID, org string)
 	return j.err
 }
 
+// fakeConditions keeps the Conditions recorded in a transaction; a rollback drops them.
+type fakeConditions struct {
+	err      error
+	recorded []condition.Condition
+}
+
+func (c *fakeConditions) Record(ctx context.Context, cs []condition.Condition) error {
+	if err := inTx(ctx); err != nil {
+		return err
+	}
+	if c.err != nil {
+		return c.err
+	}
+	c.recorded = append(c.recorded, cs...)
+	return nil
+}
+
 type fakeAuditor struct {
 	events []auditevent.AuditEvent
 }
@@ -403,6 +421,7 @@ type fixture struct {
 	store       *fakeStore
 	publisher   *fakePublisher
 	jobs        *fakeJobs
+	conditions  *fakeConditions
 	audit       *fakeAuditor
 	logs        *bytes.Buffer
 	mu          sync.Mutex
@@ -431,6 +450,7 @@ func newFixture(t *testing.T) *fixture {
 		store:     &fakeStore{objects: map[string][]byte{}},
 		publisher: &fakePublisher{},
 		jobs:      &fakeJobs{},
+		conditions: &fakeConditions{},
 		audit:     &fakeAuditor{},
 		logs:      &bytes.Buffer{},
 		transcripts: &fakeTranscripts{segments: []transcript.Event{
@@ -450,7 +470,7 @@ func newFixture(t *testing.T) *fixture {
 	}
 	f.svc = composition.NewService(composition.Ports{
 		Repo: f.repo, Encounters: f.encounters, Transcripts: f.transcripts, Drafter: f.drafter, Store: f.store,
-		Publisher: f.publisher, Jobs: f.jobs, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now}, KEK: kek,
+		Publisher: f.publisher, Jobs: f.jobs, Conditions: f.conditions, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now}, KEK: kek,
 		Log: slog.New(slog.NewTextHandler(f.logs, nil)),
 	})
 	return f

@@ -233,6 +233,144 @@ func (q *Queries) InsertLabels(ctx context.Context, arg InsertLabelsParams) erro
 	return err
 }
 
+const listDiagnosisGroupNames = `-- name: ListDiagnosisGroupNames :many
+SELECT n.group_code, n.language::text AS language, n.text, n.review_status::text AS review_status, n.reviewed_at,
+       n.reviewed_by, n.note, n.version_id
+FROM diagnosis_group_name n JOIN diagnosis_group g ON g.code = n.group_code
+ORDER BY g.position, n.language
+`
+
+type ListDiagnosisGroupNamesRow struct {
+	GroupCode    string
+	Language     string
+	Text         string
+	ReviewStatus string
+	ReviewedAt   pgtype.Timestamptz
+	ReviewedBy   pgtype.UUID
+	Note         pgtype.Text
+	VersionID    int32
+}
+
+// Every group's names with their reviews, by group order and then by language in the enum's order.
+func (q *Queries) ListDiagnosisGroupNames(ctx context.Context) ([]ListDiagnosisGroupNamesRow, error) {
+	rows, err := q.db.Query(ctx, listDiagnosisGroupNames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDiagnosisGroupNamesRow
+	for rows.Next() {
+		var i ListDiagnosisGroupNamesRow
+		if err := rows.Scan(
+			&i.GroupCode,
+			&i.Language,
+			&i.Text,
+			&i.ReviewStatus,
+			&i.ReviewedAt,
+			&i.ReviewedBy,
+			&i.Note,
+			&i.VersionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDiagnosisGroupRanges = `-- name: ListDiagnosisGroupRanges :many
+SELECT r.group_code, r.from_code, r.to_code
+FROM diagnosis_group_range r JOIN diagnosis_group g ON g.code = r.group_code
+ORDER BY g.position, r.from_code
+`
+
+// Every group's ranges of ICD-10 codes, by group order and then by their first code.
+func (q *Queries) ListDiagnosisGroupRanges(ctx context.Context) ([]DiagnosisGroupRange, error) {
+	rows, err := q.db.Query(ctx, listDiagnosisGroupRanges)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DiagnosisGroupRange
+	for rows.Next() {
+		var i DiagnosisGroupRange
+		if err := rows.Scan(&i.GroupCode, &i.FromCode, &i.ToCode); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDiagnosisGroups = `-- name: ListDiagnosisGroups :many
+SELECT code, parent_code FROM diagnosis_group ORDER BY position
+`
+
+type ListDiagnosisGroupsRow struct {
+	Code       string
+	ParentCode pgtype.Text
+}
+
+// Our diagnosis groups (00041, docs/plans/analytics.md appendix A), in their order.
+func (q *Queries) ListDiagnosisGroups(ctx context.Context) ([]ListDiagnosisGroupsRow, error) {
+	rows, err := q.db.Query(ctx, listDiagnosisGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDiagnosisGroupsRow
+	for rows.Next() {
+		var i ListDiagnosisGroupsRow
+		if err := rows.Scan(&i.Code, &i.ParentCode); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlaces = `-- name: ListPlaces :many
+SELECT id, kind, parent_id, name_latn, name_cyrl
+FROM place
+ORDER BY CASE kind WHEN 'entity' THEN 0 WHEN 'region' THEN 1 ELSE 2 END, parent_id NULLS FIRST, name_latn, id
+`
+
+// The places of a clinic's location: the entity, the regions, then the cities, each by parent and Latin name.
+func (q *Queries) ListPlaces(ctx context.Context) ([]Place, error) {
+	rows, err := q.db.Query(ctx, listPlaces)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Place
+	for rows.Next() {
+		var i Place
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.ParentID,
+			&i.NameLatn,
+			&i.NameCyrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTerms = `-- name: ListTerms :many
 SELECT t.id, t.reviewed_at, t.reviewed_by, t.rank, t.category, t.review_status, t.wikidata_id, t.icd10, t.ta98, t.atc,
        t.pcs, t.note,

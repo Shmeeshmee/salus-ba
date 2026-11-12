@@ -36,6 +36,7 @@ services:
       DATABASE_URL: postgres://salus:synthetic-test-only@postgres:5432/salus?sslmode=disable
       APP_DATABASE_PASSWORD: synthetic-test-app
       RETENTION_DATABASE_PASSWORD: synthetic-test-retention
+      STATS_DATABASE_PASSWORD: synthetic-test-stats
     command: ["go", "run", "./cmd/migrate", "up"]
     depends_on:
       postgres: {condition: service_healthy}

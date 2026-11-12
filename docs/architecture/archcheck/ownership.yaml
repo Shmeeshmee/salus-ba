@@ -13,7 +13,11 @@ tables:
   appointment: {owner: appointment, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
   binary: {owner: binary, personal_data: true}
+  condition: {owner: condition, personal_data: true}
   consent: {owner: consent, personal_data: true}
+  diagnosis_group: {owner: terminology, personal_data: false}
+  diagnosis_group_name: {owner: terminology, personal_data: false}
+  diagnosis_group_range: {owner: terminology, personal_data: false}
   document_draft: {owner: composition, personal_data: true}
   document_template: {owner: composition, personal_data: false}
   document_template_translation: {owner: composition, personal_data: false}
@@ -21,6 +25,7 @@ tables:
   invite: {owner: auth, personal_data: true}
   organization: {owner: organization, personal_data: false}
   patient: {owner: patient, personal_data: true}
+  place: {owner: terminology, personal_data: false}
   practitioner: {owner: practitioner, personal_data: true}
   practitioner_role: {owner: practitionerrole, personal_data: true}
   questionnaire: {owner: questionnaire, personal_data: false}

@@ -27,11 +27,12 @@ import (
 
 const usage = "usage: migrate up | status | create [-dir migrations] <name>"
 
-// The roles the migrations create: appRole, which the application binaries log in as, and retentionRole,
-// which only the retention_apply job logs in as.
+// The roles the migrations create: appRole, which the application binaries log in as, retentionRole, which only
+// the retention_apply job logs in as, and statsRole, which only the aggregate builds log in as (ADR 0012).
 const (
 	appRole       = "salus_app"
 	retentionRole = "salus_retention"
+	statsRole     = "salus_stats"
 )
 
 func main() {
@@ -52,7 +53,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	case "up", "status":
 		return withProvider(ctx, func(p *goose.Provider, db postgres.Querier, cfg config.Config) error {
 			if args[0] == "up" {
-				passwords := [][2]string{{appRole, cfg.AppDatabasePassword}, {retentionRole, config.LoadRetention().Password}}
+				passwords := [][2]string{{appRole, cfg.AppDatabasePassword}, {retentionRole, config.LoadRetention().Password},
+					{statsRole, config.LoadStats().Password}}
 				return up(ctx, p, db, passwords, stdout)
 			}
 			return status(ctx, p, stdout)
