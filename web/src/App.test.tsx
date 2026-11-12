@@ -227,3 +227,19 @@ describe('the language', () => {
     expect(screen.getByText('Only reviewers can edit and approve terms.')).toBeTruthy()
   })
 })
+
+describe('the analytics page', () => {
+  it('opens from the navigation', async () => {
+    renderAt('/', {
+      ...staff(admin),
+      'GET /terminology/diagnosis-groups': () => Response.json({ groups: [{ code: 'skin', name: 'Skin conditions', reviewStatus: 'unreviewed' }] }),
+      'GET /places': () => Response.json({ places: [] }),
+    })
+    expect(await screen.findByRole('heading', { name: 'Calendar' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('link', { name: 'Analytics' }))
+    expect(await screen.findByRole('heading', { name: 'Analytics' })).toBeTruthy()
+    expect(location.pathname).toBe('/analytics')
+    expect(await screen.findByRole('figure', { name: 'Top diagnosis groups' })).toBeTruthy()
+    expect(screen.queryByRole('tab', { name: 'All of Salus' })).toBeNull()
+  })
+})

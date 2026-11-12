@@ -1734,3 +1734,23 @@ as the other clinical tables).
 | Another clinic's diagnoses | Row-level security by clinic (tested) |
 | The aggregate builds reading identities | `salus_stats` has column grants on the source columns only (tested); patients are pseudonymised per build |
 | WHO or national-edition text used without a licence | Codes only, as identifiers; group names are our own (ADR 0013) |
+
+### SAL-22: the analytics charts (web)
+
+**Processing added.** None on the server. The staff web app gets an Analytics page that shows what the clinic and
+platform endpoints of SAL-20 and SAL-21 return: counts per month, weekday and hour, diagnosis group, region, city,
+specialty and, for a clinic admin, practitioner. Until those endpoints are merged the page shows synthetic
+placeholder figures (`web/src/analytics/fixtures.ts`); no patient data is behind them.
+
+**Minimisation.** The page asks only for counts and keys (codes, place ids, role ids); names come from the reference
+endpoints. Nothing is stored in the browser and nothing is logged. A practitioner who is not an admin is offered no
+practitioner filter and no practitioner breakdown, and is told the diagnoses are their own patients' (rule C2).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The page asks for a platform combination that would undo the suppression | The All of Salus filters follow one table at a time (plan §5: geography × diagnosis, geography × specialty, specialty × diagnosis); a dimension outside the table is not offered (tested against fixtures that refuse it) |
+| A hidden cell read as a small number or as zero | It reads "Hidden" with a hatched mark and the tooltip that small or dominated groups are hidden; a sum over months is labelled patient-months and "Partial" when a cell is hidden |
+| A rise flag taken as an official alert | "Unusual rise", never "outbreak", with the tooltip that it compares with the previous weeks and is not a public-health alert (legal-tagged string) |
+| The platform view before the legal answers | The tab is shown only with the `analytics_platform` feature of `GET /auth/me` and for a contributing clinic |

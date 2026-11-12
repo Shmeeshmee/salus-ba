@@ -36,7 +36,8 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    // app.css is read as text by the tests that check a spacing against it (Builder.test.tsx).
-    css: { include: [/app\.css/] },
+    // app.css and analytics.css are read as text by the tests that check a spacing or the motion against them
+    // (Builder.test.tsx, analytics/motion.test.ts).
+    css: { include: [/app\.css/, /analytics\.css/] },
   },
 })

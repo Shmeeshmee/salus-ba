@@ -12,5 +12,6 @@
   "language": "Language",
   "browserLanguage": "Use the browser's language",
   "languageSaved": "Language saved.",
-  "termReview": "Term review"
+  "termReview": "Term review",
+  "analytics": "Analytics"
 }
