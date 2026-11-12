@@ -61,8 +61,9 @@ const minRateLimitKey = 32
 
 // New connects to the dependencies and builds the handler; lk is the video server (config.LoadLiveKit), files
 // the object store and the key-encryption key of the questionnaire attachments (config.LoadObjectStore), drafter
-// the language model that drafts documents (config.LoadLLM's engine).
-func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config.ObjectStore, drafter llm.Drafter, log *slog.Logger) (*App, error) {
+// the language model that drafts documents (config.LoadLLM's engine), summarizer the one that summarises a long chat
+// (config.LoadChatSummary's: the fake).
+func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config.ObjectStore, drafter llm.Drafter, summarizer llm.Summarizer, log *slog.Logger) (*App, error) {
 	k, err := checkKeys(cfg, files)
 	if err != nil {
 		return nil, err
@@ -120,7 +121,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		kek:   kek,
 	}, fhirBase, log)
 	chatAPI, chatStream, chatHub := newChat(chatPorts{db: pool, rdb: rdb, audit: audit, tx: tx, consents: consents, jobs: jobs, files: newChatFiles(pool, files, kek, jobs, tx), language: uiLanguage(accounts),
-		visits: appointment.NewFacts(appointmentRepo), roles: roles, encounters: encounters, caller: appointmentCaller(accounts, patients), active: authHandler.Active}, log)
+		visits: appointment.NewFacts(appointmentRepo), roles: roles, encounters: encounters, caller: appointmentCaller(accounts, patients), active: authHandler.Active, summarizer: summarizer}, log)
 	chatNotifications := chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log)
 	h := router.New(router.Config{
 		Logger:  log,

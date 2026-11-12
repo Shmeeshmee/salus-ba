@@ -5,6 +5,7 @@ package llmtest
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -148,6 +149,41 @@ func (f *Drafter) Draft(_ context.Context, req llm.DraftRequest) ([]llm.DraftFie
 
 // Calls returns the requests so far, oldest first.
 func (f *Drafter) Calls() []llm.DraftRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.calls)
+}
+
+// Summarizer answers Summary, or by default a placeholder in the request's language that names how many messages
+// it covers ("[bs] Placeholder summary of 2 messages"), never their text. With DiscardCalls it keeps none of its
+// calls (for the api's default engine).
+type Summarizer struct {
+	Err          error
+	Summary      string
+	calls        []llm.SummarizeRequest
+	mu           sync.Mutex
+	DiscardCalls bool
+}
+
+// Summarize records the request and answers the summary.
+func (f *Summarizer) Summarize(_ context.Context, req llm.SummarizeRequest) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.DiscardCalls {
+		req.Messages = slices.Clone(req.Messages)
+		f.calls = append(f.calls, req)
+	}
+	switch {
+	case f.Err != nil:
+		return "", f.Err
+	case f.Summary != "":
+		return f.Summary, nil
+	}
+	return fmt.Sprintf("[%s] Placeholder summary of %d messages", req.Lang, len(req.Messages)), nil
+}
+
+// Calls returns the requests so far, oldest first.
+func (f *Summarizer) Calls() []llm.SummarizeRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return slices.Clone(f.calls)
