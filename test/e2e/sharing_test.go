@@ -7,6 +7,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
 // TestSharing_ThePatientSharesTwoOfThreeVisitsAndTheClinicSeesExactlyThose (SAL-42, docs/plans/patient-history.md):
@@ -93,7 +95,7 @@ func (p *patient) finishedVisits(clinic *bookableClinic, n int) []string {
 	conn := ownerConn(p.t)
 	encounters := make([]string, n)
 	for i, id := range ids {
-		start := time.Now().Add(-time.Duration(n-i) * 24 * time.Hour).UTC()
+		start := clock.System{}.Now().Add(-time.Duration(n-i) * 24 * time.Hour).UTC()
 		if err := conn.QueryRow(p.t.Context(), `WITH a AS (UPDATE appointment SET status = 'fulfilled' WHERE id = $1
 				RETURNING id, organization_id, patient_id, practitioner_role_id)
 			INSERT INTO encounter (appointment_id, organization_id, patient_id, practitioner_role_id, status, period_start, period_end)
