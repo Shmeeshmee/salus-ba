@@ -21,3 +21,16 @@ RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_l
 -- The operator command only (salusctl, as the owner): salus_app has no INSERT on organization.
 INSERT INTO organization (name) VALUES (@name)
 RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy;
+
+-- name: ChatSettings :one
+-- The clinic's chat settings (00043); row-level security shows only the clinic set.
+SELECT hours, response_time_hours, email_after_minutes
+FROM organization_chat_settings
+WHERE organization_id = @organization_id;
+
+-- name: PutChatSettings :exec
+INSERT INTO organization_chat_settings (organization_id, hours, response_time_hours, email_after_minutes, updated_at)
+VALUES (@organization_id, @hours, @response_time_hours, @email_after_minutes, @updated_at)
+ON CONFLICT (organization_id) DO UPDATE
+SET hours = EXCLUDED.hours, response_time_hours = EXCLUDED.response_time_hours,
+    email_after_minutes = EXCLUDED.email_after_minutes, updated_at = EXCLUDED.updated_at;

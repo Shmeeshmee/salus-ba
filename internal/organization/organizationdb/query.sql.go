@@ -11,6 +11,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const chatSettings = `-- name: ChatSettings :one
+SELECT hours, response_time_hours, email_after_minutes
+FROM organization_chat_settings
+WHERE organization_id = $1
+`
+
+type ChatSettingsRow struct {
+	Hours             []byte
+	ResponseTimeHours int32
+	EmailAfterMinutes int32
+}
+
+// The clinic's chat settings (00043); row-level security shows only the clinic set.
+func (q *Queries) ChatSettings(ctx context.Context, organizationID pgtype.UUID) (ChatSettingsRow, error) {
+	row := q.db.QueryRow(ctx, chatSettings, organizationID)
+	var i ChatSettingsRow
+	err := row.Scan(&i.Hours, &i.ResponseTimeHours, &i.EmailAfterMinutes)
+	return i, err
+}
+
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organization (name) VALUES ($1)
 RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy
@@ -129,6 +149,33 @@ func (q *Queries) OrganizationByID(ctx context.Context, id pgtype.UUID) (Organiz
 		&i.PatientTranscriptCopy,
 	)
 	return i, err
+}
+
+const putChatSettings = `-- name: PutChatSettings :exec
+INSERT INTO organization_chat_settings (organization_id, hours, response_time_hours, email_after_minutes, updated_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (organization_id) DO UPDATE
+SET hours = EXCLUDED.hours, response_time_hours = EXCLUDED.response_time_hours,
+    email_after_minutes = EXCLUDED.email_after_minutes, updated_at = EXCLUDED.updated_at
+`
+
+type PutChatSettingsParams struct {
+	OrganizationID    pgtype.UUID
+	Hours             []byte
+	ResponseTimeHours int32
+	EmailAfterMinutes int32
+	UpdatedAt         pgtype.Timestamptz
+}
+
+func (q *Queries) PutChatSettings(ctx context.Context, arg PutChatSettingsParams) error {
+	_, err := q.db.Exec(ctx, putChatSettings,
+		arg.OrganizationID,
+		arg.Hours,
+		arg.ResponseTimeHours,
+		arg.EmailAfterMinutes,
+		arg.UpdatedAt,
+	)
+	return err
 }
 
 const updateOrganization = `-- name: UpdateOrganization :one

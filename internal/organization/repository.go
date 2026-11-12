@@ -22,3 +22,14 @@ type Repository interface {
 	// Create stores a new active clinic and returns it. Only the owner may (the operator command).
 	Create(ctx context.Context, name string) (Organization, error)
 }
+
+// ChatRepository stores the clinics' chat settings (migration 00043), row-level secured like the clinics: every
+// method sees only the clinic set by SetOrganization.
+type ChatRepository interface {
+	SetOrganization(ctx context.Context, id string) error
+	ByID(ctx context.Context, id string) (Organization, error)
+	// ChatSettings returns the clinic's settings, and false when it has none stored.
+	ChatSettings(ctx context.Context, org string) (ChatSettings, bool, error)
+	// PutChatSettings stores the clinic's settings, last updated at at.
+	PutChatSettings(ctx context.Context, org string, s ChatSettings, at time.Time) error
+}

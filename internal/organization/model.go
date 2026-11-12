@@ -37,5 +37,34 @@ type Changes struct {
 type Caller struct {
 	AccountID      string
 	OrganizationID string // the caller's clinic; empty for a patient
-	Admin          bool   // the caller is an admin of that clinic
+	// PatientID is a patient's profile, read through the patient service; empty for staff and before the profile
+	// exists. Only the chat hours read it.
+	PatientID string
+	Admin     bool // the caller is an admin of that clinic
+}
+
+// ChatHour is one stretch of a weekday in which the clinic answers chat messages, in its time zone: Day is the
+// FHIR days-of-week code (mon … sun), Start and End are HH:MM, End after Start (24:00 for midnight).
+type ChatHour struct {
+	Day   string `json:"day"`
+	Start string `json:"start"`
+	End   string `json:"end"`
+}
+
+// ChatSettings are the clinic's chat settings (docs/plans/chat.md, SAL-29): its chat hours, the response time it
+// tells patients to expect, and how long a message stays unread before its reader gets an e-mail. Nothing in them
+// is personal data.
+type ChatSettings struct {
+	Hours             []ChatHour `json:"hours"`
+	ResponseTimeHours int        `json:"response_time_hours"`
+	EmailAfterMinutes int        `json:"email_after_minutes"`
+}
+
+// ChatHours is what the clinic's patients and staff see of the settings: the hours in the clinic's time zone, the
+// response time, and whether the clinic is within its hours now (the app's out-of-hours notice).
+type ChatHours struct {
+	TimeZone          string     `json:"time_zone"`
+	Hours             []ChatHour `json:"hours"`
+	ResponseTimeHours int        `json:"response_time_hours"`
+	OpenNow           bool       `json:"open_now"`
 }
