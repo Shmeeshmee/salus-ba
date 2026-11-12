@@ -13,6 +13,7 @@ PASSES=0
 # Synthetic keys: base64 of 32 bytes each.
 KEK=c3ludGhldGljIDMyLWJ5dGUgS0VLIGZvciB0ZXN0cyE=
 TOTP=c3ludGhldGljIDMyLWJ5dGUga2V5IGZvciB0ZXN0cyE=
+HOOK=c3ludGhldGljIDMyLWJ5dGUgd2ViaG9vayBrZXkhISE=
 
 ok() { PASSES=$((PASSES + 1)); }
 fail() {
@@ -93,8 +94,8 @@ stat_of() { stat -c '%a %U:%G' "$1" 2>/dev/null || echo missing; }
 
 # --- setup ---------------------------------------------------------------------------------------------------
 
-fresh "setup formats, opens, lays out and writes both keys"
-run "$KEK\n$TOTP\n" setup "$WORK/dev"
+fresh "setup formats, opens, lays out and writes the keys"
+run "$KEK\n$TOTP\n$HOOK\n" setup "$WORK/dev"
 expect_eq "$STATUS" 0 "exit status: $(cat "$WORK/out")"
 expect_log "^cryptsetup luksFormat --type luks2 --verify-passphrase $WORK/dev$"
 expect_log "^cryptsetup open --type luks2 $WORK/dev salus-data$"
@@ -111,7 +112,9 @@ expect_eq "$(stat -c '%a %u:%g' "$WORK/mnt/keys/binary_kek")" "400 65532:65532" 
 expect_eq "$(stat -c '%a %u:%g' "$WORK/mnt/keys/totp_key")" "400 65532:65532" "totp_key"
 expect_eq "$(cat "$WORK/mnt/keys/binary_kek")" "$KEK" "binary_kek's value"
 expect_eq "$(cat "$WORK/mnt/keys/totp_key")" "$TOTP" "totp_key's value"
-if grep -qF -e "$KEK" -e "$TOTP" "$WORK/out"; then fail "a key was echoed"; else ok; fi
+expect_eq "$(stat -c '%a %u:%g' "$WORK/mnt/keys/webhook_key")" "400 65532:65532" "webhook_key"
+expect_eq "$(cat "$WORK/mnt/keys/webhook_key")" "$HOOK" "webhook_key's value"
+if grep -qF -e "$KEK" -e "$TOTP" -e "$HOOK" "$WORK/out"; then fail "a key was echoed"; else ok; fi
 expect_eq "$(find "$WORK/mnt/keys" -name '.*' | wc -l)" 0 "no temporary key files left"
 expect_eq "$(grep -c salus /etc/fstab /etc/crypttab 2>/dev/null | awk -F: '{s += $2} END {print s + 0}')" 0 "no fstab or crypttab line"
 
@@ -136,7 +139,7 @@ expect_out "not a block device"
 expect_no_log "luksFormat"
 
 fresh "setup refuses a key that is not base64 of 32 bytes, and two equal keys"
-run "c2hvcnQ=\n$TOTP\n" setup "$WORK/dev"
+run "c2hvcnQ=\n$TOTP\n$HOOK\n" setup "$WORK/dev"
 expect_eq "$STATUS" 1 "a short key"
 expect_out "BINARY_KEK is not base64 of 32 bytes: no key file was written"
 expect_eq "$(stat_of "$WORK/mnt/keys/binary_kek")" missing "nothing written"
@@ -146,7 +149,7 @@ expect_log "^cryptsetup close salus-data$"
 expect_eq "$(stat_of "$WORK/etc/volume.conf")" missing "no volume.conf after a failed setup"
 
 fresh "a setup that fails half-way closes the volume again and writes no volume.conf"
-FAKE_MKFS_FAIL=1 run "$KEK\n$TOTP\n" setup "$WORK/dev"
+FAKE_MKFS_FAIL=1 run "$KEK\n$TOTP\n$HOOK\n" setup "$WORK/dev"
 expect_eq "$STATUS" 1 "exit status"
 expect_out "setup did not finish.*wipefs -a $WORK/dev"
 expect_log "^cryptsetup close salus-data$"
@@ -159,7 +162,7 @@ expect_eq "$(stat_of "$WORK/etc/volume.conf")" missing "volume.conf"
 # locked: the state after a reboot of a set-up server: laid out, closed, not mounted.
 locked() {
 	fresh "$1"
-	run "$KEK\n$TOTP\n" setup "$WORK/dev"
+	run "$KEK\n$TOTP\n$HOOK\n" setup "$WORK/dev"
 	[[ $STATUS == 0 ]] || fail "setup for the case failed: $(cat "$WORK/out")"
 	sed -i "s|^DEVICE=.*|DEVICE=$WORK/dev|" "$WORK/etc/volume.conf"
 	rm -f "$WORK/state/open" "$WORK/state/mounted"
@@ -257,23 +260,29 @@ expect_eq "$(stat_of "$WORK/opt/.deploy.lock")" "644 deploy:deploy" "the lock fi
 locked "keys rewrites a missing key file and keeps the same value"
 run "" unlock --no-start
 rm "$WORK/mnt/keys/totp_key"
-run "$KEK\n$TOTP\n" keys
+run "$KEK\n$TOTP\n$HOOK\n" keys
 expect_eq "$STATUS" 0 "exit status: $(cat "$WORK/out")"
 expect_out "binary_kek unchanged"
 expect_out "wrote $WORK/mnt/keys/totp_key"
 expect_eq "$(stat -c '%a %u:%g' "$WORK/mnt/keys/totp_key")" "400 65532:65532" "totp_key"
 CASE="keys refuses to replace a key with another value unless --replace"
 OTHER=b3RoZXIgc3ludGhldGljIDMyLWJ5dGUga2V5LCBvayE=
-run "$OTHER\n$TOTP\n" keys
+run "$OTHER\n$TOTP\n$HOOK\n" keys
 expect_eq "$STATUS" 1 "without --replace"
 expect_out "holds another key"
 expect_eq "$(cat "$WORK/mnt/keys/binary_kek")" "$KEK" "binary_kek kept"
-run "$OTHER\n$TOTP\n" keys --replace
+run "$OTHER\n$TOTP\n$HOOK\n" keys --replace
 expect_eq "$STATUS" 0 "with --replace"
 expect_eq "$(cat "$WORK/mnt/keys/binary_kek")" "$OTHER" "binary_kek replaced"
 
+CASE="keys refuses two equal keys"
+run "$KEK\n$TOTP\n$KEK\n" keys --replace
+expect_eq "$STATUS" 1 "two equal keys"
+expect_out "BINARY_KEK and WEBHOOK_KEY are the same value"
+expect_eq "$(cat "$WORK/mnt/keys/webhook_key")" "$HOOK" "webhook_key kept"
+
 locked "keys needs the volume open and mounted"
-run "$KEK\n$TOTP\n" keys
+run "$KEK\n$TOTP\n$HOOK\n" keys
 expect_eq "$STATUS" 1 "exit status"
 expect_out "not open and mounted"
 

@@ -1,0 +1,6 @@
+Neue Chat-Nachricht in Salus
+
+Sie haben eine ungelesene Chat-Nachricht in Salus.
+
+Um sie zu lesen, melden Sie sich bei Salus an:
+{{.Link}}

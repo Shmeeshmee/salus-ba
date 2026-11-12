@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/wire"
 )
 
@@ -72,9 +74,13 @@ type fixture struct {
 	repo    *fakeRepo
 	audit   *fakeAudit
 	pub     *fakePublisher
+	sum     *llmtest.Summarizer
+	jobs    *fakeJobs
 	clock   *testClock
+	sal30   sal30Fakes                // the files, terms, languages and presence (SAL-30)
 	consent map[string]access.Consent // by patient+clinic
 	visits  map[string][]access.Visit
+	chat    map[string]bool // the active chat consents (SAL-28), by conversation+role
 	mu      sync.Mutex
 }
 
@@ -88,17 +94,22 @@ func newFixture(t *testing.T) *fixture {
 func newFixtureOn(t *testing.T, repo communication.Repository, tx communication.Transactor) *fixture {
 	t.Helper()
 	f := &fixture{
-		repo: newFakeRepo(), audit: &fakeAudit{}, pub: &fakePublisher{}, clock: &testClock{t: start},
+		repo: newFakeRepo(), audit: &fakeAudit{}, pub: &fakePublisher{}, jobs: &fakeJobs{}, sum: &llmtest.Summarizer{}, clock: &testClock{t: start},
 		consent: map[string]access.Consent{patientA + clinicA: {Active: true}},
 		visits:  map[string][]access.Visit{patientA + clinicA: {{PractitionerRole: roleA1, Start: start.Add(-48 * time.Hour)}}},
+		chat:    map[string]bool{},
 	}
+	f.repo.consented = f.consented
 	if repo == nil {
 		repo, tx = f.repo, fakeTx{f}
 	}
+	f.sal30 = newSAL30Fakes(f, tx)
 	f.svc = communication.NewService(communication.Ports{
 		Repo: repo, Publisher: f.pub, Consents: fakeConsents{f}, Visits: fakeVisits{f}, Roles: fakeRoles{},
-		Encounters: fakeEncounters{}, Audit: f.audit, Tx: tx, Clock: f.clock,
-		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Encounters: fakeEncounters{}, ChatConsents: fakeChatConsents{f}, Directory: fakeDirectory{}, Audit: f.audit, Tx: tx, Clock: f.clock, Summarizer: f.sum,
+		Jobs:  f.jobs,
+		Log:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Files: f.sal30.files, Terms: f.sal30.terms, Languages: f.sal30.languages, Presence: f.sal30.presence,
 	})
 	return f
 }
@@ -151,7 +162,7 @@ func (t fakeTx) WithTx(ctx context.Context, fn func(ctx context.Context) error) 
 	t.f.repo.mu.Lock()
 	snap := t.f.repo.snapshot()
 	t.f.repo.mu.Unlock()
-	events := t.f.audit.count()
+	events, jobs := t.f.audit.count(), t.f.jobs.count()
 	tx := &txState{}
 	err := fn(context.WithValue(ctx, txKey{}, tx))
 	if err != nil {
@@ -159,6 +170,7 @@ func (t fakeTx) WithTx(ctx context.Context, fn func(ctx context.Context) error) 
 		t.f.repo.restore(snap)
 		t.f.repo.mu.Unlock()
 		t.f.audit.truncate(events)
+		t.f.jobs.truncate(jobs)
 	}
 	for _, u := range tx.unlock {
 		u()
@@ -197,6 +209,8 @@ func (fakeRoles) OfPractitioner(_ context.Context, org, practitionerID string) (
 		return practitionerrole.PractitionerRole{ID: roleA1, OrganizationID: clinicA}, nil
 	case org == clinicA && practitionerID == pract2.PractitionerID:
 		return practitionerrole.PractitionerRole{ID: roleA2, OrganizationID: clinicA}, nil
+	case org == clinicB && practitionerID == guest.PractitionerID:
+		return practitionerrole.PractitionerRole{ID: roleB1, OrganizationID: clinicB}, nil
 	}
 	return practitionerrole.PractitionerRole{}, practitionerrole.ErrNotFound
 }
@@ -277,20 +291,24 @@ func (p *fakePublisher) published() []wire.Envelope {
 }
 
 // scope is the fake transaction's settings.
-type scope struct{ patient, clinic, conversation string }
+type scope struct{ patient, clinic, conversation, role, search string }
 
 // fakeRepo keeps the rows in memory and applies the row-level security of migration 00041 that the rules lean on:
 // a patient sees their own conversations but no doctor-only one; a clinic its own; messages only with the
 // conversation set, or to their patient.
 type fakeRepo struct {
-	since      time.Time // the last MessageByClientID's window
-	failNext   error
-	convs      map[string]communication.Conversation
-	parts      map[string][]communication.Participant
-	msgs       map[string][]communication.Message
-	revs       map[string][]communication.Revision
-	locks      map[string]*sync.Mutex
+	since    time.Time // the last MessageByClientID's window
+	failNext error
+	convs    map[string]communication.Conversation
+	parts    map[string][]communication.Participant
+	msgs     map[string][]communication.Message
+	revs     map[string][]communication.Revision
+	locks    map[string]*sync.Mutex
+	// consented reports whether the chat consent for the conversation and role and the care consent of the patient
+	// with the clinic are active (the fixture's), for the guest's row-level security.
+	consented  func(conv, role, patient, clinic string) bool
 	partitions []string // the AddPartitions calls, "<from>/<months>"
+	queries    []string // the searches' text queries
 	nextID     int
 	clientSeq  int
 	mu         sync.Mutex
@@ -356,12 +374,16 @@ func (r *fakeRepo) SetConversation(ctx context.Context, id string) error {
 	return nil
 }
 
-// visible is the conversation row-level security for the scope.
-func visible(sc scope, c communication.Conversation) bool {
+// visible is the conversation row-level security for the scope (00041), and the guest's (00044): a conversation and
+// its side threads to a doctor of another clinic who is an active participant of it with both consents active.
+func (r *fakeRepo) visible(sc scope, c communication.Conversation) bool {
 	if sc.patient != "" {
 		return c.PatientID == sc.patient && !c.StaffOnly
 	}
-	return sc.clinic != "" && c.OrganizationID == sc.clinic
+	if sc.clinic != "" && c.OrganizationID == sc.clinic {
+		return true
+	}
+	return sc.clinic != "" && sc.role != "" && r.guestOf(sc, c)
 }
 
 func (r *fakeRepo) messagesVisible(ctx context.Context, convID string) bool {
@@ -373,7 +395,7 @@ func (r *fakeRepo) messagesVisible(ctx context.Context, convID string) bool {
 	if sc.patient != "" && c.PatientID == sc.patient && !c.StaffOnly {
 		return true
 	}
-	return sc.conversation == convID && visible(sc, c)
+	return sc.conversation == convID && r.visible(sc, c)
 }
 
 func (r *fakeRepo) CreateConversation(_ context.Context, c communication.Conversation, parts []communication.Participant) (communication.Conversation, bool, error) {
@@ -417,7 +439,7 @@ func (r *fakeRepo) Conversation(ctx context.Context, id string, lock bool) (comm
 		return communication.Conversation{}, err
 	}
 	c, ok := r.convs[id]
-	if !ok || !visible(txOf(ctx).scope, c) {
+	if !ok || !r.visible(txOf(ctx).scope, c) {
 		return communication.Conversation{}, communication.ErrNotFound
 	}
 	return c, nil
@@ -434,7 +456,7 @@ func (r *fakeRepo) Conversations(ctx context.Context, f communication.ListFilter
 	defer r.mu.Unlock()
 	var out []communication.Conversation
 	for _, c := range r.convs {
-		if !visible(txOf(ctx).scope, c) {
+		if !r.visible(txOf(ctx).scope, c) {
 			continue
 		}
 		for _, p := range r.parts[c.ID] {
@@ -577,6 +599,7 @@ func (r *fakeRepo) addPractitioner(conv, role string, from int64) {
 	defer r.mu.Unlock()
 	r.parts[conv] = append(r.parts[conv], communication.Participant{
 		ID: r.id("d"), ConversationID: conv, Role: communication.RolePractitioner, PractitionerRoleID: role, HistoryFromSeq: from,
+		OrganizationID: clinicA, Status: communication.StatusActive,
 	})
 }
 
@@ -588,4 +611,72 @@ func (r *fakeRepo) AddPartitions(_ context.Context, from time.Time, months int) 
 	}
 	r.partitions = append(r.partitions, fmt.Sprintf("%s/%d", from.Format(time.DateOnly), months))
 	return nil
+}
+
+func (r *fakeRepo) SetSearchRole(ctx context.Context, id string) error {
+	txOf(ctx).scope.search = id
+	return nil
+}
+
+// matches is the fake's text search: every word of the query (its 'word':* terms) starts a word of the body, case
+// aside.
+func matches(query, body string) bool {
+	words := strings.Fields(strings.ToLower(body))
+	for _, term := range strings.Split(query, " & ") {
+		w := strings.TrimSuffix(strings.TrimPrefix(term, "'"), "':*")
+		if !slices.ContainsFunc(words, func(b string) bool { return strings.HasPrefix(b, strings.ToLower(w)) }) {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *fakeRepo) SearchConversation(ctx context.Context, id, query string, fromSeq int64, limit int) ([]communication.Message, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.fail(); err != nil {
+		return nil, err
+	}
+	r.queries = append(r.queries, query)
+	if !r.messagesVisible(ctx, id) {
+		return nil, nil
+	}
+	var out []communication.Message
+	all := r.msgs[id]
+	for i := len(all) - 1; i >= 0 && len(out) < limit; i-- {
+		if all[i].Seq > fromSeq && matches(query, all[i].Body) {
+			out = append(out, all[i])
+		}
+	}
+	return out, nil
+}
+
+// Search shows the patient their conversations' messages, but no doctor-only one; the search role's scope the
+// messages after its history_from_seq of the conversations it takes part in as a practitioner of the scope's clinic,
+// pending or active (the status and the consents are the service's and the database's, tested on Postgres).
+func (r *fakeRepo) Search(ctx context.Context, query string, limit int) ([]communication.Message, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.fail(); err != nil {
+		return nil, err
+	}
+	r.queries = append(r.queries, query)
+	sc := txOf(ctx).scope
+	var out []communication.Message
+	for id, msgs := range r.msgs {
+		c := r.convs[id]
+		from, ok := int64(0), sc.patient != "" && c.PatientID == sc.patient && !c.StaffOnly
+		for _, p := range r.parts[id] {
+			if sc.patient == "" && sc.search != "" && sc.clinic == p.OrganizationID && p.PractitionerRoleID == sc.search {
+				from, ok = p.HistoryFromSeq, true
+			}
+		}
+		for _, m := range msgs {
+			if ok && m.Seq > from && matches(query, m.Body) {
+				out = append(out, m)
+			}
+		}
+	}
+	slices.SortFunc(out, func(a, b communication.Message) int { return b.SentAt.Compare(a.SentAt) })
+	return out[:min(len(out), limit)], nil
 }

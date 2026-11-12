@@ -30,9 +30,8 @@ Wave 1, in parallel, each in its own worktree and compose project:  SAL-28   SAL
   core's files only where it must.
 - **Compose projects** `-p salus-sal28`, `salus-sal29`, `salus-sal30`, `salus-sal31`, each with an override file
   without published host ports and its own app image tag.
-- **Migrations.** SAL-27 takes `00041`. Reserved while in flight: SAL-28 `00042`, SAL-29 `00043`, SAL-30 `00044`,
-  SAL-31 `00045` (if it needs one). A branch renumbers to the next free number when it merges main before its own
-  merge (`scripts/check-migrations.sh` guards only main's).
+- **Migrations.** SAL-27 takes `00041`. Main took `00042` (SAL-19) and `00043` (SAL-38) meanwhile, so each chat
+  branch takes the next free number when it merges main before its own merge: SAL-28 took `00044`.
 
 ## Decisions
 
@@ -146,9 +145,9 @@ add a field, never rename or drop one here; a change it needs is reported, not m
 
 | Route | What |
 | --- | --- |
-| `POST /conversations/{id}/participants` | The treating practitioner adds a practitioner role: `practitioner_role_id`, `organization_id`, `reason` (`second_opinion` \| `specialist_review` \| `handover`), `history` (`full` \| `from`) and `from_seq` with `from`. Same clinic: active at once. Another clinic: `status` `pending_consent` until the patient consents. 201 `ConversationParticipant` |
-| `DELETE /conversations/{id}/participants/{participant_id}` | The treating practitioner removes one (not the patient, not themselves); 204 |
-| `GET /me/chat-invitations` | The patient's pending invitations of doctors from other clinics: `id`, `conversation_id`, `organization_id`, `practitioner_role_id`, `reason`, `invited_at` |
+| `POST /conversations/{id}/participants` | The treating practitioner adds a practitioner role: `practitioner_role_id`, `organization_id`, `reason` (`second_opinion` \| `specialist_review` \| `handover`), `history` (`full` \| `from`) and `from_seq` with `from`: `from_seq` is the last message the added doctor does **not** see (they read the messages with `seq` > `from_seq`; to show them message 5 onwards, send 4; 0 is the whole history, at most `last_seq`). Same clinic: active at once. Another clinic: `status` `pending_consent` until the patient consents. 201 `ConversationParticipant` |
+| `DELETE /conversations/{id}/participants/{participant_id}` | The treating practitioner removes one (not the patient, not themselves); a granted doctor of another clinic's chat consent ends with it; 204 |
+| `GET /me/chat-invitations` | The patient's pending invitations of doctors from other clinics: `id`, `conversation_id`, `organization_id`, `practitioner_role_id`, `reason`, `invited_at`, `status`. `?status=active` lists the granted ones instead (the default is `pending_consent`), whose `id` `/revoke` takes (added in SAL-28's review) |
 | `POST /me/chat-invitations/{id}/decision` | `decision`: `grant` \| `decline`; a grant is a FHIR `Consent` (granular: that conversation and that role; revocable) |
 | `POST /me/chat-invitations/{id}/revoke` | Revokes a granted one; the doctor loses access at once |
 | `POST /conversations/{id}/threads`, `GET /conversations/{id}/threads` | A doctor-only side thread (`staff_only`, `parent_id`), and the list; never the patient's |
@@ -231,3 +230,15 @@ PROGRESS when merged.
 | `read_seq` | Unread counts and the e-mail fallback (owner, 2026-11-12) |
 | `client_message_id` | Idempotent send; an opaque UUID the client makes |
 | `encounter_id` | The optional link to the consultation the conversation is about |
+| `binary.conversation_id`, `conversation_participant_id`, `communication_id`, `communication_sent_at` (SAL-30) | A chat file's conversation, who uploaded it and the message it was sent with: who may read it, and it is kept with its message |
+| `binary.title`, `content_type`, `size`, `sha1` of a chat file (SAL-30) | The file's name so the reader can tell files apart, and what a viewer needs; as for questionnaire files (docs/attachments/SPEC.md section 5) |
+| `binary.thumbnail_id`, `thumbnail_size`, `thumbnail_wrapped_key` and the thumbnail's object (SAL-30) | A clean image's preview in the message, made by the server, encrypted like the file |
+| `communication.attachment_count` (SAL-30) | How many files a message carries: a message of files alone has no text |
+| Redis `chat:<conversation>:receipt:<participant>` (number; 7 days after the participant's last read) and `chat:<conversation>:typing:<participant>` (1 s) (SAL-30) | What the others see of a participant's reading and typing, ephemeral (owner, 2026-11-12) |
+| `conversation_participant.organization_id` | A practitioner's clinic: who is a doctor of another clinic, whose access needs the patient's consent (SAL-28) |
+| `conversation_participant.status`, `reason` | Whether an invited doctor waits for the patient's consent, and why the treating practitioner added them (a code): shown to the patient with the invitation (SAL-28) |
+| `chat_consent` (`patient_id`, `organization_id`, `conversation_id`, `practitioner_role_id`, `date_time`, `revoked_at`) | Proof of the patient's consent that a doctor of another clinic reads and writes in that conversation, and of its revocation (GDPR Art. 7(1); SAL-28) |
+| The AI summary (SAL-31) | Not stored: generated on demand from the latest messages for the doctor who reads them, labelled AI generated; the fake engine only until the owner decides the basis for a real model |
+| `push_device.token`, `platform`, `account_id` (SAL-29) | The patient app's push token: to tell the patient of a new message. Deleted on sign-out, when the platform says it is gone, and with the account |
+| `webhook_endpoint.created_by` (SAL-29) | Which admin created the clinic's webhook: accountability. The URL and the sealed secret are the clinic's, not personal data |
+| `webhook_dead_letter` ids (SAL-29) | The event, conversation and message of a delivery that failed its last attempt, for the clinic's admin and support: 30 days |

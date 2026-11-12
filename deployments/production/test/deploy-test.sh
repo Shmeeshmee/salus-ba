@@ -85,7 +85,7 @@ FAKE
 	chmod +x "$WORK/bin/findmnt" "$WORK/bin/lsblk"
 	DATA=$WORK/data
 	mkdir -p "$DATA/keys"
-	for key in binary_kek totp_key; do
+	for key in binary_kek totp_key webhook_key; do
 		echo "c3ludGhldGljIDMyLWJ5dGUga2V5IGZvciB0ZXN0cyE=" >"$DATA/keys/$key"
 		chown 65532:65532 "$DATA/keys/$key"
 		chmod 400 "$DATA/keys/$key"
@@ -317,12 +317,12 @@ chown 0:0 "$WORK/data/keys/binary_kek"
 run deploy "$A"
 refused "root-owned key" "binary_kek is not owned by uid 65532"
 
-for line in "BINARY_KEK=c2VjcmV0" "TOTP_KEY=" "export TOTP_KEY=c2VjcmV0"; do
+for line in "BINARY_KEK=c2VjcmV0" "TOTP_KEY=" "export TOTP_KEY=c2VjcmV0" "WEBHOOK_KEY=c2VjcmV0"; do
 	setup "an env file with '$line' is refused and removed from the release" "$A" "$B"
 	running "$A"
 	echo "$line" >>"$ROOT/releases/$B/.env"
 	run deploy "$B"
-	refused "keys in env" "sets BINARY_KEK or TOTP_KEY"
+	refused "keys in env" "sets BINARY_KEK, TOTP_KEY or WEBHOOK_KEY"
 	expect_eq "$([[ -e $ROOT/releases/$B/.env ]] && echo yes || echo no)" no "the env file with the keys is gone"
 	expect_eq "$(tag_of release.env)" "$A" "release.env unchanged"
 done
@@ -342,7 +342,7 @@ setup "a rollback by hand is refused when the previous release's env file holds 
 running "$B" "$A"
 echo "TOTP_KEY=c2VjcmV0" >>"$ROOT/releases/$A/.env"
 run rollback
-refused "rollback keys" "sets BINARY_KEK or TOTP_KEY"
+refused "rollback keys" "sets BINARY_KEK, TOTP_KEY or WEBHOOK_KEY"
 
 setup "a failed deploy does not roll back onto an unmounted volume either" "$A" "$B"
 running "$A"

@@ -27,13 +27,18 @@ const (
 	// KindTranscription lets the clinic's consultations with the patient be transcribed and translated, with AI
 	// assistance for the practitioner (suggestions, document drafts). It is used only with an active care consent.
 	KindTranscription Kind = "transcription"
+	// KindChat lets a practitioner role of another clinic, invited into one of the patient's conversations with a
+	// clinic, read and write in that conversation (SAL-28, docs/plans/chat.md): one conversation and one role. It is
+	// granted and revoked through GrantChat and RevokeChat only, and is not in Mine or the FHIR reads.
+	KindChat Kind = "chat"
 	// KindHistory shares chosen visits of the patient's at other clinics with the clinic (ADR 0014,
 	// docs/plans/patient-history.md): only the visits it lists, while it and the care consent are active. Off unless
 	// the patient grants it at booking or in their settings.
 	KindHistory Kind = "history"
 )
 
-// Valid reports whether k is one of the kinds.
+// Valid reports whether k is one of the kinds a patient grants with a clinic (care, transcription, history); a chat
+// consent is granted through GrantChat only.
 func (k Kind) Valid() bool { return k == KindCare || k == KindTranscription || k == KindHistory }
 
 // Consent is one patient's consent of one kind with one clinic.
@@ -44,12 +49,26 @@ type Consent struct {
 	ID             string
 	PatientID      string // Consent.patient and performer
 	OrganizationID string // Consent.organization and provision.actor (IRCP)
-	Kind           Kind
-	Status         Status
+	// ConversationID and PractitionerRoleID are a chat consent's provision.data and provision.actor; empty for the
+	// other kinds.
+	ConversationID             string
+	PractitionerRoleID         string
+	PractitionerOrganizationID string // the invited role's clinic
+	Kind                       Kind
+	Status                     Status
 	// Shared is what a history consent lists now (provision.data), the oldest selection first; nil for the other
 	// kinds and for a revoked history consent, which permits nothing.
 	Shared    []SharedVisit
 	VersionID int32 // meta.versionId
+}
+
+// ChatGrant is what a chat consent is for: the patient's conversation with the clinic OrganizationID, and the
+// practitioner role of another clinic invited into it, with that role's clinic.
+type ChatGrant struct {
+	ConversationID             string
+	OrganizationID             string
+	PractitionerRoleID         string
+	PractitionerOrganizationID string
 }
 
 // SharedVisit is one visit a history consent lists: the encounter and when the patient added it. Removing it and

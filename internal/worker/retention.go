@@ -10,6 +10,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/slot"
@@ -54,5 +55,6 @@ func newRetention(pool, retentionPool *pgxpool.Pool, store binary.Store) (*reten
 		"video_session":          videosession.NewPurger(videosession.NewPostgresRepository(retentionPool)),
 		"questionnaire_response": questionnaireresponse.NewPurger(questionnaireresponse.NewPostgresRepository(retentionPool)),
 		"binary":                 binary.NewPurger(binary.NewPostgresRepository(retentionPool), store),
+		"webhook_dead_letter":    notification.NewDeadLetterPurger(notification.NewPostgresRepository(retentionPool)),
 	}, audit, clock.System{})
 }

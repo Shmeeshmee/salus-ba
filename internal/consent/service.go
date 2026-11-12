@@ -345,3 +345,115 @@ func (s *Service) record(ctx context.Context, c Caller, interaction, id string, 
 	}
 	return s.audit.Record(ctx, e)
 }
+
+// GrantChat records the calling patient's consent that the practitioner role of another clinic invited into their
+// conversation reads and writes in it (KindChat, SAL-28), and returns it. It runs in the caller's transaction (the
+// invitation's decision) and ends an earlier active one for the same conversation and role first (the doctor was
+// removed and invited again), so at most one is active; each change is audited. ErrForbidden to staff,
+// ErrProfileRequired without a profile. That the conversation and the invitation are the patient's is the caller's
+// check; the database refuses a conversation of another patient or clinic.
+func (s *Service) GrantChat(ctx context.Context, c Caller, g ChatGrant) (Consent, error) {
+	if !c.patient() {
+		return Consent{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrForbidden)
+	}
+	if c.PatientID == "" {
+		return Consent{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrProfileRequired)
+	}
+	var out Consent
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		patientID, err := s.ownPatient(ctx, c)
+		if err != nil {
+			return err
+		}
+		earlier, err := s.repo.RevokeChat(ctx, g.ConversationID, g.PractitionerRoleID, s.clock.Now())
+		switch {
+		case err == nil:
+			if err := s.record(ctx, c, auditevent.CodeUpdate, earlier.ID, auditevent.OutcomeSuccess); err != nil {
+				return err
+			}
+		case !errors.Is(err, ErrInactive):
+			return err
+		}
+		if out, err = s.repo.GrantChat(ctx, patientID, g, s.clock.Now()); err != nil {
+			return err
+		}
+		return s.record(ctx, c, auditevent.CodeCreate, out.ID, auditevent.OutcomeSuccess)
+	})
+	if err != nil {
+		return Consent{}, fmt.Errorf("consent: grant chat: %w", err)
+	}
+	return out, nil
+}
+
+// RevokeChat ends the calling patient's active chat consent for the conversation and role and returns it, audited;
+// from its commit the doctor sees nothing of the conversation (row-level security reads it). It runs in the caller's
+// transaction. ErrInactive when there is none, ErrForbidden to staff.
+func (s *Service) RevokeChat(ctx context.Context, c Caller, conversationID, roleID string) (Consent, error) {
+	if !c.patient() {
+		return Consent{}, s.refuse(ctx, c, auditevent.CodeUpdate, ErrForbidden)
+	}
+	if c.PatientID == "" {
+		return Consent{}, s.refuse(ctx, c, auditevent.CodeUpdate, ErrInactive)
+	}
+	var out Consent
+	var refused error
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if _, err := s.ownPatient(ctx, c); err != nil {
+			return err
+		}
+		var err error
+		out, err = s.repo.RevokeChat(ctx, conversationID, roleID, s.clock.Now())
+		switch {
+		case errors.Is(err, ErrInactive):
+			refused = ErrInactive
+			return s.record(ctx, c, auditevent.CodeUpdate, "", auditevent.OutcomeMinorFailure)
+		case err != nil:
+			return err
+		}
+		return s.record(ctx, c, auditevent.CodeUpdate, out.ID, auditevent.OutcomeSuccess)
+	})
+	switch {
+	case err != nil:
+		return Consent{}, fmt.Errorf("consent: revoke chat: %w", err)
+	case refused != nil:
+		return Consent{}, refused
+	}
+	return out, nil
+}
+
+// EndChat ends the active chat consent for the conversation and role as the conversation's clinic (staff of
+// c.OrganizationID), when its treating practitioner removes the invited doctor (SAL-28): the consent ends with their
+// part in the conversation, so the patient never sees it granted to nobody. It runs in the caller's transaction, in
+// the clinic's scope, whose row-level security lets it end a consent and never grant one; audited. ErrInactive when
+// none is active, ErrForbidden to a patient.
+func (s *Service) EndChat(ctx context.Context, c Caller, conversationID, roleID string) (Consent, error) {
+	if c.patient() {
+		return Consent{}, s.refuse(ctx, c, auditevent.CodeUpdate, ErrForbidden)
+	}
+	var out Consent
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetClinic(ctx, c.OrganizationID); err != nil {
+			return err
+		}
+		var err error
+		if out, err = s.repo.RevokeChat(ctx, conversationID, roleID, s.clock.Now()); err != nil {
+			return err
+		}
+		return s.record(ctx, c, auditevent.CodeUpdate, out.ID, auditevent.OutcomeSuccess)
+	})
+	if err != nil {
+		return Consent{}, fmt.Errorf("consent: end chat: %w", err)
+	}
+	return out, nil
+}
+
+// ChatGranted reports whether the chat consent for the conversation and the practitioner role is active, as the
+// caller's scope shows it (the patient's, the conversation's clinic's, or the invited doctor's own). Like State, it
+// is the access check inside the caller's audited access and is not audited itself.
+func (s *Service) ChatGranted(ctx context.Context, conversationID, roleID string) (bool, error) {
+	ok, err := s.repo.ChatGranted(ctx, conversationID, roleID)
+	if err != nil {
+		return false, fmt.Errorf("consent: chat granted: %w", err)
+	}
+	return ok, nil
+}

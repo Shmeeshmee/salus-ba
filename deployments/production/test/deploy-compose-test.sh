@@ -68,7 +68,7 @@ printf '#!/bin/sh\necho crypt\n' >"$WORK/bin/lsblk"
 chmod +x "$WORK/bin/findmnt" "$WORK/bin/lsblk"
 export PATH=$WORK/bin:$PATH
 docker run --rm -v "$WORK/data/keys:/keys" "$BUSYBOX" \
-	sh -c 'for k in binary_kek totp_key; do echo synthetic >/keys/$k; chown 65532:65532 /keys/$k; chmod 400 /keys/$k; done'
+	sh -c 'for k in binary_kek totp_key webhook_key; do echo synthetic >/keys/$k; chown 65532:65532 /keys/$k; chmod 400 /keys/$k; done'
 release() { # sha, env lines...
 	local sha=$1
 	shift

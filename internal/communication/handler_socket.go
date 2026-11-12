@@ -61,20 +61,22 @@ func (h *HTTPHandler) events(w http.ResponseWriter, r *http.Request) {
 		return // the upgrader answered the client
 	}
 	defer func() { _ = sock.Conn.Close() }()
-	s := &stream{h: h, sock: sock, c: c, id: id, last: sub.From, history: sub.HistoryFromSeq, r: r}
+	s := &stream{h: h, sock: sock, c: c, id: id, last: sub.From, history: sub.HistoryFromSeq, participant: sub.ParticipantID, r: r}
 	s.run(r, frames)
 }
 
 // stream is one socket's place in the conversation: the last message it sent, and the caller's starting point.
 type stream struct {
-	h       *HTTPHandler
-	sock    *livesocket.Socket
-	r       *http.Request // the handshake: its credentials are checked again with every check
-	last    Cursor
-	sends   sendLimit
-	id      string
-	c       Caller
-	history int64
+	h           *HTTPHandler
+	sock        *livesocket.Socket
+	r           *http.Request // the handshake: its credentials are checked again with every check
+	last        Cursor
+	typed       time.Time // the last typing frame taken from the client
+	sends       sendLimit
+	id          string
+	participant string // the caller's participant row (SAL-30)
+	c           Caller
+	history     int64
 }
 
 // errSessionEnded is the end of the socket's session (a logout, a revoked or expired session).
@@ -99,17 +101,15 @@ func (s *stream) run(r *http.Request, frames <-chan []byte) {
 	defer cancel()
 	go func() {
 		defer cancel()
-		s.sock.Receive(ctx, maxBody, func(msg []byte) []byte {
-			if !s.sends.allow(s.h.clock.Now()) {
-				return commandError(CommandError{Command: SendType, Error: "rate_limited"})
-			}
-			return s.h.command(ctx, s.c, s.id, msg)
-		})
+		s.sock.Receive(ctx, maxBody, func(msg []byte) []byte { return s.command(ctx, msg) })
 	}()
 	check, ping := time.NewTicker(s.h.check), time.NewTicker(livesocket.PingEvery)
 	defer check.Stop()
 	defer ping.Stop()
 	err := s.fill(ctx)
+	if err == nil {
+		err = s.receipts(ctx)
+	}
 	for err == nil {
 		select {
 		case <-ctx.Done():
@@ -175,6 +175,8 @@ func (s *stream) live(ctx context.Context, f []byte) error {
 	}
 	seq := head.Payload.Seq
 	switch {
+	case head.Type == ReceiptType || head.Type == TypingType: // ephemeral: as it comes (SAL-30)
+		return s.write(f)
 	case head.Type == MessageEditedType && seq > s.last.Seq: // its message has not gone out yet: it goes first
 		return s.fill(ctx) // the fill carries the edited body; the edit frame would repeat it
 	case head.Type == MessageEditedType && seq > s.history:
@@ -198,33 +200,15 @@ func (s *stream) write(f []byte) error {
 	return nil
 }
 
-// command is the answer to the client's frame msg: a send is answered with send_ack, anything else with a
-// command_error.
-func (h *HTTPHandler) command(ctx context.Context, c Caller, id string, msg []byte) []byte {
-	env, err := wire.Decode(msg)
-	if err != nil {
-		return commandError(CommandError{Error: "invalid_message"})
-	}
-	if env.Type != SendType || env.Version != FrameVersion {
-		return commandError(CommandError{Command: env.Type, Error: "unknown_command"})
-	}
+// send is the answer to the client's send frame: send_ack, or a command_error.
+func (h *HTTPHandler) send(ctx context.Context, c Caller, id string, env wire.Envelope) []byte {
 	var cmd SendCommand
 	if json.Unmarshal(env.Payload, &cmd) != nil {
 		return commandError(CommandError{Command: env.Type, Error: "invalid_message"})
 	}
-	m, _, err := h.svc.Send(ctx, c, id, cmd.ClientMessageID, cmd.Body)
+	m, _, err := h.svc.Send(ctx, c, id, cmd.ClientMessageID, cmd.Body, cmd.AttachmentIDs...)
 	if err != nil {
-		code := "internal_error"
-		for _, e := range errorCodes {
-			if errors.Is(err, e.err) {
-				code = e.code
-				break
-			}
-		}
-		if code == "internal_error" {
-			h.log.ErrorContext(ctx, "chat send failed", "conversation_id", id, "error", err)
-		}
-		return commandError(CommandError{Command: env.Type, ID: cmd.ClientMessageID, Error: code})
+		return commandError(CommandError{Command: env.Type, ID: cmd.ClientMessageID, Error: h.code(ctx, id, err)})
 	}
 	b, _ := wire.Encode(SendAckType, FrameVersion, SendAck{ClientMessageID: cmd.ClientMessageID, Message: m}) // always encodes
 	return b

@@ -101,7 +101,7 @@ func TestNew_ServesTheBookingResourcesOverFHIRAsAccessAllows(t *testing.T) {
 	owner := ownerPool(t, cfg)
 	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)
 	var log syncBuffer
-	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.NewTextHandler(&log, nil)))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewTextHandler(&log, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

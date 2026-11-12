@@ -1,14 +1,34 @@
 // The chat's contract for the patient's screens (docs/plans/chat.md, SAL-27): the calls of the API's chat tag and
-// the conversation's socket, as one interface (Chats; the generated ChatApi is the raw HTTP client) on the generated models. test/fake_chat.dart implements it in memory,
-// so SAL-31's screens are built and tested before the backend of SAL-28 to SAL-30 is merged; the real client
-// (SAL-31) calls the API behind the same interface. Nothing here logs, and no message text leaves the app but to
-// the API.
+// the conversation's socket, as one interface (Chats; the generated ChatApi is the raw HTTP client) on the generated
+// models. test/fake_chat.dart implements it in memory, and lib/chat_client.dart on the API. Nothing here logs, and
+// no message text leaves the app but to the API.
+//
+// SAL-28's invitations, SAL-29's chat hours and SAL-30's attachments are the generated models.
+import 'dart:math';
+import 'dart:typed_data';
+
 import 'package:salus_api/api.dart';
 
-/// Why a conversation's socket ended for good: access ended (close codes 4403 and 4404).
-enum ChatEnd { consentRequired, forbidden, notFound }
+import 'file_prep.dart' show Prepared;
 
-/// A refused call, with the API's error code.
+/// A random (version 4) UUID, for a message's client id: the app has no other UUID to make, so no package for it.
+String uuidV4([Random? random]) {
+  final r = random ?? Random.secure();
+  final b = List<int>.generate(16, (_) => r.nextInt(256));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  final h = [for (final x in b) x.toRadixString(16).padLeft(2, '0')].join();
+  return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}';
+}
+
+/// How many uploads the patient may have waiting to be sent in a conversation (SAL-30): one more is
+/// `too_many_files`.
+const chatUnsentMaximum = 10;
+
+/// Why a conversation's socket ended for good: the session ended (close code 4401) or access ended (4403, 4404).
+enum ChatEnd { unauthenticated, consentRequired, forbidden, notFound }
+
+/// A refused call, with the API's error code; `unreachable` when the API could not be reached.
 class ChatException implements Exception {
   const ChatException(this.code);
 
@@ -37,8 +57,9 @@ abstract interface class Chats {
   /// A page newest first, before the cursor; its next is the older page's cursor, null at the start.
   Future<MessagePage> messages(String id, {String? before, int limit = 50});
 
-  /// Idempotent by clientMessageId: a retry with the same id gives the first message.
-  Future<ChatMessage> send(String id, String clientMessageId, String body);
+  /// Idempotent by clientMessageId: a retry with the same id gives the first message. With [attachmentIds] (the
+  /// caller's uploads), [body] may be empty.
+  Future<ChatMessage> send(String id, String clientMessageId, String body, {List<String> attachmentIds = const []});
 
   Future<ChatMessage> edit(String id, String messageId, String body, int version);
 
@@ -49,4 +70,27 @@ abstract interface class Chats {
   /// Every message after the cursor (or from now on) and then the live ones, each once, until the returned
   /// function is called or access ends.
   void Function() follow(String id, String? after, void Function(ChatMessageFrame frame) onFrame, void Function(ChatEnd end) onEnd);
+
+  /// The patient's invitations of doctors from other clinics, every conversation's: the pending ones, or with
+  /// [granted] those the patient granted, which they may revoke.
+  Future<List<ChatInvitation>> invitations({bool granted = false});
+
+  /// The patient's answer to an invitation: a grant is a consent for that conversation and that doctor.
+  Future<void> decide(String invitationId, {required bool grant});
+
+  /// Revokes a granted invitation: the doctor loses access at once.
+  Future<void> revoke(String invitationId);
+
+  /// The clinic's chat hours, its stated response time and whether it is within its hours now (SAL-29): the screens
+  /// show the out-of-hours notice from it.
+  Future<ChatHours> chatHours(String organizationId);
+
+  /// Uploads [file] to the conversation; answered `scanning` until the scan has run.
+  Future<ChatAttachment> upload(String id, Prepared file);
+
+  /// A clean attachment's bytes.
+  Future<Uint8List> content(String id, String attachmentId);
+
+  /// A clean image's thumbnail.
+  Future<Uint8List> thumbnail(String id, String attachmentId);
 }

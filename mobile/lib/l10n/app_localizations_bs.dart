@@ -1062,6 +1062,226 @@ class AppLocalizationsBs extends AppLocalizations {
   String get termClose => 'Zatvori';
 
   @override
+  String get chatsTitle => 'Poruke';
+
+  @override
+  String get chatsEmpty => 'Još nemate razgovora.';
+
+  @override
+  String chatUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count nepročitanih poruka',
+      few: '$count nepročitane poruke',
+      one: '$count nepročitana poruka',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDoctorUnknown => 'Vaš ljekar';
+
+  @override
+  String get chatMessageHint => 'Napišite poruku';
+
+  @override
+  String get chatSend => 'Pošalji';
+
+  @override
+  String get chatAttach => 'Dodaj datoteku';
+
+  @override
+  String get chatSendFailed =>
+      'Poruka nije poslana. Provjerite internet vezu i pokušajte ponovo.';
+
+  @override
+  String get chatFileRejected => 'Ova datoteka nije prihvaćena.';
+
+  @override
+  String get chatFileRemove => 'Ukloni datoteku';
+
+  @override
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Već imate $count datoteka koje čekaju slanje. Neposlane datoteke se uklanjaju nakon 24 sata; pokušajte ponovo kasnije.',
+      few:
+          'Već imate $count datoteke koje čekaju slanje. Neposlane datoteke se uklanjaju nakon 24 sata; pokušajte ponovo kasnije.',
+      one:
+          'Već imate $count datoteku koja čeka slanje. Neposlane datoteke se uklanjaju nakon 24 sata; pokušajte ponovo kasnije.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatOpenFailed =>
+      'Datoteka se nije mogla otvoriti. Pokušajte ponovo.';
+
+  @override
+  String get chatEndedSession =>
+      'Vaša sesija je istekla. Ponovo se prijavite da vidite nove poruke.';
+
+  @override
+  String get chatEnded =>
+      'Nove poruke se u ovom razgovoru više ne mogu prikazati.';
+
+  @override
+  String get chatHours => 'Radno vrijeme za poruke';
+
+  @override
+  String chatHoursDay(String day, String start, String end) {
+    return '$day: $start–$end';
+  }
+
+  @override
+  String get chatHoursNone => 'Klinika nije odredila radno vrijeme za poruke.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'Vremena su u vremenskoj zoni klinike, $zone.';
+  }
+
+  @override
+  String chatResponseTime(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: 'Klinika obično odgovara u roku od $hours sati.',
+      few: 'Klinika obično odgovara u roku od $hours sata.',
+      one: 'Klinika obično odgovara u roku od $hours sata.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatOutOfHours(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other:
+          'Klinika je trenutno izvan radnog vremena za poruke. I dalje možete pisati; obično odgovara u roku od $hours sati.',
+      few:
+          'Klinika je trenutno izvan radnog vremena za poruke. I dalje možete pisati; obično odgovara u roku od $hours sata.',
+      one:
+          'Klinika je trenutno izvan radnog vremena za poruke. I dalje možete pisati; obično odgovara u roku od $hours sata.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemInvited(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Ljekar iz druge klinike pozvan je u ovaj razgovor radi drugog mišljenja.',
+      'specialist_review': 'Ljekar iz druge klinike pozvan je u ovaj razgovor radi specijalističkog pregleda.',
+      'handover': 'Ljekar iz druge klinike pozvan je u ovaj razgovor da preuzme liječenje.',
+      'other': 'Ljekar iz druge klinike pozvan je u ovaj razgovor.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemAdded(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Ljekar se pridružio razgovoru radi drugog mišljenja.',
+      'specialist_review':
+          'Ljekar se pridružio razgovoru radi specijalističkog pregleda.',
+      'handover': 'Ljekar se pridružio razgovoru da preuzme liječenje.',
+      'other': 'Ljekar se pridružio razgovoru.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatSystemRemoved => 'Ljekar više ne učestvuje u razgovoru.';
+
+  @override
+  String get chatSystemGranted =>
+      'Dozvolili ste ljekaru iz druge klinike da se pridruži razgovoru.';
+
+  @override
+  String get chatSystemDeclined => 'Odbili ste ljekara iz druge klinike.';
+
+  @override
+  String get chatSystemOther => 'Razgovor je ažuriran.';
+
+  @override
+  String get chatInviteTitle =>
+      'Ljekar iz druge klinike traži pristup razgovoru';
+
+  @override
+  String chatInviteBody(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Vaša klinika traži da se ljekar iz druge klinike pridruži ovom razgovoru radi drugog mišljenja.',
+      'specialist_review': 'Vaša klinika traži da se ljekar iz druge klinike pridruži ovom razgovoru radi specijalističkog pregleda.',
+      'handover': 'Vaša klinika traži da se ljekar iz druge klinike pridruži ovom razgovoru da preuzme vaše liječenje.',
+      'other': 'Vaša klinika traži da se ljekar iz druge klinike pridruži ovom razgovoru.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatInviteWho(String doctor, String clinic) {
+    return 'Ljekar: $doctor, $clinic';
+  }
+
+  @override
+  String get chatInviteUnresolved =>
+      'Ime i klinika pozvanog ljekara nisu mogli biti učitani. Pristup možete odobriti tek kada budu prikazani.';
+
+  @override
+  String chatInviteSees(String history) {
+    String _temp0 = intl.Intl.selectLogic(history, {
+      'full': 'Ako pristanete, ljekar vidi cijeli razgovor, uključujući ranije poruke, i može pisati u njemu.',
+      'from': 'Ako pristanete, ljekar vidi razgovor od poruke koju je odabrala vaša klinika nadalje i može pisati u njemu.',
+      'other': 'Ako pristanete, ljekar vidi razgovor i može pisati u njemu.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatInviteChoice =>
+      'Možete odbiti. Ako pristanete, pristup ljekara možete kasnije opozvati u ovom razgovoru; prestaje odmah.';
+
+  @override
+  String get chatGrant => 'Odobri pristup';
+
+  @override
+  String get chatDecline => 'Odbij';
+
+  @override
+  String get chatGranted =>
+      'Pristup je odobren. Možete ga opozvati u ovom razgovoru u bilo kojem trenutku.';
+
+  @override
+  String get chatDeclined =>
+      'Odbijeno. Ljekar se ne pridružuje ovom razgovoru.';
+
+  @override
+  String get chatRevoke => 'Opozovi pristup ljekara iz druge klinike';
+
+  @override
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'Pristup je odobren: $doctor, $clinic.';
+  }
+
+  @override
+  String get chatGrantedToUnknown =>
+      'Pristup je odobren ljekaru iz druge klinike.';
+
+  @override
+  String get chatRevokeBody =>
+      'Ljekar iz druge klinike odmah gubi pristup ovom razgovoru. Već napisane poruke ostaju u njemu.';
+
+  @override
+  String get chatRevokeConfirm => 'Opozovi pristup';
+
+  @override
+  String get chatRevoked => 'Pristup je opozvan.';
+
+  @override
   String get sharingToggle =>
       'Podijeli moju historiju iz drugih klinika s ovom klinikom';
 
