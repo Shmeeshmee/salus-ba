@@ -46,6 +46,9 @@ func TestPatientHistory_GivesThePatientTheirCompletedResponses(t *testing.T) {
 	if want := []auditevent.AuditEvent{event(me, auditevent.CodeSearchType, done, auditevent.OutcomeSuccess)}; !slices.Equal(f.audit.events, want) {
 		t.Errorf("audited %+v, want %+v", f.audit.events, want)
 	}
+	if f.audit.batches != 1 {
+		t.Errorf("audited in %d inserts, want the page in one", f.audit.batches)
+	}
 }
 
 // The files of the timeline are the clean files of the patient's completed responses, each with its response,

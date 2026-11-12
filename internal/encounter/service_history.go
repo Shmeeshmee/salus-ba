@@ -13,7 +13,7 @@ import (
 // PatientHistory returns the calling patient's own encounters at every clinic, or at the clinic org when set,
 // after the page's position, newest first by start, p.Limit at most: the visits of their timeline (SAL-39,
 // docs/plans/patient-history.md), which the patient always sees (access.HistoryVisit). Read in the patient's own
-// scope and audited, each one returned as a search of their own request; none is one event without an entity.
+// scope and audited, each one returned as a search of their own request (in one insert); none is one event without an entity.
 // The timeline is the patient's: staff get ErrForbidden, audited. A patient without a profile has none.
 func (s *Service) PatientHistory(ctx context.Context, c appointment.Caller, org string, p keyset.Page) ([]Encounter, error) {
 	var out []Encounter
@@ -32,12 +32,11 @@ func (s *Service) PatientHistory(ctx context.Context, c appointment.Caller, org 
 		if len(out) == 0 {
 			return s.record(ctx, c, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess)
 		}
-		for _, e := range out {
-			if err := s.record(ctx, c, auditevent.CodeSearchType, e.ID, auditevent.OutcomeSuccess); err != nil {
-				return err
-			}
+		events := make([]auditevent.AuditEvent, len(out))
+		for i, e := range out {
+			events[i] = callerEntry(c, auditevent.CodeSearchType, e.ID, auditevent.OutcomeSuccess)
 		}
-		return nil
+		return s.Audit.RecordAll(ctx, events) // one insert for the page
 	})
 	switch {
 	case err != nil:

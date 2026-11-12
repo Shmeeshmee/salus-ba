@@ -32,6 +32,9 @@ func TestPatientHistory_GivesThePatientTheirSignedDocuments(t *testing.T) {
 	if e := f.audit.events[0]; e.Purpose.Code != auditevent.CodePATRQT || e.OrganizationID != clinicA || e.AgentAccountID != accountA {
 		t.Errorf("audited %+v, want the patient's own request in clinic A", e)
 	}
+	if f.audit.batches != 1 {
+		t.Errorf("audited in %d inserts, want the page in one", f.audit.batches)
+	}
 }
 
 // No encounter at the clinic asked (or none at all) is no document: one event without an entity, nothing read.

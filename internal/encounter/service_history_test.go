@@ -25,6 +25,9 @@ func TestPatientHistory_GivesThePatientTheirOwnVisitsNewestFirst(t *testing.T) {
 	checkEvents(t, "PatientHistory", f.audit,
 		event(me, auditevent.CodeSearchType, encounterOf(apptA2), auditevent.OutcomeSuccess),
 		event(me, auditevent.CodeSearchType, encounterOf(apptA), auditevent.OutcomeSuccess))
+	if f.audit.batches != 1 {
+		t.Errorf("audited in %d inserts, want the page in one", f.audit.batches)
+	}
 }
 
 // The page's position, range, clinic and limit reach the repository as asked.

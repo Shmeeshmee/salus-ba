@@ -8,7 +8,7 @@ import (
 )
 
 // Clean returns, of the files ids the holder lists in the calling patient's timeline (SAL-39), those that are
-// their own and clean, read in their own scope, each audited as a search of their own request. Nothing asked is
+// their own and clean, read in their own scope, each audited as a search of their own request (in one insert). Nothing asked is
 // nothing read or audited; a patient without a profile has none. The timeline is the patient's: staff get
 // ErrForbidden, audited.
 func (s *Service) Clean(ctx context.Context, c Caller, ids []string) ([]string, error) {
@@ -28,16 +28,15 @@ func (s *Service) Clean(ctx context.Context, c Caller, ids []string) ([]string, 
 		if err != nil {
 			return err
 		}
+		var events []auditevent.AuditEvent
 		for _, b := range files {
 			if b.PatientID != c.PatientID || b.Status != StatusClean { // not on row-level security alone
 				continue
 			}
-			if err := s.record(ctx, entry{c: c, org: b.OrganizationID, interaction: auditevent.CodeSearchType, binaryID: b.ID}); err != nil {
-				return err
-			}
+			events = append(events, entry{c: c, org: b.OrganizationID, interaction: auditevent.CodeSearchType, binaryID: b.ID}.events()...)
 			out = append(out, b.ID)
 		}
-		return nil
+		return s.Audit.RecordAll(ctx, events) // one insert for the page
 	})
 	switch {
 	case err != nil:

@@ -27,6 +27,7 @@ type Transactor interface {
 // Auditor records an AuditEvent inside the caller's transaction (auditevent.Service).
 type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
+	RecordAll(ctx context.Context, es []auditevent.AuditEvent) error
 }
 
 // Encounters gives a draft its encounter with the caller's attendance of its appointment, read in the caller's
@@ -157,7 +158,10 @@ type entry struct {
 }
 
 // record audits e, with treatment as the purpose for staff and the patient's own request for a patient.
-func (s *Service) record(ctx context.Context, e entry) error {
+func (s *Service) record(ctx context.Context, e entry) error { return s.Audit.Record(ctx, e.event()) }
+
+// event is the audit event of e, as record writes it.
+func (e entry) event() auditevent.AuditEvent {
 	action := map[string]auditevent.Action{
 		auditevent.CodeCreate: auditevent.ActionCreate, auditevent.CodeUpdate: auditevent.ActionUpdate,
 		auditevent.CodeRead: auditevent.ActionRead, auditevent.CodeSearchType: auditevent.ActionRead,
@@ -186,7 +190,7 @@ func (s *Service) record(ctx context.Context, e entry) error {
 			a.EntityCount = 0
 		}
 	}
-	return s.Audit.Record(ctx, a)
+	return a
 }
 
 // encounterRef is the reference of the encounter id, or "" for none.

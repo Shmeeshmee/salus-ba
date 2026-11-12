@@ -85,7 +85,20 @@ func inTx(ctx context.Context) error {
 	return nil
 }
 
-type fakeAudit struct{ events []auditevent.AuditEvent }
+type fakeAudit struct {
+	events  []auditevent.AuditEvent
+	batches int // RecordAll calls
+}
+
+func (a *fakeAudit) RecordAll(ctx context.Context, es []auditevent.AuditEvent) error {
+	a.batches++
+	for _, e := range es {
+		if err := a.Record(ctx, e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func (a *fakeAudit) Record(ctx context.Context, e auditevent.AuditEvent) error {
 	if err := inTx(ctx); err != nil {

@@ -45,6 +45,9 @@ func TestClean_GivesThePatientsOwnCleanFiles(t *testing.T) {
 	if want := []auditevent.AuditEvent{searchEvent(ids[0], auditevent.OutcomeSuccess)}; !slices.Equal(f.audit.events, want) {
 		t.Errorf("audited %+v,\nwant %+v", f.audit.events, want)
 	}
+	if f.audit.batches != 1 {
+		t.Errorf("audited in %d inserts, want the page in one", f.audit.batches)
+	}
 }
 
 // No id asks nothing and audits nothing; staff get ErrForbidden, audited; the backend's failure is returned.

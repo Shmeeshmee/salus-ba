@@ -20,6 +20,7 @@ type Transactor interface {
 // Auditor records an AuditEvent inside the caller's transaction (auditevent.Service).
 type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
+	RecordAll(ctx context.Context, es []auditevent.AuditEvent) error
 }
 
 // Holder is the owner of the files: the questionnaire response whose answers hold them
@@ -223,6 +224,16 @@ type entry struct {
 // record audits e: one event per entity (AuditEvent holds one), or one without an entity when none is
 // disclosed.
 func (s *Service) record(ctx context.Context, e entry) error {
+	for _, a := range e.events() {
+		if err := s.Audit.Record(ctx, a); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// events are the audit events of e, as record writes them.
+func (e entry) events() []auditevent.AuditEvent {
 	purpose := e.purpose
 	switch {
 	case purpose != "":
@@ -250,8 +261,9 @@ func (s *Service) record(ctx context.Context, e entry) error {
 	if len(entities) == 0 {
 		entities = []string{""}
 	}
-	for _, entity := range entities {
-		err := s.Audit.Record(ctx, auditevent.AuditEvent{
+	out := make([]auditevent.AuditEvent, len(entities))
+	for i, entity := range entities {
+		out[i] = auditevent.AuditEvent{
 			Type:            auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
 			Subtype:         auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: e.interaction},
 			Purpose:         auditevent.Coding{System: auditevent.SystemActReason, Code: purpose},
@@ -261,10 +273,7 @@ func (s *Service) record(ctx context.Context, e entry) error {
 			AgentName:       e.agent,
 			OrganizationID:  e.org,
 			EntityReference: entity,
-		})
-		if err != nil {
-			return err
 		}
 	}
-	return nil
+	return out
 }

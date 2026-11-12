@@ -28,13 +28,12 @@ func (s *Service) PatientHistory(ctx context.Context, c appointment.Caller, org 
 		if out, err = s.signedOf(ctx, c, org, p); err != nil || len(out) == 0 {
 			return firstErr(err, s.record(ctx, e))
 		}
-		for _, d := range out {
+		events := make([]auditevent.AuditEvent, len(out))
+		for i, d := range out {
 			e.reference, e.org = "Composition/"+d.Draft.ID, d.Encounter.OrganizationID
-			if err := s.record(ctx, e); err != nil {
-				return err
-			}
+			events[i] = e.event()
 		}
-		return nil
+		return s.Audit.RecordAll(ctx, events) // one insert for the page
 	})
 	return out, wrapErr("patient history", err, refused)
 }

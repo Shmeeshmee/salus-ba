@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/binary"
@@ -101,60 +102,74 @@ func (s *Service) Timeline(ctx context.Context, c appointment.Caller, f Filter, 
 	return out, nil
 }
 
-// sources asks every source the filter's types name for the page.
+// source reads one source's part of a page.
+type source func(ctx context.Context, c appointment.Caller, org string, p keyset.Page) ([]entry, error)
+
+// sources asks every source the filter's types name for the page, all at once: each is a transaction of its own
+// in its domain, so the page waits for the slowest of them, not for their sum (PROGRESS.md, SAL-39).
 func (s *Service) sources(ctx context.Context, c appointment.Caller, f Filter, p keyset.Page) ([]entry, error) {
-	wants := func(t ItemType) bool { return len(f.Types) == 0 || slices.Contains(f.Types, t) }
-	org := f.OrganizationID
-	var all []entry
-	if wants(TypeVisit) {
-		visits, err := s.Visits.PatientHistory(ctx, c, org, p)
-		if err != nil {
-			return nil, err
-		}
-		for _, e := range visits {
-			all = append(all, entry{Item: Item{Date: e.PeriodStart, Clinic: Clinic{ID: e.OrganizationID}, Type: TypeVisit,
-				Reference: "Encounter/" + e.ID, EncounterID: e.ID}, role: e.PractitionerRoleID})
+	var asked []source
+	for _, src := range []struct {
+		read source
+		typ  ItemType
+	}{
+		{s.visits, TypeVisit}, {s.documents, TypeDocument}, {s.responses, TypeQuestionnaireResponse}, {s.attachments, TypeAttachment},
+	} {
+		if len(f.Types) == 0 || slices.Contains(f.Types, src.typ) {
+			asked = append(asked, src.read)
 		}
 	}
-	if wants(TypeDocument) {
-		docs, err := s.Documents.PatientHistory(ctx, c, org, p)
-		if err != nil {
-			return nil, err
-		}
-		for _, d := range docs {
-			all = append(all, entry{Item: Item{Date: d.Draft.SignedAt, Clinic: Clinic{ID: d.Encounter.OrganizationID}, Type: TypeDocument,
-				Reference: "Composition/" + d.Draft.ID, EncounterID: d.Encounter.ID, Title: d.Draft.Title}, role: d.Encounter.PractitionerRoleID})
-		}
+	parts, errs := make([][]entry, len(asked)), make([]error, len(asked))
+	var wg sync.WaitGroup
+	for i, read := range asked {
+		wg.Go(func() { parts[i], errs[i] = read(ctx, c, f.OrganizationID, p) })
 	}
-	answers, err := s.answers(ctx, c, wants, org, p)
-	return append(all, answers...), err
+	wg.Wait()
+	if err := errors.Join(errs...); err != nil {
+		return nil, err
+	}
+	return slices.Concat(parts...), nil
 }
 
-// answers asks for the questionnaire answers and their files, as the filter's types name them.
-func (s *Service) answers(ctx context.Context, c appointment.Caller, wants func(ItemType) bool, org string, p keyset.Page) ([]entry, error) {
-	var all []entry
-	if wants(TypeQuestionnaireResponse) {
-		rs, err := s.Responses.PatientHistory(ctx, c, org, p)
-		if err != nil {
-			return nil, err
-		}
-		for _, r := range rs {
-			all = append(all, entry{Item: Item{Date: r.AuthoredAt, Clinic: Clinic{ID: r.OrganizationID}, Type: TypeQuestionnaireResponse,
-				Reference: "QuestionnaireResponse/" + r.ID}, role: r.PractitionerRoleID})
-		}
+func (s *Service) visits(ctx context.Context, c appointment.Caller, org string, p keyset.Page) ([]entry, error) {
+	visits, err := s.Visits.PatientHistory(ctx, c, org, p)
+	out := make([]entry, len(visits))
+	for i, e := range visits {
+		out[i] = entry{Item: Item{Date: e.PeriodStart, Clinic: Clinic{ID: e.OrganizationID}, Type: TypeVisit,
+			Reference: "Encounter/" + e.ID, EncounterID: e.ID}, role: e.PractitionerRoleID}
 	}
-	if wants(TypeAttachment) {
-		files, err := s.Responses.PatientAttachments(ctx, c, org, p)
-		if err != nil {
-			return nil, err
-		}
-		for _, a := range files {
-			r := a.Response
-			all = append(all, entry{Item: Item{Date: r.AuthoredAt, Clinic: Clinic{ID: r.OrganizationID}, Type: TypeAttachment,
-				Reference: "Binary/" + a.File.BinaryID, Title: a.File.Title}, role: r.PractitionerRoleID})
-		}
+	return out, err
+}
+
+func (s *Service) documents(ctx context.Context, c appointment.Caller, org string, p keyset.Page) ([]entry, error) {
+	docs, err := s.Documents.PatientHistory(ctx, c, org, p)
+	out := make([]entry, len(docs))
+	for i, d := range docs {
+		out[i] = entry{Item: Item{Date: d.Draft.SignedAt, Clinic: Clinic{ID: d.Encounter.OrganizationID}, Type: TypeDocument,
+			Reference: "Composition/" + d.Draft.ID, EncounterID: d.Encounter.ID, Title: d.Draft.Title}, role: d.Encounter.PractitionerRoleID}
 	}
-	return all, nil
+	return out, err
+}
+
+func (s *Service) responses(ctx context.Context, c appointment.Caller, org string, p keyset.Page) ([]entry, error) {
+	rs, err := s.Responses.PatientHistory(ctx, c, org, p)
+	out := make([]entry, len(rs))
+	for i, r := range rs {
+		out[i] = entry{Item: Item{Date: r.AuthoredAt, Clinic: Clinic{ID: r.OrganizationID}, Type: TypeQuestionnaireResponse,
+			Reference: "QuestionnaireResponse/" + r.ID}, role: r.PractitionerRoleID}
+	}
+	return out, err
+}
+
+func (s *Service) attachments(ctx context.Context, c appointment.Caller, org string, p keyset.Page) ([]entry, error) {
+	files, err := s.Responses.PatientAttachments(ctx, c, org, p)
+	out := make([]entry, len(files))
+	for i, a := range files {
+		r := a.Response
+		out[i] = entry{Item: Item{Date: r.AuthoredAt, Clinic: Clinic{ID: r.OrganizationID}, Type: TypeAttachment,
+			Reference: "Binary/" + a.File.BinaryID, Title: a.File.Title}, role: r.PractitionerRoleID}
+	}
+	return out, err
 }
 
 // clean leaves out the files of the page that binary does not find the patient's own and clean.

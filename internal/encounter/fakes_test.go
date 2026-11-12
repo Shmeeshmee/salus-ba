@@ -278,8 +278,9 @@ func (a *fakeAppointments) RecordConsultationOutcome(ctx context.Context, agent,
 
 // fakeAuditor records events; recording outside a transaction is an error.
 type fakeAuditor struct {
-	err    error
-	events []auditevent.AuditEvent
+	err     error
+	events  []auditevent.AuditEvent
+	batches int // RecordAll calls
 }
 
 func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error {
@@ -290,6 +291,16 @@ func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error
 		return a.err
 	}
 	a.events = append(a.events, e)
+	return nil
+}
+
+func (a *fakeAuditor) RecordAll(ctx context.Context, es []auditevent.AuditEvent) error {
+	a.batches++
+	for _, e := range es {
+		if err := a.Record(ctx, e); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

@@ -87,6 +87,15 @@ func (a *benchAudit) Record(ctx context.Context, _ auditevent.AuditEvent) error 
 	return nil
 }
 
+func (a *benchAudit) RecordAll(ctx context.Context, es []auditevent.AuditEvent) error {
+	for _, e := range es {
+		if err := a.Record(ctx, e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // stubAttendance is the patient's own appointment with an active consent; stubVersion the 200-question
 // version. Both are read through other domains' services, measured there.
 type stubAttendance struct{ a appointment.Appointment }

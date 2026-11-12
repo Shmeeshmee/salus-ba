@@ -69,12 +69,11 @@ func (s *Service) patientList(ctx context.Context, c appointment.Caller, op stri
 		if len(ids) == 0 {
 			return s.record(ctx, c, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess)
 		}
-		for _, id := range ids {
-			if err := s.record(ctx, c, auditevent.CodeSearchType, id, auditevent.OutcomeSuccess); err != nil {
-				return err
-			}
+		events := make([]auditevent.AuditEvent, len(ids))
+		for i, id := range ids {
+			events[i] = callerEvent(c, auditevent.CodeSearchType, id, auditevent.OutcomeSuccess)
 		}
-		return nil
+		return s.Audit.RecordAll(ctx, events) // one insert for the page
 	})
 	switch {
 	case err != nil:
