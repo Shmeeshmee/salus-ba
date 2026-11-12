@@ -1340,7 +1340,7 @@ export interface paths {
         };
         /**
          * The conversation's messages, live, over a WebSocket
-         * @description A WebSocket (RFC 6455) upgrade (ADR 0012). Every message after `after` is replayed from the record, in order, then the live ones follow as `message` frames, and edits as `message_edited` (`ChatFrame`); a client drops a message whose `seq` it has. Without `after`, only messages sent from now on. The handshake must come from the API's own origin, or carry no Origin (the mobile app, with its bearer token). Access is checked again at least every 5 seconds: when it ends the socket closes with 4403 `consent_required` or `forbidden`, or 4404 `not_found` (staff after the patient's revocation); 1011 on a server error. The subscription is audited. The client may send `send` frames (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of the JSON API.
+         * @description A WebSocket (RFC 6455) upgrade (ADR 0012). Every message after `after` is replayed from the record, in order, then the live ones follow as `message` frames, and edits as `message_edited` (`ChatFrame`); a client drops a message whose `seq` it has. Without `after`, only messages sent from now on. The handshake must come from the API's own origin, or carry no Origin (the mobile app, with its bearer token). Access is checked again at least every 5 seconds, the session too: when it ends the socket closes with 4401 `unauthenticated` (a logout, a revoked or expired session), 4403 `consent_required` or `forbidden`, or 4404 `not_found` (staff after the patient's revocation); 1011 on a server error. The subscription is audited. The client may send `send` frames (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of the JSON API, or `rate_limited` past five at once and one every 200 ms. Pass the conversation's or the last message's `cursor` as `after`.
          */
         get: operations["followConversation"];
         put?: never;
@@ -2379,6 +2379,8 @@ export interface components {
              * @description The number of the latest message; 0 before the first.
              */
             last_seq: number;
+            /** @description The latest message's cursor, or the start's for an empty conversation: the socket's `after`, so nothing sent since this was read is missed. */
+            cursor: string;
             /**
              * Format: int64
              * @description The caller's messages after their read position.
@@ -2389,6 +2391,7 @@ export interface components {
             /** @description The active participants, the patient first; absent in a list. */
             participants?: components["schemas"]["ConversationParticipant"][];
         };
+        /** @description A participant. Nobody's read position is shown to the others (that would be a stored read receipt); the caller's own is the conversation's `unread`. */
         ConversationParticipant: {
             /** Format: uuid */
             id: string;
@@ -2405,8 +2408,6 @@ export interface components {
              * @description The participant reads the messages after this number; 0 for all.
              */
             history_from_seq: number;
-            /** Format: int64 */
-            read_seq: number;
         };
         ConversationList: {
             conversations: components["schemas"]["Conversation"][];

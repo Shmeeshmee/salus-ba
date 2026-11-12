@@ -158,7 +158,8 @@ CREATE POLICY communication_revision_conversation ON communication_revision
            AND EXISTS (SELECT 1 FROM conversation c
                        WHERE c.id = NULLIF(current_setting('app.conversation_id', true), '')::uuid));
 
-GRANT SELECT, INSERT ON communication_revision TO salus_app;
+-- Only the edit trigger writes a revision (it runs as the owner): the app role reads them and cannot forge one.
+GRANT SELECT ON communication_revision TO salus_app;
 
 -- Never deleted, for every role, the owner included (as audit_event). TRUNCATE of a partition is refused by the
 -- trigger each partition gets from the function below.
@@ -183,11 +184,13 @@ CREATE TRIGGER communication_revision_no_truncate BEFORE TRUNCATE ON communicati
     FOR EACH STATEMENT EXECUTE FUNCTION communication_reject_removal();
 
 -- An edit: the next version of a text, with its time; the earlier body goes to communication_revision in the same
--- statement, as the editing role (its policies apply).
+-- statement. SECURITY DEFINER: it writes as the owner, so the app role has no INSERT on communication_revision and no
+-- revision exists but an edit's; the row it copies is OLD, which the editing role could already see and update.
 -- +goose StatementBegin
 CREATE FUNCTION communication_keep_revision() RETURNS trigger
     LANGUAGE plpgsql
-    SET search_path = public, pg_catalog
+    SECURITY DEFINER
+    SET search_path = pg_catalog, public
 AS $$
 BEGIN
     IF OLD.kind <> 'text' THEN
@@ -196,7 +199,7 @@ BEGIN
     IF NEW.version_id <> OLD.version_id + 1 OR NEW.edited_at IS NULL THEN
         RAISE EXCEPTION 'communication: an edit is the next version, with its time';
     END IF;
-    INSERT INTO communication_revision (communication_id, sent_at, edited_at, conversation_id, organization_id, patient_id,
+    INSERT INTO public.communication_revision (communication_id, sent_at, edited_at, conversation_id, organization_id, patient_id,
         version_id, staff_only, body)
     VALUES (OLD.id, OLD.sent_at, coalesce(OLD.edited_at, OLD.sent_at), OLD.conversation_id, OLD.organization_id, OLD.patient_id,
         OLD.version_id, OLD.staff_only, OLD.body);
@@ -216,7 +219,7 @@ CREATE TRIGGER communication_revision_on_edit BEFORE UPDATE ON communication
 CREATE FUNCTION communication_add_partitions(from_day date, months integer) RETURNS void
     LANGUAGE plpgsql
     SECURITY DEFINER
-    SET search_path = public, pg_catalog
+    SET search_path = pg_catalog, public
 AS $$
 DECLARE
     first date := date_trunc('month', from_day)::date;
@@ -231,9 +234,9 @@ BEGIN
         lo := (first + make_interval(months => i))::date;
         name := format('communication_y%sm%s', to_char(lo, 'YYYY'), to_char(lo, 'MM'));
         CONTINUE WHEN to_regclass(name) IS NOT NULL;
-        EXECUTE format('CREATE TABLE %I PARTITION OF communication FOR VALUES FROM (%L) TO (%L)',
-            name, to_char(lo, 'YYYY-MM-DD') || ' 00:00:00+00', to_char((lo + interval '1 month')::date, 'YYYY-MM-DD') || ' 00:00:00+00');
-        EXECUTE format('CREATE TRIGGER %I BEFORE TRUNCATE ON %I FOR EACH STATEMENT EXECUTE FUNCTION communication_reject_removal()',
+        EXECUTE format('CREATE TABLE %I.%I PARTITION OF public.communication FOR VALUES FROM (%L) TO (%L)',
+            'public', name, to_char(lo, 'YYYY-MM-DD') || ' 00:00:00+00', to_char((lo + interval '1 month')::date, 'YYYY-MM-DD') || ' 00:00:00+00');
+        EXECUTE format('CREATE TRIGGER %I BEFORE TRUNCATE ON public.%I FOR EACH STATEMENT EXECUTE FUNCTION public.communication_reject_removal()',
             name || '_no_truncate', name);
     END LOOP;
 END

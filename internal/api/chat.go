@@ -33,6 +33,7 @@ type chatPorts struct {
 	roles      *practitionerrole.Service
 	encounters *encounter.Service
 	caller     func(ctx context.Context) (appointment.Caller, bool, error)
+	active     func(r *http.Request) (bool, error) // the socket's session is still open (auth.Handler.Active)
 }
 
 // newChat builds the chat (docs/plans/chat.md): its routes, its socket, and the hub that carries the live frames
@@ -43,6 +44,6 @@ func newChat(p chatPorts, log *slog.Logger) (routes, stream func(*http.ServeMux)
 		Repo: communication.NewPostgresRepository(p.db), Publisher: hub, Consents: p.consents, Visits: p.visits,
 		Roles: p.roles, Encounters: p.encounters, Audit: p.audit, Tx: p.tx, Clock: clock.System{}, Log: log,
 	})
-	h := communication.NewHTTPHandler(svc, hub, p.caller, clock.System{}, communication.CheckEvery, log)
+	h := communication.NewHTTPHandler(svc, hub, p.caller, p.active, clock.System{}, communication.CheckEvery, log)
 	return h.Routes, h.StreamRoutes, hub
 }

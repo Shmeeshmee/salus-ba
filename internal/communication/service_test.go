@@ -129,8 +129,11 @@ func TestSend_ARepeatOfTheClientsIDReturnsTheFirstMessageOnly(t *testing.T) {
 	if err != nil || created || again.ID != first.ID || again.Body != first.Body {
 		t.Fatalf("repeat = %v, created %v, %+v", err, created, again)
 	}
-	if f.audit.count() != events || len(f.pub.published()) != 1 || len(f.repo.msgs[c.ID]) != 1 {
-		t.Errorf("a repeat was audited, published or stored")
+	if len(f.pub.published()) != 1 || len(f.repo.msgs[c.ID]) != 1 {
+		t.Errorf("a repeat was published or stored")
+	}
+	if e := f.audit.last(t); f.audit.count() != events+1 || e.Action != auditevent.ActionRead || e.EntityReference != "Communication/"+first.ID {
+		t.Errorf("the repeat's read is not audited: %+v", e)
 	}
 	theirs, created, err := f.svc.Send(t.Context(), pract, c.ID, clientID1, "Synthetic placeholder")
 	if err != nil || !created || theirs.Seq != 2 {
@@ -420,6 +423,13 @@ func TestCursor_RoundTripsAndRefusesWhatTheAPIDidNotGive(t *testing.T) {
 	got, err := communication.ParseCursor(c.String())
 	if err != nil || !got.SentAt.Equal(c.SentAt) || got.Seq != 42 {
 		t.Errorf("round trip = %+v, %v", got, err)
+	}
+	if start, err := communication.ParseCursor(communication.Cursor{}.String()); err != nil || start != (communication.Cursor{}) {
+		t.Errorf("the start's cursor = %+v, %v", start, err)
+	}
+	empty := communication.Conversation{}
+	if empty.Cursor() != (communication.Cursor{}) {
+		t.Errorf("an empty conversation's cursor = %+v, want the start", empty.Cursor())
 	}
 	for _, bad := range []string{"", "!!", "MTIz", "YS5i", "LTEuMQ"} { // "123", "a.b", "-1.1"
 		if _, err := communication.ParseCursor(bad); !errors.Is(err, communication.ErrInvalidCursor) {

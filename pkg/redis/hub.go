@@ -16,15 +16,20 @@ var ErrHubClosed = errors.New("redis: hub closed")
 // subscribers there are: a channel is subscribed in Redis while it has a subscriber here. Pub/sub is lossy by
 // design (a reconnect, or a subscriber that does not keep up, drops messages), so a Hub suits only live updates
 // whose record is elsewhere: each subscriber gets a buffered channel, and a message for a full one is dropped
-// rather than holding up the others.
+// rather than holding up the others. No Redis call is made under the lock the fan-out takes: a slow SUBSCRIBE (a
+// reconnect) delays other subscriptions being set up, never the delivery of messages.
 type Hub struct {
 	rdb    *goredis.Client
 	ps     *goredis.PubSub
-	subs   map[string]map[*hubSub]struct{}
+	subs   map[string]map[*hubSub]struct{} // the subscribers here, by channel; under mu
+	active map[string]bool                 // the channels subscribed in Redis; under redisMu
 	done   chan struct{}
 	buffer int
-	mu     sync.Mutex
-	closed bool
+	mu     sync.Mutex // subs and closed: the fan-out's lock
+	// redisMu serialises the SUBSCRIBE and UNSUBSCRIBE commands, so the last one sent for a channel is the one its
+	// subscribers want (reconcile).
+	redisMu sync.Mutex
+	closed  bool
 }
 
 type hubSub struct {
@@ -36,7 +41,7 @@ type hubSub struct {
 // rdb until Close; ctx bounds the subscription connection's commands.
 func NewHub(ctx context.Context, rdb *goredis.Client, buffer int) *Hub {
 	h := &Hub{
-		rdb: rdb, ps: rdb.Subscribe(ctx), subs: map[string]map[*hubSub]struct{}{},
+		rdb: rdb, ps: rdb.Subscribe(ctx), subs: map[string]map[*hubSub]struct{}{}, active: map[string]bool{},
 		done: make(chan struct{}), buffer: max(buffer, 1),
 	}
 	go h.run()
@@ -60,42 +65,68 @@ func (h *Hub) run() {
 }
 
 // Subscribe returns the messages published on channel from now on, and the function that ends the subscription
-// and closes them (safe to call more than once). The Redis subscription is sent before Subscribe returns.
+// and closes them (safe to call more than once). The Redis subscription is sent before Subscribe returns; when it
+// cannot be, the subscription is undone and the error returned.
 func (h *Hub) Subscribe(ctx context.Context, channel string) (<-chan []byte, func(), error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
 	s := &hubSub{ch: make(chan []byte, h.buffer)}
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	if h.closed {
+		h.mu.Unlock()
 		return nil, nil, ErrHubClosed
 	}
-	if len(h.subs[channel]) == 0 {
-		if err := h.ps.Subscribe(ctx, channel); err != nil {
-			return nil, nil, fmt.Errorf("redis: subscribe: %w", err)
-		}
+	if h.subs[channel] == nil {
 		h.subs[channel] = map[*hubSub]struct{}{}
 	}
 	h.subs[channel][s] = struct{}{}
-	return s.ch, func() { h.unsubscribe(channel, s) }, nil
+	h.mu.Unlock()
+	stop := func() { h.unsubscribe(channel, s) }
+	if err := h.reconcile(ctx, channel); err != nil {
+		stop()
+		return nil, nil, fmt.Errorf("redis: subscribe: %w", err)
+	}
+	return s.ch, stop, nil
 }
 
-// unsubscribe removes s and, with it the channel's last subscriber here, the Redis subscription. An error of the
-// UNSUBSCRIBE leaves the channel subscribed with no subscriber: its messages are dropped here.
+// unsubscribe removes s and, with the channel's last subscriber here, the Redis subscription.
 func (h *Hub) unsubscribe(channel string, s *hubSub) {
 	s.once.Do(func() {
 		h.mu.Lock()
-		defer h.mu.Unlock()
 		delete(h.subs[channel], s)
 		close(s.ch)
 		if len(h.subs[channel]) == 0 {
 			delete(h.subs, channel)
-			if !h.closed {
-				_ = h.ps.Unsubscribe(context.Background(), channel)
-			}
 		}
+		h.mu.Unlock()
+		_ = h.reconcile(context.Background(), channel) // a failed UNSUBSCRIBE leaves messages nobody here takes
 	})
+}
+
+// reconcile sends SUBSCRIBE or UNSUBSCRIBE when the channel's state in Redis is not what its subscribers here
+// want now. Serialised by redisMu and decided under it, so whatever order two subscribers come and go in, the last
+// command sent for a channel matches its subscribers.
+func (h *Hub) reconcile(ctx context.Context, channel string) error {
+	h.redisMu.Lock()
+	defer h.redisMu.Unlock()
+	h.mu.Lock()
+	want, closed := len(h.subs[channel]) > 0, h.closed
+	h.mu.Unlock()
+	switch {
+	case closed || want == h.active[channel]:
+		return nil
+	case want:
+		if err := h.ps.Subscribe(ctx, channel); err != nil {
+			_ = h.ps.Unsubscribe(context.WithoutCancel(ctx), channel) // go-redis keeps it for its reconnects otherwise
+			return err
+		}
+		h.active[channel] = true
+	default:
+		delete(h.active, channel)
+		return h.ps.Unsubscribe(ctx, channel)
+	}
+	return nil
 }
 
 // Publish publishes msg on channel, to every Hub's subscribers of it, in this process and the others.

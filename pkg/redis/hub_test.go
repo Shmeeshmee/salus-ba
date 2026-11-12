@@ -176,3 +176,37 @@ func TestHub_SubscribeFailsOnceClosedOrWithAnEndedContext(t *testing.T) {
 		t.Error("subscribed to a closed hub")
 	}
 }
+
+// Subscribers coming and going on one channel at once leave it subscribed exactly while one remains: the last
+// SUBSCRIBE or UNSUBSCRIBE sent matches them.
+func TestHub_ManySubscribersComingAndGoingLeaveTheChannelRight(t *testing.T) {
+	t.Parallel()
+	h := newHub(t)
+	a := channel(t)
+	keep, stopKeep, err := h.Subscribe(t.Context(), a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stopKeep()
+	done := make(chan struct{})
+	for range 50 {
+		go func() {
+			defer func() { done <- struct{}{} }()
+			_, stop, err := h.Subscribe(t.Context(), a)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			stop()
+		}()
+	}
+	for range 50 {
+		<-done
+	}
+	if err := h.Publish(t.Context(), a, []byte("still")); err != nil {
+		t.Fatal(err)
+	}
+	if got := receive(t, keep); got != "still" {
+		t.Errorf("got %q", got)
+	}
+}

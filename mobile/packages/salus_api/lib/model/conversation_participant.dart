@@ -19,7 +19,6 @@ class ConversationParticipant {
     this.practitionerRoleId,
     required this.addedAt,
     required this.historyFromSeq,
-    required this.readSeq,
   });
 
   String id;
@@ -47,8 +46,6 @@ class ConversationParticipant {
   /// The participant reads the messages after this number; 0 for all.
   int historyFromSeq;
 
-  int readSeq;
-
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -58,8 +55,7 @@ class ConversationParticipant {
           other.patientId == patientId &&
           other.practitionerRoleId == practitionerRoleId &&
           other.addedAt == addedAt &&
-          other.historyFromSeq == historyFromSeq &&
-          other.readSeq == readSeq;
+          other.historyFromSeq == historyFromSeq;
 
   @override
   int get hashCode =>
@@ -69,12 +65,11 @@ class ConversationParticipant {
       (patientId == null ? 0 : patientId!.hashCode) +
       (practitionerRoleId == null ? 0 : practitionerRoleId!.hashCode) +
       (addedAt.hashCode) +
-      (historyFromSeq.hashCode) +
-      (readSeq.hashCode);
+      (historyFromSeq.hashCode);
 
   @override
   String toString() =>
-      'ConversationParticipant[id=$id, role=$role, patientId=$patientId, practitionerRoleId=$practitionerRoleId, addedAt=$addedAt, historyFromSeq=$historyFromSeq, readSeq=$readSeq]';
+      'ConversationParticipant[id=$id, role=$role, patientId=$patientId, practitionerRoleId=$practitionerRoleId, addedAt=$addedAt, historyFromSeq=$historyFromSeq]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -92,7 +87,6 @@ class ConversationParticipant {
     }
     json[r'added_at'] = this.addedAt.toUtc().toIso8601String();
     json[r'history_from_seq'] = this.historyFromSeq;
-    json[r'read_seq'] = this.readSeq;
     return json;
   }
 
@@ -123,10 +117,6 @@ class ConversationParticipant {
             'Required key "ConversationParticipant[history_from_seq]" is missing from JSON.');
         assert(json[r'history_from_seq'] != null,
             'Required key "ConversationParticipant[history_from_seq]" has a null value in JSON.');
-        assert(json.containsKey(r'read_seq'),
-            'Required key "ConversationParticipant[read_seq]" is missing from JSON.');
-        assert(json[r'read_seq'] != null,
-            'Required key "ConversationParticipant[read_seq]" has a null value in JSON.');
         return true;
       }());
 
@@ -138,7 +128,6 @@ class ConversationParticipant {
             mapValueOfType<String>(json, r'practitioner_role_id'),
         addedAt: mapDateTime(json, r'added_at', r'')!,
         historyFromSeq: mapValueOfType<int>(json, r'history_from_seq')!,
-        readSeq: mapValueOfType<int>(json, r'read_seq')!,
       );
     }
     return null;
@@ -199,7 +188,6 @@ class ConversationParticipant {
     'role',
     'added_at',
     'history_from_seq',
-    'read_seq',
   };
 }
 

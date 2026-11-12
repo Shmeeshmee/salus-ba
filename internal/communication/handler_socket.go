@@ -61,7 +61,7 @@ func (h *HTTPHandler) events(w http.ResponseWriter, r *http.Request) {
 		return // the upgrader answered the client
 	}
 	defer func() { _ = sock.Conn.Close() }()
-	s := &stream{h: h, sock: sock, c: c, id: id, last: sub.From, history: sub.HistoryFromSeq}
+	s := &stream{h: h, sock: sock, c: c, id: id, last: sub.From, history: sub.HistoryFromSeq, r: r}
 	s.run(r, frames)
 }
 
@@ -69,10 +69,27 @@ func (h *HTTPHandler) events(w http.ResponseWriter, r *http.Request) {
 type stream struct {
 	h       *HTTPHandler
 	sock    *livesocket.Socket
+	r       *http.Request // the handshake: its credentials are checked again with every check
 	last    Cursor
+	sends   sendLimit
 	id      string
 	c       Caller
 	history int64
+}
+
+// errSessionEnded is the end of the socket's session (a logout, a revoked or expired session).
+var errSessionEnded = errors.New("communication: session ended")
+
+// check is the socket's periodic check: the session is still open, then fill (which checks access again).
+func (s *stream) check(ctx context.Context) error {
+	ok, err := s.h.active(s.r)
+	switch {
+	case err != nil:
+		return err
+	case !ok:
+		return errSessionEnded
+	}
+	return s.fill(ctx)
 }
 
 // run replays, then forwards the live frames, fills gaps and checks access every check, and pings, until the
@@ -82,7 +99,12 @@ func (s *stream) run(r *http.Request, frames <-chan []byte) {
 	defer cancel()
 	go func() {
 		defer cancel()
-		s.sock.Receive(ctx, maxBody, func(msg []byte) []byte { return s.h.command(ctx, s.c, s.id, msg) })
+		s.sock.Receive(ctx, maxBody, func(msg []byte) []byte {
+			if !s.sends.allow(s.h.clock.Now()) {
+				return commandError(CommandError{Command: SendType, Error: "rate_limited"})
+			}
+			return s.h.command(ctx, s.c, s.id, msg)
+		})
 	}()
 	check, ping := time.NewTicker(s.h.check), time.NewTicker(livesocket.PingEvery)
 	defer check.Stop()
@@ -98,7 +120,7 @@ func (s *stream) run(r *http.Request, frames <-chan []byte) {
 			}
 			err = s.live(ctx, f)
 		case <-check.C:
-			err = s.fill(ctx)
+			err = s.check(ctx)
 		case <-ping.C:
 			if s.sock.Ping() != nil {
 				err = errSocket
@@ -145,7 +167,7 @@ type frameHead struct {
 
 // live forwards a live frame: the next message as it is; one already sent is dropped; after a gap (pub/sub drops
 // messages) the missing ones come from Postgres. An edit goes out unless it is of a message before the caller's
-// starting point.
+// starting point; one of a message not sent yet fills first instead.
 func (s *stream) live(ctx context.Context, f []byte) error {
 	var head frameHead
 	if json.Unmarshal(f, &head) != nil {
@@ -153,6 +175,8 @@ func (s *stream) live(ctx context.Context, f []byte) error {
 	}
 	seq := head.Payload.Seq
 	switch {
+	case head.Type == MessageEditedType && seq > s.last.Seq: // its message has not gone out yet: it goes first
+		return s.fill(ctx) // the fill carries the edited body; the edit frame would repeat it
 	case head.Type == MessageEditedType && seq > s.history:
 		return s.write(f)
 	case head.Type != MessageType || seq <= s.last.Seq:
@@ -218,6 +242,8 @@ func (h *HTTPHandler) close(r *http.Request, sock *livesocket.Socket, id string,
 	switch {
 	case errors.Is(err, errSocket):
 		return
+	case errors.Is(err, errSessionEnded):
+		code, reason = livesocket.CloseUnauthenticated, "unauthenticated"
 	case errors.Is(err, ErrConsentRequired):
 		code, reason = livesocket.CloseForbidden, "consent_required"
 	case errors.Is(err, ErrForbidden):
@@ -228,4 +254,31 @@ func (h *HTTPHandler) close(r *http.Request, sock *livesocket.Socket, id string,
 		h.log.ErrorContext(r.Context(), "chat stream failed", "route", r.Pattern, "conversation_id", id, "error", err)
 	}
 	sock.Close(code, reason)
+}
+
+// The client's frames a socket takes: sendBurst at once, then one every sendEvery (a person types; a loop does not).
+const (
+	sendBurst = 5
+	sendEvery = 200 * time.Millisecond
+)
+
+// sendLimit is a token bucket over the client's frames, per socket: a send on the socket costs one round trip, so a
+// client in a loop would otherwise write as fast as the database commits.
+type sendLimit struct {
+	last   time.Time
+	tokens float64
+}
+
+func (l *sendLimit) allow(now time.Time) bool {
+	if l.last.IsZero() {
+		l.tokens = sendBurst
+	} else {
+		l.tokens = min(sendBurst, l.tokens+float64(now.Sub(l.last))/float64(sendEvery))
+	}
+	l.last = now
+	if l.tokens < 1 {
+		return false
+	}
+	l.tokens--
+	return true
 }

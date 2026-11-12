@@ -22,6 +22,7 @@ class Conversation {
     required this.createdAt,
     this.lastSentAt,
     required this.lastSeq,
+    required this.cursor,
     required this.unread,
     required this.staffOnly,
     this.participants = const [],
@@ -67,6 +68,9 @@ class Conversation {
   /// The number of the latest message; 0 before the first.
   int lastSeq;
 
+  /// The latest message's cursor, or the start's for an empty conversation: the socket's `after`, so nothing sent since this was read is missed.
+  String cursor;
+
   /// The caller's messages after their read position.
   int unread;
 
@@ -89,6 +93,7 @@ class Conversation {
           other.createdAt == createdAt &&
           other.lastSentAt == lastSentAt &&
           other.lastSeq == lastSeq &&
+          other.cursor == cursor &&
           other.unread == unread &&
           other.staffOnly == staffOnly &&
           _deepEquality.equals(other.participants, participants);
@@ -105,13 +110,14 @@ class Conversation {
       (createdAt.hashCode) +
       (lastSentAt == null ? 0 : lastSentAt!.hashCode) +
       (lastSeq.hashCode) +
+      (cursor.hashCode) +
       (unread.hashCode) +
       (staffOnly.hashCode) +
       (participants.hashCode);
 
   @override
   String toString() =>
-      'Conversation[id=$id, organizationId=$organizationId, patientId=$patientId, practitionerRoleId=$practitionerRoleId, encounterId=$encounterId, parentId=$parentId, createdAt=$createdAt, lastSentAt=$lastSentAt, lastSeq=$lastSeq, unread=$unread, staffOnly=$staffOnly, participants=$participants]';
+      'Conversation[id=$id, organizationId=$organizationId, patientId=$patientId, practitionerRoleId=$practitionerRoleId, encounterId=$encounterId, parentId=$parentId, createdAt=$createdAt, lastSentAt=$lastSentAt, lastSeq=$lastSeq, cursor=$cursor, unread=$unread, staffOnly=$staffOnly, participants=$participants]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -136,6 +142,7 @@ class Conversation {
       json[r'last_sent_at'] = null;
     }
     json[r'last_seq'] = this.lastSeq;
+    json[r'cursor'] = this.cursor;
     json[r'unread'] = this.unread;
     json[r'staff_only'] = this.staffOnly;
     json[r'participants'] = this.participants;
@@ -177,6 +184,10 @@ class Conversation {
             'Required key "Conversation[last_seq]" is missing from JSON.');
         assert(json[r'last_seq'] != null,
             'Required key "Conversation[last_seq]" has a null value in JSON.');
+        assert(json.containsKey(r'cursor'),
+            'Required key "Conversation[cursor]" is missing from JSON.');
+        assert(json[r'cursor'] != null,
+            'Required key "Conversation[cursor]" has a null value in JSON.');
         assert(json.containsKey(r'unread'),
             'Required key "Conversation[unread]" is missing from JSON.');
         assert(json[r'unread'] != null,
@@ -199,6 +210,7 @@ class Conversation {
         createdAt: mapDateTime(json, r'created_at', r'')!,
         lastSentAt: mapDateTime(json, r'last_sent_at', r''),
         lastSeq: mapValueOfType<int>(json, r'last_seq')!,
+        cursor: mapValueOfType<String>(json, r'cursor')!,
         unread: mapValueOfType<int>(json, r'unread')!,
         staffOnly: mapValueOfType<bool>(json, r'staff_only')!,
         participants:
@@ -265,6 +277,7 @@ class Conversation {
     'practitioner_role_id',
     'created_at',
     'last_seq',
+    'cursor',
     'unread',
     'staff_only',
   };

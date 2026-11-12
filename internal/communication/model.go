@@ -68,8 +68,18 @@ func (c Conversation) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(struct {
 		LastSentAt *time.Time `json:"last_sent_at,omitempty"`
+		Cursor     string     `json:"cursor"`
 		plain
-	}{last, plain(c)})
+	}{last, c.Cursor().String(), plain(c)})
+}
+
+// Cursor is the place of the conversation's last message, or the start for an empty one: a socket that resumes
+// after it misses nothing sent since the conversation was read.
+func (c Conversation) Cursor() Cursor {
+	if c.LastSeq == 0 {
+		return Cursor{}
+	}
+	return Cursor{SentAt: c.LastSentAt, Seq: c.LastSeq}
 }
 
 // Participant is the patient or a practitioner (by their role) in a conversation.
@@ -83,7 +93,9 @@ type Participant struct {
 	Role               Role      `json:"role"`
 	// HistoryFromSeq: the participant reads the messages after this number; 0 for the whole history (SAL-28).
 	HistoryFromSeq int64 `json:"history_from_seq"`
-	ReadSeq        int64 `json:"read_seq"` // the participant's own read position
+	// ReadSeq is the participant's own read position: never sent, as another participant's would be a stored read
+	// receipt (owner, 2026-11-12); the caller's own shows as the conversation's unread.
+	ReadSeq int64 `json:"-"`
 }
 
 // Message is a FHIR Communication: sent, sender, payload.contentString; or a system message.
@@ -151,8 +163,11 @@ type Cursor struct {
 	Seq    int64
 }
 
-// String is the cursor as the client sees it: base64url of "<unix microseconds>.<seq>".
+// String is the cursor as the client sees it: base64url of "<unix microseconds>.<seq>"; "0.0" for the start.
 func (c Cursor) String() string {
+	if c.Seq == 0 {
+		return base64.RawURLEncoding.EncodeToString([]byte("0.0"))
+	}
 	return base64.RawURLEncoding.EncodeToString([]byte(strconv.FormatInt(c.SentAt.UnixMicro(), 10) + "." + strconv.FormatInt(c.Seq, 10)))
 }
 
@@ -170,6 +185,9 @@ func ParseCursor(s string) (Cursor, error) {
 	n, err2 := strconv.ParseInt(seq, 10, 64)
 	if err1 != nil || err2 != nil || n < 0 || t < 0 {
 		return Cursor{}, ErrInvalidCursor
+	}
+	if n == 0 {
+		return Cursor{}, nil // the start
 	}
 	return Cursor{SentAt: time.UnixMicro(t).UTC(), Seq: n}, nil
 }

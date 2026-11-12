@@ -210,3 +210,65 @@ func TestSocket_RefusesBeforeTheUpgrade(t *testing.T) {
 		t.Errorf("signed out: %v", err)
 	}
 }
+
+// A logout or a revoked session ends an open socket at its next check (4401), whatever the conversation's access.
+func TestSocket_ClosesWhenTheSessionEnds(t *testing.T) {
+	t.Parallel()
+	svc := &stubChats{sessionEnded: true}
+	srv := newServerEvery(t, svc, newFakeLive(), true, 20*time.Millisecond)
+	conn, _, err := dialChat(t, srv.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = conn.ReadMessage()
+	var ce *websocket.CloseError
+	if !errors.As(err, &ce) || ce.Code != livesocket.CloseUnauthenticated || ce.Text != "unauthenticated" {
+		t.Errorf("closed with %v, want 4401 unauthenticated", err)
+	}
+}
+
+// An edit of a message the socket has not sent yet fills from Postgres first: the client never sees an edit before
+// its message.
+func TestSocket_AnEditOfAMessageNotSentYetFillsFirst(t *testing.T) {
+	t.Parallel()
+	svc := &stubChats{sub: communication.Subscription{From: msg(1).Cursor()}, after: [][]communication.Message{nil, {msg(2)}}}
+	live := newFakeLive()
+	srv := newServer(t, svc, live, true)
+	conn, _, err := dialChat(t, srv.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-live.ready
+	live.publish(communication.ChannelKey(sample.ConversationID), frame(t, communication.MessageEditedType, msg(2)))
+	if typ, seq := readFrame(t, conn); typ != communication.MessageType || seq != 2 {
+		t.Errorf("first frame %s %d, want message 2 from the fill", typ, seq)
+	}
+}
+
+// A client writing in a loop is held to the socket's limit: a burst of five, then one every 200 ms.
+func TestSocket_LimitsTheClientsSends(t *testing.T) {
+	t.Parallel()
+	svc := &stubChats{sent: msg(1), created: true}
+	live := newFakeLive()
+	srv := newServer(t, svc, live, true)
+	conn, _, err := dialChat(t, srv.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-live.ready
+	send, _ := wire.Encode(communication.SendType, communication.FrameVersion, communication.SendCommand{ClientMessageID: clientID2, Body: "Synthetic placeholder"})
+	for range 8 {
+		if err := conn.WriteMessage(websocket.TextMessage, send); err != nil {
+			t.Fatal(err)
+		}
+	}
+	limited := 0
+	for range 8 {
+		if typ, _ := readFrame(t, conn); typ == "command_error:rate_limited" {
+			limited++
+		}
+	}
+	if limited < 1 || limited > 3 {
+		t.Errorf("%d of 8 sends limited, want the ones past the burst of 5", limited)
+	}
+}

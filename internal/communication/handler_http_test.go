@@ -20,19 +20,20 @@ import (
 
 // stubChats answers every call with what the test set, and keeps what it was asked.
 type stubChats struct {
-	err      error
-	afterErr error
-	next     *communication.ListCursor
-	sub      communication.Subscription
-	page     communication.Page
-	revs     []communication.Revision
-	list     []communication.Conversation
-	after    [][]communication.Message // successive answers of After; then afterErr, then nothing
-	asked    []string
-	sent     communication.Message
-	conv     communication.Conversation
-	mu       sync.Mutex
-	created  bool
+	err          error
+	afterErr     error
+	next         *communication.ListCursor
+	sub          communication.Subscription
+	page         communication.Page
+	revs         []communication.Revision
+	list         []communication.Conversation
+	after        [][]communication.Message // successive answers of After; then afterErr, then nothing
+	asked        []string
+	sent         communication.Message
+	conv         communication.Conversation
+	mu           sync.Mutex
+	sessionEnded bool
+	created      bool
 }
 
 func (s *stubChats) ask(format string) {
@@ -106,6 +107,13 @@ func (s *stubChats) After(context.Context, communication.Caller, string, communi
 	return nil, s.afterErr
 }
 
+// sessionOpen is the socket's session check: open until the test ends it.
+func (s *stubChats) sessionOpen() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return !s.sessionEnded
+}
+
 func (s *stubChats) calls() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -149,7 +157,8 @@ func newServer(t *testing.T, svc *stubChats, live *fakeLive, signedIn bool) *htt
 func newServerEvery(t *testing.T, svc *stubChats, live *fakeLive, signedIn bool, check time.Duration) *httptest.Server {
 	t.Helper()
 	caller := func(context.Context) (communication.Caller, bool, error) { return me, signedIn, nil }
-	h := communication.NewHTTPHandler(svc, live, caller, clock.System{}, check, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := communication.NewHTTPHandler(svc, live, caller, func(*http.Request) (bool, error) { return svc.sessionOpen(), nil }, clock.System{}, check,
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	mux := http.NewServeMux()
 	h.Routes(mux)
 	h.StreamRoutes(mux)

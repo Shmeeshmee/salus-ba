@@ -68,8 +68,11 @@ func (s *Service) Send(ctx context.Context, c Caller, id, clientMessageID, body 
 			return err
 		}
 		out, err = s.Repo.MessageByClientID(ctx, id, e.part.ID, clientMessageID, e.conv.LastSentAt.Add(-IdempotencyWindow))
-		if !errors.Is(err, ErrNotFound) {
-			return err // a repeat, or a failure
+		switch {
+		case err == nil: // a repeat: the stored message is read back, and that read is audited
+			return s.record(ctx, c, auditevent.ActionRead, auditevent.CodeRead, "Communication/"+out.ID, "", 0)
+		case !errors.Is(err, ErrNotFound):
+			return err
 		}
 		sent := s.Clock.Now().UTC().Truncate(time.Microsecond)
 		if sent.Before(e.conv.LastSentAt) {

@@ -16,7 +16,7 @@ export type FakeChat = ChatApi & {
 
 const uuid = (n: number, prefix = '0') => `${prefix.padEnd(8, '0')}-0000-4000-8000-${n.toString(16).padStart(12, '0')}`
 
-// cursorOf is the message's cursor: the fake's own, opaque to the screens as the API's is.
+// cursorOf is the message's cursor (fake-0 is the start's): the fake's own, opaque to the screens as the API's is.
 const cursorOf = (seq: number) => `fake-${seq}`
 const seqOf = (cursor: string) => Number(cursor.slice('fake-'.length))
 
@@ -40,10 +40,10 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
 
   const conversation: Conversation = {
     id: uuid(1, 'c'), organization_id: uuid(1, 'a'), patient_id: uuid(1, 'b'), practitioner_role_id: uuid(1, 'e'),
-    created_at: start.toISOString(), last_seq: 0, unread: 0, staff_only: false,
+    created_at: start.toISOString(), last_seq: 0, cursor: cursorOf(0), unread: 0, staff_only: false,
     participants: [
-      { id: uuid(1, 'd'), role: 'patient', patient_id: uuid(1, 'b'), added_at: start.toISOString(), history_from_seq: 0, read_seq: 0 },
-      { id: uuid(2, 'd'), role: 'practitioner', practitioner_role_id: uuid(1, 'e'), added_at: start.toISOString(), history_from_seq: 0, read_seq: 0 },
+      { id: uuid(1, 'd'), role: 'patient', patient_id: uuid(1, 'b'), added_at: start.toISOString(), history_from_seq: 0 },
+      { id: uuid(2, 'd'), role: 'practitioner', practitioner_role_id: uuid(1, 'e'), added_at: start.toISOString(), history_from_seq: 0 },
     ],
   }
   const conversations = [conversation]
@@ -55,9 +55,8 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
     return c
   }
 
-  function mine(c: Conversation) {
-    return c.participants?.find((p) => p.id === me.participantId)
-  }
+  // readSeq is the caller's read position per conversation: the API never shows it, only the unread count.
+  const readSeq = new Map<string, number>()
 
   function write(c: Conversation, from: { role: 'patient' | 'practitioner'; participantId: string }, body: string, clientId: string): ChatMessage {
     const list = messages.get(c.id) ?? []
@@ -71,9 +70,9 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
     messages.set(c.id, list)
     c.last_seq = seq
     c.last_sent_at = m.sent_at
-    const self = mine(c)
-    if (from.participantId === me.participantId && self) self.read_seq = seq
-    c.unread = c.last_seq - (self?.read_seq ?? 0)
+    c.cursor = m.cursor
+    if (from.participantId === me.participantId) readSeq.set(c.id, seq)
+    c.unread = c.last_seq - (readSeq.get(c.id) ?? 0)
     for (const f of followers.get(c.id) ?? []) f({ type: 'message', version: 1, payload: m })
     return m
   }
@@ -136,9 +135,8 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
     async markRead(id, seq) {
       const c = find(id)
       if (seq < 0 || seq > c.last_seq) throw new ChatError('invalid_request')
-      const self = mine(c)
-      if (self) self.read_seq = Math.max(self.read_seq, seq)
-      c.unread = c.last_seq - (self?.read_seq ?? 0)
+      readSeq.set(c.id, Math.max(readSeq.get(c.id) ?? 0, seq))
+      c.unread = c.last_seq - (readSeq.get(c.id) ?? 0)
     },
     follow(id, after, onFrame, onEnd) {
       const list = messages.get(find(id).id) ?? []

@@ -330,3 +330,33 @@ func TestLoginHandlers_LogNoEmailPasswordTokenChallengeOrCode(t *testing.T) {
 		}
 	}
 }
+
+// Active is the check a long-lived socket repeats (docs/plans/chat.md): the request's session is still open, as
+// Authenticate sees it now, from the bearer token or the cookie the request came with.
+func TestActive_ReportsWhetherTheRequestsSessionIsStillOpen(t *testing.T) {
+	for _, tt := range []struct {
+		authErr error
+		name    string
+		header  string
+		want    bool
+		wantErr bool
+	}{
+		{name: "an open session", header: "Bearer tok", want: true},
+		{name: "a revoked or expired one", header: "Bearer tok", authErr: auth.ErrUnauthenticated},
+		{name: "no credentials", header: ""},
+		{name: "a failure", header: "Bearer tok", authErr: errors.New("down"), wantErr: true},
+	} {
+		svc := &stubService{authErr: tt.authErr, session: auth.Session{ID: sessionID}}
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/conversations/x/events", nil)
+		if tt.header != "" {
+			r.Header.Set("Authorization", tt.header)
+		}
+		got, err := auth.NewHandler(svc, discard(), nil).Active(r)
+		if got != tt.want || (err != nil) != tt.wantErr {
+			t.Errorf("%s: Active = %v, %v", tt.name, got, err)
+		}
+		if tt.header != "" && svc.token != "tok" {
+			t.Errorf("%s: authenticated %q, want the request's token", tt.name, svc.token)
+		}
+	}
+}

@@ -213,6 +213,8 @@ func TestChat_MessagesAreNeverDeletedAndAnEditKeepsTheEarlierBody(t *testing.T) 
 		"UPDATE communication SET sender_account_id = sender_account_id", "UPDATE communication SET sender_participant_id = sender_participant_id", "UPDATE communication SET kind = kind",
 		"UPDATE communication SET patient_id = patient_id", "UPDATE communication SET staff_only = staff_only",
 		"UPDATE communication_revision SET body = body",
+		`INSERT INTO communication_revision (communication_id, sent_at, edited_at, conversation_id, organization_id, patient_id, version_id, staff_only, body)
+			SELECT id, sent_at, now(), conversation_id, organization_id, patient_id, 9, staff_only, 'forged' FROM communication`,
 		"UPDATE conversation SET patient_id = patient_id", "UPDATE conversation SET organization_id = organization_id",
 		"UPDATE conversation SET staff_only = staff_only", "UPDATE conversation_participant SET patient_id = patient_id", "UPDATE conversation_participant SET practitioner_role_id = practitioner_role_id",
 		"UPDATE conversation_participant SET history_from_seq = 0",

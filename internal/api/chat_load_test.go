@@ -195,6 +195,7 @@ func loadChat(t *testing.T, pool *pgxpool.Pool) (*communication.Service, http.Ha
 	routes, stream, hub := newChat(chatPorts{
 		db: pool, rdb: redistest.NewClient(t), audit: audit, tx: tx, consents: consents,
 		visits: appointment.NewFacts(appointment.NewPostgresRepository(pool)), roles: roles, caller: caller,
+		active: func(*http.Request) (bool, error) { return true, nil },
 	}, log)
 	t.Cleanup(func() { _ = hub.Close() })
 	mux := http.NewServeMux()

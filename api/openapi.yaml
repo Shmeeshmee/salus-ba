@@ -3070,10 +3070,12 @@ paths:
         then the live ones follow as `message` frames, and edits as `message_edited` (`ChatFrame`); a client drops a
         message whose `seq` it has. Without `after`, only messages sent from now on. The handshake must come from the
         API's own origin, or carry no Origin (the mobile app, with its bearer token). Access is checked again at least
-        every 5 seconds: when it ends the socket closes with 4403 `consent_required` or `forbidden`, or 4404
-        `not_found` (staff after the patient's revocation); 1011 on a server error. The subscription is audited. The
-        client may send `send` frames (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of
-        the JSON API.
+        every 5 seconds, the session too: when it ends the socket closes with 4401 `unauthenticated` (a logout, a
+        revoked or expired session), 4403 `consent_required` or `forbidden`, or 4404 `not_found` (staff after the
+        patient's revocation); 1011 on a server error. The subscription is audited. The client may send `send` frames
+        (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of the JSON API, or
+        `rate_limited` past five at once and one every 200 ms. Pass the conversation's or the last message's
+        `cursor` as `after`.
       tags: [chat]
       security:
         - sessionCookie: []
@@ -5010,7 +5012,7 @@ components:
         encounter_id: {type: string, format: uuid, description: The consultation the conversation is about.}
     Conversation:
       type: object
-      required: [id, organization_id, patient_id, practitioner_role_id, created_at, last_seq, unread, staff_only]
+      required: [id, organization_id, patient_id, practitioner_role_id, created_at, last_seq, cursor, unread, staff_only]
       properties:
         id: {type: string, format: uuid}
         organization_id: {type: string, format: uuid}
@@ -5021,6 +5023,7 @@ components:
         created_at: {type: string, format: date-time}
         last_sent_at: {type: string, format: date-time, description: Absent before the first message.}
         last_seq: {type: integer, format: int64, description: The number of the latest message; 0 before the first.}
+        cursor: {type: string, description: "The latest message's cursor, or the start's for an empty conversation: the socket's `after`, so nothing sent since this was read is missed."}
         unread: {type: integer, format: int64, description: The caller's messages after their read position.}
         staff_only: {type: boolean, description: A doctor-only side thread (SAL-28); never shown to the patient.}
         participants:
@@ -5029,7 +5032,10 @@ components:
           items: {$ref: "#/components/schemas/ConversationParticipant"}
     ConversationParticipant:
       type: object
-      required: [id, role, added_at, history_from_seq, read_seq]
+      description: >-
+        A participant. Nobody's read position is shown to the others (that would be a stored read receipt); the
+        caller's own is the conversation's `unread`.
+      required: [id, role, added_at, history_from_seq]
       properties:
         id: {type: string, format: uuid}
         role: {type: string, enum: [patient, practitioner]}
@@ -5037,7 +5043,6 @@ components:
         practitioner_role_id: {type: string, format: uuid}
         added_at: {type: string, format: date-time}
         history_from_seq: {type: integer, format: int64, description: The participant reads the messages after this number; 0 for all.}
-        read_seq: {type: integer, format: int64}
     ConversationList:
       type: object
       required: [conversations]

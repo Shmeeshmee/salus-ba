@@ -29,9 +29,10 @@ const (
 // Close codes: the server's error (RFC 6455 §7.4.1), and the application's (4000–4999) for an end of access during
 // the stream.
 const (
-	CloseInternalError = websocket.CloseInternalServerErr
-	CloseForbidden     = 4403
-	CloseNotFound      = 4404
+	CloseInternalError   = websocket.CloseInternalServerErr
+	CloseUnauthenticated = 4401
+	CloseForbidden       = 4403
+	CloseNotFound        = 4404
 )
 
 // IsUpgrade reports whether the request is a WebSocket handshake.

@@ -20,11 +20,12 @@ class FakeChat implements Chats {
       practitionerRoleId: _uuid(1, 'e'),
       createdAt: at,
       lastSeq: 0,
+      cursor: _cursor(0),
       unread: 0,
       staffOnly: false,
       participants: [
-        ConversationParticipant(id: _me, role: ConversationParticipantRoleEnum.patient, patientId: _uuid(1, 'b'), addedAt: at, historyFromSeq: 0, readSeq: 0),
-        ConversationParticipant(id: _doctor, role: ConversationParticipantRoleEnum.practitioner, practitionerRoleId: _uuid(1, 'e'), addedAt: at, historyFromSeq: 0, readSeq: 0),
+        ConversationParticipant(id: _me, role: ConversationParticipantRoleEnum.patient, patientId: _uuid(1, 'b'), addedAt: at, historyFromSeq: 0),
+        ConversationParticipant(id: _doctor, role: ConversationParticipantRoleEnum.practitioner, practitionerRoleId: _uuid(1, 'e'), addedAt: at, historyFromSeq: 0),
       ],
     );
     for (var i = 0; i < history; i++) {
@@ -44,7 +45,8 @@ class FakeChat implements Chats {
   DateTime _clock;
   int _ids = 0;
 
-  ConversationParticipant get _self => conversation.participants.firstWhere((p) => p.id == _me);
+  /// The patient's read position: the API never shows it, only the unread count.
+  int _readSeq = 0;
 
   ChatMessage _write(String from, String body, String clientId) {
     _clock = _clock.add(const Duration(seconds: 1));
@@ -65,9 +67,10 @@ class FakeChat implements Chats {
     _messages.add(m);
     conversation
       ..lastSeq = seq
-      ..lastSentAt = m.sentAt;
-    if (from == _me) _self.readSeq = seq;
-    conversation.unread = conversation.lastSeq - _self.readSeq;
+      ..lastSentAt = m.sentAt
+      ..cursor = m.cursor;
+    if (from == _me) _readSeq = seq;
+    conversation.unread = conversation.lastSeq - _readSeq;
     for (final f in _followers.toList()) {
       f(ChatMessageFrame(type: ChatMessageFrameTypeEnum.message, version: ChatMessageFrameVersionEnum.number1, payload: m));
     }
@@ -154,8 +157,8 @@ class FakeChat implements Chats {
   Future<void> markRead(String id, int seq) async {
     _known(id);
     if (seq < 0 || seq > conversation.lastSeq) throw const ChatException('invalid_request');
-    if (seq > _self.readSeq) _self.readSeq = seq;
-    conversation.unread = conversation.lastSeq - _self.readSeq;
+    if (seq > _readSeq) _readSeq = seq;
+    conversation.unread = conversation.lastSeq - _readSeq;
   }
 
   @override

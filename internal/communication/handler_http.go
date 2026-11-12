@@ -45,6 +45,9 @@ type HTTPHandler struct {
 	svc    Chats
 	live   Subscriber
 	caller func(ctx context.Context) (Caller, bool, error)
+	// active reports whether the request's session is still open (auth.Handler.Active): a socket asks it at every
+	// check, so a logout or a revoked session ends it.
+	active func(r *http.Request) (bool, error)
 	clock  clock.Clock
 	log    *slog.Logger
 	// check is how often an open socket checks access again and fills from Postgres (CheckEvery; tests shorten it).
@@ -55,9 +58,11 @@ type HTTPHandler struct {
 // channel dropped (docs/plans/chat.md "Who reads and writes").
 const CheckEvery = 5 * time.Second
 
-// NewHTTPHandler returns the handler on svc and the live channel; check is CheckEvery but in tests.
-func NewHTTPHandler(svc Chats, live Subscriber, caller func(ctx context.Context) (Caller, bool, error), clk clock.Clock, check time.Duration, log *slog.Logger) *HTTPHandler {
-	return &HTTPHandler{svc: svc, live: live, caller: caller, clock: clk, check: check, log: log}
+// NewHTTPHandler returns the handler on svc and the live channel; check is CheckEvery but in tests; active tells
+// whether a socket's session is still open.
+func NewHTTPHandler(svc Chats, live Subscriber, caller func(ctx context.Context) (Caller, bool, error), active func(r *http.Request) (bool, error),
+	clk clock.Clock, check time.Duration, log *slog.Logger) *HTTPHandler {
+	return &HTTPHandler{svc: svc, live: live, caller: caller, active: active, clock: clk, check: check, log: log}
 }
 
 // Routes declares the chat's routes on mux.

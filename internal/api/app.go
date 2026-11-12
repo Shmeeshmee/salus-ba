@@ -119,7 +119,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		kek:   kek,
 	}, fhirBase, log)
 	chatAPI, chatStream, chatHub := newChat(chatPorts{db: pool, rdb: rdb, audit: audit, tx: tx, consents: consents,
-		visits: appointment.NewFacts(appointmentRepo), roles: roles, encounters: encounters, caller: appointmentCaller(accounts, patients)}, log)
+		visits: appointment.NewFacts(appointmentRepo), roles: roles, encounters: encounters, caller: appointmentCaller(accounts, patients), active: authHandler.Active}, log)
 
 	h := router.New(router.Config{
 		Logger:  log,
