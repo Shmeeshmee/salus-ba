@@ -76,7 +76,10 @@ func TestPostgres_SearchIsPlannedForItsOwnQuery(t *testing.T) {
 	_, app := pgtest.NewAppDatabase(t)
 	repo := communication.NewPostgresRepository(app)
 	for name, search := range map[string]func(ctx context.Context) error{
-		"within": func(ctx context.Context) error { _, err := repo.SearchConversation(ctx, unknownID, "'x':*", 0, 1); return err },
+		"within": func(ctx context.Context) error {
+			_, err := repo.SearchConversation(ctx, unknownID, "'x':*", 0, 1)
+			return err
+		},
 		"across": func(ctx context.Context) error { _, err := repo.Search(ctx, "'x':*", 1); return err },
 	} {
 		err := postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
