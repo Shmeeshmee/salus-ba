@@ -5,6 +5,8 @@ platform view is built behind a feature flag that stays off until the legal ques
 same day after two subagent reviews of PR #71 (suppression fixed over the whole month instead of per query,
 distinct patients, frozen months, the clinic rules, features that do not exist yet taken out).
 
+As built so far: docs/plans/analytics.PROGRESS.md records where a package departs from this plan.
+
 ## 1. Goal
 
 - **My clinic** (SAL-20): a clinic's own appointments and diagnoses over time, its busiest months, weekdays and
