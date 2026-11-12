@@ -23,7 +23,7 @@ INSERT INTO organization (name) VALUES (@name)
 RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy;
 
 -- name: ChatSettings :one
--- The clinic's chat settings (00046); row-level security shows only the clinic set.
+-- The clinic's chat settings (00047); row-level security shows only the clinic set.
 SELECT hours, response_time_hours, email_after_minutes
 FROM organization_chat_settings
 WHERE organization_id = @organization_id;

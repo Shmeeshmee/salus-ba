@@ -11,7 +11,7 @@ type Sender interface {
 }
 
 // Repository stores the accounts' push devices and the clinics' webhook endpoints and dead letters (migration
-// 00046). The devices are not row-level secured (like the accounts): every device method names the account or the
+// 00047). The devices are not row-level secured (like the accounts): every device method names the account or the
 // device. The endpoints and dead letters are seen only in the clinic set by SetClinic.
 type Repository interface {
 	// RegisterDevice stores the token as the account's on platform, moving it from any other account.

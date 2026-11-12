@@ -23,7 +23,7 @@ type ChatSettingsRow struct {
 	EmailAfterMinutes int32
 }
 
-// The clinic's chat settings (00046); row-level security shows only the clinic set.
+// The clinic's chat settings (00047); row-level security shows only the clinic set.
 func (q *Queries) ChatSettings(ctx context.Context, organizationID pgtype.UUID) (ChatSettingsRow, error) {
 	row := q.db.QueryRow(ctx, chatSettings, organizationID)
 	var i ChatSettingsRow

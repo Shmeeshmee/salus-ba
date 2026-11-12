@@ -197,7 +197,7 @@ type RegisterDeviceParams struct {
 	UpdatedAt pgtype.Timestamptz
 }
 
-// The notification domain's queries (migration 00046): the push devices of the accounts, and the clinics' webhook
+// The notification domain's queries (migration 00047): the push devices of the accounts, and the clinics' webhook
 // endpoints with the dead letters of their deliveries.
 // A token belongs to the account that registered it last: a device signed into another account moves to it.
 func (q *Queries) RegisterDevice(ctx context.Context, arg RegisterDeviceParams) error {

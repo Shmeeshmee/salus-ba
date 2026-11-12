@@ -23,7 +23,7 @@ type Repository interface {
 	Create(ctx context.Context, name string) (Organization, error)
 }
 
-// ChatRepository stores the clinics' chat settings (migration 00046), row-level secured like the clinics: every
+// ChatRepository stores the clinics' chat settings (migration 00047), row-level secured like the clinics: every
 // method sees only the clinic set by SetOrganization.
 type ChatRepository interface {
 	SetOrganization(ctx context.Context, id string) error
