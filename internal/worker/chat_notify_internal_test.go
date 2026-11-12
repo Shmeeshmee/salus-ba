@@ -22,6 +22,7 @@ func TestChatWorkers_CancelWhatARetryCannotDo(t *testing.T) {
 		cancel bool
 	}{
 		"endpoint gone": {fmt.Errorf("notification: webhook: %w", notification.ErrNotFound), true},
+		"secret shut":   {fmt.Errorf("notification: webhook: %w", notification.ErrUndeliverable), true},
 		"no answer":     {errors.New("notification: webhook: status 503"), false},
 	} {
 		w := &webhookWorker{deliver: func(_ context.Context, _ notification.WebhookDeliveryArgs, a, m int) error {

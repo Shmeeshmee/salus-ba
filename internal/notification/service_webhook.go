@@ -265,8 +265,9 @@ type eventMessage struct {
 // DeliverWebhook posts a's event to its endpoint (the webhook_delivery job's attempt of maxAttempts), signed: the
 // header Salus-Signature is t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<body>" with the endpoint's secret>, and
 // Salus-Event-Id the event's stable id. A status other than 2xx, or no answer, is an error for River to retry with
-// backoff; the last attempt's failure records a dead letter first. A deleted endpoint, or a message the clinic no
-// longer sees (with clinical content), is ErrNotFound: nothing to retry. Errors name a status, never the URL.
+// backoff; the last attempt's failure records a dead letter first. A deleted endpoint, or a conversation or message
+// the clinic no longer sees, is ErrNotFound: nothing to retry. A secret that does not open is dead-lettered at once
+// (ErrUndeliverable). Errors name a status, never the URL.
 func (s *Chat) DeliverWebhook(ctx context.Context, a WebhookDeliveryArgs, attempt, maxAttempts int) error {
 	var e Endpoint
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
@@ -286,7 +287,12 @@ func (s *Chat) DeliverWebhook(ctx context.Context, a WebhookDeliveryArgs, attemp
 	}
 	secret, err := s.Box.Open(e.SecretSealed, e.ID)
 	if err != nil {
-		return fmt.Errorf("notification: webhook: the secret: %w", err)
+		// No retry opens it: dead-letter the delivery now, with no status, and give up.
+		failure := fmt.Errorf("notification: webhook: the secret does not open: %w", ErrUndeliverable)
+		if derr := s.deadLetter(ctx, a, attempt, 0); derr != nil {
+			return errors.Join(failure, derr)
+		}
+		return failure
 	}
 	ts := strconv.FormatInt(s.Clock.Now().Unix(), 10)
 	mac := hmac.New(sha256.New, secret)
@@ -309,19 +315,26 @@ func (s *Chat) DeliverWebhook(ctx context.Context, a WebhookDeliveryArgs, attemp
 	return failure
 }
 
-// eventBody is a's event as JSON, with the message when clinical is set (read and audited as the job's).
+// eventBody is a's event as JSON, with the message when clinical is set (read and audited as the job's). Either
+// way the clinic must still see the conversation, as at the fan-out (the patient's care consent, checked on every
+// attempt): ErrNotFound when it does not.
 func (s *Chat) eventBody(ctx context.Context, a WebhookDeliveryArgs, clinical bool) ([]byte, error) {
 	ev := eventJSON{ID: a.EventID, Type: EventMessageCreated, OrganizationID: a.OrganizationID,
 		Data: eventData{ConversationID: a.ConversationID, MessageID: a.MessageID}}
+	var err error
 	if clinical {
-		m, err := s.Chats.NoticeMessage(ctx, agentWebhook, a.OrganizationID, a.ConversationID, a.MessageID)
-		if errors.Is(err, communication.ErrNotFound) {
-			return nil, ErrNotFound
+		var m communication.Message
+		if m, err = s.Chats.NoticeMessage(ctx, agentWebhook, a.OrganizationID, a.ConversationID, a.MessageID); err == nil {
+			ev.Data.Message = &eventMessage{SentAt: m.SentAt, PatientID: m.PatientID, SenderRole: string(m.SenderRole), Body: m.Body, Seq: m.Seq}
 		}
-		if err != nil {
-			return nil, err
-		}
-		ev.Data.Message = &eventMessage{SentAt: m.SentAt, PatientID: m.PatientID, SenderRole: string(m.SenderRole), Body: m.Body, Seq: m.Seq}
+	} else {
+		_, err = s.Chats.NoticeConversation(ctx, agentWebhook, a.OrganizationID, a.ConversationID)
+	}
+	switch {
+	case errors.Is(err, communication.ErrNotFound):
+		return nil, ErrNotFound
+	case err != nil:
+		return nil, err
 	}
 	return json.Marshal(ev)
 }

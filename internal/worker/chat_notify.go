@@ -136,7 +136,8 @@ func (w *unreadEmailWorker) Work(ctx context.Context, job *river.Job[notificatio
 }
 
 // webhookWorker makes one attempt of a delivery: River retries a failure with its backoff, and the last one is
-// dead-lettered by the service; an endpoint deleted meanwhile, or a message the clinic no longer sees, cancels it.
+// dead-lettered by the service; an endpoint deleted meanwhile, a conversation the clinic no longer sees, or a secret
+// that does not open (dead-lettered at once) cancels it.
 type webhookWorker struct {
 	river.WorkerDefaults[notification.WebhookDeliveryArgs]
 	deliver func(ctx context.Context, a notification.WebhookDeliveryArgs, attempt, maxAttempts int) error
@@ -144,7 +145,7 @@ type webhookWorker struct {
 
 func (w *webhookWorker) Work(ctx context.Context, job *river.Job[notification.WebhookDeliveryArgs]) error {
 	err := w.deliver(ctx, job.Args, job.Attempt, job.MaxAttempts)
-	if errors.Is(err, notification.ErrNotFound) {
+	if errors.Is(err, notification.ErrNotFound) || errors.Is(err, notification.ErrUndeliverable) {
 		return river.JobCancel(err)
 	}
 	return err

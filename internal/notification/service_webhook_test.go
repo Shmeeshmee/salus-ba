@@ -151,8 +151,8 @@ func TestDeliverWebhook_PostsTheSignedEventWithIDsOnly(t *testing.T) {
 	if h["Salus-Signature"] != "t="+ts+",v1="+hex.EncodeToString(mac.Sum(nil)) || h["Salus-Event-Id"] != delivery.EventID || h["Content-Type"] != "application/json" {
 		t.Errorf("headers %v", h)
 	}
-	if strings.Contains(body, "7f3a") || len(f.chats.asked) != 0 {
-		t.Errorf("without clinical content the message was read (%v) or sent", f.chats.asked)
+	if strings.Contains(body, "7f3a") || len(f.chats.asked) != 1 || strings.Count(f.chats.asked[0], "/") != 2 {
+		t.Errorf("without clinical content the message was read (%v) or sent; want the conversation's check alone", f.chats.asked)
 	}
 }
 
@@ -210,6 +210,39 @@ func TestDeliverWebhook_RetriesThenDeadLettersAndGivesUpOnWhatIsGone(t *testing.
 	f.chats.err = errors.Join(errors.New("revoked"), errNotFoundChat())
 	if err := f.svc.DeliverWebhook(t.Context(), delivery, 1, 8); !errors.Is(err, notification.ErrNotFound) || len(f.poster.bodies) != 0 {
 		t.Errorf("after a revocation: %v, posted %d; want nothing", err, len(f.poster.bodies))
+	}
+}
+
+// Every attempt checks that the clinic still sees the conversation, as the fan-out did: after the patient revoked
+// the care consent, a retry of a delivery without clinical content posts nothing and is not retried.
+func TestDeliverWebhook_PostsNothingAfterARevocationWithoutClinicalContentToo(t *testing.T) {
+	f := newChatFixture(t)
+	f.endpoint(t, hookID, "whsec_synthetic", false)
+	f.chats.err = errNotFoundChat()
+	if err := f.svc.DeliverWebhook(t.Context(), delivery, 2, 8); !errors.Is(err, notification.ErrNotFound) || len(f.poster.bodies) != 0 {
+		t.Errorf("after a revocation: %v, posted %d; want ErrNotFound and nothing", err, len(f.poster.bodies))
+	}
+	if len(f.chats.asked) != 1 || !strings.HasPrefix(f.chats.asked[0], "webhook_delivery/"+clinicID+"/"+convID) {
+		t.Errorf("asked %v, want the conversation checked by the job", f.chats.asked)
+	}
+}
+
+// A secret that does not open (a WEBHOOK_KEY replaced, a corrupt row) fails the same way on every retry: the
+// delivery is dead-lettered at once, with no status, and given up (ErrUndeliverable), and nothing is posted.
+func TestDeliverWebhook_DeadLettersASecretThatDoesNotOpen(t *testing.T) {
+	f := newChatFixture(t)
+	f.endpoint(t, hookID, "whsec_synthetic", false)
+	e := f.repo.endpoints[hookID]
+	e.SecretSealed, _ = fakeBox{}.Seal([]byte("whsec_synthetic"), "e9000000-0000-4000-8000-0000000000e9")
+	f.repo.endpoints[hookID] = e
+	err := f.svc.DeliverWebhook(t.Context(), delivery, 2, 8)
+	if !errors.Is(err, notification.ErrUndeliverable) || len(f.poster.bodies) != 0 {
+		t.Errorf("DeliverWebhook() = %v, posted %d; want ErrUndeliverable and nothing", err, len(f.poster.bodies))
+	}
+	want := notification.DeadLetter{EndpointID: hookID, OrganizationID: clinicID, EventID: delivery.EventID, EventType: notification.EventMessageCreated,
+		ConversationID: convID, MessageID: msgID, Attempts: 2}
+	if len(f.repo.dead) != 1 || f.repo.dead[0] != want {
+		t.Errorf("dead letters %+v, want %+v", f.repo.dead, want)
 	}
 }
 

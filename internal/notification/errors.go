@@ -16,4 +16,7 @@ var (
 	// ErrInvalid is returned for a request the contract refuses: a platform or token, a webhook URL that is not
 	// https to a public host, an unknown event, or one endpoint too many.
 	ErrInvalid = errors.New("notification: invalid request")
+	// ErrUndeliverable is returned for a webhook delivery that no retry can make (its endpoint's secret does not
+	// open): it is dead-lettered at once.
+	ErrUndeliverable = errors.New("notification: the webhook delivery cannot succeed on a retry")
 )
