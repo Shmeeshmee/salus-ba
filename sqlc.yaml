@@ -68,6 +68,14 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
+    queries: internal/clinicstats/query.sql
+    gen:
+      go:
+        package: clinicstatsdb
+        out: internal/clinicstats/clinicstatsdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/condition/query.sql
     gen:
       go:

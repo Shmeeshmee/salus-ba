@@ -121,6 +121,9 @@ services:
       # The retention_apply job's own login, salus_retention (BYPASSRLS, SELECT and DELETE on the tables whose
       # rule is delete). Only this service has it (internal/worker's tests check). Synthetic, local only.
       RETENTION_DATABASE_URL: postgres://salus_retention:local-retention-password@postgres:5432/salus?sslmode=disable
+      # The clinic statistics' builds' own login, salus_stats (ADR 0013: BYPASSRLS, the source columns only, the
+      # aggregates' writes). Only this service has it (internal/worker's tests check). Synthetic, local only.
+      STATS_DATABASE_URL: postgres://salus_stats:local-stats-password@postgres:5432/salus?sslmode=disable
       # The live suggestions' model (SAL-7): the fake suggests nothing, no text leaves the stack. Anthropic is
       # not enabled (docs/privacy/processors.md).
       LLM_ENGINE: fake

@@ -2,8 +2,8 @@
 // stream consumer (worker.ConsultStream, on REDIS_URL), which stores what the encounters' Redis Streams carry,
 // and the live suggestions worker (worker.Suggestions), on the language model LLM_ENGINE chooses
 // (config.LoadLLM: the fake by default, Anthropic's API off until its DPA). It
-// logs in as salus_app (DATABASE_URL), and as salus_retention (RETENTION_DATABASE_URL) for the retention_apply
-// job alone; the binary jobs reach the object store and clamd (config.LoadObjectStore, config.LoadClamd).
+// logs in as salus_app (DATABASE_URL), as salus_retention (RETENTION_DATABASE_URL) for the retention_apply job
+// alone, and as salus_stats (STATS_DATABASE_URL) for the clinic statistics' builds alone; the binary jobs reach the object store and clamd (config.LoadObjectStore, config.LoadClamd).
 package main
 
 import (
@@ -61,6 +61,10 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if ret.DatabaseURL == "" {
 		return errors.New("config: RETENTION_DATABASE_URL is required")
 	}
+	stats := config.LoadStats()
+	if stats.DatabaseURL == "" {
+		return errors.New("config: STATS_DATABASE_URL is required")
+	}
 	model, err := config.LoadLLM()
 	if err != nil {
 		return err
@@ -88,7 +92,12 @@ func run(ctx context.Context, logOut io.Writer) error {
 		return err
 	}
 	defer retentionPool.Close()
-	client, err := worker.New(pool, retentionPool, videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret), files, log)
+	statsPool, err := postgres.Open(ctx, stats.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer statsPool.Close()
+	client, err := worker.New(pool, retentionPool, statsPool, videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret), files, log)
 	if err != nil {
 		return err
 	}

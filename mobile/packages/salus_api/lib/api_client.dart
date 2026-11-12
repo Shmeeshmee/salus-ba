@@ -236,6 +236,18 @@ class ApiClient {
           return ChatMessage.fromJson(value);
         case 'ChatMessageFrame':
           return ChatMessageFrame.fromJson(value);
+        case 'ClinicAppointments':
+          return ClinicAppointments.fromJson(value);
+        case 'ClinicAppointmentsHeatmapInner':
+          return ClinicAppointmentsHeatmapInner.fromJson(value);
+        case 'ClinicAppointmentsPractitionersInner':
+          return ClinicAppointmentsPractitionersInner.fromJson(value);
+        case 'ClinicAppointmentsSeriesInner':
+          return ClinicAppointmentsSeriesInner.fromJson(value);
+        case 'ClinicDiagnoses':
+          return ClinicDiagnoses.fromJson(value);
+        case 'ClinicDiagnosesRowsInner':
+          return ClinicDiagnosesRowsInner.fromJson(value);
         case 'CommandError':
           return CommandError.fromJson(value);
         case 'CommandErrorMessage':

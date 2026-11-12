@@ -173,7 +173,8 @@ func (s *Service) cancel(ctx context.Context, c Caller, id string) (out Appointm
 
 // cancelled frees the slot of the cancelled appointment a and enqueues its e-mail, the end of its
 // consultation's access (consultation_access_end) and the discard of its questionnaire responses
-// (questionnaire_responses_discard), in its transaction. Every cancellation goes through it.
+// (questionnaire_responses_discard) and the refresh of the clinic's statistics, in its transaction. Every
+// cancellation goes through it.
 func (s *Service) cancelled(ctx context.Context, a Appointment) error {
 	if _, err := s.Slots.Release(ctx, a.OrganizationID, a.SlotID); err != nil {
 		return err
@@ -182,6 +183,9 @@ func (s *Service) cancelled(ctx context.Context, a Appointment) error {
 		return err
 	}
 	if err := s.Jobs.EnqueueAccessEnd(ctx, a.ID, a.OrganizationID); err != nil {
+		return err
+	}
+	if err := s.Stats.EnqueueStatsRefresh(ctx, a.OrganizationID, a.Start); err != nil {
 		return err
 	}
 	return s.Jobs.EnqueueQuestionnaireDiscard(ctx, a.ID, a.OrganizationID)
@@ -237,10 +241,13 @@ func (s *Service) setStatus(ctx context.Context, c Caller, id string, status Sta
 		return Appointment{}, ErrNotStarted, nil
 	}
 	out, err = s.Repo.SetStatus(ctx, id, status, now)
-	if errors.Is(err, ErrClosed) {
+	switch {
+	case errors.Is(err, ErrClosed):
 		return Appointment{}, ErrClosed, nil
+	case err != nil:
+		return Appointment{}, nil, err
 	}
-	return out, nil, err
+	return out, nil, s.Stats.EnqueueStatsRefresh(ctx, out.OrganizationID, out.Start)
 }
 
 // CancelForRevokedConsent cancels, after the patient revoked their consent with the clinic org (the

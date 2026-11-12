@@ -13,6 +13,8 @@ tables:
   appointment: {owner: appointment, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
   binary: {owner: binary, personal_data: true}
+  clinic_appointment_stat: {owner: clinicstats, personal_data: true}
+  clinic_diagnosis_stat: {owner: clinicstats, personal_data: true}
   communication: {owner: communication, personal_data: true}
   communication_revision: {owner: communication, personal_data: true}
   condition: {owner: condition, personal_data: true}

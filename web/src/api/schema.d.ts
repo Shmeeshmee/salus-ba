@@ -1457,6 +1457,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/analytics/clinic/appointments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's appointments over time
+         * @description The caller's clinic's appointments (docs/plans/analytics.md §4, §8), from the pre-computed counts (refreshed within seconds of a change, and nightly): per month of the clinic's local days from `from` to `to`, `booked` counting every appointment and the others those with that status now; the heatmap of the ones not cancelled by ISO weekday (1 is Monday) and local hour, busy cells only; and, for the clinic's admin only, the fulfilled ones per practitioner role (absent for anyone else). A practitioner who is not an admin may narrow to their own role only. Every read is audited on the clinic.
+         */
+        get: operations["getClinicAppointmentStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/clinic/diagnoses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's diagnoses, counted by a breakdown
+         * @description The caller's clinic's confirmed diagnoses (the coded fields of signed documents, docs/plans/analytics.md §4, §8) recorded on the clinic's local days from `from` to `to`, counted by `by`, most first (months in their order); a key is a diagnosis group or subgroup code, an ICD-10 code, a practitioner role's id, a SNOMED CT specialty code or a month (YYYY-MM), empty for no subgroup or no specialty. Exact counts. An admin gets the clinic's; a practitioner who is not an admin their own role's only, whatever they ask for. Every read is audited on the clinic.
+         */
+        get: operations["getClinicDiagnosisStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2679,6 +2719,45 @@ export interface components {
             version: 1;
             payload: components["schemas"]["SendMessageRequest"];
         };
+        ClinicAppointments: {
+            series: {
+                /** @description The month, YYYY-MM. */
+                period: string;
+                /**
+                 * Format: int64
+                 * @description Every appointment starting in the month.
+                 */
+                booked: number;
+                /** Format: int64 */
+                fulfilled: number;
+                /** Format: int64 */
+                noshow: number;
+                /** Format: int64 */
+                cancelled: number;
+            }[];
+            heatmap: {
+                /** @description ISO weekday, 1 is Monday. */
+                weekday: number;
+                /** @description The clinic's local hour. */
+                hour: number;
+                /** Format: int64 */
+                count: number;
+            }[];
+            /** @description For the clinic's admin only. */
+            practitioners?: {
+                /** Format: uuid */
+                practitionerRole: string;
+                /** Format: int64 */
+                fulfilled: number;
+            }[];
+        };
+        ClinicDiagnoses: {
+            rows: {
+                key: string;
+                /** Format: int64 */
+                count: number;
+            }[];
+        };
     };
     responses: {
         /** @description The message; its ETag is its version. */
@@ -3023,8 +3102,25 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description `invalid_request`: no range, a malformed date, a reversed or over ten-year range, or an unknown breakdown. */
+        StatsInvalid: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
     };
     parameters: {
+        /** @description The first local day of the clinic (YYYY-MM-DD). */
+        StatsFrom: string;
+        /** @description The last local day, included; at most ten years after `from`. */
+        StatsTo: string;
+        /** @description Only this practitioner role's figures. */
+        StatsPractitionerRole: string;
+        /** @description Only the roles of this SNOMED CT specialty code. */
+        StatsSpecialty: string;
         /** @description The conversation's id. */
         ConversationID: string;
         /** @description The message's id (FHIR Communication.id). */
@@ -6761,6 +6857,93 @@ export interface operations {
                 };
             };
             404: components["responses"]["ChatNotFound"];
+        };
+    };
+    getClinicAppointmentStats: {
+        parameters: {
+            query: {
+                /** @description The first local day of the clinic (YYYY-MM-DD). */
+                from: components["parameters"]["StatsFrom"];
+                /** @description The last local day, included; at most ten years after `from`. */
+                to: components["parameters"]["StatsTo"];
+                /** @description Only this practitioner role's figures. */
+                practitionerRole?: components["parameters"]["StatsPractitionerRole"];
+                /** @description Only the roles of this SNOMED CT specialty code. */
+                specialty?: components["parameters"]["StatsSpecialty"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The figures. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicAppointments"];
+                };
+            };
+            400: components["responses"]["StatsInvalid"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: the caller is neither the admin nor a practitioner of a clinic, or a practitioner who is not an admin asked for another role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicDiagnosisStats: {
+        parameters: {
+            query: {
+                /** @description The first local day of the clinic (YYYY-MM-DD). */
+                from: components["parameters"]["StatsFrom"];
+                /** @description The last local day, included; at most ten years after `from`. */
+                to: components["parameters"]["StatsTo"];
+                by: "group" | "subgroup" | "code" | "practitionerRole" | "specialty" | "month";
+                /** @description Only this diagnosis group. */
+                group?: string;
+                /** @description Only this diagnosis subgroup. */
+                subgroup?: string;
+                /** @description Only this practitioner role's figures. */
+                practitionerRole?: components["parameters"]["StatsPractitionerRole"];
+                /** @description Only the roles of this SNOMED CT specialty code. */
+                specialty?: components["parameters"]["StatsSpecialty"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The counts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicDiagnoses"];
+                };
+            };
+            400: components["responses"]["StatsInvalid"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: the caller is neither the admin nor a practitioner of a clinic, or a practitioner who is not an admin has no role or asked for another role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
         };
     };
 }
