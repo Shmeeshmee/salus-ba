@@ -39,6 +39,10 @@ func (r *postgresRepository) SetConversation(ctx context.Context, id string) err
 	return postgres.SetLocal(ctx, "app.conversation_id", id)
 }
 
+func (r *postgresRepository) SetPractitionerRole(ctx context.Context, id string) error {
+	return postgres.SetLocal(ctx, "app.practitioner_role_id", id)
+}
+
 func (r *postgresRepository) CreateConversation(ctx context.Context, c Conversation, parts []Participant) (Conversation, bool, error) {
 	q := r.q(ctx)
 	row, err := q.CreateConversation(ctx, communicationdb.CreateConversationParams{
@@ -57,11 +61,9 @@ func (r *postgresRepository) CreateConversation(ctx context.Context, c Conversat
 	out := conversation(row)
 	if created {
 		for _, p := range parts {
-			if _, err := q.InsertParticipant(ctx, communicationdb.InsertParticipantParams{
-				ConversationID: row.ID, PatientID: optUID(p.PatientID), PractitionerRoleID: optUID(p.PractitionerRoleID),
-				Role: string(p.Role), HistoryFromSeq: p.HistoryFromSeq, AddedBy: uid(p.AddedBy), AddedAt: ts(p.AddedAt),
-			}); err != nil {
-				return Conversation{}, false, fmt.Errorf("communication: add participant: %w", err)
+			p.ConversationID = out.ID
+			if _, err := r.InsertParticipant(ctx, p); err != nil {
+				return Conversation{}, false, err
 			}
 		}
 	}
@@ -93,13 +95,17 @@ func (r *postgresRepository) Participants(ctx context.Context, conversationID st
 	}
 	out := make([]Participant, 0, len(rows))
 	for _, p := range rows {
-		out = append(out, Participant{
-			AddedAt: p.AddedAt.Time, ID: str(p.ID), ConversationID: str(p.ConversationID), PatientID: str(p.PatientID),
-			PractitionerRoleID: str(p.PractitionerRoleID), AddedBy: str(p.AddedBy), Role: Role(p.Role),
-			HistoryFromSeq: p.HistoryFromSeq, ReadSeq: p.ReadSeq,
-		})
+		out = append(out, participant(p))
 	}
 	return out, nil
+}
+
+func participant(p communicationdb.ParticipantsRow) Participant {
+	return Participant{
+		AddedAt: p.AddedAt.Time, ID: str(p.ID), ConversationID: str(p.ConversationID), PatientID: str(p.PatientID),
+		PractitionerRoleID: str(p.PractitionerRoleID), OrganizationID: str(p.OrganizationID), AddedBy: str(p.AddedBy), Role: Role(p.Role),
+		Status: ParticipantStatus(p.Status), Reason: Reason(p.Reason.String), HistoryFromSeq: p.HistoryFromSeq, ReadSeq: p.ReadSeq,
+	}
 }
 
 func (r *postgresRepository) Conversations(ctx context.Context, f ListFilter) ([]Conversation, error) {
@@ -115,15 +121,20 @@ func (r *postgresRepository) Conversations(ctx context.Context, f ListFilter) ([
 	}
 	out := make([]Conversation, 0, len(rows))
 	for _, row := range rows {
-		c := conversation(communicationdb.Conversation{
-			ID: row.ID, CreatedAt: row.CreatedAt, LastSentAt: row.LastSentAt, OrganizationID: row.OrganizationID, PatientID: row.PatientID,
-			PractitionerRoleID: row.PractitionerRoleID, EncounterID: row.EncounterID, ParentID: row.ParentID, CreatedBy: row.CreatedBy,
-			LastSeq: row.LastSeq, StaffOnly: row.StaffOnly,
-		})
-		c.Unread = max(c.LastSeq-row.ReadSeq, 0)
-		out = append(out, c)
+		out = append(out, withUnread(row))
 	}
 	return out, nil
+}
+
+// withUnread is the conversation of a participant's list, with their unread count.
+func withUnread(row communicationdb.ConversationsOfParticipantRow) Conversation {
+	c := conversation(communicationdb.Conversation{
+		ID: row.ID, CreatedAt: row.CreatedAt, LastSentAt: row.LastSentAt, OrganizationID: row.OrganizationID, PatientID: row.PatientID,
+		PractitionerRoleID: row.PractitionerRoleID, EncounterID: row.EncounterID, ParentID: row.ParentID, CreatedBy: row.CreatedBy,
+		LastSeq: row.LastSeq, StaffOnly: row.StaffOnly,
+	})
+	c.Unread = max(c.LastSeq-row.ReadSeq, 0)
+	return c
 }
 
 func (r *postgresRepository) Messages(ctx context.Context, conversationID string, before *Cursor, fromSeq int64, limit int) ([]Message, error) {
@@ -230,6 +241,90 @@ func (r *postgresRepository) AddPartitions(ctx context.Context, from time.Time, 
 		return fmt.Errorf("communication: add partitions: %w", err)
 	}
 	return nil
+}
+
+func (r *postgresRepository) Participant(ctx context.Context, id string) (Participant, error) {
+	row, err := r.q(ctx).ParticipantByID(ctx, uid(id))
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Participant{}, ErrNotFound
+	case err != nil:
+		return Participant{}, fmt.Errorf("communication: participant: %w", err)
+	}
+	return participant(communicationdb.ParticipantsRow(row)), nil
+}
+
+func (r *postgresRepository) InsertParticipant(ctx context.Context, p Participant) (Participant, error) {
+	row, err := r.q(ctx).InsertParticipant(ctx, communicationdb.InsertParticipantParams{
+		ConversationID: uid(p.ConversationID), PatientID: optUID(p.PatientID), PractitionerRoleID: optUID(p.PractitionerRoleID),
+		OrganizationID: optUID(p.OrganizationID), Role: string(p.Role), Status: string(p.Status), Reason: text(string(p.Reason)),
+		HistoryFromSeq: p.HistoryFromSeq, AddedBy: uid(p.AddedBy), AddedAt: ts(p.AddedAt),
+	})
+	if err != nil {
+		return Participant{}, fmt.Errorf("communication: add participant: %w", err)
+	}
+	return participant(communicationdb.ParticipantsRow(row)), nil
+}
+
+func (r *postgresRepository) ActivateParticipant(ctx context.Context, id string) error {
+	if err := r.q(ctx).ActivateParticipant(ctx, uid(id)); err != nil {
+		return fmt.Errorf("communication: activate participant: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) RemoveParticipant(ctx context.Context, id string, at time.Time) error {
+	if err := r.q(ctx).RemoveParticipant(ctx, communicationdb.RemoveParticipantParams{ID: uid(id), RemovedAt: ts(at)}); err != nil {
+		return fmt.Errorf("communication: remove participant: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) CreateThread(ctx context.Context, c Conversation, parts []Participant) (Conversation, error) {
+	row, err := r.q(ctx).InsertThread(ctx, communicationdb.InsertThreadParams{
+		OrganizationID: uid(c.OrganizationID), PatientID: uid(c.PatientID), PractitionerRoleID: uid(c.PractitionerRoleID),
+		EncounterID: optUID(c.EncounterID), ParentID: uid(c.ParentID), CreatedBy: uid(c.CreatedBy), CreatedAt: ts(c.Created),
+	})
+	if err != nil {
+		return Conversation{}, fmt.Errorf("communication: open thread: %w", err)
+	}
+	out := conversation(row)
+	for _, p := range parts {
+		p.ConversationID = out.ID
+		added, err := r.InsertParticipant(ctx, p)
+		if err != nil {
+			return Conversation{}, err
+		}
+		out.Participants = append(out.Participants, added)
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) Threads(ctx context.Context, parentID, roleID string) ([]Conversation, error) {
+	rows, err := r.q(ctx).ThreadsOfParticipant(ctx, communicationdb.ThreadsOfParticipantParams{ParentID: uid(parentID), PractitionerRoleID: uid(roleID)})
+	if err != nil {
+		return nil, fmt.Errorf("communication: threads: %w", err)
+	}
+	out := make([]Conversation, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, withUnread(communicationdb.ConversationsOfParticipantRow(row)))
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) Invitations(ctx context.Context, patientID string) ([]Invitation, error) {
+	rows, err := r.q(ctx).Invitations(ctx, uid(patientID))
+	if err != nil {
+		return nil, fmt.Errorf("communication: invitations: %w", err)
+	}
+	out := make([]Invitation, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, Invitation{
+			InvitedAt: row.AddedAt.Time, ID: str(row.ID), ConversationID: str(row.ConversationID), OrganizationID: str(row.OrganizationID),
+			PractitionerRoleID: str(row.PractitionerRoleID), Reason: Reason(row.Reason.String),
+		})
+	}
+	return out, nil
 }
 
 func conversation(c communicationdb.Conversation) Conversation {

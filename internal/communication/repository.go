@@ -13,6 +13,9 @@ type Repository interface {
 	SetPatient(ctx context.Context, id string) error
 	SetClinic(ctx context.Context, id string) error
 	SetConversation(ctx context.Context, id string) error
+	// SetPractitionerRole sets app.practitioner_role_id, the signed-in practitioner's role: as a doctor invited from
+	// another clinic, they see the conversations they were granted (00042).
+	SetPractitionerRole(ctx context.Context, id string) error
 
 	// CreateConversation stores c with its participants unless the patient, role and encounter have their one
 	// conversation already; it returns the stored conversation (with its participants) and whether it is new.
@@ -48,6 +51,23 @@ type Repository interface {
 	UpdateBody(ctx context.Context, m Message) error
 	// Revisions returns the earlier bodies of the message, oldest first.
 	Revisions(ctx context.Context, conversationID, id string) ([]Revision, error)
+	// Participant returns the participant id, pending or active, where the scope shows its conversation;
+	// ErrNotFound otherwise.
+	Participant(ctx context.Context, id string) (Participant, error)
+	// InsertParticipant stores p, who has read the history before them (read_seq is their history_from_seq), and
+	// returns it with its id.
+	InsertParticipant(ctx context.Context, p Participant) (Participant, error)
+	// ActivateParticipant makes the pending participant id active.
+	ActivateParticipant(ctx context.Context, id string) error
+	// RemoveParticipant ends the participant id at at; a practitioner leaves the conversation's side threads with it.
+	RemoveParticipant(ctx context.Context, id string, at time.Time) error
+	// CreateThread stores the side thread c of its parent with its participants and returns it with them.
+	CreateThread(ctx context.Context, c Conversation, participants []Participant) (Conversation, error)
+	// Threads returns the side threads of the conversation the practitioner role takes part in, with that
+	// participant's unread count, newest first.
+	Threads(ctx context.Context, parentID, roleID string) ([]Conversation, error)
+	// Invitations returns the patient's pending invitations, oldest first.
+	Invitations(ctx context.Context, patientID string) ([]Invitation, error)
 	// AddPartitions creates the monthly partitions of the messages from the month of from for months months,
 	// skipping those that exist (communication_add_partitions).
 	AddPartitions(ctx context.Context, from time.Time, months int) error

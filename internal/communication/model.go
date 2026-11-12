@@ -89,8 +89,13 @@ type Participant struct {
 	ConversationID     string    `json:"-"`
 	PatientID          string    `json:"patient_id,omitempty"`
 	PractitionerRoleID string    `json:"practitioner_role_id,omitempty"`
-	AddedBy            string    `json:"-"`
-	Role               Role      `json:"role"`
+	// OrganizationID is a practitioner's clinic: another than the conversation's for a doctor invited from another
+	// clinic (SAL-28).
+	OrganizationID string            `json:"organization_id,omitempty"`
+	AddedBy        string            `json:"-"`
+	Role           Role              `json:"role"`
+	Status         ParticipantStatus `json:"status"`
+	Reason         Reason            `json:"reason,omitempty"` // why a practitioner was added; none for the first two
 	// HistoryFromSeq: the participant reads the messages after this number; 0 for the whole history (SAL-28).
 	HistoryFromSeq int64 `json:"history_from_seq"`
 	// ReadSeq is the participant's own read position: never sent, as another participant's would be a stored read
@@ -263,3 +268,72 @@ func validUUID(s string) bool {
 	}
 	return true
 }
+
+// ParticipantStatus is whether a participant takes part (SAL-28).
+type ParticipantStatus string
+
+// The statuses: a doctor invited from another clinic waits for the patient's consent and until then sees nothing.
+const (
+	StatusActive         ParticipantStatus = "active"
+	StatusPendingConsent ParticipantStatus = "pending_consent"
+)
+
+// Reason is why the treating practitioner adds a doctor.
+type Reason string
+
+// The reasons (docs/plans/chat.md "Contract of wave 1").
+const (
+	ReasonSecondOpinion    Reason = "second_opinion"
+	ReasonSpecialistReview Reason = "specialist_review"
+	ReasonHandover         Reason = "handover"
+)
+
+func (r Reason) valid() bool {
+	return r == ReasonSecondOpinion || r == ReasonSpecialistReview || r == ReasonHandover
+}
+
+// The history an added doctor reads: all of it, or the messages after a number the adding doctor chose.
+const (
+	HistoryFull = "full"
+	HistoryFrom = "from"
+)
+
+// AddParticipant is the treating practitioner's request to add a practitioner role of their clinic, or to invite one
+// of another clinic (AddParticipantRequest in api/openapi.yaml).
+type AddParticipant struct {
+	FromSeq            *int64 `json:"from_seq,omitempty"` // with HistoryFrom only
+	PractitionerRoleID string `json:"practitioner_role_id"`
+	OrganizationID     string `json:"organization_id"`
+	Reason             Reason `json:"reason"`
+	History            string `json:"history"`
+}
+
+// Invitation is a doctor of another clinic waiting for the patient's consent to take part in their conversation: the
+// patient's pending participant (ChatInvitation in api/openapi.yaml).
+type Invitation struct {
+	InvitedAt          time.Time `json:"invited_at"`
+	ID                 string    `json:"id"` // the participant's id
+	ConversationID     string    `json:"conversation_id"`
+	OrganizationID     string    `json:"organization_id"`
+	PractitionerRoleID string    `json:"practitioner_role_id"`
+	Reason             Reason    `json:"reason"`
+}
+
+// Decision is the patient's answer to an invitation.
+type Decision string
+
+// The decisions: a grant is a FHIR Consent of the patient (consent.KindChat).
+const (
+	DecisionGrant   Decision = "grant"
+	DecisionDecline Decision = "decline"
+)
+
+// The codes of the system messages of a group consult (docs/plans/chat.md "Contract of wave 1"); their arguments are
+// opaque ids and codes only, which the apps render from their catalogs.
+const (
+	SystemParticipantAdded   = "participant_added"   // practitioner_role_id, organization_id, reason
+	SystemParticipantInvited = "participant_invited" // practitioner_role_id, organization_id, reason
+	SystemParticipantRemoved = "participant_removed" // practitioner_role_id
+	SystemConsentGranted     = "consent_granted"     // practitioner_role_id
+	SystemConsentDeclined    = "consent_declined"    // practitioner_role_id
+)
