@@ -1068,6 +1068,235 @@ class AppLocalizationsAr extends AppLocalizations {
   String get termClose => 'إغلاق';
 
   @override
+  String get chatsTitle => 'الرسائل';
+
+  @override
+  String get chatsEmpty => 'ليست لديك محادثات بعد.';
+
+  @override
+  String chatUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count رسالة غير مقروءة',
+      many: '$count رسالة غير مقروءة',
+      few: '$count رسائل غير مقروءة',
+      two: 'رسالتان غير مقروءتين',
+      one: 'رسالة واحدة غير مقروءة',
+      zero: 'لا توجد رسائل غير مقروءة',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDoctorUnknown => 'طبيبك';
+
+  @override
+  String get chatMessageHint => 'اكتب رسالة';
+
+  @override
+  String get chatSend => 'إرسال';
+
+  @override
+  String get chatAttach => 'إضافة ملف';
+
+  @override
+  String get chatSendFailed =>
+      'لم تُرسَل الرسالة. تحقّق من اتصالك وحاول مرة أخرى.';
+
+  @override
+  String get chatFileRejected => 'لم يُقبَل هذا الملف.';
+
+  @override
+  String get chatFileRemove => 'إزالة الملف';
+
+  @override
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'لديك بالفعل $count ملف بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      many:
+          'لديك بالفعل $count ملفًا بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      few:
+          'لديك بالفعل $count ملفات بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      two: 'لديك بالفعل ملفان بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      one: 'لديك بالفعل ملف واحد بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      zero: 'لا توجد لديك ملفات بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatOpenFailed => 'تعذّر فتح الملف. حاول مرة أخرى.';
+
+  @override
+  String get chatEndedSession =>
+      'انتهت جلستك. سجّل الدخول مرة أخرى لرؤية الرسائل الجديدة.';
+
+  @override
+  String get chatEnded => 'لم يعد بالإمكان عرض رسائل جديدة في هذه المحادثة.';
+
+  @override
+  String get chatHours => 'مواعيد الرسائل';
+
+  @override
+  String chatHoursDay(String day, String start, String end) {
+    return '$day: $start–$end';
+  }
+
+  @override
+  String get chatHoursNone => 'لم تحدّد العيادة مواعيد للرسائل.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'الأوقات بتوقيت العيادة، $zone.';
+  }
+
+  @override
+  String chatResponseTime(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: 'تردّ العيادة عادةً خلال $hours ساعة.',
+      many: 'تردّ العيادة عادةً خلال $hours ساعة.',
+      few: 'تردّ العيادة عادةً خلال $hours ساعات.',
+      two: 'تردّ العيادة عادةً خلال ساعتين.',
+      one: 'تردّ العيادة عادةً خلال ساعة واحدة.',
+      zero: 'تردّ العيادة عادةً خلال $hours ساعة.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatOutOfHours(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other:
+          'العيادة خارج مواعيد الرسائل الآن. يمكنك الكتابة مع ذلك، وتردّ عادةً خلال $hours ساعة.',
+      many:
+          'العيادة خارج مواعيد الرسائل الآن. يمكنك الكتابة مع ذلك، وتردّ عادةً خلال $hours ساعة.',
+      few:
+          'العيادة خارج مواعيد الرسائل الآن. يمكنك الكتابة مع ذلك، وتردّ عادةً خلال $hours ساعات.',
+      two: 'العيادة خارج مواعيد الرسائل الآن. يمكنك الكتابة مع ذلك، وتردّ عادةً خلال ساعتين.',
+      one: 'العيادة خارج مواعيد الرسائل الآن. يمكنك الكتابة مع ذلك، وتردّ عادةً خلال ساعة واحدة.',
+      zero:
+          'العيادة خارج مواعيد الرسائل الآن. يمكنك الكتابة مع ذلك، وتردّ عادةً خلال $hours ساعة.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemInvited(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion':
+          'دُعي طبيب من عيادة أخرى إلى هذه المحادثة لإبداء رأي ثانٍ.',
+      'specialist_review':
+          'دُعي طبيب من عيادة أخرى إلى هذه المحادثة لتقييم تخصصي.',
+      'handover': 'دُعي طبيب من عيادة أخرى إلى هذه المحادثة لتولّي الرعاية.',
+      'other': 'دُعي طبيب من عيادة أخرى إلى هذه المحادثة.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemAdded(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'انضم طبيب إلى المحادثة لإبداء رأي ثانٍ.',
+      'specialist_review': 'انضم طبيب إلى المحادثة لتقييم تخصصي.',
+      'handover': 'انضم طبيب إلى المحادثة لتولّي الرعاية.',
+      'other': 'انضم طبيب إلى المحادثة.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatSystemRemoved => 'لم يعد أحد الأطباء مشاركًا في المحادثة.';
+
+  @override
+  String get chatSystemGranted =>
+      'سمحت لطبيب من عيادة أخرى بالانضمام إلى المحادثة.';
+
+  @override
+  String get chatSystemDeclined => 'رفضت طبيبًا من عيادة أخرى.';
+
+  @override
+  String get chatSystemOther => 'جرى تحديث المحادثة.';
+
+  @override
+  String get chatInviteTitle => 'طبيب من عيادة أخرى يطلب الانضمام';
+
+  @override
+  String chatInviteBody(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'تطلب عيادتك انضمام طبيب من عيادة أخرى إلى هذه المحادثة لإبداء رأي ثانٍ.',
+      'specialist_review': 'تطلب عيادتك انضمام طبيب من عيادة أخرى إلى هذه المحادثة لتقييم تخصصي.',
+      'handover': 'تطلب عيادتك انضمام طبيب من عيادة أخرى إلى هذه المحادثة لتولّي رعايتك.',
+      'other': 'تطلب عيادتك انضمام طبيب من عيادة أخرى إلى هذه المحادثة.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatInviteWho(String doctor, String clinic) {
+    return 'الطبيب: $doctor، $clinic';
+  }
+
+  @override
+  String get chatInviteUnresolved =>
+      'تعذّر تحميل اسم الطبيب المدعو وعيادته. يمكنك منح الوصول فقط بعد عرضهما.';
+
+  @override
+  String chatInviteSees(String history) {
+    String _temp0 = intl.Intl.selectLogic(history, {
+      'full': 'إذا وافقت، يرى الطبيب المحادثة كاملة، بما فيها الرسائل السابقة، ويمكنه الكتابة فيها.',
+      'from': 'إذا وافقت، يرى الطبيب المحادثة ابتداءً من رسالة اختارتها عيادتك، ويمكنه الكتابة فيها.',
+      'other': 'إذا وافقت، يرى الطبيب المحادثة ويمكنه الكتابة فيها.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatInviteChoice =>
+      'يمكنك الرفض. وإذا وافقت، يمكنك لاحقًا إلغاء وصول الطبيب من هذه المحادثة، وينتهي فورًا.';
+
+  @override
+  String get chatGrant => 'منح الوصول';
+
+  @override
+  String get chatDecline => 'رفض';
+
+  @override
+  String get chatGranted =>
+      'تم منح الوصول. يمكنك إلغاؤه من هذه المحادثة في أي وقت.';
+
+  @override
+  String get chatDeclined => 'تم الرفض. لن ينضم الطبيب إلى هذه المحادثة.';
+
+  @override
+  String get chatRevoke => 'إلغاء وصول الطبيب من العيادة الأخرى';
+
+  @override
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'تم منح الوصول: $doctor، $clinic.';
+  }
+
+  @override
+  String get chatGrantedToUnknown => 'تم منح الوصول لطبيب من عيادة أخرى.';
+
+  @override
+  String get chatRevokeBody =>
+      'يفقد الطبيب من العيادة الأخرى الوصول إلى هذه المحادثة فورًا. وتبقى الرسائل المكتوبة سابقًا فيها.';
+
+  @override
+  String get chatRevokeConfirm => 'إلغاء الوصول';
+
+  @override
+  String get chatRevoked => 'تم إلغاء الوصول.';
+
+  @override
   String get allergies => 'الحساسية';
 
   @override

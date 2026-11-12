@@ -1052,6 +1052,224 @@ class AppLocalizationsTr extends AppLocalizations {
   String get termClose => 'Kapat';
 
   @override
+  String get chatsTitle => 'Mesajlar';
+
+  @override
+  String get chatsEmpty => 'Henüz bir yazışmanız yok.';
+
+  @override
+  String chatUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count okunmamış mesaj',
+      one: '$count okunmamış mesaj',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDoctorUnknown => 'Sağlık uzmanınız';
+
+  @override
+  String get chatMessageHint => 'Bir mesaj yazın';
+
+  @override
+  String get chatSend => 'Gönder';
+
+  @override
+  String get chatAttach => 'Dosya ekle';
+
+  @override
+  String get chatSendFailed =>
+      'Mesaj gönderilmedi. Bağlantınızı kontrol edip tekrar deneyin.';
+
+  @override
+  String get chatFileRejected => 'Bu dosya kabul edilmedi.';
+
+  @override
+  String get chatFileRemove => 'Dosyayı kaldır';
+
+  @override
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Gönderilmeyi bekleyen $count dosyanız zaten var. Gönderilmeyen dosyalar 24 saat sonra kaldırılır; daha sonra tekrar deneyin.',
+      one:
+          'Gönderilmeyi bekleyen $count dosyanız zaten var. Gönderilmeyen dosyalar 24 saat sonra kaldırılır; daha sonra tekrar deneyin.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatOpenFailed => 'Dosya açılamadı. Tekrar deneyin.';
+
+  @override
+  String get chatEndedSession =>
+      'Oturumunuz sona erdi. Yeni mesajları görmek için tekrar giriş yapın.';
+
+  @override
+  String get chatEnded => 'Bu yazışmada yeni mesajlar artık gösterilemiyor.';
+
+  @override
+  String get chatHours => 'Mesaj saatleri';
+
+  @override
+  String chatHoursDay(String day, String start, String end) {
+    return '$day: $start–$end';
+  }
+
+  @override
+  String get chatHoursNone => 'Klinik mesaj saatlerini belirlemedi.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'Saatler kliniğin saat dilimindedir: $zone.';
+  }
+
+  @override
+  String chatResponseTime(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: 'Klinik genellikle $hours saat içinde yanıt verir.',
+      one: 'Klinik genellikle $hours saat içinde yanıt verir.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatOutOfHours(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other:
+          'Klinik şu anda mesaj saatlerinin dışında. Yine de yazabilirsiniz; genellikle $hours saat içinde yanıt verir.',
+      one:
+          'Klinik şu anda mesaj saatlerinin dışında. Yine de yazabilirsiniz; genellikle $hours saat içinde yanıt verir.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemInvited(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Başka bir klinikten bir sağlık uzmanı ikinci görüş için bu yazışmaya davet edildi.',
+      'specialist_review': 'Başka bir klinikten bir sağlık uzmanı uzman değerlendirmesi için bu yazışmaya davet edildi.',
+      'handover': 'Başka bir klinikten bir sağlık uzmanı tedaviyi devralmak üzere bu yazışmaya davet edildi.',
+      'other':
+          'Başka bir klinikten bir sağlık uzmanı bu yazışmaya davet edildi.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemAdded(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion':
+          'Bir sağlık uzmanı ikinci görüş için yazışmaya katıldı.',
+      'specialist_review':
+          'Bir sağlık uzmanı uzman değerlendirmesi için yazışmaya katıldı.',
+      'handover':
+          'Bir sağlık uzmanı tedaviyi devralmak üzere yazışmaya katıldı.',
+      'other': 'Bir sağlık uzmanı yazışmaya katıldı.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatSystemRemoved =>
+      'Bir sağlık uzmanı artık yazışmada yer almıyor.';
+
+  @override
+  String get chatSystemGranted =>
+      'Başka bir klinikten bir sağlık uzmanının yazışmaya katılmasına izin verdiniz.';
+
+  @override
+  String get chatSystemDeclined =>
+      'Başka bir klinikten bir sağlık uzmanını reddettiniz.';
+
+  @override
+  String get chatSystemOther => 'Yazışma güncellendi.';
+
+  @override
+  String get chatInviteTitle =>
+      'Başka bir klinikten bir sağlık uzmanı katılmak istiyor';
+
+  @override
+  String chatInviteBody(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Kliniğiniz, başka bir klinikten bir sağlık uzmanının ikinci görüş için bu yazışmaya katılmasını istiyor.',
+      'specialist_review': 'Kliniğiniz, başka bir klinikten bir sağlık uzmanının uzman değerlendirmesi için bu yazışmaya katılmasını istiyor.',
+      'handover': 'Kliniğiniz, başka bir klinikten bir sağlık uzmanının tedavinizi devralmak üzere bu yazışmaya katılmasını istiyor.',
+      'other': 'Kliniğiniz, başka bir klinikten bir sağlık uzmanının bu yazışmaya katılmasını istiyor.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatInviteWho(String doctor, String clinic) {
+    return 'Sağlık uzmanı: $doctor, $clinic';
+  }
+
+  @override
+  String get chatInviteUnresolved =>
+      'Davet edilen sağlık uzmanının adı ve kliniği yüklenemedi. Erişime ancak bunlar gösterildiğinde izin verebilirsiniz.';
+
+  @override
+  String chatInviteSees(String history) {
+    String _temp0 = intl.Intl.selectLogic(history, {
+      'full': 'Kabul ederseniz sağlık uzmanı, önceki mesajlar dahil yazışmanın tamamını görür ve yazışmaya yazabilir.',
+      'from': 'Kabul ederseniz sağlık uzmanı, yazışmayı kliniğinizin seçtiği bir mesajdan itibaren görür ve yazışmaya yazabilir.',
+      'other': 'Kabul ederseniz sağlık uzmanı yazışmayı görür ve yazışmaya yazabilir.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatInviteChoice =>
+      'Reddedebilirsiniz. Kabul ederseniz sağlık uzmanının erişimini daha sonra bu yazışmadan geri alabilirsiniz; erişim hemen sona erer.';
+
+  @override
+  String get chatGrant => 'Erişim ver';
+
+  @override
+  String get chatDecline => 'Reddet';
+
+  @override
+  String get chatGranted =>
+      'Erişim verildi. İstediğiniz zaman bu yazışmadan geri alabilirsiniz.';
+
+  @override
+  String get chatDeclined =>
+      'Reddedildi. Sağlık uzmanı bu yazışmaya katılmıyor.';
+
+  @override
+  String get chatRevoke =>
+      'Diğer klinikteki sağlık uzmanının erişimini geri al';
+
+  @override
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'Erişim verildi: $doctor, $clinic.';
+  }
+
+  @override
+  String get chatGrantedToUnknown =>
+      'Başka bir klinikteki bir sağlık uzmanına erişim verildi.';
+
+  @override
+  String get chatRevokeBody =>
+      'Diğer klinikteki sağlık uzmanı bu yazışmaya erişimini hemen kaybeder. Daha önce yazılmış mesajlar yazışmada kalır.';
+
+  @override
+  String get chatRevokeConfirm => 'Erişimi geri al';
+
+  @override
+  String get chatRevoked => 'Erişim geri alındı.';
+
+  @override
   String get allergies => 'Alerjiler';
 
   @override

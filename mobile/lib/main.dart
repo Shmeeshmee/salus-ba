@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'app.dart';
 import 'booking.dart';
 import 'call.dart';
+import 'chat_client.dart';
 import 'files.dart';
 import 'l10n/language.dart';
 import 'session.dart';
@@ -29,6 +30,7 @@ void main() {
     SalusApp(
       session: session,
       booking: Booking(client),
+      chats: ChatClient(client),
       now: DateTime.now,
       media: LiveKitMedia(),
       files: DeviceFiles(),

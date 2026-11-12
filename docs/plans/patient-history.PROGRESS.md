@@ -71,7 +71,8 @@ consent state and the clinic's appointments).
 
 Open: Provenance for the clinical writes (`Record`, `Confirm`, a clinic's `Update` and `Remove`) is not written yet:
 how to store it (composition keeps one Provenance id on its row; an entry has several clinical writes, and
-`GET /fhir/R4/Provenance/{id}` is composition's route) is a question for the owner.
+`GET /fhir/R4/Provenance/{id}` is composition's route) was put to the owner, who decided (2026-11-13) that it comes in a follow-up PR after
+SAL-41 merges.
 
 Copy waiting for the owner:
 

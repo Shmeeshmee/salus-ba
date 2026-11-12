@@ -1070,6 +1070,223 @@ class AppLocalizationsFr extends AppLocalizations {
   String get termClose => 'Fermer';
 
   @override
+  String get chatsTitle => 'Messages';
+
+  @override
+  String get chatsEmpty => 'Vous n’avez encore aucune conversation.';
+
+  @override
+  String chatUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messages non lus',
+      one: '$count message non lu',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDoctorUnknown => 'Votre praticien';
+
+  @override
+  String get chatMessageHint => 'Écrire un message';
+
+  @override
+  String get chatSend => 'Envoyer';
+
+  @override
+  String get chatAttach => 'Ajouter un fichier';
+
+  @override
+  String get chatSendFailed =>
+      'Le message n’a pas été envoyé. Vérifiez votre connexion et réessayez.';
+
+  @override
+  String get chatFileRejected => 'Ce fichier n’a pas été accepté.';
+
+  @override
+  String get chatFileRemove => 'Retirer le fichier';
+
+  @override
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Vous avez déjà $count fichiers en attente d’envoi. Les fichiers non envoyés sont supprimés après 24 heures ; réessayez plus tard.',
+      one:
+          'Vous avez déjà $count fichier en attente d’envoi. Les fichiers non envoyés sont supprimés après 24 heures ; réessayez plus tard.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatOpenFailed => 'Le fichier n’a pas pu être ouvert. Réessayez.';
+
+  @override
+  String get chatEndedSession =>
+      'Votre session a pris fin. Reconnectez-vous pour voir les nouveaux messages.';
+
+  @override
+  String get chatEnded =>
+      'Les nouveaux messages ne peuvent plus être affichés dans cette conversation.';
+
+  @override
+  String get chatHours => 'Horaires des messages';
+
+  @override
+  String chatHoursDay(String day, String start, String end) {
+    return '$day : $start–$end';
+  }
+
+  @override
+  String get chatHoursNone =>
+      'La clinique n’a pas fixé d’horaires pour les messages.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'Les heures sont celles du fuseau horaire de la clinique, $zone.';
+  }
+
+  @override
+  String chatResponseTime(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: 'La clinique répond en général dans un délai de $hours heures.',
+      one: 'La clinique répond en général dans un délai de $hours heure.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatOutOfHours(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other:
+          'La clinique est en dehors de ses horaires de messages. Vous pouvez quand même écrire ; elle répond en général dans un délai de $hours heures.',
+      one:
+          'La clinique est en dehors de ses horaires de messages. Vous pouvez quand même écrire ; elle répond en général dans un délai de $hours heure.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemInvited(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Un praticien d’une autre clinique a été invité dans cette conversation pour un deuxième avis.',
+      'specialist_review': 'Un praticien d’une autre clinique a été invité dans cette conversation pour un avis spécialisé.',
+      'handover': 'Un praticien d’une autre clinique a été invité dans cette conversation pour prendre le relais des soins.',
+      'other': 'Un praticien d’une autre clinique a été invité dans cette conversation.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemAdded(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion':
+          'Un praticien a rejoint la conversation pour un deuxième avis.',
+      'specialist_review':
+          'Un praticien a rejoint la conversation pour un avis spécialisé.',
+      'handover': 'Un praticien a rejoint la conversation pour prendre le relais des soins.',
+      'other': 'Un praticien a rejoint la conversation.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatSystemRemoved =>
+      'Un praticien ne participe plus à la conversation.';
+
+  @override
+  String get chatSystemGranted =>
+      'Vous avez autorisé un praticien d’une autre clinique à rejoindre la conversation.';
+
+  @override
+  String get chatSystemDeclined =>
+      'Vous avez refusé un praticien d’une autre clinique.';
+
+  @override
+  String get chatSystemOther => 'La conversation a été mise à jour.';
+
+  @override
+  String get chatInviteTitle =>
+      'Un praticien d’une autre clinique demande à participer';
+
+  @override
+  String chatInviteBody(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Votre clinique demande qu’un praticien d’une autre clinique rejoigne cette conversation pour un deuxième avis.',
+      'specialist_review': 'Votre clinique demande qu’un praticien d’une autre clinique rejoigne cette conversation pour un avis spécialisé.',
+      'handover': 'Votre clinique demande qu’un praticien d’une autre clinique rejoigne cette conversation pour prendre le relais de vos soins.',
+      'other': 'Votre clinique demande qu’un praticien d’une autre clinique rejoigne cette conversation.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatInviteWho(String doctor, String clinic) {
+    return 'Praticien : $doctor, $clinic';
+  }
+
+  @override
+  String get chatInviteUnresolved =>
+      'Le nom et la clinique du praticien invité n’ont pas pu être chargés. Vous pourrez accorder l’accès seulement lorsqu’ils seront affichés.';
+
+  @override
+  String chatInviteSees(String history) {
+    String _temp0 = intl.Intl.selectLogic(history, {
+      'full': 'Si vous acceptez, le praticien voit toute la conversation, y compris les messages précédents, et peut y écrire.',
+      'from': 'Si vous acceptez, le praticien voit la conversation à partir d’un message choisi par votre clinique, et peut y écrire.',
+      'other': 'Si vous acceptez, le praticien voit la conversation et peut y écrire.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatInviteChoice =>
+      'Vous pouvez refuser. Si vous acceptez, vous pourrez retirer l’accès du praticien plus tard dans cette conversation ; il prend fin aussitôt.';
+
+  @override
+  String get chatGrant => 'Accorder l’accès';
+
+  @override
+  String get chatDecline => 'Refuser';
+
+  @override
+  String get chatGranted =>
+      'Accès accordé. Vous pouvez le retirer à tout moment dans cette conversation.';
+
+  @override
+  String get chatDeclined =>
+      'Refusé. Le praticien ne rejoint pas cette conversation.';
+
+  @override
+  String get chatRevoke => 'Retirer l’accès du praticien de l’autre clinique';
+
+  @override
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'Accès accordé : $doctor, $clinic.';
+  }
+
+  @override
+  String get chatGrantedToUnknown =>
+      'Accès accordé à un praticien d’une autre clinique.';
+
+  @override
+  String get chatRevokeBody =>
+      'Le praticien de l’autre clinique perd aussitôt l’accès à cette conversation. Les messages déjà écrits y restent.';
+
+  @override
+  String get chatRevokeConfirm => 'Retirer l’accès';
+
+  @override
+  String get chatRevoked => 'Accès retiré.';
+
+  @override
   String get allergies => 'Allergies';
 
   @override

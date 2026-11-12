@@ -1053,6 +1053,222 @@ class AppLocalizationsEn extends AppLocalizations {
   String get termClose => 'Close';
 
   @override
+  String get chatsTitle => 'Messages';
+
+  @override
+  String get chatsEmpty => 'You have no conversations yet.';
+
+  @override
+  String chatUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count unread messages',
+      one: '$count unread message',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDoctorUnknown => 'Your doctor';
+
+  @override
+  String get chatMessageHint => 'Write a message';
+
+  @override
+  String get chatSend => 'Send';
+
+  @override
+  String get chatAttach => 'Add a file';
+
+  @override
+  String get chatSendFailed =>
+      'The message was not sent. Check your connection and try again.';
+
+  @override
+  String get chatFileRejected => 'This file was not accepted.';
+
+  @override
+  String get chatFileRemove => 'Remove the file';
+
+  @override
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'You already have $count files waiting to be sent. Files not sent are removed after 24 hours; try again later.',
+      one:
+          'You already have $count file waiting to be sent. Files not sent are removed after 24 hours; try again later.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatOpenFailed => 'The file could not be opened. Try again.';
+
+  @override
+  String get chatEndedSession =>
+      'Your session has ended. Sign in again to see new messages.';
+
+  @override
+  String get chatEnded =>
+      'New messages can no longer be shown in this conversation.';
+
+  @override
+  String get chatHours => 'Chat hours';
+
+  @override
+  String chatHoursDay(String day, String start, String end) {
+    return '$day: $start–$end';
+  }
+
+  @override
+  String get chatHoursNone => 'The clinic has not set chat hours.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'Times are in the clinic\'s time zone, $zone.';
+  }
+
+  @override
+  String chatResponseTime(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: 'The clinic usually answers within $hours hours.',
+      one: 'The clinic usually answers within $hours hour.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatOutOfHours(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other:
+          'The clinic is outside its chat hours. You can still write; it usually answers within $hours hours.',
+      one:
+          'The clinic is outside its chat hours. You can still write; it usually answers within $hours hour.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemInvited(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'A doctor from another clinic was invited to this conversation for a second opinion.',
+      'specialist_review': 'A doctor from another clinic was invited to this conversation for a specialist review.',
+      'handover': 'A doctor from another clinic was invited to this conversation to take over the care.',
+      'other': 'A doctor from another clinic was invited to this conversation.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemAdded(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion':
+          'A doctor joined the conversation for a second opinion.',
+      'specialist_review':
+          'A doctor joined the conversation for a specialist review.',
+      'handover': 'A doctor joined the conversation to take over the care.',
+      'other': 'A doctor joined the conversation.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatSystemRemoved =>
+      'A doctor no longer takes part in the conversation.';
+
+  @override
+  String get chatSystemGranted =>
+      'You allowed a doctor from another clinic to join the conversation.';
+
+  @override
+  String get chatSystemDeclined => 'You declined a doctor from another clinic.';
+
+  @override
+  String get chatSystemOther => 'The conversation was updated.';
+
+  @override
+  String get chatInviteTitle => 'A doctor from another clinic asks to join';
+
+  @override
+  String chatInviteBody(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Your clinic asks a doctor from another clinic to join this conversation for a second opinion.',
+      'specialist_review': 'Your clinic asks a doctor from another clinic to join this conversation for a specialist review.',
+      'handover': 'Your clinic asks a doctor from another clinic to join this conversation to take over your care.',
+      'other': 'Your clinic asks a doctor from another clinic to join this conversation.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatInviteWho(String doctor, String clinic) {
+    return 'Doctor: $doctor, $clinic';
+  }
+
+  @override
+  String get chatInviteUnresolved =>
+      'The invited doctor\'s name and clinic could not be loaded. Access can be granted only once they are shown.';
+
+  @override
+  String chatInviteSees(String history) {
+    String _temp0 = intl.Intl.selectLogic(history, {
+      'full': 'If you agree, the doctor sees the whole conversation, including the earlier messages, and can write in it.',
+      'from': 'If you agree, the doctor sees the conversation from a message your clinic chose onwards, and can write in it.',
+      'other':
+          'If you agree, the doctor sees the conversation and can write in it.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatInviteChoice =>
+      'You may decline. If you agree, you can revoke the doctor\'s access later in this conversation; it ends at once.';
+
+  @override
+  String get chatGrant => 'Grant access';
+
+  @override
+  String get chatDecline => 'Decline';
+
+  @override
+  String get chatGranted =>
+      'Access granted. You can revoke it in this conversation at any time.';
+
+  @override
+  String get chatDeclined =>
+      'Declined. The doctor does not join this conversation.';
+
+  @override
+  String get chatRevoke =>
+      'Revoke the access of the doctor from another clinic';
+
+  @override
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'Access granted to $doctor, $clinic.';
+  }
+
+  @override
+  String get chatGrantedToUnknown =>
+      'Access granted to a doctor from another clinic.';
+
+  @override
+  String get chatRevokeBody =>
+      'The doctor from the other clinic loses access to this conversation at once. The messages already written stay in it.';
+
+  @override
+  String get chatRevokeConfirm => 'Revoke access';
+
+  @override
+  String get chatRevoked => 'Access revoked.';
+
+  @override
   String get allergies => 'Allergies';
 
   @override
