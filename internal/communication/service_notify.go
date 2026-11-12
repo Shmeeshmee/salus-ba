@@ -28,26 +28,27 @@ type Jobs interface {
 	EnqueueMessageSent(ctx context.Context, a MessageSentArgs) error
 }
 
-// NoticeParticipants returns the active participants of the conversation id of the clinic org, with their read
-// positions, for the job agent that tells them of a new message: in the clinic's scope, so nothing after the
-// patient's revocation (ErrNotFound), audited as a read of the patient's participants with the job as agent.
-func (s *Service) NoticeParticipants(ctx context.Context, agent, org, id string) ([]Participant, error) {
+// NoticeConversation returns the conversation id of the clinic org with its active participants and their read
+// positions, and its last message's number, for the job agent that tells them of a new message: in the clinic's
+// scope, so nothing after the patient's revocation (ErrNotFound), audited as a read of the patient's participants
+// with the job as agent.
+func (s *Service) NoticeConversation(ctx context.Context, agent, org, id string) (Conversation, error) {
 	if !validUUID(id) {
-		return nil, ErrNotFound
+		return Conversation{}, ErrNotFound
 	}
-	var out []Participant
+	var out Conversation
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		conv, err := s.clinicConversation(ctx, org, id)
-		if err != nil {
+		var err error
+		if out, err = s.clinicConversation(ctx, org, id); err != nil {
 			return err
 		}
-		if out, err = s.Repo.Participants(ctx, id); err != nil {
+		if out.Participants, err = s.Repo.Participants(ctx, id); err != nil {
 			return err
 		}
-		return s.recordJob(ctx, agent, org, "Patient/"+conv.PatientID, "conversation_participant", int64(len(out)))
+		return s.recordJob(ctx, agent, org, "Patient/"+out.PatientID, "conversation_participant", int64(len(out.Participants)))
 	})
 	if err != nil {
-		return nil, wrap("notice participants", err)
+		return Conversation{}, wrap("notice conversation", err)
 	}
 	return out, nil
 }

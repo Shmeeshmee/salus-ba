@@ -175,14 +175,38 @@ func TestUnreadEmail_MailsAParticipantWhoHasNotReadTheMessage(t *testing.T) {
 	}
 
 	f = newChatFixture(t)
+	f.chats.parts[1].ReadSeq = 2 // the practitioner read to the end
 	for name, a := range map[string]notification.ChatUnreadEmailArgs{
-		"read":            {ParticipantID: practPart, ConversationID: convID, OrganizationID: clinicID, Seq: 1},
+		"read":            {ParticipantID: practPart, ConversationID: convID, OrganizationID: clinicID, ReadSeq: 1, Seq: 2},
 		"left":            {ParticipantID: "f9000000-0000-4000-8000-0000000000f9", ConversationID: convID, OrganizationID: clinicID, Seq: 2},
 		"revoked or gone": {ParticipantID: patientPart, ConversationID: "c9000000-0000-4000-8000-0000000000c9", OrganizationID: clinicID, Seq: 2},
 	} {
-		if err := f.svc.UnreadEmail(t.Context(), a); err != nil || len(f.mail.sent) != 0 {
-			t.Errorf("%s: %v, sent %d; want nothing", name, err, len(f.mail.sent))
+		if err := f.svc.UnreadEmail(t.Context(), a); err != nil || len(f.mail.sent)+len(f.jobs.emails) != 0 {
+			t.Errorf("%s: %v, sent %d, checks %d; want nothing", name, err, len(f.mail.sent), len(f.jobs.emails))
 		}
+	}
+}
+
+// A check that finds its message read, while a later one of the same burst is not (read on part of the way, the
+// later message's check kept as this one by the unique key), mails nothing yet but checks again at the clinic's
+// delay from the new read position: one later message is never left without its e-mail. Read to the end, nothing.
+func TestUnreadEmail_ChecksAgainWhenALaterMessageIsStillUnread(t *testing.T) {
+	f := newChatFixture(t)
+	f.chats.lastSeq, f.chats.parts[1].ReadSeq = 3, 2
+	a := notification.ChatUnreadEmailArgs{ParticipantID: practPart, ConversationID: convID, OrganizationID: clinicID, ReadSeq: 1, Seq: 2}
+	if err := f.svc.UnreadEmail(t.Context(), a); err != nil {
+		t.Fatalf("UnreadEmail() = %v", err)
+	}
+	want := notification.ChatUnreadEmailArgs{ParticipantID: practPart, ConversationID: convID, OrganizationID: clinicID, ReadSeq: 2, Seq: 3}
+	if len(f.mail.sent) != 0 || len(f.jobs.emails) != 1 || f.jobs.emails[0] != want || !f.jobs.emailAt[0].Equal(chatNow.Add(30*time.Minute)) || f.jobs.outside != 0 {
+		t.Errorf("sent %d, checks %+v at %v (%d outside a transaction); want none sent and %+v in 30 minutes",
+			len(f.mail.sent), f.jobs.emails, f.jobs.emailAt, f.jobs.outside, want)
+	}
+
+	f = newChatFixture(t)
+	f.chats.lastSeq, f.chats.parts[1].ReadSeq = 3, 3
+	if err := f.svc.UnreadEmail(t.Context(), a); err != nil || len(f.mail.sent)+len(f.jobs.emails) != 0 {
+		t.Errorf("read to the end: %v, sent %d, checks %+v; want nothing", err, len(f.mail.sent), f.jobs.emails)
 	}
 }
 

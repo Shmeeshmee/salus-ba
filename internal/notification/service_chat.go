@@ -30,7 +30,7 @@ type Auditor interface {
 // Chats reads a conversation for the notifications, in the clinic's scope, audited with the job as agent
 // (communication.Service).
 type Chats interface {
-	NoticeParticipants(ctx context.Context, agent, org, id string) ([]communication.Participant, error)
+	NoticeConversation(ctx context.Context, agent, org, id string) (communication.Conversation, error)
 	NoticeMessage(ctx context.Context, agent, org, id, messageID string) (communication.Message, error)
 }
 
@@ -109,7 +109,7 @@ var (
 // tells nobody.
 func (s *Chat) MessageSent(ctx context.Context, a communication.MessageSentArgs) error {
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		parts, err := s.Chats.NoticeParticipants(ctx, agentSent, a.OrganizationID, a.ConversationID)
+		conv, err := s.Chats.NoticeConversation(ctx, agentSent, a.OrganizationID, a.ConversationID)
 		if err != nil {
 			return err
 		}
@@ -117,7 +117,7 @@ func (s *Chat) MessageSent(ctx context.Context, a communication.MessageSentArgs)
 		if err != nil {
 			return err
 		}
-		for _, p := range parts {
+		for _, p := range conv.Participants {
 			if p.ID == a.SenderParticipantID {
 				continue
 			}
@@ -254,10 +254,11 @@ func (s *Chat) Push(ctx context.Context, a ChatPushArgs) error {
 
 // UnreadEmail e-mails the participant of a who has not read up to its message by now (the chat_unread_email job):
 // the fixed "new message" in their language with the link to the app (a patient) or the web app (a practitioner),
-// no text, no name. A participant who has read it or left, or a conversation the clinic no longer sees, gets
-// nothing. Errors carry no address.
+// no text, no name. A participant who has read to the end or left, or a conversation the clinic no longer sees,
+// gets nothing; one who has read a's message but not a later one is checked again (checkAgain). Errors carry no
+// address.
 func (s *Chat) UnreadEmail(ctx context.Context, a ChatUnreadEmailArgs) error {
-	parts, err := s.Chats.NoticeParticipants(ctx, agentUnread, a.OrganizationID, a.ConversationID)
+	conv, err := s.Chats.NoticeConversation(ctx, agentUnread, a.OrganizationID, a.ConversationID)
 	if errors.Is(err, communication.ErrNotFound) {
 		return nil
 	}
@@ -265,13 +266,16 @@ func (s *Chat) UnreadEmail(ctx context.Context, a ChatUnreadEmailArgs) error {
 		return fmt.Errorf("notification: unread e-mail: %w", err)
 	}
 	var p communication.Participant
-	for _, q := range parts {
+	for _, q := range conv.Participants {
 		if q.ID == a.ParticipantID {
 			p = q
 		}
 	}
-	if p.ID == "" || p.ReadSeq >= a.Seq {
+	switch {
+	case p.ID == "" || p.ReadSeq >= conv.LastSeq:
 		return nil
+	case p.ReadSeq >= a.Seq:
+		return s.checkAgain(ctx, a, p.ReadSeq, conv.LastSeq)
 	}
 	to, language, kind, link, err := s.recipient(ctx, a.OrganizationID, p)
 	if gone(err) {
@@ -286,6 +290,25 @@ func (s *Chat) UnreadEmail(ctx context.Context, a ChatUnreadEmailArgs) error {
 	}
 	if err := s.Sender.Send(ctx, msg); err != nil {
 		return fmt.Errorf("notification: unread e-mail: %w", err)
+	}
+	return nil
+}
+
+// checkAgain schedules a's participant's unread check from their new read position up to the conversation's last
+// message, at the clinic's delay: they read a's message, but a later one that came while they had not (and so was
+// kept as a's check by its unique key) is still unread. A check already there for that read position (the later
+// message's own) is kept instead, so they get one e-mail.
+func (s *Chat) checkAgain(ctx context.Context, a ChatUnreadEmailArgs, readSeq, lastSeq int64) error {
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		delay, err := s.Clinics.EmailAfter(ctx, a.OrganizationID)
+		if err != nil {
+			return err
+		}
+		next := ChatUnreadEmailArgs{ParticipantID: a.ParticipantID, ConversationID: a.ConversationID, OrganizationID: a.OrganizationID, ReadSeq: readSeq, Seq: lastSeq}
+		return s.Jobs.EnqueueUnreadEmail(ctx, next, s.Clock.Now().Add(delay))
+	})
+	if err != nil {
+		return fmt.Errorf("notification: unread e-mail: check again: %w", err)
 	}
 	return nil
 }

@@ -96,37 +96,38 @@ func TestSend_TheJobCommitsWithTheMessageOrNotAtAll(t *testing.T) {
 	}
 }
 
-// The notifier reads a conversation's active participants and their read positions in the clinic's scope, audited
-// with the job as agent; the clinic sees nothing after the patient's revocation.
-func TestNoticeParticipants_ReadsTheParticipantsInTheClinicsScopeAuditedWithTheJob(t *testing.T) {
+// The notifier reads a conversation's active participants, their read positions and its last message's number in
+// the clinic's scope, audited with the job as agent; the clinic sees nothing after the patient's revocation.
+func TestNoticeConversation_ReadsTheParticipantsInTheClinicsScopeAuditedWithTheJob(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	c := f.open(t)
 	f.send(t, pract, c.ID, "Synthetic placeholder")
+	f.send(t, pract, c.ID, "Synthetic placeholder")
 	if err := f.svc.MarkRead(t.Context(), me, c.ID, 1); err != nil {
 		t.Fatal(err)
 	}
-	parts, err := f.svc.NoticeParticipants(t.Context(), "chat_message_sent", clinicA, c.ID)
-	if err != nil || len(parts) != 2 {
-		t.Fatalf("NoticeParticipants() = %+v, %v", parts, err)
+	conv, err := f.svc.NoticeConversation(t.Context(), "chat_message_sent", clinicA, c.ID)
+	if err != nil || len(conv.Participants) != 2 || conv.LastSeq != 2 || conv.ID != c.ID {
+		t.Fatalf("NoticeConversation() = %+v, %v; want two participants and the last number 2", conv, err)
 	}
 	reads := map[communication.Role]int64{}
-	for _, p := range parts {
+	for _, p := range conv.Participants {
 		reads[p.Role] = p.ReadSeq
 	}
-	if reads[communication.RolePatient] != 1 || reads[communication.RolePractitioner] != 1 {
-		t.Errorf("read positions %v, want both at 1", reads)
+	if reads[communication.RolePatient] != 1 || reads[communication.RolePractitioner] != 2 {
+		t.Errorf("read positions %v, want the patient at 1 and the sender at 2", reads)
 	}
 	e := f.audit.last(t)
 	if e.AgentName != "chat_message_sent" || e.AgentAccountID != "" || e.EntityReference != "Patient/"+patientA ||
 		e.EntityName != "conversation_participant" || e.EntityCount != 2 || e.Action != auditevent.ActionRead || e.OrganizationID != clinicA {
 		t.Errorf("audit %+v", e)
 	}
-	if _, err := f.svc.NoticeParticipants(t.Context(), "chat_message_sent", clinicB, c.ID); !errors.Is(err, communication.ErrNotFound) {
+	if _, err := f.svc.NoticeConversation(t.Context(), "chat_message_sent", clinicB, c.ID); !errors.Is(err, communication.ErrNotFound) {
 		t.Errorf("another clinic: %v, want ErrNotFound", err)
 	}
 	f.revoke()
-	if _, err := f.svc.NoticeParticipants(t.Context(), "chat_message_sent", clinicA, c.ID); !errors.Is(err, communication.ErrNotFound) {
+	if _, err := f.svc.NoticeConversation(t.Context(), "chat_message_sent", clinicA, c.ID); !errors.Is(err, communication.ErrNotFound) {
 		t.Errorf("after the revocation: %v, want ErrNotFound", err)
 	}
 }

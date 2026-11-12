@@ -97,7 +97,8 @@ type ChatPushArgs struct {
 func (ChatPushArgs) Kind() string { return "chat_push" }
 
 // ChatUnreadEmailArgs is the chat_unread_email job, scheduled the clinic's e-mail delay after a message: it e-mails
-// the participant if they have not read up to Seq by then. Its unique key is the participant and their read position
+// the participant if they have not read up to Seq by then, and checks again if they have but not to the
+// conversation's end (Chat.UnreadEmail). Its unique key is the participant and their read position
 // when the message came (ReadSeq): a burst of messages to someone who has not read on gives one check and so one
 // e-mail, and River keeps a run check for a day, so one e-mail a day at most while they read nothing; a message
 // after they read on gets a check of its own. Ids and numbers only.

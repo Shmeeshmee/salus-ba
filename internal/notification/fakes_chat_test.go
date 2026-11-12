@@ -232,26 +232,28 @@ func (j *fakeChatJobs) EnqueueWebhook(ctx context.Context, a notification.Webhoo
 	return j.err
 }
 
-// fakeChats is the conversation as the clinic's scope shows it: the patient and the practitioner, and one message.
+// fakeChats is the conversation as the clinic's scope shows it: the patient and the practitioner, and its messages
+// up to lastSeq (2: the patient's message msgID).
 type fakeChats struct {
-	err   error
-	parts []communication.Participant
-	asked []string // agent/org/conversation
+	err     error
+	parts   []communication.Participant
+	asked   []string // agent/org/conversation
+	lastSeq int64
 }
 
 func newFakeChats() *fakeChats {
-	return &fakeChats{parts: []communication.Participant{
+	return &fakeChats{lastSeq: 2, parts: []communication.Participant{
 		{ID: patientPart, ConversationID: convID, PatientID: patientID, Role: communication.RolePatient},
 		{ID: practPart, ConversationID: convID, PractitionerRoleID: roleID, Role: communication.RolePractitioner, ReadSeq: 1},
 	}}
 }
 
-func (c *fakeChats) NoticeParticipants(_ context.Context, agent, org, id string) ([]communication.Participant, error) {
+func (c *fakeChats) NoticeConversation(_ context.Context, agent, org, id string) (communication.Conversation, error) {
 	c.asked = append(c.asked, agent+"/"+org+"/"+id)
 	if c.err != nil || id != convID || org != clinicID {
-		return nil, joinNotFound(c.err)
+		return communication.Conversation{}, joinNotFound(c.err)
 	}
-	return slices.Clone(c.parts), nil
+	return communication.Conversation{ID: convID, OrganizationID: clinicID, PatientID: patientID, LastSeq: c.lastSeq, Participants: slices.Clone(c.parts)}, nil
 }
 
 func (c *fakeChats) NoticeMessage(_ context.Context, agent, org, id, messageID string) (communication.Message, error) {
