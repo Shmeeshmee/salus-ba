@@ -1888,11 +1888,11 @@ practitioner. Every read, grant, change and revocation is audited.
 | A shared visit exposes more than its record | Only the encounter, signed documents, completed answers and their clean files, and the entries recorded in it; never the transcript, suggestions, drafts or appointment (policy tests) |
 | History reaches the language model | Not in this epic: suggestions and drafting read only the consultation's transcript (SAL-42 adds the test) |
 
-### SAL-40: the practitioner's view and the pre-visit summary (migration 00050)
+### SAL-40: the practitioner's view and the pre-visit summary (migration 00051)
 
 **Processing added.** No new personal data and no new table: the practitioner's view of the patient's history
 (`GET /patients/{id}/history`) and the pre-visit summary of one of their appointments (`.../history/summary`) read
-what the owning domains already hold, in the web app on the appointment and the call page. Migration 00050 adds one
+what the owning domains already hold, in the web app on the appointment and the call page. Migration 00051 adds one
 `SECURITY DEFINER` lookup, `history_questionnaire`, so a practitioner can read the questions of a completed response
 that was shared with their clinic: it returns that questionnaire version only (clinic content, no personal data),
 never another of the other clinic's versions, and nothing of any response.

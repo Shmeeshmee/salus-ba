@@ -592,7 +592,7 @@ type SharedQuestionnaireRow struct {
 	Language       Language
 }
 
-// A version another clinic's completed response answers, of a visit shared with the scope's clinic (migration 00050).
+// A version another clinic's completed response answers, of a visit shared with the scope's clinic (migration 00051).
 func (q *Queries) SharedQuestionnaire(ctx context.Context, id pgtype.UUID) (SharedQuestionnaireRow, error) {
 	row := q.db.QueryRow(ctx, sharedQuestionnaire, id)
 	var i SharedQuestionnaireRow

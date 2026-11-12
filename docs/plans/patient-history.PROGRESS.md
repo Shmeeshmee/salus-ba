@@ -48,7 +48,7 @@ Full) and one read per owning domain for those visits (`composition.Service.Hist
 `questionnaireresponse.Service.History`), each domain auditing the items a page shows (`Disclosed`) and the history
 auditing the view itself (`Patient/<id>`, TREAT). A shared visit's signed documents, completed responses, their files
 and the questions they answer open for that practitioner through `encounter.Service.Shared`/`SharedAppointment`; the
-questions through migration 00050's `history_questionnaire` (`SECURITY DEFINER`, owned by `salus_history_lookup`),
+questions through migration 00051's `history_questionnaire` (`SECURITY DEFINER`, owned by `salus_history_lookup`),
 not a chained policy. `migrations/language_test.go` runs in its usual time with it (about 17 s per test, parallel,
 as before). Diagnoses: the ICD-10 codes of the signed documents' coded fields (`HistoryItem.diagnoses`, added to
 the schema and the Go type), for own and shared visits alike: `condition.Service` has no read of a visit's

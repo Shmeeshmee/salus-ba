@@ -17,7 +17,7 @@ type Repository interface {
 	// ByID returns the version id, or ErrNotFound (also outside the scope, or for an id that is not a UUID).
 	ByID(ctx context.Context, id string) (Questionnaire, error)
 	// Shared returns the version id when a completed response to it, of another clinic's visit shared with the
-	// clinic set, is (history_questionnaire, migration 00050), whatever row-level security shows; ErrNotFound
+	// clinic set, is (history_questionnaire, migration 00051), whatever row-level security shows; ErrNotFound
 	// otherwise. Its translations stay closed.
 	Shared(ctx context.Context, id string) (Questionnaire, error)
 	// Lock returns the version id, locked until the transaction ends so lifecycle steps of one version run
