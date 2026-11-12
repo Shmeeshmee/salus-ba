@@ -250,3 +250,15 @@ func TestRules_KeepTheReviewerPermissionWhileGranted(t *testing.T) {
 	}
 	t.Error("no rule for term_reviewer")
 }
+
+func TestRules_KeepChatConsentsWithTheClinicalRecord(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "chat_consent" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("chat_consent then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for chat_consent")
+}
