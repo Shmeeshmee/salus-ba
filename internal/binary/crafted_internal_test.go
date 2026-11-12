@@ -109,14 +109,14 @@ func allocated(fn func()) uint64 {
 func BenchmarkDecodeCrafted(b *testing.B) {
 	const w, h = 8000, 5000
 	for _, c := range []struct {
-		name string
 		file func() []byte
+		name string
 	}{
-		{"progressive JPEG gray", func() []byte { return craftedJPEG(w, h, 1) }},
-		{"progressive JPEG YCbCr 4:4:4", func() []byte { return craftedJPEG(w, h, 3) }},
-		{"progressive JPEG CMYK", func() []byte { return craftedJPEG(w, h, 4) }},
-		{"PNG RGB 16-bit", func() []byte { return craftedPNG(b, w, h, false) }},
-		{"PNG RGB 16-bit interlaced", func() []byte { return craftedPNG(b, w, h, true) }},
+		{func() []byte { return craftedJPEG(w, h, 1) }, "progressive JPEG gray"},
+		{func() []byte { return craftedJPEG(w, h, 3) }, "progressive JPEG YCbCr 4:4:4"},
+		{func() []byte { return craftedJPEG(w, h, 4) }, "progressive JPEG CMYK"},
+		{func() []byte { return craftedPNG(b, w, h, false) }, "PNG RGB 16-bit"},
+		{func() []byte { return craftedPNG(b, w, h, true) }, "PNG RGB 16-bit interlaced"},
 	} {
 		b.Run(c.name, func(b *testing.B) {
 			file := c.file()
