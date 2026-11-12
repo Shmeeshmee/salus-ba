@@ -7,7 +7,8 @@
 -- Row-level security of the guest, a doctor of another clinic (app.organization_id their own clinic,
 -- app.practitioner_role_id their role, neither patient setting set): a conversation, and its side threads, only while
 -- they are an active participant of it, the patient's chat consent for them is active and the patient's care consent
--- with the treating clinic is active. Like encounter_organization (00033), one SECURITY DEFINER function, owned by a
+-- with the treating clinic is active; of its side threads, only those they take part in; and of its participants, no
+-- other doctor's pending invitation. Like encounter_organization (00033), one SECURITY DEFINER function, owned by a
 -- role that reads only the columns it needs, returns the ids of those conversations: the conversation's policy cannot
 -- read its participants (their policy reads the conversation), and the guest's scope sees neither the treating
 -- clinic's consents nor its conversations. The participants, messages and revisions follow the conversation through
@@ -219,11 +220,46 @@ CREATE POLICY consent_chat_guest ON consent FOR SELECT TO salus_app
                    NULLIF(current_setting('app.practitioner_role_id', true), '')::uuid,
                    NULLIF(current_setting('app.organization_id', true), '')::uuid))::uuid[]));
 
--- The guest's conversations and their side threads: read, locked and counted by a send, and a side thread opened.
--- Planned once per query: the function's argument is the scope only.
+-- Whether the practitioner role takes part in the side thread: an active participant of it, or the thread has no
+-- participant at all, which is only ever the case inside the transaction that opens it (OpenThread inserts the thread,
+-- then its participants, the opener first). SECURITY DEFINER like the functions above: the conversation's policy
+-- cannot read the participants. Called per row, only for a side thread of a conversation the guest is granted.
+CREATE FUNCTION chat_guest_in_thread(thread_id uuid, role_id uuid) RETURNS boolean
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = pg_catalog, public
+AS $$
+    SELECT EXISTS (SELECT 1 FROM public.conversation_participant AS p
+                   WHERE p.conversation_id = chat_guest_in_thread.thread_id
+                     AND p.practitioner_role_id = chat_guest_in_thread.role_id
+                     AND p.status = 'active'
+                     AND p.removed_at IS NULL)
+        OR NOT EXISTS (SELECT 1 FROM public.conversation_participant AS p WHERE p.conversation_id = chat_guest_in_thread.thread_id)
+$$;
+
+ALTER FUNCTION chat_guest_in_thread(uuid, uuid) OWNER TO salus_chat_guest;
+REVOKE EXECUTE ON FUNCTION chat_guest_in_thread(uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION chat_guest_in_thread(uuid, uuid) TO salus_app;
+
+-- The guest's conversations, and the side threads of them they take part in: read, locked and counted by a send, and
+-- a side thread opened. Planned once per query: the lookup's argument is the scope only.
 CREATE POLICY conversation_guest ON conversation TO salus_app
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
-           AND coalesce(parent_id, id) = ANY ((SELECT chat_guest_conversations(
+           AND (id = ANY ((SELECT chat_guest_conversations(
+                    NULLIF(current_setting('app.practitioner_role_id', true), '')::uuid,
+                    NULLIF(current_setting('app.organization_id', true), '')::uuid))::uuid[])
+                OR (parent_id = ANY ((SELECT chat_guest_conversations(
+                        NULLIF(current_setting('app.practitioner_role_id', true), '')::uuid,
+                        NULLIF(current_setting('app.organization_id', true), '')::uuid))::uuid[])
+                    AND chat_guest_in_thread(id, NULLIF(current_setting('app.practitioner_role_id', true), '')::uuid))));
+
+-- A granted guest does not see the conversation's pending invitations of other doctors: who else the treating
+-- practitioner asked is the patient's to decide first. Restrictive: it narrows every other policy of the table.
+CREATE POLICY conversation_participant_guest_pending ON conversation_participant AS RESTRICTIVE TO salus_app
+    USING (status = 'active'
+           OR practitioner_role_id = NULLIF(current_setting('app.practitioner_role_id', true), '')::uuid
+           OR NOT conversation_id = ANY ((SELECT chat_guest_conversations(
                    NULLIF(current_setting('app.practitioner_role_id', true), '')::uuid,
                    NULLIF(current_setting('app.organization_id', true), '')::uuid))::uuid[]));

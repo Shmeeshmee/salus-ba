@@ -130,6 +130,85 @@ func TestChatGroup_AGuestSeesTheConversationOnlyWhileGranted(t *testing.T) {
 	}
 }
 
+// A granted guest sees the side threads of the conversation they take part in, and no other (SAL-28 review,
+// finding 5): not one opened without them, nor one they were removed from.
+func TestChatGroup_AGuestSeesOnlyTheSideThreadsTheyTakePartIn(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	g := seedGuest(t, owner, guestGranted)
+	ctx := t.Context()
+	threads := map[string]string{}
+	for name, removed := range map[string]bool{"without the guest": false, "the guest left": true} {
+		var id string
+		if err := owner.QueryRow(ctx, `INSERT INTO conversation (organization_id, patient_id, practitioner_role_id, staff_only, parent_id, created_by)
+			VALUES ($1, $2, $3, true, $4, $5) RETURNING id`, clinicA, g.p[0].patient, g.dir[clinicA].role, g.conv["inA"], g.p[0].account).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		threads[name] = id
+		if _, err := owner.Exec(ctx, `INSERT INTO conversation_participant (conversation_id, practitioner_role_id, organization_id, role, added_by)
+			VALUES ($1, $2, $3, 'practitioner', $4)`, id, g.dir[clinicA].role, clinicA, g.p[0].account); err != nil {
+			t.Fatal(err)
+		}
+		if removed {
+			if _, err := owner.Exec(ctx, `INSERT INTO conversation_participant (conversation_id, practitioner_role_id, organization_id, role, added_by,
+				removed_at) VALUES ($1, $2, $3, 'practitioner', $4, now())`, id, g.role, clinicB, g.p[0].account); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if got, want := idsIn(t, app, g.scope(), "SELECT id::text FROM conversation"), g.convs("inA", "staffA"); !slices.Equal(got, want) {
+		t.Errorf("the guest's conversations %v, want inA and staffA %v", got, want)
+	}
+	for name, id := range threads {
+		if got := idsIn(t, app, g.scope(), "SELECT id::text FROM conversation_participant WHERE conversation_id = '"+id+"'"); got != nil {
+			t.Errorf("the participants of the thread %s: %v, want none", name, got)
+		}
+	}
+	clinic := map[string]string{"app.organization_id": clinicA}
+	if got := idsIn(t, app, clinic, "SELECT id::text FROM conversation WHERE parent_id IS NOT NULL"); len(got) != 3 {
+		t.Errorf("clinic A's side threads %v, want all 3", got)
+	}
+}
+
+// A granted guest does not see the conversation's pending invitations of other doctors (SAL-28 review, finding 6);
+// the treating clinic and the patient do.
+func TestChatGroup_AGuestDoesNotSeeOtherDoctorsPendingInvitations(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	g := seedGuest(t, owner, guestGranted)
+	ctx := t.Context()
+	const clinicC, roleC = "c0000000-0000-4000-8000-00000000000c", "c1000000-0000-4000-8000-0000000000c1"
+	var pending string
+	for _, stmt := range []string{
+		`INSERT INTO organization (id, name, listed) VALUES ('` + clinicC + `', 'Synthetic clinic C', true)`,
+		`WITH p AS (INSERT INTO practitioner (organization_id, given_name, family_name) VALUES ('` + clinicC + `', 'Cy', 'Example') RETURNING id)
+			INSERT INTO practitioner_role (id, organization_id, practitioner_id) SELECT '` + roleC + `', '` + clinicC + `', id FROM p`,
+	} {
+		if _, err := owner.Exec(ctx, stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := owner.QueryRow(ctx, `INSERT INTO conversation_participant (conversation_id, practitioner_role_id, organization_id, role, status, reason, added_by)
+		VALUES ($1, $2, $3, 'practitioner', 'pending_consent', 'second_opinion', $4) RETURNING id`, g.conv["inA"], roleC, clinicC, g.p[0].account).Scan(&pending); err != nil {
+		t.Fatal(err)
+	}
+	const query = "SELECT id::text FROM conversation_participant WHERE status = 'pending_consent'"
+	if got := idsIn(t, app, g.scope(), query); got != nil {
+		t.Errorf("the guest sees the pending invitations %v, want none", got)
+	}
+	if got := idsIn(t, app, g.scope(), "SELECT id::text FROM conversation_participant WHERE id = '"+g.part+"'"); len(got) != 1 {
+		t.Errorf("the guest's own row: %v", got)
+	}
+	for name, scope := range map[string]map[string]string{
+		"clinic A":  {"app.organization_id": clinicA, "app.practitioner_role_id": g.dir[clinicA].role},
+		"patient A": {"app.patient_id": g.p[0].patient},
+	} {
+		if got := idsIn(t, app, scope, query); !slices.Equal(got, []string{pending}) {
+			t.Errorf("%s sees the pending invitations %v, want %s", name, got, pending)
+		}
+	}
+}
+
 // The guest's scope opens nothing else: without its clinic or its role, with another clinic or role, or with a
 // patient or account set, the granted guest's conversation is not seen.
 func TestChatGroup_TheGuestScopeOpensNothingElse(t *testing.T) {
@@ -352,7 +431,7 @@ func TestChatGroup_TheLookupFunctionIsOwnedByAnUnprivilegedRoleWithAFixedSearchP
 	t.Parallel()
 	owner := pgtest.NewDatabase(t)
 	ctx := t.Context()
-	for _, fn := range []string{"chat_guest_conversations(uuid, uuid)", "chat_guest_care_consents(uuid, uuid)"} {
+	for _, fn := range []string{"chat_guest_conversations(uuid, uuid)", "chat_guest_care_consents(uuid, uuid)", "chat_guest_in_thread(uuid, uuid)"} {
 		var fnOwner string
 		var definer, publicExec, appExec bool
 		var config []string

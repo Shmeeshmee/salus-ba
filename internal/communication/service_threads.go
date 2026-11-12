@@ -24,11 +24,17 @@ func (s *Service) OpenThread(ctx context.Context, c Caller, id string) (Conversa
 		now := s.Clock.Now().UTC()
 		var parts []Participant
 		for _, p := range e.conv.Participants {
-			if p.Role == RolePractitioner && p.Status == StatusActive {
-				parts = append(parts, Participant{
-					PractitionerRoleID: p.PractitionerRoleID, OrganizationID: p.OrganizationID, AddedBy: c.AccountID, AddedAt: now,
-					Role: RolePractitioner, Status: StatusActive,
-				})
+			if p.Role != RolePractitioner || p.Status != StatusActive {
+				continue
+			}
+			part := Participant{
+				PractitionerRoleID: p.PractitionerRoleID, OrganizationID: p.OrganizationID, AddedBy: c.AccountID, AddedAt: now,
+				Role: RolePractitioner, Status: StatusActive,
+			}
+			if p.PractitionerRoleID == e.who.role { // the opener first: a guest's row-level security sees the thread through it
+				parts = append([]Participant{part}, parts...)
+			} else {
+				parts = append(parts, part)
 			}
 		}
 		out, err = s.Repo.CreateThread(ctx, Conversation{
