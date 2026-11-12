@@ -1786,7 +1786,7 @@ Waiting for the owner: the basis (a granular AI consent, or another), then the p
 | A patient's messages sent to a hosted model without a basis | The summary's engine is the fake and the config refuses another; the Summarizer port is the only path |
 | The summary taken for the record, or for a diagnosis | Not stored; always labelled AI generated; the messages stay below it unchanged; the copy states what was written, never a diagnosis |
 | The patient sees the doctors' summary or side threads | The summary is refused to the patient (403); the patient app has no summary or thread screen; side threads stay hidden by row-level security (SAL-28) |
-| A cross-clinic doctor joins without the patient knowing | The patient app's consent prompt (strings tagged `legal`) explains who asks, why and what they would see; grant, decline and later revoke (SAL-28's consent) |
+| A cross-clinic doctor joins without the patient knowing, or keeps access the patient cannot find to withdraw | The patient app's consent prompt (strings tagged `legal`) names the doctor and their clinic (grant stays disabled until they are shown), why, and what they would read; grant or decline; the chat view lists every granted doctor of the conversation from the API (`status=active`), so each can be revoked at any time, also after a restart (SAL-28's consent) |
 
 ## Analytics (`docs/plans/analytics.md`, ADR 0013)
 

@@ -239,9 +239,10 @@ second (p95 17 to 21 s) were the host's load, as the A/B run suggested.
 
 ## SAL-31: the chat on web and mobile, and the AI summary
 
-Built on `web/src/chat/fakeChat.ts` and `mobile/test/fake_chat.dart`, then the real clients. SAL-28 to SAL-30's
-routes are called as the plan's "Contract of wave 1" shapes them, with hand-written types until their schemas are
-merged into `api/openapi.yaml`; each is marked in the code to move to the generated types then.
+Built on `web/src/chat/fakeChat.ts` and `mobile/test/fake_chat.dart`, then the real clients. After SAL-28 and SAL-30
+were merged (2026-11-12) every route of theirs goes through the generated types (web `components['schemas']`,
+mobile `salus_api` models and `ChatApi`), and both fakes keep main's rules. SAL-29's chat hours stay hand-written on
+mobile until SAL-29 is merged.
 
 As built (agent decisions, for the owner to review):
 
@@ -255,12 +256,19 @@ As built (agent decisions, for the owner to review):
 | Web: names | The patient's name read once through FHIR `Patient/{id}` (an audited read), doctors from the clinic's staff list; system messages from their code only |
 | Web: chat hours | Not shown to doctors: they are the patient app's notice |
 | Both: socket | As `web/src/live.ts`: backoff, resume after the last shown cursor, drop a seen `seq`, stop for good on 4401, 4403, 4404 (`ChatEnd` gains `unauthenticated`) |
-| Both: attachment status | The contract has no status route or frame for a scan's outcome: web takes it from a `message_edited` frame, mobile re-reads the newest page while a file is scanning. SAL-30 to confirm or add one |
-| Mobile: revoke | Offered only for an invitation granted in the open chat view: `GET /me/chat-invitations` lists pending ones, so after a restart the app cannot find a granted one's id. SAL-28 to provide it (a granted list, or the invitation id on the participant) |
-| Mobile: removed file | A file taken off before sending stays uploaded and unreferenced: the contract has no delete route |
-| Mobile: wiring | `SalusApp` and `HomeScreen` take an optional `Chats` (none hides Messages); `main.dart` passes the real client. `chat_screen.dart` is 486 lines, over the ~400 guideline |
+| Both: attachment status | The contract has no status route or frame for a scan's outcome: web takes it from a `message_edited` frame, mobile re-reads the newest page while a file is scanning. **Waiting for the owner**: a scan-outcome frame needs a contract change |
+| Both: refused handshake | A handshake the API refuses (401, 403, 404 before the upgrade) gives the client no status, so a connection that never opened reads `GET /conversations/{id}`: `unauthenticated`, `consent_required`, `forbidden` or `not_found` end the view as the 44xx close codes do; anything else (the conversation answers, or the API is unreachable) tries again with the backoff. No server change |
+| Shapes taken from main | `from_seq` is the last message the added doctor does not read (web sends the chosen message's seq minus one); a side thread opens without a body; an attachment's `thumbnail` is a required boolean and `content_type` one of JPEG, PNG, PDF; mobile always sends `attachment_ids` (empty for none, as the generated `SendMessageRequest` does); an invitation has no history field: what the invited doctor would read is their participant's `history_from_seq` (the invitation id is the participant's), read from `GET /conversations/{id}` |
+| Web: ended view | On 4403/4404/4401 (or a refused handshake) the open view unmounts: no message, summary, header or composer stays, only why and the way back; the hook drops the messages |
+| Web: composer | After a refusal a retry cannot change (anything but `rate_limited`, `internal error`, `timeout` and an unreachable API) the text unlocks and the next send is a new message |
+| Web: Messages | Shown to and routed for practitioners only; an admin reads no conversation |
+| Mobile: revoke | The chat view lists the granted invitations (`GET /me/chat-invitations?status=active`) beside the pending ones, so each can be revoked, named by doctor and clinic (`chatRevokeWho`), also after a restart; reloaded on `participant_removed` (a removal by the treating doctor ends the consent). The legal strings ("revoke ... in this conversation at any time") stay as written, now true |
+| Mobile: consent prompt | Grant is disabled until the invited doctor and their clinic are shown; until then the card says so (`chatInviteUnresolved`) and offers to load them again; decline stays possible |
+| Mobile: read position | Marked read only while the newest message is in view (the list within 48 px of its bottom) and the app is resumed |
+| Mobile: removed file | A file taken off before sending stays uploaded and counts toward the 10 unsent (`too_many_files`, said in both apps with the 24-hour purge) until it is purged. **Waiting for the owner**: the delete route needs a contract change |
+| Mobile: wiring | `SalusApp` and `HomeScreen` take an optional `Chats` (none hides Messages); `main.dart` passes the real client. `chat_screen.dart` is 558 lines, over the ~400 guideline |
 | Routing | `/conversations` added to the Vite dev proxy (with `ws`) and to the production Caddyfile |
-| e2e | `TestChat_ThePatientAndTheDoctorChat` passes; `TestChat_TheDoctorAddsAColleagueAndThePatientSeesIt` is written on SAL-28's contract and fails until it is merged (`POST .../participants = 404`) |
+| e2e | `TestChat_ThePatientAndTheDoctorChat` and `TestChat_TheDoctorAddsAColleagueAndThePatientSeesIt` (invite, grant, the patient sees both system messages, the colleague reads the history, the granted list, the revocation ends access) pass on main's backend |
 
 ### Measured
 
@@ -280,3 +288,12 @@ Mobile (ten languages): `chats*`, `chat*` keys of the list, composer, files, cha
 system messages, and the consent prompt and revocation (`chatInvite*`, `chatGrant`, `chatDecline`, `chatGranted`,
 `chatDeclined`, `chatRevoke*`, `chatRevoked`, all tagged `legal`). Open question: whether the out-of-hours notice
 names an emergency number.
+
+Added after the review: web `chat.error.too_many_files`; mobile `chatTooManyFiles`, `chatRevokeWho` (`legal`),
+`chatInviteUnresolved` (`legal`). `chat.summary.hint` is now shown in the summary panel, not only as a tooltip.
+
+Review (fresh subagent): fixed 1 (granted invitations listed for revocation), 2 (nothing stays after an end), 3
+(refused handshake ends the view), 4 (grant waits for the doctor and clinic), 5 (read only at the bottom, in the
+foreground), 6 (composer unlocks), 7 (hint in the panel), 8 (e2e passes), 9 (`from_seq` is seq minus one), 10
+(Messages for practitioners only), 11 (`too_many_files` said); declined none (the delete route of 11 waits for a
+contract change).
