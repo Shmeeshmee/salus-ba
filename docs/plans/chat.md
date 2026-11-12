@@ -238,3 +238,6 @@ PROGRESS when merged.
 | `conversation_participant.organization_id` | A practitioner's clinic: who is a doctor of another clinic, whose access needs the patient's consent (SAL-28) |
 | `conversation_participant.status`, `reason` | Whether an invited doctor waits for the patient's consent, and why the treating practitioner added them (a code): shown to the patient with the invitation (SAL-28) |
 | `chat_consent` (`patient_id`, `organization_id`, `conversation_id`, `practitioner_role_id`, `date_time`, `revoked_at`) | Proof of the patient's consent that a doctor of another clinic reads and writes in that conversation, and of its revocation (GDPR Art. 7(1); SAL-28) |
+| `push_device.token`, `platform`, `account_id` (SAL-29) | The patient app's push token: to tell the patient of a new message. Deleted on sign-out, when the platform says it is gone, and with the account |
+| `webhook_endpoint.created_by` (SAL-29) | Which admin created the clinic's webhook: accountability. The URL and the sealed secret are the clinic's, not personal data |
+| `webhook_dead_letter` ids (SAL-29) | The event, conversation and message of a delivery that failed its last attempt, for the clinic's admin and support: 30 days |

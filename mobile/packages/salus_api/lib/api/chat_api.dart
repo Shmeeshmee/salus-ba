@@ -105,6 +105,87 @@ class ChatApi {
     return null;
   }
 
+  /// Add a webhook endpoint; its secret is shown in this answer only
+  ///
+  /// The clinic's own system receives each event as a `WebhookEvent`, POSTed as JSON with the headers `Salus-Event-Id` (the event's id, the same on every attempt: deduplicate on it) and `Salus-Signature`: `t=<unix seconds>,v1=<hex HMAC-SHA256 of \"<t>.<body>\" with the secret>` (check it, and refuse an old `t`). A status other than 2xx, or no answer within 10 seconds, is retried with backoff, 8 attempts in about an hour and a half, then recorded as a dead letter. `url` is https to a public host; addresses that are not public are refused at every connection. `include_clinical` (off by default) adds the message's text: the clinic is the controller of what it receives. At most 10 endpoints. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [NewWebhook] newWebhook (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> createWebhookWithHttpInfo(
+    NewWebhook newWebhook, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/webhooks';
+
+    // ignore: prefer_final_locals
+    Object? postBody = newWebhook;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Add a webhook endpoint; its secret is shown in this answer only
+  ///
+  /// The clinic's own system receives each event as a `WebhookEvent`, POSTed as JSON with the headers `Salus-Event-Id` (the event's id, the same on every attempt: deduplicate on it) and `Salus-Signature`: `t=<unix seconds>,v1=<hex HMAC-SHA256 of \"<t>.<body>\" with the secret>` (check it, and refuse an old `t`). A status other than 2xx, or no answer within 10 seconds, is retried with backoff, 8 attempts in about an hour and a half, then recorded as a dead letter. `url` is https to a public host; addresses that are not public are refused at every connection. `include_clinical` (off by default) adds the message's text: the clinic is the controller of what it receives. At most 10 endpoints. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [NewWebhook] newWebhook (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<CreatedWebhook?> createWebhook(
+    NewWebhook newWebhook, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await createWebhookWithHttpInfo(
+      newWebhook,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'CreatedWebhook',
+      ) as CreatedWebhook;
+    }
+    return null;
+  }
+
   /// Grant or decline an invitation (SAL-28)
   ///
   /// The patient's decision. `grant` records their FHIR Consent for that conversation and that practitioner role (revocable), needs their active care consent with the clinic (403 `consent_required` otherwise) and makes the doctor an active participant; `decline` ends the invitation. System message `consent_granted` or `consent_declined` (`practitioner_role_id`). Audited.
@@ -176,6 +257,74 @@ class ChatApi {
     final response = await decideChatInvitationWithHttpInfo(
       id,
       chatInvitationDecision,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+  }
+
+  /// Delete a webhook endpoint and its dead letters
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The endpoint's id.
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> deleteWebhookWithHttpInfo(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/webhooks/{id}'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'DELETE',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Delete a webhook endpoint and its dead letters
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The endpoint's id.
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<void> deleteWebhook(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await deleteWebhookWithHttpInfo(
+      id,
       xSalusCSRF: xSalusCSRF,
       abortTrigger: abortTrigger,
     );
@@ -532,6 +681,133 @@ class ChatApi {
         await _decodeBodyBytes(response),
         'MultipartFile',
       ) as MultipartFile;
+    }
+    return null;
+  }
+
+  /// The clinic's chat hours, its response time, and whether it is within its hours now
+  ///
+  /// For the clinic's staff and for a patient with an active care consent with it; anyone else gets 404. `hours` are in the clinic's `time_zone`; `open_now` is computed there (true when the clinic states no hours). The app shows its out-of-hours notice from it.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The clinic's id.
+  Future<Response> getChatHoursWithHttpInfo(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/organizations/{id}/chat-hours'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The clinic's chat hours, its response time, and whether it is within its hours now
+  ///
+  /// For the clinic's staff and for a patient with an active care consent with it; anyone else gets 404. `hours` are in the clinic's `time_zone`; `open_now` is computed there (true when the clinic states no hours). The app shows its out-of-hours notice from it.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The clinic's id.
+  Future<ChatHours?> getChatHours(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getChatHoursWithHttpInfo(
+      id,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ChatHours',
+      ) as ChatHours;
+    }
+    return null;
+  }
+
+  /// The admin's clinic's chat settings
+  ///
+  /// The defaults (no hours, 24 hours, 60 minutes) until the admin sets them.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  Future<Response> getChatSettingsWithHttpInfo({
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/chat-settings';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The admin's clinic's chat settings
+  ///
+  /// The defaults (no hours, 24 hours, 60 minutes) until the admin sets them.
+  Future<ChatSettings?> getChatSettings({
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getChatSettingsWithHttpInfo(
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ChatSettings',
+      ) as ChatSettings;
     }
     return null;
   }
@@ -990,6 +1266,59 @@ class ChatApi {
     return null;
   }
 
+  /// The admin's clinic's webhook endpoints, without their secrets
+  ///
+  /// Note: This method returns the HTTP [Response].
+  Future<Response> listWebhooksWithHttpInfo({
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/webhooks';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The admin's clinic's webhook endpoints, without their secrets
+  Future<WebhookList?> listWebhooks({
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await listWebhooksWithHttpInfo(
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'WebhookList',
+      ) as WebhookList;
+    }
+    return null;
+  }
+
   /// Move the caller's read position
   ///
   /// The caller has read the messages up to `seq`; the position never goes back. Not audited.
@@ -1231,6 +1560,76 @@ class ChatApi {
       ) as Conversation;
     }
     return null;
+  }
+
+  /// Register the patient app's push token
+  ///
+  /// The patient app registers its FCM (Android) or APNs (iOS) token at every start (docs/plans/chat.md, SAL-29). A token is one device: registered by another account, it moves to this one. A push says only that there is a new message from the clinic; it carries no text, name or id. Staff get 403: the app is the patients'. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [PushDevice] pushDevice (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> registerDeviceWithHttpInfo(
+    PushDevice pushDevice, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/me/devices';
+
+    // ignore: prefer_final_locals
+    Object? postBody = pushDevice;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'PUT',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Register the patient app's push token
+  ///
+  /// The patient app registers its FCM (Android) or APNs (iOS) token at every start (docs/plans/chat.md, SAL-29). A token is one device: registered by another account, it moves to this one. A push says only that there is a new message from the clinic; it carries no text, name or id. Staff get 403: the app is the patients'. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [PushDevice] pushDevice (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<void> registerDevice(
+    PushDevice pushDevice, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await registerDeviceWithHttpInfo(
+      pushDevice,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
   }
 
   /// Remove a practitioner, or withdraw an invitation (SAL-28)
@@ -1629,6 +2028,157 @@ class ChatApi {
       ) as ChatMessage;
     }
     return null;
+  }
+
+  /// Replace the admin's clinic's chat settings
+  ///
+  /// Every field required. `hours`: up to 21 stretches, each within one weekday, `start` before `end` (`24:00` for midnight), none overlapping. `response_time_hours` 1 to 168. `email_after_minutes` 5 to 10080: how long a message stays unread before its reader gets an e-mail. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [ChatSettings] chatSettings (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> setChatSettingsWithHttpInfo(
+    ChatSettings chatSettings, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/chat-settings';
+
+    // ignore: prefer_final_locals
+    Object? postBody = chatSettings;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'PUT',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Replace the admin's clinic's chat settings
+  ///
+  /// Every field required. `hours`: up to 21 stretches, each within one weekday, `start` before `end` (`24:00` for midnight), none overlapping. `response_time_hours` 1 to 168. `email_after_minutes` 5 to 10080: how long a message stays unread before its reader gets an e-mail. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [ChatSettings] chatSettings (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<ChatSettings?> setChatSettings(
+    ChatSettings chatSettings, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await setChatSettingsWithHttpInfo(
+      chatSettings,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ChatSettings',
+      ) as ChatSettings;
+    }
+    return null;
+  }
+
+  /// Unregister the app's push token (on sign-out)
+  ///
+  /// Deletes the account's device of the token; nothing for a token it does not have. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [PushDevice] pushDevice (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> unregisterDeviceWithHttpInfo(
+    PushDevice pushDevice, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/me/devices';
+
+    // ignore: prefer_final_locals
+    Object? postBody = pushDevice;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'DELETE',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Unregister the app's push token (on sign-out)
+  ///
+  /// Deletes the account's device of the token; nothing for a token it does not have. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [PushDevice] pushDevice (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<void> unregisterDevice(
+    PushDevice pushDevice, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await unregisterDeviceWithHttpInfo(
+      pushDevice,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
   }
 
   /// Upload a file to send in the conversation

@@ -35,6 +35,8 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 	workers := river.NewWorkers()
 	addDefaultWorkers(workers, defaultServices{}, nil)
 	addEmailWorkers(workers, nil)
+	addChatWorkers(workers, nil)
+	addWebhookWorkers(workers, nil)
 	addAgentWorkers(workers, nil, nil)
 	return river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Logger: log,

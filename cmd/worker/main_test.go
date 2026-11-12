@@ -208,10 +208,11 @@ func TestRun_FailsWithoutTheLiveKitSettings(t *testing.T) {
 	}
 }
 
-// setFiles sets the object store's and clamd's settings the binary jobs require, synthetic as in compose
-// (nothing connects to either at start).
+// setFiles sets the object store's and clamd's settings the binary jobs require, and the webhook deliveries' key,
+// synthetic as in compose (nothing connects to either at start).
 func setFiles(t *testing.T) {
 	t.Helper()
+	t.Setenv("WEBHOOK_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtd2ViaG9vay1rZXk=") // the webhook deliveries' key (SAL-29), synthetic as in compose
 	for k, v := range map[string]string{
 		"S3_ENDPOINT": "http://objectstore:3900", "S3_REGION": "garage", "S3_BUCKET": "salus-binaries",
 		"S3_ACCESS_KEY_ID": "GK5a1a50000000000000000001", "S3_SECRET_ACCESS_KEY": "synthetic-secret",

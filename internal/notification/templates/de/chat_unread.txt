@@ -1,0 +1,6 @@
+Neue Nachricht von Ihrer Praxis
+
+Sie haben eine neue Nachricht von Ihrer Praxis.
+
+Um sie zu lesen, öffnen Sie die Salus-App:
+{{.Link}}

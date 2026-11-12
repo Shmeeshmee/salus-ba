@@ -75,6 +75,7 @@ type Ports struct {
 	Directory    Directory
 	Audit        Auditor
 	Tx           Transactor
+	Jobs         Jobs // a send enqueues its notifications (SAL-29)
 	Clock        clock.Clock
 	Log          *slog.Logger
 	// SAL-30: the messages' files (nil: a send with files fails), the terms' tagging (nil: no terms) in the caller's

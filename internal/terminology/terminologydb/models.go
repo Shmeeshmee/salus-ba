@@ -588,6 +588,15 @@ type Organization struct {
 	PatientTranscriptCopy bool
 }
 
+type OrganizationChatSetting struct {
+	OrganizationID    pgtype.UUID
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+	ResponseTimeHours int32
+	EmailAfterMinutes int32
+	Hours             []byte
+}
+
 type Patient struct {
 	ID         pgtype.UUID
 	CreatedAt  pgtype.Timestamptz
@@ -628,6 +637,15 @@ type PractitionerRole struct {
 	VersionID      int32
 	Active         bool
 	SpecialtyCode  pgtype.Text
+}
+
+type PushDevice struct {
+	ID        pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	AccountID pgtype.UUID
+	Platform  string
+	Token     string
 }
 
 type Questionnaire struct {
@@ -867,4 +885,28 @@ type VideoSession struct {
 	PractitionerIdentity string
 	EndReason            pgtype.Text
 	RemovalReason        pgtype.Text
+}
+
+type WebhookDeadLetter struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	EndpointID     pgtype.UUID
+	OrganizationID pgtype.UUID
+	EventID        pgtype.UUID
+	ConversationID pgtype.UUID
+	MessageID      pgtype.UUID
+	Attempts       int32
+	LastStatus     pgtype.Int4
+	EventType      string
+}
+
+type WebhookEndpoint struct {
+	ID              pgtype.UUID
+	CreatedAt       pgtype.Timestamptz
+	OrganizationID  pgtype.UUID
+	CreatedBy       pgtype.UUID
+	IncludeClinical bool
+	Url             string
+	Events          []string
+	SecretSealed    []byte
 }

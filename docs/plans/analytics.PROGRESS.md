@@ -103,3 +103,11 @@ aggregate per year; 50 iterations, 3 runs):
 
 No index beyond the primary keys (clinic, day, hour, role, status or code), which serve the range scans; not tuned
 further without a slower measurement in use.
+
+Re-measured after merging main (chat 00044 to 00047, the shared history lookup 00046; the migration is now 00048),
+2026-11-12, same benchmark and machine but under a load average of about 60 on 28 threads from other sessions:
+refresh 11.2 to 23.2 ms, yearly overview 215 to 249 ms. The merge changed none of what the benchmark reads or
+writes (the two aggregates and their policies, the stats login's sources, `audit_event`): salus_stats bypasses the
+new organization and practitioner_role policies, and the aggregates' policies read only settings, so no policy
+recursion. The slower overview is attributed to the load, not the merge; re-measure on an idle machine before
+tuning.

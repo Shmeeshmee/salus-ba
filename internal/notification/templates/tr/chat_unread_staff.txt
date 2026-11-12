@@ -1,0 +1,6 @@
+Salus'ta yeni sohbet mesajı
+
+Salus'ta okunmamış bir sohbet mesajınız var.
+
+Mesajı okumak için Salus'a giriş yapın:
+{{.Link}}

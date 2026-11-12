@@ -70,7 +70,7 @@ func TestWorker_RefreshesTheRecentDaysNightly(t *testing.T) {
 
 func TestNew_RefusesToStartWithoutTheStatsPool(t *testing.T) {
 	_, app := pgtest.NewAppDatabase(t)
-	if _, err := worker.New(app, app, nil, liveKit(t), testFiles(t), slog.New(slog.DiscardHandler)); err == nil {
+	if _, err := worker.New(app, app, nil, liveKit(t), testFiles(t), webhookKey, slog.New(slog.DiscardHandler)); err == nil {
 		t.Fatal("New() error = nil without the stats pool")
 	}
 }
