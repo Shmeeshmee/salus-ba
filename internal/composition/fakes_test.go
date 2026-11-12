@@ -239,6 +239,18 @@ func (r *fakeRepository) Signed(ctx context.Context, encounterID string) ([]comp
 	return slices.DeleteFunc(all, func(d composition.Draft) bool { return d.Status != composition.StatusFinal }), err
 }
 
+func (r *fakeRepository) SignedOf(ctx context.Context, encounterIDs []string) ([]composition.Draft, error) {
+	var out []composition.Draft
+	for _, id := range encounterIDs {
+		ds, err := r.Signed(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ds...)
+	}
+	return out, nil
+}
+
 func (r *fakeRepository) Sign(ctx context.Context, d composition.Draft, at time.Time) (composition.Draft, error) {
 	if err := r.check(ctx); err != nil {
 		return composition.Draft{}, err

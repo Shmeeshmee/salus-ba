@@ -277,6 +277,30 @@ func (r *postgresRepository) Signed(ctx context.Context, encounterID string) ([]
 	return out, nil
 }
 
+func (r *postgresRepository) SignedOf(ctx context.Context, encounterIDs []string) ([]Draft, error) {
+	ids := make([]pgtype.UUID, 0, len(encounterIDs))
+	for _, id := range encounterIDs {
+		var u pgtype.UUID
+		if u.Scan(id) == nil {
+			ids = append(ids, u)
+		}
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).SignedOfEncounters(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Draft, len(rows))
+	for i, row := range rows {
+		if out[i], err = draftOf(compositiondb.DraftRow(row)); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) Sign(ctx context.Context, d Draft, at time.Time) (Draft, error) {
 	var id, role, ref, prov pgtype.UUID
 	if id.Scan(d.ID) != nil || role.Scan(d.SignerRoleID) != nil || ref.Scan(d.DocumentReferenceID) != nil || prov.Scan(d.ProvenanceID) != nil {

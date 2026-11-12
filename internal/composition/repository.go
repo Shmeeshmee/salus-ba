@@ -41,6 +41,9 @@ type Repository interface {
 	Drafts(ctx context.Context, encounterID string) ([]Draft, error)
 	// Signed returns the encounter's final (signed) drafts, in the order they were signed.
 	Signed(ctx context.Context, encounterID string) ([]Draft, error)
+	// SignedOf returns the final (signed) drafts of the encounters, in the order they were signed; ids that are not
+	// UUIDs match nothing.
+	SignedOf(ctx context.Context, encounterIDs []string) ([]Draft, error)
 	// Sign stores d's fields, status final and signature, at at, as the version after d.VersionID.
 	Sign(ctx context.Context, d Draft, at time.Time) (Draft, error)
 }

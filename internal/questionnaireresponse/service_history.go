@@ -23,14 +23,28 @@ func (s *Service) History(ctx context.Context, c appointment.Caller, visits []en
 		if err := s.Repo.SetClinic(ctx, c.OrganizationID); err != nil {
 			return err
 		}
+		// One search per patient, not per visit (PROGRESS, SAL-40): the visits' appointments are picked from it.
+		byAppointment := map[string][]Response{}
+		patients := map[string]bool{}
 		for _, v := range visits {
-			rs, err := s.Repo.Search(ctx, Filter{AppointmentID: v.AppointmentID, PatientID: v.PatientID, Status: StatusCompleted})
+			if patients[v.PatientID] {
+				continue
+			}
+			patients[v.PatientID] = true
+			rs, err := s.Repo.Search(ctx, Filter{PatientID: v.PatientID, Status: StatusCompleted})
 			if err != nil {
 				return err
 			}
 			for _, r := range rs {
-				r.Attachments = scanned(r.Attachments)
-				out = append(out, r)
+				byAppointment[r.AppointmentID] = append(byAppointment[r.AppointmentID], r)
+			}
+		}
+		for _, v := range visits {
+			for _, r := range byAppointment[v.AppointmentID] {
+				if r.PatientID == v.PatientID {
+					r.Attachments = scanned(r.Attachments)
+					out = append(out, r)
+				}
 			}
 		}
 		return nil

@@ -58,7 +58,7 @@ func TestHistory_GivesTheCompletedResponsesOfTheVisits(t *testing.T) {
 	f.seed(apptB, questionnaireresponse.StatusCompleted) // patient B's: not a visit given
 	f.seed(apptA, questionnaireresponse.StatusInProgress)
 	shared := withShared(f)
-	visits := []encounter.Visit{{Encounter: encounter.Encounter{ID: "c1000000-0000-4000-8000-0000000000a1", AppointmentID: apptA}}, shared}
+	visits := []encounter.Visit{{Encounter: encounter.Encounter{ID: "c1000000-0000-4000-8000-0000000000a1", AppointmentID: apptA, PatientID: patientA}}, shared}
 
 	got, err := f.svc.History(t.Context(), pract, visits)
 	if err != nil || !slices.Equal(responseIDs(got), []string{own, sharedResp}) {

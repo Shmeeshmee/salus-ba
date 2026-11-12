@@ -1766,3 +1766,28 @@ practitioner. Every read, grant, change and revocation is audited.
 | The patient shares another patient's visit, or one of the receiving clinic's own, or one still in progress | Refused by the insert check of `history_consent_encounter` as well as the service |
 | A shared visit exposes more than its record | Only the encounter, signed documents, completed answers and their clean files, and the entries recorded in it; never the transcript, suggestions, drafts or appointment (policy tests) |
 | History reaches the language model | Not in this epic: suggestions and drafting read only the consultation's transcript (SAL-42 adds the test) |
+
+### SAL-40: the practitioner's view and the pre-visit summary (migration 00044)
+
+**Processing added.** No new personal data and no new table: the practitioner's view of the patient's history
+(`GET /patients/{id}/history`) and the pre-visit summary of one of their appointments (`.../history/summary`) read
+what the owning domains already hold, in the web app on the appointment and the call page. Migration 00044 adds one
+`SECURITY DEFINER` lookup, `history_questionnaire`, so a practitioner can read the questions of a completed response
+that was shared with their clinic: it returns that questionnaire version only (clinic content, no personal data),
+never another of the other clinic's versions, and nothing of any response.
+
+**Who sees what.** Only a practitioner of the clinic with an appointment with the patient under an active care
+consent has a view (`access.Profile` at Full, then `access.HistoryVisit` per visit, in `encounter.Service.History`);
+the clinic's admin, the patient and anyone else get 404. The view lists only those visits and what belongs to them;
+a visit that is not shared is in no item, count, summary or empty state. A shared visit's signed documents, completed
+answers, their questions and their clean files open for that practitioner through the same rule; never its drafts.
+
+**Audit.** Every view writes an AuditEvent of the view (the patient as entity, purpose TREAT) and one per item shown,
+by its owning domain, in the same transaction; reading another clinic's shared document or file is audited under the
+reader's clinic, so the visit's clinic is not told whom the patient shared it with.
+
+| Risk | Measure |
+| --- | --- |
+| A colleague's visit or an unshared visit shows in the view, its count or the summary | Filtered by `access.HistoryVisit` before anything is listed (service tests over every viewer; API test on the real database: the unshared visit's ids and diagnosis are nowhere in the answer) |
+| The view outlives a removal or a revocation | It is read anew on every page and every open (API test: after the removal the visit and its document are gone at once) |
+| The questions of another clinic leak beyond the shared response | `history_questionnaire` returns only a version a completed, shared response answers, and only to the receiving clinic's scope (migration test) |

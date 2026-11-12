@@ -22,12 +22,21 @@ func (s *Service) History(ctx context.Context, c appointment.Caller, visits []en
 		if err := s.Repo.SetClinic(ctx, c.OrganizationID); err != nil {
 			return err
 		}
+		ids := make([]string, len(visits))
+		for i, v := range visits {
+			ids[i] = v.ID
+		}
+		// One query for every visit, not one each (PROGRESS, SAL-40).
+		drafts, err := s.Repo.SignedOf(ctx, ids)
+		if err != nil {
+			return err
+		}
+		byEncounter := map[string][]Draft{}
+		for _, d := range drafts {
+			byEncounter[d.EncounterID] = append(byEncounter[d.EncounterID], d)
+		}
 		for _, v := range visits {
-			drafts, err := s.Repo.Signed(ctx, v.ID)
-			if err != nil {
-				return err
-			}
-			for _, d := range drafts {
+			for _, d := range byEncounter[v.ID] {
 				out = append(out, Document{Draft: d, Encounter: v.Encounter})
 			}
 		}
