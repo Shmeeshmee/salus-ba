@@ -18,11 +18,14 @@ const (
 	StatusEnteredInError Status = "entered-in-error"
 )
 
-// The dose units, UCUM codes (http://unitsofmeasure.org): units, and the annotated counts a patient doses in.
-var DoseUnits = []string{"mg", "g", "ug", "mL", "[iU]", "{tablet}", "{capsule}", "{drop}", "{puff}", "{patch}"}
+// DoseUnits returns the dose units, UCUM codes (http://unitsofmeasure.org): units, and the annotated counts a patient
+// doses in, as the table's check (00041) lists them.
+func DoseUnits() []string {
+	return []string{"mg", "g", "ug", "mL", "[iU]", "{tablet}", "{capsule}", "{drop}", "{puff}", "{patch}"}
+}
 
-// The period units, UCUM codes as FHIR Timing.repeat.periodUnit.
-var PeriodUnits = []string{"h", "d", "wk", "mo"}
+// PeriodUnits returns the period units, UCUM codes as FHIR Timing.repeat.periodUnit.
+func PeriodUnits() []string { return []string{"h", "d", "wk", "mo"} }
 
 // Code is the medication: a term of the terminology when picked from it (its id and ATC code), and the text shown.
 type Code struct {

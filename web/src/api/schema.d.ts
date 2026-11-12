@@ -1524,7 +1524,7 @@ export interface paths {
         get: operations["previewHistorySharing"];
         /**
          * Share exactly these visits with a clinic
-         * @description SAL-42. Grants the history consent with the clinic, or changes the visits it lists, to exactly the ones sent: each a finished visit of the patient's at another clinic. An empty list revokes it. Takes effect when it commits. Needs the care consent with the clinic. Every grant, change and revocation is audited.
+         * @description SAL-42. Grants the history consent with the clinic, or changes the visits it lists, to exactly the ones sent: each a finished visit of the patient's at another clinic. An empty list revokes it. Takes effect when it commits. Needs the care consent with the clinic. To change an existing sharing send If-Match with its `versionId` (412 when it changed meanwhile, or when it is missing and a sharing exists); a first grant sends none. Every grant, change and revocation is audited.
          */
         put: operations["setHistorySharing"];
         post?: never;
@@ -6749,6 +6749,8 @@ export interface operations {
             header?: {
                 /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
                 "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The sharing's version read, as a weak ETag, `W/"<versionId>"`; absent for a first grant. */
+                "If-Match"?: string;
             };
             path: {
                 /** @description The receiving clinic (FHIR Organization.id). */
@@ -6762,9 +6764,11 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The sharing now; `shared` empty after a revocation. */
+            /** @description The sharing now; `shared` empty after a revocation. Its ETag is the version. */
             200: {
                 headers: {
+                    /** @description W/"<versionId>". */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -6792,6 +6796,15 @@ export interface operations {
             };
             /** @description `not_found`: no such clinic. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the sharing changed since it was read, or exists and no If-Match was sent; read it again. */
+            412: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -3263,13 +3263,21 @@ paths:
       description: >-
         SAL-42. Grants the history consent with the clinic, or changes the visits it lists, to exactly the ones sent:
         each a finished visit of the patient's at another clinic. An empty list revokes it. Takes effect when it
-        commits. Needs the care consent with the clinic. Every grant, change and revocation is audited.
+        commits. Needs the care consent with the clinic. To change an existing sharing send If-Match with its
+        `versionId` (412 when it changed meanwhile, or when it is missing and a sharing exists); a first grant sends
+        none. Every grant, change and revocation is audited.
       tags: [history]
       security:
         - sessionCookie: []
         - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/CSRF"
+        - name: If-Match
+          in: header
+          required: false
+          description: The sharing's version read, as a weak ETag, `W/"<versionId>"`; absent for a first grant.
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -3277,7 +3285,9 @@ paths:
             schema: {$ref: "#/components/schemas/SetHistorySharingRequest"}
       responses:
         "200":
-          description: The sharing now; `shared` empty after a revocation.
+          description: The sharing now; `shared` empty after a revocation. Its ETag is the version.
+          headers:
+            ETag: {schema: {type: string}, description: 'W/"<versionId>".'}
           content:
             application/json:
               schema: {$ref: "#/components/schemas/HistorySharing"}
@@ -3296,6 +3306,11 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "404":
           description: "`not_found`: no such clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_conflict`: the sharing changed since it was read, or exists and no If-Match was sent; read it again."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}

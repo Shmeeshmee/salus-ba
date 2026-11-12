@@ -3,6 +3,7 @@ package migrations_test
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -52,7 +53,16 @@ func seedHistory(t *testing.T, owner *pgxpool.Pool) historyRows {
 			t.Fatal(err)
 		}
 		h.final[e] = id
+		// What a shared visit never brings: its transcript and its suggestions.
+		if _, err := owner.Exec(ctx, `WITH s AS (
+				INSERT INTO transcript_segment (id, encounter_id, speaker, lang, original, translation, ts_start, ts_end)
+				VALUES (gen_random_uuid(), $1, 'patient', 'bs', 'Placeholder original', '[de] Placeholder original', now(), now()) RETURNING id)
+			INSERT INTO suggestion (encounter_id, type, text, confidence, source_segment_ids)
+			SELECT $1, 'question', 'Placeholder question', 0.5, ARRAY[id] FROM s`, e); err != nil {
+			t.Fatal(err)
+		}
 	}
+	seedVideoSessions(t, owner, a)
 	for appt, response := range r.completed {
 		var id string
 		if err := owner.QueryRow(ctx, insertFile, response).Scan(&id); err != nil {
@@ -472,5 +482,174 @@ func TestPatientHistory_TablesHoldAConsistentState(t *testing.T) {
 		if _, err := owner.Exec(t.Context(), tt.stmt, tt.args...); err == nil {
 			t.Errorf("%s: accepted", tt.name)
 		}
+	}
+}
+
+// closedQueries are what a shared visit never opens: its transcript, suggestions, appointment, video session, the
+// other clinic's templates and its unsigned drafts, and the patient's visits at clinic B that are not shared. Each
+// gives only rows of clinic B.
+var closedQueries = map[string]string{
+	"transcript_segment": `SELECT s.id::text FROM transcript_segment s WHERE s.encounter_id IN (SELECT id FROM encounter WHERE organization_id = '` + clinicB + `')`,
+	"suggestion":         `SELECT s.id::text FROM suggestion s WHERE s.encounter_id IN (SELECT id FROM encounter WHERE organization_id = '` + clinicB + `')`,
+	"appointment":        `SELECT id::text FROM appointment WHERE organization_id = '` + clinicB + `'`,
+	"video_session":      `SELECT id::text FROM video_session WHERE organization_id = '` + clinicB + `'`,
+	"document_template":  `SELECT id::text FROM document_template WHERE organization_id = '` + clinicB + `'`,
+	"open drafts":        `SELECT d.id::text FROM document_draft d JOIN encounter e ON e.id = d.encounter_id WHERE e.organization_id = '` + clinicB + `' AND d.status <> 'final'`,
+	"unshared visits":    `SELECT id::text FROM encounter WHERE organization_id = '` + clinicB + `' AND status <> 'finished'`,
+}
+
+// ADR 0013: a shared visit brings its signed record and nothing else, in every scope a clinic's transaction may carry
+// beside its own, and a clinic writes nothing into it.
+func TestHistorySharing_WhatAVisitNeverBringsStaysClosed(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	h := seedHistory(t, owner)
+	e := h.encounters[h.a.bPast]
+	share(t, owner, h.consent, e)
+	for name, scope := range map[string]map[string]string{
+		"clinic A":                     {"app.organization_id": clinicA},
+		"clinic A in a room":           {"app.organization_id": clinicA, "app.video_room": "r_" + h.a.aFuture},
+		"clinic A with a response set": {"app.organization_id": clinicA, "app.questionnaire_response_id": h.r.completed[h.a.bPast]},
+		"clinic A with an account set": {"app.organization_id": clinicA, "app.account_id": h.patients[0].account},
+		"clinic A with a patient set":  {"app.organization_id": clinicA, "app.patient_id": h.patients[1].patient},
+	} {
+		for table, query := range closedQueries {
+			if got := idsIn(t, app, scope, query); len(got) != 0 {
+				t.Errorf("%s: sees %s %v of clinic B's shared visit, want none", name, table, got)
+			}
+		}
+	}
+	for name, stmt := range map[string]string{
+		"add a transcript segment": `INSERT INTO transcript_segment (id, encounter_id, speaker, lang, original, translation, ts_start, ts_end)
+			VALUES (gen_random_uuid(), '` + e + `', 'patient', 'bs', 'x', 'x', now(), now())`,
+		"add a suggestion": `INSERT INTO suggestion (encounter_id, type, text, confidence, source_segment_ids)
+			SELECT '` + e + `', 'question', 'x', 0.5, ARRAY[gen_random_uuid()]`,
+		"change a suggestion":  `UPDATE suggestion SET status = 'pinned' WHERE encounter_id = '` + e + `'`,
+		"change the document":  `UPDATE document_draft SET status = 'entered-in-error' WHERE encounter_id = '` + e + `'`,
+		"finish the encounter": `UPDATE encounter SET version_id = version_id + 1 WHERE id = '` + e + `'`,
+	} {
+		_ = asApp(t, app, map[string]string{"app.organization_id": clinicA}, func(ctx context.Context, db postgres.Querier) error {
+			tag, err := db.Exec(ctx, stmt)
+			if err == nil && tag.RowsAffected() != 0 {
+				t.Errorf("clinic A could %s of the shared visit (%d rows)", name, tag.RowsAffected())
+			}
+			return err
+		})
+	}
+}
+
+// After a removal or a revocation the clinic no longer sees what was shared, not even which visits; and the patient
+// cannot rewrite the proof: a removal stays a removal, a revocation stays a revocation.
+func TestHistoryConsent_AClinicSeesOnlyTheOpenSelectionAndTheProofStays(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	h := seedHistory(t, owner)
+	share(t, owner, h.consent, h.encounters[h.a.bPast])
+	clinic := map[string]string{"app.organization_id": clinicA}
+	patientA := map[string]string{"app.patient_id": h.patients[0].patient}
+	selections := `SELECT encounter_id::text FROM history_consent_encounter`
+
+	ownerExec(t, owner, `UPDATE history_consent_encounter SET removed_at = now() WHERE consent_id = $1`, h.consent)
+	if got := idsIn(t, app, clinic, selections); len(got) != 0 {
+		t.Errorf("after the removal clinic A sees the selections %v, want none", got)
+	}
+	if got := idsIn(t, app, patientA, selections); len(got) != 1 {
+		t.Errorf("after the removal the patient sees %v, want their removed selection", got)
+	}
+	_ = asApp(t, app, patientA, func(ctx context.Context, db postgres.Querier) error {
+		tag, err := db.Exec(ctx, `UPDATE history_consent_encounter SET removed_at = NULL WHERE consent_id = $1`, h.consent)
+		if err == nil && tag.RowsAffected() != 0 {
+			t.Errorf("the patient reopened %d removed selections, want none (adding again adds a row)", tag.RowsAffected())
+		}
+		return err
+	})
+
+	share(t, owner, h.consent, h.encounters[h.a.bPast])
+	ownerExec(t, owner, `UPDATE history_consent SET status = 'inactive', revoked_at = now() WHERE id = $1`, h.consent)
+	for what, query := range map[string]string{"consents": `SELECT id::text FROM history_consent`, "selections": selections} {
+		if got := idsIn(t, app, clinic, query); len(got) != 0 {
+			t.Errorf("after the revocation clinic A sees the %s %v, want none", what, got)
+		}
+	}
+	_ = asApp(t, app, patientA, func(ctx context.Context, db postgres.Querier) error {
+		tag, err := db.Exec(ctx, `UPDATE history_consent SET status = 'active', revoked_at = NULL WHERE id = $1`, h.consent)
+		if err == nil && tag.RowsAffected() != 0 {
+			t.Errorf("the patient re-activated %d revoked consents, want none (granting again adds a row)", tag.RowsAffected())
+		}
+		return err
+	})
+}
+
+// entryWrites are, per table, the statements of TestProfileEntries_NoScopeWritesWhatIsNotItsOwn: $1 the entry, $2 a
+// role, $3 a clinic.
+var entryWrites = map[string]map[string]string{
+	"allergy_intolerance": {
+		"confirm": `UPDATE allergy_intolerance SET verification_status = 'confirmed', confirmed_at = now(), confirmed_by_role_id = $2, confirmed_organization_id = $3 WHERE id = $1`,
+		"edit":    `UPDATE allergy_intolerance SET code_text = 'Changed substance' WHERE id = $1`,
+		"profile": `UPDATE allergy_intolerance SET in_profile = NOT in_profile WHERE id = $1`,
+		"remove":  `UPDATE allergy_intolerance SET verification_status = 'entered-in-error' WHERE id = $1`,
+		"insert confirmed": `INSERT INTO allergy_intolerance (patient_id, code_text, verification_status, recorded_date, confirmed_at, confirmed_by_role_id, confirmed_organization_id)
+			SELECT patient_id, 'x', 'confirmed', now(), now(), $2, $3 FROM allergy_intolerance WHERE id = $1`,
+	},
+	"medication_statement": {
+		"confirm": `UPDATE medication_statement SET confirmed_at = now(), confirmed_by_role_id = $2, confirmed_organization_id = $3 WHERE id = $1`,
+		"edit":    `UPDATE medication_statement SET medication_text = 'Changed medication' WHERE id = $1`,
+		"profile": `UPDATE medication_statement SET in_profile = NOT in_profile WHERE id = $1`,
+		"remove":  `UPDATE medication_statement SET status = 'entered-in-error' WHERE id = $1`,
+		"insert confirmed": `INSERT INTO medication_statement (patient_id, medication_text, date_asserted, confirmed_at, confirmed_by_role_id, confirmed_organization_id)
+			SELECT patient_id, 'x', now(), now(), $2, $3 FROM medication_statement WHERE id = $1`,
+	},
+}
+
+// The patient never confirms an entry, nor edits a clinic's (they add it to the profile or remove it); a clinic never
+// moves an entry into or out of the profile, confirms only as itself, and edits only its own entries.
+func TestProfileEntries_NoScopeWritesWhatIsNotItsOwn(t *testing.T) {
+	t.Parallel()
+	for table, insert := range entryTables {
+		t.Run(table, func(t *testing.T) {
+			t.Parallel()
+			owner, app := pgtest.NewAppDatabase(t)
+			h := seedHistory(t, owner)
+			r := seedEntries(t, owner, h, insert)
+			share(t, owner, h.consent, h.encounters[h.a.bPast])
+			w := entryWrites[table]
+			patientA := map[string]string{"app.patient_id": h.patients[0].patient}
+			clinic := map[string]string{"app.organization_id": clinicA}
+			roleA, roleB := h.r.roles[clinicA], h.r.roles[clinicB]
+			for _, tt := range []struct {
+				scope          map[string]string
+				name, stmt, id string
+				role, org      string
+				ok             bool
+			}{
+				{patientA, "the patient confirms their own entry", w["confirm"], r.own, roleA, clinicA, false},
+				{patientA, "the patient inserts a confirmed entry", w["insert confirmed"], r.own, roleA, clinicA, false},
+				{patientA, "the patient edits their own entry", w["edit"], r.own, roleA, clinicA, true},
+				{patientA, "the patient edits a clinic's entry", w["edit"], r.atB, roleA, clinicA, false},
+				{patientA, "the patient adds a clinic's entry to the profile", w["profile"], r.atB, roleA, clinicA, true},
+				{patientA, "the patient removes a clinic's entry", w["remove"], r.atA, roleA, clinicA, true},
+				{clinic, "the clinic moves the shared visit's entry into the profile", w["profile"], r.atB, roleA, clinicA, false},
+				{clinic, "the clinic moves its own entry into the profile", w["profile"], r.atA, roleA, clinicA, false},
+				{clinic, "the clinic edits the shared visit's entry", w["edit"], r.atB, roleA, clinicA, false},
+				{clinic, "the clinic edits its own entry", w["edit"], r.atA, roleA, clinicA, true},
+				{clinic, "the clinic confirms as another clinic", w["confirm"], r.own, roleB, clinicB, false},
+				{clinic, "the clinic confirms with another clinic's role", w["confirm"], r.own, roleB, clinicA, false},
+				{clinic, "the clinic confirms the profile entry as itself", w["confirm"], r.own, roleA, clinicA, true},
+			} {
+				var changed int64
+				err := asApp(t, app, tt.scope, func(ctx context.Context, db postgres.Querier) error {
+					args := []any{tt.id}
+					if strings.Contains(tt.stmt, "$2") {
+						args = append(args, tt.role, tt.org)
+					}
+					tag, err := db.Exec(ctx, tt.stmt, args...)
+					changed = tag.RowsAffected()
+					return err
+				})
+				if got := err == nil && changed == 1; got != tt.ok {
+					t.Errorf("%s: err %v, %d rows; want ok %v", tt.name, err, changed, tt.ok)
+				}
+			}
+		})
 	}
 }

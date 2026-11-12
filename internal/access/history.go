@@ -1,14 +1,10 @@
 package access
 
-import (
-	"slices"
-	"time"
-)
+import "slices"
 
 // Record is one visit of the patient's history (docs/plans/patient-history.md, ADR 0013): its encounter, the clinic
 // it was at and its practitioner.
 type Record struct {
-	Start            time.Time
 	Encounter        string
 	Clinic           string
 	PractitionerRole string

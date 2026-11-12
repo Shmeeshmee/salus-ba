@@ -17,14 +17,12 @@ const (
 	roleB1             = "e3000000-0000-4000-8000-0000000000e3" // a practitioner's role in clinic B
 )
 
-var start = time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC)
-
 // The visits of patient A's history, at clinic A (the viewer's) and B.
 var records = map[string]access.Record{
-	"own":       {Encounter: encounterOwn, Clinic: clinicA, PractitionerRole: roleA1, Start: start},
-	"colleague": {Encounter: encounterColleague, Clinic: clinicA, PractitionerRole: roleA2, Start: start},
-	"shared":    {Encounter: encounterShared, Clinic: clinicB, PractitionerRole: roleB1, Start: start},
-	"unshared":  {Encounter: encounterUnshared, Clinic: clinicB, PractitionerRole: roleB1, Start: start},
+	"own":       {Encounter: encounterOwn, Clinic: clinicA, PractitionerRole: roleA1},
+	"colleague": {Encounter: encounterColleague, Clinic: clinicA, PractitionerRole: roleA2},
+	"shared":    {Encounter: encounterShared, Clinic: clinicB, PractitionerRole: roleB1},
+	"unshared":  {Encounter: encounterUnshared, Clinic: clinicB, PractitionerRole: roleB1},
 }
 
 // historyFacts are patient A's facts in clinic A: the care consent, the history consent sharing encounterShared,
@@ -129,5 +127,15 @@ func TestAttributed_OnlyThePatientAndTheRecordingClinic(t *testing.T) {
 		if got := access.Attributed(viewers[tc.viewer], f, tc.clinic); got != tc.want {
 			t.Errorf("Attributed(%s, %s) = %v, want %v", tc.viewer, tc.clinic, got, tc.want)
 		}
+	}
+}
+
+// A history consent shares only other clinics' visits: one of the viewer's own clinic listed in it (which row-level
+// security never lets the patient add) still follows the own-visits rule, so a colleague's visit stays hidden.
+func TestHistoryVisit_AListedVisitOfTheOwnClinicFollowsTheOwnVisitsRule(t *testing.T) {
+	f := historyFacts(true, true, booked)
+	f.Consent.Shared = append(f.Consent.Shared, encounterColleague)
+	if access.HistoryVisit(viewers["practitioner"], f, records["colleague"]) {
+		t.Error("a colleague's visit listed in the history consent is seen, want hidden")
 	}
 }

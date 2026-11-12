@@ -27,6 +27,7 @@ Settled by this plan, within those decisions:
 | What a shared visit brings | Its encounter, its signed documents (Composition, DocumentReference, PDF), its completed questionnaire responses and their clean files, the entries recorded in it. Never the transcript, suggestions, drafts or the appointment |
 | Only finished visits | A visit is shareable once its encounter is finished; row-level security refuses another |
 | An empty selection | An active history consent lists at least one visit: saving none revokes it (`PUT /history-sharing/{organizationId}` with `[]`) |
+| Changing a selection | Optimistic locking: `PUT /history-sharing/{organizationId}` with If-Match of the sharing's version (none for a first grant); a removal and a revocation are final, adding again adds a row |
 | Revoking the care consent | Also revokes the history consent with that clinic, in the same transaction (as the transcription consent) |
 | The visit's title in the preview | The title of its first signed document, else none (the app shows the specialty); the same fields the receiving clinic sees, so the preview is exactly what the doctor will see |
 | Removing an entry | The patient's own unconfirmed entry is deleted; anything confirmed or recorded by a clinic becomes entered-in-error, kept with the record and shown to no one |
@@ -39,7 +40,10 @@ Settled by this plan, within those decisions:
 
 - **Migration `00041_patient_history.sql`**: `allergy_intolerance`, `medication_statement`, `history_consent`,
   `history_consent_encounter`, the function `history_shared(encounter, patient)`, the `*_shared` policies, the
-  profile tables' policies and the grants. Tests: `migrations/patient_history_test.go` (every scope, table,
+  profile tables' policies, the `profile_entry_update_check` trigger, 00031's transcript and suggestion policies
+  narrowed to the clinic's own encounters, and the grants. Its policies call `history_shared` for every encounter row
+  a clinic's scope reads: SAL-39 and SAL-40 measure their reads (PROGRESS) and say whether it needs more than the
+  partial index on `history_consent_encounter (encounter_id)`. Tests: `migrations/patient_history_test.go` (every scope, table,
   removal, revocation, insert check and constraint). Ownership: `allergyintolerance`, `medicationstatement`,
   `consent`; retention `keep` for all four.
 - **`internal/access`**: `Consent.History`, `Consent.Shared`; `Record`; `HistoryVisit`, `ProfileEntry`, `Attributed`
@@ -88,6 +92,11 @@ owner.
   (now with the shared visits) and the patient's appointments there; every source filters with `access.HistoryVisit`
   before it lists or counts. Each owning domain gets a read for a practitioner's visits and for shared encounter
   ids, applying `access.HistoryVisit` (not its own appointment rule, which refuses another clinic's visit).
+- The questions of a shared questionnaire response: 00041 does not open another clinic's `questionnaire` rows. A
+  `questionnaire_shared` policy chained on `questionnaire_response` made the planner spin (an UPDATE of
+  `questionnaire_translation` never finished), so read the versions a shared completed response answers through a
+  `SECURITY DEFINER` lookup that returns only those versions (as `encounter_organization`, 00033), in this
+  package's migration, with a test that `migrations/language_test.go` still runs in its usual time.
 - Allergies and medications through the `Allergies` and `Medications` ports. Until SAL-41 is on main, the fakes;
   SAL-41 merges first, so this branch merges main and wires the real services in `internal/api/app.go`.
 - `GET /patients/{id}/history`, `GET /patients/{id}/history/summary?appointment=`. Every view audited.

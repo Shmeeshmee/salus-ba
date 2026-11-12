@@ -22,8 +22,11 @@
 --   - the visit's encounter, its signed documents (final, never a draft), its completed questionnaire responses and
 --     their clean files (never one in quarantine or rejected), and the entries recorded in it;
 --   - the visit's clinic and practitioner role, for the clinic name and specialty the shared visit is marked with.
--- Never the transcript, the suggestions, the appointment or anything not listed. Which practitioner of the clinic
--- sees it is the service's rule (access.HistoryVisit). A removal or revocation ends it when its transaction commits.
+-- Never the transcript, the suggestions, the appointment or anything not listed: 00031's transcript_segment_clinic
+-- and suggestion_clinic, which followed encounter's visibility, are recreated for the clinic's own encounters. Which
+-- practitioner of the clinic sees it is the service's rule (access.HistoryVisit). A removal or revocation ends it,
+-- and what was shared, when its transaction commits; both are final (adding again adds a row, granting again too).
+-- What each scope may change of an entry is checked by profile_entry_update_check, below.
 -- NULLIF: an unset setting reads as '' on a pooled connection and must match nothing.
 
 CREATE TABLE allergy_intolerance (
@@ -121,20 +124,39 @@ CREATE TABLE history_consent_encounter (
 CREATE UNIQUE INDEX history_consent_encounter_open ON history_consent_encounter (consent_id, encounter_id) WHERE removed_at IS NULL;
 CREATE INDEX history_consent_encounter_encounter ON history_consent_encounter (encounter_id) WHERE removed_at IS NULL;
 
+-- The patient's own scope sees all of theirs, grants an active one, and changes an active one (its version) or
+-- revokes it; a revocation is final, granting again adds a row. The receiving clinic reads only the active one.
 ALTER TABLE history_consent ENABLE ROW LEVEL SECURITY;
-CREATE POLICY history_consent_own ON history_consent
+CREATE POLICY history_consent_own ON history_consent FOR SELECT TO salus_app
     USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid);
-CREATE POLICY history_consent_clinic ON history_consent FOR SELECT
+CREATE POLICY history_consent_own_insert ON history_consent FOR INSERT TO salus_app
+    WITH CHECK (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid AND status = 'active');
+CREATE POLICY history_consent_own_update ON history_consent FOR UPDATE TO salus_app
+    USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid AND status = 'active')
+    WITH CHECK (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid);
+CREATE POLICY history_consent_clinic ON history_consent FOR SELECT TO salus_app
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND status = 'active'
            AND organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
 
--- Both branches through history_consent's own policies: the consent decides the scope.
+-- The patient sees every selection of theirs, removals included; the clinic only the open ones of its active consent,
+-- so after a removal or a revocation it does not even learn which visits were shared.
 ALTER TABLE history_consent_encounter ENABLE ROW LEVEL SECURITY;
-CREATE POLICY history_consent_encounter_read ON history_consent_encounter FOR SELECT
-    USING (EXISTS (SELECT 1 FROM history_consent h WHERE h.id = history_consent_encounter.consent_id));
+CREATE POLICY history_consent_encounter_own ON history_consent_encounter FOR SELECT TO salus_app
+    USING (EXISTS (SELECT 1 FROM history_consent h
+                   WHERE h.id = history_consent_encounter.consent_id
+                     AND h.patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid));
+CREATE POLICY history_consent_encounter_clinic ON history_consent_encounter FOR SELECT TO salus_app
+    USING (removed_at IS NULL
+           AND EXISTS (SELECT 1 FROM history_consent h
+                       WHERE h.id = history_consent_encounter.consent_id
+                         AND h.status = 'active'
+                         AND h.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid)
+           AND NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL);
 -- The patient lists a finished visit of their own at another clinic, into their own active consent.
-CREATE POLICY history_consent_encounter_own_insert ON history_consent_encounter FOR INSERT
+CREATE POLICY history_consent_encounter_own_insert ON history_consent_encounter FOR INSERT TO salus_app
     WITH CHECK (EXISTS (SELECT 1 FROM history_consent h JOIN encounter e ON e.id = history_consent_encounter.encounter_id
                         WHERE h.id = history_consent_encounter.consent_id
                           AND h.status = 'active'
@@ -142,10 +164,13 @@ CREATE POLICY history_consent_encounter_own_insert ON history_consent_encounter 
                           AND e.patient_id = h.patient_id
                           AND e.organization_id <> h.organization_id
                           AND e.status = 'finished'));
-CREATE POLICY history_consent_encounter_own_update ON history_consent_encounter FOR UPDATE
-    USING (EXISTS (SELECT 1 FROM history_consent h
-                   WHERE h.id = history_consent_encounter.consent_id
-                     AND h.patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid));
+-- A removal is final: only an open selection is updated, and only to removed.
+CREATE POLICY history_consent_encounter_own_update ON history_consent_encounter FOR UPDATE TO salus_app
+    USING (removed_at IS NULL
+           AND EXISTS (SELECT 1 FROM history_consent h
+                       WHERE h.id = history_consent_encounter.consent_id
+                         AND h.patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid))
+    WITH CHECK (removed_at IS NOT NULL);
 
 -- Whether the visit encounter_id of the patient is shared with the clinic of the transaction's scope: the clinic's
 -- scope only, an active history consent listing it, and an active care consent. Invoker's rights, so the policies of
@@ -155,15 +180,15 @@ CREATE FUNCTION history_shared(encounter_id uuid, patient_id uuid) RETURNS boole
     STABLE
     SET search_path = pg_catalog, public
 AS $$
-    SELECT NULLIF(current_setting('app.patient_id', true), '') IS NULL
-       AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+    SELECT NULLIF(pg_catalog.current_setting('app.patient_id', true), '') IS NULL
+       AND NULLIF(pg_catalog.current_setting('app.account_id', true), '') IS NULL
        AND EXISTS (SELECT 1 FROM public.history_consent_encounter s
                    JOIN public.history_consent h ON h.id = s.consent_id
                    WHERE s.encounter_id = history_shared.encounter_id
                      AND s.removed_at IS NULL
                      AND h.status = 'active'
                      AND h.patient_id = history_shared.patient_id
-                     AND h.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                     AND h.organization_id = NULLIF(pg_catalog.current_setting('app.organization_id', true), '')::uuid
                      AND EXISTS (SELECT 1 FROM public.consent c
                                  WHERE c.patient_id = h.patient_id
                                    AND c.organization_id = h.organization_id
@@ -172,20 +197,20 @@ $$;
 REVOKE EXECUTE ON FUNCTION history_shared(uuid, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION history_shared(uuid, uuid) TO salus_app;
 
-CREATE POLICY encounter_shared ON encounter FOR SELECT
+CREATE POLICY encounter_shared ON encounter FOR SELECT TO salus_app
     USING (status = 'finished' AND history_shared(id, patient_id));
-CREATE POLICY document_draft_shared ON document_draft FOR SELECT
+CREATE POLICY document_draft_shared ON document_draft FOR SELECT TO salus_app
     USING (status = 'final'
            AND NULLIF(current_setting('app.video_room', true), '') IS NULL
            AND EXISTS (SELECT 1 FROM encounter e
                        WHERE e.id = document_draft.encounter_id AND history_shared(e.id, e.patient_id)));
-CREATE POLICY questionnaire_response_shared ON questionnaire_response FOR SELECT
+CREATE POLICY questionnaire_response_shared ON questionnaire_response FOR SELECT TO salus_app
     USING (status = 'completed'
            AND EXISTS (SELECT 1 FROM encounter e
                        WHERE e.appointment_id = questionnaire_response.appointment_id
                          AND e.patient_id = questionnaire_response.patient_id
                          AND history_shared(e.id, e.patient_id)));
-CREATE POLICY binary_shared ON "binary" FOR SELECT
+CREATE POLICY binary_shared ON "binary" FOR SELECT TO salus_app
     USING (status = 'clean'
            AND NULLIF(current_setting('app.questionnaire_response_id', true), '') IS NULL
            AND EXISTS (SELECT 1 FROM questionnaire_response r
@@ -194,29 +219,49 @@ CREATE POLICY binary_shared ON "binary" FOR SELECT
                        WHERE e.appointment_id = "binary".appointment_id
                          AND e.patient_id = "binary".patient_id
                          AND history_shared(e.id, e.patient_id)));
-CREATE POLICY organization_shared ON organization FOR SELECT
+CREATE POLICY organization_shared ON organization FOR SELECT TO salus_app
     USING (EXISTS (SELECT 1 FROM history_consent_encounter s JOIN encounter e ON e.id = s.encounter_id
                    WHERE s.removed_at IS NULL AND e.organization_id = organization.id
                      AND history_shared(e.id, e.patient_id)));
-CREATE POLICY practitioner_role_shared ON practitioner_role FOR SELECT
+CREATE POLICY practitioner_role_shared ON practitioner_role FOR SELECT TO salus_app
     USING (EXISTS (SELECT 1 FROM history_consent_encounter s JOIN encounter e ON e.id = s.encounter_id
                    WHERE s.removed_at IS NULL AND e.practitioner_role_id = practitioner_role.id
                      AND history_shared(e.id, e.patient_id)));
+-- The transcript and the suggestions are the clinic's own: 00031 opened them wherever the clinic's scope sees the
+-- encounter, which encounter_shared would now stretch to another clinic's shared visit. Recreated for the clinic's own
+-- encounters only, otherwise as 00031.
+DROP POLICY transcript_segment_clinic ON transcript_segment;
+CREATE POLICY transcript_segment_clinic ON transcript_segment
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.video_room', true), '') IS NULL
+           AND EXISTS (SELECT 1 FROM encounter e
+                       WHERE e.id = transcript_segment.encounter_id
+                         AND e.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid));
+DROP POLICY suggestion_clinic ON suggestion;
+CREATE POLICY suggestion_clinic ON suggestion
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.video_room', true), '') IS NULL
+           AND EXISTS (SELECT 1 FROM encounter e
+                       WHERE e.id = suggestion.encounter_id
+                         AND e.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid));
 
 -- The profile tables: the patient's own scope sees all of theirs, writes its own entries and deletes only its own
 -- unconfirmed ones; a clinic sees the profile under an active care consent and the entries of the visits it sees,
 -- records entries in its own visits and confirms (updates) what it sees.
 ALTER TABLE allergy_intolerance ENABLE ROW LEVEL SECURITY;
-CREATE POLICY allergy_intolerance_own ON allergy_intolerance FOR SELECT
+CREATE POLICY allergy_intolerance_own ON allergy_intolerance FOR SELECT TO salus_app
     USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid);
-CREATE POLICY allergy_intolerance_own_insert ON allergy_intolerance FOR INSERT
-    WITH CHECK (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid AND organization_id IS NULL);
-CREATE POLICY allergy_intolerance_own_update ON allergy_intolerance FOR UPDATE
+CREATE POLICY allergy_intolerance_own_insert ON allergy_intolerance FOR INSERT TO salus_app
+    WITH CHECK (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid
+                AND organization_id IS NULL AND confirmed_at IS NULL);
+CREATE POLICY allergy_intolerance_own_update ON allergy_intolerance FOR UPDATE TO salus_app
     USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid);
-CREATE POLICY allergy_intolerance_own_delete ON allergy_intolerance FOR DELETE
+CREATE POLICY allergy_intolerance_own_delete ON allergy_intolerance FOR DELETE TO salus_app
     USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid
            AND organization_id IS NULL AND confirmed_at IS NULL);
-CREATE POLICY allergy_intolerance_clinic ON allergy_intolerance FOR SELECT
+CREATE POLICY allergy_intolerance_clinic ON allergy_intolerance FOR SELECT TO salus_app
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
            AND ((in_profile AND EXISTS (SELECT 1 FROM consent c
@@ -224,7 +269,7 @@ CREATE POLICY allergy_intolerance_clinic ON allergy_intolerance FOR SELECT
                                           AND c.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
                                           AND c.status = 'active'))
                 OR EXISTS (SELECT 1 FROM encounter e WHERE e.id = allergy_intolerance.encounter_id)));
-CREATE POLICY allergy_intolerance_clinic_insert ON allergy_intolerance FOR INSERT
+CREATE POLICY allergy_intolerance_clinic_insert ON allergy_intolerance FOR INSERT TO salus_app
     WITH CHECK (NULLIF(current_setting('app.patient_id', true), '') IS NULL
                 AND NULLIF(current_setting('app.account_id', true), '') IS NULL
                 AND NOT in_profile
@@ -233,7 +278,7 @@ CREATE POLICY allergy_intolerance_clinic_insert ON allergy_intolerance FOR INSER
                             WHERE e.id = allergy_intolerance.encounter_id
                               AND e.organization_id = allergy_intolerance.organization_id
                               AND e.patient_id = allergy_intolerance.patient_id));
-CREATE POLICY allergy_intolerance_clinic_update ON allergy_intolerance FOR UPDATE
+CREATE POLICY allergy_intolerance_clinic_update ON allergy_intolerance FOR UPDATE TO salus_app
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
            AND ((in_profile AND EXISTS (SELECT 1 FROM consent c
@@ -243,16 +288,17 @@ CREATE POLICY allergy_intolerance_clinic_update ON allergy_intolerance FOR UPDAT
                 OR EXISTS (SELECT 1 FROM encounter e WHERE e.id = allergy_intolerance.encounter_id)));
 
 ALTER TABLE medication_statement ENABLE ROW LEVEL SECURITY;
-CREATE POLICY medication_statement_own ON medication_statement FOR SELECT
+CREATE POLICY medication_statement_own ON medication_statement FOR SELECT TO salus_app
     USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid);
-CREATE POLICY medication_statement_own_insert ON medication_statement FOR INSERT
-    WITH CHECK (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid AND organization_id IS NULL);
-CREATE POLICY medication_statement_own_update ON medication_statement FOR UPDATE
+CREATE POLICY medication_statement_own_insert ON medication_statement FOR INSERT TO salus_app
+    WITH CHECK (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid
+                AND organization_id IS NULL AND confirmed_at IS NULL);
+CREATE POLICY medication_statement_own_update ON medication_statement FOR UPDATE TO salus_app
     USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid);
-CREATE POLICY medication_statement_own_delete ON medication_statement FOR DELETE
+CREATE POLICY medication_statement_own_delete ON medication_statement FOR DELETE TO salus_app
     USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid
            AND organization_id IS NULL AND confirmed_at IS NULL);
-CREATE POLICY medication_statement_clinic ON medication_statement FOR SELECT
+CREATE POLICY medication_statement_clinic ON medication_statement FOR SELECT TO salus_app
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
            AND ((in_profile AND EXISTS (SELECT 1 FROM consent c
@@ -260,7 +306,7 @@ CREATE POLICY medication_statement_clinic ON medication_statement FOR SELECT
                                           AND c.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
                                           AND c.status = 'active'))
                 OR EXISTS (SELECT 1 FROM encounter e WHERE e.id = medication_statement.encounter_id)));
-CREATE POLICY medication_statement_clinic_insert ON medication_statement FOR INSERT
+CREATE POLICY medication_statement_clinic_insert ON medication_statement FOR INSERT TO salus_app
     WITH CHECK (NULLIF(current_setting('app.patient_id', true), '') IS NULL
                 AND NULLIF(current_setting('app.account_id', true), '') IS NULL
                 AND NOT in_profile
@@ -269,7 +315,7 @@ CREATE POLICY medication_statement_clinic_insert ON medication_statement FOR INS
                             WHERE e.id = medication_statement.encounter_id
                               AND e.organization_id = medication_statement.organization_id
                               AND e.patient_id = medication_statement.patient_id));
-CREATE POLICY medication_statement_clinic_update ON medication_statement FOR UPDATE
+CREATE POLICY medication_statement_clinic_update ON medication_statement FOR UPDATE TO salus_app
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
            AND ((in_profile AND EXISTS (SELECT 1 FROM consent c
@@ -277,6 +323,63 @@ CREATE POLICY medication_statement_clinic_update ON medication_statement FOR UPD
                                           AND c.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
                                           AND c.status = 'active'))
                 OR EXISTS (SELECT 1 FROM encounter e WHERE e.id = medication_statement.encounter_id)));
+
+-- What a scope may change of an entry, which row-level security cannot say (it does not see the old row): the patient
+-- never confirms, edits only their own entries and, of a clinic's, only adds it to the profile or removes it
+-- (entered-in-error); a clinic never moves an entry into or out of the profile, confirms only as itself with one of
+-- its roles, and edits only its own entries. The owner (migrations, salusctl) is not checked.
+-- +goose StatementBegin
+CREATE FUNCTION profile_entry_update_check() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    clinic uuid := NULLIF(current_setting('app.organization_id', true), '')::uuid;
+    -- The columns compared apart: all others are the entry's content.
+    apart text[] := ARRAY['updated_at', 'version_id', 'in_profile', 'verification_status', 'status',
+                          'confirmed_at', 'confirmed_by_role_id', 'confirmed_organization_id'];
+    old_row jsonb := to_jsonb(OLD);
+    new_row jsonb := to_jsonb(NEW);
+    content_changed boolean := (new_row - apart) IS DISTINCT FROM (old_row - apart);
+    old_state text := coalesce(old_row->>'verification_status', old_row->>'status');
+    new_state text := coalesce(new_row->>'verification_status', new_row->>'status');
+    confirmation_changed boolean := (NEW.confirmed_at, NEW.confirmed_by_role_id, NEW.confirmed_organization_id)
+        IS DISTINCT FROM (OLD.confirmed_at, OLD.confirmed_by_role_id, OLD.confirmed_organization_id);
+BEGIN
+    IF current_user <> 'salus_app' THEN
+        RETURN NEW;
+    END IF;
+    IF NULLIF(current_setting('app.patient_id', true), '') IS NOT NULL THEN
+        IF confirmation_changed AND (NEW.confirmed_at IS NOT NULL OR OLD.organization_id IS NOT NULL) THEN
+            RAISE EXCEPTION 'a patient does not confirm an entry' USING ERRCODE = 'insufficient_privilege';
+        END IF;
+        IF OLD.organization_id IS NOT NULL
+           AND (content_changed OR (new_state IS DISTINCT FROM old_state AND new_state <> 'entered-in-error')) THEN
+            RAISE EXCEPTION 'a patient does not edit a clinic''s entry' USING ERRCODE = 'insufficient_privilege';
+        END IF;
+        RETURN NEW;
+    END IF;
+    IF NEW.in_profile IS DISTINCT FROM OLD.in_profile THEN
+        RAISE EXCEPTION 'a clinic does not change the profile' USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    IF confirmation_changed
+       AND NOT (NEW.confirmed_organization_id IS NOT DISTINCT FROM clinic
+                AND EXISTS (SELECT 1 FROM practitioner_role r
+                            WHERE r.id = NEW.confirmed_by_role_id AND r.organization_id = clinic)) THEN
+        RAISE EXCEPTION 'a clinic confirms only as itself' USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    IF OLD.organization_id IS DISTINCT FROM clinic
+       AND (content_changed OR (new_state IS DISTINCT FROM old_state AND NOT (new_state = 'confirmed' AND confirmation_changed))) THEN
+        RAISE EXCEPTION 'a clinic edits only its own entries' USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    RETURN NEW;
+END
+$$;
+-- +goose StatementEnd
+CREATE TRIGGER allergy_intolerance_update_check BEFORE UPDATE ON allergy_intolerance
+    FOR EACH ROW EXECUTE FUNCTION profile_entry_update_check();
+CREATE TRIGGER medication_statement_update_check BEFORE UPDATE ON medication_statement
+    FOR EACH ROW EXECUTE FUNCTION profile_entry_update_check();
 
 -- Who, which clinic, which visit and who recorded it never change. The patient's own unconfirmed entries can be
 -- deleted; everything else is kept with the clinical record (entered-in-error instead).

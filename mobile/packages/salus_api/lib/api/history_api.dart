@@ -1387,7 +1387,7 @@ class HistoryApi {
 
   /// Share exactly these visits with a clinic
   ///
-  /// SAL-42. Grants the history consent with the clinic, or changes the visits it lists, to exactly the ones sent: each a finished visit of the patient's at another clinic. An empty list revokes it. Takes effect when it commits. Needs the care consent with the clinic. Every grant, change and revocation is audited.
+  /// SAL-42. Grants the history consent with the clinic, or changes the visits it lists, to exactly the ones sent: each a finished visit of the patient's at another clinic. An empty list revokes it. Takes effect when it commits. Needs the care consent with the clinic. To change an existing sharing send If-Match with its `versionId` (412 when it changed meanwhile, or when it is missing and a sharing exists); a first grant sends none. Every grant, change and revocation is audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -1400,10 +1400,14 @@ class HistoryApi {
   ///
   /// * [String] xSalusCSRF:
   ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  ///
+  /// * [String] ifMatch:
+  ///   The sharing's version read, as a weak ETag, `W/\"<versionId>\"`; absent for a first grant.
   Future<Response> setHistorySharingWithHttpInfo(
     String organizationId,
     SetHistorySharingRequest setHistorySharingRequest, {
     String? xSalusCSRF,
+    String? ifMatch,
     Future<void>? abortTrigger,
   }) async {
     // ignore: prefer_const_declarations
@@ -1419,6 +1423,9 @@ class HistoryApi {
 
     if (xSalusCSRF != null) {
       headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+    if (ifMatch != null) {
+      headerParams[r'If-Match'] = parameterToString(ifMatch);
     }
 
     const contentTypes = <String>['application/json'];
@@ -1437,7 +1444,7 @@ class HistoryApi {
 
   /// Share exactly these visits with a clinic
   ///
-  /// SAL-42. Grants the history consent with the clinic, or changes the visits it lists, to exactly the ones sent: each a finished visit of the patient's at another clinic. An empty list revokes it. Takes effect when it commits. Needs the care consent with the clinic. Every grant, change and revocation is audited.
+  /// SAL-42. Grants the history consent with the clinic, or changes the visits it lists, to exactly the ones sent: each a finished visit of the patient's at another clinic. An empty list revokes it. Takes effect when it commits. Needs the care consent with the clinic. To change an existing sharing send If-Match with its `versionId` (412 when it changed meanwhile, or when it is missing and a sharing exists); a first grant sends none. Every grant, change and revocation is audited.
   ///
   /// Parameters:
   ///
@@ -1448,16 +1455,21 @@ class HistoryApi {
   ///
   /// * [String] xSalusCSRF:
   ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  ///
+  /// * [String] ifMatch:
+  ///   The sharing's version read, as a weak ETag, `W/\"<versionId>\"`; absent for a first grant.
   Future<HistorySharing?> setHistorySharing(
     String organizationId,
     SetHistorySharingRequest setHistorySharingRequest, {
     String? xSalusCSRF,
+    String? ifMatch,
     Future<void>? abortTrigger,
   }) async {
     final response = await setHistorySharingWithHttpInfo(
       organizationId,
       setHistorySharingRequest,
       xSalusCSRF: xSalusCSRF,
+      ifMatch: ifMatch,
       abortTrigger: abortTrigger,
     );
     if (response.statusCode >= HttpStatus.badRequest) {

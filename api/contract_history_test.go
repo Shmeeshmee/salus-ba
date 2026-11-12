@@ -64,8 +64,8 @@ func TestHistoryEnums_AreTheGoConstants(t *testing.T) {
 		"AllergyClinicalStatus": {string(allergyintolerance.ClinicalActive), string(allergyintolerance.ClinicalInactive),
 			string(allergyintolerance.ClinicalResolved)},
 		"MedicationStatus": {string(medicationstatement.StatusActive), string(medicationstatement.StatusStopped)},
-		"DoseUnit":         medicationstatement.DoseUnits,
-		"PeriodUnit":       medicationstatement.PeriodUnits,
+		"DoseUnit":         medicationstatement.DoseUnits(),
+		"PeriodUnit":       medicationstatement.PeriodUnits(),
 	} {
 		if got := s[name].Enum; !slices.Equal(got, want) {
 			t.Errorf("%s enum = %v, want %v", name, got, want)
