@@ -1,8 +1,11 @@
 package worker
 
 import (
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/riverqueue/river"
 
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -44,5 +47,14 @@ func TestTrendsSchedules(t *testing.T) {
 	job := trendsPeriodics(true, clock.Fixed{T: at("2026-11-08T04:00:00Z")})
 	if len(job) != 3 {
 		t.Fatal("no builds")
+	}
+}
+
+// A trends_build on a worker with the platform view off is cancelled, not retried for weeks (§2a).
+func TestTrendsWorker_CancelsABuildWhileThePlatformViewIsOff(t *testing.T) {
+	err := (&trendsWorker{}).Work(t.Context(), &river.Job[TrendsBuildArgs]{Args: TrendsBuildArgs{Period: "2026-10"}})
+	var cancel *river.JobCancelError
+	if !errors.As(err, &cancel) {
+		t.Errorf("Work = %v, want a JobCancelError", err)
 	}
 }

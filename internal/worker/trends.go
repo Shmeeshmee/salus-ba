@@ -54,8 +54,8 @@ const buildTimeout = time.Hour
 func (w *trendsWorker) Timeout(*river.Job[TrendsBuildArgs]) time.Duration { return buildTimeout }
 
 func (w *trendsWorker) Work(ctx context.Context, job *river.Job[TrendsBuildArgs]) error {
-	if w.builder == nil {
-		return errors.New("worker: the platform builds are off")
+	if w.builder == nil { // the platform view is off (§2a): cancelled, not retried
+		return river.JobCancel(errors.New("worker: the platform builds are off"))
 	}
 	s, err := w.builder.Build(ctx, job.Args.Period)
 	if errors.Is(err, trends.ErrFrozen) {
