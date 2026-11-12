@@ -17,14 +17,15 @@ server.
   readable only with the restored database's wrapped key and the lost server's `BINARY_KEK`.
 - **Not in the dump:** the cluster-wide Postgres roles (`salus_app` and the others the migrations create) and their
   passwords; the restore creates the roles first and the deploy's `migrate` sets the passwords again. The secrets
-  (`/opt/salus/.env`) are in Bitwarden and the GitHub `production` environment, not in the backup; `BINARY_KEK` and
-  `TOTP_KEY` are in the key files on the encrypted volume and in Bitwarden only, and the volume's LUKS passphrase in
+  (`/opt/salus/.env`) are in Bitwarden and the GitHub `production` environment, not in the backup; `BINARY_KEK`,
+  `TOTP_KEY` and `WEBHOOK_KEY` are in the key files on the encrypted volume and in Bitwarden only, and the volume's LUKS passphrase in
   Bitwarden only.
-- **Keys the restored data needs.** `BINARY_KEK` wraps every attachment's data key and `TOTP_KEY` seals the MFA
-  secrets stored in the database. A restore must run with **exactly the values the lost server had** (Bitwarden,
+- **Keys the restored data needs.** `BINARY_KEK` wraps every attachment's data key, `TOTP_KEY` seals the MFA
+  secrets and `WEBHOOK_KEY` the clinics' webhook secrets stored in the database. A restore must run with **exactly the values the lost server had** (Bitwarden,
   written into the new volume's key files by `salus-volume setup`):
   with any other value the restored MFA secrets cannot be opened (every user with MFA is locked out until an operator
-  resets it, `salusctl reset-mfa`) and any surviving attachment cannot be decrypted. Never generate new ones for a
+  resets it, `salusctl reset-mfa`), any surviving attachment cannot be decrypted, and every webhook delivery fails
+  until its clinic creates the webhook again. Never generate new ones for a
   restore.
 - **Erasure.** A dump holds what the database held that night (an archive the objects of that night), so data erased since is still in the dumps for up
   to 14 days (unreadable without the age private key). A restore brings it back, and the erasures completed after

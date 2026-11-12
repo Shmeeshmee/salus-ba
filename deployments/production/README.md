@@ -119,7 +119,7 @@ logs without personal data (CLAUDE.md).
   Automatic reboots stay off (the bootstrap refuses `UPGRADE_AUTO_REBOOT=yes`).
 - **The deploy refuses** (`deploy.sh`, a deploy and a rollback alike, before anything is pulled, migrated or
   switched) when `SALUS_DATA_DIR` is not the mount point of a `crypt` device (`findmnt`, `lsblk`), when a key file is
-  missing or not `65532`'s with mode 400, and when the env file sets `BINARY_KEK` or `TOTP_KEY` (the deploy workflow
+  missing or not `65532`'s with mode 400, and when the env file sets `BINARY_KEK`, `TOTP_KEY` or `WEBHOOK_KEY` (the deploy workflow
   refuses such a `SALUS_ENV_FILE` before uploading it).
 
 | Path on the volume | Owner, mode | What |
@@ -129,7 +129,7 @@ logs without personal data (CLAUDE.md).
 | `garage/meta/`, `garage/data/` | `root:root` 0700 | Garage's metadata and blocks (Garage runs as root) |
 | `clamd/` | `100:101` 0700 | clamd's `TemporaryDirectory` (the clamav image's `clamav` user): the uploads it scans and what it unpacks |
 | `keys/` | `root:deploy` 0710 | The key files |
-| `keys/binary_kek`, `keys/totp_key` | `65532:65532` 0400 | The keys, base64 and a newline |
+| `keys/binary_kek`, `keys/totp_key`, `keys/webhook_key` | `65532:65532` 0400 | The keys, base64 and a newline |
 
 `salus-volume check` (as root, the only account that reads the key files) reports every difference from this table,
 and a host account with uid 65532. `salus-volume unlock` sets the directories' owners and modes to the table before it
@@ -138,14 +138,19 @@ the stack holding `deploy.sh`'s lock (`/opt/salus/.deploy.lock`) and refuses whi
 
 ## Keys
 
-`BINARY_KEK` (wraps every attachment's data key) and `TOTP_KEY` (seals the MFA secrets) are in the key files on the
-encrypted volume and in Bitwarden, nowhere else: not in `/opt/salus/.env`, not in the `SALUS_ENV_FILE` GitHub
-secret, not in the release directories. They reach only the containers that read them: the api (both) and the worker
-(`BINARY_KEK`; `cmd/worker` loads the object store). migrate, scheduler, notifier and agent get neither.
+`BINARY_KEK` (wraps every attachment's data key), `TOTP_KEY` (seals the MFA secrets) and `WEBHOOK_KEY` (seals the
+clinics' webhook secrets, SAL-29) are in the key files on the encrypted volume and in Bitwarden, nowhere else: not in
+`/opt/salus/.env`, not in the `SALUS_ENV_FILE` GitHub secret, not in the release directories. They reach only the
+containers that read them: the api (all three) and the worker (`BINARY_KEK`, as `cmd/worker` loads the object store,
+and `WEBHOOK_KEY`, as it signs the webhook deliveries). migrate, scheduler, notifier and agent get none.
+
+`WEBHOOK_KEY` came with SAL-29: before the first deploy of that release, generate it (`openssl rand -base64 32`),
+store it as its own Bitwarden item, and run `salus-volume keys` as root on the server, pasting the two existing
+keys (they stay unchanged) and the new one. The deploy refuses a release while `keys/webhook_key` is missing.
 
 How: compose file-based `secrets:`. The Docker daemon, which runs as root, bind-mounts each file read-only at
-`/run/secrets/binary_kek` and `/run/secrets/totp_key`, and the binaries read them through `BINARY_KEK_FILE` and
-`TOTP_KEY_FILE` (`internal/config`, which also takes the plain variables for local runs and CI; setting both a
+`/run/secrets/binary_kek`, `/run/secrets/totp_key` and `/run/secrets/webhook_key`, and the binaries read them through
+`BINARY_KEK_FILE`, `TOTP_KEY_FILE` and `WEBHOOK_KEY_FILE` (`internal/config`, which also takes the plain variables for local runs and CI; setting both a
 variable and its `_FILE` is an error). Why this design:
 
 - The compose CLI runs as `deploy`, so an `env_file:` of a root-only file cannot be read by it; and anything that
@@ -156,8 +161,8 @@ variable and its `_FILE` is an error). Why this design:
   uid (`salus-volume check` fails if one does), so on the host only root reads the keys; the directories are
   `root:deploy` 0710, so `deploy` can see that the files exist and what their owner and mode are, and cannot list or
   read them.
-- Two files rather than ADR 0011's "one key file": a compose secret is one whole file, and a `_FILE` variable reads
-  one value. They sit together in one root-only directory and are written together by `salus-volume`.
+- A file per key rather than ADR 0011's "one key file": a compose secret is one whole file, and a `_FILE` variable
+  reads one value. They sit together in one root-only directory and are written together by `salus-volume`.
 
 The limits are ADR 0011's: `deploy` is in the `docker` group and so root-equivalent; the files protect the keys from
 the env file's copies, from a copy of the server's disk and from a detached volume, not from someone with `deploy` or
@@ -227,7 +232,7 @@ No ports on the host, Caddy on its internal CA instead of Let's Encrypt, the ima
    `build/package/landing.Dockerfile`).
 2. Write an env file from `.env.production.example` with generated values, `SALUS_DOMAIN=salus.test`,
    `GHCR_OWNER=local`, `SALUS_TAG=local`, any `LIVEKIT_NODE_IP`, and `SALUS_DATA_DIR` set to a scratch directory
-   holding `postgres/`, `garage/meta/`, `garage/data/` and `keys/binary_kek`, `keys/totp_key` (base64 of 32
+   holding `postgres/`, `garage/meta/`, `garage/data/` and `keys/binary_kek`, `keys/totp_key`, `keys/webhook_key` (base64 of 32
    synthetic bytes each, owned by 65532 with mode 400: write them from a container, which may chown). The smoke
    test's directory is not encrypted; only the server's must be.
 3. Copy the Caddyfile, replace the `email` and `acme_ca` lines with `local_certs`, and write an override that mounts

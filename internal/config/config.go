@@ -32,6 +32,9 @@ type Config struct {
 	TOTPKey []byte
 	// RateLimitKey keys the HMAC that names the login rate-limit counters (RATE_LIMIT_KEY, base64).
 	RateLimitKey []byte
+	// WebhookKey seals the clinics' webhook secrets (WEBHOOK_KEY, base64, 32 bytes; or the file WEBHOOK_KEY_FILE
+	// names, as production mounts it from the encrypted volume: keySetting). The api and the worker require it.
+	WebhookKey []byte
 	// TrustedProxies may set X-Forwarded-For (TRUSTED_PROXY_CIDRS, comma-separated CIDRs).
 	TrustedProxies []netip.Prefix
 }
@@ -63,6 +66,13 @@ func Load() (Config, error) {
 	}
 	if cfg.TOTPKey, err = base64.StdEncoding.DecodeString(totpKey); err != nil {
 		return Config{}, errors.New("config: TOTP_KEY is not base64")
+	}
+	webhookKey, err := keySetting("WEBHOOK_KEY")
+	if err != nil {
+		return Config{}, err
+	}
+	if cfg.WebhookKey, err = base64.StdEncoding.DecodeString(webhookKey); err != nil {
+		return Config{}, errors.New("config: WEBHOOK_KEY is not base64")
 	}
 	if cfg.RateLimitKey, err = base64.StdEncoding.DecodeString(os.Getenv("RATE_LIMIT_KEY")); err != nil {
 		return Config{}, errors.New("config: RATE_LIMIT_KEY is not base64")
@@ -188,7 +198,7 @@ func LoadObjectStore() (ObjectStore, error) {
 }
 
 // keySetting reads a key from the variable name, or from the file the variable name_FILE names: production
-// mounts TOTP_KEY and BINARY_KEK as compose secrets from a root-only directory on the encrypted volume, so they
+// mounts TOTP_KEY, BINARY_KEK and WEBHOOK_KEY as compose secrets from a root-only directory on the encrypted volume, so they
 // never sit in the env file (deployments/production/README.md "Keys"). Locally and in CI the variable is set.
 // Setting both is an error, and so is a file that cannot be read or holds nothing but whitespace; the
 // whitespace around the value (the file's newline) is dropped. Errors name the variable, never a value or path.

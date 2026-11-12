@@ -43,6 +43,12 @@ x-objectstore-env: &objectstore-env
   BINARY_KEK: bG9jYWwtb25seS1zeW50aGV0aWMtYmluYXJ5LWtlayE= # base64 of 32 synthetic bytes
   BINARY_KEK_ID: local-1
 
+# The clinics' webhook secrets are sealed with WEBHOOK_KEY (SAL-29): only the api (which seals a new one) and the
+# worker (which delivers) load it. Synthetic, local only; production's is the root-only key file on the encrypted
+# volume (WEBHOOK_KEY_FILE, ADR 0011).
+x-webhook-env: &webhook-env
+  WEBHOOK_KEY: bG9jYWwtb25seS1zeW50aGV0aWMtd2ViaG9vay1rZXk= # base64 of 32 synthetic bytes
+
 x-host-user: &host-user
   # Files the toolchains write into the repo stay owned by the host user. make exports HOST_UID/HOST_GID.
   user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
@@ -97,7 +103,7 @@ services:
     <<: *app
     command: ["/usr/local/bin/api"]
     environment:
-      <<: [*app-env, *livekit-env, *objectstore-env]
+      <<: [*app-env, *livekit-env, *objectstore-env, *webhook-env]
       HTTP_ADDR: ":8080"
       # Synthetic, local only. TOTP_KEY seals TOTP secrets (production: the root-only key file on the encrypted
       # volume, ADR 0011);
@@ -115,7 +121,7 @@ services:
     <<: *app
     command: ["/usr/local/bin/worker"]
     environment:
-      <<: [*app-env, *livekit-env, *objectstore-env]
+      <<: [*app-env, *livekit-env, *objectstore-env, *webhook-env]
       CLAMD_ADDR: clamd:3310 # the binary_scan job's scanner (config.LoadClamd)
       # The retention_apply job's own login, salus_retention (BYPASSRLS, SELECT and DELETE on the tables whose
       # rule is delete). Only this service has it (internal/worker's tests check). Synthetic, local only.

@@ -28,6 +28,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
+	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
@@ -172,8 +173,9 @@ func report(t *testing.T, name string, d []time.Duration, target time.Duration) 
 }
 
 // loadChat is the chat as the api composes it, on pool and Redis, for the caller the request's X-Load-As header
-// names ("pract", or a patient's number); its routes and socket on one mux.
-func loadChat(t *testing.T, pool *pgxpool.Pool) (*communication.Service, http.Handler) {
+// names ("pract", or a patient's number); its routes and socket on one mux; and the same service without the
+// notification job of a send (SAL-29), to measure what the job costs in the same run.
+func loadChat(t *testing.T, pool *pgxpool.Pool) (svc, withoutJob *communication.Service, h http.Handler) {
 	t.Helper()
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
@@ -192,8 +194,13 @@ func loadChat(t *testing.T, pool *pgxpool.Pool) (*communication.Service, http.Ha
 		return loadPatient(n), err == nil, nil
 	}
 	log := slog.New(slog.DiscardHandler)
+	// The send enqueues its notifications in its transaction, as the api's does (SAL-29).
+	jobs, err := worker.NewInserter(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
 	routes, stream, hub := newChat(chatPorts{
-		db: pool, rdb: redistest.NewClient(t), audit: audit, tx: tx, consents: consents,
+		db: pool, rdb: redistest.NewClient(t), audit: audit, tx: tx, consents: consents, jobs: jobs,
 		visits: appointment.NewFacts(appointment.NewPostgresRepository(pool)), roles: roles, caller: caller,
 		active: func(*http.Request) (bool, error) { return true, nil },
 	}, log)
@@ -201,22 +208,30 @@ func loadChat(t *testing.T, pool *pgxpool.Pool) (*communication.Service, http.Ha
 	mux := http.NewServeMux()
 	routes(mux)
 	stream(mux)
-	svc := communication.NewService(communication.Ports{
+	ports := communication.Ports{
 		Repo: communication.NewPostgresRepository(pool), Publisher: hub, Consents: consents,
 		Visits: appointment.NewFacts(appointment.NewPostgresRepository(pool)), Roles: roles, Audit: audit, Tx: tx,
-		Clock: clock.System{}, Log: log,
-	})
-	return svc, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		Clock: clock.System{}, Log: log, Jobs: communication.NewRiverJobs(jobs),
+	}
+	svc = communication.NewService(ports)
+	ports.Jobs = noJobs{}
+	withoutJob = communication.NewService(ports)
+	return svc, withoutJob, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mux.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), loadAsKey{}, r.Header.Get("X-Load-As"))))
 	})
 }
 
 type loadAsKey struct{}
 
+// noJobs enqueues nothing: a send as it was before SAL-29.
+type noJobs struct{}
+
+func (noJobs) EnqueueMessageSent(context.Context, communication.MessageSentArgs) error { return nil }
+
 func TestChatLoad(t *testing.T) {
 	owner, app := pgtest.NewAppDatabase(t)
 	seedLoad(t, owner, loadMessages(t))
-	svc, h := loadChat(t, app)
+	svc, withoutJob, h := loadChat(t, app)
 	ctx := context.Background()
 	long := func() string { return loadConversation(1 + rand.IntN(loadLong)) }
 	small := func() string { return loadConversation(loadLong + 1 + rand.IntN(loadSmall)) }
@@ -274,8 +289,34 @@ func TestChatLoad(t *testing.T) {
 		}
 		report(t, "a send with nothing else running", d, 300*time.Millisecond)
 	})
+	// SAL-29: the same send with and without its notification job (one River insert in the send's transaction),
+	// alternating, so the host's load falls on both alike.
+	t.Run("send with and without its notification job", func(t *testing.T) {
+		var with, without []time.Duration
+		for i := range 400 {
+			n := loadLong + loadSmall - 200 - i
+			s, d := svc, &with
+			if i%2 == 1 {
+				s, d = withoutJob, &without
+			}
+			began := loadWall.Now()
+			if _, _, err := s.Send(ctx, loadPatient(n), loadConversation(n), fmt.Sprintf("bbbbbbbb-0000-4000-8000-%012x", i), "Synthetic placeholder"); err != nil {
+				t.Fatal(err)
+			}
+			*d = append(*d, loadWall.Now().Sub(began))
+		}
+		report(t, "a send with its notification job, alternating", with, 0)
+		report(t, "a send without it, alternating", without, 0)
+	})
 	// The targets hold at 200 messages a second (720 000 an hour, far above the clinics' load); 400 and 1000 a second
 	// are measured as the capacity of durable commits on the test's pool of 8 (docs/plans/chat.PROGRESS.md).
+	// SAL-29: delivery at 200 a second without the notification job, just before the same with it, on other
+	// conversations: what the job costs under load, in one run.
+	t.Run("delivery at 200 a second without the notification job", func(t *testing.T) {
+		stop := sampleWaits(t, owner)
+		delivery(t, withoutJob, h, loadLong+1+3*200, 1)
+		stop()
+	})
 	for k, rate := range []int{1, 2, 5} { // messages a second per conversation, 200 conversations
 		t.Run(fmt.Sprintf("delivery at %d a second", 200*rate), func(t *testing.T) {
 			stop := sampleWaits(t, owner)
