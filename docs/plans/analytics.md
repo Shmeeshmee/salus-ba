@@ -1,16 +1,18 @@
 # Analytics: clinic statistics and platform-wide trends
 
 Epic SAL-18 (SAL-19 to SAL-22). Status: planned, 2026-11-12, **waiting for the owner's approval**; no code is
-written before it. Decision record: docs/adr/0012-icd10-diagnosis-groups-and-anonymized-analytics.md.
+written before it. Decision record: docs/adr/0012-icd10-diagnosis-groups-and-anonymized-analytics.md. Revised the
+same day after a subagent review of PR #71 (suppression fixed over the whole month instead of per query,
+distinct patients, frozen months, the clinic rules, features that do not exist yet taken out).
 
 ## 1. Goal
 
 - **My clinic** (SAL-20): a clinic's own appointments and diagnoses over time, its busiest months, weekdays and
   hours, its top diagnosis groups, broken down by practitioner and specialty.
-- **All of Salus** (SAL-21): combined figures across all clinics by diagnosis group, region, city and time, with
-  no clinic and no patient identifiable, and a flag on unusual rises of a diagnosis group in a region.
-- Both rest on **coded diagnoses** (SAL-19): every signed document's ICD-10 codes, confirmed by the signing
-  practitioner, kept as FHIR `Condition`, and grouped into our own diagnosis groups based on ICD-10 blocks.
+- **All of Salus** (SAL-21): combined figures across all clinics by diagnosis group, region, city and month,
+  with no clinic and no patient identifiable, and a flag on unusual rises of a diagnosis group in a region.
+- Both rest on **coded diagnoses** (SAL-19): the ICD-10 codes of signed documents, confirmed by the signing
+  practitioner, kept as FHIR `Condition`, grouped into our own diagnosis groups based on ICD-10 blocks.
 - Both are shown as **interactive charts** in `web/` (SAL-22).
 
 Data sources: `Condition` (from signed documents) and `Appointment`. Never transcripts, suggestions, free-text
@@ -20,23 +22,24 @@ fields or questionnaire answers.
 
 | Topic | Decision | Why |
 | --- | --- | --- |
-| ICD-10 source | Codes as identifiers only (from the doctor and from the terminology's Wikidata items, CC0); no WHO or national-edition text in any language | The only option legally usable without a licence; same as the terminology's settled decision (ADR 0012) |
+| ICD-10 source | Codes as identifiers only (from the doctor and from the terminology's Wikidata items, CC0); no WHO or national-edition text in any language | The only option legally usable without a licence; extends the terminology's settled decision (docs/terminology/SPEC.md "Data" and §7) |
 | Groups | Our own 27 groups and 7 subgroups defined by ICD-10 code ranges on block boundaries, names written by us in all ten languages (appendix A), reviewed in the term review panel | Ranges are facts; names are ours, so no WHO titles are adapted or translated |
-| Where a diagnosis comes from | A template's `coded` field is a diagnosis. Signing writes one `Condition` per filled coded field, in the signing transaction | The field type already exists; no second way to record a diagnosis |
-| Confirmation | A coded value suggested by the drafting model must be confirmed by the practitioner (a per-field confirm in the document editor) before the document can be signed; a value the practitioner typed is confirmed by typing it | SAL-19 "the drafting service suggests a code, the doctor confirms" |
-| Backfill | In the migration, in SQL: every signed (`final`) document's well-formed coded values become `Condition`s. A signed document whose coded field holds a malformed value is "unmapped": not a table, a query (signed, coded value, no `Condition`), counted in the clinic view and listed by `salusctl conditions unmapped` (ids only) | Nothing is deployed (ADR 0011), so this only touches dev data; a derived flag needs no table |
-| Aggregates | Pre-computed per clinic, local day and hour; incremental River job per clinic-day on every change, nightly recompute of the last 35 days plus the platform build | Charts read small tables; the nightly pass repairs a lost job |
-| Cross-clinic reads | A `salus_stats` database role (BYPASSRLS, column-level SELECT on source columns only, no patient id) used only by the stats jobs in `cmd/worker` | Mirrors `salus_retention`; makes "no patient id in aggregates" structural |
-| Geography | The clinic's location: region (ISO 3166-2 subdivision) and city (a Wikidata municipality item), set by the clinic admin in Clinic settings | No new patient data; see question O1 |
-| Platform anonymization | Rules A1 to A13 below, one pure function, tested exhaustively | SAL-21 acceptance criteria |
-| Unusual rises | Weekly EARS C2 adaptation per region and group (section 6) | Explainable, needs only 10 weeks of history |
+| Where a diagnosis comes from | A template's `coded` field is a diagnosis. Signing writes one `Condition` per filled coded field, in the signing transaction | The field type exists; no second way to record a diagnosis |
+| Confirmation | The sign request's value gets `confirmed` (`{key, value, confirmed}`); signing refuses a filled coded field without `confirmed: true` (`409`, code `diagnosis_unconfirmed`). The document editor shows a suggested code with a confirm control and sends `confirmed` only when the practitioner confirmed it or typed the code. Nothing new is stored in `document_draft.fields` | SAL-19 "the drafting service suggests a code, the doctor confirms"; stateless |
+| Backfill | In the migration, in SQL: every coded value of an already signed (`final`) document becomes a `Condition` with `verification_status` `unconfirmed`. Analytics counts only `confirmed`. "Flagged" (SAL-19) = `unconfirmed`; `salusctl conditions unconfirmed` lists their ids | Signing already refuses malformed codes, so every old value is well-formed, but nobody confirmed it. Nothing is deployed, so this only touches dev data |
+| Clinic aggregates | Pre-computed per clinic, local day and hour; an incremental River job per clinic-day, enqueued in the transaction of every signing and appointment write; nightly recompute of the last 35 days | Charts read small tables; the nightly pass repairs a lost job |
+| Platform figures | Closed calendar months only, built once seven days after the month ends and then frozen; a fixed set of two-dimensional tables per month, suppressed as a whole (section 5) | Per-query suppression can be undone by combining queries; nightly rebuilds of open periods leak daily changes |
+| What a platform count counts | Distinct patients, through a per-build pseudonym (HMAC-SHA256 of the patient id under a key that lives only during the build) | A chronic patient seen weekly must not reach `k` alone |
+| Cross-clinic reads | A `salus_stats` database role (BYPASSRLS, column-level SELECT on source columns only), used only by the build jobs in `cmd/worker` | Mirrors `salus_retention` (00014) |
+| Geography | The clinic's location: a leaf region (the 10 FBiH cantons, Republika Srpska, Brčko District: 12 ISO 3166-2:BA codes, with the entity as a parent level) and a city (a Wikidata municipality item), set by the clinic admin in Clinic settings | No new patient data; see O1 |
+| Unusual rises | Weekly EARS C2 adaptation per region and group on closed weeks; a flag has no count (section 6) | Explainable, needs 10 weeks of history, publishes no weekly number |
 | Charts | Hand-written SVG components in `web/src/analytics/` (line, bars, heatmap); regions as bars, no map in v1 | A chart library is a large dependency for four chart types; a map needs boundary data with its own licence and weight |
-| Domains | `condition` (bounded context `clinical`); `clinicstats` and `trends` (new context `analytics`); groups and places in `terminology` (`reference`) | CLAUDE.md "Go architecture" |
-| Who sees what | My clinic: admins everything of their clinic; practitioners the clinic's totals and their own breakdown, not other practitioners'. All of Salus: every staff account | SAL-20 "admins and doctors per permission" |
+| Domains | `condition` (context `clinical`); `clinicstats` and `trends` (new context `analytics`); groups and places in `terminology` (`reference`) | CLAUDE.md "Go architecture" |
+| Who sees what | My clinic: admins see all of their clinic; a practitioner sees the clinic's appointment figures and the diagnoses of their own role only. All of Salus: every staff account | SAL-20 "admins and doctors per permission"; a practitioner learns nothing about diagnoses of patients outside their care |
 
-CLAUDE.md lists the bounded contexts too. The owner has an uncommitted edit to CLAUDE.md, so no PR of this epic
-touches that file: `docs/architecture/archcheck/config.yaml` (the authority) gets the new context, and the
-owner adds `analytics     clinicstats, trends` and `condition` under `clinical` to CLAUDE.md when convenient.
+CLAUDE.md also lists the bounded contexts. The owner has an uncommitted edit to CLAUDE.md, so no PR of this
+epic touches it: `docs/architecture/archcheck/config.yaml` (the authority) gets the new context, and the owner
+adds `analytics     clinicstats, trends` and `condition` under `clinical` to CLAUDE.md when convenient.
 
 ## 3. Coded diagnoses and groups (SAL-19)
 
@@ -46,43 +49,58 @@ owner adds `analytics     clinicstats, trends` and `condition` under `clinical` 
 | --- | --- |
 | `id`, `created_at`, `updated_at`, `version_id` | FHIR id and meta |
 | `organization_id` | Clinic scope (RLS), aggregates |
-| `patient_id` | `Condition.subject`; the patient's own record and export |
+| `patient_id` | `Condition.subject`; the patient's own record; distinct-patient counts (pseudonymised before it leaves the package) |
 | `encounter_id` | `Condition.encounter` |
-| `document_draft_id`, `field_key` | Which signed document and field it came from (`Condition.evidence.detail` → `Composition`); unique together |
+| `document_draft_id`, `field_key` | The signed document and field it came from (`Condition.evidence.detail` → `Composition`); unique together |
 | `practitioner_role_id` | `Condition.recorder`; breakdown by practitioner and specialty |
 | `recorded_at` | `Condition.recordedDate`, the signing time |
 | `code` | `Condition.code.coding[0]`, system `http://hl7.org/fhir/sid/icd-10` |
-| `verification_status` | `confirmed`; `entered-in-error` when the document is |
+| `verification_status` | `confirmed` from signing; `unconfirmed` from the backfill |
 
-`clinicalStatus` is not modelled (a signed document says what was diagnosed at that visit, not whether it is
-still active). Category `encounter-diagnosis`. RLS: the clinic's scope, and the patient's own scope for their
-record. Reads: `GET /fhir/R4/Condition/{id}` (CapabilityStatement updated), audited. Retention: the clinical
-record's rule (as `document_draft`).
+`clinicalStatus` is not modelled (a signed document says what was diagnosed at that visit). Category
+`encounter-diagnosis`. RLS: the clinic's scope, and the patient's own scope. `GET /fhir/R4/Condition/{id}`
+(CapabilityStatement updated), audited. Retention: kept with the clinical record (`ThenKeep`, as
+`document_draft`). A signed document never changes, so its Conditions never change.
 
 **Groups** (owned by `terminology`): `diagnosis_group` (`code` a stable slug such as `respiratory-infections`,
 `parent_code` for a subgroup, `position`), `diagnosis_group_range` (`group_code`, `from_code`, `to_code`,
 inclusive, compared on the code's first `length(from_code)` characters), `diagnosis_group_name` (`group_code`,
 `language`, `text`, review columns as `term_translation`). `terminology.Group(code) (group, subgroup)` is a pure
-function over the ranges loaded once; a test proves every range is disjoint from the others at its level, every
-subgroup lies inside its group, and the examples of appendix A map as listed. `GET /terminology/diagnosis-groups`
-returns codes, names in the requested language and the parent, for the filters. The review panel gets a
-"Diagnosis groups" list beside terms.
+function over ranges loaded once; tests prove the ranges are disjoint at each level, every subgroup lies inside
+its group, and appendix A's examples map as listed. `GET /terminology/diagnosis-groups` returns codes, names in
+the requested language and the parent. The review panel gets a "Diagnosis groups" list beside terms.
 
-Sources for the aggregates, reached only through the services (contract for wave 2, built in ANA-1):
+**Places** (owned by `terminology`, ANA-1 so that wave 2 shares it): `place` (`id` a Wikidata QID or an ISO
+3166-2 code, `kind` entity, region or city, `parent_id`), `place_name` (`language`, `text`). The 3 entities and
+12 leaf regions with our names in ten languages; cities fetched once from Wikidata (CC0) into
+`assets/places/ba.jsonl` with `tools/terminology`'s fetcher. `GET /places?country=BA`.
+
+**Contract for wave 2** (built in ANA-1, reached only through the services; no wave-2 package changes these):
 
 ```go
-// condition: one row per Condition of a clinic recorded in [from, to); no patient id.
-func (s *Service) Recorded(ctx context.Context, orgID string, from, to time.Time) ([]Recorded, error)
-type Recorded struct { RecordedAt time.Time; PractitionerRoleID, Code, Status string }
+// condition: one row per confirmed Condition of a clinic recorded in [from, to).
+func (s *Service) Recorded(ctx context.Context, orgID string, from, to time.Time, key []byte) ([]Recorded, error)
+type Recorded struct { RecordedAt time.Time; Patient [32]byte; PractitionerRoleID, Code string }
 
-// appointment: one row per appointment of a clinic starting in [from, to); no patient id.
-func (s *Service) Starts(ctx context.Context, orgID string, from, to time.Time) ([]Start, error)
-type Start struct { Start time.Time; PractitionerRoleID, Status string }
+// appointment: one row per appointment of a clinic starting in [from, to).
+func (s *Service) Starts(ctx context.Context, orgID string, from, to time.Time, key []byte) ([]Start, error)
+type Start struct { Start time.Time; Patient [32]byte; PractitionerRoleID, Status string }
+
+// practitionerrole: every role of a clinic with its specialty (SNOMED CT code, empty if none).
+func (s *Service) Specialties(ctx context.Context, orgID string) (map[string]string, error)
+
+// organization: every clinic with its time zone and, once ANA-3 adds them, its region and city.
+func (s *Service) Locations(ctx context.Context) ([]Location, error)
+type Location struct { ID, TimeZone, Region, City string }
+
+// The enqueue port each producer declares (appointment, composition), so none imports clinicstats:
+type StatsQueue interface { EnqueueStatsRefresh(ctx context.Context, orgID string, day time.Time) error }
 ```
 
-Both run on the `salus_stats` pool (the services take it as their repository's pool in `internal/worker`).
-`organization.Service.Locations` returns every clinic's id, time zone, region and city for the jobs (ANA-3 adds
-region and city; ANA-1 adds the method with id and time zone).
+`Patient` is HMAC-SHA256(key, patient id); `clinicstats` passes a nil key and gets a zero value (it does not
+count patients); `trends` passes the build's key. Before ANA-1 is merged, `StatsQueue` is implemented by a no-op
+in `internal/api/app.go`; ANA-2 replaces it with `clinicstats`' River enqueue. `Region` and `City` are empty
+until ANA-3.
 
 ## 4. Clinic statistics (SAL-20)
 
@@ -91,114 +109,126 @@ Tables (owned by `clinicstats`, RLS by `organization_id`, written only by `salus
 - `clinic_appointment_stat`: `organization_id`, `day` (local date), `hour` (0–23 local), `practitioner_role_id`,
   `specialty_code`, `status`, `count`.
 - `clinic_diagnosis_stat`: `organization_id`, `day`, `hour`, `practitioner_role_id`, `specialty_code`,
-  `group_code`, `subgroup_code`, `code`, `count`.
+  `group_code`, `subgroup_code`, `code`, `count` (confirmed Conditions).
 
-Jobs: `clinicstats_refresh{organization_id, day}` (opaque ids; recompute that clinic-day in one transaction),
-enqueued with `InsertTx` by signing, an appointment status change or cancellation, marking a document
-entered-in-error, erasure and retention deletes; `clinicstats_nightly` (scheduler, 02:30 UTC) recomputes the last
-35 days of every clinic. The specialty is taken at refresh time (a role's specialty change shows from then on).
+Jobs: `clinicstats_refresh{organization_id, day}` (opaque ids; recomputes that clinic-day in one transaction),
+enqueued through `StatsQueue` by signing and by every appointment write (booking, cancellation, status change);
+`clinicstats_nightly` (scheduler, 02:30 UTC) recomputes the last 35 days of every clinic. The specialty is taken
+at refresh time. Erasure and restriction do not exist yet; when `datarequest` is built it enqueues the refresh
+for the affected days (noted in its future SPEC, not built here).
 
-Rules in the service: C1 a caller sees only their clinic (RLS and the service check); C2 a practitioner who is not
-an admin gets the clinic totals and their own role's breakdown only; C3 a diagnosis cell from 1 to 4 is returned
-as `"<5"` to every caller (question O3), appointment counts exactly; C4 every read writes an `AuditEvent`
-(entity `Organization/<id>`, purpose analytics), since the figures are derived from patient data.
+Rules in the service: C1 a caller sees only their own clinic (RLS and the service check); C2 a practitioner who
+is not an admin gets the clinic's appointment figures and their own role's diagnosis figures, never another
+practitioner's breakdown and never the clinic's diagnosis totals; admins get everything of their clinic, counts
+exact; C3 every read writes an `AuditEvent` (entity `Organization/<id>`, purpose analytics).
 
-Tests: aggregates equal the raw counts for a generated synthetic clinic (several months, every status, time-zone
-boundaries, a DST change); RLS tests that a second clinic's scope reads none of the first's rows; the job is
-idempotent. Benchmark: refresh of one clinic-day and a yearly overview query on 3 years × 20 practitioners of
-synthetic data; numbers in the PROGRESS file.
+Tests: aggregates equal the raw counts for a generated synthetic clinic (months of data, every status, local-day
+boundaries, a DST change); RLS tests that one clinic's scope reads none of another's rows; the refresh is
+idempotent; C2 per role. Benchmark: one clinic-day refresh and a yearly overview on 3 years × 20 practitioners
+of synthetic data; numbers in the PROGRESS file.
 
-## 5. Platform anonymization rules (SAL-21)
+## 5. Platform anonymization (SAL-21)
 
-`trends_cell` (owned by `trends`; no clinic, practitioner or patient column): `week` (ISO week start), `region`,
-`city`, `specialty_code`, `group_code`, `subgroup_code`, `code`, `count`, `clinics` (distinct contributing
-clinics), `top_clinic_count` (the largest single clinic's count). `trends_hour_cell`: `year`, `quarter`,
-`region`, `weekday`, `hour`, `count`, `clinics`, `top_clinic_count`, from appointments (fulfilled). Built nightly
-after `clinicstats_nightly` for the last 10 weeks; `salusctl trends rebuild` rebuilds all.
+**What is published.** For each closed calendar month `m`, built once on the 8th of the following month
+(`trends_month_build`, scheduler) and then frozen, three tables of distinct-patient counts from confirmed
+Conditions, plus one from appointments:
+
+| Table | Dimensions (each with an "all" level) | Source |
+| --- | --- | --- |
+| G×D | geography (all → entity → region → city) × diagnosis (all → group → subgroup → code) | Conditions |
+| G×S | geography × specialty | Conditions |
+| S×D | specialty × diagnosis, geography = all only | Conditions |
+| Heatmap | geography down to region × weekday × hour, per closed quarter | Fulfilled appointments |
+
+Every cell of every table, including totals, is one row of `trends_cell` (`period`, `table`, the dimension
+values, `count` rounded, `suppressed`). No clinic, practitioner or patient column exists. A query picks a table,
+fixes any of its dimensions and breaks down by one; there is no other combination (no region × specialty ×
+group, no age, sex, clinic or practitioner).
+
+**How suppression is decided** (`trends.Suppress(cells, relations, k)`, pure, in the build). The build holds,
+in memory only, each cell's distinct-patient count and its contribution per clinic.
 
 | Rule | |
 | --- | --- |
-| A1 | No identifiers: no clinic, practitioner, patient, appointment, encounter or document id or name in the tables, the service's types or the JSON. A test walks the response JSON and fails on any key outside an allow-list |
-| A2 | Geography is the clinic's region and city only; nothing finer, never the patient's address |
-| A3 | Time buckets: ISO week, month, quarter, year. A range is whole buckets, at most 3 years back. No day or hour series; the weekday-by-hour heatmap is per quarter or year |
-| A4 | Fixed dimensions: period, region, city, specialty, group, subgroup, code. A query filters on any of them and breaks down by one. No age, sex, clinic or practitioner dimension |
-| A5 | Minimum count: a cell is published only if its raw count is at least `k`. `k` is `ANALYTICS_MIN_COUNT`, default 10; config refuses a value below 10 |
-| A6 | Clinics: a cell is published only if at least 3 clinics contributed and the largest contributed at most 80% |
-| A7 | Complement: a published cell's one-step relaxation (drop one filter, or go one level up: code → subgroup → group → all; city → region → all; week → month) minus the cell is 0 or at least `k`, else the cell is suppressed |
-| A8 | Siblings: in a breakdown, the suppressed siblings together are 0 or at least `k`; if not, the next smallest sibling is suppressed too, until they are or the whole breakdown is suppressed |
-| A9 | Totals are sums of published cells only, marked `partial` when anything was suppressed; never a raw total |
-| A10 | Published counts are rounded to the nearest 5 (question O4) |
-| A11 | Excluded at the source: `entered-in-error` documents and appointments, restricted records (Art. 18), erased records (gone) |
-| A12 | Rises are shown only on a published cell, with its rounded count and no baseline numbers below `k` |
-| A13 | Logs of the build carry counts of cells and of suppressed cells only |
+| A1 | No identifiers in any table, service type or response. A test walks the response JSON and fails on any key outside an allow-list |
+| A2 | Geography is the clinic's region and city only, never the patient's address |
+| A3 | Periods: closed calendar months for the tables, closed quarters for the heatmap, closed ISO weeks for rise flags only. Nothing is published for an open period. A month is published once and never recomputed |
+| A4 | Primary suppression: fewer than `k` patients (`ANALYTICS_MIN_COUNT`, default 10, config refuses below 10), fewer than 3 contributing clinics, or the p% rule (the cell minus its two largest clinic contributions is below 10% of the largest), so neither one clinic nor a pair of clinics can recover another's figure |
+| A5 | Relations: every parent with its children along each dimension, in every table, and the cells shared between tables (a G×D cell with diagnosis = all is the G×S cell with specialty = all) are one set of relations solved together for the month |
+| A6 | Secondary suppression: in every relation, the suppressed cells are 0 or at least 2, together have at least `k` patients and pass A4's clinic rules on their combined contributions; otherwise the smallest published non-total cell of the relation is suppressed too. Repeated over all relations until nothing changes |
+| A7 | The check (test, not production): for every suppressed cell, the interval of values consistent with the published cells and the relations (an exact LP over the month's tables, small synthetic months) is at least `k` wide |
+| A8 | Totals over several months are sums of published month cells, marked `partial` when any is suppressed; never a raw total |
+| A9 | Published counts are rounded to the nearest 5 (O4); the rule checks use the raw counts |
+| A10 | Only confirmed Conditions; restricted records are left out once restriction exists |
+| A11 | Rise flags only per section 6 |
+| A12 | Build logs carry counts of cells and of suppressed cells only |
 
-`trends.Suppress(query, cells, k) []Published` implements A5 to A10 as one pure function, applied at query time.
-Tests: table-driven cases for each rule; a property test that, for random small synthetic data and every pair
-of allowed queries, no difference of two published numbers is between 1 and `k-1`; the JSON allow-list test.
+Tests: table-driven cases per rule; the A7 interval check over many random small months; the case the review
+found (a city's specialty recovered from the city total and the other specialties) and the 3-clinic case (a
+region minus a city leaving one or two clinics) as named tests; the JSON allow-list test; a frozen month is not
+changed by a later build.
 
 ## 6. Unusual rises
 
-Per ISO week `w`, region and diagnosis group: baseline = the counts of weeks `w-9` to `w-2` (8 weeks, skipping
-`w-1` so a rise that started last week does not raise its own baseline); mean `μ`, standard deviation `σ`,
-`σ' = max(σ, √μ, 1)`. Flag when `count ≥ k`, `count ≥ 1.5·μ` and `count > μ + 3σ'`. Computed nightly on the raw
-internal cells (`trends_rise`: week, region, group), shown only per A12. Tests on synthetic series: a flat series
-is never flagged, a step to three times the level is flagged in its first week, a slow seasonal ramp of 10% a
-week is not, a low-count spike below `k` is not. Copy: "Unusual rise", with a tooltip that it compares with the
-previous weeks and is not a public-health alert.
+Per closed ISO week `w`, leaf region and diagnosis group (internal weekly distinct-patient counts, held only
+during the build): baseline = weeks `w-9` to `w-2` (skipping `w-1`); `μ` their mean, `σ` their sample standard
+deviation (n−1), `σ' = max(σ, √μ, 1)`. Flag when the week has at least `k` patients from at least 3 clinics
+(A4's clinic rules), the baseline has at least `k` patients in total, `count ≥ 1.5·μ` and `count > μ + 3σ'`.
+Computed once, on the Tuesday after the week, and frozen (`trends_rise`: week, region, group; no count).
+Tests on synthetic series: a flat series is never flagged; a step to three times the level is flagged in its
+first week; a ramp of 5% a week is not; a spike below `k` is not; a rise from a baseline below `k` is not.
+Copy: "Unusual rise", with a tooltip that it compares with the previous weeks and is not a public-health alert.
 
 ## 7. Personal data and DPIA note
 
 Added to `docs/privacy/dpia.md` by each package (section "Analytics (`docs/plans/analytics.md`)"):
 
 - **Processing added.** `condition`: health data (Art. 9) of identified patients, part of the clinical record.
-  `clinic_*_stat`: counts per clinic, day, hour, practitioner and code: no patient data, but personal data of
-  practitioners (their workload and diagnoses), and small cells can single out a patient to someone who also
-  sees the calendar (hence C3). `trends_*`: counts with no identifier, published only under A1 to A13.
+  `clinic_*_stat`: counts per clinic, day, hour, practitioner and code: no patient identifier, but personal data
+  of practitioners (workload and diagnoses). `trends_*`: frozen counts with no identifier, published under A1 to
+  A12. The per-build patient pseudonym and per-clinic contributions exist only in the build's memory.
 - **Purpose and lawful basis.** The clinic's statistics serve the management of its health-care services
   (Art. 9(2)(h), on the clinic's behalf as controller, Salus as processor). Platform-wide figures are a new
   purpose for which Salus would act as controller of the anonymisation; the basis is open (L1, L2). Not used for
   marketing, profiling or model training.
-- **Minimisation.** No age, sex or residence. Region and city are the clinic's. `salus_stats` cannot read a
-  patient id. No free text.
-- **Retention.** `condition`: the clinical record's rule. `clinic_*_stat`: as long as their source rows, refreshed
-  on erasure and retention deletes; rows older than the clinical record's period are deleted. `trends_*`: 5 years
-  rolling (anonymous output, kept bounded anyway).
-- **Risks and measures.** Re-identification through small counts, differencing or a single clinic in a city:
-  A5 to A10. A practitioner learning about patients outside their care through clinic figures: C2, C3.
-  Outbreak flags taken as official: copy and question L6.
+- **Minimisation.** No age, sex or residence. Region and city are the clinic's. `salus_stats` reads no name,
+  contact detail or field value; patient ids leave the owning package only as a per-build pseudonym. No free text.
+- **Retention.** `condition`: with the clinical record. `clinic_*_stat`: as long as their sources (recomputed
+  from them). `trends_*`: 5 years rolling.
+- **Risks and measures.** Re-identification through small counts, combinations of queries, dominant clinics or
+  repeated builds: A3 to A9. A practitioner learning about patients outside their care: C2. Rise flags taken as
+  official alerts: copy, and L6.
 
 ## 8. API contract (for SAL-22's mocks)
 
 Plain JSON in `api/openapi.yaml` (not FHIR). ANA-2 and ANA-3 add their paths; ANA-4 types its fixtures from
-these shapes and switches to the generated client once both are merged.
+these shapes and switches to the generated client once both are merged. A count is a number or `null`
+(suppressed); the API returns codes, never sentences.
 
 ```
-GET /analytics/clinic/appointments?from=2026-01&to=2026-12&practitioner_role=&specialty=
+GET /analytics/clinic/appointments?from=2026-01-01&to=2026-12-31&practitioner_role=&specialty=
   -> { "series":  [{ "period": "2026-01", "booked": 120, "fulfilled": 98, "noshow": 6, "cancelled": 16 }],
-       "heatmap": [{ "weekday": 1, "hour": 9, "count": 14 }],             // ISO weekday 1 = Monday
-       "practitioners": [{ "practitioner_role": "<uuid>", "fulfilled": 40 }] }  // admins only
-GET /analytics/clinic/diagnoses?from=&to=&group=&subgroup=&specialty=&practitioner_role=&by=group|subgroup|code|practitioner_role|specialty|period
-  -> { "rows": [{ "key": "respiratory-infections", "count": 31 }, { "key": "J00", "count": "<5" }],
-       "unmapped_documents": 2 }
-GET /analytics/platform/diagnoses?from=2026-W01&to=2026-W45&granularity=week|month|quarter|year
-                                 &region=&city=&specialty=&group=&subgroup=&by=period|region|city|specialty|group|subgroup|code
-  -> { "rows": [{ "key": "BA-09", "count": 45 }, { "key": "BA-05", "count": null }],  // null: suppressed
-       "partial": true, "min_count": 10 }
-GET /analytics/platform/heatmap?year=2026&quarter=&region=
-  -> { "cells": [{ "weekday": 1, "hour": 9, "count": 35 }], "partial": false, "min_count": 10 }
+       "heatmap": [{ "weekday": 1, "hour": 9, "count": 14 }],                     // ISO weekday, 1 = Monday
+       "practitioners": [{ "practitioner_role": "<uuid>", "fulfilled": 40 }] }    // admins only
+GET /analytics/clinic/diagnoses?from=&to=&group=&subgroup=&specialty=&practitioner_role=&by=group|subgroup|code|practitioner_role|specialty|month
+  -> { "rows": [{ "key": "respiratory-infections", "count": 31 }] }
+GET /analytics/platform/months                 -> { "months": ["2026-09", "2026-10"], "min_count": 10 }
+GET /analytics/platform/cells?table=gd|gs|sd&from=2026-01&to=2026-10&<dimension>=<value>…&by=<dimension>|month
+     dimensions: entity, region, city, group, subgroup, code, specialty
+  -> { "rows": [{ "key": "BA-09", "count": 45 }, { "key": "BA-05", "count": null }], "partial": true }
+GET /analytics/platform/heatmap?quarter=2026-Q3&region=
+  -> { "cells": [{ "weekday": 1, "hour": 9, "count": 35 }, { "weekday": 7, "hour": 3, "count": null }] }
 GET /analytics/platform/rises?region=&weeks=8
-  -> { "rises": [{ "week": "2026-W44", "region": "BA-09", "group": "respiratory-infections", "count": 60 }] }
-GET /terminology/diagnosis-groups            -> [{ "code": "common-cold", "parent": "respiratory-infections", "name": "…" }]
-GET /places?country=BA                       -> [{ "id": "Q…", "region": "BA-09", "name": "…" }]
+  -> { "rises": [{ "week": "2026-W44", "region": "BA-09", "group": "respiratory-infections" }] }
+GET /terminology/diagnosis-groups              -> [{ "code": "common-cold", "parent": "respiratory-infections", "name": "…" }]
+GET /places?country=BA                         -> [{ "id": "BA-09", "kind": "region", "parent": "BA-BIH", "name": "…" }]
 ```
-
-Codes go out, names come from the groups and places endpoints and the web catalog; the API returns no sentences.
 
 ## 9. Work packages
 
 ```
 ANA-0 (this PR): ADR 0012 and this plan. Stops for the owner's approval.
-ANA-1 SAL-19, alone, by the lead session: condition, groups, confirmation, the source methods, salus_stats.
+ANA-1 SAL-19, alone, by the lead session: condition, groups, places, confirmation, the wave-2 contract, salus_stats.
 Wave 2, in parallel after ANA-1 is merged: ANA-2 SAL-20   ANA-3 SAL-21   ANA-4 SAL-22 (mocked data first)
 Merge order: ANA-2, ANA-3, ANA-4. Before each merge: main merged into the branch (no force-push), migrations
 renumbered if main has taken their numbers (another session is building chat), checks rerun.
@@ -210,46 +240,49 @@ only, `make lint`, `make test`, `make archcheck`, `make e2e`, then a review by a
 out until 2026-12-01), valid findings fixed, then merged. PROGRESS: `docs/plans/analytics.PROGRESS.md`.
 
 Migrations take the next free number when the branch is merged; main is at `00040` today. Shared files the
-wave-2 packages all touch (`api/openapi.yaml`, the generated clients, `ownership.yaml`, `config.yaml`,
+wave-2 packages touch (`api/openapi.yaml`, the generated clients, `ownership.yaml`, `config.yaml`,
 `internal/retention/rules.go`, `internal/api/app.go`, the router, `internal/worker`) are merged by hand in merge
 order; generated clients are regenerated after the merge, never hand-merged.
 
 ### ANA-1 SAL-19 diagnoses (branch `analytics-diagnoses`)
 
-- Migration: `diagnosis_group*` with appendix A seeded (names with review status `pending`), `condition` with RLS
+- Migration: `diagnosis_group*` with appendix A seeded (names `pending`), `place*` seeded, `condition` with RLS
   and the backfill, the `salus_stats` role (as 00014, `STATS_DATABASE_PASSWORD` set by `cmd/migrate`) and its
   column grants on `condition`, `appointment`, `practitioner_role` and `organization`.
 - `internal/condition`: model, repository, service (`Record` in the caller's transaction, `Recorded`, `Get`),
   FHIR read, golden JSON, audit, retention rule; ownership and archcheck entries.
-- `terminology`: `Group(code)`, the groups endpoint, the review panel's group list (web, five staff languages).
-- `composition`: sign refuses an unconfirmed suggested coded value (`409`, code `diagnosis_unconfirmed`); writes
-  the `Condition`s through `condition.Service` in the signing transaction; entered-in-error marks them too. Web
-  document editor: a confirm control on a suggested code.
-- `appointment.Service.Starts`, `organization.Service.Locations` (id and time zone), the `salus_stats` pool in
+- `terminology`: `Group(code)`, places, both endpoints, the review panel's group list (web, five staff languages).
+- `composition`: `confirmed` on sign values, `diagnosis_unconfirmed`; the `Condition`s written through
+  `condition.Service` in the signing transaction; `StatsQueue` port (no-op until ANA-2). Web document editor:
+  the confirm control on a suggested code.
+- The section 3 contract: `appointment.Service.Starts` (and its `StatsQueue` port), `practitionerrole.Service
+  .Specialties`, `organization.Service.Locations` (id and time zone), the `salus_stats` pool in
   `internal/config` and `internal/worker`.
-- `salusctl conditions unmapped`. E2E: the record journey's signed document has a `Condition`.
+- `salusctl conditions unconfirmed`. E2E: the record journey's signed document has a confirmed `Condition`.
 
 ### ANA-2 SAL-20 clinic statistics (branch `analytics-clinic`)
 
-Section 4: tables, the two jobs and their enqueues, `internal/clinicstats` (service rules C1 to C4, JSON
-handlers, openapi paths), tests including the RLS and equality tests, the benchmark, DPIA and retention entries.
+Section 4: tables, the two jobs, `StatsQueue`'s River implementation replacing the no-op, `internal/clinicstats`
+(rules C1 to C3, JSON handlers, openapi paths), the RLS, equality and role tests, the benchmark, DPIA and
+retention entries.
 
 ### ANA-3 SAL-21 platform trends (branch `analytics-platform`)
 
-Clinic location: `organization` region and city (migration, FHIR `Organization.address.state` and `.city`,
-the admin's Clinic settings field), places seeded from Wikidata (CC0, fetched with `tools/terminology`'s fetcher
-into `assets/places/`, the 13 ISO 3166-2:BA subdivisions with our names in ten languages). Then section 5 and 6:
-`internal/trends`, the nightly build, `Suppress`, the rises, the handlers and openapi paths,
-`ANALYTICS_MIN_COUNT` in `internal/config`, the DPIA section with the legal basis left open as L1 and L2 say.
+Clinic location: `organization` region and city (migration, FHIR `Organization.address.state` and `.city`, the
+admin's Clinic settings field, `Locations` filled). Then sections 5 and 6: `internal/trends`, the month,
+quarter and week builds, `Suppress`, the rises, handlers and openapi paths, `ANALYTICS_MIN_COUNT` in
+`internal/config`, `salusctl trends build <month>` for a missed build, the DPIA section with L1 and L2 open.
 
 ### ANA-4 SAL-22 charts (branch `analytics-charts`)
 
 `web/src/analytics/`: an Analytics page with "My clinic" and "All of Salus", SVG line, bar and heatmap components
 with tooltips, keyboard focus and `prefers-reduced-motion`; filters (group with drill-down, range, region,
-specialty, practitioner on My clinic only); dates and numbers through `Intl` in the UI language, five staff
-languages; suppressed cells shown as "Fewer than 10" (platform) and "Fewer than 5" (clinic). Built against typed
-fixtures of section 8 first; after ANA-2 and ANA-3 are merged, the generated client replaces the fixtures and an
-e2e test switches views and filters. Component tests in Vitest. A render benchmark on 3 years of weekly data.
+specialty, practitioner on My clinic only; on All of Salus, only the table combinations of section 5, so the UI
+never offers a filter the API refuses); dates and numbers through `Intl` in the UI language, five staff
+languages; a suppressed platform cell reads "Fewer than {min_count}" with `min_count` from the API. Built against
+typed fixtures of section 8 first; after ANA-2 and ANA-3 are merged, the generated client replaces the fixtures
+and an e2e test switches views and filters. Component tests in Vitest; a render benchmark on 3 years of monthly
+data with every group.
 
 ## 10. Open questions
 
@@ -258,40 +291,40 @@ e2e test switches views and filters. Component tests in Vitest. A render benchma
 - **O1 Geography.** Clinic location (proposed) or the patient's municipality of residence (better for spotting
   regional rises in telemedicine, but a new personal-data field in the mobile app and the profile)?
 - **O2 Clinics outside BiH.** Places are seeded for BiH only; another country is a later migration. Fine?
-- **O3 Small cells in My clinic.** Show diagnosis counts 1 to 4 as "fewer than 5" for everyone (proposed), only
-  for practitioners, or exactly?
-- **O4 Rounding.** Round platform counts to the nearest 5 (proposed), or show exact counts above 10?
+- **O3 Practitioners in My clinic.** Their own diagnoses plus the clinic's appointment figures (proposed), or the
+  clinic's diagnosis totals too (which tells them about patients outside their care)?
+- **O4 Rounding.** Round platform counts to the nearest 5 (proposed), or show exact counts from 10 up?
 - **O5 Who sees All of Salus.** Every staff account (proposed), or admins only?
 - **O6 Clinic opt-out.** May a clinic decline to contribute to the platform figures (a contract question too)?
 - **O7 Group list.** Appendix A's groups and names; a doctor should review the names before they leave `pending`.
+- **O8 Months, not weeks.** The platform tables are monthly and appear seven days after the month; only rise
+  flags are weekly, without numbers. Acceptable?
 
 ### For a lawyer (before real patient data reaches the platform view)
 
 - **L1 Role.** Salus processes clinics' data as their processor. Building platform-wide figures is Salus's own
   purpose: does the anonymisation step need the clinics' instruction in the DPA (Art. 28(3)(a)), or does Salus
   become a controller for it, and with which contract clauses?
-- **L2 Lawful basis** for that step, for health data: Art. 9(2)(h), (i) or (j) with Art. 89 and the purpose
-  compatibility test of Art. 6(4), or the patient's consent; and the same under the BiH personal data protection
-  law in force. If consent is needed, patients without it must be left out of the figures (a new `Consent`
-  category).
-- **L3 Anonymous or not.** Are the published figures anonymous in the sense of Recital 26 under rules A1 to A13
-  (k = 10, 3 clinics, complement and sibling suppression, rounding)? Are the internal `trends_cell` rows
-  (before suppression) personal data, and which retention do they need?
-- **L4 Transparency and objection.** What the patients' privacy notice must say about statistics (Art. 13,
-  14), and whether an objection (Art. 21) must remove a patient from the figures.
-- **L5 Practitioners.** Per-practitioner figures are employee data: may the clinic admin see each
-  practitioner's diagnoses and workload, and what must practitioners be told?
+- **L2 Lawful basis** for that step, for health data: Art. 9(2)(h), (i) or (j) with Art. 89 and the compatibility
+  test of Art. 6(4), or the patient's consent; and the same under the BiH personal data protection law in force.
+  If consent is needed, patients without it must be left out (a new `Consent` category).
+- **L3 Anonymous or not.** Are the published figures anonymous in the sense of Recital 26 under rules A1 to A12?
+  May frozen months stay after a patient's erasure, as anonymous output?
+- **L4 Transparency and objection.** What the patients' privacy notice must say about statistics (Art. 13, 14),
+  and whether an objection (Art. 21) must remove a patient from future builds.
+- **L5 Practitioners.** Per-practitioner figures are employee data: may the clinic admin see each practitioner's
+  diagnoses and workload, and what must practitioners be told?
 - **L6 Rises.** Does a rise flag create or touch any duty under the entity laws on protection against
   infectious diseases (notifiable diseases), and is the disclaimer enough?
-- **L7 ICD-10.** Showing ICD-10 codes and grouping them by ICD-10 block ranges without WHO text: permitted under
-  WHO's terms without a licence (the terminology's open question, extended to block ranges as a structure)?
-  Does any official use of our documents in BiH (sick leave, referrals) require the national MKB-10 edition?
+- **L7 ICD-10.** Showing ICD-10 codes and grouping them by block ranges without WHO text: permitted under WHO's
+  terms without a licence (the terminology's open question, extended to block ranges as a structure)? Does any
+  official use of our documents in BiH (sick leave, referrals) require the national MKB-10 edition?
 - **L8 DPIA.** Whether this feature needs consultation of the supervisory authority (Art. 36) after the DPIA.
 
 ## Appendix A. Diagnosis groups (draft names, `pending` review)
 
 Ranges are inclusive and compared on the code's first characters (`J00` matches `J00` and `J00.0`). A subgroup
-(indented key) lies inside its group. U07 is WHO's emergency code for COVID-19. V01–Y98 (external causes) and
+(indented key) lies inside its group. U07.1 and U07.2 are COVID-19, U08 to U10 its history and after-effects (WHO emergency codes); U07.0 (vaping) and a bare U07 fall to `other`. V01–Y98 (external causes) and
 any code outside every range map to `other`.
 
 | Key | Ranges | en | bs | hr | sr-Latn | sr-Cyrl | de | ar | tr | it | fr |
@@ -299,15 +332,15 @@ any code outside every range map to `other`.
 | `intestinal-infections` | A00–A09 | Intestinal infections | Crijevne infekcije | Crijevne infekcije | Crijevne infekcije | Цријевне инфекције | Darminfektionen | عدوى الأمعاء | Bağırsak enfeksiyonları | Infezioni intestinali | Infections intestinales |
 | ↳ `gastroenteritis` | A08–A09 | Gastroenteritis | Gastroenteritis | Gastroenteritis | Gastroenteritis | Гастроентеритис | Gastroenteritis | التهاب المعدة والأمعاء | Gastroenterit | Gastroenterite | Gastro-entérite |
 | `other-infections` | A15–B99 | Other infectious diseases | Druge zarazne bolesti | Druge zarazne bolesti | Druge zarazne bolesti | Друге заразне болести | Andere Infektionskrankheiten | أمراض معدية أخرى | Diğer bulaşıcı hastalıklar | Altre malattie infettive | Autres maladies infectieuses |
-| `covid-19` | U07.1–U07.2 | COVID-19 | COVID-19 | COVID-19 | COVID-19 | COVID-19 | COVID-19 | كوفيد-19 | COVID-19 | COVID-19 | COVID-19 |
+| `covid-19` | U07.1–U07.2, U08–U10 | COVID-19 and its after-effects | COVID-19 i posljedice | COVID-19 i posljedice | COVID-19 i posljedice | COVID-19 и посљедице | COVID-19 und Folgen | كوفيد-19 وعواقبه | COVID-19 ve sonrası etkileri | COVID-19 e postumi | COVID-19 et séquelles |
 | `tumours` | C00–D48 | Tumours | Tumori | Tumori | Tumori | Тумори | Tumoren | الأورام | Tümörler | Tumori | Tumeurs |
-| `blood-immune` | D50–D89 | Blood and immune disorders | Bolesti krvi i imuniteta | Bolesti krvi i imunosti | Bolesti krvi i imuniteta | Болести крви и имунитета | Blut- und Immunerkrankungen | اضطرابات الدم والمناعة | Kan ve bağışıklık hastalıkları | Malattie del sangue e del sistema immunitario | Maladies du sang et du système immunitaire |
+| `blood-immune` | D50–D89 | Blood and immune disorders | Bolesti krvi i imuniteta | Bolesti krvi i imunosnog sustava | Bolesti krvi i imuniteta | Болести крви и имунитета | Blut- und Immunerkrankungen | اضطرابات الدم والمناعة | Kan ve bağışıklık hastalıkları | Malattie del sangue e del sistema immunitario | Maladies du sang et du système immunitaire |
 | `diabetes` | E10–E14 | Diabetes | Dijabetes | Šećerna bolest | Dijabetes | Дијабетес | Diabetes | داء السكري | Diyabet | Diabete | Diabète |
 | `endocrine-metabolic` | E00–E07, E15–E90 | Thyroid, hormone and metabolic disorders | Bolesti štitne žlijezde, hormona i metabolizma | Bolesti štitnjače, hormona i metabolizma | Bolesti štitne žlijezde, hormona i metabolizma | Болести штитне жлијезде, хормона и метаболизма | Schilddrüsen-, Hormon- und Stoffwechselerkrankungen | اضطرابات الغدة الدرقية والهرمونات والاستقلاب | Tiroid, hormon ve metabolizma hastalıkları | Malattie della tiroide, ormonali e metaboliche | Maladies thyroïdiennes, hormonales et métaboliques |
 | `mental-health` | F00–F99 | Mental health | Mentalno zdravlje | Mentalno zdravlje | Mentalno zdravlje | Ментално здравље | Psychische Gesundheit | الصحة النفسية | Ruh sağlığı | Salute mentale | Santé mentale |
 | `nervous-system` | G00–G99 | Nervous system disorders | Bolesti nervnog sistema | Bolesti živčanog sustava | Bolesti nervnog sistema | Болести нервног система | Erkrankungen des Nervensystems | أمراض الجهاز العصبي | Sinir sistemi hastalıkları | Malattie del sistema nervoso | Maladies du système nerveux |
 | `eye` | H00–H59 | Eye conditions | Bolesti oka | Bolesti oka | Bolesti oka | Болести ока | Augenerkrankungen | أمراض العين | Göz hastalıkları | Malattie dell'occhio | Maladies de l'œil |
-| `ear` | H60–H95 | Ear conditions | Bolesti uha | Bolesti uha | Bolesti uha | Болести уха | Ohrerkrankungen | أمراض الأذن | Kulak hastalıkları | Malattie dell'orecchio | Maladies de l'oreille |
+| `ear` | H60–H95 | Ear conditions | Bolesti uha | Bolesti uha | Bolesti uva | Болести ува | Ohrerkrankungen | أمراض الأذن | Kulak hastalıkları | Malattie dell'orecchio | Maladies de l'oreille |
 | `high-blood-pressure` | I10–I15 | High blood pressure | Povišen krvni pritisak | Povišeni krvni tlak | Povišen krvni pritisak | Повишен крвни притисак | Bluthochdruck | ارتفاع ضغط الدم | Yüksek tansiyon | Ipertensione | Hypertension artérielle |
 | `heart-circulation` | I00–I09, I20–I99 | Heart and circulation disorders | Bolesti srca i krvnih žila | Bolesti srca i krvnih žila | Bolesti srca i krvnih sudova | Болести срца и крвних судова | Herz- und Kreislauferkrankungen | أمراض القلب والدورة الدموية | Kalp ve dolaşım hastalıkları | Malattie del cuore e della circolazione | Maladies du cœur et de la circulation |
 | `respiratory-infections` | J00–J22 | Respiratory infections | Respiratorne infekcije | Infekcije dišnog sustava | Respiratorne infekcije | Респираторне инфекције | Atemwegsinfektionen | التهابات الجهاز التنفسي | Solunum yolu enfeksiyonları | Infezioni respiratorie | Infections respiratoires |
@@ -334,4 +367,4 @@ any code outside every range map to `other`.
 Mapping examples the ANA-1 tests pin: `J00` → respiratory-infections / common-cold; `J06.9` → respiratory-
 infections / upper-airway-infections; `J45.0` → asthma-chronic-lung; `J30.1` → other-respiratory; `I10` →
 high-blood-pressure; `E11.9` → diabetes; `E03.9` → endocrine-metabolic; `M54.5` → musculoskeletal / back-neck;
-`A09` → intestinal-infections / gastroenteritis; `U07.1` → covid-19; `W19` → other; `Z00.0` → checkups.
+`A09` → intestinal-infections / gastroenteritis; `U07.1` → covid-19; `U09.9` → covid-19; `U07.0` → other; `W19` → other; `Z00.0` → checkups.
