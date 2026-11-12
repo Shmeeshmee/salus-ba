@@ -45,5 +45,12 @@
   "language.ar": "Arapski",
   "language.tr": "Turski",
   "language.it": "Talijanski",
-  "language.fr": "Francuski"
+  "language.fr": "Francuski",
+  "view.terms": "Pojmovi",
+  "view.groups": "Skupine dijagnoza",
+  "groups.intro": "Provjerite nazive skupina dijagnoza koje koristi statistika. Izmjena vrijedi za sve klinike.",
+  "groups.subgroupOf": "Podskupina skupine {group}",
+  "groups.nameLabel": "Naziv",
+  "groups.loadFailed": "Skupine dijagnoza nije bilo moguće učitati.",
+  "groups.invalid": "Naziv ima od 1 do 100 znakova."
 }

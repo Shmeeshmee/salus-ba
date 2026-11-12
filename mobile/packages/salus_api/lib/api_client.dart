@@ -268,6 +268,14 @@ class ApiClient {
           return Cursor.fromJson(value);
         case 'CursorMessage':
           return CursorMessage.fromJson(value);
+        case 'DiagnosisGroup':
+          return DiagnosisGroup.fromJson(value);
+        case 'DiagnosisGroupList':
+          return DiagnosisGroupList.fromJson(value);
+        case 'DiagnosisGroupName':
+          return DiagnosisGroupName.fromJson(value);
+        case 'DiagnosisGroupNameList':
+          return DiagnosisGroupNameList.fromJson(value);
         case 'DocumentFieldTexts':
           return DocumentFieldTexts.fromJson(value);
         case 'DocumentTemplate':
@@ -292,6 +300,8 @@ class ApiClient {
           return DraftValue.fromJson(value);
         case 'Drafts':
           return Drafts.fromJson(value);
+        case 'EditDiagnosisGroupNameRequest':
+          return EditDiagnosisGroupNameRequest.fromJson(value);
         case 'EditMessageRequest':
           return EditMessageRequest.fromJson(value);
         case 'EnrolRequest':
@@ -334,6 +344,10 @@ class ApiClient {
           return OpenConversationRequest.fromJson(value);
         case 'Patient':
           return Patient.fromJson(value);
+        case 'Place':
+          return Place.fromJson(value);
+        case 'PlaceList':
+          return PlaceList.fromJson(value);
         case 'Questionnaire':
           return Questionnaire.fromJson(value);
         case 'QuestionnaireDefault':

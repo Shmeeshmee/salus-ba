@@ -16,8 +16,17 @@ export type DraftField = components['schemas']['DraftField']
 export type DocumentTerms = components['schemas']['DocumentTerms']
 
 // Template is a clinic's document template as the page shows it: its title and its fields' labels in language,
-// one the template is written or translated in, and which fields a sign needs.
-export type Template = { id: string; title: string; language: string; fields: { key: string; label: string; required: boolean }[] }
+// one the template is written or translated in, which fields a sign needs, and each field's type (a coded field is an
+// ICD-10 diagnosis, which a sign needs the practitioner to confirm, SAL-19).
+export type Template = {
+  id: string
+  title: string
+  language: string
+  fields: { key: string; label: string; required: boolean; type?: string }[]
+}
+
+// SignValue is a field's value as the practitioner leaves it: a coded field's carries their confirmation.
+export type SignValue = { key: string; value: string; confirmed?: boolean }
 
 // End is why a live source stopped for good: the patient withdrew their consent (consent_required), or the
 // practitioner may no longer follow the consultation (forbidden, not_found).
@@ -38,7 +47,7 @@ export interface ConsultActions {
   setSuggestionStatus(id: string, status: SuggestionEvent['status']): Promise<void>
   templates(language: string): Promise<Template[]>
   generate(appointmentId: string, templateId: string, language: string): Promise<DraftEvent>
-  sign(draft: DraftEvent, fields: { key: string; value: string }[]): Promise<DraftEvent>
+  sign(draft: DraftEvent, fields: SignValue[]): Promise<DraftEvent>
   terms(draftId: string): Promise<DocumentTerms>
 }
 
@@ -56,6 +65,16 @@ export class SignRefused extends Error {
 
   constructor(keys: string[]) {
     super('required fields are empty')
+    this.keys = keys
+  }
+}
+
+// DiagnosisUnconfirmed is a sign refused because a filled coded field was not confirmed; keys names them.
+export class DiagnosisUnconfirmed extends Error {
+  readonly keys: string[]
+
+  constructor(keys: string[]) {
+    super('diagnosis codes are not confirmed')
     this.keys = keys
   }
 }

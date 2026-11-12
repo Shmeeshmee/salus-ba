@@ -57,3 +57,10 @@ WHERE id = @id AND status = 'booked'
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
           cancelled_by_account_id, version_id, status, cancellation_reason,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;
+
+-- name: ListBookedForStats :many
+-- A clinic's appointments starting in [from, to), oldest first: the columns salus_stats may read.
+SELECT lower(period)::timestamptz AS start_at, patient_id, practitioner_role_id, status
+FROM appointment
+WHERE organization_id = @organization_id AND lower(period) >= @from_at::timestamptz AND lower(period) < @to_at::timestamptz
+ORDER BY lower(period), status;

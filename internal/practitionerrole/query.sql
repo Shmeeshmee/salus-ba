@@ -34,3 +34,7 @@ UPDATE practitioner_role
 SET specialty_code = @specialty_code, version_id = version_id + 1, updated_at = @updated_at
 WHERE id = @id AND version_id = @version_id
 RETURNING id, updated_at, organization_id, practitioner_id, version_id, active, specialty_code;
+
+-- name: ListSpecialtiesForStats :many
+-- A clinic's roles with their specialty: the columns salus_stats may read.
+SELECT id, specialty_code FROM practitioner_role WHERE organization_id = @organization_id ORDER BY id;

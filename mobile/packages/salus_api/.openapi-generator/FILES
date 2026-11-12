@@ -56,6 +56,10 @@ lib/model/conversation_list.dart
 lib/model/conversation_participant.dart
 lib/model/cursor.dart
 lib/model/cursor_message.dart
+lib/model/diagnosis_group.dart
+lib/model/diagnosis_group_list.dart
+lib/model/diagnosis_group_name.dart
+lib/model/diagnosis_group_name_list.dart
 lib/model/document_field_texts.dart
 lib/model/document_template.dart
 lib/model/document_template_field.dart
@@ -68,6 +72,7 @@ lib/model/draft_field.dart
 lib/model/draft_message.dart
 lib/model/draft_value.dart
 lib/model/drafts.dart
+lib/model/edit_diagnosis_group_name_request.dart
 lib/model/edit_message_request.dart
 lib/model/enrol_request.dart
 lib/model/enrolment.dart
@@ -89,6 +94,8 @@ lib/model/message_revision.dart
 lib/model/message_revisions.dart
 lib/model/open_conversation_request.dart
 lib/model/patient.dart
+lib/model/place.dart
+lib/model/place_list.dart
 lib/model/questionnaire.dart
 lib/model/questionnaire_default.dart
 lib/model/questionnaire_item.dart

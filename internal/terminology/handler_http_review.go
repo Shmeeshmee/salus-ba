@@ -274,6 +274,7 @@ var reviewErrors = []struct {
 	{ErrTermNotFound, "not_found", http.StatusNotFound},
 	{ErrNoTranslation, "not_found", http.StatusNotFound},
 	{ErrNoExplanation, "not_found", http.StatusNotFound},
+	{ErrNoGroupName, "not_found", http.StatusNotFound},
 	{ErrVersionConflict, "version_conflict", http.StatusPreconditionFailed},
 	{ErrNoteRequired, "note_required", http.StatusUnprocessableEntity},
 }

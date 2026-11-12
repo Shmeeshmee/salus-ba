@@ -514,3 +514,6 @@ p.hint.join { margin-bottom: 20px; }
   .viewer-backdrop { padding: 0; }
   .viewer { width: 100%; height: 100%; border-radius: 0; }
 }
+
+/* A diagnosis code's confirmation under its field (SAL-19). */
+.draft-field .confirm-code { display: flex; gap: 6px; align-items: center; font-weight: 400; }

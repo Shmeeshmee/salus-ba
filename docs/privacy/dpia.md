@@ -1694,3 +1694,43 @@ and comes with the subject-rights feature (export through `Patient/$everything` 
 | A lost message or a duplicate | Postgres is the record; pub/sub only transport. Numbers without gaps under the conversation's lock; a socket fills any gap from Postgres; a retried send with the same client id returns the first message (concurrency test on Postgres) |
 
 **Open before production.** The retention period of the chat with the clinical record (legal decision).
+
+## Analytics (`docs/plans/analytics.md`, ADR 0013)
+
+### SAL-19: coded diagnoses and diagnosis groups
+
+**Processing added.** `condition`: one FHIR Condition per filled coded field of a signed document (an ICD-10 code,
+the patient, the encounter, the clinic, the signing practitioner role, the signing time): health data (Art. 9)
+already in the signed document, now kept as a coded record. The documents signed before this feature got theirs
+by a backfill, marked unconfirmed and not counted. The diagnosis groups and the places are reference data with no
+personal data. A new database role, `salus_stats`, may read the source columns of the future aggregates (codes,
+times, statuses, clinic, practitioner role, and the patient id of `condition` and `appointment`); no binary logs in
+as it yet.
+
+**Purpose and lawful basis.** The clinical record (Art. 9(2)(h)), as the signed document it comes from; it is the
+source of the clinic's statistics (SAL-20) on the clinic's behalf. The platform-wide figures (SAL-21) are behind a
+feature flag that stays off until the owner confirms the legal answers (plan, L1 to L8).
+
+**Necessity and minimisation.** The columns are listed in the plan, §3, each with its reason. No free text, no
+transcript, no questionnaire answer is read. `salus_stats` reads no name, contact detail, document field or
+transcript (tested in the migration); a patient id leaves `condition` and `appointment` only as HMAC-SHA256 under a
+key that lives for one build (`pkg/pseudonym`).
+
+**Access.** Row-level security: the clinic's scope sees its own Conditions and inserts them, the patient's scope
+sees their own, a video room's scope and an account's see none; the application never updates or deletes one
+(tested, migration 00042). Signing refuses a filled diagnosis code the practitioner did not confirm.
+
+**Audit.** Each Condition's creation is audited with the signature, in its transaction. The group-name reviews are
+audited on `diagnosis_group_name`, also when refused.
+
+**Retention.** `condition`: kept with the clinical record, as `document_draft` (a legal decision before production,
+as the other clinical tables).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A model-suggested code recorded as a diagnosis nobody made | The practitioner confirms each code before the signature (tested in the service, the API and the browser journey); the backfilled codes are unconfirmed and not counted |
+| Another clinic's diagnoses | Row-level security by clinic (tested) |
+| The aggregate builds reading identities | `salus_stats` has column grants on the source columns only (tested); patients are pseudonymised per build |
+| WHO or national-edition text used without a licence | Codes only, as identifiers; group names are our own (ADR 0013) |

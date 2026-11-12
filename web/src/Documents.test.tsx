@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ConsultSide } from './ConsultPanels'
-import { useConsult } from './consult'
+import { useConsult, type Template } from './consult'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import { newApiClient } from './api/client'
 import { draft, fakeActions, fakeLive, segment, templates } from './test/fakeConsult'
@@ -322,5 +322,96 @@ describe('Documents: explained terms', () => {
     expect(tip.textContent).toBe('Placeholder explanation of a visit.Informational, not a diagnosis')
     expect(termsAsked).toEqual([draftId])
     expect(term.closest('dd')!.textContent!.startsWith('Placeholder reason for the visit')).toBe(true)
+  })
+})
+
+describe('Documents: diagnosis codes', () => {
+  const note: Template = {
+    id: 'd1000000-0000-4000-8000-000000000003',
+    title: 'Placeholder diagnosis note',
+    language: 'en',
+    fields: [{ key: 'diagnosis', label: 'Placeholder diagnosis', required: false, type: 'coded' }],
+  }
+
+  // suggested generates the diagnosis note with the code the drafting suggested.
+  async function suggested(options: Parameters<typeof fakeActions>[0] = {}) {
+    const docs = openDocuments({ templates: [note], ...options })
+    const id = (options.templates as Template[] | undefined)?.[0].id ?? note.id
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Template' }), { target: { value: id } })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    await docs.answer(
+      draft({ template_id: note.id, fields: [{ key: 'diagnosis', value: 'J06.9', missing: false, source_segment_ids: ['a1000000-0000-4000-8000-000000000001'] }] }),
+    )
+    await screen.findByRole('textbox', { name: 'Placeholder diagnosis' })
+    return docs
+  }
+
+  it('asks to confirm a suggested code before the sign, then signs it as confirmed', async () => {
+    const { signed } = await suggested()
+    const confirm = screen.getByRole('checkbox', { name: 'I confirm this diagnosis code' }) as HTMLInputElement
+    expect(confirm.checked).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect((await screen.findByRole('alert')).textContent).toBe('Confirm each diagnosis code before you sign.')
+    expect(signed).toEqual([])
+
+    fireEvent.click(confirm)
+    expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Sign' }))
+    await screen.findByText('Signed. This document is final.')
+    expect(signed).toEqual([['c1000000-0000-4000-8000-000000000001', 1, [{ key: 'diagnosis', value: 'J06.9', confirmed: true }]]])
+  })
+
+  it('takes a code the practitioner typed as confirmed', async () => {
+    const { signed } = await suggested()
+    fireEvent.change(field('Placeholder diagnosis'), { target: { value: 'J45.0' } })
+    expect((screen.getByRole('checkbox', { name: 'I confirm this diagnosis code' }) as HTMLInputElement).checked).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Sign' }))
+    await screen.findByText('Signed. This document is final.')
+    expect(signed[0][2]).toEqual([{ key: 'diagnosis', value: 'J45.0', confirmed: true }])
+  })
+
+  it('asks for no confirmation of an empty code', async () => {
+    await suggested()
+    fireEvent.change(field('Placeholder diagnosis'), { target: { value: '' } })
+    expect(screen.queryByRole('checkbox')).toBeNull()
+  })
+
+  it('flags the codes a refused sign names as unconfirmed', async () => {
+    await suggested({ failSign: { unconfirmed: ['diagnosis'] } })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'I confirm this diagnosis code' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Sign' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Confirm each diagnosis code before you sign.')
+    expect(field('Placeholder diagnosis').getAttribute('aria-invalid')).toBe('true')
+    const confirm = screen.getByRole('checkbox', { name: 'I confirm this diagnosis code' }) as HTMLInputElement
+    expect(confirm.checked).toBe(false)
+
+    fireEvent.click(confirm)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(field('Placeholder diagnosis').getAttribute('aria-invalid')).toBeNull()
+  })
+
+  it('takes back a confirmation when the code changes under it', async () => {
+    const { emit } = await suggested()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'I confirm this diagnosis code' }))
+    emit(draft({ template_id: note.id, version_id: 2, fields: [{ key: 'diagnosis', value: 'J18.9', missing: false, source_segment_ids: ['a1000000-0000-4000-8000-000000000001'] }] }))
+    await screen.findByDisplayValue('J18.9')
+    expect((screen.getByRole('checkbox', { name: 'I confirm this diagnosis code' }) as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('asks to confirm a code the server takes as a diagnosis though the template no longer says so', async () => {
+    const plain: Template = { ...note, fields: [{ key: 'diagnosis', label: 'Placeholder diagnosis', required: false, type: 'text' }] }
+    await suggested({ templates: [plain], failSign: { unconfirmed: ['diagnosis'] } })
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Sign' }))
+
+    expect(await screen.findByRole('checkbox', { name: 'I confirm this diagnosis code' })).toBeTruthy()
   })
 })

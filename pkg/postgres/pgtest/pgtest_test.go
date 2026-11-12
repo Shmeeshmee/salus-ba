@@ -16,7 +16,7 @@ import (
 )
 
 // A small migration set proves the template is migrated before it is cloned; the second file creates the
-// application role and the retention role the way migrations/ does (roles are cluster-wide, so a parallel
+// application role, the retention role and the stats role the way migrations/ does (roles are cluster-wide, so a parallel
 // package may create them first, with these same attributes) and lets them read probe.
 func TestMain(m *testing.M) {
 	pgtest.Main(m, fstest.MapFS{
@@ -29,7 +29,11 @@ DO $$ BEGIN CREATE ROLE salus_app LOGIN; EXCEPTION WHEN duplicate_object OR uniq
 DO $$ BEGIN CREATE ROLE salus_retention LOGIN NOSUPERUSER BYPASSRLS NOCREATEROLE NOCREATEDB;
 EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; END $$;
 -- +goose StatementEnd
-GRANT SELECT ON probe TO salus_app, salus_retention;
+-- +goose StatementBegin
+DO $$ BEGIN CREATE ROLE salus_stats LOGIN NOSUPERUSER BYPASSRLS NOCREATEROLE NOCREATEDB;
+EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; END $$;
+-- +goose StatementEnd
+GRANT SELECT ON probe TO salus_app, salus_retention, salus_stats;
 `)},
 	})
 }
@@ -129,11 +133,43 @@ func TestNewRetentionDatabase_ConnectsToOneDatabaseAsOwnerAndAsTheRetentionRole(
 	}
 }
 
+func TestNewStatsDatabase_ConnectsToOneDatabaseAsOwnerAndAsTheStatsRole(t *testing.T) {
+	t.Parallel()
+	owner, stats := pgtest.NewStatsDatabase(t)
+
+	var ownerDB, statsDB, statsUser string
+	if err := owner.QueryRow(t.Context(), "SELECT current_database()").Scan(&ownerDB); err != nil {
+		t.Fatal(err)
+	}
+	if err := stats.QueryRow(t.Context(), "SELECT current_database(), current_user").Scan(&statsDB, &statsUser); err != nil {
+		t.Fatal(err)
+	}
+	if statsUser != pgtest.StatsRole || ownerDB != statsDB {
+		t.Errorf("stats pool as %q on %q, owner on %q; want %s on one database", statsUser, statsDB, ownerDB, pgtest.StatsRole)
+	}
+}
+
+// An empty database has none of the template's tables: a test migrates it step by step.
+func TestNewEmptyDatabaseURL_IsNotTheTemplate(t *testing.T) {
+	t.Parallel()
+	pool, err := postgres.Open(t.Context(), pgtest.NewEmptyDatabaseURL(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	var probe *string
+	if err := pool.QueryRow(t.Context(), "SELECT to_regclass('probe')::text").Scan(&probe); err != nil || probe != nil {
+		t.Errorf("the empty database has probe (%v, %v)", probe, err)
+	}
+}
+
 func TestAppURLAndRetentionURL_LogInToTheSameDatabaseAsEachRole(t *testing.T) {
 	t.Parallel()
 	dbURL := pgtest.NewDatabaseURL(t)
 
-	for role, roleURL := range map[string]string{pgtest.AppRole: pgtest.AppURL(t, dbURL), pgtest.RetentionRole: pgtest.RetentionURL(t, dbURL)} {
+	for role, roleURL := range map[string]string{
+		pgtest.AppRole: pgtest.AppURL(t, dbURL), pgtest.RetentionRole: pgtest.RetentionURL(t, dbURL), pgtest.StatsRole: pgtest.StatsURL(t, dbURL),
+	} {
 		pool, err := postgres.Open(t.Context(), roleURL)
 		if err != nil {
 			t.Fatalf("log in as %s: %v", role, err)

@@ -5,6 +5,9 @@ import { attempt, type Outcome } from '../api/result'
 import { useLanguage, useT } from '../i18n/useT'
 import { Alert, TipTag } from '../ui'
 import { entryStatus } from './entryStatus'
+import { GroupNames } from './GroupNames'
+import { escapeCancels, useLanguageName } from './reviewHelpers'
+import { FormActions, NoteForm, StatusTag } from './reviewParts'
 import './review.css'
 
 type Entry = components['schemas']['TermReviewEntry']
@@ -26,14 +29,6 @@ type Open = { index: number; part: Part; mode: 'edit' | 'note' }
 
 type Queue = { name: 'loading' } | { name: 'failed' } | { name: 'loaded'; entries: Entry[]; next?: string }
 
-// useLanguageName names a term language in the UI language.
-function useLanguageName() {
-  const t = useT()
-  return (l: TermLanguage) => {
-    if (l === 'de' || l === 'ar' || l === 'tr' || l === 'it' || l === 'fr') return t(`review.language.${l}`)
-    return t(`terminology.language.${l.replace('-', '')}`)
-  }
-}
 
 // Review is the review panel of the medical term list (docs/terminology/SPEC.md §3 "Review"): the queue of one
 // language, needs changes first (every status by default), with the progress; a reviewer edits, approves or
@@ -52,6 +47,8 @@ export function Review({ api, reviewer }: { api: ApiClient; reviewer: boolean })
   const [open, setOpen] = useState<Open>()
   const [error, setError] = useState<string>()
   const [reload, setReload] = useState(0)
+  // view is the list on screen: the terms, or the diagnosis groups' names (SAL-19).
+  const [view, setView] = useState<'terms' | 'groups'>('terms')
   const list = useRef<HTMLOListElement>(null)
   const focusTo = useRef<number>(undefined)
   const key = `${language}|${status}|${reload}`
@@ -224,6 +221,17 @@ export function Review({ api, reviewer }: { api: ApiClient; reviewer: boolean })
   return (
     <section className="review">
       <h1>{t('review.title')}</h1>
+      <div role="tablist" className="review-views" aria-label={t('review.title')}>
+        {(['terms', 'groups'] as const).map((v) => (
+          <button key={v} type="button" role="tab" aria-selected={view === v} className={view === v ? 'selected' : undefined} onClick={() => setView(v)}>
+            {t(`review.view.${v}`)}
+          </button>
+        ))}
+      </div>
+      {view === 'groups' ? (
+        <GroupNames api={api} reviewer={reviewer} />
+      ) : (
+        <>
       <p className="hint">{t('review.intro')}</p>
       {!reviewer && <p className="notice">{t('review.readOnly')}</p>}
       <div className="review-filters">
@@ -277,6 +285,8 @@ export function Review({ api, reviewer }: { api: ApiClient; reviewer: boolean })
             {t('review.more')}
           </button>
         </div>
+      )}
+        </>
       )}
     </section>
   )
@@ -451,20 +461,7 @@ function EntryCard({ entry, language, reviewer, open, onKeyDown, onOpen, onCance
   )
 }
 
-function StatusTag({ status }: { status: Status }) {
-  const t = useT()
-  return <span className={`tag review-status ${status}`}>{t(`review.status.${status}`)}</span>
-}
 
-// escapeCancels makes Escape in a form cancel it, without reaching the entry's shortcuts.
-function escapeCancels(onCancel: () => void) {
-  return (event: KeyboardEvent<HTMLFormElement>) => {
-    if (event.key !== 'Escape') return
-    event.preventDefault()
-    event.stopPropagation()
-    onCancel()
-  }
-}
 
 function LabelsForm({ preferred, synonyms, onSave, onCancel }: { preferred: string; synonyms: string[]; onSave: (p: string, s: string[]) => void; onCancel: () => void }) {
   const t = useT()
@@ -537,36 +534,4 @@ function ExplanationForm({ text, onSave, onCancel }: { text: string; onSave: (te
   )
 }
 
-function NoteForm({ onSave, onCancel, onMissing }: { onSave: (note: string) => void; onCancel: () => void; onMissing: () => void }) {
-  const t = useT()
-  const [note, setNote] = useState('')
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    const value = note.trim()
-    if (value) onSave(value)
-    else onMissing()
-  }
-  return (
-    <form className="review-form" onSubmit={submit} onKeyDown={escapeCancels(onCancel)}>
-      <div className="field">
-        <label htmlFor="review-note">{t('review.noteLabel')}</label>
-        <input id="review-note" autoFocus maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
-      </div>
-      <FormActions onCancel={onCancel} />
-    </form>
-  )
-}
 
-function FormActions({ onCancel }: { onCancel: () => void }) {
-  const t = useT()
-  return (
-    <div className="actions">
-      <button type="submit" className="primary">
-        {t('review.save')}
-      </button>
-      <button type="button" onClick={onCancel}>
-        {t('review.cancel')}
-      </button>
-    </div>
-  )
-}

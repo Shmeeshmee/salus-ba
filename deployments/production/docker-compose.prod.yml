@@ -111,6 +111,7 @@ services:
       DATABASE_URL: postgres://salus:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/salus?sslmode=disable
       APP_DATABASE_PASSWORD: ${APP_DATABASE_PASSWORD}
       RETENTION_DATABASE_PASSWORD: ${RETENTION_DATABASE_PASSWORD:?RETENTION_DATABASE_PASSWORD is required}
+      STATS_DATABASE_PASSWORD: ${STATS_DATABASE_PASSWORD:?STATS_DATABASE_PASSWORD is required}
     restart: "no"
     depends_on:
       postgres: {condition: service_healthy}

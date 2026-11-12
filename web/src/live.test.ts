@@ -308,8 +308,8 @@ describe('consultSocket: documents', () => {
     })
 
     expect(await actions.templates('en')).toEqual([
-      { id: 'd1000000-0000-4000-8000-000000000001', title: 'Placeholder report', language: 'en', fields: [{ key: 'reason', label: 'Placeholder reason', required: true }, { key: 'plan', label: 'Placeholder plan EN', required: false }] },
-      { id: 'd1000000-0000-4000-8000-000000000002', title: 'Placeholder nalaz', language: 'hr', fields: [{ key: 'reason', label: 'Placeholder razlog', required: true }, { key: 'plan', label: 'Placeholder plan', required: false }] },
+      { id: 'd1000000-0000-4000-8000-000000000001', title: 'Placeholder report', language: 'en', fields: [{ key: 'reason', label: 'Placeholder reason', required: true, type: 'text' }, { key: 'plan', label: 'Placeholder plan EN', required: false, type: 'list' }] },
+      { id: 'd1000000-0000-4000-8000-000000000002', title: 'Placeholder nalaz', language: 'hr', fields: [{ key: 'reason', label: 'Placeholder razlog', required: true, type: 'text' }, { key: 'plan', label: 'Placeholder plan', required: false, type: 'list' }] },
     ])
     expect((await actions.templates('bs'))[0]).toMatchObject({ title: 'Placeholder izvještaj', language: 'bs' })
   })

@@ -161,3 +161,21 @@ type ReminderEmailArgs struct {
 
 // Kind names the job in river_job.
 func (ReminderEmailArgs) Kind() string { return "appointment_reminder_email" }
+
+// Booked is an appointment as the aggregate builds read it from the store (salus_stats): when it starts, whose,
+// with whom, and its status. No slot, no cancellation details.
+type Booked struct {
+	Start              time.Time
+	PatientID          string
+	PractitionerRoleID string
+	Status             Status
+}
+
+// Start is an appointment as a build gets it: the patient only as a pseudonym under the build's key
+// (docs/plans/analytics.md §3).
+type Start struct {
+	Start              time.Time
+	PractitionerRoleID string
+	Status             Status
+	Patient            [32]byte
+}

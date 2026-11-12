@@ -147,6 +147,11 @@ func consultIntelligenceRules() []Rule {
 			Then:  ThenKeep,
 		},
 		{
+			Table: "condition",
+			Basis: "The diagnoses of the signed documents, part of the clinical record (GDPR Art. 9(2)(h)); kept with the record like document_draft, the source of the clinic's statistics; needs a legal decision before production (docs/plans/analytics.md §7)",
+			Then:  ThenKeep,
+		},
+		{
 			Table: "document_draft",
 			Basis: "The document the practitioner writes about the patient during the consultation (GDPR Art. 9(2)(h)); kept with the clinical record, a discarded one as entered-in-error; needs a legal decision before production (docs/plans/consult-intelligence.md, \"Personal data\")",
 			Then:  ThenKeep,

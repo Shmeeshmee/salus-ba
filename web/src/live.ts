@@ -2,7 +2,7 @@ import type { components } from './api/schema'
 import type { ApiClient } from './api/client'
 import type { Bundle, FhirClient } from './api/fhir'
 import { attempt } from './api/result'
-import { decodeMessage, SignRefused, TranscriptionDeclined, type ConsultActions, type DraftEvent, type End, type LiveSource, type SuggestionEvent, type Template } from './consult'
+import { decodeMessage, DiagnosisUnconfirmed, SignRefused, TranscriptionDeclined, type ConsultActions, type DraftEvent, type End, type LiveSource, type SuggestionEvent, type Template } from './consult'
 
 export type { End } from './consult'
 
@@ -168,6 +168,7 @@ export function consultSocket({ api, fhir, open = (url) => new WebSocket(url) }:
       })
       if (response.ok && data) return data as DraftEvent
       if (response.status === 422 && error && 'keys' in error && error.error === 'required_missing') throw new SignRefused(error.keys)
+      if (response.status === 422 && error && 'keys' in error && error.error === 'diagnosis_unconfirmed') throw new DiagnosisUnconfirmed(error.keys)
       throw new Error('not signed')
     },
     async terms(draftId) {
@@ -209,6 +210,6 @@ function inLanguage(t: DocumentTemplate, language: string): Template {
     id: t.id,
     title: translation?.title ?? t.title,
     language: translation?.language ?? t.language,
-    fields: t.fields.map((f) => ({ key: f.key, label: translation?.fields[f.key]?.label ?? f.label, required: f.required })),
+    fields: t.fields.map((f) => ({ key: f.key, label: translation?.fields[f.key]?.label ?? f.label, required: f.required, type: f.type })),
   }
 }
