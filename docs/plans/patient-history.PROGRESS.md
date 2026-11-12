@@ -66,7 +66,10 @@ visits there not shared (read by the clinic's scope through `history_shared`, le
 | First page of 30, documents and responses read per visit (first cut) | 63.7 ms | 116.6 ms | 170.6 ms |
 | First page of 30, one query for every visit's documents, one search per patient for the responses | 19.8 ms | 55.8 ms | 93.9 ms |
 | Pre-visit summary | 16.7 ms | 46.9 ms | 94.8 ms |
+| First page of 30, after merging main (00046's once-per-query lookups), 2026-11-13 | 16.2 ms | 63.6 ms | 101.7 ms |
+| Pre-visit summary, after merging main, 2026-11-13 | 13.2 ms | 22.1 ms | 24.9 ms |
 
-Every page of 100 to the last (9 pages, 804 items): the last 28 ms, the slowest 43 ms. The cost was the per-visit
+Every page of 100 to the last (9 pages, 804 items): the last 28 ms, the slowest 43 ms. After the merge: the last 12.9 ms, the slowest 29.8 ms (the first page's p95 and p99 moved with
+the load of the other stacks on the machine; p50 did not). The cost was the per-visit
 queries, not `history_shared`: the partial index on `history_consent_encounter (encounter_id)` is enough for these
 reads; nothing more was added.
