@@ -20,6 +20,7 @@ class HistoryItem {
     this.encounterId,
     this.specialty,
     this.title,
+    this.questionnaire,
     this.diagnoses = const [],
     this.shared,
   });
@@ -59,8 +60,17 @@ class HistoryItem {
   ///
   String? title;
 
-  /// A signed document's diagnoses: the ICD-10 codes (http://hl7.org/fhir/sid/icd-10) of its filled coded fields.
-  List<String> diagnoses;
+  /// Of a questionnaire response, the Questionnaire version it answers, to read its questions.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? questionnaire;
+
+  /// A signed document's filled coded fields, in the template's order.
+  List<HistoryDiagnosis> diagnoses;
 
   /// For a practitioner, a visit of another clinic the patient shared, and everything of it.
   ///
@@ -82,6 +92,7 @@ class HistoryItem {
           other.encounterId == encounterId &&
           other.specialty == specialty &&
           other.title == title &&
+          other.questionnaire == questionnaire &&
           _deepEquality.equals(other.diagnoses, diagnoses) &&
           other.shared == shared;
 
@@ -95,12 +106,13 @@ class HistoryItem {
       (encounterId == null ? 0 : encounterId!.hashCode) +
       (specialty == null ? 0 : specialty!.hashCode) +
       (title == null ? 0 : title!.hashCode) +
+      (questionnaire == null ? 0 : questionnaire!.hashCode) +
       (diagnoses.hashCode) +
       (shared == null ? 0 : shared!.hashCode);
 
   @override
   String toString() =>
-      'HistoryItem[date=$date, clinic=$clinic, type=$type, reference=$reference, encounterId=$encounterId, specialty=$specialty, title=$title, diagnoses=$diagnoses, shared=$shared]';
+      'HistoryItem[date=$date, clinic=$clinic, type=$type, reference=$reference, encounterId=$encounterId, specialty=$specialty, title=$title, questionnaire=$questionnaire, diagnoses=$diagnoses, shared=$shared]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -122,6 +134,11 @@ class HistoryItem {
       json[r'title'] = this.title;
     } else {
       json[r'title'] = null;
+    }
+    if (this.questionnaire != null) {
+      json[r'questionnaire'] = this.questionnaire;
+    } else {
+      json[r'questionnaire'] = null;
     }
     json[r'diagnoses'] = this.diagnoses;
     if (this.shared != null) {
@@ -170,11 +187,8 @@ class HistoryItem {
         encounterId: mapValueOfType<String>(json, r'encounterId'),
         specialty: mapValueOfType<String>(json, r'specialty'),
         title: mapValueOfType<String>(json, r'title'),
-        diagnoses: json[r'diagnoses'] is Iterable
-            ? (json[r'diagnoses'] as Iterable)
-                .cast<String>()
-                .toList(growable: false)
-            : const [],
+        questionnaire: mapValueOfType<String>(json, r'questionnaire'),
+        diagnoses: HistoryDiagnosis.listFromJson(json[r'diagnoses']),
         shared: mapValueOfType<bool>(json, r'shared'),
       );
     }

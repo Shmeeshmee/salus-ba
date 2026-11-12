@@ -16,10 +16,12 @@ type Repository interface {
 	SetPatient(ctx context.Context, id string) error
 	// ByID returns the version id, or ErrNotFound (also outside the scope, or for an id that is not a UUID).
 	ByID(ctx context.Context, id string) (Questionnaire, error)
-	// Shared returns the version id when a completed response to it, of another clinic's visit shared with the
-	// clinic set, is (history_questionnaire, migration 00051), whatever row-level security shows; ErrNotFound
-	// otherwise. Its translations stay closed.
-	Shared(ctx context.Context, id string) (Questionnaire, error)
+	// ByIDs returns the versions of ids the scope shows; an id that is not a UUID matches none.
+	ByIDs(ctx context.Context, ids []string) ([]Questionnaire, error)
+	// Shared returns the versions of ids that completed responses of another clinic's visits shared with the clinic
+	// set answer, when the practitioner practitionerID has an appointment with their patient there
+	// (history_questionnaire, migration 00051), whatever row-level security shows. Their translations stay closed.
+	Shared(ctx context.Context, practitionerID string, ids []string) ([]Questionnaire, error)
 	// Lock returns the version id, locked until the transaction ends so lifecycle steps of one version run
 	// one after the other, or ErrNotFound.
 	Lock(ctx context.Context, id string) (Questionnaire, error)

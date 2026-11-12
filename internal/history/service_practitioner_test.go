@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/Shmeeshmee/salus/internal/encounter"
@@ -33,13 +34,14 @@ func TestForPractitioner_ListsTheVisitsAndWhatBelongsToThemNewestFirst(t *testin
 	b := history.Clinic{ID: clinicB, Name: "Synthetic clinic B"}
 	want := []history.Item{
 		{Date: day(1, 10), Clinic: a, Type: history.TypeDocument, Reference: "Composition/" + doc1, EncounterID: visit1, Specialty: "394579002",
-			Title: "Placeholder report", Diagnoses: []string{"J06.9"}},
+			Title: "Placeholder report", Diagnoses: []history.Diagnosis{
+				{Code: "J06.9", Label: "Placeholder diagnosis", Confirmed: true}, {Code: "K21.0", Label: "Placeholder rule out"}}},
 		{Date: day(1, 9), Clinic: a, Type: history.TypeVisit, Reference: "Encounter/" + visit1, EncounterID: visit1, Specialty: "394579002"},
 		{Date: day(1, 8), Clinic: b, Type: history.TypeVisit, Reference: "Encounter/" + visit2, EncounterID: visit2, Specialty: "419192003", Shared: true},
 		{Date: day(1, 8), Clinic: b, Type: history.TypeDocument, Reference: "Composition/" + doc2, EncounterID: visit2, Specialty: "419192003",
-			Title: "Placeholder referral", Shared: true},
+			Title: "Placeholder referral", Diagnoses: []history.Diagnosis{{Code: "I10", Label: "Placeholder diagnosis"}}, Shared: true},
 		{Date: day(1, 7), Clinic: a, Type: history.TypeQuestionnaireResponse, Reference: "QuestionnaireResponse/" + resp1, EncounterID: visit1,
-			Specialty: "394579002", Title: "Placeholder intake"},
+			Specialty: "394579002", Title: "Placeholder intake", Questionnaire: version1},
 		{Date: day(1, 7), Clinic: a, Type: history.TypeAttachment, Reference: "Binary/" + file1, EncounterID: visit1, Specialty: "394579002",
 			Title: "Placeholder photo"},
 	}
@@ -48,6 +50,30 @@ func TestForPractitioner_ListsTheVisitsAndWhatBelongsToThemNewestFirst(t *testin
 	}
 	if !slices.Equal(f.encounters.asked, []string{practAcc + " " + patientA}) {
 		t.Errorf("asked the encounters for %v, want the caller's history of patient A once", f.encounters.asked)
+	}
+}
+
+// A coded field is a diagnosis as its Condition says: confirmed only when it is (a code 00042 backfilled from a
+// document signed before SAL-19 is unconfirmed, as is one the conditions do not know), with the field's label so a
+// "rule out" field never reads as a diagnosis; asked once, as the caller, for the documents the page shows.
+func TestForPractitioner_MarksADiagnosisConfirmedOnlyByItsCondition(t *testing.T) {
+	t.Parallel()
+	f := newPractFixture()
+	got, err := f.svc.ForPractitioner(t.Context(), pract, patientA, history.Cursor{}, 1)
+	if err != nil || len(got.Items) != 1 {
+		t.Fatalf("ForPractitioner() = %v, %v", refs(got.Items), err)
+	}
+	want := []history.Diagnosis{{Code: "J06.9", Label: "Placeholder diagnosis", Confirmed: true}, {Code: "K21.0", Label: "Placeholder rule out"}}
+	if !reflect.DeepEqual(got.Items[0].Diagnoses, want) {
+		t.Errorf("diagnoses %+v, want %+v", got.Items[0].Diagnoses, want)
+	}
+	if want := []string{practAcc + " " + doc1}; !slices.Equal(f.conditions.asked, want) {
+		t.Errorf("asked the conditions for %v, want %v", f.conditions.asked, want)
+	}
+	f = newPractFixture()
+	f.conditions.err = errBackend
+	if _, err := f.svc.ForPractitioner(t.Context(), pract, patientA, history.Cursor{}, 30); !errors.Is(err, errBackend) || len(f.audit.events) != 0 {
+		t.Errorf("conditions down: %v, %d events kept; want the failure, none", err, len(f.audit.events))
 	}
 }
 
@@ -64,6 +90,7 @@ func TestForPractitioner_AuditsTheViewAndEachItemShown(t *testing.T) {
 		"encounter " + visit1, "encounter " + visit2,
 		"composition " + doc1, "composition " + doc2,
 		"questionnaireresponse " + resp1,
+		"binary " + file1,
 		"history search-type Patient/" + patientA,
 	}
 	if !slices.Equal(*f.log, want) {
@@ -241,9 +268,7 @@ func TestSummary_IsNotFoundForAnotherAppointment(t *testing.T) {
 func TestSummary_FailuresRollBack(t *testing.T) {
 	t.Parallel()
 	for name, fail := range map[string]func(*practFixture){
-		"allergies":   func(f *practFixture) { f.allergies.err = errBackend },
-		"medications": func(f *practFixture) { f.medications.err = errBackend },
-		"drafts":      func(f *practFixture) { f.compositions.draftErr = errBackend },
+		"drafts": func(f *practFixture) { f.compositions.draftErr = errBackend },
 	} {
 		f := newPractFixture()
 		fail(f)
@@ -253,5 +278,67 @@ func TestSummary_FailuresRollBack(t *testing.T) {
 		if len(f.audit.events) != 0 {
 			t.Errorf("%s down: %d events kept", name, len(f.audit.events))
 		}
+	}
+}
+
+// A failed read of the allergies or the medications marks that section unavailable, never empty ("none recorded"
+// would read as safe): the rest of the summary is served and its audit kept, and ErrPartial carries the failure.
+func TestSummary_AFailedProfileReadIsUnavailableNotEmpty(t *testing.T) {
+	t.Parallel()
+	for name, tt := range map[string]struct {
+		fail                   func(*practFixture)
+		allergies, medications bool
+	}{
+		"allergies":   {fail: func(f *practFixture) { f.allergies.err = errBackend }, allergies: true},
+		"medications": {fail: func(f *practFixture) { f.medications.err = errBackend }, medications: true},
+		"both":        {fail: func(f *practFixture) { f.allergies.err, f.medications.err = errBackend, errBackend }, allergies: true, medications: true},
+	} {
+		f := newPractFixture()
+		tt.fail(f)
+		got, err := f.svc.Summary(t.Context(), pract, patientA, apptNow)
+		if !errors.Is(err, history.ErrPartial) || !errors.Is(err, errBackend) {
+			t.Errorf("%s down: %v, want ErrPartial with the failure", name, err)
+		}
+		if got.AllergiesUnavailable != tt.allergies || got.MedicationsUnavailable != tt.medications {
+			t.Errorf("%s down: unavailable %v and %v, want %v and %v", name, got.AllergiesUnavailable, got.MedicationsUnavailable, tt.allergies, tt.medications)
+		}
+		if (tt.allergies && len(got.Allergies) != 0) || (!tt.allergies && len(got.Allergies) != 1) ||
+			(tt.medications && len(got.Medications) != 0) || (!tt.medications && len(got.Medications) != 1) {
+			t.Errorf("%s down: allergies %v, medications %v", name, got.Allergies, got.Medications)
+		}
+		if got.LastVisit == nil || len(got.OpenItems) != 2 {
+			t.Errorf("%s down: last visit %v, open %v; want the rest of the summary", name, got.LastVisit, got.OpenItems)
+		}
+		if !slices.Contains(*f.log, "history read Patient/"+patientA) || len(f.audit.events) == 0 {
+			t.Errorf("%s down: audit %q, want the view kept", name, *f.log)
+		}
+	}
+}
+
+// With both read, the summary says nothing is unavailable.
+func TestSummary_IsAvailableWhenBothAreRead(t *testing.T) {
+	t.Parallel()
+	got, err := newPractFixture().svc.Summary(t.Context(), pract, patientA, apptNow)
+	if err != nil || got.AllergiesUnavailable || got.MedicationsUnavailable {
+		t.Errorf("Summary() = %+v, %v", got, err)
+	}
+}
+
+// The summary reads, and so audits, only the responses it can show as open: the appointment's in-progress ones,
+// never its completed or stopped ones.
+func TestSummary_AuditsOnlyTheOpenResponsesItShows(t *testing.T) {
+	t.Parallel()
+	f := newPractFixture()
+	if _, err := f.svc.Summary(t.Context(), pract, patientA, apptNow); err != nil {
+		t.Fatal(err)
+	}
+	var searched []string
+	for _, l := range *f.log {
+		if strings.HasPrefix(l, "questionnaireresponse search ") {
+			searched = append(searched, strings.TrimPrefix(l, "questionnaireresponse search "))
+		}
+	}
+	if !slices.Equal(searched, []string{respNow}) {
+		t.Errorf("responses read %v, want the open one only", searched)
 	}
 }

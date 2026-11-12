@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -18,10 +19,10 @@ import (
 // stubViews answers with what the test set and keeps what it was asked.
 type stubViews struct {
 	err     error
-	cursor  history.Cursor
 	page    history.Page
-	summary history.Summary
 	asked   []string
+	cursor  history.Cursor
+	summary history.Summary
 	limit   int
 }
 
@@ -139,5 +140,20 @@ func TestHTTPHandler_ServesTheSummary(t *testing.T) {
 	}
 	if w, _ := serve(t, &stubViews{}, true, "/patients/"+patientA+"/history/summary"); w.Code != http.StatusNotFound {
 		t.Errorf("without an appointment: status %d, want 404", w.Code)
+	}
+}
+
+// A summary with a section unavailable is served, the section marked, and the failure logged, not sent.
+func TestHTTPHandler_ServesAPartialSummaryAndLogsTheFailure(t *testing.T) {
+	t.Parallel()
+	views := &stubViews{err: fmt.Errorf("%w: allergies: %w", history.ErrPartial, io.ErrUnexpectedEOF), summary: history.Summary{
+		Allergies: []history.SummaryAllergy{}, Medications: []history.SummaryMedication{}, OpenItems: []history.OpenItem{}, AllergiesUnavailable: true,
+	}}
+	w, logs := serve(t, views, true, "/patients/"+patientA+"/history/summary?appointment="+apptNow)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"allergiesUnavailable":true`) || strings.Contains(w.Body.String(), "medicationsUnavailable") {
+		t.Errorf("status %d, body %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "unexpected EOF") || !strings.Contains(logs, "unexpected EOF") {
+		t.Errorf("the failure reached the client or missed the log: %s", logs)
 	}
 }

@@ -3,6 +3,7 @@ package questionnaire_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"slices"
 	"testing"
 	"time"
@@ -185,7 +186,7 @@ func TestRead_GivesStaffTheirClinicsVersionsOnly(t *testing.T) {
 func TestRead_GivesAPractitionerTheVersionASharedResponseAnswers(t *testing.T) {
 	t.Parallel()
 	f := newFixture()
-	f.repo.shared = map[string][]string{clinicA: {activeB}}
+	f.repo.shared = map[string][]string{clinicA + " " + practitioner1: {activeB}}
 	f.repo.translated = map[string][]questionnaire.Translation{activeB: {{Language: "en", Title: "Placeholder"}}}
 
 	got, err := f.svc.Read(t.Context(), practitionerA1, activeB)
@@ -195,6 +196,12 @@ func TestRead_GivesAPractitionerTheVersionASharedResponseAnswers(t *testing.T) {
 	if _, err := f.svc.Read(t.Context(), adminA, activeB); !errors.Is(err, questionnaire.ErrNotFound) {
 		t.Errorf("Read() by the admin = %v, want ErrNotFound", err)
 	}
+	// Staff of the clinic who are not a practitioner have no history of anyone: never through the lookup.
+	staff := questionnaire.Caller{AccountID: "a1000000-0000-4000-8000-0000000000a5", OrganizationID: clinicA}
+	f.repo.shared[clinicA+" "] = []string{activeB}
+	if _, err := f.svc.Read(t.Context(), staff, activeB); !errors.Is(err, questionnaire.ErrNotFound) {
+		t.Errorf("Read() by staff without a practitioner = %v, want ErrNotFound", err)
+	}
 	f.repo.shared = nil
 	if _, err := f.svc.Read(t.Context(), practitionerA1, activeB); !errors.Is(err, questionnaire.ErrNotFound) {
 		t.Errorf("Read() once not shared = %v, want ErrNotFound", err)
@@ -203,7 +210,37 @@ func TestRead_GivesAPractitionerTheVersionASharedResponseAnswers(t *testing.T) {
 		return staffEvent(c, auditevent.CodeRead, auditevent.ActionRead, "", auditevent.OutcomeMinorFailure)
 	}
 	assertEvents(t, f.audit, staffEvent(practitionerA1, auditevent.CodeRead, auditevent.ActionRead, "Questionnaire/"+activeB, auditevent.OutcomeSuccess),
-		refused(adminA), refused(practitionerA1))
+		refused(adminA), refused(staff), refused(practitionerA1))
+}
+
+// Titles gives, in one read, the titles of the versions a practitioner's history shows: their clinic's own, and
+// another clinic's that a shared response answers (through the lookup, once for every version, for that practitioner
+// only); each audited as a read. Nothing for anyone else.
+func TestTitles_GivesTheClinicsAndTheSharedVersionsTitles(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	f.repo.shared = map[string][]string{clinicA + " " + practitioner1: {activeB}}
+	unknown := "e9000000-0000-4000-8000-0000000000e9"
+	got, err := f.svc.Titles(t.Context(), practitionerA1, []string{activeA, activeB, unknown})
+	if want := map[string]string{activeA: placeholderTitle, activeB: placeholderTitle}; err != nil || !maps.Equal(got, want) {
+		t.Errorf("Titles() = %v, %v; want %v", got, err, want)
+	}
+	if f.repo.sharedCalls != 1 {
+		t.Errorf("Shared read %d times, want once for every version", f.repo.sharedCalls)
+	}
+	staff := questionnaire.Caller{AccountID: "a1000000-0000-4000-8000-0000000000a5", OrganizationID: clinicA}
+	f.repo.shared[clinicA+" "] = []string{activeB}
+	for _, c := range []questionnaire.Caller{adminA, staff} {
+		if got, err := f.svc.Titles(t.Context(), c, []string{activeB}); err != nil || len(got) != 0 {
+			t.Errorf("Titles() by %+v = %v, %v; want none", c, got, err)
+		}
+	}
+	read := func(c questionnaire.Caller, id string, o auditevent.Outcome) event {
+		return staffEvent(c, auditevent.CodeRead, auditevent.ActionRead, id, o)
+	}
+	assertEvents(t, f.audit, read(practitionerA1, "Questionnaire/"+activeA, auditevent.OutcomeSuccess),
+		read(practitionerA1, "Questionnaire/"+activeB, auditevent.OutcomeSuccess),
+		read(adminA, "", auditevent.OutcomeSuccess), read(staff, "", auditevent.OutcomeSuccess))
 }
 
 func TestRead_DoesNotRestOnRowLevelSecurityAlone(t *testing.T) {

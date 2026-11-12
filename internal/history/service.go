@@ -57,17 +57,24 @@ type Compositions interface {
 }
 
 // Responses gives the completed questionnaire responses of the visits with their scanned files, audits the ones a
-// view shows, and the responses of the appointment for the summary (questionnaireresponse.Service).
+// view shows and their files, and the responses of the appointment for the summary (questionnaireresponse.Service).
 type Responses interface {
 	History(ctx context.Context, c appointment.Caller, visits []encounter.Visit) ([]questionnaireresponse.Response, error)
 	Disclosed(ctx context.Context, c appointment.Caller, ids []string) error
+	DisclosedFiles(ctx context.Context, c appointment.Caller, ids []string) error
 	Search(ctx context.Context, c appointment.Caller, f questionnaireresponse.Filter) ([]questionnaireresponse.Seen, error)
 }
 
-// Questionnaires reads the version a response answers, for its title, audited as the caller's read
+// Questionnaires gives the titles of the versions responses answer, in one read, each audited as the caller's read
 // (questionnaire.Service).
 type Questionnaires interface {
-	Read(ctx context.Context, c questionnaire.Caller, id string) (questionnaire.Questionnaire, error)
+	Titles(ctx context.Context, c questionnaire.Caller, ids []string) (map[string]string, error)
+}
+
+// Conditions gives the keys of the coded fields of the signed documents whose Condition is confirmed, by document:
+// the caller's clinic's own, and a shared visit's (condition.Reads). Part of the documents, which are audited.
+type Conditions interface {
+	Confirmed(ctx context.Context, c appointment.Caller, documentIDs []string) (map[string][]string, error)
 }
 
 // Clinics gives the names of the clinics a clinic's scope shows (organization.Service).
@@ -99,6 +106,7 @@ type Ports struct {
 	Appointments   Appointments
 	Allergies      Allergies
 	Medications    Medications
+	Conditions     Conditions
 }
 
 // Service builds the history views. It owns no table: every item comes from its owning domain's service.

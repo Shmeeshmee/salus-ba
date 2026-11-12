@@ -399,6 +399,61 @@ func (q *Queries) QuestionnaireTranslations(ctx context.Context, questionnaireID
 	return items, nil
 }
 
+const questionnairesByIDs = `-- name: QuestionnairesByIDs :many
+SELECT id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
+FROM questionnaire WHERE id = ANY($1::uuid[])
+`
+
+type QuestionnairesByIDsRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	PublishedAt    pgtype.Timestamptz
+	RetiredAt      pgtype.Timestamptz
+	SeriesID       pgtype.UUID
+	OrganizationID pgtype.UUID
+	Version        int32
+	VersionID      int32
+	Status         string
+	Title          string
+	Description    string
+	Items          []byte
+	Language       Language
+}
+
+func (q *Queries) QuestionnairesByIDs(ctx context.Context, ids []pgtype.UUID) ([]QuestionnairesByIDsRow, error) {
+	rows, err := q.db.Query(ctx, questionnairesByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []QuestionnairesByIDsRow
+	for rows.Next() {
+		var i QuestionnairesByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UpdatedAt,
+			&i.PublishedAt,
+			&i.RetiredAt,
+			&i.SeriesID,
+			&i.OrganizationID,
+			&i.Version,
+			&i.VersionID,
+			&i.Status,
+			&i.Title,
+			&i.Description,
+			&i.Items,
+			&i.Language,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const retireActiveQuestionnaire = `-- name: RetireActiveQuestionnaire :exec
 UPDATE questionnaire
 SET status = 'retired', retired_at = $1, version_id = version_id + 1, updated_at = $1
@@ -571,12 +626,17 @@ func (q *Queries) SetQuestionnaireDefault(ctx context.Context, arg SetQuestionna
 	return i, err
 }
 
-const sharedQuestionnaire = `-- name: SharedQuestionnaire :one
+const sharedQuestionnaires = `-- name: SharedQuestionnaires :many
 SELECT id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
-FROM history_questionnaire($1::uuid)
+FROM history_questionnaire($1::uuid[], $2::uuid)
 `
 
-type SharedQuestionnaireRow struct {
+type SharedQuestionnairesParams struct {
+	Ids            []pgtype.UUID
+	PractitionerID pgtype.UUID
+}
+
+type SharedQuestionnairesRow struct {
 	ID             pgtype.UUID
 	UpdatedAt      pgtype.Timestamptz
 	PublishedAt    pgtype.Timestamptz
@@ -592,26 +652,40 @@ type SharedQuestionnaireRow struct {
 	Language       Language
 }
 
-// A version another clinic's completed response answers, of a visit shared with the scope's clinic (migration 00051).
-func (q *Queries) SharedQuestionnaire(ctx context.Context, id pgtype.UUID) (SharedQuestionnaireRow, error) {
-	row := q.db.QueryRow(ctx, sharedQuestionnaire, id)
-	var i SharedQuestionnaireRow
-	err := row.Scan(
-		&i.ID,
-		&i.UpdatedAt,
-		&i.PublishedAt,
-		&i.RetiredAt,
-		&i.SeriesID,
-		&i.OrganizationID,
-		&i.Version,
-		&i.VersionID,
-		&i.Status,
-		&i.Title,
-		&i.Description,
-		&i.Items,
-		&i.Language,
-	)
-	return i, err
+// The versions of ids another clinic's completed responses answer, of visits shared with the scope's clinic, for a
+// practitioner with an appointment with their patient there (migration 00051).
+func (q *Queries) SharedQuestionnaires(ctx context.Context, arg SharedQuestionnairesParams) ([]SharedQuestionnairesRow, error) {
+	rows, err := q.db.Query(ctx, sharedQuestionnaires, arg.Ids, arg.PractitionerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SharedQuestionnairesRow
+	for rows.Next() {
+		var i SharedQuestionnairesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UpdatedAt,
+			&i.PublishedAt,
+			&i.RetiredAt,
+			&i.SeriesID,
+			&i.OrganizationID,
+			&i.Version,
+			&i.VersionID,
+			&i.Status,
+			&i.Title,
+			&i.Description,
+			&i.Items,
+			&i.Language,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateQuestionnaireDraft = `-- name: UpdateQuestionnaireDraft :one

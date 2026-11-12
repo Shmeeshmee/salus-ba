@@ -36,19 +36,29 @@ type Clinic struct {
 // Item is one entry of a history (api/openapi.yaml HistoryItem). Date orders the history, newest first; Reference
 // is the FHIR resource to open ("Encounter/…", "Composition/…", "QuestionnaireResponse/…", "Binary/…"); EncounterID
 // the visit it belongs to (empty for an item of none); Specialty the SNOMED CT code of the visit's practitioner
-// role; Title the document's, questionnaire's or file's title; Diagnoses, of a signed document, the ICD-10 codes
-// (http://hl7.org/fhir/sid/icd-10) of its filled coded fields. Shared marks, for a practitioner, a visit of another
-// clinic the patient shared, and everything of it.
+// role; Title the document's, questionnaire's or file's title; Questionnaire, of a response, the version it answers
+// (to read its questions); Diagnoses, of a signed document, its filled coded fields. Shared marks, for a
+// practitioner, a visit of another clinic the patient shared, and everything of it.
 type Item struct {
-	Date        time.Time `json:"date"`
-	Clinic      Clinic    `json:"clinic"`
-	Type        ItemType  `json:"type"`
-	Reference   string    `json:"reference"`
-	EncounterID string    `json:"encounterId,omitempty"`
-	Specialty   string    `json:"specialty,omitempty"`
-	Title       string    `json:"title,omitempty"`
-	Diagnoses   []string  `json:"diagnoses,omitempty"`
-	Shared      bool      `json:"shared,omitempty"`
+	Date          time.Time   `json:"date"`
+	Clinic        Clinic      `json:"clinic"`
+	Type          ItemType    `json:"type"`
+	Reference     string      `json:"reference"`
+	EncounterID   string      `json:"encounterId,omitempty"`
+	Specialty     string      `json:"specialty,omitempty"`
+	Title         string      `json:"title,omitempty"`
+	Questionnaire string      `json:"questionnaire,omitempty"`
+	Diagnoses     []Diagnosis `json:"diagnoses,omitempty"`
+	Shared        bool        `json:"shared,omitempty"`
+}
+
+// Diagnosis is a filled coded field of a signed document: its ICD-10 code (http://hl7.org/fhir/sid/icd-10), the
+// field's label as the template named it (a "rule out" field is not a diagnosis), and whether its Condition is
+// confirmed (one signed before coded diagnoses were confirmed, SAL-19, is not).
+type Diagnosis struct {
+	Code      string `json:"code"`
+	Label     string `json:"label"`
+	Confirmed bool   `json:"confirmed"`
 }
 
 // Page is one page of a history, newest first, with the cursor of the next page (api/openapi.yaml HistoryPage);
@@ -68,6 +78,10 @@ type Filter struct {
 
 // ErrCursor is a cursor this package did not make.
 var ErrCursor = errors.New("history: invalid cursor")
+
+// ErrPartial is a summary served with a section unavailable: the summary returned with it is valid and is shown,
+// with the failure for the log.
+var ErrPartial = errors.New("history: summary partial")
 
 // ErrNotFound is a patient, or an appointment, the caller has no history of: nothing about it is disclosed.
 var ErrNotFound = errors.New("history: not found")
@@ -136,11 +150,15 @@ func validReference(ref string) bool {
 // HistorySummary, SAL-40): the allergies and current medications the practitioner may see, the latest visit they
 // may see, and what is open for the appointment. Built from the same visibility as the view: a visit not seen is in
 // none of it.
+// AllergiesUnavailable and MedicationsUnavailable mark a section that could not be read: its list is empty
+// because nothing is known, not because nothing is recorded.
 type Summary struct {
-	LastVisit   *Item               `json:"lastVisit,omitempty"`
-	Allergies   []SummaryAllergy    `json:"allergies"`
-	Medications []SummaryMedication `json:"medications"`
-	OpenItems   []OpenItem          `json:"openItems"`
+	LastVisit              *Item               `json:"lastVisit,omitempty"`
+	Allergies              []SummaryAllergy    `json:"allergies"`
+	Medications            []SummaryMedication `json:"medications"`
+	OpenItems              []OpenItem          `json:"openItems"`
+	AllergiesUnavailable   bool                `json:"allergiesUnavailable,omitempty"`
+	MedicationsUnavailable bool                `json:"medicationsUnavailable,omitempty"`
 }
 
 // SummaryAllergy is an active allergy in the summary: the substance, the reaction and its severity, whether a

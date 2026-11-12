@@ -3187,10 +3187,27 @@ export interface components {
             /** @description The SNOMED CT code of the visit's practitioner role (`/specialties`). */
             specialty?: string;
             title?: string;
-            /** @description A signed document's diagnoses: the ICD-10 codes (http://hl7.org/fhir/sid/icd-10) of its filled coded fields. */
-            diagnoses?: string[];
+            /**
+             * Format: uuid
+             * @description Of a questionnaire response, the Questionnaire version it answers, to read its questions.
+             */
+            questionnaire?: string;
+            /** @description A signed document's filled coded fields, in the template's order. */
+            diagnoses?: components["schemas"]["HistoryDiagnosis"][];
             /** @description For a practitioner, a visit of another clinic the patient shared, and everything of it. */
             shared?: boolean;
+        };
+        /** @description A filled coded field of a signed document. Shown as a diagnosis only when confirmed; one signed before coded diagnoses were confirmed (SAL-19) is not. Health data. */
+        HistoryDiagnosis: {
+            /**
+             * @description ICD-10 (http://hl7.org/fhir/sid/icd-10)
+             * @example J06.9
+             */
+            code: string;
+            /** @description The field's label in the document's template. */
+            label: string;
+            /** @description Whether its Condition is confirmed. */
+            confirmed: boolean;
         };
         HistoryPage: {
             items: components["schemas"]["HistoryItem"][];
@@ -3203,6 +3220,10 @@ export interface components {
             allergies: components["schemas"]["SummaryAllergy"][];
             medications: components["schemas"]["SummaryMedication"][];
             openItems: components["schemas"]["OpenItem"][];
+            /** @description The allergies could not be read; the empty list means nothing is known, not none recorded. */
+            allergiesUnavailable?: boolean;
+            /** @description The medications could not be read; the empty list means nothing is known, not none recorded. */
+            medicationsUnavailable?: boolean;
         };
         SummaryAllergy: {
             /** @description AllergyIntolerance/id */

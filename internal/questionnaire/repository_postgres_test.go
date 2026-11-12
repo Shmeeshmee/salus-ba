@@ -451,3 +451,32 @@ func TestPostgres_ThePatientScopeShowsOnlyTheVersionsTheirResponsesReference(t *
 		}
 	}
 }
+
+// ByIDs gives the versions of ids the clinic's scope shows, ignoring an id that is not a UUID; Shared, with nothing
+// shared with the clinic, gives none of another clinic's (migrations/history_questionnaire_test.go covers the
+// lookup's rule).
+func TestPostgres_ReadsVersionsByIDsInTheClinicSet(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo := questionnaire.NewPostgresRepository(app)
+	var own, shared []questionnaire.Questionnaire
+	if err := in(t, app, repo, clinicA, func(ctx context.Context) error {
+		var err error
+		if own, err = repo.ByIDs(ctx, []string{activeA, draftA, activeB, "nope"}); err != nil {
+			return err
+		}
+		shared, err = repo.Shared(ctx, practitioner1, []string{activeB, "nope"})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, len(own))
+	for i, q := range own {
+		ids[i] = q.ID
+	}
+	slices.Sort(ids)
+	if want := []string{activeA, draftA}; !slices.Equal(ids, want) || len(shared) != 0 {
+		t.Errorf("ByIDs() = %v, Shared() = %v; want %v and none", ids, shared, want)
+	}
+}

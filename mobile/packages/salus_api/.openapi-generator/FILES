@@ -107,6 +107,7 @@ lib/model/explained_term_list.dart
 lib/model/generate_draft_request.dart
 lib/model/grant_consent_request.dart
 lib/model/history_clinic.dart
+lib/model/history_diagnosis.dart
 lib/model/history_item.dart
 lib/model/history_item_type.dart
 lib/model/history_page.dart

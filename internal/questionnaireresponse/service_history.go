@@ -71,3 +71,20 @@ func (s *Service) Disclosed(ctx context.Context, c appointment.Caller, ids []str
 	}
 	return nil
 }
+
+// DisclosedFiles audits the files ids of the responses the history shows the caller, each as a search of its
+// Binary, in the transaction in ctx (or one of its own).
+func (s *Service) DisclosedFiles(ctx context.Context, c appointment.Caller, ids []string) error {
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		for _, id := range ids {
+			if err := s.recordEntity(ctx, c, auditevent.CodeSearchType, "Binary/"+id, auditevent.OutcomeSuccess); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("questionnaireresponse: disclosed files: %w", err)
+	}
+	return nil
+}

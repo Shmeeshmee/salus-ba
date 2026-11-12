@@ -143,7 +143,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, append(append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI, newHistory(historyPorts{audit: audit, tx: tx, encounters: encounters, documents: documents, answers: answers, clinics: clinics, roles: roles, appointments: appointments, caller: appointmentCaller(accounts, patients)}, log)), chatNotifications...)...),
+		}, append(append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, answers: answers, clinics: clinics, roles: roles, appointments: appointments, caller: appointmentCaller(accounts, patients)}, log)), chatNotifications...)...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout,
 	})

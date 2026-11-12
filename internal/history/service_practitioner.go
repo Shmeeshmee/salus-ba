@@ -21,9 +21,9 @@ import (
 
 // entry is an item while a view is built, with what completing and auditing it needs.
 type entry struct {
-	role          string // the visit's practitioner role, for the specialty
-	questionnaire string // a response's version, for its title
-	response      string // the response a response or a file is part of, audited by its domain
+	role     string                   // the visit's practitioner role, for the specialty
+	response string                   // the response a response or a file is part of, audited by its domain
+	coded    []composition.DraftField // a document's filled coded fields, its diagnoses once their Conditions are read
 	Item
 }
 
@@ -87,7 +87,7 @@ func (s *Service) entries(ctx context.Context, c appointment.Caller, visits []en
 	}
 	for _, d := range docs {
 		e := of(c, d.Encounter, TypeDocument, "Composition/"+d.Draft.ID, d.Draft.SignedAt)
-		e.Title, e.Diagnoses = d.Draft.Title, diagnoses(d.Draft)
+		e.Title, e.coded = d.Draft.Title, coded(d.Draft)
 		out = append(out, e)
 	}
 	for _, r := range responses {
@@ -96,7 +96,7 @@ func (s *Service) entries(ctx context.Context, c appointment.Caller, visits []en
 			continue // not a visit given: nothing of it is shown
 		}
 		e := of(c, v, TypeQuestionnaireResponse, "QuestionnaireResponse/"+r.ID, r.AuthoredAt)
-		e.questionnaire, e.response = r.QuestionnaireID, r.ID
+		e.Questionnaire, e.response = r.QuestionnaireID, r.ID
 		out = append(out, e)
 		for _, f := range r.Attachments {
 			file := of(c, v, TypeAttachment, "Binary/"+f.BinaryID, r.AuthoredAt)
@@ -118,12 +118,12 @@ func of(c appointment.Caller, v encounter.Encounter, typ ItemType, ref string, a
 	}}
 }
 
-// diagnoses are the ICD-10 codes of d's filled coded fields, in the template's order.
-func diagnoses(d composition.Draft) []string {
-	var out []string
+// coded is d's filled coded fields, in the template's order.
+func coded(d composition.Draft) []composition.DraftField {
+	var out []composition.DraftField
 	for _, f := range d.Fields {
 		if f.Type == composition.FieldCoded && !f.Missing && f.Value != "" {
-			out = append(out, f.Value)
+			out = append(out, f)
 		}
 	}
 	return out
@@ -151,15 +151,22 @@ func items(es []entry) []Item {
 	return out
 }
 
-// complete fills in the clinic name and specialty of each entry and a response's title, as the caller's clinic scope
-// shows them; the titles are read (and audited) through the questionnaire's service.
+// complete fills in the clinic name and specialty of each entry, a response's title and a document's diagnoses, as
+// the caller's clinic scope shows them: the titles read (and audited) through the questionnaire's service, the
+// diagnoses' confirmation through the conditions, each in one read for the page.
 func (s *Service) complete(ctx context.Context, c appointment.Caller, es []entry) error {
 	if len(es) == 0 {
 		return nil
 	}
-	var clinics, roles []string
+	var clinics, roles, versions, docs []string
 	for _, e := range es {
 		clinics, roles = append(clinics, e.Clinic.ID), append(roles, e.role)
+		switch {
+		case e.Type == TypeQuestionnaireResponse:
+			versions = append(versions, e.Questionnaire)
+		case e.Type == TypeDocument && len(e.coded) > 0:
+			docs = append(docs, strings.TrimPrefix(e.Reference, "Composition/"))
+		}
 	}
 	names, err := s.Clinics.Names(ctx, c.OrganizationID, distinct(clinics))
 	if err != nil {
@@ -169,57 +176,64 @@ func (s *Service) complete(ctx context.Context, c appointment.Caller, es []entry
 	if err != nil {
 		return err
 	}
-	titles := map[string]string{}
+	titles, confirmed, err := s.titlesAndConfirmed(ctx, c, distinct(versions), docs)
+	if err != nil {
+		return err
+	}
 	for i := range es {
 		e := &es[i]
 		e.Clinic.Name, e.Specialty = names[e.Clinic.ID], specialties[e.role]
-		if e.questionnaire == "" || e.Type != TypeQuestionnaireResponse {
-			continue
+		if e.Type == TypeQuestionnaireResponse {
+			e.Title = titles[e.Questionnaire]
 		}
-		title, ok := titles[e.questionnaire]
-		if !ok {
-			if title, err = s.title(ctx, c, e.questionnaire); err != nil {
-				return err
-			}
-			titles[e.questionnaire] = title
+		keys := confirmed[strings.TrimPrefix(e.Reference, "Composition/")]
+		for _, f := range e.coded {
+			e.Diagnoses = append(e.Diagnoses, Diagnosis{Code: f.Value, Label: f.Label, Confirmed: slices.Contains(keys, f.Key)})
 		}
-		e.Title = title
 	}
 	return nil
 }
 
-// title is the title of the questionnaire version id, or "" when the caller may not read it.
-func (s *Service) title(ctx context.Context, c appointment.Caller, id string) (string, error) {
-	q, err := s.Questionnaires.Read(ctx, questionnaire.Caller{
-		AccountID: c.AccountID, OrganizationID: c.OrganizationID, PractitionerID: c.PractitionerID, PatientID: c.PatientID, Admin: c.Admin,
-	}, id)
-	switch {
-	case errors.Is(err, questionnaire.ErrNotFound):
-		return "", nil
-	case err != nil:
-		return "", err
+// titlesAndConfirmed reads the titles of the versions and the confirmed coded fields of the documents, each only
+// when there is one.
+func (s *Service) titlesAndConfirmed(ctx context.Context, c appointment.Caller, versions, docs []string) (map[string]string, map[string][]string, error) {
+	var titles map[string]string
+	var confirmed map[string][]string
+	var err error
+	if len(versions) > 0 {
+		qc := questionnaire.Caller{AccountID: c.AccountID, OrganizationID: c.OrganizationID, PractitionerID: c.PractitionerID, PatientID: c.PatientID, Admin: c.Admin}
+		if titles, err = s.Questionnaires.Titles(ctx, qc, versions); err != nil {
+			return nil, nil, err
+		}
 	}
-	return q.Title, nil
+	if len(docs) > 0 {
+		if confirmed, err = s.Conditions.Confirmed(ctx, c, docs); err != nil {
+			return nil, nil, err
+		}
+	}
+	return titles, confirmed, nil
 }
 
 // disclose has each owning domain audit the entries it gave that are shown: the visits, the documents, the
 // responses (a file as part of its response).
 func (s *Service) disclose(ctx context.Context, c appointment.Caller, es []entry) error {
-	var visits, docs, responses []string
+	var visits, docs, responses, files []string
 	for _, e := range es {
 		switch e.Type {
 		case TypeVisit:
 			visits = append(visits, e.EncounterID)
 		case TypeDocument:
 			docs = append(docs, strings.TrimPrefix(e.Reference, "Composition/"))
-		case TypeQuestionnaireResponse, TypeAttachment:
+		case TypeQuestionnaireResponse:
 			responses = append(responses, e.response)
+		case TypeAttachment:
+			responses, files = append(responses, e.response), append(files, strings.TrimPrefix(e.Reference, "Binary/"))
 		}
 	}
 	for _, d := range []struct {
 		disclosed func(ctx context.Context, c appointment.Caller, ids []string) error
 		ids       []string
-	}{{s.Encounters.Disclosed, visits}, {s.Compositions.Disclosed, docs}, {s.Responses.Disclosed, distinct(responses)}} {
+	}{{s.Encounters.Disclosed, visits}, {s.Compositions.Disclosed, docs}, {s.Responses.Disclosed, distinct(responses)}, {s.Responses.DisclosedFiles, files}} {
 		if len(d.ids) == 0 {
 			continue
 		}
@@ -281,7 +295,7 @@ func (s *Service) Summary(ctx context.Context, c appointment.Caller, patientID, 
 			refused = true
 			return s.recordView(ctx, c, auditevent.CodeRead, "", auditevent.OutcomeMinorFailure)
 		}
-		if out, err = s.summary(ctx, c, patientID, appointmentID, visits); err != nil {
+		if out, err = s.summary(ctx, c, appointmentID, visits); err != nil {
 			return err
 		}
 		return s.recordView(ctx, c, auditevent.CodeRead, patientID, auditevent.OutcomeSuccess)
@@ -292,7 +306,42 @@ func (s *Service) Summary(ctx context.Context, c appointment.Caller, patientID, 
 	case refused:
 		return Summary{}, ErrNotFound
 	}
+	if err := s.profile(ctx, c, patientID, &out); err != nil {
+		return out, fmt.Errorf("%w: %w", ErrPartial, err)
+	}
 	return out, nil
+}
+
+// profile adds to out the active allergies and medications the caller may see (access.ProfileEntry, by their
+// services, each reading and auditing in a transaction of its own after the summary's), and marks a section
+// unavailable when its read fails: a failure there loses neither the rest of the summary nor its audit, and is never
+// shown as "none recorded". It returns the failures.
+func (s *Service) profile(ctx context.Context, c appointment.Caller, patientID string, out *Summary) error {
+	var failed []error
+	allergies, err := s.Allergies.Seen(ctx, c, patientID)
+	if err != nil {
+		allergies, out.AllergiesUnavailable, failed = nil, true, append(failed, fmt.Errorf("allergies: %w", err))
+	}
+	for _, a := range allergies {
+		if a.ClinicalStatus == allergyintolerance.ClinicalActive {
+			out.Allergies = append(out.Allergies, SummaryAllergy{
+				Reference: "AllergyIntolerance/" + a.ID, Text: a.Code.Text, Reaction: a.Reaction, Severity: string(a.Severity),
+				Confirmed: a.VerificationStatus == allergyintolerance.VerificationConfirmed,
+			})
+		}
+	}
+	medications, err := s.Medications.Seen(ctx, c, patientID)
+	if err != nil {
+		medications, out.MedicationsUnavailable, failed = nil, true, append(failed, fmt.Errorf("medications: %w", err))
+	}
+	for _, m := range medications {
+		if m.Status == medicationstatement.StatusActive {
+			out.Medications = append(out.Medications, SummaryMedication{
+				Reference: "MedicationStatement/" + m.ID, Text: m.Code.Text, Dosage: m.Dosage, Confirmed: !m.Confirmation.At.IsZero(),
+			})
+		}
+	}
+	return errors.Join(failed...)
 }
 
 // summaryAccess gives the caller's visits of the patient's history when the appointment is theirs with the patient,
@@ -317,7 +366,7 @@ func (s *Service) summaryAccess(ctx context.Context, c appointment.Caller, patie
 	return visits, true, nil
 }
 
-func (s *Service) summary(ctx context.Context, c appointment.Caller, patientID, appointmentID string, visits []encounter.Visit) (Summary, error) {
+func (s *Service) summary(ctx context.Context, c appointment.Caller, appointmentID string, visits []encounter.Visit) (Summary, error) {
 	out := Summary{Allergies: []SummaryAllergy{}, Medications: []SummaryMedication{}, OpenItems: []OpenItem{}}
 	if len(visits) > 0 { // History gives them newest first
 		last := []entry{of(c, visits[0].Encounter, TypeVisit, "Encounter/"+visits[0].ID, visits[0].PeriodStart)}
@@ -329,29 +378,7 @@ func (s *Service) summary(ctx context.Context, c appointment.Caller, patientID, 
 		}
 		out.LastVisit = &last[0].Item
 	}
-	allergies, err := s.Allergies.Seen(ctx, c, patientID)
-	if err != nil {
-		return Summary{}, err
-	}
-	for _, a := range allergies {
-		if a.ClinicalStatus == allergyintolerance.ClinicalActive {
-			out.Allergies = append(out.Allergies, SummaryAllergy{
-				Reference: "AllergyIntolerance/" + a.ID, Text: a.Code.Text, Reaction: a.Reaction, Severity: string(a.Severity),
-				Confirmed: a.VerificationStatus == allergyintolerance.VerificationConfirmed,
-			})
-		}
-	}
-	medications, err := s.Medications.Seen(ctx, c, patientID)
-	if err != nil {
-		return Summary{}, err
-	}
-	for _, m := range medications {
-		if m.Status == medicationstatement.StatusActive {
-			out.Medications = append(out.Medications, SummaryMedication{
-				Reference: "MedicationStatement/" + m.ID, Text: m.Code.Text, Dosage: m.Dosage, Confirmed: !m.Confirmation.At.IsZero(),
-			})
-		}
-	}
+	var err error
 	if out.OpenItems, err = s.open(ctx, c, appointmentID); err != nil {
 		return Summary{}, err
 	}
@@ -362,7 +389,7 @@ func (s *Service) summary(ctx context.Context, c appointment.Caller, patientID, 
 // its consultation not signed, each read (and audited) by its owning domain.
 func (s *Service) open(ctx context.Context, c appointment.Caller, appointmentID string) ([]OpenItem, error) {
 	out := []OpenItem{}
-	responses, err := s.Responses.Search(ctx, c, questionnaireresponse.Filter{AppointmentID: appointmentID})
+	responses, err := s.Responses.Search(ctx, c, questionnaireresponse.Filter{AppointmentID: appointmentID, Status: questionnaireresponse.StatusInProgress})
 	if err != nil {
 		return nil, err
 	}

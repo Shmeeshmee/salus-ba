@@ -73,3 +73,23 @@ Every page of 100 to the last (9 pages, 804 items): the last 28 ms, the slowest 
 the load of the other stacks on the machine; p50 did not). The cost was the per-visit
 queries, not `history_shared`: the partial index on `history_consent_encounter (encounter_id)` is enough for these
 reads; nothing more was added.
+
+Review (fresh subagent, 2026-11-13): eight findings. Fixed: the summary's allergies and medications are marked
+unavailable on a failed read instead of empty, read after the summary's own transaction so a failure loses neither
+the rest nor its audit, the empty text says "shown to you", and the SAL-41 stand-ins fail closed
+(`TestHistory_TheProfileStandInsGoOnceSAL41IsHere` fails once SAL-41's services are on the branch); a diagnosis
+carries its field's label and its Condition's confirmation, through `condition.Reads.Confirmed` for the clinic's own
+and 00051's `history_confirmed_conditions` for a shared visit (a deviation from the plan's "without changing
+condition's code", asked by the review: a read was added, nothing else changed); the history on the appointment
+opens on request; the summary reads only the open responses; a file is audited as its Binary; the titles are one read
+per page (`questionnaire.Service.Titles`); the shared-version read needs a practitioner with an appointment with the
+patient (00051's lookups take the practitioner); a response opens with its questions; a shared visit without a clinic
+name still says it is shared. Not done: the medication's dosage waits for SAL-41's dosage strings (its `allergies`
+catalog) at the wiring, not duplicated here; ICD-10 names, no lookup by code exists; a visit has nothing to open
+beyond the items listed with it. Audit rows are one INSERT each (about 30 per page): `auditevent` has no batch insert
+on main, so none was added. The bench was not rerun: the host's load average was 11.7 to 16.8 during the review
+fixes, above the 8 asked for, so the readings above stay as measured.
+
+Open for the owner: any appointment of the practitioner's with the patient at the clinic, of any status (cancelled,
+years old), opens the history (`access.Profile`, as the plan says), and the summary accepts a cancelled appointment;
+CLAUDE.md says "a care relationship or an active appointment". The rule is unchanged until the owner decides.

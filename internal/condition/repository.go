@@ -24,4 +24,8 @@ type ReadRepository interface {
 	SetPatient(ctx context.Context, id string) error
 	// ByID returns the Condition id, ErrNotFound when the scope does not see it.
 	ByID(ctx context.Context, id string) (Condition, error)
+	// Confirmed returns, by document, the field keys of the signed documents documentIDs whose Condition is
+	// confirmed: the clinic org's own, and a visit's shared with it when practitionerID has an appointment with its
+	// patient there (history_confirmed_conditions). An id that is not a UUID matches none.
+	Confirmed(ctx context.Context, org, practitionerID string, documentIDs []string) (map[string][]string, error)
 }

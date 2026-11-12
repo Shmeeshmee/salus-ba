@@ -106,7 +106,12 @@ RETURNING practitioner_role_id, updated_at, organization_id, series_id, version_
 DELETE FROM questionnaire_default
 WHERE practitioner_role_id = @practitioner_role_id;
 
--- name: SharedQuestionnaire :one
--- A version another clinic's completed response answers, of a visit shared with the scope's clinic (migration 00051).
+-- name: SharedQuestionnaires :many
+-- The versions of ids another clinic's completed responses answer, of visits shared with the scope's clinic, for a
+-- practitioner with an appointment with their patient there (migration 00051).
 SELECT id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
-FROM history_questionnaire(@id::uuid);
+FROM history_questionnaire(@ids::uuid[], @practitioner_id::uuid);
+
+-- name: QuestionnairesByIDs :many
+SELECT id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
+FROM questionnaire WHERE id = ANY(@ids::uuid[]);

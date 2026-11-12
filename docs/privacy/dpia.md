@@ -1892,10 +1892,13 @@ practitioner. Every read, grant, change and revocation is audited.
 
 **Processing added.** No new personal data and no new table: the practitioner's view of the patient's history
 (`GET /patients/{id}/history`) and the pre-visit summary of one of their appointments (`.../history/summary`) read
-what the owning domains already hold, in the web app on the appointment and the call page. Migration 00051 adds one
-`SECURITY DEFINER` lookup, `history_questionnaire`, so a practitioner can read the questions of a completed response
-that was shared with their clinic: it returns that questionnaire version only (clinic content, no personal data),
-never another of the other clinic's versions, and nothing of any response.
+what the owning domains already hold, in the web app on the appointment (opened on request) and the call page.
+Migration 00051 adds two `SECURITY DEFINER` lookups. `history_questionnaire` lets a practitioner read the questions of a
+completed response that was shared with their clinic: it returns that questionnaire version only (clinic content, no
+personal data), never another of the other clinic's versions, and nothing of any response.
+`history_confirmed_conditions` says which coded fields of a shared signed document have a confirmed Condition (the
+document and field key only), so a code that was never confirmed (00042's backfill) is not shown as a diagnosis. Both
+answer only a practitioner with an appointment with the patient at the clinic.
 
 **Who sees what.** Only a practitioner of the clinic with an appointment with the patient under an active care
 consent has a view (`access.Profile` at Full, then `access.HistoryVisit` per visit, in `encounter.Service.History`);
@@ -1911,4 +1914,6 @@ reader's clinic, so the visit's clinic is not told whom the patient shared it wi
 | --- | --- |
 | A colleague's visit or an unshared visit shows in the view, its count or the summary | Filtered by `access.HistoryVisit` before anything is listed (service tests over every viewer; API test on the real database: the unshared visit's ids and diagnosis are nowhere in the answer) |
 | The view outlives a removal or a revocation | It is read anew on every page and every open (API test: after the removal the visit and its document are gone at once) |
-| The questions of another clinic leak beyond the shared response | `history_questionnaire` returns only a version a completed, shared response answers, and only to the receiving clinic's scope (migration test) |
+| The questions of another clinic leak beyond the shared response | `history_questionnaire` returns only a version a completed, shared response answers, and only to the receiving clinic's scope and a practitioner there with an appointment with the patient (migration test) |
+| An unconfirmed code reads as a diagnosis | Each coded field carries its label and its Condition's confirmation; an unconfirmed one is marked "Not confirmed" (service, API and migration tests) |
+| An unread allergy list reads as "no allergies" | A failed read marks the section unavailable, never empty; the empty text says "shown to you", since the visit-scoped rule may hide a colleague's entry (service, handler and web tests) |

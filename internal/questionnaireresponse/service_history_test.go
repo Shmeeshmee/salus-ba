@@ -91,6 +91,21 @@ func TestDisclosed_AuditsEachResponse(t *testing.T) {
 	}
 }
 
+// DisclosedFiles audits each file the history shows the caller, as a search of the Binary.
+func TestDisclosedFiles_AuditsEachFileAsItsBinary(t *testing.T) {
+	t.Parallel()
+	f := newFixture(now)
+	file := "f9000000-0000-4000-8000-0000000000f9"
+	if err := f.svc.DisclosedFiles(t.Context(), pract, []string{file}); err != nil {
+		t.Fatal(err)
+	}
+	want := event(pract, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess)
+	want.EntityReference = "Binary/" + file
+	if !slices.Equal(f.audit.events, []auditevent.AuditEvent{want}) {
+		t.Errorf("audit = %+v, want %+v", f.audit.events, want)
+	}
+}
+
 // A completed response of another clinic's visit the patient shared is read in full, and its files are readable,
 // by the practitioner the history shows the visit to; nobody else, and never once the visit is no longer shared.
 func TestRead_ASharedVisitsCompletedResponse(t *testing.T) {

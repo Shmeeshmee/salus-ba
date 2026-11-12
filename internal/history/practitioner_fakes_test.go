@@ -199,11 +199,20 @@ func (f *fakeResponses) Disclosed(ctx context.Context, _ appointment.Caller, ids
 	return disclosed(ctx, f.log, "questionnaireresponse", nil, ids)
 }
 
+// DisclosedFiles records the files the view shows, as the response's domain audits them.
+func (f *fakeResponses) DisclosedFiles(ctx context.Context, _ appointment.Caller, ids []string) error {
+	return disclosed(ctx, f.log, "binary", nil, ids)
+}
+
+// Search gives the appointment's responses of the filter's status, each logged as audited (Search audits every
+// response it returns).
 func (f *fakeResponses) Search(ctx context.Context, _ appointment.Caller, flt questionnaireresponse.Filter) ([]questionnaireresponse.Seen, error) {
-	*f.log = append(*f.log, "questionnaireresponse search "+flt.AppointmentID)
 	var out []questionnaireresponse.Seen
 	for _, r := range f.all[flt.AppointmentID] {
-		out = append(out, questionnaireresponse.Seen{Response: r})
+		if flt.Status == "" || r.Status == flt.Status {
+			*f.log = append(*f.log, "questionnaireresponse search "+r.ID)
+			out = append(out, questionnaireresponse.Seen{Response: r})
+		}
 	}
 	return out, inTx(ctx)
 }
@@ -213,16 +222,44 @@ type fakeQuestionnaires struct {
 	log    *[]string
 }
 
-func (f *fakeQuestionnaires) Read(ctx context.Context, c questionnaire.Caller, id string) (questionnaire.Questionnaire, error) {
+func (f *fakeQuestionnaires) Titles(ctx context.Context, c questionnaire.Caller, ids []string) (map[string]string, error) {
 	if err := inTx(ctx); err != nil {
-		return questionnaire.Questionnaire{}, err
+		return nil, err
 	}
-	*f.log = append(*f.log, "questionnaire "+id)
-	title, ok := f.titles[id]
-	if !ok || c.OrganizationID != clinicA || c.PractitionerID == "" {
-		return questionnaire.Questionnaire{}, questionnaire.ErrNotFound
+	out := map[string]string{}
+	for _, id := range ids {
+		*f.log = append(*f.log, "questionnaire "+id)
+		if title, ok := f.titles[id]; ok && c.OrganizationID == clinicA && c.PractitionerID != "" {
+			out[id] = title
+		}
 	}
-	return questionnaire.Questionnaire{ID: id, Title: title}, nil
+	return out, nil
+}
+
+// fakeConditions gives the confirmed coded fields of each document, and keeps who asked for which.
+type fakeConditions struct {
+	err       error
+	confirmed map[string][]string // the confirmed field keys by document
+	asked     []string
+}
+
+func (f *fakeConditions) Confirmed(ctx context.Context, c appointment.Caller, documentIDs []string) (map[string][]string, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	for _, id := range documentIDs {
+		f.asked = append(f.asked, c.AccountID+" "+id)
+	}
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := map[string][]string{}
+	for _, id := range documentIDs {
+		if keys, ok := f.confirmed[id]; ok {
+			out[id] = keys
+		}
+	}
+	return out, nil
 }
 
 type fakeClinics struct{}
@@ -275,6 +312,7 @@ type practFixture struct {
 	responses    *fakeResponses
 	allergies    *fakeAllergies
 	medications  *fakeMedications
+	conditions   *fakeConditions
 	log          *[]string
 }
 
@@ -290,14 +328,16 @@ func newPractFixture() *practFixture {
 		apptNow: {{ID: visitNow, AppointmentID: apptNow, OrganizationID: clinicA, PatientID: patientA, Status: encounter.StatusInProgress}},
 	}}
 	coded := []composition.DraftField{
-		{Type: composition.FieldCoded, Field: composition.Field{Key: "diagnosis", Value: "J06.9"}},
+		{Type: composition.FieldCoded, Label: "Placeholder diagnosis", Field: composition.Field{Key: "diagnosis", Value: "J06.9"}},
+		{Type: composition.FieldCoded, Label: "Placeholder rule out", Field: composition.Field{Key: "ruleout", Value: "K21.0"}},
 		{Type: composition.FieldText, Field: composition.Field{Key: "findings", Value: "Placeholder findings"}},
 		{Type: composition.FieldCoded, Field: composition.Field{Key: "secondary", Missing: true}},
 	}
 	f.compositions = &fakeCompositions{log: log,
 		signed: map[string][]composition.Draft{
 			visit1: {{ID: doc1, EncounterID: visit1, Status: composition.StatusFinal, SignedAt: day(1, 10), Title: "Placeholder report", Fields: coded}},
-			visit2: {{ID: doc2, EncounterID: visit2, Status: composition.StatusFinal, SignedAt: day(1, 8), Title: "Placeholder referral"}},
+			visit2: {{ID: doc2, EncounterID: visit2, Status: composition.StatusFinal, SignedAt: day(1, 8), Title: "Placeholder referral",
+				Fields: []composition.DraftField{{Type: composition.FieldCoded, Label: "Placeholder diagnosis", Field: composition.Field{Key: "diagnosis", Value: "I10"}}}}},
 		},
 		drafts: map[string][]composition.Draft{visitNow: {
 			{ID: draftNow, EncounterID: visitNow, Status: composition.StatusPreliminary},
@@ -332,10 +372,12 @@ func newPractFixture() *practFixture {
 		practAcc + apptNow: {Practitioner: true, Level: 2, Appointment: appointment.Appointment{ID: apptNow, PatientID: patientA, OrganizationID: clinicA}},
 		practAcc + appt2:   {Level: 2, Appointment: appointment.Appointment{ID: appt2, PatientID: patientA, OrganizationID: clinicA}},
 	}}
+	f.conditions = &fakeConditions{confirmed: map[string][]string{doc1: {"diagnosis"}}}
 	f.svc = history.NewService(history.Ports{
 		Tx: fakeTransactor{f: f}, Audit: f.audit, Encounters: f.encounters, Compositions: f.compositions, Responses: f.responses,
 		Questionnaires: &fakeQuestionnaires{titles: map[string]string{version1: "Placeholder intake"}, log: log},
 		Clinics:        fakeClinics{}, Roles: fakeRoles{}, Appointments: appts, Allergies: f.allergies, Medications: f.medications,
+		Conditions: f.conditions,
 	})
 	return f
 }

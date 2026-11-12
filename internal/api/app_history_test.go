@@ -63,6 +63,16 @@ func seedPatientHistory(t *testing.T, c consultationApp) historySeed {
 		return id
 	}
 	h.ownDoc, h.sharedDoc, h.unsharedDoc = doc(h.own, "J06.9"), doc(h.shared, "K21.0"), doc(h.unshared, "F32.1")
+	// The own document's diagnosis as 00042 backfilled one signed before SAL-19, unconfirmed; the shared one's
+	// confirmed at its signing.
+	for doc, status := range map[string]string{h.ownDoc: "unconfirmed", h.sharedDoc: "confirmed"} {
+		if _, err := c.owner.Exec(ctx, `INSERT INTO condition (recorded_at, organization_id, patient_id, encounter_id, document_draft_id,
+				practitioner_role_id, field_key, code, verification_status)
+			SELECT d.signed_at, e.organization_id, e.patient_id, e.id, d.id, d.signer_role_id, 'diagnosis', d.fields->0->>'value', $2
+			FROM document_draft d JOIN encounter e ON e.id = d.encounter_id WHERE d.id = $1`, doc, status); err != nil {
+			t.Fatal(err)
+		}
+	}
 	q(&h.consent, `INSERT INTO history_consent (patient_id, organization_id, status, date_time) VALUES ($1, $2, 'active', now()) RETURNING id::text`,
 		c.patientID, inviteClinic)
 	if _, err := c.owner.Exec(ctx, `INSERT INTO history_consent_encounter (consent_id, encounter_id, added_at) VALUES ($1, $2, now())`, h.consent, h.shared); err != nil {
@@ -78,12 +88,16 @@ type historyPage struct {
 			ID   string `json:"id"`
 			Name string `json:"name"`
 		} `json:"clinic"`
-		Type        string   `json:"type"`
-		Reference   string   `json:"reference"`
-		EncounterID string   `json:"encounterId"`
-		Specialty   string   `json:"specialty"`
-		Diagnoses   []string `json:"diagnoses"`
-		Shared      bool     `json:"shared"`
+		Type        string `json:"type"`
+		Reference   string `json:"reference"`
+		EncounterID string `json:"encounterId"`
+		Specialty   string `json:"specialty"`
+		Diagnoses   []struct {
+			Code      string `json:"code"`
+			Label     string `json:"label"`
+			Confirmed bool   `json:"confirmed"`
+		} `json:"diagnoses"`
+		Shared bool `json:"shared"`
 	} `json:"items"`
 }
 
@@ -117,8 +131,11 @@ func TestNew_ServesThePractitionerThePatientsHistory(t *testing.T) {
 			t.Errorf("item %+v: shared %v", it, shared)
 		}
 	}
-	if !slices.Equal(page.Items[0].Diagnoses, []string{"J06.9"}) || !slices.Equal(page.Items[2].Diagnoses, []string{"K21.0"}) {
-		t.Errorf("diagnoses %v and %v, want J06.9 and K21.0", page.Items[0].Diagnoses, page.Items[2].Diagnoses)
+	// The backfilled diagnosis reads as not confirmed; the shared one as confirmed, through history_confirmed_conditions.
+	own, shared := page.Items[0].Diagnoses, page.Items[2].Diagnoses
+	if len(own) != 1 || own[0].Code != "J06.9" || own[0].Label != "Placeholder label" || own[0].Confirmed ||
+		len(shared) != 1 || shared[0].Code != "K21.0" || !shared[0].Confirmed {
+		t.Errorf("diagnoses %+v and %+v, want J06.9 unconfirmed and K21.0 confirmed", own, shared)
 	}
 	body := c.d.practitioner.do(http.MethodGet, path, "").Body.String()
 	if strings.Contains(body, h.unshared) || strings.Contains(body, h.unsharedDoc) || strings.Contains(body, "F32.1") {
@@ -143,6 +160,11 @@ func TestNew_ServesThePractitionerThePatientsHistory(t *testing.T) {
 
 	expectHTTP(t, c.d.practitioner, http.MethodGet, path+"/summary?appointment="+h.appointment, http.StatusOK,
 		`"lastVisit":{`, `"reference":"Encounter/`+h.own+`"`, `"allergies":[]`, `"medications":[]`)
+	// Until SAL-41 is wired the stand-ins fail closed: both sections unavailable, never "none recorded". One
+	// string per call: expectHTTP negates the status once per missing string, so two missing would cancel out.
+	for _, want := range []string{`"allergiesUnavailable":true`, `"medicationsUnavailable":true`} {
+		expectHTTP(t, c.d.practitioner, http.MethodGet, path+"/summary?appointment="+h.appointment, http.StatusOK, want)
+	}
 
 	if _, err := c.owner.Exec(t.Context(), `UPDATE history_consent_encounter SET removed_at = now() WHERE consent_id = $1`, h.consent); err != nil {
 		t.Fatal(err)

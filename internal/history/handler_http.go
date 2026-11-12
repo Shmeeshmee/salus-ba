@@ -96,7 +96,11 @@ func (h *HTTPHandler) summary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s, err := h.views.Summary(r.Context(), c, r.PathValue("id"), appointmentID)
-	if err != nil {
+	switch {
+	case errors.Is(err, ErrPartial):
+		// Served with the section marked unavailable; the failure is for the log only.
+		h.log.ErrorContext(r.Context(), "history summary partial", "error", err)
+	case err != nil:
 		h.writeError(w, r, err)
 		return
 	}

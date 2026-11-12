@@ -120,3 +120,27 @@ func (r *postgresRepository) ByID(ctx context.Context, id string) (Condition, er
 		Code: row.Code, VerificationStatus: row.VerificationStatus, VersionID: row.VersionID,
 	}, nil
 }
+
+func (r *postgresRepository) Confirmed(ctx context.Context, org, practitionerID string, documentIDs []string) (map[string][]string, error) {
+	ids, err := uuids(org, practitionerID)
+	if err != nil {
+		return nil, err
+	}
+	docs := make([]pgtype.UUID, 0, len(documentIDs))
+	for _, id := range documentIDs {
+		var u pgtype.UUID
+		if u.Scan(id) == nil {
+			docs = append(docs, u)
+		}
+	}
+	rows, err := r.q(ctx).ConfirmedFields(ctx, conditiondb.ConfirmedFieldsParams{Ids: docs, OrganizationID: ids[0], PractitionerID: ids[1]})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string][]string, len(rows))
+	for _, row := range rows {
+		doc := row.DocumentDraftID.String()
+		out[doc] = append(out[doc], row.FieldKey)
+	}
+	return out, nil
+}

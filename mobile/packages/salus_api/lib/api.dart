@@ -126,6 +126,7 @@ part 'model/explained_term_list.dart';
 part 'model/generate_draft_request.dart';
 part 'model/grant_consent_request.dart';
 part 'model/history_clinic.dart';
+part 'model/history_diagnosis.dart';
 part 'model/history_item.dart';
 part 'model/history_item_type.dart';
 part 'model/history_page.dart';

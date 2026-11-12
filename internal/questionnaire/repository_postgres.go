@@ -44,13 +44,52 @@ func (r *postgresRepository) ByID(ctx context.Context, id string) (Questionnaire
 	return toQuestionnaire(row, err, ErrNotFound)
 }
 
-func (r *postgresRepository) Shared(ctx context.Context, id string) (Questionnaire, error) {
-	var u pgtype.UUID
-	if u.Scan(id) != nil {
-		return Questionnaire{}, ErrNotFound
+func (r *postgresRepository) ByIDs(ctx context.Context, ids []string) ([]Questionnaire, error) {
+	rows, err := r.q(ctx).QuestionnairesByIDs(ctx, uuidList(ids))
+	if err != nil {
+		return nil, err
 	}
-	row, err := r.q(ctx).SharedQuestionnaire(ctx, u)
-	return toQuestionnaire(questionnairedb.QuestionnaireByIDRow(row), err, ErrNotFound)
+	out := make([]Questionnaire, 0, len(rows))
+	for _, row := range rows {
+		q, err := toQuestionnaire(questionnairedb.QuestionnaireByIDRow(row), nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, q)
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) Shared(ctx context.Context, practitionerID string, ids []string) ([]Questionnaire, error) {
+	var p pgtype.UUID
+	if p.Scan(practitionerID) != nil {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).SharedQuestionnaires(ctx, questionnairedb.SharedQuestionnairesParams{Ids: uuidList(ids), PractitionerID: p})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Questionnaire, 0, len(rows))
+	for _, row := range rows {
+		q, err := toQuestionnaire(questionnairedb.QuestionnaireByIDRow(row), nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, q)
+	}
+	return out, nil
+}
+
+// uuidList is the ids that are UUIDs; the others match nothing.
+func uuidList(ids []string) []pgtype.UUID {
+	out := make([]pgtype.UUID, 0, len(ids))
+	for _, id := range ids {
+		var u pgtype.UUID
+		if u.Scan(id) == nil {
+			out = append(out, u)
+		}
+	}
+	return out
 }
 
 func (r *postgresRepository) Lock(ctx context.Context, id string) (Questionnaire, error) {

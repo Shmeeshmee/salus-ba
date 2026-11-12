@@ -19,8 +19,11 @@ func practitionerSeesThePatientsHistory(t *testing.T, clinic *bookableClinic, p 
 	var page struct {
 		Items []struct {
 			Type, Reference, EncounterID string
-			Diagnoses                    []string
-			Shared                       bool
+			Diagnoses                    []struct {
+				Code      string
+				Confirmed bool
+			}
+			Shared bool
 		}
 	}
 	clinic.practitioner.must(http.StatusOK, http.MethodGet, path, nil, &page)
@@ -31,7 +34,7 @@ func practitionerSeesThePatientsHistory(t *testing.T, clinic *bookableClinic, p 
 		if it.EncounterID != enc || it.Shared {
 			t.Errorf("history item %+v, want one of the visit %s, not shared", it, enc)
 		}
-		diagnosed = diagnosed || (it.Type == "document" && slices.Equal(it.Diagnoses, []string{code}))
+		diagnosed = diagnosed || (it.Type == "document" && len(it.Diagnoses) == 1 && it.Diagnoses[0].Code == code && it.Diagnoses[0].Confirmed)
 	}
 	if !slices.Contains(refs, "Encounter/"+enc) || !diagnosed {
 		t.Errorf("the practitioner's history of the patient = %v, want the visit and its signed document with %s", refs, code)
