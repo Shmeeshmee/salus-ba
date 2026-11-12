@@ -55,7 +55,7 @@ func (s *Service) Search(ctx context.Context, c Caller, id, q string) ([]SearchR
 // SearchAll is Search across the caller's conversations: a patient's own, never a doctor-only thread; a
 // practitioner's, those their role takes part in, after its history_from_seq and while the patient's care consent
 // is active (the practitioner role's row-level security scope, migration 00044); an admin's none (ErrForbidden).
-// Audited as one search.
+// Audited once for each patient whose messages it returns (recordSearch).
 func (s *Service) SearchAll(ctx context.Context, c Caller, q string) ([]SearchResult, error) {
 	query, err := searchQuery(q)
 	if err != nil {
@@ -81,12 +81,34 @@ func (s *Service) SearchAll(ctx context.Context, c Caller, q string) ([]SearchRe
 		if err := s.withAttachments(ctx, out); err != nil {
 			return err
 		}
-		return s.record(ctx, c, auditevent.ActionRead, auditevent.CodeSearchType, "", entityCommunication, int64(len(out)))
+		return s.recordSearch(ctx, c, out)
 	})
 	if err != nil {
 		return nil, wrap("search", s.refusal(ctx, c, "", err))
 	}
 	return s.results(ctx, c, out), nil
+}
+
+// recordSearch audits a search across conversations that returned msgs: one search event for each patient whose
+// messages are in them, in the order first found, with their count; one naming nobody when it returned none.
+func (s *Service) recordSearch(ctx context.Context, c Caller, msgs []Message) error {
+	var patients []string
+	counts := map[string]int64{}
+	for _, m := range msgs {
+		if counts[m.PatientID] == 0 {
+			patients = append(patients, m.PatientID)
+		}
+		counts[m.PatientID]++
+	}
+	if len(patients) == 0 {
+		return s.record(ctx, c, auditevent.ActionRead, auditevent.CodeSearchType, "", entityCommunication, 0)
+	}
+	for _, p := range patients {
+		if err := s.record(ctx, c, auditevent.ActionRead, auditevent.CodeSearchType, "Patient/"+p, entityCommunication, counts[p]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // readableResults keeps of msgs, found by the scope's row-level security, those the caller reads by the chat's own rules,

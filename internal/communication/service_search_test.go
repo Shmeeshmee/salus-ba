@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/communication"
 )
@@ -118,5 +119,53 @@ func TestSearchAll_FindsTheMessagesOfTheCallersConversations(t *testing.T) {
 	}
 	if got, err := f.svc.SearchAll(t.Context(), me, "rash"); err != nil || len(got) != 2 {
 		t.Errorf("the patient after the revocation: %v, %v; want their two", bodies(got), err)
+	}
+}
+
+// A search across a practitioner's conversations is audited once for each patient whose messages it returns, with
+// their count (SAL-30 review, finding 2); a patient's for themselves; one that returns nothing once, naming nobody.
+func TestSearchAll_AuditsEachPatientWhoseMessagesItReturns(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.mu.Lock()
+	f.consent[patientB+clinicA] = access.Consent{Active: true}
+	f.visits[patientB+clinicA] = []access.Visit{{PractitionerRole: roleA1, Start: start.Add(-48 * time.Hour)}}
+	f.mu.Unlock()
+	a := f.open(t)
+	b, _, err := f.svc.Open(t.Context(), other, communication.Open{OrganizationID: clinicA, PractitionerRoleID: roleA1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.send(t, me, a.ID, "Synthetic rash on the arm")
+	f.send(t, pract, a.ID, "Synthetic rash cream")
+	f.send(t, other, b.ID, "Synthetic rash again")
+	type seen struct {
+		ref   string
+		count int64
+	}
+	searched := func(c communication.Caller, q string) []seen {
+		t.Helper()
+		before := f.audit.count()
+		if _, err := f.svc.SearchAll(t.Context(), c, q); err != nil {
+			t.Fatal(err)
+		}
+		var out []seen
+		for _, e := range f.audit.events[before:] {
+			if e.Subtype.Code != auditevent.CodeSearchType || e.EntityName != "communication" || e.AgentAccountID != c.AccountID {
+				t.Errorf("audit = %+v", e)
+			}
+			out = append(out, seen{e.EntityReference, e.EntityCount})
+		}
+		slices.SortFunc(out, func(x, y seen) int { return strings.Compare(x.ref, y.ref) })
+		return out
+	}
+	if got, want := searched(pract, "rash"), []seen{{"Patient/" + patientA, 2}, {"Patient/" + patientB, 1}}; !slices.Equal(got, want) {
+		t.Errorf("practitioner: audited %v, want %v", got, want)
+	}
+	if got, want := searched(me, "rash"), []seen{{"Patient/" + patientA, 2}}; !slices.Equal(got, want) {
+		t.Errorf("patient: audited %v, want %v", got, want)
+	}
+	if got, want := searched(pract, "nothing"), []seen{{"", 0}}; !slices.Equal(got, want) {
+		t.Errorf("nothing found: audited %v, want %v", got, want)
 	}
 }
