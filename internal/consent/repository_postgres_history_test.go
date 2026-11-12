@@ -124,86 +124,125 @@ func seedEncounters(t *testing.T, owner *pgxpool.Pool, clinic string, statuses .
 	return ids
 }
 
-// GrantHistory, ChangeHistory and RevokeHistory as patient A, and what clinic A's scope sees after each: a removal
-// and a revocation end the clinic's view of the visit when they commit.
-func TestHistory_GrantChangeAndRevokeTakeEffectAtOnce(t *testing.T) {
-	t.Parallel()
+// historyRepo is the repository on a database seeded with three finished visits of patient A at clinic B, with what
+// patient A's scope runs and what clinic A's scope sees of patient A's history consent with it.
+type historyRepo struct {
+	repo   consent.Repository
+	asA    func(fn func(ctx context.Context) error) error
+	seenBy func() []string
+	visits []string
+}
+
+func newHistoryRepo(t *testing.T) historyRepo {
+	t.Helper()
 	owner, app := pgtest.NewAppDatabase(t)
 	seed(t, owner)
-	visits := seedEncounters(t, owner, clinicB, "finished", "finished", "finished")
-	repo := consent.NewPostgresRepository(app)
-	asA := func(ctx context.Context) error { return repo.SetPatient(ctx, patientA) }
-	inA := func(ctx context.Context) error { return repo.SetClinic(ctx, clinicA) }
-	clinicSees := func() []string {
+	r := historyRepo{repo: consent.NewPostgresRepository(app), visits: seedEncounters(t, owner, clinicB, "finished", "finished", "finished")}
+	r.asA = func(fn func(ctx context.Context) error) error {
+		return in(t, app, func(ctx context.Context) error { return r.repo.SetPatient(ctx, patientA) }, fn)
+	}
+	r.seenBy = func() []string {
 		t.Helper()
 		var st access.Consent
-		if err := in(t, app, inA, func(ctx context.Context) (err error) { st, err = repo.State(ctx, patientA, clinicA); return }); err != nil {
+		if err := in(t, app, func(ctx context.Context) error { return r.repo.SetClinic(ctx, clinicA) }, func(ctx context.Context) (err error) {
+			st, err = r.repo.State(ctx, patientA, clinicA)
+			return
+		}); err != nil {
 			t.Fatal(err)
 		}
 		return st.Shared
 	}
+	return r
+}
 
+// grant grants patient A's history consent with clinic A listing the first two visits.
+func (r historyRepo) grant(t *testing.T) consent.Consent {
+	t.Helper()
 	var h consent.Consent
-	if err := in(t, app, asA, func(ctx context.Context) (err error) {
-		h, err = repo.GrantHistory(ctx, patientA, clinicA, []string{visits[0], visits[1]}, granted)
+	if err := r.asA(func(ctx context.Context) (err error) {
+		h, err = r.repo.GrantHistory(ctx, patientA, clinicA, r.visits[:2], granted)
 		return
 	}); err != nil {
 		t.Fatal(err)
 	}
+	return h
+}
+
+// GrantHistory and ChangeHistory as patient A, and what clinic A's scope sees after each: a removal ends the clinic's
+// view of the visit when it commits.
+func TestHistory_GrantAndChangeTakeEffectAtOnce(t *testing.T) {
+	t.Parallel()
+	r := newHistoryRepo(t)
+	h := r.grant(t)
 	if h.Kind != consent.KindHistory || h.Status != consent.StatusActive || h.VersionID != 1 || !h.DateTime.Equal(granted) || len(h.Shared) != 2 {
 		t.Fatalf("GrantHistory() = %+v, want an active history consent at version 1 listing two visits", h)
 	}
-	if got := clinicSees(); len(got) != 2 {
+	if got := r.seenBy(); len(got) != 2 {
 		t.Errorf("after the grant clinic A sees %v, want two visits", got)
 	}
-	if err := in(t, app, asA, func(ctx context.Context) error {
-		_, err := repo.GrantHistory(ctx, patientA, clinicA, []string{visits[2]}, granted)
+	if err := r.asA(func(ctx context.Context) error {
+		_, err := r.repo.GrantHistory(ctx, patientA, clinicA, r.visits[2:], granted)
 		return err
 	}); !errors.Is(err, consent.ErrActive) {
 		t.Errorf("a second GrantHistory() = %v, want ErrActive", err)
 	}
-
 	later := granted.Add(time.Hour)
-	if err := in(t, app, asA, func(ctx context.Context) (err error) {
-		h, err = repo.ChangeHistory(ctx, h.ID, 1, []string{visits[2]}, []string{visits[0]}, later)
+	if err := r.asA(func(ctx context.Context) (err error) {
+		h, err = r.repo.ChangeHistory(ctx, h.ID, 1, r.visits[2:], r.visits[:1], later)
 		return
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{visits[1], visits[2]}; h.VersionID != 2 || !h.LastUpdated.Equal(later) || !slices.Equal(ids(h), want) || !h.Shared[1].AddedAt.Equal(later) {
+	if want := r.visits[1:]; h.VersionID != 2 || !h.LastUpdated.Equal(later) || !slices.Equal(ids(h), want) || !h.Shared[1].AddedAt.Equal(later) {
 		t.Errorf("ChangeHistory() = %+v, want version 2 listing %v, visit 3 added later", h, want)
 	}
-	if got, want := clinicSees(), []string{visits[1], visits[2]}; !slices.Equal(got, want) {
+	if got, want := r.seenBy(), r.visits[1:]; !slices.Equal(got, want) {
 		t.Errorf("after the change clinic A sees %v, want %v", got, want)
 	}
-	if err := in(t, app, asA, func(ctx context.Context) error {
-		_, err := repo.ChangeHistory(ctx, h.ID, 1, []string{visits[0]}, nil, later)
+	if err := r.asA(func(ctx context.Context) error {
+		_, err := r.repo.ChangeHistory(ctx, h.ID, 1, r.visits[:1], nil, later)
 		return err
 	}); !errors.Is(err, consent.ErrVersionConflict) {
 		t.Errorf("ChangeHistory() at a stale version = %v, want ErrVersionConflict", err)
 	}
-
 	var active consent.Consent
-	if err := in(t, app, asA, func(ctx context.Context) (err error) { active, err = repo.ActiveHistory(ctx, patientA, clinicA); return }); err != nil ||
+	if err := r.asA(func(ctx context.Context) (err error) {
+		active, err = r.repo.ActiveHistory(ctx, patientA, clinicA)
+		return
+	}); err != nil ||
 		active.ID != h.ID || !slices.Equal(ids(active), ids(h)) {
 		t.Errorf("ActiveHistory() = %+v, %v; want %+v", active, err, h)
 	}
+}
+
+// RevokeHistory ends clinic A's view of every visit when it commits, and is final.
+func TestRevokeHistory_TakesEffectAtOnceAndIsFinal(t *testing.T) {
+	t.Parallel()
+	r := newHistoryRepo(t)
+	h := r.grant(t)
+	later := granted.Add(time.Hour)
 	var revoked consent.Consent
-	if err := in(t, app, asA, func(ctx context.Context) (err error) { revoked, err = repo.RevokeHistory(ctx, patientA, clinicA, later); return }); err != nil ||
+	if err := r.asA(func(ctx context.Context) (err error) {
+		revoked, err = r.repo.RevokeHistory(ctx, patientA, clinicA, later)
+		return
+	}); err != nil ||
 		revoked.Status != consent.StatusInactive || !revoked.RevokedAt.Equal(later) {
 		t.Fatalf("RevokeHistory() = %+v, %v; want it inactive", revoked, err)
 	}
-	if got := clinicSees(); len(got) != 0 {
+	if got := r.seenBy(); len(got) != 0 {
 		t.Errorf("after the revocation clinic A sees %v, want nothing", got)
 	}
-	if err := in(t, app, asA, func(ctx context.Context) error { _, err := repo.ActiveHistory(ctx, patientA, clinicA); return err }); !errors.Is(err, consent.ErrNotFound) {
+	if err := r.asA(func(ctx context.Context) error { _, err := r.repo.ActiveHistory(ctx, patientA, clinicA); return err }); !errors.Is(err, consent.ErrNotFound) {
 		t.Errorf("ActiveHistory() after the revocation = %v, want ErrNotFound", err)
 	}
-	if err := in(t, app, asA, func(ctx context.Context) error { _, err := repo.RevokeHistory(ctx, patientA, clinicA, later); return err }); !errors.Is(err, consent.ErrInactive) {
+	if err := r.asA(func(ctx context.Context) error {
+		_, err := r.repo.RevokeHistory(ctx, patientA, clinicA, later)
+		return err
+	}); !errors.Is(err, consent.ErrInactive) {
 		t.Errorf("a second RevokeHistory() = %v, want ErrInactive", err)
 	}
-	if err := in(t, app, asA, func(ctx context.Context) error {
-		_, err := repo.ChangeHistory(ctx, h.ID, revoked.VersionID, []string{visits[0]}, nil, later)
+	if err := r.asA(func(ctx context.Context) error {
+		_, err := r.repo.ChangeHistory(ctx, h.ID, revoked.VersionID, r.visits[:1], nil, later)
 		return err
 	}); !errors.Is(err, consent.ErrVersionConflict) {
 		t.Errorf("ChangeHistory() after the revocation = %v, want ErrVersionConflict", err)
@@ -270,7 +309,10 @@ func TestHistory_IsAConsentOfTheThirdKind(t *testing.T) {
 		t.Errorf("ByPatient() = %+v, want the care consents and the history consent with its visit", all)
 	}
 	var revoked consent.Consent
-	if err := in(t, app, asA, func(ctx context.Context) (err error) { revoked, err = repo.Revoke(ctx, consent.KindHistory, historyConsent, granted); return }); err != nil ||
+	if err := in(t, app, asA, func(ctx context.Context) (err error) {
+		revoked, err = repo.Revoke(ctx, consent.KindHistory, historyConsent, granted)
+		return
+	}); err != nil ||
 		revoked.Kind != consent.KindHistory || revoked.Status != consent.StatusInactive || revoked.Shared != nil {
 		t.Errorf("Revoke(history) = %+v, %v; want it inactive, listing nothing", revoked, err)
 	}
