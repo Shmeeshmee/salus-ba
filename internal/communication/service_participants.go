@@ -16,6 +16,10 @@ import (
 // entityParticipant is the audit's entity name of an add, an invitation, a removal or a decision.
 const entityParticipant = "conversation_participant"
 
+// participantRef is the audit's entity reference of the participant id: who was added, removed or decided on, by an
+// opaque id only.
+func participantRef(id string) string { return "ConversationParticipant/" + id }
+
 // AddParticipant adds a practitioner role to the conversation id as its treating practitioner asks
 // (docs/plans/chat.md, SAL-28) and returns the participant: a role of the clinic, active, at once; a role of another
 // clinic in the public directory, pending until the patient consents (DecideInvitation), before which that doctor
@@ -70,7 +74,7 @@ func (s *Service) AddParticipant(ctx context.Context, c Caller, id string, in Ad
 		if msg, err = s.system(ctx, e.conv, code, args); err != nil {
 			return err
 		}
-		return s.record(ctx, c, auditevent.ActionCreate, auditevent.CodeCreate, "Patient/"+e.conv.PatientID, entityParticipant, 1)
+		return s.record(ctx, c, auditevent.ActionCreate, auditevent.CodeCreate, participantRef(out.ID), entityParticipant, 1)
 	})
 	if err != nil {
 		return Participant{}, wrap("add participant", s.refusal(ctx, c, id, err))
@@ -192,7 +196,7 @@ func (s *Service) leave(ctx context.Context, c Caller, conv Conversation, p Part
 	if err != nil {
 		return Message{}, err
 	}
-	return msg, s.record(ctx, c, auditevent.ActionUpdate, auditevent.CodeUpdate, "Patient/"+conv.PatientID, entityParticipant, 1)
+	return msg, s.record(ctx, c, auditevent.ActionUpdate, auditevent.CodeUpdate, participantRef(p.ID), entityParticipant, 1)
 }
 
 // Invitations returns the calling patient's pending invitations of doctors from other clinics, audited as one search.
@@ -253,7 +257,7 @@ func (s *Service) DecideInvitation(ctx context.Context, c Caller, id string, d D
 		if msg, err = s.system(ctx, e.conv, SystemConsentGranted, map[string]string{"practitioner_role_id": p.PractitionerRoleID}); err != nil {
 			return err
 		}
-		return s.record(ctx, c, auditevent.ActionUpdate, auditevent.CodeUpdate, "Patient/"+e.conv.PatientID, entityParticipant, 1)
+		return s.record(ctx, c, auditevent.ActionUpdate, auditevent.CodeUpdate, participantRef(p.ID), entityParticipant, 1)
 	})
 	if err != nil {
 		return wrap("decide invitation", s.refusal(ctx, c, "", err))

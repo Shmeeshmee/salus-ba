@@ -81,7 +81,7 @@ func TestAddParticipant_TheTreatingPractitionerAddsADoctorOfTheirClinicAtOnce(t 
 		p.Reason != communication.ReasonSpecialistReview || p.AddedBy != pract.AccountID || !p.AddedAt.Equal(start) || p.Role != communication.RolePractitioner {
 		t.Errorf("participant = %+v", p)
 	}
-	if e := f.audit.last(t); e.Action != auditevent.ActionCreate || e.EntityReference != "Patient/"+patientA || e.EntityName != "conversation_participant" {
+	if e := f.audit.last(t); e.Action != auditevent.ActionCreate || e.EntityReference != "ConversationParticipant/"+p.ID || e.EntityName != "conversation_participant" {
 		t.Errorf("audit = %+v", e)
 	}
 	m := f.lastMessage(t, me, conv.ID)
@@ -511,5 +511,45 @@ func TestRevokeInvitation_KeepsTheRefusalOfAnInactiveConsentAudited(t *testing.T
 	}
 	if e := f.audit.last(t); e.Outcome != auditevent.OutcomeMinorFailure || e.AgentAccountID != me.AccountID {
 		t.Errorf("the last audit = %+v, want the refused revocation", e)
+	}
+}
+
+// Every add, invitation, decision, removal and revocation names the participant it changed in its audit, by its
+// opaque id (SAL-28 review, finding 7).
+func TestParticipantChanges_AreAuditedWithTheParticipant(t *testing.T) {
+	t.Parallel()
+	for name, change := range map[string]func(t *testing.T, f *fixture, conv string) (communication.Participant, error){
+		"an add": func(t *testing.T, f *fixture, conv string) (communication.Participant, error) {
+			return f.add(t, conv, roleA2, clinicA), nil
+		},
+		"an invitation": func(t *testing.T, f *fixture, conv string) (communication.Participant, error) {
+			return f.add(t, conv, roleB1, clinicB), nil
+		},
+		"a grant": func(t *testing.T, f *fixture, conv string) (communication.Participant, error) {
+			p := f.add(t, conv, roleB1, clinicB)
+			return p, f.svc.DecideInvitation(t.Context(), me, p.ID, communication.DecisionGrant)
+		},
+		"a decline": func(t *testing.T, f *fixture, conv string) (communication.Participant, error) {
+			p := f.add(t, conv, roleB1, clinicB)
+			return p, f.svc.DecideInvitation(t.Context(), me, p.ID, communication.DecisionDecline)
+		},
+		"a removal": func(t *testing.T, f *fixture, conv string) (communication.Participant, error) {
+			p := f.add(t, conv, roleA2, clinicA)
+			return p, f.svc.RemoveParticipant(t.Context(), pract, conv, p.ID)
+		},
+		"a revocation": func(t *testing.T, f *fixture, conv string) (communication.Participant, error) {
+			p := f.invite(t, conv)
+			return p, f.svc.RevokeInvitation(t.Context(), me, p.ID)
+		},
+	} {
+		f := newFixture(t)
+		conv := f.open(t)
+		p, err := change(t, f, conv.ID)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if e := f.audit.last(t); e.EntityName != "conversation_participant" || e.EntityReference != "ConversationParticipant/"+p.ID {
+			t.Errorf("%s: audit entity %q %q, want the participant %s", name, e.EntityName, e.EntityReference, p.ID)
+		}
 	}
 }
