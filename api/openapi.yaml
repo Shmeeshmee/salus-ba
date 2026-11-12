@@ -3845,6 +3845,210 @@ paths:
           $ref: "#/components/responses/ChatForbidden"
         "404":
           $ref: "#/components/responses/ChatNotFound"
+  /conversations/{id}/attachments:
+    post:
+      operationId: uploadChatAttachment
+      summary: Upload a file to send in the conversation
+      description: >-
+        A participant who may write uploads one file (SAL-30), then names it in `attachment_ids` of their next
+        message. The body is the file's bytes, streamed; `Content-Length` is required. The type is detected from the
+        bytes, never from `Content-Type` or the name: a photo (JPEG, PNG) or a PDF (lab results among them), at most
+        20 MB. The file name is the `filename*` of `Content-Disposition` (RFC 6266), cut to 200 characters, the path
+        removed; never put it in the query string. The file is encrypted, stored and `scanning` until the malware
+        scan says it is `clean` (an image then gets a thumbnail) or `rejected`; only its uploader sees it before it is
+        sent. A participant has at most 10 files waiting to be sent (scanning or clean, not yet in a message). A file
+        never sent is deleted after 24 hours. Audited, also when refused.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/CSRF"
+        - name: Content-Length
+          in: header
+          required: true
+          description: The file's size in bytes.
+          schema: {type: integer, format: int64, minimum: 1}
+        - name: Content-Disposition
+          in: header
+          required: false
+          description: "`attachment; filename*=UTF-8''<percent-encoded name>`, the file's name."
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        "201":
+          description: The file, `scanning`.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ChatAttachment"}
+        "400":
+          description: "`invalid_request`: the body ended before `Content-Length` bytes, or an id that is no UUID."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+        "409":
+          description: "`too_many_files`: the caller already has 10 files waiting to be sent in the conversation."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "411":
+          description: "`length_required`: no `Content-Length`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "413":
+          description: "`too_large`: over 20 MB."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "415":
+          description: "`unsupported_type`: the bytes are no JPEG, PNG or PDF."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /conversations/{id}/attachments/{attachment_id}/content:
+    get:
+      operationId: getChatAttachmentContent
+      summary: Download a message's file
+      description: >-
+        The file's bytes, decrypted, once the scan says it is `clean`, for whoever may read its message (a
+        participant who joined later only from their starting point; staff never after the patient's revocation),
+        or, before it is sent, for its uploader. One `Range` gives 206 with that part. Shown inline, never sniffed,
+        never cached. Every request is audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/ChatAttachmentID"
+        - name: Range
+          in: header
+          required: false
+          description: One byte range, `bytes=<first>-<last>`, `bytes=<first>-` or `bytes=-<suffix length>`.
+          schema: {type: string}
+      responses:
+        "200":
+          $ref: "#/components/responses/BinaryContent"
+        "206":
+          $ref: "#/components/responses/BinaryContent"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          description: "`not_found`: no such file of the conversation, a rejected one, or the caller may not read it."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`scanning`: the file is still being checked; try again later."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "416":
+          description: "`range_not_satisfiable`: the range starts past the end of the file."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /conversations/{id}/attachments/{attachment_id}/thumbnail:
+    get:
+      operationId: getChatAttachmentThumbnail
+      summary: Download a message's image thumbnail
+      description: >-
+        A JPEG of at most 320 pixels a side, made by the server from the clean image (`thumbnail` true on the
+        attachment); none for a PDF (404). Read as the file is, audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/ChatAttachmentID"
+      responses:
+        "200":
+          description: The thumbnail.
+          headers:
+            Cache-Control: {schema: {type: string, const: "private, no-store"}}
+          content:
+            image/jpeg:
+              schema: {type: string, format: binary}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          description: "`not_found`: as for the content, or a file without a thumbnail."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`scanning`: the file is still being checked."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /conversations/{id}/search:
+    get:
+      operationId: searchConversation
+      summary: Search a conversation's messages
+      description: >-
+        The messages of the conversation whose text has every word of `q`, each as a word's beginning, case and
+        accents aside, in any of the app's languages; newest first, at most 50; only those the caller reads. Audited
+        as a search; `q` is never logged or stored.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/ChatSearchQuery"
+      responses:
+        "200":
+          $ref: "#/components/responses/ChatSearchResults"
+        "400":
+          $ref: "#/components/responses/ChatInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+  /conversations/search:
+    get:
+      operationId: searchConversations
+      summary: Search the caller's conversations
+      description: >-
+        As `searchConversation`, across the caller's conversations: a patient's own (never a doctor-only thread); a
+        practitioner's, those they take part in, from their starting point, while the patient's care consent with
+        the clinic is active. Audited as a search.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ChatSearchQuery"
+      responses:
+        "200":
+          $ref: "#/components/responses/ChatSearchResults"
+        "400":
+          $ref: "#/components/responses/ChatInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
   /conversations/{id}/events:
     get:
       operationId: followConversation
@@ -3859,7 +4063,13 @@ paths:
         patient's revocation); 1011 on a server error. The subscription is audited. The client may send `send` frames
         (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of the JSON API, or
         `rate_limited` past five at once and one every 200 ms. Pass the conversation's or the last message's
-        `cursor` as `after`.
+        `cursor` as `after`. Receipts and typing (SAL-30), ephemeral: once replayed, the socket sends a `receipt`
+        frame per participant who has read (as kept for 7 days), then the others' `receipt` and `typing` frames as
+        they come; a client drops its own. The client's `read` frame (`ChatReadCommand`) moves its read position as
+        `markConversationRead` does and counts against the same limit as `send`; its `typing` frame
+        (`ChatTypingCommand`) goes out at most once a second; neither is answered unless refused. An app shows a
+        participant typing for 5 seconds after their last `typing` frame. Message frames carry their `attachments`
+        but no `terms` (the JSON API's reads do).
       tags: [chat]
       security:
         - sessionCookie: []
@@ -3891,8 +4101,488 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "404":
           $ref: "#/components/responses/ChatNotFound"
+  /conversations/{id}/participants:
+    post:
+      operationId: addConversationParticipant
+      summary: Add a practitioner of the clinic, or invite one of another clinic (SAL-28)
+      description: >-
+        The conversation's treating practitioner only, while they may write in it; never into a side thread. A role of
+        the clinic, active, is added at once (`status` `active`); a role of another clinic in the public directory is
+        invited (`pending_consent`) and sees nothing of the conversation, its participants, messages or side threads
+        until the patient grants it (`POST /me/chat-invitations/{id}/decision`). `history` `full` gives the whole
+        history, `from` the messages after `from_seq` (at most the conversation's `last_seq`). The conversation gets
+        the system message `participant_added` or `participant_invited` (`practitioner_role_id`, `organization_id`,
+        `reason`), on the socket like any message. Audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AddParticipantRequest"}
+      responses:
+        "201":
+          description: The participant, active or pending the patient's consent.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ConversationParticipant"}
+        "400":
+          description: "`invalid_request`: a field the contract refuses, or a role that is no active role of the clinic or not in the public directory of the other."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+        "409":
+          description: "`already_participant`: the role takes part, or is invited, already."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /conversations/{id}/participants/{participant_id}:
+    delete:
+      operationId: removeConversationParticipant
+      summary: Remove a practitioner, or withdraw an invitation (SAL-28)
+      description: >-
+        The treating practitioner only; never the patient or themselves. The practitioner leaves the conversation's
+        side threads with it and sees nothing of it from then on. System message `participant_removed`
+        (`practitioner_role_id`). Audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - name: participant_id
+          in: path
+          required: true
+          description: The participant's id.
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204":
+          description: Removed.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+  /conversations/{id}/threads:
+    post:
+      operationId: openChatThread
+      summary: Open a doctor-only side thread of the conversation (SAL-28)
+      description: >-
+        For a practitioner who may write in the conversation, or a doctor of another clinic the patient granted. The
+        side thread is a conversation (`staff_only`, `parent_id`) whose participants are the conversation's active
+        practitioners now: a doctor added later is not in it, one removed from the conversation leaves it. Its
+        messages, socket and read position are those of any conversation. The patient never sees it: 404 on every
+        path of the side thread, 403 here. No body. Audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "201":
+          description: The side thread, with its participants.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Conversation"}
+        "400":
+          $ref: "#/components/responses/ChatInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+    get:
+      operationId: listChatThreads
+      summary: The side threads of the conversation the caller takes part in, newest first (SAL-28)
+      description: For the practitioners of `POST`; never the patient (403). With the caller's unread counts. Audited as one search.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+      responses:
+        "200":
+          description: The side threads, without a `next`.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ConversationList"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+  /me/chat-invitations:
+    get:
+      operationId: listChatInvitations
+      summary: The patient's invitations of doctors from other clinics, pending or granted (SAL-28)
+      description: >-
+        Oldest first: the pending invitations (`status` `pending_consent`, the default), or the granted ones
+        (`status` `active`), whose `id` `POST /me/chat-invitations/{id}/revoke` takes, so a consent is withdrawn as
+        easily as it was given (GDPR Art. 7(3)). A doctor of the conversation's own clinic is never one. The patient
+        only (403 to staff). Audited as one search.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Which invitations; `pending_consent` when absent.
+          schema: {type: string, enum: [pending_consent, active], default: pending_consent}
+      responses:
+        "200":
+          description: The invitations of that status.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ChatInvitationList"}
+        "400":
+          $ref: "#/components/responses/ChatInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+  /me/chat-invitations/{id}/decision:
+    post:
+      operationId: decideChatInvitation
+      summary: Grant or decline an invitation (SAL-28)
+      description: >-
+        The patient's decision. `grant` records their FHIR Consent for that conversation and that practitioner role
+        (revocable), needs their active care consent with the clinic (403 `consent_required` otherwise) and makes the
+        doctor an active participant; `decline` ends the invitation. System message `consent_granted` or
+        `consent_declined` (`practitioner_role_id`). Audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ChatInvitationID"
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ChatInvitationDecision"}
+      responses:
+        "204":
+          description: Decided.
+        "400":
+          $ref: "#/components/responses/ChatInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          description: "`not_found`: no pending invitation of the patient with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /me/chat-invitations/{id}/revoke:
+    post:
+      operationId: revokeChatInvitation
+      summary: Revoke a granted invitation (SAL-28)
+      description: >-
+        The patient's chat consent for the doctor ends and the doctor leaves the conversation and its side threads:
+        they see nothing of it from then on, and an open socket of theirs closes with 4404 at its next check (within
+        5 seconds). System message `participant_removed` (`practitioner_role_id`). Audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ChatInvitationID"
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204":
+          description: Revoked.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          description: "`not_found`: no granted invitation of the patient with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /me/devices:
+    put:
+      operationId: registerDevice
+      summary: Register the patient app's push token
+      description: >-
+        The patient app registers its FCM (Android) or APNs (iOS) token at every start (docs/plans/chat.md, SAL-29). A
+        token is one device: registered by another account, it moves to this one. A push says only that there is a
+        new message from the clinic; it carries no text, name or id. Staff get 403: the app is the patients'. Audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PushDevice"}
+      responses:
+        "204":
+          description: Registered.
+        "400":
+          $ref: "#/components/responses/NotificationInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+    delete:
+      operationId: unregisterDevice
+      summary: Unregister the app's push token (on sign-out)
+      description: Deletes the account's device of the token; nothing for a token it does not have. Audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PushDevice"}
+      responses:
+        "204":
+          description: Unregistered, or there was nothing to unregister.
+        "400":
+          $ref: "#/components/responses/NotificationInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /organizations/{id}/chat-hours:
+    get:
+      operationId: getChatHours
+      summary: The clinic's chat hours, its response time, and whether it is within its hours now
+      description: >-
+        For the clinic's staff and for a patient with an active care consent with it; anyone else gets 404. `hours`
+        are in the clinic's `time_zone`; `open_now` is computed there (true when the clinic states no hours). The app
+        shows its out-of-hours notice from it.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The clinic's id.
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: The chat hours.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ChatHours"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: not the caller's clinic, or no active care consent with it."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /clinic/chat-settings:
+    get:
+      operationId: getChatSettings
+      summary: The admin's clinic's chat settings
+      description: The defaults (no hours, 24 hours, 60 minutes) until the admin sets them.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The settings.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ChatSettings"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+    put:
+      operationId: setChatSettings
+      summary: Replace the admin's clinic's chat settings
+      description: >-
+        Every field required. `hours`: up to 21 stretches, each within one weekday, `start` before `end` (`24:00` for
+        midnight), none overlapping. `response_time_hours` 1 to 168. `email_after_minutes` 5 to 10080: how long a
+        message stays unread before its reader gets an e-mail. Audited, also when refused.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ChatSettings"}
+      responses:
+        "200":
+          description: The settings stored.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ChatSettings"}
+        "400":
+          description: "`invalid_request`: a body that is not the settings, or a value out of its range."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+  /clinic/webhooks:
+    get:
+      operationId: listWebhooks
+      summary: The admin's clinic's webhook endpoints, without their secrets
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The endpoints, oldest first.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WebhookList"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+    post:
+      operationId: createWebhook
+      summary: Add a webhook endpoint; its secret is shown in this answer only
+      description: >-
+        The clinic's own system receives each event as a `WebhookEvent`, POSTed as JSON with the headers
+        `Salus-Event-Id` (the event's id, the same on every attempt: deduplicate on it) and `Salus-Signature`:
+        `t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<body>" with the secret>` (check it, and refuse an old `t`). A
+        status other than 2xx, or no answer within 10 seconds, is retried with backoff, 8 attempts in about an hour
+        and a half, then recorded as a dead letter. `url` is https to a public host; addresses that are not public are
+        refused at every connection. `include_clinical` (off by default) adds the message's text: the clinic is the
+        controller of what it receives. At most 10 endpoints. Audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/NewWebhook"}
+      responses:
+        "201":
+          description: The endpoint, with its secret.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CreatedWebhook"}
+        "400":
+          $ref: "#/components/responses/NotificationInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+  /clinic/webhooks/{id}:
+    delete:
+      operationId: deleteWebhook
+      summary: Delete a webhook endpoint and its dead letters
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The endpoint's id.
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no such endpoint of the clinic, or not staff of a clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
 components:
   parameters:
+    ChatAttachmentID:
+      name: attachment_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ChatSearchQuery:
+      name: q
+      in: query
+      required: true
+      description: >-
+        Words to find, 1 to 200 characters: runs of letters and digits, of two or more, the first eight count;
+        anything else separates them.
+      schema: {type: string, minLength: 1, maxLength: 200}
     PatientID:
       name: id
       in: path
@@ -3940,6 +4630,14 @@ components:
       in: path
       required: true
       description: The conversation's id.
+      schema:
+        type: string
+        format: uuid
+    ChatInvitationID:
+      name: id
+      in: path
+      required: true
+      description: The invitation's id (the invited participant's).
       schema:
         type: string
         format: uuid
@@ -4059,13 +4757,20 @@ components:
       content:
         application/json:
           schema: {$ref: "#/components/schemas/ChatMessage"}
+    ChatSearchResults:
+      description: The messages found, newest first.
+      headers:
+        Cache-Control: {schema: {type: string, const: no-store}}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ChatSearchResults"}
     ChatInvalidRequest:
-      description: "`invalid_request`: a body that is not the request, an id that is no UUID, a body of 0 or over 4000 characters, a limit out of range, a `seq` past the last message; `invalid_cursor`: a cursor the API did not give."
+      description: "`invalid_request`: a body that is not the request, an id that is no UUID, a body of 0 or over 4000 characters (0 only with files), a limit out of range, a `seq` past the last message, files that are not the sender's uploads to the conversation or more than 10, a search without a word; `invalid_cursor`: a cursor the API did not give."
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
     ChatForbidden:
-      description: "`forbidden`: an admin, or a practitioner who does not take part; `consent_required`: a patient's write after their revocation."
+      description: "`forbidden`: an admin, or a practitioner who does not take part; for a participant's add or removal, anyone but the treating practitioner; for a side thread, the patient; `consent_required`: a patient's write, or grant of an invitation, after their revocation."
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
@@ -4128,6 +4833,21 @@ components:
           schema: {$ref: "#/components/schemas/Error"}
     GroupNameConflict:
       description: "`version_conflict`: the name changed since it was read."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    NotificationInvalidRequest:
+      description: "`invalid_request`: a body that is not the request, a platform other than android or ios, a token that is not 1 to 4096 visible ASCII characters, a webhook URL that is not https to a public host, no or an unknown event, or an eleventh webhook."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    ClinicAdminOnly:
+      description: "`forbidden`: staff of the clinic who are not its admin."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    ClinicNotFound:
+      description: "`not_found`: not staff of a clinic (a patient)."
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
@@ -6171,14 +6891,61 @@ components:
       description: >-
         A participant. Nobody's read position is shown to the others (that would be a stored read receipt); the
         caller's own is the conversation's `unread`.
-      required: [id, role, added_at, history_from_seq]
+      required: [id, role, status, added_at, history_from_seq]
       properties:
         id: {type: string, format: uuid}
         role: {type: string, enum: [patient, practitioner]}
+        status:
+          type: string
+          enum: [active, pending_consent]
+          description: "`pending_consent`: a doctor of another clinic waiting for the patient's consent, who sees nothing until then (SAL-28)."
         patient_id: {type: string, format: uuid}
         practitioner_role_id: {type: string, format: uuid}
+        organization_id: {type: string, format: uuid, description: "A practitioner's clinic: another than the conversation's for an invited doctor (SAL-28)."}
+        reason:
+          type: string
+          enum: [second_opinion, specialist_review, handover]
+          description: Why the practitioner was added; absent for the patient and the treating practitioner.
         added_at: {type: string, format: date-time}
         history_from_seq: {type: integer, format: int64, description: The participant reads the messages after this number; 0 for all.}
+    AddParticipantRequest:
+      type: object
+      required: [practitioner_role_id, organization_id, reason, history]
+      properties:
+        practitioner_role_id: {type: string, format: uuid}
+        organization_id: {type: string, format: uuid, description: "The role's clinic: the conversation's to add, another to invite."}
+        reason: {type: string, enum: [second_opinion, specialist_review, handover]}
+        history: {type: string, enum: [full, from], description: "`full`: the whole history; `from`: the messages after `from_seq`."}
+        from_seq: {type: integer, format: int64, minimum: 0, description: With `history` `from` only; at most the conversation's `last_seq`.}
+    ChatInvitation:
+      type: object
+      description: >-
+        A doctor of another clinic invited into the patient's conversation: waiting for their consent, or taking part
+        since they granted it.
+      required: [id, conversation_id, organization_id, practitioner_role_id, reason, invited_at]
+      properties:
+        id: {type: string, format: uuid, description: The invitation's id (the invited participant's).}
+        conversation_id: {type: string, format: uuid}
+        organization_id: {type: string, format: uuid, description: The invited doctor's clinic.}
+        practitioner_role_id: {type: string, format: uuid}
+        reason: {type: string, enum: [second_opinion, specialist_review, handover]}
+        invited_at: {type: string, format: date-time}
+        status:
+          type: string
+          enum: [pending_consent, active]
+          description: "`pending_consent` until the patient decides, `active` once they granted it. Always sent."
+    ChatInvitationList:
+      type: object
+      required: [invitations]
+      properties:
+        invitations:
+          type: array
+          items: {$ref: "#/components/schemas/ChatInvitation"}
+    ChatInvitationDecision:
+      type: object
+      required: [decision]
+      properties:
+        decision: {type: string, enum: [grant, decline]}
     ConversationList:
       type: object
       required: [conversations]
@@ -6199,12 +6966,22 @@ components:
         sender_participant_id: {type: string, format: uuid, description: Absent for a system message.}
         sender_role: {type: string, enum: [patient, practitioner, system]}
         kind: {type: string, enum: [text, system]}
-        body: {type: string, description: "A text's body, 1 to 4000 characters."}
+        body: {type: string, description: "A text's body, 1 to 4000 characters; absent for a message of files alone."}
         system: {$ref: "#/components/schemas/SystemMessage"}
         client_message_id: {type: string, format: uuid}
         sent_at: {type: string, format: date-time}
         edited_at: {type: string, format: date-time, description: Absent for a message never edited.}
         version_id: {type: integer, format: int32}
+        attachments:
+          type: array
+          description: The message's files, oldest first; absent for none (SAL-30).
+          items: {$ref: "#/components/schemas/ChatAttachment"}
+        terms:
+          type: array
+          description: >-
+            The explained terms found in `body` (SAL-13), in the reader's language then English, as UTF-16 offsets;
+            computed on read, never stored, the body unchanged; absent for none and in socket frames.
+          items: {$ref: "#/components/schemas/TermSpan"}
     SystemMessage:
       type: object
       description: The code the apps render from their catalogs, and its opaque ids.
@@ -6227,7 +7004,12 @@ components:
       required: [client_message_id, body]
       properties:
         client_message_id: {type: string, format: uuid, description: The client's id of the message; a retry repeats it.}
-        body: {type: string, minLength: 1, maxLength: 4000}
+        body: {type: string, minLength: 0, maxLength: 4000, description: "1 to 4000 characters after trimming; may be empty with `attachment_ids`."}
+        attachment_ids:
+          type: array
+          description: "The sender's uploads to the conversation (`uploadChatAttachment`), scanning or clean, not yet sent; at most 10."
+          maxItems: 10
+          items: {type: string, format: uuid}
     EditMessageRequest:
       type: object
       required: [body]
@@ -6292,11 +7074,182 @@ components:
         - $ref: "#/components/schemas/ChatMessageFrame"
         - $ref: "#/components/schemas/SendAckFrame"
         - $ref: "#/components/schemas/ChatCommandErrorFrame"
+        - $ref: "#/components/schemas/ChatReceiptFrame"
+        - $ref: "#/components/schemas/ChatTypingFrame"
     ChatCommand:
       type: object
-      description: A frame the client sends on the conversation's socket.
+      description: A frame the client sends on the conversation's socket; also `ChatReadCommand` and `ChatTypingCommand`.
       required: [type, version, payload]
       properties:
         type: {type: string, const: send}
         version: {type: integer, const: 1}
         payload: {$ref: "#/components/schemas/SendMessageRequest"}
+    ChatAttachment:
+      type: object
+      description: >-
+        A message's file (SAL-30): an image or a PDF, through the upload and malware scan pipeline. Its bytes
+        (`getChatAttachmentContent`) and, for an image, its thumbnail open once `clean`; a `rejected` file never
+        opens.
+      required: [id, content_type, size, filename, status, thumbnail]
+      properties:
+        id: {type: string, format: uuid}
+        content_type: {type: string, enum: [application/pdf, image/jpeg, image/png], description: Detected from the bytes.}
+        size: {type: integer, format: int64, description: Bytes.}
+        filename: {type: string, maxLength: 200, description: The name it was uploaded with.}
+        status: {type: string, enum: [scanning, clean, rejected]}
+        thumbnail: {type: boolean, description: An image's thumbnail is there to read (`getChatAttachmentThumbnail`).}
+    ChatReadCommand:
+      type: object
+      description: "The client has read the messages up to `seq` (as `markConversationRead`); the others get a `receipt`."
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: read}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/ReadPosition"}
+    ChatTypingCommand:
+      type: object
+      description: The client's participant types; sent at most once a second, the others get a `typing` frame.
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: typing}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/ChatTyping"}
+    ChatReceipt:
+      type: object
+      description: How far a participant has read. Ephemeral, never stored as anyone's but the reader's own position.
+      required: [participant_id, seq]
+      properties:
+        participant_id: {type: string, format: uuid}
+        seq: {type: integer, format: int64}
+    ChatReceiptFrame:
+      type: object
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: receipt}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/ChatReceipt"}
+    ChatTyping:
+      type: object
+      description: The participant who types; the server's frame names them, the client's names none.
+      properties:
+        participant_id: {type: string, format: uuid}
+    ChatTypingFrame:
+      type: object
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: typing}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/ChatTyping"}
+    ChatSearchResult:
+      type: object
+      required: [conversation_id, message]
+      properties:
+        conversation_id: {type: string, format: uuid}
+        message: {$ref: "#/components/schemas/ChatMessage"}
+    ChatSearchResults:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items: {$ref: "#/components/schemas/ChatSearchResult"}
+    PushDevice:
+      type: object
+      required: [platform, token]
+      properties:
+        platform: {type: string, enum: [android, ios]}
+        token: {type: string, minLength: 1, maxLength: 4096, description: "The FCM registration token or the APNs device token."}
+    ChatHour:
+      type: object
+      required: [day, start, end]
+      properties:
+        day: {type: string, enum: [mon, tue, wed, thu, fri, sat, sun], description: "FHIR days-of-week."}
+        start: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$", description: "HH:MM in the clinic's time zone."}
+        end: {type: string, pattern: "^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$", description: "HH:MM, after start; 24:00 for midnight."}
+    ChatHours:
+      type: object
+      required: [time_zone, hours, response_time_hours, open_now]
+      properties:
+        time_zone: {type: string, description: "The clinic's IANA time zone, which the hours are in."}
+        hours:
+          type: array
+          items: {$ref: "#/components/schemas/ChatHour"}
+        response_time_hours: {type: integer, minimum: 1, maximum: 168, description: "The response time the clinic states."}
+        open_now: {type: boolean, description: "Within the hours now, in the clinic's zone; true when it states none."}
+    ChatSettings:
+      type: object
+      required: [hours, response_time_hours, email_after_minutes]
+      properties:
+        hours:
+          type: array
+          maxItems: 21
+          items: {$ref: "#/components/schemas/ChatHour"}
+        response_time_hours: {type: integer, minimum: 1, maximum: 168}
+        email_after_minutes: {type: integer, minimum: 5, maximum: 10080, description: "How long a message stays unread before its reader gets an e-mail."}
+    Webhook:
+      type: object
+      required: [created_at, id, url, events, include_clinical]
+      properties:
+        created_at: {type: string, format: date-time}
+        id: {type: string, format: uuid}
+        url: {type: string, format: uri}
+        events:
+          type: array
+          items: {$ref: "#/components/schemas/WebhookEventType"}
+        include_clinical: {type: boolean}
+    WebhookList:
+      type: object
+      required: [webhooks]
+      properties:
+        webhooks:
+          type: array
+          items: {$ref: "#/components/schemas/Webhook"}
+    NewWebhook:
+      type: object
+      required: [url, events]
+      properties:
+        url: {type: string, format: uri, maxLength: 2048, description: "https, to a public host."}
+        events:
+          type: array
+          minItems: 1
+          items: {$ref: "#/components/schemas/WebhookEventType"}
+        include_clinical: {type: boolean, default: false, description: "Adds the message's text to each event."}
+    CreatedWebhook:
+      type: object
+      required: [created_at, id, url, secret, events, include_clinical]
+      properties:
+        created_at: {type: string, format: date-time}
+        id: {type: string, format: uuid}
+        url: {type: string, format: uri}
+        secret: {type: string, description: "whsec_ and 43 characters: the HMAC key of the signatures. Shown only here."}
+        events:
+          type: array
+          items: {$ref: "#/components/schemas/WebhookEventType"}
+        include_clinical: {type: boolean}
+    WebhookEventType:
+      type: string
+      enum: [message.created]
+    WebhookEvent:
+      type: object
+      description: "What a clinic's endpoint receives (not served by this API): the event's type and ids; the message only with include_clinical."
+      required: [id, type, organization_id, data]
+      properties:
+        id: {type: string, format: uuid, description: "The event's id, the same on every attempt."}
+        type: {$ref: "#/components/schemas/WebhookEventType"}
+        organization_id: {type: string, format: uuid}
+        data:
+          type: object
+          required: [conversation_id, message_id]
+          properties:
+            conversation_id: {type: string, format: uuid}
+            message_id: {type: string, format: uuid}
+            message:
+              type: object
+              description: "Only with include_clinical."
+              required: [sent_at, patient_id, sender_role, body, seq]
+              properties:
+                sent_at: {type: string, format: date-time}
+                patient_id: {type: string, format: uuid}
+                sender_role: {type: string, enum: [patient, practitioner]}
+                body: {type: string}
+                seq: {type: integer, format: int64}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -60,7 +61,10 @@ type Ports struct {
 }
 
 // Service holds the files' rules (docs/attachments/SPEC.md §2).
-type Service struct{ Ports }
+type Service struct {
+	Ports
+	decoding sync.Mutex
+}
 
 // NewService returns a Service on its ports.
 func NewService(p Ports) *Service {

@@ -16,9 +16,12 @@ WHERE patient_id = @patient_id AND practitioner_role_id = @practitioner_role_id
   AND encounter_id IS NOT DISTINCT FROM sqlc.narg(encounter_id) AND NOT staff_only;
 
 -- name: InsertParticipant :one
-INSERT INTO conversation_participant (conversation_id, patient_id, practitioner_role_id, role, history_from_seq, added_by, added_at)
-VALUES (@conversation_id, sqlc.narg(patient_id), sqlc.narg(practitioner_role_id), @role, @history_from_seq, @added_by, @added_at)
-RETURNING id, added_at, removed_at, conversation_id, patient_id, practitioner_role_id, added_by, history_from_seq, read_seq, role;
+INSERT INTO conversation_participant (conversation_id, patient_id, practitioner_role_id, organization_id, role, status, reason,
+    history_from_seq, read_seq, added_by, added_at)
+VALUES (@conversation_id, sqlc.narg(patient_id), sqlc.narg(practitioner_role_id), sqlc.narg(organization_id), @role, @status,
+    sqlc.narg(reason), @history_from_seq, @history_from_seq, @added_by, @added_at)
+RETURNING id, added_at, removed_at, conversation_id, patient_id, practitioner_role_id, organization_id, added_by, history_from_seq, read_seq,
+    role, status, reason;
 
 -- name: Conversation :one
 SELECT id, created_at, last_sent_at, organization_id, patient_id, practitioner_role_id, encounter_id, parent_id, created_by, last_seq, staff_only
@@ -32,7 +35,8 @@ FOR UPDATE;
 
 -- name: Participants :many
 -- The conversation's active participants, the patient first, then in the order they were added.
-SELECT id, added_at, removed_at, conversation_id, patient_id, practitioner_role_id, added_by, history_from_seq, read_seq, role
+SELECT id, added_at, removed_at, conversation_id, patient_id, practitioner_role_id, organization_id, added_by, history_from_seq, read_seq,
+       role, status, reason
 FROM conversation_participant
 WHERE conversation_id = @conversation_id AND removed_at IS NULL
 ORDER BY role = 'patient' DESC, added_at, id;
@@ -43,7 +47,7 @@ ORDER BY role = 'patient' DESC, added_at, id;
 SELECT c.id, c.created_at, c.last_sent_at, c.organization_id, c.patient_id, c.practitioner_role_id, c.encounter_id, c.parent_id,
        c.created_by, c.last_seq, c.staff_only, p.read_seq
 FROM conversation c
-JOIN conversation_participant p ON p.conversation_id = c.id AND p.removed_at IS NULL
+JOIN conversation_participant p ON p.conversation_id = c.id AND p.removed_at IS NULL AND p.status = 'active'
 WHERE (p.patient_id = sqlc.narg(patient_id) OR p.practitioner_role_id = sqlc.narg(practitioner_role_id))
   AND (sqlc.narg(before_at)::timestamptz IS NULL
        OR (coalesce(c.last_sent_at, c.created_at), c.id) < (sqlc.narg(before_at)::timestamptz, sqlc.narg(before_id)::uuid))
@@ -53,7 +57,7 @@ LIMIT @lim;
 -- name: LatestMessages :many
 -- The newest page: the partitions are read newest first and the scan stops once the page is full (ADR 0012).
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = @conversation_id AND seq > @from_seq
 ORDER BY sent_at DESC, seq DESC
@@ -61,7 +65,7 @@ LIMIT @lim;
 
 -- name: MessagesBefore :many
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = @conversation_id AND seq > @from_seq AND (sent_at, seq) < (@sent_at::timestamptz, @seq::bigint)
 ORDER BY sent_at DESC, seq DESC
@@ -69,7 +73,7 @@ LIMIT @lim;
 
 -- name: MessagesAfter :many
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = @conversation_id AND seq > @from_seq AND (sent_at, seq) > (@sent_at::timestamptz, @seq::bigint)
 ORDER BY sent_at, seq
@@ -77,23 +81,23 @@ LIMIT @lim;
 
 -- name: Message :one
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = @conversation_id AND id = @id;
 
 -- name: MessageByClientID :one
 -- A repeat of the client's id within the idempotency window: run-time pruning reads that day's partitions only.
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = @conversation_id AND client_message_id = @client_message_id AND sender_participant_id = @sender_participant_id
   AND sent_at >= @since::timestamptz;
 
 -- name: InsertMessage :one
 INSERT INTO communication (sent_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-    client_message_id, seq, staff_only, sender_role, kind, body, system_code, system_args)
+    client_message_id, seq, staff_only, sender_role, kind, body, system_code, system_args, attachment_count)
 VALUES (@sent_at, @conversation_id, @organization_id, @patient_id, sqlc.narg(sender_participant_id), sqlc.narg(sender_account_id),
-    @client_message_id, @seq, @staff_only, @sender_role, @kind, sqlc.narg(body), sqlc.narg(system_code), sqlc.narg(system_args))
+    @client_message_id, @seq, @staff_only, @sender_role, @kind, sqlc.narg(body), sqlc.narg(system_code), sqlc.narg(system_args), @attachment_count)
 RETURNING id;
 
 -- name: AdvanceConversation :exec
@@ -115,3 +119,67 @@ ORDER BY version_id;
 
 -- name: AddPartitions :exec
 SELECT communication_add_partitions(@from_day::date, @months::integer);
+
+-- name: SearchConversation :many
+-- A conversation's messages whose body matches the query (chat_search, migration 00045), newest first, of numbers
+-- above from_seq: found by communication_search (the text index, which row-level security cannot use), read by
+-- their keys through the policies.
+SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
+FROM communication
+WHERE (id, sent_at) IN (SELECT s.id, s.sent_at FROM communication_search(to_tsquery('public.chat_search'::regconfig, @query), @conversation_id::uuid, @lim::integer) s)
+  AND conversation_id = @conversation_id AND seq > @from_seq
+ORDER BY sent_at DESC, seq DESC;
+
+-- name: SearchMessages :many
+-- The messages the scope may read whose body matches the query, newest first: the patient's own conversations, or
+-- those of the practitioner role's scope after its history_from_seq; found by communication_search, read through the
+-- policies.
+SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
+FROM communication
+WHERE (id, sent_at) IN (SELECT s.id, s.sent_at FROM communication_search(to_tsquery('public.chat_search'::regconfig, @query), NULL, @lim::integer) s)
+ORDER BY sent_at DESC, seq DESC;
+
+-- Group consults (migration 00044, SAL-28).
+
+-- name: ParticipantByID :one
+-- A participant, pending or active, where the scope sees their conversation.
+SELECT id, added_at, removed_at, conversation_id, patient_id, practitioner_role_id, organization_id, added_by, history_from_seq, read_seq,
+       role, status, reason
+FROM conversation_participant
+WHERE id = @id AND removed_at IS NULL;
+
+-- name: ActivateParticipant :execrows
+-- No row when the participant is no longer pending or no longer there.
+UPDATE conversation_participant SET status = 'active' WHERE id = @id AND status = 'pending_consent' AND removed_at IS NULL;
+
+-- name: RemoveParticipant :execrows
+-- No row when the participant was removed already.
+-- The trigger of 00044 removes the role from the conversation's side threads in the same statement.
+UPDATE conversation_participant SET removed_at = @removed_at WHERE id = @id AND removed_at IS NULL;
+
+-- name: InsertThread :one
+INSERT INTO conversation (organization_id, patient_id, practitioner_role_id, encounter_id, parent_id, staff_only, created_by, created_at)
+VALUES (@organization_id, @patient_id, @practitioner_role_id, sqlc.narg(encounter_id), @parent_id, true, @created_by, @created_at)
+RETURNING id, created_at, last_sent_at, organization_id, patient_id, practitioner_role_id, encounter_id, parent_id, created_by, last_seq, staff_only;
+
+-- name: ThreadsOfParticipant :many
+-- The side threads of the conversation the practitioner role takes part in, newest activity first, with that
+-- participant's read position.
+SELECT c.id, c.created_at, c.last_sent_at, c.organization_id, c.patient_id, c.practitioner_role_id, c.encounter_id, c.parent_id,
+       c.created_by, c.last_seq, c.staff_only, p.read_seq
+FROM conversation c
+JOIN conversation_participant p ON p.conversation_id = c.id AND p.removed_at IS NULL AND p.status = 'active'
+WHERE c.parent_id = @parent_id AND p.practitioner_role_id = @practitioner_role_id
+ORDER BY coalesce(c.last_sent_at, c.created_at) DESC, c.id DESC;
+
+-- name: Invitations :many
+-- The patient's invitations of doctors from other clinics of the status, pending or granted, oldest first (index
+-- conversation_participant_pending for the pending).
+SELECT p.id, p.added_at, p.conversation_id, p.organization_id, p.practitioner_role_id, p.reason, p.status
+FROM conversation_participant p
+JOIN conversation c ON c.id = p.conversation_id
+WHERE c.patient_id = @patient_id AND NOT c.staff_only AND p.status = @status AND p.removed_at IS NULL
+  AND p.role = 'practitioner' AND p.organization_id <> c.organization_id
+ORDER BY p.added_at, p.id;

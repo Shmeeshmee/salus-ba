@@ -73,14 +73,14 @@ type binaryJSON struct {
 // upload reads the raw body, exactly Content-Length bytes (none given is -1); the title is the
 // Content-Disposition's file name, never anything from the URL.
 func (h *HTTPHandler) upload(w http.ResponseWriter, r *http.Request) {
-	deadlines(w, h.clock.Now().Add(UploadDeadline))
+	Deadlines(w, h.clock.Now().Add(UploadDeadline))
 	c, ok := h.signedIn(w, r)
 	if !ok {
 		return
 	}
 	b, created, err := h.svc.Upload(r.Context(), c, Upload{
 		Body: r.Body, ResponseID: r.PathValue("id"), LinkID: r.PathValue("linkId"),
-		Title: titleOf(r.Header.Get("Content-Disposition")), Size: r.ContentLength,
+		Title: TitleOf(r.Header.Get("Content-Disposition")), Size: r.ContentLength,
 	})
 	if err != nil {
 		h.writeError(w, r, err)
@@ -126,7 +126,7 @@ func (h *HTTPHandler) content(w http.ResponseWriter, r *http.Request) {
 		writeCode(w, http.StatusMethodNotAllowed, "method_not_allowed")
 		return
 	}
-	deadlines(w, h.clock.Now().Add(ContentDeadline))
+	Deadlines(w, h.clock.Now().Add(ContentDeadline))
 	c, ok := h.signedIn(w, r)
 	if !ok {
 		return
@@ -136,18 +136,31 @@ func (h *HTTPHandler) content(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, err)
 		return
 	}
+	ServeContent(w, r, h.svc, f, h.log)
+}
+
+// Contents streams an opened file's bytes (Service.Content).
+type Contents interface {
+	Content(ctx context.Context, f File, from, to int64) (io.ReadCloser, error)
+}
+
+// ServeContent sends the opened file f, or the one range r asks for, with the download's headers (SPEC.md §2
+// "Download"), for this handler and the chat's files (internal/communication). The caller has checked, audited and
+// committed the read before; a failure after the first byte cuts the connection, so the client sees a short body,
+// never a wrong one. A file without a SHA-1 (a thumbnail) has no ETag.
+func ServeContent(w http.ResponseWriter, r *http.Request, svc Contents, f File, log *slog.Logger) {
 	from, to, partial, ok := byteRange(r.Header.Get("Range"), f.Size)
 	if !ok {
 		unsatisfiable(w, f.Size)
 		return
 	}
-	body, err := h.svc.Content(r.Context(), f, from, to)
+	body, err := svc.Content(r.Context(), f, from, to)
 	switch {
 	case errors.Is(err, ErrRangeNotSatisfiable):
 		unsatisfiable(w, f.Size)
 		return
 	case err != nil:
-		httpx.InternalError(w, r, h.log, err)
+		httpx.InternalError(w, r, log, err)
 		return
 	}
 	defer func() { _ = body.Close() }()
@@ -155,7 +168,9 @@ func (h *HTTPHandler) content(w http.ResponseWriter, r *http.Request) {
 	hd.Set("Content-Type", f.ContentType)
 	hd.Set("Content-Length", strconv.FormatInt(to-from+1, 10))
 	hd.Set("Accept-Ranges", "bytes")
-	hd.Set("ETag", `"`+hex.EncodeToString(f.SHA1)+`"`)
+	if len(f.SHA1) > 0 {
+		hd.Set("ETag", `"`+hex.EncodeToString(f.SHA1)+`"`)
+	}
 	hd.Set("Cache-Control", "private, no-store")
 	hd.Set("X-Content-Type-Options", "nosniff")
 	hd.Set("Cross-Origin-Resource-Policy", "same-origin")
@@ -168,7 +183,7 @@ func (h *HTTPHandler) content(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(status)
 	if _, err := io.Copy(w, body); err != nil {
-		h.log.WarnContext(r.Context(), "content stream failed", "route", r.Pattern, "binary_id", f.ID, "error", err)
+		log.WarnContext(r.Context(), "content stream failed", "route", r.Pattern, "binary_id", f.ID, "error", err)
 		panic(http.ErrAbortHandler) // the status is sent: cut the connection rather than end the body cleanly
 	}
 }
@@ -183,9 +198,9 @@ func contentPolicy(contentType string) string {
 	return "default-src 'none'; sandbox"
 }
 
-// deadlines gives the request's connection read and write deadlines at at, past the server's own. A writer
-// that cannot (a test's recorder) keeps the server's.
-func deadlines(w http.ResponseWriter, at time.Time) {
+// Deadlines gives the request's connection read and write deadlines at at, past the server's own, for a route
+// that streams (this handler's and the chat's files). A writer that cannot (a test's recorder) keeps the server's.
+func Deadlines(w http.ResponseWriter, at time.Time) {
 	rc := http.NewResponseController(w)
 	_ = rc.SetReadDeadline(at)
 	_ = rc.SetWriteDeadline(at)
@@ -232,9 +247,10 @@ func unsatisfiable(w http.ResponseWriter, size int64) {
 	writeCode(w, http.StatusRequestedRangeNotSatisfiable, "range_not_satisfiable")
 }
 
-// titleOf is the file name of a Content-Disposition (its filename*, RFC 6266, or filename): the path
-// removed, control characters dropped, cut to MaxTitle characters; "" for none.
-func titleOf(header string) string {
+// TitleOf is the file name of a Content-Disposition (its filename*, RFC 6266, or filename): the path
+// removed, control characters dropped, cut to MaxTitle characters; "" for none. Never from the URL, which access
+// logs may hold.
+func TitleOf(header string) string {
 	_, params, err := mime.ParseMediaType(header)
 	if err != nil {
 		return ""

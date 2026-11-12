@@ -61,4 +61,12 @@ describe('fakeChat', () => {
     expect(ends).toEqual(['consent_required'])
     stop()
   })
+
+  it("gives the clinic's chat hours, and not_found for another clinic", async () => {
+    const closed = { time_zone: 'Europe/Sarajevo', hours: [{ day: 'mon' as const, start: '08:00', end: '16:00' }], response_time_hours: 8, open_now: false }
+    const chat = fakeChat({ hours: closed })
+    expect(await chat.chatHours(chat.conversations[0].organization_id)).toEqual(closed)
+    expect((await fakeChat().chatHours(chat.conversations[0].organization_id)).open_now).toBe(true)
+    await expect(chat.chatHours('00000000-0000-4000-8000-000000000000')).rejects.toEqual(new ChatError('not_found'))
+  })
 })

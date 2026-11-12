@@ -1,4 +1,4 @@
-import { ChatError, type ChatApi, type ChatEnd, type ChatMessage, type ChatMessageFrame, type Conversation } from './chatApi'
+import { ChatError, type ChatApi, type ChatEnd, type ChatHours, type ChatMessage, type ChatMessageFrame, type Conversation } from './chatApi'
 
 // fakeChat is the ChatApi in memory, for tests and for building the screens on synthetic data (CLAUDE.md "Test
 // data is synthetic"). It keeps the API's rules that the screens see: pages newest first by cursor, idempotent
@@ -26,9 +26,16 @@ export type FakeChatOptions = {
   // history is how many synthetic messages the first conversation starts with (a long one for the virtualized list).
   history?: number
   start?: Date
+  // hours is the clinic's chat hours (SAL-29): by default it states none and is open.
+  hours?: ChatHours
 }
 
-export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, 'd') }, history = 0, start = new Date('2026-11-12T08:00:00Z') }: FakeChatOptions = {}): FakeChat {
+export function fakeChat({
+  me = { role: 'practitioner', participantId: uuid(2, 'd') },
+  history = 0,
+  start = new Date('2026-11-12T08:00:00Z'),
+  hours = { time_zone: 'Europe/Sarajevo', hours: [], response_time_hours: 24, open_now: true },
+}: FakeChatOptions = {}): FakeChat {
   const other = me.role === 'patient' ? { role: 'practitioner' as const, participantId: uuid(2, 'd') } : { role: 'patient' as const, participantId: uuid(1, 'd') }
   const messages = new Map<string, ChatMessage[]>()
   const revisions = new Map<string, { edited_at: string; body: string; version_id: number }[]>()
@@ -42,8 +49,11 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
     id: uuid(1, 'c'), organization_id: uuid(1, 'a'), patient_id: uuid(1, 'b'), practitioner_role_id: uuid(1, 'e'),
     created_at: start.toISOString(), last_seq: 0, cursor: cursorOf(0), unread: 0, staff_only: false,
     participants: [
-      { id: uuid(1, 'd'), role: 'patient', patient_id: uuid(1, 'b'), added_at: start.toISOString(), history_from_seq: 0 },
-      { id: uuid(2, 'd'), role: 'practitioner', practitioner_role_id: uuid(1, 'e'), added_at: start.toISOString(), history_from_seq: 0 },
+      { id: uuid(1, 'd'), role: 'patient', status: 'active', patient_id: uuid(1, 'b'), added_at: start.toISOString(), history_from_seq: 0 },
+      {
+        id: uuid(2, 'd'), role: 'practitioner', status: 'active', practitioner_role_id: uuid(1, 'e'), organization_id: uuid(1, 'a'),
+        added_at: start.toISOString(), history_from_seq: 0,
+      },
     ],
   }
   const conversations = [conversation]
@@ -131,6 +141,10 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
     async revisions(id, messageId) {
       find(id)
       return [...(revisions.get(messageId) ?? [])]
+    },
+    async chatHours(organizationId) {
+      if (!conversations.some((c) => c.organization_id === organizationId)) throw new ChatError('not_found')
+      return { ...hours, hours: hours.hours.map((h) => ({ ...h })) }
     },
     async markRead(id, seq) {
       const c = find(id)

@@ -49,4 +49,8 @@ abstract interface class Chats {
   /// Every message after the cursor (or from now on) and then the live ones, each once, until the returned
   /// function is called or access ends.
   void Function() follow(String id, String? after, void Function(ChatMessageFrame frame) onFrame, void Function(ChatEnd end) onEnd);
+
+  /// The clinic's chat hours, its stated response time and whether it is within its hours now (SAL-29): the screens
+  /// show the out-of-hours notice from it.
+  Future<ChatHours> chatHours(String organizationId);
 }
