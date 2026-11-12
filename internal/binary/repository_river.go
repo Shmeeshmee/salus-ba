@@ -24,7 +24,11 @@ func (j *riverJobs) EnqueueScan(ctx context.Context, args ScanArgs) error {
 	if !ok {
 		return postgres.ErrNoTx
 	}
-	if _, err := j.client.InsertTx(ctx, tx, args, &river.InsertOpts{Queue: QueueScan}); err != nil {
+	opts := &river.InsertOpts{Queue: QueueScan}
+	if args.ConversationID != "" {
+		opts.MaxAttempts = ChatScanAttempts
+	}
+	if _, err := j.client.InsertTx(ctx, tx, args, opts); err != nil {
 		return fmt.Errorf("binary: enqueue binary_scan: %w", err)
 	}
 	return nil

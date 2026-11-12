@@ -141,7 +141,7 @@ func TestSocket_SendIsAnsweredWithItsAckAndABadFrameWithAnError(t *testing.T) {
 	}
 	<-live.ready
 	send, _ := wire.Encode(communication.SendType, communication.FrameVersion, communication.SendCommand{ClientMessageID: clientID2, Body: "Synthetic placeholder"})
-	for _, f := range [][]byte{send, []byte("not an envelope"), []byte(`{"type":"typing","version":1,"payload":{}}`)} {
+	for _, f := range [][]byte{send, []byte("not an envelope"), []byte(`{"type":"shout","version":1,"payload":{}}`)} {
 		if err := conn.WriteMessage(websocket.TextMessage, f); err != nil {
 			t.Fatal(err)
 		}

@@ -26,6 +26,8 @@ class ChatMessage {
     required this.sentAt,
     this.editedAt,
     required this.versionId,
+    this.attachments = const [],
+    this.terms = const [],
   });
 
   String id;
@@ -51,7 +53,7 @@ class ChatMessage {
 
   ChatMessageKindEnum kind;
 
-  /// A text's body, 1 to 4000 characters.
+  /// A text's body, 1 to 4000 characters; absent for a message of files alone.
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated
@@ -83,6 +85,12 @@ class ChatMessage {
 
   int versionId;
 
+  /// The message's files, oldest first; absent for none (SAL-30).
+  List<ChatAttachment> attachments;
+
+  /// The explained terms found in `body` (SAL-13), in the reader's language then English, as UTF-16 offsets; computed on read, never stored, the body unchanged; absent for none and in socket frames.
+  List<TermSpan> terms;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -99,7 +107,9 @@ class ChatMessage {
           other.clientMessageId == clientMessageId &&
           other.sentAt == sentAt &&
           other.editedAt == editedAt &&
-          other.versionId == versionId;
+          other.versionId == versionId &&
+          _deepEquality.equals(other.attachments, attachments) &&
+          _deepEquality.equals(other.terms, terms);
 
   @override
   int get hashCode =>
@@ -116,11 +126,13 @@ class ChatMessage {
       (clientMessageId.hashCode) +
       (sentAt.hashCode) +
       (editedAt == null ? 0 : editedAt!.hashCode) +
-      (versionId.hashCode);
+      (versionId.hashCode) +
+      (attachments.hashCode) +
+      (terms.hashCode);
 
   @override
   String toString() =>
-      'ChatMessage[id=$id, conversationId=$conversationId, seq=$seq, cursor=$cursor, senderParticipantId=$senderParticipantId, senderRole=$senderRole, kind=$kind, body=$body, system=$system, clientMessageId=$clientMessageId, sentAt=$sentAt, editedAt=$editedAt, versionId=$versionId]';
+      'ChatMessage[id=$id, conversationId=$conversationId, seq=$seq, cursor=$cursor, senderParticipantId=$senderParticipantId, senderRole=$senderRole, kind=$kind, body=$body, system=$system, clientMessageId=$clientMessageId, sentAt=$sentAt, editedAt=$editedAt, versionId=$versionId, attachments=$attachments, terms=$terms]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -153,6 +165,8 @@ class ChatMessage {
       json[r'edited_at'] = null;
     }
     json[r'version_id'] = this.versionId;
+    json[r'attachments'] = this.attachments;
+    json[r'terms'] = this.terms;
     return json;
   }
 
@@ -221,6 +235,8 @@ class ChatMessage {
         sentAt: mapDateTime(json, r'sent_at', r'')!,
         editedAt: mapDateTime(json, r'edited_at', r''),
         versionId: mapValueOfType<int>(json, r'version_id')!,
+        attachments: ChatAttachment.listFromJson(json[r'attachments']),
+        terms: TermSpan.listFromJson(json[r'terms']),
       );
     }
     return null;

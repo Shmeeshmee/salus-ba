@@ -55,9 +55,27 @@ type Repository interface {
 	// DeleteRejectedBefore deletes the rejected files scanned before before, in every clinic, and counts them
 	// (the retention role's purger).
 	DeleteRejectedBefore(ctx context.Context, before time.Time) (int64, error)
-	// Existing returns the ids among ids that have a row (the retention role's purger); an id that is no UUID
-	// has none.
+	// Existing returns the ids among ids that have a row, as a file or as a file's thumbnail (the retention role's
+	// purger); an id that is no UUID has none.
 	Existing(ctx context.Context, ids []string) ([]string, error)
+
+	// SetChatJob scopes the rest of the transaction in ctx to the files of the conversation of the clinic org, for
+	// the scan job of a chat file. A conversation's other scopes are set by communication (app.conversation_id, the
+	// patient's, the practitioner role's), in the transaction binary joins.
+	SetChatJob(ctx context.Context, conversationID, org string) error
+	// AttachToMessage attaches to the message those of the files that the participant uploaded to the conversation
+	// and that are neither attached nor rejected, at at, and returns them.
+	AttachToMessage(ctx context.Context, m MessageFiles, at time.Time) ([]Binary, error)
+	// PendingChat serialises the participant's uploads until the transaction ends (an advisory lock) and counts
+	// their files of the conversation that are neither attached nor rejected.
+	PendingChat(ctx context.Context, conversationID, participantID string) (int64, error)
+	// OfMessages returns the files of the messages of the conversations, as the scope shows them, oldest first.
+	OfMessages(ctx context.Context, conversationIDs, messageIDs []string) ([]Binary, error)
+	// SetThumbnail stores the thumbnail of the clean file id that has none, at at, and reports whether it did.
+	SetThumbnail(ctx context.Context, id string, t Thumbnail, at time.Time) (bool, error)
+	// DeleteUnattachedBefore deletes the chat files uploaded before before and never attached to a message, in every
+	// clinic, and counts them (the retention role's purger).
+	DeleteUnattachedBefore(ctx context.Context, before time.Time) (int64, error)
 }
 
 // Jobs enqueues binary's jobs in the transaction in the context (River's InsertTx).

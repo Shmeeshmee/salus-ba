@@ -77,6 +77,12 @@ type Ports struct {
 	Tx           Transactor
 	Clock        clock.Clock
 	Log          *slog.Logger
+	// SAL-30: the messages' files (nil: a send with files fails), the terms' tagging (nil: no terms) in the caller's
+	// language (nil: English), and the receipts' and typing's Redis (nil: none).
+	Files     Files
+	Terms     Tagger
+	Languages Languages
+	Presence  Presence
 }
 
 // Service holds the chat's rules (docs/plans/chat.md "Decisions"): who opens a conversation (access.OpensChat),
