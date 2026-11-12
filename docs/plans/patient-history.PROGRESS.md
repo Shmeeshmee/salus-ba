@@ -65,6 +65,10 @@ quiet server gives; run 2 ran both versions at the same time to share the same n
 | documents only p50 / p95 | 64 / 92 ms | 116 / 165 ms | 116 / 177 ms | 123 / 226 ms |
 | binary's files check, mean | 37.4 ms | 13.5 ms | 19.9 ms | 13.8 ms |
 
+After merging main (00046's lookups, 00047), with the batched and concurrent version, at load average 15 to 20:
+first page p50 72 / p95 118 ms, any page 93 / 176 ms, one clinic 52 / 74 ms, documents only 60 / 95 ms; mean per
+source: documents 60 ms, attachments 31 ms, responses 30 ms, visits 17 ms, the files check 9 ms.
+
 The full timeline gains in both runs (first page p50 1.5 to 3 times faster); a read of one source (the documents)
 gains nothing measurable under this noise, as expected with nothing to run beside it. The plan's target (p95 under
 50 ms) is not shown on this machine: it needs a run on a quiet one. Each source costs 30 to 150 ms here for 31 rows,
