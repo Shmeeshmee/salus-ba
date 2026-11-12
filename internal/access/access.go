@@ -240,3 +240,32 @@ func ReadsChat(v Viewer, f Facts, participant bool) bool {
 func WritesChat(v Viewer, f Facts, participant bool) bool {
 	return ReadsChat(v, f, participant) && f.Consent.Active
 }
+
+// GuestChat reports whether viewer, a practitioner of another clinic than the facts' (the conversation's treating
+// clinic), may read and write in a conversation about the facts' patient (docs/plans/chat.md, SAL-28): only as an
+// active participant whose invitation the patient granted (granted: the patient's chat consent for them is active),
+// and only while the patient's care consent with the treating clinic is active, which rules every doctor's access.
+func GuestChat(v Viewer, f Facts, granted bool) bool {
+	return v.Role == RolePractitioner && v.Clinic != "" && v.Clinic != f.Clinic && v.PractitionerRole != "" &&
+		granted && f.Consent.Active
+}
+
+// ManagesChat reports whether viewer may add practitioners to and remove them from a conversation whose treating
+// practitioner role is treating: that practitioner alone, while they may write in it (WritesChat).
+func ManagesChat(v Viewer, f Facts, treating string) bool {
+	return v.Role == RolePractitioner && treating != "" && v.PractitionerRole == treating && WritesChat(v, f, true)
+}
+
+// OpensChatThread reports whether viewer may open a doctor-only side thread of a conversation, or list its side
+// threads: a practitioner of the clinic who may write in it (participant), or a guest the patient granted
+// (GuestChat); never the patient, never an admin.
+func OpensChatThread(v Viewer, f Facts, participant, granted bool) bool {
+	return (v.Role == RolePractitioner && WritesChat(v, f, participant)) || GuestChat(v, f, granted)
+}
+
+// GrantsChatGuest reports whether viewer may grant a practitioner of another clinic access to their conversation
+// with the facts' clinic: the patient themselves, while their care consent with that clinic is active (a grant
+// would otherwise open nothing). Declining is always theirs.
+func GrantsChatGuest(v Viewer, f Facts) bool {
+	return self(v, f) && f.Consent.Active
+}
