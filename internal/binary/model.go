@@ -176,10 +176,15 @@ const QueueScan = "scan"
 // A chat file's job names its conversation instead of a response.
 type ScanArgs struct {
 	BinaryID       string `json:"binary_id"`
-	ResponseID     string `json:"questionnaire_response_id"`
+	ResponseID     string `json:"questionnaire_response_id,omitempty"`
 	ConversationID string `json:"conversation_id,omitempty"`
 	OrganizationID string `json:"organization_id"`
 }
+
+// ChatScanAttempts is how often a chat file's scan is tried before the worker rejects it as unscannable
+// (Service.Unscannable): River's backoff of attempt⁴ seconds makes it about 80 minutes. A questionnaire file's keeps
+// River's default and stays quarantined after the last.
+const ChatScanAttempts = 8
 
 // Kind names the job in river_job.
 func (ScanArgs) Kind() string { return "binary_scan" }
