@@ -281,23 +281,45 @@ type AuditEvent struct {
 }
 
 type Binary struct {
-	ID                      pgtype.UUID
-	CreatedAt               pgtype.Timestamptz
-	UpdatedAt               pgtype.Timestamptz
-	ScannedAt               pgtype.Timestamptz
-	OrganizationID          pgtype.UUID
-	PatientID               pgtype.UUID
-	AppointmentID           pgtype.UUID
-	QuestionnaireResponseID pgtype.UUID
-	Size                    int64
-	SegmentSize             int32
-	LinkID                  string
-	ContentType             string
-	Title                   string
-	Status                  string
-	KekID                   string
-	Sha1                    []byte
-	WrappedKey              []byte
+	ID                        pgtype.UUID
+	CreatedAt                 pgtype.Timestamptz
+	UpdatedAt                 pgtype.Timestamptz
+	ScannedAt                 pgtype.Timestamptz
+	OrganizationID            pgtype.UUID
+	PatientID                 pgtype.UUID
+	AppointmentID             pgtype.UUID
+	QuestionnaireResponseID   pgtype.UUID
+	Size                      int64
+	SegmentSize               int32
+	LinkID                    pgtype.Text
+	ContentType               string
+	Title                     string
+	Status                    string
+	KekID                     string
+	Sha1                      []byte
+	WrappedKey                []byte
+	ConversationID            pgtype.UUID
+	ConversationParticipantID pgtype.UUID
+	CommunicationID           pgtype.UUID
+	CommunicationSentAt       pgtype.Timestamptz
+	ThumbnailID               pgtype.UUID
+	ThumbnailSize             pgtype.Int8
+	ThumbnailWrappedKey       []byte
+}
+
+type ChatConsent struct {
+	ID                         pgtype.UUID
+	CreatedAt                  pgtype.Timestamptz
+	UpdatedAt                  pgtype.Timestamptz
+	DateTime                   pgtype.Timestamptz
+	RevokedAt                  pgtype.Timestamptz
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	VersionID                  int32
+	Status                     string
 }
 
 type ClinicAppointmentStat struct {
@@ -340,6 +362,7 @@ type Communication struct {
 	Body                pgtype.Text
 	SystemCode          pgtype.Text
 	SystemArgs          []byte
+	AttachmentCount     int16
 }
 
 type CommunicationRevision struct {
@@ -408,6 +431,9 @@ type ConversationParticipant struct {
 	HistoryFromSeq     int64
 	ReadSeq            int64
 	Role               string
+	OrganizationID     pgtype.UUID
+	Status             string
+	Reason             pgtype.Text
 }
 
 type DiagnosisGroup struct {

@@ -89,9 +89,11 @@ func Rules() []Rule {
 		},
 		{
 			Table: "binary",
-			Basis: "The patient's files attached to a questionnaire answer (GDPR Art. 9(2)(h), with the consent for sharing before care): each row lives exactly as long as its questionnaire response and is deleted with it (foreign key) or with its answer; a rejected row is deleted 24 h after its scan, and a stored object without a row (a deleted file's ciphertext, an upload that never reached its answer) 24 h after it was written; needs a legal decision before production (docs/attachments/SPEC.md sections 4 and 5)",
-			Keep:  day, // after scanned_at of a rejected row; after an object's last write
-			Then:  ThenDelete,
+			Basis: "The patient's files attached to a questionnaire answer (GDPR Art. 9(2)(h), with the consent for sharing before care): each row lives exactly as long as its questionnaire response and is deleted with it (foreign key) or with its answer. " +
+				"The files of a chat message (SAL-30; care between visits, Art. 9(2)(h), with the care consent for the clinic's access) are part of the clinical record with their message and kept with it, never deleted while attached (a trigger refuses it, as for the message); a chat upload never attached to a message is deleted 24 h after its upload. " +
+				"A rejected row is deleted 24 h after its scan, and a stored object without a row (a deleted file's ciphertext or thumbnail, an upload that never reached its answer or message) 24 h after it was written; needs a legal decision before production (docs/attachments/SPEC.md sections 4 and 5, docs/plans/chat.md)",
+			Keep: day, // after scanned_at of a rejected row; after created_at of a chat upload never attached; after an object's last write
+			Then: ThenDelete,
 		},
 	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), historyRules(), clinicStatsRules())...)
 }
@@ -121,6 +123,11 @@ func chatRules() []Rule {
 		{Table: "conversation_participant", Basis: basis, Then: ThenKeep},
 		{Table: "communication", Basis: basis, Then: ThenKeep},
 		{Table: "communication_revision", Basis: basis, Then: ThenKeep},
+		{
+			Table: "chat_consent",
+			Basis: "Proof of the patient's decision to let a doctor of another clinic into their conversation (GDPR Art. 7(1), Art. 9(2)(a)), kept with the clinical record like consent; needs a legal decision before production (docs/plans/chat.md, SAL-28)",
+			Then:  ThenKeep,
+		},
 	}
 }
 

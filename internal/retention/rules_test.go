@@ -268,6 +268,18 @@ func TestRules_KeepTheClinicStatisticsWithTheirSources(t *testing.T) {
 	}
 }
 
+func TestRules_KeepChatConsentsWithTheClinicalRecord(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "chat_consent" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("chat_consent then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for chat_consent")
+}
+
 // The patient history's tables (00043, ADR 0014) are kept with the clinical record: allergies and medications as
 // part of it (a patient's own unconfirmed entry is deleted when they remove it, by the service, not by this rule),
 // the history consent and its selections as proof of what was shared when (Art. 7(1)).

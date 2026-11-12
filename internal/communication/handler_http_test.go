@@ -20,6 +20,7 @@ import (
 
 // stubChats answers every call with what the test set, and keeps what it was asked.
 type stubChats struct {
+	sal30        sal30Stub // the files, searches, receipts and typing (SAL-30)
 	err          error
 	afterErr     error
 	next         *communication.ListCursor
@@ -68,8 +69,8 @@ func (s *stubChats) Messages(_ context.Context, _ communication.Caller, _ string
 	return s.page, s.err
 }
 
-func (s *stubChats) Send(_ context.Context, _ communication.Caller, _, client, body string) (communication.Message, bool, error) {
-	s.ask("send " + client + " " + body)
+func (s *stubChats) Send(_ context.Context, _ communication.Caller, _, client, body string, attachmentIDs ...string) (communication.Message, bool, error) {
+	s.ask(strings.TrimSpace("send " + client + " " + body + " " + strings.Join(attachmentIDs, ",")))
 	return s.sent, s.created, s.err
 }
 

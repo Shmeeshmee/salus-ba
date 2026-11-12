@@ -89,15 +89,27 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**register**](doc//AuthApi.md#register) | **POST** /auth/register | Register a patient account
 *AuthApi* | [**updateMe**](doc//AuthApi.md#updateme) | **PATCH** /auth/me | Choose the account's language
 *AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
+*ChatApi* | [**addConversationParticipant**](doc//ChatApi.md#addconversationparticipant) | **POST** /conversations/{id}/participants | Add a practitioner of the clinic, or invite one of another clinic (SAL-28)
+*ChatApi* | [**decideChatInvitation**](doc//ChatApi.md#decidechatinvitation) | **POST** /me/chat-invitations/{id}/decision | Grant or decline an invitation (SAL-28)
 *ChatApi* | [**editMessage**](doc//ChatApi.md#editmessage) | **PATCH** /conversations/{id}/messages/{message_id} | Edit the body of one's own text message
 *ChatApi* | [**followConversation**](doc//ChatApi.md#followconversation) | **GET** /conversations/{id}/events | The conversation's messages, live, over a WebSocket
+*ChatApi* | [**getChatAttachmentContent**](doc//ChatApi.md#getchatattachmentcontent) | **GET** /conversations/{id}/attachments/{attachment_id}/content | Download a message's file
+*ChatApi* | [**getChatAttachmentThumbnail**](doc//ChatApi.md#getchatattachmentthumbnail) | **GET** /conversations/{id}/attachments/{attachment_id}/thumbnail | Download a message's image thumbnail
 *ChatApi* | [**getConversation**](doc//ChatApi.md#getconversation) | **GET** /conversations/{id} | One conversation with its active participants
+*ChatApi* | [**listChatInvitations**](doc//ChatApi.md#listchatinvitations) | **GET** /me/chat-invitations | The patient's invitations of doctors from other clinics, pending or granted (SAL-28)
+*ChatApi* | [**listChatThreads**](doc//ChatApi.md#listchatthreads) | **GET** /conversations/{id}/threads | The side threads of the conversation the caller takes part in, newest first (SAL-28)
 *ChatApi* | [**listConversations**](doc//ChatApi.md#listconversations) | **GET** /conversations | The caller's conversations, newest activity first, with their unread counts
 *ChatApi* | [**listMessageRevisions**](doc//ChatApi.md#listmessagerevisions) | **GET** /conversations/{id}/messages/{message_id}/revisions | The earlier bodies of an edited message, oldest first
 *ChatApi* | [**listMessages**](doc//ChatApi.md#listmessages) | **GET** /conversations/{id}/messages | A page of the conversation's messages, newest first
 *ChatApi* | [**markConversationRead**](doc//ChatApi.md#markconversationread) | **PUT** /conversations/{id}/read | Move the caller's read position
+*ChatApi* | [**openChatThread**](doc//ChatApi.md#openchatthread) | **POST** /conversations/{id}/threads | Open a doctor-only side thread of the conversation (SAL-28)
 *ChatApi* | [**openConversation**](doc//ChatApi.md#openconversation) | **POST** /conversations | Open the conversation with a patient or a practitioner, or return the one there is
+*ChatApi* | [**removeConversationParticipant**](doc//ChatApi.md#removeconversationparticipant) | **DELETE** /conversations/{id}/participants/{participant_id} | Remove a practitioner, or withdraw an invitation (SAL-28)
+*ChatApi* | [**revokeChatInvitation**](doc//ChatApi.md#revokechatinvitation) | **POST** /me/chat-invitations/{id}/revoke | Revoke a granted invitation (SAL-28)
+*ChatApi* | [**searchConversation**](doc//ChatApi.md#searchconversation) | **GET** /conversations/{id}/search | Search a conversation's messages
+*ChatApi* | [**searchConversations**](doc//ChatApi.md#searchconversations) | **GET** /conversations/search | Search the caller's conversations
 *ChatApi* | [**sendMessage**](doc//ChatApi.md#sendmessage) | **POST** /conversations/{id}/messages | Send a text message
+*ChatApi* | [**uploadChatAttachment**](doc//ChatApi.md#uploadchatattachment) | **POST** /conversations/{id}/attachments | Upload a file to send in the conversation
 *ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic, or to transcription
 *ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
 *ConsentsApi* | [**revokeConsent**](doc//ConsentsApi.md#revokeconsent) | **POST** /consents/{id}/revoke | Revoke a consent
@@ -179,6 +191,7 @@ Class | Method | HTTP request | Description
  - [AcceptInviteRequest](doc//AcceptInviteRequest.md)
  - [Acceptance](doc//Acceptance.md)
  - [Account](doc//Account.md)
+ - [AddParticipantRequest](doc//AddParticipantRequest.md)
  - [AllergyCategory](doc//AllergyCategory.md)
  - [AllergyClinicalStatus](doc//AllergyClinicalStatus.md)
  - [AllergyIntoleranceInput](doc//AllergyIntoleranceInput.md)
@@ -190,12 +203,24 @@ Class | Method | HTTP request | Description
  - [AvailabilityRule](doc//AvailabilityRule.md)
  - [Binary](doc//Binary.md)
  - [BookAppointmentRequest](doc//BookAppointmentRequest.md)
+ - [ChatAttachment](doc//ChatAttachment.md)
  - [ChatCommand](doc//ChatCommand.md)
  - [ChatCommandError](doc//ChatCommandError.md)
  - [ChatCommandErrorFrame](doc//ChatCommandErrorFrame.md)
  - [ChatFrame](doc//ChatFrame.md)
+ - [ChatInvitation](doc//ChatInvitation.md)
+ - [ChatInvitationDecision](doc//ChatInvitationDecision.md)
+ - [ChatInvitationList](doc//ChatInvitationList.md)
  - [ChatMessage](doc//ChatMessage.md)
  - [ChatMessageFrame](doc//ChatMessageFrame.md)
+ - [ChatReadCommand](doc//ChatReadCommand.md)
+ - [ChatReceipt](doc//ChatReceipt.md)
+ - [ChatReceiptFrame](doc//ChatReceiptFrame.md)
+ - [ChatSearchResult](doc//ChatSearchResult.md)
+ - [ChatSearchResults](doc//ChatSearchResults.md)
+ - [ChatTyping](doc//ChatTyping.md)
+ - [ChatTypingCommand](doc//ChatTypingCommand.md)
+ - [ChatTypingFrame](doc//ChatTypingFrame.md)
  - [ClinicAppointments](doc//ClinicAppointments.md)
  - [ClinicAppointmentsHeatmapInner](doc//ClinicAppointmentsHeatmapInner.md)
  - [ClinicAppointmentsPractitionersInner](doc//ClinicAppointmentsPractitionersInner.md)

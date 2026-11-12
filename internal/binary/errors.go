@@ -33,7 +33,8 @@ var (
 	ErrTooLarge = errors.New("binary: too large")
 	// ErrResponseFull is a file that would take the response's files past MaxResponseSize (response_full).
 	ErrResponseFull = errors.New("binary: response full")
-	// ErrTooManyFiles is a file for an item that already holds its maximum (too_many_files).
+	// ErrTooManyFiles is a file for an item that already holds its maximum, or a chat file past the participant's
+	// MaxPendingChat (too_many_files).
 	ErrTooManyFiles = errors.New("binary: too many files")
 	// ErrUnsupportedType is a file whose bytes are no type the item accepts, or an MP4 with another codec
 	// (unsupported_type).

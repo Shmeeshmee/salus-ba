@@ -210,6 +210,8 @@ class ApiClient {
           return Acceptance.fromJson(value);
         case 'Account':
           return Account.fromJson(value);
+        case 'AddParticipantRequest':
+          return AddParticipantRequest.fromJson(value);
         case 'AllergyCategory':
           return AllergyCategoryTypeTransformer().decode(value);
         case 'AllergyClinicalStatus':
@@ -232,6 +234,8 @@ class ApiClient {
           return Binary.fromJson(value);
         case 'BookAppointmentRequest':
           return BookAppointmentRequest.fromJson(value);
+        case 'ChatAttachment':
+          return ChatAttachment.fromJson(value);
         case 'ChatCommand':
           return ChatCommand.fromJson(value);
         case 'ChatCommandError':
@@ -240,10 +244,32 @@ class ApiClient {
           return ChatCommandErrorFrame.fromJson(value);
         case 'ChatFrame':
           return ChatFrame.fromJson(value);
+        case 'ChatInvitation':
+          return ChatInvitation.fromJson(value);
+        case 'ChatInvitationDecision':
+          return ChatInvitationDecision.fromJson(value);
+        case 'ChatInvitationList':
+          return ChatInvitationList.fromJson(value);
         case 'ChatMessage':
           return ChatMessage.fromJson(value);
         case 'ChatMessageFrame':
           return ChatMessageFrame.fromJson(value);
+        case 'ChatReadCommand':
+          return ChatReadCommand.fromJson(value);
+        case 'ChatReceipt':
+          return ChatReceipt.fromJson(value);
+        case 'ChatReceiptFrame':
+          return ChatReceiptFrame.fromJson(value);
+        case 'ChatSearchResult':
+          return ChatSearchResult.fromJson(value);
+        case 'ChatSearchResults':
+          return ChatSearchResults.fromJson(value);
+        case 'ChatTyping':
+          return ChatTyping.fromJson(value);
+        case 'ChatTypingCommand':
+          return ChatTypingCommand.fromJson(value);
+        case 'ChatTypingFrame':
+          return ChatTypingFrame.fromJson(value);
         case 'ClinicAppointments':
           return ClinicAppointments.fromJson(value);
         case 'ClinicAppointmentsHeatmapInner':
