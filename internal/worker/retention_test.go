@@ -189,7 +189,7 @@ func TestRetentionApply_DeletesEndedSessionsAndInvitesAndLogsOnlyTablesAndCounts
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"binary 0", "invite 1", "questionnaire_response 0", "session 1", "slot 0", "video_session 0"}; !slices.Equal(audited, want) {
+	if want := []string{"binary 0", "invite 1", "questionnaire_response 0", "session 1", "slot 0", "trends_cell 0", "trends_rise 0", "video_session 0"}; !slices.Equal(audited, want) {
 		t.Errorf("audited %v, want one event per table with its row count", audited)
 	}
 }
@@ -299,7 +299,7 @@ func TestNew_HandsTheRetentionPoolToTheRetentionPurgersOnly(t *testing.T) {
 	}
 	slices.Sort(uses)
 	if want := []string{"auth.NewPostgresRepository", "binary.NewPostgresRepository", "newRetention", "questionnaireresponse.NewPostgresRepository", "slot.NewPostgresRepository",
-		"videosession.NewPostgresRepository"}; !slices.Equal(uses, want) {
+		"trends.NewPostgresRepository", "videosession.NewPostgresRepository"}; !slices.Equal(uses, want) {
 		t.Errorf("retentionPool is passed to %v, want only %v", uses, want)
 	}
 }

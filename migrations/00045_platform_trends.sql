@@ -81,4 +81,4 @@ CREATE INDEX trends_rise_created_at ON trends_rise (created_at);
 
 GRANT SELECT ON trends_period, trends_cell, trends_rise TO salus_app;
 GRANT SELECT, INSERT ON trends_period, trends_cell, trends_rise TO salus_stats;
-GRANT SELECT (created_at), DELETE ON trends_cell, trends_rise TO salus_retention;
+GRANT SELECT, DELETE ON trends_cell, trends_rise TO salus_retention;
