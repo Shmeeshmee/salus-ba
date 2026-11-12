@@ -517,3 +517,15 @@ p.hint.join { margin-bottom: 20px; }
 
 /* A diagnosis code's confirmation under its field (SAL-19). */
 .draft-field .confirm-code { display: flex; gap: 6px; align-items: center; font-weight: 400; }
+
+/* The patient's history (SAL-40): the pre-visit summary, then one line per item. */
+.history h3 { margin-top: 20px; }
+.history h4 { margin: 12px 0 4px; font-size: 14px; }
+.history ul { list-style: none; padding: 0; margin: 0; }
+.history li { padding: 6px 0; border-bottom: 1px solid var(--color-border); }
+.history-line { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.history-date { font-variant-numeric: tabular-nums; color: var(--color-text-muted); }
+.history-name { font-weight: 600; }
+.history-items li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; justify-content: space-between; }
+.history-document { width: 100%; margin: 8px 0 0; }
+.history-document dd { margin: 0 0 8px; white-space: pre-line; }

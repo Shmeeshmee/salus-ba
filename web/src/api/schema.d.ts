@@ -2857,6 +2857,8 @@ export interface components {
             /** @description The SNOMED CT code of the visit's practitioner role (`/specialties`). */
             specialty?: string;
             title?: string;
+            /** @description A signed document's diagnoses: the ICD-10 codes (http://hl7.org/fhir/sid/icd-10) of its filled coded fields. */
+            diagnoses?: string[];
             /** @description For a practitioner, a visit of another clinic the patient shared, and everything of it. */
             shared?: boolean;
         };

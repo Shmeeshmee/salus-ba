@@ -35,7 +35,8 @@ const nobody: Peer = { present: false, camera: false, microphone: false }
 // and the drafting backend (SAL-8) are wired in, the call page shows no live panels at all.
 type Consult = { live: LiveSource; actions: ConsultActions }
 
-type Props = { api: ApiClient; id: string; media?: Media; consult?: Consult }
+// history is the patient's history for a tab of the live panels (SAL-40).
+type Props = { api: ApiClient; id: string; media?: Media; consult?: Consult; history?: ReactNode }
 
 // The practitioner's own time zone, for the times of the transcript's lines.
 const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -44,7 +45,7 @@ const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
 // waiting for the patient, the call, reconnecting, and the end. The token comes from our API on every join and
 // rejoin; the server decides whether one is issued. Events of a room this screen has left are ignored
 // (generation), so a late event of an old connection changes nothing.
-export function CallScreen({ api, id, media = liveKit, consult }: Props) {
+export function CallScreen({ api, id, media = liveKit, consult, history }: Props) {
   const t = useT()
   const [phase, setPhase] = useState<Phase>({ name: 'check' })
   const [room, setRoom] = useState<Room>()
@@ -289,7 +290,7 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
           <EndConsultation patientJoined={patientJoined} onEnd={end} />
         </div>
       </div>
-      {consult && <ConsultSide appointmentId={id} state={live} dispatch={dispatch} actions={consult.actions} zone={zone} end={ended} />}
+      {consult && <ConsultSide appointmentId={id} state={live} dispatch={dispatch} actions={consult.actions} zone={zone} end={ended} history={history} />}
     </section>
   )
   // The live panels' explained terms (SAL-13): the explanations are read once the call page has them.

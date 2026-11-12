@@ -20,6 +20,7 @@ class HistoryItem {
     this.encounterId,
     this.specialty,
     this.title,
+    this.diagnoses = const [],
     this.shared,
   });
 
@@ -58,6 +59,9 @@ class HistoryItem {
   ///
   String? title;
 
+  /// A signed document's diagnoses: the ICD-10 codes (http://hl7.org/fhir/sid/icd-10) of its filled coded fields.
+  List<String> diagnoses;
+
   /// For a practitioner, a visit of another clinic the patient shared, and everything of it.
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
@@ -78,6 +82,7 @@ class HistoryItem {
           other.encounterId == encounterId &&
           other.specialty == specialty &&
           other.title == title &&
+          _deepEquality.equals(other.diagnoses, diagnoses) &&
           other.shared == shared;
 
   @override
@@ -90,11 +95,12 @@ class HistoryItem {
       (encounterId == null ? 0 : encounterId!.hashCode) +
       (specialty == null ? 0 : specialty!.hashCode) +
       (title == null ? 0 : title!.hashCode) +
+      (diagnoses.hashCode) +
       (shared == null ? 0 : shared!.hashCode);
 
   @override
   String toString() =>
-      'HistoryItem[date=$date, clinic=$clinic, type=$type, reference=$reference, encounterId=$encounterId, specialty=$specialty, title=$title, shared=$shared]';
+      'HistoryItem[date=$date, clinic=$clinic, type=$type, reference=$reference, encounterId=$encounterId, specialty=$specialty, title=$title, diagnoses=$diagnoses, shared=$shared]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -117,6 +123,7 @@ class HistoryItem {
     } else {
       json[r'title'] = null;
     }
+    json[r'diagnoses'] = this.diagnoses;
     if (this.shared != null) {
       json[r'shared'] = this.shared;
     } else {
@@ -163,6 +170,11 @@ class HistoryItem {
         encounterId: mapValueOfType<String>(json, r'encounterId'),
         specialty: mapValueOfType<String>(json, r'specialty'),
         title: mapValueOfType<String>(json, r'title'),
+        diagnoses: json[r'diagnoses'] is Iterable
+            ? (json[r'diagnoses'] as Iterable)
+                .cast<String>()
+                .toList(growable: false)
+            : const [],
         shared: mapValueOfType<bool>(json, r'shared'),
       );
     }

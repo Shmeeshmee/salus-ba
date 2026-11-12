@@ -32,6 +32,7 @@ export default defineConfig({
       '/drafts': apiUrl,
       '/compositions': apiUrl, // a document's explained terms (SAL-13); no screen is under it
       '/places': apiUrl, // the places of a clinic's location (SAL-19); no screen is under it
+      '/patients': apiUrl, // a patient's history and pre-visit summary (SAL-40); no screen is under it
     },
   },
   test: {

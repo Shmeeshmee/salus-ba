@@ -353,3 +353,34 @@ describe('ConsultPanels: explained terms', () => {
     expect(tip.textContent).toContain('Informational, not a diagnosis · Not reviewed yet')
   })
 })
+
+describe('ConsultPanels: history', () => {
+  function Probe({ mounted }: { mounted: () => void }) {
+    mounted()
+    return <p>Placeholder history</p>
+  }
+
+  function SideWithHistory({ mounted }: { mounted: () => void }) {
+    const fake = fakeLive()
+    const [state, dispatch] = useConsult(fake.live, id, true)
+    return <ConsultSide appointmentId={id} state={state} dispatch={dispatch} actions={fakeActions().actions} zone={zone} history={<Probe mounted={mounted} />} />
+  }
+
+  it("has the patient's history as a tab, read only once it is opened", () => {
+    const mounted = vi.fn()
+    renderInLanguage(<SideWithHistory mounted={mounted} />, 'en')
+    expect(mounted).not.toHaveBeenCalled()
+    expect(screen.queryByText('Placeholder history')).toBeNull()
+
+    fireEvent.click(tab('History'))
+    expect(screen.getByText('Placeholder history')).toBeTruthy()
+    fireEvent.click(tab('Transcript'))
+    fireEvent.click(tab('History'))
+    expect(screen.getByText('Placeholder history')).toBeTruthy()
+  })
+
+  it('has no history tab without one', () => {
+    renderPanels()
+    expect(screen.queryByRole('tab', { name: 'History' })).toBeNull()
+  })
+})

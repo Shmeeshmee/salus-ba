@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type KeyboardEvent, type ReactNode } from 'react'
 import type { ConsultActions, ConsultMessage, ConsultState, End, SuggestionEvent, TranscriptEvent } from './consult'
 import { Documents } from './Documents'
 import { useFormat, useT } from './i18n/useT'
@@ -54,7 +54,7 @@ export function Captions({ caption }: { caption?: TranscriptEvent }) {
   )
 }
 
-type Tab = 'transcript' | 'suggestions' | 'documents'
+type Tab = 'transcript' | 'suggestions' | 'documents' | 'history'
 
 type SideProps = {
   appointmentId: string
@@ -63,19 +63,29 @@ type SideProps = {
   actions: ConsultActions
   zone: string
   end?: End
+  // history is the patient's history (SAL-40), a tab of its own when given; it is mounted, and so read and
+  // audited, only once the practitioner opens it.
+  history?: ReactNode
 }
 
 // ConsultSide is the panel beside the video. A suggestion's or a field's sources open the transcript at
 // those lines, highlighted. Every tab stays mounted, so the transcript keeps its scroll while hidden.
-export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end }: SideProps) {
+export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end, history }: SideProps) {
   const t = useT()
   const { number } = useFormat()
   const id = useId()
   const [tab, setTab] = useState<Tab>('transcript')
   const [cited, setCited] = useState<{ ids: string[]; at: number }>({ ids: [], at: 0 })
   const active = state.suggestions.filter((s) => s.status !== 'dismissed').length
-  const tabs: Tab[] = ['transcript', 'suggestions', 'documents']
-  const label = { transcript: 'tabTranscript', suggestions: 'tabSuggestions', documents: 'tabDocuments' } as const
+  const tabs: Tab[] = history ? ['transcript', 'suggestions', 'documents', 'history'] : ['transcript', 'suggestions', 'documents']
+  const label = {
+    transcript: 'consultation.live.tabTranscript',
+    suggestions: 'consultation.live.tabSuggestions',
+    documents: 'consultation.live.tabDocuments',
+    history: 'history.tab',
+  } as const
+  const [historyOpened, setHistoryOpened] = useState(false)
+  if (tab === 'history' && !historyOpened) setHistoryOpened(true)
 
   function show(ids: string[]) {
     setTab('transcript')
@@ -115,7 +125,7 @@ export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end
             tabIndex={tab === name ? 0 : -1}
             onClick={() => setTab(name)}
           >
-            {t(`consultation.live.${label[name]}`)}
+            {t(label[name])}
             {name === 'suggestions' && active > 0 && (
               <>
                 {' '}
@@ -134,6 +144,11 @@ export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end
       <div className="side-panel" role="tabpanel" id={`${id}-documents`} aria-labelledby={`${id}-documents-tab`} hidden={tab !== 'documents'}>
         <Documents appointmentId={appointmentId} drafts={state.drafts} dispatch={dispatch} actions={actions} onSources={show} />
       </div>
+      {history && (
+        <div className="side-panel" role="tabpanel" id={`${id}-history`} aria-labelledby={`${id}-history-tab`} hidden={tab !== 'history'}>
+          {historyOpened && history}
+        </div>
+      )}
     </aside>
   )
 }
