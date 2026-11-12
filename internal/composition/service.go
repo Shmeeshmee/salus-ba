@@ -10,6 +10,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/condition"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/transcript"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -40,6 +41,11 @@ type Transcripts interface {
 	Export(ctx context.Context, c appointment.Caller, encounterID string) ([]transcript.Event, error)
 }
 
+// Conditions records the diagnoses of a signed document in the signing transaction (condition.Service).
+type Conditions interface {
+	Record(ctx context.Context, cs []condition.Condition) error
+}
+
 // Ports are the Service's dependencies.
 type Ports struct {
 	Repo        Repository
@@ -49,6 +55,7 @@ type Ports struct {
 	Store       Store
 	Publisher   Publisher
 	Jobs        Jobs
+	Conditions  Conditions
 	Audit       Auditor
 	Tx          Transactor
 	Clock       clock.Clock

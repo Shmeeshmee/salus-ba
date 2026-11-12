@@ -711,3 +711,76 @@ func TestLoadChatSummary_IsTheFakeAndRefusesARealEngineWithoutEchoingIt(t *testi
 		}
 	}
 }
+func TestLoadStats_ReadsTheStatsRolesCredentials(t *testing.T) {
+	t.Setenv("STATS_DATABASE_URL", "postgres://salus_stats:synthetic@localhost/test")
+	t.Setenv("STATS_DATABASE_PASSWORD", "synthetic")
+
+	s := config.LoadStats()
+
+	if s.DatabaseURL != "postgres://salus_stats:synthetic@localhost/test" || s.Password != "synthetic" {
+		t.Error("LoadStats() does not read STATS_DATABASE_URL and STATS_DATABASE_PASSWORD")
+	}
+}
+
+// The binaries that do not build aggregates load only Load's configuration: with the stats credentials in the
+// environment, none of them reaches what they load.
+func TestLoad_NeverReadsTheStatsRolesCredentials(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+	t.Setenv("STATS_DATABASE_URL", "postgres://salus_stats:stats-url-marker@localhost/test")
+	t.Setenv("STATS_DATABASE_PASSWORD", "stats-password-marker")
+
+	cfg, err := config.Load()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprintf("%#v", cfg); strings.Contains(got, "stats-url-marker") || strings.Contains(got, "stats-password-marker") {
+		t.Errorf("Load() holds the stats credentials: %s", got)
+	}
+}
+
+// Only cmd/migrate (to set the role's password) calls LoadStats until the aggregate builds land in cmd/worker
+// (docs/plans/analytics.md, ANA-2 and ANA-3), and no other Go file reads the variables.
+func TestLoadStats_IsCalledOnlyByMigrate(t *testing.T) {
+	callers, readers := goFilesContaining(t, "config.LoadStats(", `Getenv("STATS_DATABASE_`)
+	if want := []string{"cmd/migrate/main.go"}; !slices.Equal(callers, want) {
+		t.Errorf("LoadStats is called by %v, want %v", callers, want)
+	}
+	if want := []string{"internal/config/config.go"}; !slices.Equal(readers, want) {
+		t.Errorf("the stats variables are named in %v, want only %v", readers, want)
+	}
+}
+
+// goFilesContaining returns the repository's non-test Go files (outside tools/) that contain call, and those
+// that contain read, as slash paths from the root.
+func goFilesContaining(t *testing.T, call, read string) (callers, readers []string) {
+	t.Helper()
+	root := filepath.Join("..", "..")
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && (d.Name() == "node_modules" || d.Name() == ".git" || d.Name() == "tools") {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(root, path)
+		if strings.Contains(string(src), call) {
+			callers = append(callers, filepath.ToSlash(rel))
+		}
+		if strings.Contains(string(src), read) {
+			readers = append(readers, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return callers, readers
+}

@@ -13,6 +13,9 @@ type Repository interface {
 	SetPatient(ctx context.Context, id string) error
 	SetClinic(ctx context.Context, id string) error
 	SetConversation(ctx context.Context, id string) error
+	// SetPractitionerRole sets app.practitioner_role_id, the signed-in practitioner's role: as a doctor invited from
+	// another clinic, they see the conversations they were granted (00044).
+	SetPractitionerRole(ctx context.Context, id string) error
 
 	// CreateConversation stores c with its participants unless the patient, role and encounter have their one
 	// conversation already; it returns the stored conversation (with its participants) and whether it is new.
@@ -48,9 +51,52 @@ type Repository interface {
 	UpdateBody(ctx context.Context, m Message) error
 	// Revisions returns the earlier bodies of the message, oldest first.
 	Revisions(ctx context.Context, conversationID, id string) ([]Revision, error)
+	// Participant returns the participant id, pending or active, where the scope shows its conversation;
+	// ErrNotFound otherwise.
+	Participant(ctx context.Context, id string) (Participant, error)
+	// InsertParticipant stores p, who has read the history before them (read_seq is their history_from_seq), and
+	// returns it with its id.
+	InsertParticipant(ctx context.Context, p Participant) (Participant, error)
+	// ActivateParticipant makes the pending participant id active; ErrNotFound when it is not pending or not there.
+	ActivateParticipant(ctx context.Context, id string) error
+	// RemoveParticipant ends the participant id at at; a practitioner leaves the conversation's side threads with it.
+	// ErrNotFound when it was removed already.
+	RemoveParticipant(ctx context.Context, id string, at time.Time) error
+	// CreateThread stores the side thread c of its parent with its participants and returns it with them.
+	CreateThread(ctx context.Context, c Conversation, participants []Participant) (Conversation, error)
+	// Threads returns the side threads of the conversation the practitioner role takes part in, with that
+	// participant's unread count, newest first.
+	Threads(ctx context.Context, parentID, roleID string) ([]Conversation, error)
+	// Invitations returns the patient's invitations of doctors from other clinics of status (pending or granted),
+	// oldest first.
+	Invitations(ctx context.Context, patientID string, status ParticipantStatus) ([]Invitation, error)
 	// AddPartitions creates the monthly partitions of the messages from the month of from for months months,
 	// skipping those that exist (communication_add_partitions).
 	AddPartitions(ctx context.Context, from time.Time, months int) error
+
+	// SetSearchRole scopes the transaction, already scoped to the practitioner's clinic and role, to the messages of
+	// the conversations the role reads, for a search across them (app.chat_practitioner_role_id, migration 00045):
+	// those of the conversations the role is an active participant of, after its history_from_seq, while the care
+	// consent is active and, for a doctor of another clinic, their chat consent; and their files. Read only.
+	SetSearchRole(ctx context.Context, id string) error
+	// SearchConversation returns up to limit of the conversation's messages of numbers above fromSeq whose body
+	// matches query (a to_tsquery of chat_search), newest first.
+	SearchConversation(ctx context.Context, conversationID, query string, fromSeq int64, limit int) ([]Message, error)
+	// Search returns up to limit of the messages the scope shows whose body matches query, newest first.
+	Search(ctx context.Context, query string, limit int) ([]Message, error)
+}
+
+// Presence holds what the conversation's participants show each other live and nobody stores (owner, 2026-11-12;
+// SAL-30): in Redis, every key with a TTL.
+type Presence interface {
+	// AllowTyping reports whether the participant may announce typing now: at most once per TypingEvery.
+	AllowTyping(ctx context.Context, conversationID, participantID string) (bool, error)
+	// SetReceipt keeps how far the participant has read, never lower than before, for ReceiptTTL from now: each
+	// participant's receipt has its own TTL.
+	SetReceipt(ctx context.Context, conversationID, participantID string, seq int64) error
+	// Receipts returns how far each of the participants has read, as kept, by participant id; none for one whose
+	// receipt has expired or was never kept.
+	Receipts(ctx context.Context, conversationID string, participantIDs []string) (map[string]int64, error)
 }
 
 // ListFilter selects the caller's conversations: by PatientID for a patient, by PractitionerRoleID for a

@@ -32,4 +32,13 @@ type Repository interface {
 	// State returns whether the patient has an active care consent with the clinic, when the latest one was
 	// revoked, and whether their transcription consent there is active, as the transaction's scope shows them.
 	State(ctx context.Context, patientID, organizationID string) (access.Consent, error)
+
+	// GrantChat stores the patient's active chat consent for g, granted at, and returns it; an error when one for the
+	// conversation and role is active already (a unique violation, which aborts the transaction).
+	GrantChat(ctx context.Context, patientID string, g ChatGrant, at time.Time) (Consent, error)
+	// RevokeChat makes the active chat consent for the conversation and role inactive, revoked at, and returns it;
+	// ErrInactive when there is none in the scope.
+	RevokeChat(ctx context.Context, conversationID, roleID string, at time.Time) (Consent, error)
+	// ChatGranted reports whether the scope shows an active chat consent for the conversation and role.
+	ChatGranted(ctx context.Context, conversationID, roleID string) (bool, error)
 }

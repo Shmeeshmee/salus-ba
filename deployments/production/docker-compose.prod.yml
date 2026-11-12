@@ -111,6 +111,7 @@ services:
       DATABASE_URL: postgres://salus:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/salus?sslmode=disable
       APP_DATABASE_PASSWORD: ${APP_DATABASE_PASSWORD}
       RETENTION_DATABASE_PASSWORD: ${RETENTION_DATABASE_PASSWORD:?RETENTION_DATABASE_PASSWORD is required}
+      STATS_DATABASE_PASSWORD: ${STATS_DATABASE_PASSWORD:?STATS_DATABASE_PASSWORD is required}
     restart: "no"
     depends_on:
       postgres: {condition: service_healthy}
@@ -151,6 +152,9 @@ services:
       CLAMD_ADDR: clamd:3310
       # The retention_apply job's own login (BYPASSRLS, delete on the tables whose rule is delete). Only here.
       RETENTION_DATABASE_URL: postgres://salus_retention:${RETENTION_DATABASE_PASSWORD}@postgres:5432/salus?sslmode=disable
+      # The Go runtime's soft memory limit, under mem_limit: the collector works harder before the kernel would kill
+      # the worker mid-scan (a chat image's decode takes up to 192 MiB, one at a time; docs/plans/chat.PROGRESS.md).
+      GOMEMLIMIT: ${SALUS_WORKER_GOMEMLIMIT:-640MiB}
     secrets: [binary_kek]
     depends_on:
       <<: *app-deps

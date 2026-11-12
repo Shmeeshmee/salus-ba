@@ -9,6 +9,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -46,20 +47,45 @@ type Encounters interface {
 	Lookup(ctx context.Context, id string) (encounter.Encounter, error)
 }
 
+// ChatConsents grants, revokes and checks the patient's consents for doctors of other clinics in their
+// conversations (consent.Service, SAL-28), in the caller's transaction and scope; the clinic ends one when it removes
+// the doctor (EndChat).
+type ChatConsents interface {
+	GrantChat(ctx context.Context, c consent.Caller, g consent.ChatGrant) (consent.Consent, error)
+	RevokeChat(ctx context.Context, c consent.Caller, conversationID, roleID string) (consent.Consent, error)
+	EndChat(ctx context.Context, c consent.Caller, conversationID, roleID string) (consent.Consent, error)
+	ChatGranted(ctx context.Context, conversationID, roleID string) (bool, error)
+}
+
+// Directory gives the practitioner roles a doctor may add (practitionerrole.Service): a role of their own clinic,
+// and the public directory of another.
+type Directory interface {
+	Lookup(ctx context.Context, org, id string) (practitionerrole.PractitionerRole, error)
+	PublicByOrganization(ctx context.Context, org string) ([]practitionerrole.PractitionerRole, error)
+}
+
 // Ports are the Service's dependencies.
 type Ports struct {
-	Repo       Repository
-	Publisher  Publisher
-	Consents   Consents
-	Visits     Visits
-	Roles      Roles
-	Encounters Encounters
-	Audit      Auditor
-	Tx         Transactor
-	Clock      clock.Clock
+	Repo         Repository
+	Publisher    Publisher
+	Consents     Consents
+	Visits       Visits
+	Roles        Roles
+	Encounters   Encounters
+	ChatConsents ChatConsents
+	Directory    Directory
+	Audit        Auditor
+	Tx           Transactor
+	Clock        clock.Clock
 	// Summarizer writes the AI summary of a long conversation (SAL-31): the fake, config.LoadChatSummary.
 	Summarizer llm.Summarizer
 	Log        *slog.Logger
+	// SAL-30: the messages' files (nil: a send with files fails), the terms' tagging (nil: no terms) in the caller's
+	// language (nil: English), and the receipts' and typing's Redis (nil: none).
+	Files     Files
+	Terms     Tagger
+	Languages Languages
+	Presence  Presence
 }
 
 // Service holds the chat's rules (docs/plans/chat.md "Decisions"): who opens a conversation (access.OpensChat),
@@ -103,15 +129,35 @@ func (s *Service) identify(ctx context.Context, c Caller) (who, error) {
 	case err != nil:
 		return who{}, err
 	}
+	if err := s.Repo.SetPractitionerRole(ctx, role.ID); err != nil {
+		return who{}, err
+	}
 	return who{viewer: access.Viewer{Role: access.RolePractitioner, Clinic: c.OrganizationID, PractitionerRole: role.ID}, role: role.ID}, nil
 }
 
-// entered is a conversation the caller has entered: who they are, their participant row, and the patient's facts.
+// entered is a conversation the caller has entered: who they are, their participant row, and the patient's facts;
+// in is whether they take part (an active participant), granted whether they are a doctor of another clinic whose
+// invitation the patient granted (SAL-28).
 type entered struct {
-	who   who
-	facts access.Facts
-	part  Participant
-	conv  Conversation
+	who     who
+	facts   access.Facts
+	part    Participant
+	conv    Conversation
+	in      bool
+	granted bool
+}
+
+// guest reports whether the caller is a practitioner of another clinic than the conversation's.
+func (e entered) guest() bool {
+	return !e.who.patient() && e.who.viewer.Clinic != e.conv.OrganizationID
+}
+
+// root is the conversation a side thread belongs to, or the conversation itself.
+func root(c Conversation) string {
+	if c.ParentID != "" {
+		return c.ParentID
+	}
+	return c.ID
 }
 
 // fromSeq is the number after which the caller reads (their history_from_seq).
@@ -143,12 +189,20 @@ func (s *Service) enter(ctx context.Context, c Caller, id string, write, lock bo
 	if err != nil {
 		return entered{}, err
 	}
-	e := entered{conv: conv, part: part, who: w, facts: access.Facts{Patient: conv.PatientID, Clinic: conv.OrganizationID, Consent: state}}
+	e := entered{conv: conv, part: part, who: w, in: in, facts: access.Facts{Patient: conv.PatientID, Clinic: conv.OrganizationID, Consent: state}}
+	if e.guest() && in {
+		if e.granted, err = s.ChatConsents.ChatGranted(ctx, root(conv), w.role); err != nil {
+			return entered{}, err
+		}
+	}
 	allowed := access.ReadsChat(w.viewer, e.facts, in)
 	if write {
 		allowed = access.WritesChat(w.viewer, e.facts, in)
 	}
+	allowed = allowed || access.GuestChat(w.viewer, e.facts, e.granted)
 	switch {
+	case !allowed && e.guest():
+		return entered{}, ErrNotFound // a doctor of another clinic learns nothing they were not granted
 	case !allowed && !state.Active && w.patient():
 		return entered{}, ErrConsentRequired
 	case !allowed && !state.Active:
@@ -159,9 +213,13 @@ func (s *Service) enter(ctx context.Context, c Caller, id string, write, lock bo
 	return e, s.Repo.SetConversation(ctx, id)
 }
 
-// participantOf is the caller's active participant row, and whether they have one.
+// participantOf is the caller's active participant row, and whether they have one; an invitation waiting for the
+// patient's consent is none.
 func participantOf(parts []Participant, w who) (Participant, bool) {
 	for _, p := range parts {
+		if p.Status != StatusActive {
+			continue
+		}
 		if (w.patient() && p.Role == RolePatient && p.PatientID == w.viewer.Patient) ||
 			(!w.patient() && p.Role == RolePractitioner && p.PractitionerRoleID == w.role) {
 			return p, true

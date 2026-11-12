@@ -461,3 +461,44 @@ func TestChat_OverEveryRoleConsentAppointmentClinicAndParticipation(t *testing.T
 		}
 	})
 }
+
+// The group consult's rules (docs/plans/chat.md, SAL-28), over every combination. A practitioner of another clinic
+// (a guest: the viewer's clinic is not the facts' one) reads and writes only as a participant the patient granted,
+// while the care consent with the treating clinic is active; nobody of the treating clinic is a guest. Only the
+// treating practitioner adds and removes, while they may write. A side thread is opened by a practitioner who may
+// write in its conversation, or a granted guest; never by the patient or an admin. The patient grants a guest only
+// with the active care consent.
+func TestGroupChat_OverEveryRoleConsentClinicAndParticipation(t *testing.T) {
+	each(func(key string, v access.Viewer, f access.Facts) {
+		parts := strings.Split(key, "/")
+		viewer, consent, clinic := parts[0], parts[1], parts[3]
+		active := consent == "active"
+		staff := viewer == "practitioner" && clinic == "match"
+		guest := viewer == "practitioner" && clinic == "other clinic"
+
+		for _, granted := range []bool{true, false} {
+			if got, want := access.GuestChat(v, f, granted), guest && granted && active; got != want {
+				t.Errorf("GuestChat %s granted=%v = %v, want %v", key, granted, got, want)
+			}
+			for _, participant := range []bool{true, false} {
+				want := (staff && participant && active) || (guest && granted && active)
+				if got := access.OpensChatThread(v, f, participant, granted); got != want {
+					t.Errorf("OpensChatThread %s participant=%v granted=%v = %v, want %v", key, participant, granted, got, want)
+				}
+			}
+		}
+		if got, want := access.ManagesChat(v, f, roleA1), staff && active; got != want {
+			t.Errorf("ManagesChat %s as the treating practitioner = %v, want %v", key, got, want)
+		}
+		if access.ManagesChat(v, f, roleA2) {
+			t.Errorf("ManagesChat %s of another practitioner's conversation: true, want false", key)
+		}
+		if got, want := access.GrantsChatGuest(v, f), viewer == "patient" && active; got != want {
+			t.Errorf("GrantsChatGuest %s = %v, want %v", key, got, want)
+		}
+	})
+	noRole := access.Viewer{Role: access.RolePractitioner, Clinic: clinicA}
+	if access.GuestChat(noRole, access.Facts{Patient: patientA, Clinic: clinicB, Consent: access.Consent{Active: true}}, true) {
+		t.Error("GuestChat for staff without a role: true, want false")
+	}
+}

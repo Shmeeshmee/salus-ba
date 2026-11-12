@@ -15,6 +15,175 @@ class ChatApi {
 
   final ApiClient apiClient;
 
+  /// Add a practitioner of the clinic, or invite one of another clinic (SAL-28)
+  ///
+  /// The conversation's treating practitioner only, while they may write in it; never into a side thread. A role of the clinic, active, is added at once (`status` `active`); a role of another clinic in the public directory is invited (`pending_consent`) and sees nothing of the conversation, its participants, messages or side threads until the patient grants it (`POST /me/chat-invitations/{id}/decision`). `history` `full` gives the whole history, `from` the messages after `from_seq` (at most the conversation's `last_seq`). The conversation gets the system message `participant_added` or `participant_invited` (`practitioner_role_id`, `organization_id`, `reason`), on the socket like any message. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [AddParticipantRequest] addParticipantRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> addConversationParticipantWithHttpInfo(
+    String id,
+    AddParticipantRequest addParticipantRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/conversations/{id}/participants'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody = addParticipantRequest;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Add a practitioner of the clinic, or invite one of another clinic (SAL-28)
+  ///
+  /// The conversation's treating practitioner only, while they may write in it; never into a side thread. A role of the clinic, active, is added at once (`status` `active`); a role of another clinic in the public directory is invited (`pending_consent`) and sees nothing of the conversation, its participants, messages or side threads until the patient grants it (`POST /me/chat-invitations/{id}/decision`). `history` `full` gives the whole history, `from` the messages after `from_seq` (at most the conversation's `last_seq`). The conversation gets the system message `participant_added` or `participant_invited` (`practitioner_role_id`, `organization_id`, `reason`), on the socket like any message. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [AddParticipantRequest] addParticipantRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<ConversationParticipant?> addConversationParticipant(
+    String id,
+    AddParticipantRequest addParticipantRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await addConversationParticipantWithHttpInfo(
+      id,
+      addParticipantRequest,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ConversationParticipant',
+      ) as ConversationParticipant;
+    }
+    return null;
+  }
+
+  /// Grant or decline an invitation (SAL-28)
+  ///
+  /// The patient's decision. `grant` records their FHIR Consent for that conversation and that practitioner role (revocable), needs their active care consent with the clinic (403 `consent_required` otherwise) and makes the doctor an active participant; `decline` ends the invitation. System message `consent_granted` or `consent_declined` (`practitioner_role_id`). Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The invitation's id (the invited participant's).
+  ///
+  /// * [ChatInvitationDecision] chatInvitationDecision (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> decideChatInvitationWithHttpInfo(
+    String id,
+    ChatInvitationDecision chatInvitationDecision, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/me/chat-invitations/{id}/decision'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody = chatInvitationDecision;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Grant or decline an invitation (SAL-28)
+  ///
+  /// The patient's decision. `grant` records their FHIR Consent for that conversation and that practitioner role (revocable), needs their active care consent with the clinic (403 `consent_required` otherwise) and makes the doctor an active participant; `decline` ends the invitation. System message `consent_granted` or `consent_declined` (`practitioner_role_id`). Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The invitation's id (the invited participant's).
+  ///
+  /// * [ChatInvitationDecision] chatInvitationDecision (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<void> decideChatInvitation(
+    String id,
+    ChatInvitationDecision chatInvitationDecision, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await decideChatInvitationWithHttpInfo(
+      id,
+      chatInvitationDecision,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+  }
+
   /// Edit the body of one's own text message
   ///
   /// `If-Match` is the message's version (its ETag). The earlier body is kept (`.../revisions`); the edit goes to every open socket as `message_edited`. Audited.
@@ -126,7 +295,7 @@ class ChatApi {
 
   /// The conversation's messages, live, over a WebSocket
   ///
-  /// A WebSocket (RFC 6455) upgrade (ADR 0012). Every message after `after` is replayed from the record, in order, then the live ones follow as `message` frames, and edits as `message_edited` (`ChatFrame`); a client drops a message whose `seq` it has. Without `after`, only messages sent from now on. The handshake must come from the API's own origin, or carry no Origin (the mobile app, with its bearer token). Access is checked again at least every 5 seconds, the session too: when it ends the socket closes with 4401 `unauthenticated` (a logout, a revoked or expired session), 4403 `consent_required` or `forbidden`, or 4404 `not_found` (staff after the patient's revocation); 1011 on a server error. The subscription is audited. The client may send `send` frames (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of the JSON API, or `rate_limited` past five at once and one every 200 ms. Pass the conversation's or the last message's `cursor` as `after`.
+  /// A WebSocket (RFC 6455) upgrade (ADR 0012). Every message after `after` is replayed from the record, in order, then the live ones follow as `message` frames, and edits as `message_edited` (`ChatFrame`); a client drops a message whose `seq` it has. Without `after`, only messages sent from now on. The handshake must come from the API's own origin, or carry no Origin (the mobile app, with its bearer token). Access is checked again at least every 5 seconds, the session too: when it ends the socket closes with 4401 `unauthenticated` (a logout, a revoked or expired session), 4403 `consent_required` or `forbidden`, or 4404 `not_found` (staff after the patient's revocation); 1011 on a server error. The subscription is audited. The client may send `send` frames (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of the JSON API, or `rate_limited` past five at once and one every 200 ms. Pass the conversation's or the last message's `cursor` as `after`. Receipts and typing (SAL-30), ephemeral: once replayed, the socket sends a `receipt` frame per participant who has read (as kept for 7 days), then the others' `receipt` and `typing` frames as they come; a client drops its own. The client's `read` frame (`ChatReadCommand`) moves its read position as `markConversationRead` does and counts against the same limit as `send`; its `typing` frame (`ChatTypingCommand`) goes out at most once a second; neither is answered unless refused. An app shows a participant typing for 5 seconds after their last `typing` frame. Message frames carry their `attachments` but no `terms` (the JSON API's reads do).
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -172,7 +341,7 @@ class ChatApi {
 
   /// The conversation's messages, live, over a WebSocket
   ///
-  /// A WebSocket (RFC 6455) upgrade (ADR 0012). Every message after `after` is replayed from the record, in order, then the live ones follow as `message` frames, and edits as `message_edited` (`ChatFrame`); a client drops a message whose `seq` it has. Without `after`, only messages sent from now on. The handshake must come from the API's own origin, or carry no Origin (the mobile app, with its bearer token). Access is checked again at least every 5 seconds, the session too: when it ends the socket closes with 4401 `unauthenticated` (a logout, a revoked or expired session), 4403 `consent_required` or `forbidden`, or 4404 `not_found` (staff after the patient's revocation); 1011 on a server error. The subscription is audited. The client may send `send` frames (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of the JSON API, or `rate_limited` past five at once and one every 200 ms. Pass the conversation's or the last message's `cursor` as `after`.
+  /// A WebSocket (RFC 6455) upgrade (ADR 0012). Every message after `after` is replayed from the record, in order, then the live ones follow as `message` frames, and edits as `message_edited` (`ChatFrame`); a client drops a message whose `seq` it has. Without `after`, only messages sent from now on. The handshake must come from the API's own origin, or carry no Origin (the mobile app, with its bearer token). Access is checked again at least every 5 seconds, the session too: when it ends the socket closes with 4401 `unauthenticated` (a logout, a revoked or expired session), 4403 `consent_required` or `forbidden`, or 4404 `not_found` (staff after the patient's revocation); 1011 on a server error. The subscription is audited. The client may send `send` frames (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of the JSON API, or `rate_limited` past five at once and one every 200 ms. Pass the conversation's or the last message's `cursor` as `after`. Receipts and typing (SAL-30), ephemeral: once replayed, the socket sends a `receipt` frame per participant who has read (as kept for 7 days), then the others' `receipt` and `typing` frames as they come; a client drops its own. The client's `read` frame (`ChatReadCommand`) moves its read position as `markConversationRead` does and counts against the same limit as `send`; its `typing` frame (`ChatTypingCommand`) goes out at most once a second; neither is answered unless refused. An app shows a participant typing for 5 seconds after their last `typing` frame. Message frames carry their `attachments` but no `terms` (the JSON API's reads do).
   ///
   /// Parameters:
   ///
@@ -194,6 +363,177 @@ class ChatApi {
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
+  }
+
+  /// Download a message's file
+  ///
+  /// The file's bytes, decrypted, once the scan says it is `clean`, for whoever may read its message (a participant who joined later only from their starting point; staff never after the patient's revocation), or, before it is sent, for its uploader. One `Range` gives 206 with that part. Shown inline, never sniffed, never cached. Every request is audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [String] attachmentId (required):
+  ///
+  /// * [String] range:
+  ///   One byte range, `bytes=<first>-<last>`, `bytes=<first>-` or `bytes=-<suffix length>`.
+  Future<Response> getChatAttachmentContentWithHttpInfo(
+    String id,
+    String attachmentId, {
+    String? range,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/conversations/{id}/attachments/{attachment_id}/content'
+        .replaceAll('{id}', id)
+        .replaceAll('{attachment_id}', attachmentId);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (range != null) {
+      headerParams[r'Range'] = parameterToString(range);
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Download a message's file
+  ///
+  /// The file's bytes, decrypted, once the scan says it is `clean`, for whoever may read its message (a participant who joined later only from their starting point; staff never after the patient's revocation), or, before it is sent, for its uploader. One `Range` gives 206 with that part. Shown inline, never sniffed, never cached. Every request is audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [String] attachmentId (required):
+  ///
+  /// * [String] range:
+  ///   One byte range, `bytes=<first>-<last>`, `bytes=<first>-` or `bytes=-<suffix length>`.
+  Future<MultipartFile?> getChatAttachmentContent(
+    String id,
+    String attachmentId, {
+    String? range,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getChatAttachmentContentWithHttpInfo(
+      id,
+      attachmentId,
+      range: range,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'MultipartFile',
+      ) as MultipartFile;
+    }
+    return null;
+  }
+
+  /// Download a message's image thumbnail
+  ///
+  /// A JPEG of at most 320 pixels a side, made by the server from the clean image (`thumbnail` true on the attachment); none for a PDF (404). Read as the file is, audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [String] attachmentId (required):
+  Future<Response> getChatAttachmentThumbnailWithHttpInfo(
+    String id,
+    String attachmentId, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/conversations/{id}/attachments/{attachment_id}/thumbnail'
+        .replaceAll('{id}', id)
+        .replaceAll('{attachment_id}', attachmentId);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Download a message's image thumbnail
+  ///
+  /// A JPEG of at most 320 pixels a side, made by the server from the clean image (`thumbnail` true on the attachment); none for a PDF (404). Read as the file is, audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [String] attachmentId (required):
+  Future<MultipartFile?> getChatAttachmentThumbnail(
+    String id,
+    String attachmentId, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getChatAttachmentThumbnailWithHttpInfo(
+      id,
+      attachmentId,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'MultipartFile',
+      ) as MultipartFile;
+    }
+    return null;
   }
 
   /// One conversation with its active participants
@@ -258,6 +598,150 @@ class ChatApi {
         await _decodeBodyBytes(response),
         'Conversation',
       ) as Conversation;
+    }
+    return null;
+  }
+
+  /// The patient's invitations of doctors from other clinics, pending or granted (SAL-28)
+  ///
+  /// Oldest first: the pending invitations (`status` `pending_consent`, the default), or the granted ones (`status` `active`), whose `id` `POST /me/chat-invitations/{id}/revoke` takes, so a consent is withdrawn as easily as it was given (GDPR Art. 7(3)). A doctor of the conversation's own clinic is never one. The patient only (403 to staff). Audited as one search.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] status:
+  ///   Which invitations; `pending_consent` when absent.
+  Future<Response> listChatInvitationsWithHttpInfo({
+    String? status,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/me/chat-invitations';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (status != null) {
+      queryParams.addAll(_queryParams('', 'status', status));
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The patient's invitations of doctors from other clinics, pending or granted (SAL-28)
+  ///
+  /// Oldest first: the pending invitations (`status` `pending_consent`, the default), or the granted ones (`status` `active`), whose `id` `POST /me/chat-invitations/{id}/revoke` takes, so a consent is withdrawn as easily as it was given (GDPR Art. 7(3)). A doctor of the conversation's own clinic is never one. The patient only (403 to staff). Audited as one search.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] status:
+  ///   Which invitations; `pending_consent` when absent.
+  Future<ChatInvitationList?> listChatInvitations({
+    String? status,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await listChatInvitationsWithHttpInfo(
+      status: status,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ChatInvitationList',
+      ) as ChatInvitationList;
+    }
+    return null;
+  }
+
+  /// The side threads of the conversation the caller takes part in, newest first (SAL-28)
+  ///
+  /// For the practitioners of `POST`; never the patient (403). With the caller's unread counts. Audited as one search.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  Future<Response> listChatThreadsWithHttpInfo(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/conversations/{id}/threads'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The side threads of the conversation the caller takes part in, newest first (SAL-28)
+  ///
+  /// For the practitioners of `POST`; never the patient (403). With the caller's unread counts. Audited as one search.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  Future<ConversationList?> listChatThreads(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await listChatThreadsWithHttpInfo(
+      id,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ConversationList',
+      ) as ConversationList;
     }
     return null;
   }
@@ -585,6 +1069,89 @@ class ChatApi {
     }
   }
 
+  /// Open a doctor-only side thread of the conversation (SAL-28)
+  ///
+  /// For a practitioner who may write in the conversation, or a doctor of another clinic the patient granted. The side thread is a conversation (`staff_only`, `parent_id`) whose participants are the conversation's active practitioners now: a doctor added later is not in it, one removed from the conversation leaves it. Its messages, socket and read position are those of any conversation. The patient never sees it: 404 on every path of the side thread, 403 here. No body. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> openChatThreadWithHttpInfo(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/conversations/{id}/threads'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Open a doctor-only side thread of the conversation (SAL-28)
+  ///
+  /// For a practitioner who may write in the conversation, or a doctor of another clinic the patient granted. The side thread is a conversation (`staff_only`, `parent_id`) whose participants are the conversation's active practitioners now: a doctor added later is not in it, one removed from the conversation leaves it. Its messages, socket and read position are those of any conversation. The patient never sees it: 404 on every path of the side thread, 403 here. No body. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Conversation?> openChatThread(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await openChatThreadWithHttpInfo(
+      id,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'Conversation',
+      ) as Conversation;
+    }
+    return null;
+  }
+
   /// Open the conversation with a patient or a practitioner, or return the one there is
   ///
   /// Staff name the patient and open it with their own role; a patient names the clinic and the practitioner role. Allowed with the patient's active care consent with the clinic and an appointment of the patient with that role, of any time or status (docs/plans/chat.md). One conversation per patient, role and encounter (none counts as one): opening it again answers 200 with it. Audited.
@@ -662,6 +1229,314 @@ class ChatApi {
         await _decodeBodyBytes(response),
         'Conversation',
       ) as Conversation;
+    }
+    return null;
+  }
+
+  /// Remove a practitioner, or withdraw an invitation (SAL-28)
+  ///
+  /// The treating practitioner only; never the patient or themselves. The practitioner leaves the conversation's side threads with it and sees nothing of it from then on. System message `participant_removed` (`practitioner_role_id`). Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [String] participantId (required):
+  ///   The participant's id.
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> removeConversationParticipantWithHttpInfo(
+    String id,
+    String participantId, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/conversations/{id}/participants/{participant_id}'
+        .replaceAll('{id}', id)
+        .replaceAll('{participant_id}', participantId);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'DELETE',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Remove a practitioner, or withdraw an invitation (SAL-28)
+  ///
+  /// The treating practitioner only; never the patient or themselves. The practitioner leaves the conversation's side threads with it and sees nothing of it from then on. System message `participant_removed` (`practitioner_role_id`). Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [String] participantId (required):
+  ///   The participant's id.
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<void> removeConversationParticipant(
+    String id,
+    String participantId, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await removeConversationParticipantWithHttpInfo(
+      id,
+      participantId,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+  }
+
+  /// Revoke a granted invitation (SAL-28)
+  ///
+  /// The patient's chat consent for the doctor ends and the doctor leaves the conversation and its side threads: they see nothing of it from then on, and an open socket of theirs closes with 4404 at its next check (within 5 seconds). System message `participant_removed` (`practitioner_role_id`). Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The invitation's id (the invited participant's).
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> revokeChatInvitationWithHttpInfo(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/me/chat-invitations/{id}/revoke'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Revoke a granted invitation (SAL-28)
+  ///
+  /// The patient's chat consent for the doctor ends and the doctor leaves the conversation and its side threads: they see nothing of it from then on, and an open socket of theirs closes with 4404 at its next check (within 5 seconds). System message `participant_removed` (`practitioner_role_id`). Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The invitation's id (the invited participant's).
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<void> revokeChatInvitation(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await revokeChatInvitationWithHttpInfo(
+      id,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+  }
+
+  /// Search a conversation's messages
+  ///
+  /// The messages of the conversation whose text has every word of `q`, each as a word's beginning, case and accents aside, in any of the app's languages; newest first, at most 50; only those the caller reads. Audited as a search; `q` is never logged or stored.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [String] q (required):
+  ///   Words to find, 1 to 200 characters: runs of letters and digits, of two or more, the first eight count; anything else separates them.
+  Future<Response> searchConversationWithHttpInfo(
+    String id,
+    String q, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/conversations/{id}/search'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    queryParams.addAll(_queryParams('', 'q', q));
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Search a conversation's messages
+  ///
+  /// The messages of the conversation whose text has every word of `q`, each as a word's beginning, case and accents aside, in any of the app's languages; newest first, at most 50; only those the caller reads. Audited as a search; `q` is never logged or stored.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [String] q (required):
+  ///   Words to find, 1 to 200 characters: runs of letters and digits, of two or more, the first eight count; anything else separates them.
+  Future<ChatSearchResults?> searchConversation(
+    String id,
+    String q, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await searchConversationWithHttpInfo(
+      id,
+      q,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ChatSearchResults',
+      ) as ChatSearchResults;
+    }
+    return null;
+  }
+
+  /// Search the caller's conversations
+  ///
+  /// As `searchConversation`, across the caller's conversations: a patient's own (never a doctor-only thread); a practitioner's, those they take part in, from their starting point, while the patient's care consent with the clinic is active. Audited as a search.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] q (required):
+  ///   Words to find, 1 to 200 characters: runs of letters and digits, of two or more, the first eight count; anything else separates them.
+  Future<Response> searchConversationsWithHttpInfo(
+    String q, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/conversations/search';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    queryParams.addAll(_queryParams('', 'q', q));
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Search the caller's conversations
+  ///
+  /// As `searchConversation`, across the caller's conversations: a patient's own (never a doctor-only thread); a practitioner's, those they take part in, from their starting point, while the patient's care consent with the clinic is active. Audited as a search.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] q (required):
+  ///   Words to find, 1 to 200 characters: runs of letters and digits, of two or more, the first eight count; anything else separates them.
+  Future<ChatSearchResults?> searchConversations(
+    String q, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await searchConversationsWithHttpInfo(
+      q,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ChatSearchResults',
+      ) as ChatSearchResults;
     }
     return null;
   }
@@ -842,6 +1717,119 @@ class ChatApi {
         await _decodeBodyBytes(response),
         'SummaryResponse',
       ) as SummaryResponse;
+    }
+    return null;
+  }
+
+  /// Upload a file to send in the conversation
+  ///
+  /// A participant who may write uploads one file (SAL-30), then names it in `attachment_ids` of their next message. The body is the file's bytes, streamed; `Content-Length` is required. The type is detected from the bytes, never from `Content-Type` or the name: a photo (JPEG, PNG) or a PDF (lab results among them), at most 20 MB. The file name is the `filename*` of `Content-Disposition` (RFC 6266), cut to 200 characters, the path removed; never put it in the query string. The file is encrypted, stored and `scanning` until the malware scan says it is `clean` (an image then gets a thumbnail) or `rejected`; only its uploader sees it before it is sent. A participant has at most 10 files waiting to be sent (scanning or clean, not yet in a message). A file never sent is deleted after 24 hours. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [int] contentLength (required):
+  ///   The file's size in bytes.
+  ///
+  /// * [MultipartFile] body (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  ///
+  /// * [String] contentDisposition:
+  ///   `attachment; filename*=UTF-8''<percent-encoded name>`, the file's name.
+  Future<Response> uploadChatAttachmentWithHttpInfo(
+    String id,
+    int contentLength,
+    MultipartFile body, {
+    String? xSalusCSRF,
+    String? contentDisposition,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/conversations/{id}/attachments'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody = body;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+    headerParams[r'Content-Length'] = parameterToString(contentLength);
+    if (contentDisposition != null) {
+      headerParams[r'Content-Disposition'] =
+          parameterToString(contentDisposition);
+    }
+
+    const contentTypes = <String>['application/octet-stream'];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Upload a file to send in the conversation
+  ///
+  /// A participant who may write uploads one file (SAL-30), then names it in `attachment_ids` of their next message. The body is the file's bytes, streamed; `Content-Length` is required. The type is detected from the bytes, never from `Content-Type` or the name: a photo (JPEG, PNG) or a PDF (lab results among them), at most 20 MB. The file name is the `filename*` of `Content-Disposition` (RFC 6266), cut to 200 characters, the path removed; never put it in the query string. The file is encrypted, stored and `scanning` until the malware scan says it is `clean` (an image then gets a thumbnail) or `rejected`; only its uploader sees it before it is sent. A participant has at most 10 files waiting to be sent (scanning or clean, not yet in a message). A file never sent is deleted after 24 hours. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [int] contentLength (required):
+  ///   The file's size in bytes.
+  ///
+  /// * [MultipartFile] body (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  ///
+  /// * [String] contentDisposition:
+  ///   `attachment; filename*=UTF-8''<percent-encoded name>`, the file's name.
+  Future<ChatAttachment?> uploadChatAttachment(
+    String id,
+    int contentLength,
+    MultipartFile body, {
+    String? xSalusCSRF,
+    String? contentDisposition,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await uploadChatAttachmentWithHttpInfo(
+      id,
+      contentLength,
+      body,
+      xSalusCSRF: xSalusCSRF,
+      contentDisposition: contentDisposition,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ChatAttachment',
+      ) as ChatAttachment;
     }
     return null;
   }

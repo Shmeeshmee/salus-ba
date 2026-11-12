@@ -210,6 +210,16 @@ class ApiClient {
           return Acceptance.fromJson(value);
         case 'Account':
           return Account.fromJson(value);
+        case 'AddParticipantRequest':
+          return AddParticipantRequest.fromJson(value);
+        case 'AllergyCategory':
+          return AllergyCategoryTypeTransformer().decode(value);
+        case 'AllergyClinicalStatus':
+          return AllergyClinicalStatusTypeTransformer().decode(value);
+        case 'AllergyIntoleranceInput':
+          return AllergyIntoleranceInput.fromJson(value);
+        case 'AllergySeverity':
+          return AllergySeverityTypeTransformer().decode(value);
         case 'Answer':
           return Answer.fromJson(value);
         case 'AnswerValue':
@@ -224,6 +234,8 @@ class ApiClient {
           return Binary.fromJson(value);
         case 'BookAppointmentRequest':
           return BookAppointmentRequest.fromJson(value);
+        case 'ChatAttachment':
+          return ChatAttachment.fromJson(value);
         case 'ChatCommand':
           return ChatCommand.fromJson(value);
         case 'ChatCommandError':
@@ -232,10 +244,32 @@ class ApiClient {
           return ChatCommandErrorFrame.fromJson(value);
         case 'ChatFrame':
           return ChatFrame.fromJson(value);
+        case 'ChatInvitation':
+          return ChatInvitation.fromJson(value);
+        case 'ChatInvitationDecision':
+          return ChatInvitationDecision.fromJson(value);
+        case 'ChatInvitationList':
+          return ChatInvitationList.fromJson(value);
         case 'ChatMessage':
           return ChatMessage.fromJson(value);
         case 'ChatMessageFrame':
           return ChatMessageFrame.fromJson(value);
+        case 'ChatReadCommand':
+          return ChatReadCommand.fromJson(value);
+        case 'ChatReceipt':
+          return ChatReceipt.fromJson(value);
+        case 'ChatReceiptFrame':
+          return ChatReceiptFrame.fromJson(value);
+        case 'ChatSearchResult':
+          return ChatSearchResult.fromJson(value);
+        case 'ChatSearchResults':
+          return ChatSearchResults.fromJson(value);
+        case 'ChatTyping':
+          return ChatTyping.fromJson(value);
+        case 'ChatTypingCommand':
+          return ChatTypingCommand.fromJson(value);
+        case 'ChatTypingFrame':
+          return ChatTypingFrame.fromJson(value);
         case 'CommandError':
           return CommandError.fromJson(value);
         case 'CommandErrorMessage':
@@ -268,6 +302,14 @@ class ApiClient {
           return Cursor.fromJson(value);
         case 'CursorMessage':
           return CursorMessage.fromJson(value);
+        case 'DiagnosisGroup':
+          return DiagnosisGroup.fromJson(value);
+        case 'DiagnosisGroupList':
+          return DiagnosisGroupList.fromJson(value);
+        case 'DiagnosisGroupName':
+          return DiagnosisGroupName.fromJson(value);
+        case 'DiagnosisGroupNameList':
+          return DiagnosisGroupNameList.fromJson(value);
         case 'DocumentFieldTexts':
           return DocumentFieldTexts.fromJson(value);
         case 'DocumentTemplate':
@@ -282,6 +324,10 @@ class ApiClient {
           return DocumentTerms.fromJson(value);
         case 'DocumentTermsSection':
           return DocumentTermsSection.fromJson(value);
+        case 'Dosage':
+          return Dosage.fromJson(value);
+        case 'DoseUnit':
+          return DoseUnitTypeTransformer().decode(value);
         case 'DraftEvent':
           return DraftEvent.fromJson(value);
         case 'DraftField':
@@ -292,12 +338,16 @@ class ApiClient {
           return DraftValue.fromJson(value);
         case 'Drafts':
           return Drafts.fromJson(value);
+        case 'EditDiagnosisGroupNameRequest':
+          return EditDiagnosisGroupNameRequest.fromJson(value);
         case 'EditMessageRequest':
           return EditMessageRequest.fromJson(value);
         case 'EnrolRequest':
           return EnrolRequest.fromJson(value);
         case 'Enrolment':
           return Enrolment.fromJson(value);
+        case 'EntryWritten':
+          return EntryWritten.fromJson(value);
         case 'Error':
           return Error.fromJson(value);
         case 'ExplainedTerm':
@@ -308,6 +358,20 @@ class ApiClient {
           return GenerateDraftRequest.fromJson(value);
         case 'GrantConsentRequest':
           return GrantConsentRequest.fromJson(value);
+        case 'HistoryClinic':
+          return HistoryClinic.fromJson(value);
+        case 'HistoryItem':
+          return HistoryItem.fromJson(value);
+        case 'HistoryItemType':
+          return HistoryItemTypeTypeTransformer().decode(value);
+        case 'HistoryPage':
+          return HistoryPage.fromJson(value);
+        case 'HistorySharing':
+          return HistorySharing.fromJson(value);
+        case 'HistorySharingList':
+          return HistorySharingList.fromJson(value);
+        case 'HistorySummary':
+          return HistorySummary.fromJson(value);
         case 'Invite':
           return Invite.fromJson(value);
         case 'InviteList':
@@ -324,6 +388,10 @@ class ApiClient {
           return LoginRequest.fromJson(value);
         case 'LoginResponse':
           return LoginResponse.fromJson(value);
+        case 'MedicationStatementInput':
+          return MedicationStatementInput.fromJson(value);
+        case 'MedicationStatus':
+          return MedicationStatusTypeTransformer().decode(value);
         case 'MessagePage':
           return MessagePage.fromJson(value);
         case 'MessageRevision':
@@ -332,8 +400,16 @@ class ApiClient {
           return MessageRevisions.fromJson(value);
         case 'OpenConversationRequest':
           return OpenConversationRequest.fromJson(value);
+        case 'OpenItem':
+          return OpenItem.fromJson(value);
         case 'Patient':
           return Patient.fromJson(value);
+        case 'PeriodUnit':
+          return PeriodUnitTypeTransformer().decode(value);
+        case 'Place':
+          return Place.fromJson(value);
+        case 'PlaceList':
+          return PlaceList.fromJson(value);
         case 'Questionnaire':
           return Questionnaire.fromJson(value);
         case 'QuestionnaireDefault':
@@ -382,10 +458,16 @@ class ApiClient {
           return SendMessageRequest.fromJson(value);
         case 'SetAppointmentStatusRequest':
           return SetAppointmentStatusRequest.fromJson(value);
+        case 'SetHistorySharingRequest':
+          return SetHistorySharingRequest.fromJson(value);
         case 'SetRoleQuestionnaireRequest':
           return SetRoleQuestionnaireRequest.fromJson(value);
         case 'SetSpecialtyRequest':
           return SetSpecialtyRequest.fromJson(value);
+        case 'SharingCandidate':
+          return SharingCandidate.fromJson(value);
+        case 'SharingCandidateList':
+          return SharingCandidateList.fromJson(value);
         case 'SignDraftRequest':
           return SignDraftRequest.fromJson(value);
         case 'Specialty':
@@ -404,6 +486,10 @@ class ApiClient {
           return SuggestionStatus.fromJson(value);
         case 'SuggestionStatusMessage':
           return SuggestionStatusMessage.fromJson(value);
+        case 'SummaryAllergy':
+          return SummaryAllergy.fromJson(value);
+        case 'SummaryMedication':
+          return SummaryMedication.fromJson(value);
         case 'SummaryRequest':
           return SummaryRequest.fromJson(value);
         case 'SummaryResponse':

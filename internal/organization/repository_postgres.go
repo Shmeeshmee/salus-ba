@@ -94,3 +94,24 @@ func toOrganization(row organizationdb.OrganizationByIDRow) Organization {
 		PatientTranscriptCopy: row.PatientTranscriptCopy,
 	}
 }
+
+type postgresStatsRepository struct {
+	db postgres.Querier
+}
+
+// NewPostgresStatsRepository returns the StatsRepository on db, the salus_stats pool.
+func NewPostgresStatsRepository(db postgres.Querier) StatsRepository {
+	return &postgresStatsRepository{db: db}
+}
+
+func (r *postgresStatsRepository) Locations(ctx context.Context) ([]Location, error) {
+	rows, err := organizationdb.New(postgres.Conn(ctx, r.db)).ListLocationsForStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Location, len(rows))
+	for i, row := range rows {
+		out[i] = Location{ID: row.ID.String(), TimeZone: row.TimeZone}
+	}
+	return out, nil
+}

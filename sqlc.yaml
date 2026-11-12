@@ -68,6 +68,14 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
+    queries: internal/condition/query.sql
+    gen:
+      go:
+        package: conditiondb
+        out: internal/condition/conditiondb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/consent/query.sql
     gen:
       go:

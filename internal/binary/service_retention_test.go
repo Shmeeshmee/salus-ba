@@ -121,3 +121,46 @@ func TestPurger_StopsAtTheDatabasesError(t *testing.T) {
 		t.Fatal("Purge() on a closed pool = nil, want an error")
 	}
 }
+
+// A chat file never attached to a message goes 24 h after its upload, row then object; an attached one stays, with its
+// thumbnail's object (SAL-30).
+func TestPurger_DeletesOldUnattachedChatFilesAndKeepsAttachedOnesWithTheirThumbnails(t *testing.T) {
+	t.Parallel()
+	owner, ret := pgtest.NewRetentionDatabase(t)
+	c := seedChatDB(t, owner)
+	store := prefixStore{Store: newStore(t, 10), prefix: prefix(t)}
+	unattached, attached, thumb := c.chatFile(c.patientPart, 10), c.chatFile(c.patientPart, 20), binaryID()
+	for _, key := range []string{unattached.ID, attached.ID, thumb} {
+		put(t, store.Store, store.prefix+key, []byte("synthetic ciphertext"))
+	}
+	written := clock.System{}.Now()
+	waitPast(t, written.Add(1100*time.Millisecond))
+	cut := clock.System{}.Now()
+	for _, b := range []binary.Binary{unattached, attached} {
+		if _, err := owner.Exec(t.Context(), `INSERT INTO "binary" (id, organization_id, patient_id, conversation_id, conversation_participant_id,
+				content_type, size, title, sha1, kek_id, wrapped_key, segment_size, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)`, b.ID, b.OrganizationID, b.PatientID, b.ConversationID,
+			b.ParticipantID, b.ContentType, b.Size, b.Title, b.SHA1, b.KEKID, b.WrappedKey, b.SegmentSize, cut.Add(-time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := owner.Exec(t.Context(), `UPDATE "binary" SET communication_id = $2, communication_sent_at = $3, status = 'clean', scanned_at = now(),
+		thumbnail_id = $4, thumbnail_size = 9, thumbnail_wrapped_key = '\x01' WHERE id = $1`, attached.ID, c.message, messageAt, thumb); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := binary.NewPurger(binary.NewPostgresRepository(ret), store).Purge(t.Context(), cut)
+
+	if err != nil || n != 2 {
+		t.Fatalf("Purge() = %d, %v; want 2 (the unattached row and its object)", n, err)
+	}
+	for key, kept := range map[string]bool{unattached.ID: false, attached.ID: true, thumb: true} {
+		_, err := store.GetRange(t.Context(), key, 0, 0)
+		switch {
+		case kept && err != nil:
+			t.Errorf("object %s deleted: %v", key, err)
+		case !kept && !errors.Is(err, binary.ErrObjectNotFound):
+			t.Errorf("object %s kept: %v", key, err)
+		}
+	}
+}

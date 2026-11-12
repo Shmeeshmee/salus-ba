@@ -27,3 +27,6 @@ var (
 	// ErrInvalidStatus is returned for a status a practitioner may not set (only fulfilled and noshow).
 	ErrInvalidStatus = errors.New("appointment: invalid status")
 )
+
+// ErrShortKey is returned for a pseudonym key shorter than 32 bytes (nil asks for no pseudonyms at all).
+var ErrShortKey = errors.New("appointment: the pseudonym key is shorter than 32 bytes")

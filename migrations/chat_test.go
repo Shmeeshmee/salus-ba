@@ -299,8 +299,8 @@ func TestChat_HoldsAConsistentState(t *testing.T) {
 			VALUES ($1, $2, $3, true, $4)`, []any{clinicA, r.p[0].patient, r.dir[clinicA].role, r.p[0].account}},
 		{"the patient twice in a conversation", `INSERT INTO conversation_participant (conversation_id, patient_id, role, added_by)
 			VALUES ($1, $2, 'patient', $3)`, []any{r.conv["inA"], r.p[0].patient, r.p[0].account}},
-		{"a practitioner twice in a conversation", `INSERT INTO conversation_participant (conversation_id, practitioner_role_id, role, added_by)
-			VALUES ($1, $2, 'practitioner', $3), ($1, $2, 'practitioner', $3)`, []any{r.conv["inA"], r.dir[clinicA].role, r.p[0].account}},
+		{"a practitioner twice in a conversation", `INSERT INTO conversation_participant (conversation_id, practitioner_role_id, organization_id, role, added_by)
+			VALUES ($1, $2, $4, 'practitioner', $3), ($1, $2, $4, 'practitioner', $3)`, []any{r.conv["inA"], r.dir[clinicA].role, r.p[0].account, clinicA}},
 		{"a practitioner without a role", `INSERT INTO conversation_participant (conversation_id, patient_id, role, added_by)
 			VALUES ($1, $2, 'practitioner', $3)`, []any{r.conv["inA"], r.p[0].patient, r.p[0].account}},
 		{"an edit of a message that skips its version", `UPDATE communication SET body = 'y', version_id = version_id + 2, edited_at = now() WHERE id = $1`,
