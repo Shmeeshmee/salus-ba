@@ -56,7 +56,7 @@ As built, where it differs from the plan (agent decisions, for the owner to revi
 
 ## ANA-3 SAL-21 platform trends (branch `analytics-platform`)
 
-Built: migration 00045 (the clinic's location and opt-out on `organization` with the times they changed, a city
+Built: migration 00049 (the clinic's location and opt-out on `organization` with the times they changed, a city
 under a leaf region enforced by foreign keys; `trends_period`, `trends_cell`, `trends_rise`, written once by
 `salus_stats`, read by the app, never changed, cells and rises deleted by `salus_retention` after five years);
 `organization` FHIR `address` (state = region code, city = Latin name, the city's Wikidata id in the

@@ -15,33 +15,40 @@ class SendMessageRequest {
   SendMessageRequest({
     required this.clientMessageId,
     required this.body,
+    this.attachmentIds = const [],
   });
 
   /// The client's id of the message; a retry repeats it.
   String clientMessageId;
 
+  /// 1 to 4000 characters after trimming; may be empty with `attachment_ids`.
   String body;
+
+  /// The sender's uploads to the conversation (`uploadChatAttachment`), scanning or clean, not yet sent; at most 10.
+  List<String> attachmentIds;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is SendMessageRequest &&
           other.clientMessageId == clientMessageId &&
-          other.body == body;
+          other.body == body &&
+          _deepEquality.equals(other.attachmentIds, attachmentIds);
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (clientMessageId.hashCode) + (body.hashCode);
+      (clientMessageId.hashCode) + (body.hashCode) + (attachmentIds.hashCode);
 
   @override
   String toString() =>
-      'SendMessageRequest[clientMessageId=$clientMessageId, body=$body]';
+      'SendMessageRequest[clientMessageId=$clientMessageId, body=$body, attachmentIds=$attachmentIds]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'client_message_id'] = this.clientMessageId;
     json[r'body'] = this.body;
+    json[r'attachment_ids'] = this.attachmentIds;
     return json;
   }
 
@@ -70,6 +77,11 @@ class SendMessageRequest {
       return SendMessageRequest(
         clientMessageId: mapValueOfType<String>(json, r'client_message_id')!,
         body: mapValueOfType<String>(json, r'body')!,
+        attachmentIds: json[r'attachment_ids'] is Iterable
+            ? (json[r'attachment_ids'] as Iterable)
+                .cast<String>()
+                .toList(growable: false)
+            : const [],
       );
     }
     return null;

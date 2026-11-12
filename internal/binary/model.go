@@ -67,26 +67,52 @@ func kindOf(contentType string) Kind {
 }
 
 // Binary is one stored file. OrganizationID, PatientID and AppointmentID are copied once from the holder's
-// Target. The bytes are in the object store under ID, sealed with a data key that WrappedKey holds, wrapped
-// by the key-encryption key KEKID.
+// Target (a chat file's from its conversation). The bytes are in the object store under ID, sealed with a data key
+// that WrappedKey holds, wrapped by the key-encryption key KEKID.
+//
+// A file has one of two parents: a questionnaire response's item (ResponseID, AppointmentID, LinkID), or a
+// conversation of the chat (ConversationID, uploaded by the participant ParticipantID and attached to the message
+// MessageID once it is sent; SAL-30).
 type Binary struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	ScannedAt      time.Time // zero while quarantined
+	MessageSentAt  time.Time // the message's time, with MessageID
 	ID             string    // the Binary id and the object key, a lowercase UUID
 	OrganizationID string
 	PatientID      string
 	AppointmentID  string
 	ResponseID     string // the questionnaire response whose answer holds the file
 	LinkID         string // the attachment item
+	ConversationID string // a chat file's conversation
+	ParticipantID  string // the conversation participant who uploaded a chat file
+	MessageID      string // the message a chat file is attached to; empty until it is sent
 	ContentType    string // detected from the bytes
 	Title          string // the file's name as uploaded, at most MaxTitle characters; personal data
 	KEKID          string
 	Status         Status
-	SHA1           []byte // of the plaintext: Attachment.hash and the identical-retry check
-	WrappedKey     []byte // nil once rejected
-	Size           int64  // plaintext bytes
+	SHA1           []byte    // of the plaintext: Attachment.hash and the identical-retry check
+	WrappedKey     []byte    // nil once rejected
+	Thumbnail      Thumbnail // a clean chat image's; zero for none
+	Size           int64     // plaintext bytes
 	SegmentSize    int32
+}
+
+// Thumbnail is a chat image's preview, made by the scan job from the clean file: a JPEG stored and sealed like a file,
+// under its own id (the object's key) and data key, wrapped by the file's key-encryption key.
+type Thumbnail struct {
+	ID   string
+	Key  []byte // the wrapped data key
+	Size int64  // plaintext bytes
+}
+
+// MessageFiles names the files a send attaches to its message: the sender's uploads to the conversation.
+type MessageFiles struct {
+	SentAt         time.Time
+	ConversationID string
+	ParticipantID  string
+	MessageID      string
+	IDs            []string
 }
 
 // Caller is who is signed in: a patient (PatientID, no clinic) or staff of a clinic.
@@ -147,11 +173,18 @@ const QueueScan = "scan"
 
 // ScanArgs is the binary_scan job, enqueued with each upload in its transaction. Opaque ids only: the file,
 // and its response and clinic, which name the job scope that lets the job read the file's row.
+// A chat file's job names its conversation instead of a response.
 type ScanArgs struct {
 	BinaryID       string `json:"binary_id"`
-	ResponseID     string `json:"questionnaire_response_id"`
+	ResponseID     string `json:"questionnaire_response_id,omitempty"`
+	ConversationID string `json:"conversation_id,omitempty"`
 	OrganizationID string `json:"organization_id"`
 }
+
+// ChatScanAttempts is how often a chat file's scan is tried before the worker rejects it as unscannable
+// (Service.Unscannable): River's backoff of attempt⁴ seconds makes it about 80 minutes. A questionnaire file's keeps
+// River's default and stays quarantined after the last.
+const ChatScanAttempts = 8
 
 // Kind names the job in river_job.
 func (ScanArgs) Kind() string { return "binary_scan" }

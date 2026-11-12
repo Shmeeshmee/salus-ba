@@ -251,6 +251,37 @@ func TestRules_KeepTheReviewerPermissionWhileGranted(t *testing.T) {
 	t.Error("no rule for term_reviewer")
 }
 
+func TestRules_KeepChatConsentsWithTheClinicalRecord(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "chat_consent" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("chat_consent then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for chat_consent")
+}
+
+// The patient history's tables (00043, ADR 0014) are kept with the clinical record: allergies and medications as
+// part of it (a patient's own unconfirmed entry is deleted when they remove it, by the service, not by this rule),
+// the history consent and its selections as proof of what was shared when (Art. 7(1)).
+func TestRules_KeepThePatientHistoryWithTheClinicalRecord(t *testing.T) {
+	want := map[string]bool{"allergy_intolerance": true, "medication_statement": true, "history_consent": true, "history_consent_encounter": true}
+	for _, r := range retention.Rules() {
+		if !want[r.Table] {
+			continue
+		}
+		if r.Then != retention.ThenKeep {
+			t.Errorf("%s then %q, want %q", r.Table, r.Then, retention.ThenKeep)
+		}
+		delete(want, r.Table)
+	}
+	for table := range want {
+		t.Errorf("no rule for %s", table)
+	}
+}
+
 // The platform figures are kept five years after their build, then deleted (docs/plans/analytics.md §7).
 func TestRules_DeleteThePlatformFiguresFiveYearsAfterTheirBuild(t *testing.T) {
 	fiveYears := time.Date(2031, 1, 1, 0, 0, 0, 0, time.UTC).Sub(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))

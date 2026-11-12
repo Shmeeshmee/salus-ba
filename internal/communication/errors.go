@@ -22,6 +22,8 @@ var (
 	ErrConsentRequired = errors.New("communication: consent required")
 	// ErrVersionConflict is returned for an edit whose If-Match is not the message's current version.
 	ErrVersionConflict = errors.New("communication: version conflict")
+	// ErrAlreadyParticipant is returned for a practitioner added or invited who takes part, or is invited, already.
+	ErrAlreadyParticipant = errors.New("communication: already a participant")
 )
 
 func invalid(field string) error { return fmt.Errorf("%w: %s", ErrInvalid, field) }
