@@ -1351,6 +1351,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/conversations/{id}/participants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a practitioner of the clinic, or invite one of another clinic (SAL-28)
+         * @description The conversation's treating practitioner only, while they may write in it; never into a side thread. A role of the clinic, active, is added at once (`status` `active`); a role of another clinic in the public directory is invited (`pending_consent`) and sees nothing of the conversation, its participants, messages or side threads until the patient grants it (`POST /me/chat-invitations/{id}/decision`). `history` `full` gives the whole history, `from` the messages after `from_seq` (at most the conversation's `last_seq`). The conversation gets the system message `participant_added` or `participant_invited` (`practitioner_role_id`, `organization_id`, `reason`), on the socket like any message. Audited.
+         */
+        post: operations["addConversationParticipant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/participants/{participant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a practitioner, or withdraw an invitation (SAL-28)
+         * @description The treating practitioner only; never the patient or themselves. The practitioner leaves the conversation's side threads with it and sees nothing of it from then on. System message `participant_removed` (`practitioner_role_id`). Audited.
+         */
+        delete: operations["removeConversationParticipant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The side threads of the conversation the caller takes part in, newest first (SAL-28)
+         * @description For the practitioners of `POST`; never the patient (403). With the caller's unread counts. Audited as one search.
+         */
+        get: operations["listChatThreads"];
+        put?: never;
+        /**
+         * Open a doctor-only side thread of the conversation (SAL-28)
+         * @description For a practitioner who may write in the conversation, or a doctor of another clinic the patient granted. The side thread is a conversation (`staff_only`, `parent_id`) whose participants are the conversation's active practitioners now: a doctor added later is not in it, one removed from the conversation leaves it. Its messages, socket and read position are those of any conversation. The patient never sees it: 404 on every path of the side thread, 403 here. No body. Audited.
+         */
+        post: operations["openChatThread"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/chat-invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The patient's pending invitations of doctors from other clinics (SAL-28)
+         * @description Oldest first. The patient only (403 to staff). Audited as one search.
+         */
+        get: operations["listChatInvitations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/chat-invitations/{id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant or decline an invitation (SAL-28)
+         * @description The patient's decision. `grant` records their FHIR Consent for that conversation and that practitioner role (revocable), needs their active care consent with the clinic (403 `consent_required` otherwise) and makes the doctor an active participant; `decline` ends the invitation. System message `consent_granted` or `consent_declined` (`practitioner_role_id`). Audited.
+         */
+        post: operations["decideChatInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/chat-invitations/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a granted invitation (SAL-28)
+         * @description The patient's chat consent for the doctor ends and the doctor leaves the conversation and its side threads: they see nothing of it from then on, and an open socket of theirs closes with 4404 at its next check (within 5 seconds). System message `participant_removed` (`practitioner_role_id`). Audited.
+         */
+        post: operations["revokeChatInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2397,10 +2521,25 @@ export interface components {
             id: string;
             /** @enum {string} */
             role: "patient" | "practitioner";
+            /**
+             * @description `pending_consent`: a doctor of another clinic waiting for the patient's consent, who sees nothing until then (SAL-28).
+             * @enum {string}
+             */
+            status: "active" | "pending_consent";
             /** Format: uuid */
             patient_id?: string;
             /** Format: uuid */
             practitioner_role_id?: string;
+            /**
+             * Format: uuid
+             * @description A practitioner's clinic: another than the conversation's for an invited doctor (SAL-28).
+             */
+            organization_id?: string;
+            /**
+             * @description Why the practitioner was added; absent for the patient and the treating practitioner.
+             * @enum {string}
+             */
+            reason?: "second_opinion" | "specialist_review" | "handover";
             /** Format: date-time */
             added_at: string;
             /**
@@ -2408,6 +2547,55 @@ export interface components {
              * @description The participant reads the messages after this number; 0 for all.
              */
             history_from_seq: number;
+        };
+        AddParticipantRequest: {
+            /** Format: uuid */
+            practitioner_role_id: string;
+            /**
+             * Format: uuid
+             * @description The role's clinic: the conversation's to add, another to invite.
+             */
+            organization_id: string;
+            /** @enum {string} */
+            reason: "second_opinion" | "specialist_review" | "handover";
+            /**
+             * @description `full`: the whole history; `from`: the messages after `from_seq`.
+             * @enum {string}
+             */
+            history: "full" | "from";
+            /**
+             * Format: int64
+             * @description With `history` `from` only; at most the conversation's `last_seq`.
+             */
+            from_seq?: number;
+        };
+        /** @description A doctor of another clinic waiting for the patient's consent to take part in their conversation. */
+        ChatInvitation: {
+            /**
+             * Format: uuid
+             * @description The invitation's id (the invited participant's).
+             */
+            id: string;
+            /** Format: uuid */
+            conversation_id: string;
+            /**
+             * Format: uuid
+             * @description The invited doctor's clinic.
+             */
+            organization_id: string;
+            /** Format: uuid */
+            practitioner_role_id: string;
+            /** @enum {string} */
+            reason: "second_opinion" | "specialist_review" | "handover";
+            /** Format: date-time */
+            invited_at: string;
+        };
+        ChatInvitationList: {
+            invitations: components["schemas"]["ChatInvitation"][];
+        };
+        ChatInvitationDecision: {
+            /** @enum {string} */
+            decision: "grant" | "decline";
         };
         ConversationList: {
             conversations: components["schemas"]["Conversation"][];
@@ -2556,7 +2744,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description `forbidden`: an admin, or a practitioner who does not take part; `consent_required`: a patient's write after their revocation. */
+        /** @description `forbidden`: an admin, or a practitioner who does not take part; for a participant's add or removal, anyone but the treating practitioner; for a side thread, the patient; `consent_required`: a patient's write, or grant of an invitation, after their revocation. */
         ChatForbidden: {
             headers: {
                 [name: string]: unknown;
@@ -2846,6 +3034,8 @@ export interface components {
     parameters: {
         /** @description The conversation's id. */
         ConversationID: string;
+        /** @description The invitation's id (the invited participant's). */
+        ChatInvitationID: string;
         /** @description The message's id (FHIR Communication.id). */
         MessageID: string;
         /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
@@ -6352,6 +6542,243 @@ export interface operations {
                 };
             };
             404: components["responses"]["ChatNotFound"];
+        };
+    };
+    addConversationParticipant: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddParticipantRequest"];
+            };
+        };
+        responses: {
+            /** @description The participant, active or pending the patient's consent. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationParticipant"];
+                };
+            };
+            /** @description `invalid_request`: a field the contract refuses, or a role that is no active role of the clinic or not in the public directory of the other. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+            /** @description `already_participant`: the role takes part, or is invited, already. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    removeConversationParticipant: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+                /** @description The participant's id. */
+                participant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
+    listChatThreads: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The side threads, without a `next`. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
+    openChatThread: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The side thread, with its participants. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Conversation"];
+                };
+            };
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
+    listChatInvitations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pending invitations. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatInvitationList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+        };
+    };
+    decideChatInvitation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The invitation's id (the invited participant's). */
+                id: components["parameters"]["ChatInvitationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatInvitationDecision"];
+            };
+        };
+        responses: {
+            /** @description Decided. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            /** @description `not_found`: no pending invitation of the patient with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    revokeChatInvitation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The invitation's id (the invited participant's). */
+                id: components["parameters"]["ChatInvitationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            /** @description `not_found`: no granted invitation of the patient with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
 }

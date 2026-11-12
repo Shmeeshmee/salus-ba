@@ -27,6 +27,7 @@ lib/auth/oauth.dart
 lib/model/accept_invite_request.dart
 lib/model/acceptance.dart
 lib/model/account.dart
+lib/model/add_participant_request.dart
 lib/model/answer.dart
 lib/model/answer_value.dart
 lib/model/appointment.dart
@@ -38,6 +39,9 @@ lib/model/chat_command.dart
 lib/model/chat_command_error.dart
 lib/model/chat_command_error_frame.dart
 lib/model/chat_frame.dart
+lib/model/chat_invitation.dart
+lib/model/chat_invitation_decision.dart
+lib/model/chat_invitation_list.dart
 lib/model/chat_message.dart
 lib/model/chat_message_frame.dart
 lib/model/command_error.dart

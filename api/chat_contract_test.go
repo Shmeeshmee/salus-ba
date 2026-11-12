@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,7 +37,9 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 		Body: "x", SenderRole: communication.RolePatient, Kind: communication.KindText, Seq: 1, VersionID: 2}
 	system := communication.Message{SentAt: at, ID: id, ConversationID: id, ClientMessageID: id, SenderRole: communication.RoleSystem,
 		Kind: communication.KindSystem, SystemCode: "participant_added", SystemArgs: map[string]string{"practitioner_role_id": id}, Seq: 2, VersionID: 1}
-	part := communication.Participant{AddedAt: at, ID: id, PatientID: id, PractitionerRoleID: id, Role: communication.RolePatient}
+	part := communication.Participant{AddedAt: at, ID: id, PatientID: id, PractitionerRoleID: id, OrganizationID: id, Role: communication.RolePatient,
+		Status: communication.StatusActive, Reason: communication.ReasonHandover}
+	from := int64(1)
 	conv := communication.Conversation{Created: at, LastSentAt: at, ID: id, OrganizationID: id, PatientID: id, PractitionerRoleID: id,
 		EncounterID: id, ParentID: id, Participants: []communication.Participant{part}}
 	for _, tt := range []struct {
@@ -52,6 +55,8 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 		{"SendAck", communication.SendAck{}, communication.SendAck{}, nil},
 		{"SendMessageRequest", communication.SendCommand{}, communication.SendCommand{}, nil},
 		{"ChatCommandError", communication.CommandError{ID: "x"}, communication.CommandError{}, nil},
+		{"AddParticipantRequest", communication.AddParticipant{FromSeq: &from}, communication.AddParticipant{}, nil},
+		{"ChatInvitation", communication.Invitation{}, communication.Invitation{}, nil},
 	} {
 		sc, ok := s[tt.name]
 		if !ok {
@@ -73,6 +78,18 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 	}
 	if got := s["ChatMessage"].Properties["sender_role"].Enum; !slices.Equal(got, []string{"patient", "practitioner", "system"}) {
 		t.Errorf("sender_role enum = %v", got)
+	}
+	reasons := []string{string(communication.ReasonSecondOpinion), string(communication.ReasonSpecialistReview), string(communication.ReasonHandover)}
+	for name, want := range map[string][]string{
+		"ConversationParticipant.status": {string(communication.StatusActive), string(communication.StatusPendingConsent)},
+		"ConversationParticipant.reason": reasons, "AddParticipantRequest.reason": reasons, "ChatInvitation.reason": reasons,
+		"AddParticipantRequest.history":   {communication.HistoryFull, communication.HistoryFrom},
+		"ChatInvitationDecision.decision": {string(communication.DecisionGrant), string(communication.DecisionDecline)},
+	} {
+		schema, prop, _ := strings.Cut(name, ".")
+		if got := s[schema].Properties[prop].Enum; !slices.Equal(got, want) {
+			t.Errorf("%s enum = %v, want %v", name, got, want)
+		}
 	}
 	for frame, typ := range map[string]string{"SendAckFrame": communication.SendAckType, "ChatCommandErrorFrame": communication.CommandErrorType, "ChatCommand": communication.SendType} {
 		if got := s[frame].Properties["type"].Const; got != typ {
