@@ -52,11 +52,11 @@ func TestHistoryReadings(t *testing.T) {
 		t.Helper()
 		var took []time.Duration
 		for range n {
-			start := time.Now()
+			start := wallNow()
 			if body := get(); body == "" {
 				t.Fatalf("%s: an empty answer", name)
 			}
-			took = append(took, time.Since(start))
+			took = append(took, wallNow().Sub(start))
 		}
 		slices.Sort(took)
 		at := func(p float64) time.Duration { return took[int(p*float64(len(took)-1))] }
@@ -77,9 +77,9 @@ func TestHistoryReadings(t *testing.T) {
 	items, next := 0, ""
 	for {
 		var p historyPage
-		start := time.Now()
+		start := wallNow()
 		decode(t, c.d.practitioner.do(http.MethodGet, path+"?limit=100&cursor="+next, ""), &p)
-		pages = append(pages, time.Since(start))
+		pages = append(pages, wallNow().Sub(start))
 		items += len(p.Items)
 		if p.Next == "" {
 			break
