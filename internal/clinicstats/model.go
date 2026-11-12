@@ -3,14 +3,23 @@
 // diagnosis group, subgroup and code. The counts are pre-computed by the clinicstats_refresh job (a clinic-day,
 // enqueued by every appointment write and every signing with a diagnosis) and the clinicstats_nightly job (the
 // last 35 days of every clinic), on the salus_stats role; the charts read only these counts. No patient
-// identifier is stored or read: the sources are asked without a pseudonym key.
+// identifier is stored: the sources are asked without a pseudonym key and drop the one their shared query reads.
 //
 // Who sees what (C1 to C3): only staff of the clinic; an admin sees everything of their clinic, a practitioner
 // who is not an admin the clinic's appointment figures and the diagnoses of their own role only; every read is
 // audited.
 package clinicstats
 
-import "time"
+import (
+	"time"
+
+	"github.com/riverqueue/river"
+)
+
+// QueueStats is the River queue of the clinic statistics' builds: cmd/worker works it two jobs at a time, so the
+// builds hold at most two salus_stats connections (each waits on its clinic's lock, the nightly pass runs for minutes)
+// and never take the default queue's workers.
+const QueueStats = "clinicstats"
 
 // RefreshArgs is the clinicstats_refresh job: recompute the clinic's local day that holds the instant Day (an
 // appointment's start or a signature's time). Opaque ids and an instant only.
@@ -22,11 +31,17 @@ type RefreshArgs struct {
 // Kind names the job in river_job.
 func (RefreshArgs) Kind() string { return "clinicstats_refresh" }
 
+// InsertOpts puts the job on QueueStats, whoever enqueues it.
+func (RefreshArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{Queue: QueueStats} }
+
 // NightlyArgs is the clinicstats_nightly job: recompute the last 35 local days of every clinic.
 type NightlyArgs struct{}
 
 // Kind names the job in river_job.
 func (NightlyArgs) Kind() string { return "clinicstats_nightly" }
+
+// InsertOpts puts the job on QueueStats, as the scheduler enqueues it.
+func (NightlyArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{Queue: QueueStats} }
 
 // AppointmentCount is one row of clinic_appointment_stat: how many appointments of a role start in a local hour of
 // a day (midnight UTC of the local date) and have a status now. SpecialtyCode is the role's SNOMED CT code at

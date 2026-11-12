@@ -45,8 +45,11 @@ func TestRiverQueue_EnqueuesTheRefreshInTheTransaction(t *testing.T) {
 	if err := owner.QueryRow(t.Context(), "SELECT kind, queue, args FROM river_job").Scan(&kind, &q, &args); err != nil {
 		t.Fatal(err)
 	}
-	if kind != "clinicstats_refresh" || q != river.QueueDefault || args.OrganizationID != clinicA || !args.Day.Equal(at) {
+	if kind != "clinicstats_refresh" || q != clinicstats.QueueStats || args.OrganizationID != clinicA || !args.Day.Equal(at) {
 		t.Errorf("enqueued %s on %s with %+v", kind, q, args)
+	}
+	if o := (clinicstats.NightlyArgs{}).InsertOpts(); o.Queue != clinicstats.QueueStats {
+		t.Errorf("the nightly pass goes to %q, want %q", o.Queue, clinicstats.QueueStats)
 	}
 	if err := queue.EnqueueStatsRefresh(t.Context(), clinicA, at); !errors.Is(err, postgres.ErrNoTx) {
 		t.Errorf("outside a transaction: %v, want ErrNoTx", err)

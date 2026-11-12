@@ -118,22 +118,26 @@ func TestAppointments_AnAdminGetsEverythingOfTheirClinic(t *testing.T) {
 }
 
 // C2: a practitioner who is not an admin gets the clinic's appointment figures, alone or for their own role, never
-// the breakdown per practitioner nor another role's figures (refused and audited).
+// the breakdown per practitioner nor another role's figures, nor a specialty's, which in a clinic with one
+// cardiologist is that colleague's, and with their own role's subtracted the others' of theirs (refused and audited).
 func TestAppointments_APractitionerGetsTheClinicsFiguresOrTheirOwn(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {
-		want error
-		role string
+		want      error
+		role      string
+		specialty string
 	}{
-		"the clinic's": {nil, ""},
-		"their own":    {nil, roleA1},
-		"another's":    {clinicstats.ErrForbidden, roleA2},
+		"the clinic's":               {nil, "", ""},
+		"their own":                  {nil, roleA1, ""},
+		"another's":                  {clinicstats.ErrForbidden, roleA2, ""},
+		"a specialty":                {clinicstats.ErrForbidden, "", "394579002"},
+		"their own within specialty": {clinicstats.ErrForbidden, roleA1, "394579002"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			f := newReadFixture()
 			q := year
-			q.PractitionerRoleID = tt.role
+			q.PractitionerRoleID, q.Specialty = tt.role, tt.specialty
 			got, err := f.svc.Appointments(t.Context(), doctor, q)
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("Appointments() = %v, want %v", err, tt.want)

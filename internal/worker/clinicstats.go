@@ -16,6 +16,10 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
+// statsWorkers is how many clinic statistics' builds run at a time (clinicstats.QueueStats): each holds a
+// salus_stats connection, so the stats pool needs no more than these and the default queue never waits on them.
+const statsWorkers = 2
+
 // clinicStatsAt is the daily time of the clinicstats_nightly job, 02:30 UTC (docs/plans/analytics.md §4).
 var clinicStatsAt = dailyAt{hour: 2, minute: 30}
 

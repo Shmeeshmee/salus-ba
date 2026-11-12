@@ -78,8 +78,9 @@ As built, where it differs from the plan or settles what it left open (agent dec
 - **`booked` counts every appointment** of the month, whatever its status now (§8's example adds up so); `fulfilled`,
   `noshow` and `cancelled` are those with that status. The heatmap counts the appointments that were not cancelled,
   busy cells only. `practitioners` gives the fulfilled appointments per role and is absent for non-admins.
-- **C2 for appointments:** a practitioner who is not an admin may narrow the clinic's figures to their own role or to
-  a specialty, never to another role (403). For diagnoses they always get their own role's, and a practitioner without
+- **C2 for appointments:** a practitioner who is not an admin may narrow the clinic's figures to their own role only,
+  never to another role or to a specialty (403, audited; review finding 1: a specialty with one practitioner is
+  that colleague's figures, and a specialty minus one's own role the others'). For diagnoses they always get their own role's, and a practitioner without
   a role is refused. An admin who is also a practitioner gets the clinic's.
 - **C3's purpose is `HOPERAT`** (v3-ActReason has no analytics code), subtype `search-type`, action `E`, entity
   `Organization/<clinic>`; refusals are audited with outcome 4. An invalid query is refused before any read and is not
@@ -87,7 +88,10 @@ As built, where it differs from the plan or settles what it left open (agent dec
 - **Empty keys:** a diagnosis without a subgroup counts under the subgroup key `""`, a role without a specialty under
   the specialty key `""`, so a breakdown sums to the total.
 - **Concurrency:** a refresh takes a transaction-level advisory lock per clinic, so two refreshes of one clinic never
-  interleave their delete and insert.
+  interleave their delete and insert. Both jobs run on their own River queue `clinicstats`, two at a time (review
+  finding 6), so the builds hold at most two `salus_stats` connections and never take the default queue's workers.
+  No `UniqueOpts`: River's unique states always include `running`, so a write during a running refresh would lose
+  its own refresh, and the job's instant differs per appointment anyway.
 - **The refresh does not enqueue for future appointments beyond their day**, and the nightly pass covers the last 35
   days only, as the plan says: a lost refresh of a day further ahead is repaired by the next write on that day.
 
@@ -111,3 +115,13 @@ writes (the two aggregates and their policies, the stats login's sources, `audit
 new organization and practitioner_role policies, and the aggregates' policies read only settings, so no policy
 recursion. The slower overview is attributed to the load, not the merge; re-measure on an idle machine before
 tuning.
+
+Re-measured with the real auditevent service in the overview (review finding 5; the first measurement used an
+auditor that wrote nothing), 2026-11-13, load average 6.5 to 7.6 on 28 threads (not idle; other sessions on the
+machine): refresh 11.4 to 15.0 ms, yearly overview with its two AuditEvents 130 to 144 ms. Close to the first
+numbers, so the earlier 215 to 249 ms was the load; an idle re-run is still owed before any tuning decision.
+
+Review (fresh subagent, 2026-11-13): 8 findings; fixed 1 (no specialty filter for non-admins), 3 to 8 (DPIA wording
+on the shared source queries, the build-audit comments, the audited benchmark, the `clinicstats` queue at two
+workers, §8's as-built names, the stats pool's one-place test and the autumn fall-back test); 2 (one patient's
+diagnosis visible to an admin on a one-day, one-role code breakdown) is a DPIA risk open for the owner.

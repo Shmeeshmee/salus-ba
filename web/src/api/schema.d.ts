@@ -2145,7 +2145,7 @@ export interface paths {
         };
         /**
          * The clinic's appointments over time
-         * @description The caller's clinic's appointments (docs/plans/analytics.md §4, §8), from the pre-computed counts (refreshed within seconds of a change, and nightly): per month of the clinic's local days from `from` to `to`, `booked` counting every appointment and the others those with that status now; the heatmap of the ones not cancelled by ISO weekday (1 is Monday) and local hour, busy cells only; and, for the clinic's admin only, the fulfilled ones per practitioner role (absent for anyone else). A practitioner who is not an admin may narrow to their own role only. Every read is audited on the clinic.
+         * @description The caller's clinic's appointments (docs/plans/analytics.md §4, §8), from the pre-computed counts (refreshed within seconds of a change, and nightly): per month of the clinic's local days from `from` to `to`, `booked` counting every appointment and the others those with that status now; the heatmap of the ones not cancelled by ISO weekday (1 is Monday) and local hour, busy cells only; and, for the clinic's admin only, the fulfilled ones per practitioner role (absent for anyone else). A practitioner who is not an admin may narrow to their own role only, never to a specialty. Every read is audited on the clinic.
          */
         get: operations["getClinicAppointmentStats"];
         put?: never;
@@ -9483,7 +9483,7 @@ export interface operations {
             };
             400: components["responses"]["StatsInvalid"];
             401: components["responses"]["Unauthenticated"];
-            /** @description `forbidden`: the caller is neither the admin nor a practitioner of a clinic, or a practitioner who is not an admin asked for another role. */
+            /** @description `forbidden`: the caller is neither the admin nor a practitioner of a clinic, or a practitioner who is not an admin asked for another role or for a specialty. */
             403: {
                 headers: {
                     [name: string]: unknown;

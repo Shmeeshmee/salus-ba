@@ -38,12 +38,12 @@ func NewService(p Ports) *Service { return &Service{p: p} }
 // Appointments returns the clinic's appointments by month, the heatmap of their weekdays and hours and, for an
 // admin, the fulfilled ones per role. ErrInvalidQuery for a bad range (not audited: nothing is read);
 // ErrForbidden, audited, to a caller who is neither the clinic's admin nor a practitioner of it, and to a
-// practitioner who is not an admin asking for another role.
+// practitioner who is not an admin asking for another role or for a specialty.
 func (s *Service) Appointments(ctx context.Context, c Caller, q AppointmentQuery) (AppointmentFigures, error) {
 	if !validRange(q.From, q.To) {
 		return AppointmentFigures{}, ErrInvalidQuery
 	}
-	if !staff(c) || (!c.Admin && q.PractitionerRoleID != "" && q.PractitionerRoleID != c.PractitionerRoleID) {
+	if !staff(c) || (!c.Admin && !ownAppointmentFilter(c, q)) {
 		return AppointmentFigures{}, s.refuse(ctx, c)
 	}
 	out := AppointmentFigures{PerPractitioner: c.Admin}
@@ -90,6 +90,13 @@ func (s *Service) Diagnoses(ctx context.Context, c Caller, q DiagnosisQuery) ([]
 		return nil, fmt.Errorf("clinicstats: diagnoses: %w", err)
 	}
 	return out, nil
+}
+
+// ownAppointmentFilter reports whether q narrows a non-admin's appointment figures at most to their own role (C2).
+// A specialty is never theirs to filter by: in a clinic with one cardiologist it is that colleague's figures, and
+// with their own role's subtracted it is the others' of their specialty.
+func ownAppointmentFilter(c Caller, q AppointmentQuery) bool {
+	return q.Specialty == "" && (q.PractitionerRoleID == "" || q.PractitionerRoleID == c.PractitionerRoleID)
 }
 
 // staff reports whether c is the admin or a practitioner of a clinic.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
@@ -46,11 +47,13 @@ func BenchmarkClinicStatsRefresh_OneClinicDay(b *testing.B) {
 }
 
 // A yearly overview as the admin opens it: the appointments (series, heatmap, practitioners) and the diagnoses by
-// group, of one year of the three, each audited.
+// group, of one year of the three, each audited by the real auditevent service (two AuditEvents written per pass).
 func BenchmarkClinicStatsYearlyOverview(b *testing.B) {
 	p, org, _ := benchClinic(b)
-	svc := clinicstats.NewService(clinicstats.Ports{Repo: clinicstats.NewPostgresRepository(p.app), Audit: recordNothing{}, Tx: postgres.NewTransactor(p.app)})
-	c := clinicstats.Caller{AccountID: "acc", OrganizationID: org, Admin: true}
+	tx := postgres.NewTransactor(p.app)
+	audit := auditevent.NewService(auditevent.NewPostgresRepository(p.app), tx, clock.System{})
+	svc := clinicstats.NewService(clinicstats.Ports{Repo: clinicstats.NewPostgresRepository(p.app), Audit: audit, Tx: tx})
+	c := clinicstats.Caller{AccountID: "00000000-0000-4000-8000-0000000000ad", OrganizationID: org, Admin: true}
 	from, to := date(2025, 1, 1), date(2025, 12, 31)
 	for b.Loop() {
 		f, err := svc.Appointments(b.Context(), c, clinicstats.AppointmentQuery{From: from, To: to})

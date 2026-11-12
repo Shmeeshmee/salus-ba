@@ -90,11 +90,12 @@ func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Pro
 	return river.NewClient(riverpgxv5.New(pool), cfg)
 }
 
-// workerQueues are the queues cmd/worker works: the default one, the scan queue at scanWorkers, and the clinics'
-// webhooks.
+// workerQueues are the queues cmd/worker works: the default one, the scan queue at scanWorkers, the clinics'
+// webhooks, and the clinic statistics' builds at statsWorkers.
 func workerQueues() map[string]river.QueueConfig {
 	return map[string]river.QueueConfig{
 		river.QueueDefault: {MaxWorkers: maxWorkers}, binary.QueueScan: {MaxWorkers: scanWorkers}, webhookQueue: {MaxWorkers: maxWorkers},
+		clinicstats.QueueStats: {MaxWorkers: statsWorkers},
 	}
 }
 

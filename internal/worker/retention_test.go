@@ -281,6 +281,16 @@ func composeSectionsWith(t *testing.T, variable string) []string {
 // The retention pool reaches one place: New hands it to newRetention, which builds the retention purgers'
 // repositories on it. Every other job, and River itself, runs on the salus_app pool.
 func TestNew_HandsTheRetentionPoolToTheRetentionPurgersOnly(t *testing.T) {
+	uses := poolUses(t, "retentionPool")
+	if want := []string{"auth.NewPostgresRepository", "binary.NewPostgresRepository", "newRetention", "notification.NewPostgresRepository",
+		"questionnaireresponse.NewPostgresRepository", "slot.NewPostgresRepository", "videosession.NewPostgresRepository"}; !slices.Equal(uses, want) {
+		t.Errorf("retentionPool is passed to %v, want only %v", uses, want)
+	}
+}
+
+// poolUses names every call in the package's non-test files that is passed the identifier pool, sorted.
+func poolUses(t *testing.T, pool string) []string {
+	t.Helper()
 	fset := token.NewFileSet()
 	files, err := filepath.Glob("*.go")
 	if err != nil {
@@ -301,7 +311,7 @@ func TestNew_HandsTheRetentionPoolToTheRetentionPurgersOnly(t *testing.T) {
 				return true
 			}
 			for _, arg := range call.Args {
-				if id, ok := arg.(*ast.Ident); ok && id.Name == "retentionPool" {
+				if id, ok := arg.(*ast.Ident); ok && id.Name == pool {
 					uses = append(uses, callee(call.Fun))
 				}
 			}
@@ -309,10 +319,7 @@ func TestNew_HandsTheRetentionPoolToTheRetentionPurgersOnly(t *testing.T) {
 		})
 	}
 	slices.Sort(uses)
-	if want := []string{"auth.NewPostgresRepository", "binary.NewPostgresRepository", "newRetention", "notification.NewPostgresRepository",
-		"questionnaireresponse.NewPostgresRepository", "slot.NewPostgresRepository", "videosession.NewPostgresRepository"}; !slices.Equal(uses, want) {
-		t.Errorf("retentionPool is passed to %v, want only %v", uses, want)
-	}
+	return uses
 }
 
 // callee names a called function: f or pkg.F.
