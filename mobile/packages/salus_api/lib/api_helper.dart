@@ -80,6 +80,9 @@ String parameterToString(dynamic value) {
   if (value is TermLanguage) {
     return TermLanguageTypeTransformer().encode(value).toString();
   }
+  if (value is WebhookEventType) {
+    return WebhookEventTypeTypeTransformer().encode(value).toString();
+  }
   return value.toString();
 }
 

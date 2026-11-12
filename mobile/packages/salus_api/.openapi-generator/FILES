@@ -38,8 +38,11 @@ lib/model/chat_command.dart
 lib/model/chat_command_error.dart
 lib/model/chat_command_error_frame.dart
 lib/model/chat_frame.dart
+lib/model/chat_hour.dart
+lib/model/chat_hours.dart
 lib/model/chat_message.dart
 lib/model/chat_message_frame.dart
+lib/model/chat_settings.dart
 lib/model/command_error.dart
 lib/model/command_error_message.dart
 lib/model/confirm_request.dart
@@ -54,6 +57,7 @@ lib/model/consultation_status.dart
 lib/model/conversation.dart
 lib/model/conversation_list.dart
 lib/model/conversation_participant.dart
+lib/model/created_webhook.dart
 lib/model/cursor.dart
 lib/model/cursor_message.dart
 lib/model/document_field_texts.dart
@@ -87,8 +91,10 @@ lib/model/login_response.dart
 lib/model/message_page.dart
 lib/model/message_revision.dart
 lib/model/message_revisions.dart
+lib/model/new_webhook.dart
 lib/model/open_conversation_request.dart
 lib/model/patient.dart
+lib/model/push_device.dart
 lib/model/questionnaire.dart
 lib/model/questionnaire_default.dart
 lib/model/questionnaire_item.dart
@@ -147,4 +153,10 @@ lib/model/transcript_terms.dart
 lib/model/unavailable.dart
 lib/model/update_me_request.dart
 lib/model/verify_request.dart
+lib/model/webhook.dart
+lib/model/webhook_event.dart
+lib/model/webhook_event_data.dart
+lib/model/webhook_event_data_message.dart
+lib/model/webhook_event_type.dart
+lib/model/webhook_list.dart
 pubspec.yaml

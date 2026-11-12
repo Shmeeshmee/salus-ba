@@ -62,4 +62,17 @@ void main() {
     stop();
     expect(ChatMessageFrameTypeEnum.message.toJson(), 'message');
   });
+
+  test("gives the clinic's chat hours, and not_found for another clinic", () async {
+    final closed = ChatHours(
+      timeZone: 'Europe/Sarajevo',
+      hours: [ChatHour(day: ChatHourDayEnum.mon, start: '08:00', end: '16:00')],
+      responseTimeHours: 8,
+      openNow: false,
+    );
+    final chat = FakeChat(hours: closed);
+    expect((await chat.chatHours(chat.conversation.organizationId)).openNow, isFalse);
+    expect((await FakeChat().chatHours(chat.conversation.organizationId)).openNow, isTrue);
+    expect(() => chat.chatHours('00000000-0000-4000-8000-000000000000'), throwsA(isA<ChatException>()));
+  });
 }

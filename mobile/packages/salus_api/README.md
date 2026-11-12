@@ -85,15 +85,23 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**register**](doc//AuthApi.md#register) | **POST** /auth/register | Register a patient account
 *AuthApi* | [**updateMe**](doc//AuthApi.md#updateme) | **PATCH** /auth/me | Choose the account's language
 *AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
+*ChatApi* | [**createWebhook**](doc//ChatApi.md#createwebhook) | **POST** /clinic/webhooks | Add a webhook endpoint; its secret is shown in this answer only
+*ChatApi* | [**deleteWebhook**](doc//ChatApi.md#deletewebhook) | **DELETE** /clinic/webhooks/{id} | Delete a webhook endpoint and its dead letters
 *ChatApi* | [**editMessage**](doc//ChatApi.md#editmessage) | **PATCH** /conversations/{id}/messages/{message_id} | Edit the body of one's own text message
 *ChatApi* | [**followConversation**](doc//ChatApi.md#followconversation) | **GET** /conversations/{id}/events | The conversation's messages, live, over a WebSocket
+*ChatApi* | [**getChatHours**](doc//ChatApi.md#getchathours) | **GET** /organizations/{id}/chat-hours | The clinic's chat hours, its response time, and whether it is within its hours now
+*ChatApi* | [**getChatSettings**](doc//ChatApi.md#getchatsettings) | **GET** /clinic/chat-settings | The admin's clinic's chat settings
 *ChatApi* | [**getConversation**](doc//ChatApi.md#getconversation) | **GET** /conversations/{id} | One conversation with its active participants
 *ChatApi* | [**listConversations**](doc//ChatApi.md#listconversations) | **GET** /conversations | The caller's conversations, newest activity first, with their unread counts
 *ChatApi* | [**listMessageRevisions**](doc//ChatApi.md#listmessagerevisions) | **GET** /conversations/{id}/messages/{message_id}/revisions | The earlier bodies of an edited message, oldest first
 *ChatApi* | [**listMessages**](doc//ChatApi.md#listmessages) | **GET** /conversations/{id}/messages | A page of the conversation's messages, newest first
+*ChatApi* | [**listWebhooks**](doc//ChatApi.md#listwebhooks) | **GET** /clinic/webhooks | The admin's clinic's webhook endpoints, without their secrets
 *ChatApi* | [**markConversationRead**](doc//ChatApi.md#markconversationread) | **PUT** /conversations/{id}/read | Move the caller's read position
 *ChatApi* | [**openConversation**](doc//ChatApi.md#openconversation) | **POST** /conversations | Open the conversation with a patient or a practitioner, or return the one there is
+*ChatApi* | [**registerDevice**](doc//ChatApi.md#registerdevice) | **PUT** /me/devices | Register the patient app's push token
 *ChatApi* | [**sendMessage**](doc//ChatApi.md#sendmessage) | **POST** /conversations/{id}/messages | Send a text message
+*ChatApi* | [**setChatSettings**](doc//ChatApi.md#setchatsettings) | **PUT** /clinic/chat-settings | Replace the admin's clinic's chat settings
+*ChatApi* | [**unregisterDevice**](doc//ChatApi.md#unregisterdevice) | **DELETE** /me/devices | Unregister the app's push token (on sign-out)
 *ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic, or to transcription
 *ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
 *ConsentsApi* | [**revokeConsent**](doc//ConsentsApi.md#revokeconsent) | **POST** /consents/{id}/revoke | Revoke a consent
@@ -162,8 +170,11 @@ Class | Method | HTTP request | Description
  - [ChatCommandError](doc//ChatCommandError.md)
  - [ChatCommandErrorFrame](doc//ChatCommandErrorFrame.md)
  - [ChatFrame](doc//ChatFrame.md)
+ - [ChatHour](doc//ChatHour.md)
+ - [ChatHours](doc//ChatHours.md)
  - [ChatMessage](doc//ChatMessage.md)
  - [ChatMessageFrame](doc//ChatMessageFrame.md)
+ - [ChatSettings](doc//ChatSettings.md)
  - [CommandError](doc//CommandError.md)
  - [CommandErrorMessage](doc//CommandErrorMessage.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)
@@ -178,6 +189,7 @@ Class | Method | HTTP request | Description
  - [Conversation](doc//Conversation.md)
  - [ConversationList](doc//ConversationList.md)
  - [ConversationParticipant](doc//ConversationParticipant.md)
+ - [CreatedWebhook](doc//CreatedWebhook.md)
  - [Cursor](doc//Cursor.md)
  - [CursorMessage](doc//CursorMessage.md)
  - [DocumentFieldTexts](doc//DocumentFieldTexts.md)
@@ -211,8 +223,10 @@ Class | Method | HTTP request | Description
  - [MessagePage](doc//MessagePage.md)
  - [MessageRevision](doc//MessageRevision.md)
  - [MessageRevisions](doc//MessageRevisions.md)
+ - [NewWebhook](doc//NewWebhook.md)
  - [OpenConversationRequest](doc//OpenConversationRequest.md)
  - [Patient](doc//Patient.md)
+ - [PushDevice](doc//PushDevice.md)
  - [Questionnaire](doc//Questionnaire.md)
  - [QuestionnaireDefault](doc//QuestionnaireDefault.md)
  - [QuestionnaireItem](doc//QuestionnaireItem.md)
@@ -271,6 +285,12 @@ Class | Method | HTTP request | Description
  - [Unavailable](doc//Unavailable.md)
  - [UpdateMeRequest](doc//UpdateMeRequest.md)
  - [VerifyRequest](doc//VerifyRequest.md)
+ - [Webhook](doc//Webhook.md)
+ - [WebhookEvent](doc//WebhookEvent.md)
+ - [WebhookEventData](doc//WebhookEventData.md)
+ - [WebhookEventDataMessage](doc//WebhookEventDataMessage.md)
+ - [WebhookEventType](doc//WebhookEventType.md)
+ - [WebhookList](doc//WebhookList.md)
 
 
 ## Documentation For Authorization

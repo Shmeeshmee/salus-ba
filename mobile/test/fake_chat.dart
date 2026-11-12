@@ -11,7 +11,9 @@ int _seqOf(String cursor) => int.parse(cursor.substring('fake-'.length));
 /// screens see: pages newest first by cursor, idempotent sends, edits by the sender with the current version, the
 /// read position never going back, each frame once. The caller is the conversation's patient.
 class FakeChat implements Chats {
-  FakeChat({int history = 0, DateTime? start}) : _clock = start ?? DateTime.utc(2026, 11, 12, 8) {
+  FakeChat({int history = 0, DateTime? start, ChatHours? hours})
+      : _clock = start ?? DateTime.utc(2026, 11, 12, 8),
+        _hours = hours ?? ChatHours(timeZone: 'Europe/Sarajevo', responseTimeHours: 24, openNow: true) {
     final at = _clock;
     conversation = Conversation(
       id: _uuid(1, 'c'),
@@ -37,6 +39,7 @@ class FakeChat implements Chats {
   static final _doctor = _uuid(2, 'd');
 
   late final Conversation conversation;
+  final ChatHours _hours;
   final _messages = <ChatMessage>[];
   final _revisions = <String, List<MessageRevision>>{};
   final _clientIds = <String, ChatMessage>{};
@@ -151,6 +154,12 @@ class FakeChat implements Chats {
   Future<List<MessageRevision>> revisions(String id, String messageId) async {
     _known(id);
     return List.of(_revisions[messageId] ?? const []);
+  }
+
+  @override
+  Future<ChatHours> chatHours(String organizationId) async {
+    if (organizationId != conversation.organizationId) throw const ChatException('not_found');
+    return _hours;
   }
 
   @override

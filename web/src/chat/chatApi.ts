@@ -12,6 +12,7 @@ export type MessagePage = components['schemas']['MessagePage']
 export type MessageRevision = components['schemas']['MessageRevision']
 export type OpenConversationRequest = components['schemas']['OpenConversationRequest']
 export type ChatMessageFrame = components['schemas']['ChatMessageFrame']
+export type ChatHours = components['schemas']['ChatHours']
 export type ErrorCode = components['schemas']['Error']['error']
 
 // ChatEnd is why a conversation's socket ended for good: access ended (close codes 4403 and 4404).
@@ -41,4 +42,7 @@ export interface ChatApi {
   // follow delivers every message after the cursor (or from now) and then the live ones, each once, until the
   // returned stop is called or access ends.
   follow(id: string, after: string | undefined, onFrame: (frame: ChatMessageFrame) => void, onEnd: (end: ChatEnd) => void): () => void
+  // chatHours is the clinic's chat hours, its stated response time and whether it is within its hours now (SAL-29):
+  // the screens show the out-of-hours notice from it.
+  chatHours(organizationId: string): Promise<ChatHours>
 }
