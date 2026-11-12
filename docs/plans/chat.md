@@ -231,3 +231,6 @@ PROGRESS when merged.
 | `read_seq` | Unread counts and the e-mail fallback (owner, 2026-11-12) |
 | `client_message_id` | Idempotent send; an opaque UUID the client makes |
 | `encounter_id` | The optional link to the consultation the conversation is about |
+| `push_device.token`, `platform`, `account_id` (SAL-29) | The patient app's push token: to tell the patient of a new message. Deleted on sign-out, when the platform says it is gone, and with the account |
+| `webhook_endpoint.created_by` (SAL-29) | Which admin created the clinic's webhook: accountability. The URL and the sealed secret are the clinic's, not personal data |
+| `webhook_dead_letter` ids (SAL-29) | The event, conversation and message of a delivery that failed its last attempt, for the clinic's admin and support: 30 days |
