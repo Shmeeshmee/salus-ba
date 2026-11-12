@@ -121,7 +121,8 @@ func sortedCells(in trends.Input) []trends.Key {
 }
 
 // systemOf is the integer system over the cells' residuals with the known clinics' patients taken out: published
-// cells within [v-2, v+2], each child within its parent, and a cover parent's residual within its children's.
+// cells within [v-2, v+2] with a residual of at least k (A4), each child within its parent, and a cover parent's
+// residual within its children's.
 func systemOf(in trends.Input, r trends.Result, keys []trends.Key, rels []testRelation, known []int32) (lo, hi []int, rows []row) {
 	index := map[trends.Key]int{}
 	a := make([]int, len(keys))
@@ -141,7 +142,9 @@ func systemOf(in trends.Input, r trends.Result, keys []trends.Key, rels []testRe
 	for i, k := range keys {
 		lo[i], hi[i] = 0, upper
 		if v, ok := r.Published[k]; ok {
-			lo[i], hi[i] = max(0, v-2-a[i]), v+2-a[i]
+			// A published cell passed A4, a public rule: its patients the two known clinics did not see are at least
+			// T - x1 - x2 >= k, whichever two clinics are known.
+			lo[i], hi[i] = max(0, v-2-a[i], in.K), v+2-a[i]
 		}
 	}
 	for _, rel := range rels {

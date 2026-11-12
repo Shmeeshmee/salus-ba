@@ -35,18 +35,21 @@ func (u *universe) audit(passed map[Key]bool) []Key {
 }
 
 // width is the width of the interval of values of the suppressed cell x consistent with the published cells (each
-// read as [v-2, v+2] for the rounding), the inequality relations, and the own patients of x's two largest clinics
-// in every cell treated as known; its ends rounded inward. An LP the solver cannot finish counts as 0: the audit
-// fails closed.
-func (u *universe) width(x Key) int {
-	p := u.program(x)
+// read as [v-2, v+2] for the rounding, and with at least k patients outside the known clinics, since it passed A4),
+// the inequality relations, and the own patients of x's two largest clinics in every cell treated as known; its ends
+// rounded inward.
+func (u *universe) width(x Key) int { return u.program(x).width() }
+
+// width is the program's interval of r_0. Any failure of the solver, an unbounded program included (every residual
+// is bounded by cap, so only a numerical failure gets there), counts as 0: the audit fails closed.
+func (p program) width() int {
 	hi, err := p.solve(-1)
 	if err != nil {
 		return 0
 	}
 	hi = -hi
 	if hi >= p.cap-1 {
-		return math.MaxInt32 // no bound but the program's own: no need for the lower end
+		return math.MaxInt32 // only the program's own bound, far above any count: no need for the lower end
 	}
 	lo, err := p.solve(1)
 	if err != nil {
@@ -89,16 +92,44 @@ func (p program) solve(sign float64) (float64, error) {
 	}
 	c := make([]float64, 2*n)
 	c[0], c[n] = sign, -sign
-	opt, err := simplex(a, b, c)
-	if errors.Is(err, errUnbounded) && sign < 0 {
-		return -p.cap, nil
+	opt, y, err := simplex(a, b, c)
+	if err != nil {
+		return 0, err
 	}
-	return sign*p.at[0] + opt, err
+	r := make([]float64, n)
+	for j := range n {
+		r[j] = p.at[j] + y[j] - y[n+j]
+	}
+	if !p.holds(r) || math.Abs(sign*r[0]-(sign*p.at[0]+opt)) > checkSlack {
+		return 0, errNoFinish
+	}
+	return sign*p.at[0] + opt, nil
+}
+
+// holds reports whether r is a point of the program, up to checkSlack: the solver's answer is checked against the
+// original rows, so a numerical failure fails the audit instead of passing a cell.
+func (p program) holds(r []float64) bool {
+	for j := range p.vars {
+		if r[j] < -checkSlack {
+			return false
+		}
+	}
+	for i, row := range p.g {
+		sum := 0.0
+		for j, v := range row {
+			sum += v * r[j]
+		}
+		if sum > p.h[i]+checkSlack {
+			return false
+		}
+	}
+	return true
 }
 
 // The simplex's limits.
 const (
 	simplexEps   = 1e-9
+	checkSlack   = 1e-6 // how far the solver's point may lie outside a row, in patients
 	simplexPivot = 20000 // pivots before the solver gives up (and the audit fails closed)
 )
 
@@ -108,8 +139,8 @@ var (
 )
 
 // simplex minimises c·x subject to a·x <= b and x >= 0, with b >= 0, from the slack basis: the tableau method with
-// Bland's rule, which never cycles.
-func simplex(a [][]float64, b, c []float64) (float64, error) {
+// Bland's rule, which never cycles. It returns the optimum and the point that reaches it.
+func simplex(a [][]float64, b, c []float64) (float64, []float64, error) {
 	rows, cols := len(a), len(c)
 	width := cols + rows + 1
 	t := make([][]float64, rows+1)
@@ -131,7 +162,13 @@ func simplex(a [][]float64, b, c []float64) (float64, error) {
 			}
 		}
 		if enter < 0 {
-			return -t[rows][width-1], nil
+			x := make([]float64, cols)
+			for i, v := range basis {
+				if v < cols {
+					x[v] = t[i][width-1]
+				}
+			}
+			return -t[rows][width-1], x, nil
 		}
 		leave := -1
 		for i := range rows {
@@ -149,12 +186,12 @@ func simplex(a [][]float64, b, c []float64) (float64, error) {
 			}
 		}
 		if leave < 0 {
-			return 0, errUnbounded
+			return 0, nil, errUnbounded
 		}
 		pivot(t, leave, enter)
 		basis[leave] = enter
 	}
-	return 0, errNoFinish
+	return 0, nil, errNoFinish
 }
 
 // pivot makes column e basic in row l.
@@ -191,8 +228,10 @@ func (u *universe) program(x Key) program {
 		b.row(map[int]float64{i: 1}, limit)
 		if c := u.cells[k]; !c.suppressed {
 			v, a := float64(round5(len(c.patients))), float64(b.knownIn(k))
+			// Read as [v-2, v+2], and it passed A4, a public rule: its patients outside any two clinics are at least
+			// k, so r >= k whichever two clinics are known.
 			b.row(map[int]float64{i: 1}, v+2-a)
-			b.row(map[int]float64{i: -1}, -(v - 2 - a))
+			b.row(map[int]float64{i: -1}, -math.Max(v-2-a, float64(u.k)))
 		}
 	}
 	seen := map[int]bool{}

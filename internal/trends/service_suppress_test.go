@@ -353,3 +353,29 @@ func BenchmarkSuppress_ASyntheticMonth(b *testing.B) {
 		b.ReportMetric(float64(len(r.Suppressed)), "suppressed")
 	}
 }
+
+// A7: a published cell passed A4, a public rule, so an attacker knows that its patients outside the two known clinics
+// are at least k, not only [v-2, v+2]. Here (k = 12) the subgroup S1 is suppressed by A6 beside its small sibling S2;
+// its code A01 (22 patients, read as 20) and its group G1 (30) are published, and two clinics hold 5 of A01 each.
+// Read only as [18, 22], A01 leaves S1 within [8, 22] outside the two clinics, 14 wide; with A01's residual known to
+// be at least 12, S1 is within [12, 22], 10 wide, under k: S1 must not be left as the only thing that hides it.
+func TestSuppress_A7KnowsThatAPublishedCellPassedA4(t *testing.T) {
+	m := month{
+		geo:  map[string][]string{},
+		diag: map[string][]string{"g:G1": {""}, "s:S1": {"g:G1"}, "s:S2": {"g:G1"}, "c:A01": {"g:G1", "s:S1"}},
+	}
+	visits := append(append(append(append(append(
+		spread(0, 0, 5, "", "c:A01"), spread(1, 100, 5, "", "c:A01")...),
+		spread(2, 200, 4, "", "c:A01")...), spread(3, 300, 4, "", "c:A01")...),
+		spread(4, 400, 4, "", "c:A01")...), spread(5, 500, 4, "", "s:S1")...)
+	visits = append(visits, spread(6, 600, 4, "", "s:S2")...)
+	in := m.input(visits, 12)
+	r := trends.Suppress(in)
+	if r.Refused {
+		t.Fatal("the month is refused")
+	}
+	if !r.Suppressed[trends.Key{"", "", "s:S1"}] || !r.Suppressed[trends.Key{"", "", "s:S2"}] {
+		t.Errorf("S1 and S2 not suppressed: %v", r.Suppressed)
+	}
+	checkExact(t, in, r)
+}
