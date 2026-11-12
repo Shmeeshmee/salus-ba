@@ -1467,9 +1467,14 @@
   "@chatFileRemove": {
     "description": "The composer: remove a file not yet sent, tooltip."
   },
-  "chatTooManyFiles": "You have 10 files waiting to be sent. Send them before adding more; files not sent are removed after 24 hours.",
+  "chatTooManyFiles": "{count, plural, one{You already have {count} file waiting to be sent. Files not sent are removed after 24 hours; try again later.} other{You already have {count} files waiting to be sent. Files not sent are removed after 24 hours; try again later.}}",
   "@chatTooManyFiles": {
-    "description": "An upload refused because 10 files already wait to be sent (SAL-30 too_many_files)."
+    "description": "An upload refused because the patient already has the most files waiting to be sent (SAL-30 too_many_files); count is the limit.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "chatOpenFailed": "The file could not be opened. Try again.",
   "@chatOpenFailed": {
@@ -1505,6 +1510,15 @@
   "chatHoursNone": "The clinic has not set chat hours.",
   "@chatHoursNone": {
     "description": "The clinic has no chat hours."
+  },
+  "chatHoursZone": "Times are in the clinic's time zone, {zone}.",
+  "@chatHoursZone": {
+    "description": "The chat hours dialog: the clinic's IANA time zone the hours are in (shown as given, not converted).",
+    "placeholders": {
+      "zone": {
+        "type": "String"
+      }
+    }
   },
   "chatResponseTime": "{hours, plural, one{The clinic usually answers within {hours} hour.} other{The clinic usually answers within {hours} hours.}}",
   "@chatResponseTime": {
@@ -1620,9 +1634,9 @@
   "@chatRevoke": {
     "description": "[legal] The chat view's menu: revoke a granted invitation."
   },
-  "chatRevokeWho": "Revoke access: {doctor}, {clinic}",
-  "@chatRevokeWho": {
-    "description": "[legal] The chat view's menu: revoke the access of a granted doctor from another clinic, by name and clinic.",
+  "chatGrantedTo": "Access granted to {doctor}, {clinic}.",
+  "@chatGrantedTo": {
+    "description": "[legal] The chat view's line for a doctor of another clinic the patient granted access, beside the revoke button.",
     "placeholders": {
       "doctor": {
         "type": "String"
@@ -1631,6 +1645,10 @@
         "type": "String"
       }
     }
+  },
+  "chatGrantedToUnknown": "Access granted to a doctor from another clinic.",
+  "@chatGrantedToUnknown": {
+    "description": "[legal] The granted doctor's line while their name and clinic are not known."
   },
   "chatRevokeBody": "The doctor from the other clinic loses access to this conversation at once. The messages already written stay in it.",
   "@chatRevokeBody": {

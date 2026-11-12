@@ -39,6 +39,7 @@ class ChatScreen extends StatefulWidget {
     required this.files,
     required this.media,
     required this.now,
+    required this.onSessionEnded,
   });
 
   final Chats chats;
@@ -50,6 +51,9 @@ class ChatScreen extends StatefulWidget {
   final Files files;
   final Media media;
   final DateTime Function() now;
+
+  /// Called when the socket says the session ended (4401): the app signs in again.
+  final VoidCallback onSessionEnded;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -76,6 +80,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// The doctors of other clinics the patient granted access to this conversation, which they may revoke from the
   /// menu.
   var _granted = <ChatInvitation>[];
+  var _grantedFailed = false;
   Places _names = const Places({}, {});
   var _deciding = false;
 
@@ -141,7 +146,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         _addOlder(page.messages);
       });
       _stop?.call();
-      _stop = widget.chats.follow(_id, page.messages.firstOrNull?.cursor ?? widget.conversation.cursor, _onFrame, _onEnd);
+      _stop = widget.chats.follow(
+        _id,
+        page.messages.firstOrNull?.cursor ?? widget.conversation.cursor,
+        _onFrame,
+        _onEnd,
+      );
       _read();
       _watchScans();
     } on ChatException catch (e) {
@@ -194,18 +204,41 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         _insert(m);
       }
     });
-    if (m.system?.code case 'participant_invited' || 'participant_removed') unawaited(_loadInvitations());
+    if (m.system?.code case 'participant_invited' || 'participant_removed' || 'consent_granted' || 'consent_declined') {
+      unawaited(_loadInvitations());
+    }
     _read();
     _watchScans();
   }
 
+  /// Access or the session ended: nothing of the conversation stays in the view (its messages, the invitations and
+  /// the granted doctors, their names, the hours, the composer's text and files); only the notice. A session that
+  /// ended hands over to sign-in.
   void _onEnd(ChatEnd end) {
-    if (mounted) setState(() => _ended = end);
+    if (!mounted) return;
+    _stop?.call();
+    _stop = null;
+    _scan?.cancel();
+    setState(() {
+      _ended = end;
+      _messages.clear();
+      _seqs.clear();
+      _older = null;
+      _invitations = [];
+      _granted = [];
+      _names = const Places({}, {});
+      _histories = {};
+      _hours = null;
+      _pending.clear();
+      _text.clear();
+    });
+    if (end == ChatEnd.unauthenticated) widget.onSessionEnded();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
+    if (_foreground && _grantedFailed && _ended == null) unawaited(_loadGranted());
     _read();
   }
 
@@ -232,7 +265,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// While a recent message has a file being checked, its page is read again (every 2 s at first, as for the
   /// questionnaire's files) until the scan has ended.
   void _watchScans() {
-    final scanning = _messages.take(50).any((m) => m.attachments.any((a) => a.status == ChatAttachmentStatusEnum.scanning));
+    final scanning = _messages
+        .take(50)
+        .any((m) => m.attachments.any((a) => a.status == ChatAttachmentStatusEnum.scanning));
     if (!scanning) {
       _scans = 0;
       return;
@@ -267,11 +302,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _loadInvitations() async {
+  /// The pending invitations (the consent prompts) and the granted doctors (the revoke lines), each read on its
+  /// own so that one failing does not hide the other.
+  Future<void> _loadInvitations() => Future.wait([_loadPending(), _loadGranted()]);
+
+  Future<void> _loadPending() async {
     try {
-      final mine = [for (final i in await widget.chats.invitations()) if (i.conversationId == _id) i];
-      final granted = [for (final i in await widget.chats.invitations(granted: true)) if (i.conversationId == _id) i];
-      final names = await _namesOf([...mine, ...granted]);
+      final mine = [
+        for (final i in await widget.chats.invitations())
+          if (i.conversationId == _id) i,
+      ];
+      final names = await _namesOf(mine);
       var histories = _histories;
       if (mine.isNotEmpty) {
         try {
@@ -281,10 +322,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           // The prompt says "the conversation" without it.
         }
       }
-      if (mounted) {
+      if (mounted && _ended == null) {
         setState(() {
           _invitations = mine;
-          _granted = granted;
           _names = names;
           _histories = histories;
         });
@@ -294,13 +334,34 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// The granted doctors; when they cannot be read, again when the app next comes to the foreground.
+  Future<void> _loadGranted() async {
+    try {
+      final granted = [
+        for (final i in await widget.chats.invitations(granted: true))
+          if (i.conversationId == _id) i,
+      ];
+      final names = await _namesOf(granted);
+      if (mounted && _ended == null) {
+        setState(() {
+          _granted = granted;
+          _names = names;
+          _grantedFailed = false;
+        });
+      }
+    } on ChatException {
+      _grantedFailed = true;
+    }
+  }
+
   /// The names of the invited doctors and their clinics; those known so far when they cannot be read.
   Future<Places> _namesOf(List<ChatInvitation> invitations) async {
     if (invitations.isEmpty) return _names;
     try {
-      return await widget.places({for (final i in invitations) i.organizationId});
+      final read = await widget.places({for (final i in invitations) i.organizationId});
+      return Places({..._names.clinics, ...read.clinics}, {..._names.roles, ...read.roles});
     } on Exception {
-      return _names; // The prompt waits for them (InvitationCard) and the menu names no doctor.
+      return _names; // The prompt waits for them (InvitationCard) and the revoke line names no doctor.
     }
   }
 
@@ -321,7 +382,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       await widget.chats.decide(invitation.id, grant: grant);
       if (!mounted) return;
       setState(() {
-        _invitations = [for (final i in _invitations) if (i.id != invitation.id) i];
+        _invitations = [
+          for (final i in _invitations)
+            if (i.id != invitation.id) i,
+        ];
         if (grant) _granted.add(invitation);
       });
       _say(grant ? context.t.chatGranted : context.t.chatDeclined);
@@ -367,7 +431,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     } on CannotPrepare {
       _drop(entry, t.cannotPrepareFile);
     } on ChatException catch (e) {
-      _drop(entry, e.code == 'too_many_files' ? t.chatTooManyFiles : t.fileNotUploaded);
+      _drop(entry, e.code == 'too_many_files' ? t.chatTooManyFiles(chatUnsentMaximum) : t.fileNotUploaded);
     } finally {
       await file?.discard();
     }
@@ -381,8 +445,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   bool get _uploading => _pending.any((p) => p.attachment == null);
 
-  bool get _canSend =>
-      !_sending && !_uploading && (_text.text.trim().isNotEmpty || _pending.isNotEmpty);
+  bool get _canSend => !_sending && !_uploading && (_text.text.trim().isNotEmpty || _pending.isNotEmpty);
 
   Future<void> _send() async {
     final t = context.t;
@@ -415,14 +478,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     try {
       final bytes = await widget.chats.content(_id, a.id);
       if (!mounted) return;
-      if (a.contentType == ChatAttachmentContentTypeEnum.applicationSlashPdf) return await widget.files.sharePdf(a.filename, bytes);
+      if (a.contentType == ChatAttachmentContentTypeEnum.applicationSlashPdf) {
+        return await widget.files.sharePdf(a.filename, bytes);
+      }
       await showDialog<void>(
         context: context,
         builder: (context) => Dialog(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Flexible(child: InteractiveViewer(child: Image.memory(bytes, semanticLabel: a.filename))),
+              Flexible(
+                child: InteractiveViewer(child: Image.memory(bytes, semanticLabel: a.filename)),
+              ),
               TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(t.termClose)),
             ],
           ),
@@ -442,73 +509,83 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         title: Text(widget.title),
         actions: [
           if (hours != null)
-            IconButton(tooltip: t.chatHours, icon: const Icon(Icons.schedule), onPressed: () => showChatHours(context, hours)),
-          if (_granted.isNotEmpty)
-            PopupMenuButton<ChatInvitation>(
-              onSelected: _revoke,
-              itemBuilder: (_) => [
-                for (final g in _granted)
-                  PopupMenuItem(
-                    value: g,
-                    child: Text(switch (_names.roles[g.practitionerRoleId]) {
-                      (final clinic, final role) => t.chatRevokeWho(role.name, clinic.name),
-                      null => t.chatRevoke,
-                    }),
-                  ),
-              ],
+            IconButton(
+              tooltip: t.chatHours,
+              icon: const Icon(Icons.schedule),
+              onPressed: () => showChatHours(context, hours),
             ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (_invitations.isNotEmpty)
-              ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.5),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    children: [
-                      for (final i in _invitations)
-                        InvitationCard(
-                          invitation: i,
-                          history: _histories[i.id] ?? 'unknown',
-                          names: _names,
-                          busy: _deciding,
-                          onDecide: (grant) => _decide(i, grant),
-                          onRetry: _retryNames,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            Expanded(child: _list()),
-            if (_ended != null)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: ui.Message(_ended == ChatEnd.unauthenticated ? t.chatEndedSession : t.chatEnded),
-              )
-            else ...[
-              if (hours != null && !hours.openNow)
-                Container(
-                  width: double.infinity,
-                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: ui.Message(t.chatOutOfHours(hours.responseTimeHours)),
-                ),
-              if (_sendError != null)
-                Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: ui.Message(_sendError!, error: true)),
-              ChatComposer(
-                text: _text,
-                pending: _pending,
-                onAttach: _attach,
-                onRemove: (p) => setState(() => _pending.remove(p)),
-                onSend: _canSend ? _send : null,
-              ),
-            ],
-          ],
-        ),
+      body: SafeArea(child: _ended == null ? _conversation() : _endedNotice()),
+    );
+  }
+
+  Widget _endedNotice() => Padding(
+    padding: const EdgeInsets.all(16),
+    child: ui.Message(_ended == ChatEnd.unauthenticated ? context.t.chatEndedSession : context.t.chatEnded),
+  );
+
+  /// Each doctor of another clinic the patient let in, with the way to withdraw it in plain view (Art. 7(3)).
+  Widget _grantedLine(ChatInvitation g) {
+    final t = context.t;
+    final named = _names.roles[g.practitionerRoleId];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+      child: Row(
+        children: [
+          Expanded(child: Text(named == null ? t.chatGrantedToUnknown : t.chatGrantedTo(named.$2.name, named.$1.name))),
+          OutlinedButton(onPressed: () => _revoke(g), child: Text(t.chatRevokeConfirm)),
+        ],
       ),
+    );
+  }
+
+  Widget _conversation() {
+    final t = context.t;
+    final hours = _hours;
+    return Column(
+      children: [
+        for (final g in _granted) _grantedLine(g),
+        if (_invitations.isNotEmpty)
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.5),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  for (final i in _invitations)
+                    InvitationCard(
+                      invitation: i,
+                      history: _histories[i.id] ?? 'unknown',
+                      names: _names,
+                      busy: _deciding,
+                      onDecide: (grant) => _decide(i, grant),
+                      onRetry: _retryNames,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        Expanded(child: _list()),
+        ...[
+          if (hours != null && !hours.openNow)
+            Container(
+              width: double.infinity,
+              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: ui.Message(t.chatOutOfHours(hours.responseTimeHours)),
+            ),
+          if (_sendError != null)
+            Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: ui.Message(_sendError!, error: true)),
+          ChatComposer(
+            text: _text,
+            pending: _pending,
+            onAttach: _attach,
+            onRemove: (p) => setState(() => _pending.remove(p)),
+            onSend: _canSend ? _send : null,
+          ),
+        ],
+      ],
     );
   }
 
@@ -517,7 +594,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (_error != null) {
       return Padding(
         padding: const EdgeInsets.all(24),
-        child: ui.LoadFailed(_error == 'unreachable' ? context.t.unreachable : context.t.somethingWrong, onRetry: _load),
+        child: ui.LoadFailed(
+          _error == 'unreachable' ? context.t.unreachable : context.t.somethingWrong,
+          onRetry: _load,
+        ),
       );
     }
     final more = _older != null;

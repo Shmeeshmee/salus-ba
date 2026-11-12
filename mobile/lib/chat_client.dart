@@ -114,16 +114,24 @@ class ChatClient implements Chats {
       _present(await _call<MessagePage?>(() => _api.listMessages(id, before: before, limit: limit)));
 
   @override
-  Future<ChatMessage> send(String id, String clientMessageId, String body, {List<String> attachmentIds = const []}) async =>
-      _present(
-        await _call<ChatMessage?>(
-          () => _api.sendMessage(id, SendMessageRequest(clientMessageId: clientMessageId, body: body, attachmentIds: attachmentIds)),
-        ),
-      );
+  Future<ChatMessage> send(
+    String id,
+    String clientMessageId,
+    String body, {
+    List<String> attachmentIds = const [],
+  }) async => _present(
+    await _call<ChatMessage?>(
+      () => _api.sendMessage(
+        id,
+        SendMessageRequest(clientMessageId: clientMessageId, body: body, attachmentIds: attachmentIds),
+      ),
+    ),
+  );
 
   @override
-  Future<ChatMessage> edit(String id, String messageId, String body, int version) async =>
-      _present(await _call<ChatMessage?>(() => _api.editMessage(id, messageId, 'W/"$version"', EditMessageRequest(body: body))));
+  Future<ChatMessage> edit(String id, String messageId, String body, int version) async => _present(
+    await _call<ChatMessage?>(() => _api.editMessage(id, messageId, 'W/"$version"', EditMessageRequest(body: body))),
+  );
 
   @override
   Future<List<MessageRevision>> revisions(String id, String messageId) async =>
@@ -140,7 +148,9 @@ class ChatClient implements Chats {
   Future<void> decide(String invitationId, {required bool grant}) => _call(
     () => _api.decideChatInvitation(
       invitationId,
-      ChatInvitationDecision(decision: grant ? ChatInvitationDecisionDecisionEnum.grant : ChatInvitationDecisionDecisionEnum.decline),
+      ChatInvitationDecision(
+        decision: grant ? ChatInvitationDecisionDecisionEnum.grant : ChatInvitationDecisionDecisionEnum.decline,
+      ),
     ),
   );
 
@@ -227,7 +237,11 @@ class ChatClient implements Chats {
       final json = jsonDecode(data as String) as Map<String, dynamic>;
       final type = ChatMessageFrameTypeEnum.fromJson(json['type']);
       if (type == null) return null;
-      return ChatMessageFrame(type: type, version: ChatMessageFrameVersionEnum.number1, payload: _present(ChatMessage.fromJson(json['payload'])));
+      return ChatMessageFrame(
+        type: type,
+        version: ChatMessageFrameVersionEnum.number1,
+        payload: _present(ChatMessage.fromJson(json['payload'])),
+      );
     } on Object {
       return null; // A frame the app does not know is ignored.
     }
@@ -237,12 +251,18 @@ class ChatClient implements Chats {
   /// forwarded is dropped. Stops for good on 4401, 4403 and 4404 with [onEnd], and when a handshake fails and the
   /// conversation itself is refused (a refused upgrade gives no status to read).
   @override
-  void Function() follow(String id, String? after, void Function(ChatMessageFrame frame) onFrame, void Function(ChatEnd end) onEnd) {
+  void Function() follow(
+    String id,
+    String? after,
+    void Function(ChatMessageFrame frame) onFrame,
+    void Function(ChatEnd end) onEnd,
+  ) {
     var stopped = false;
     var cursor = after;
     int? last;
     ChatLine? line;
     var attempt = 0;
+    var refused = 0; // handshakes failed in a row
 
     void forward(ChatMessageFrame frame) {
       if (frame.type == ChatMessageFrameTypeEnum.message) {
@@ -260,8 +280,11 @@ class ChatClient implements Chats {
         final ChatLine open;
         try {
           open = line = await _dial(_events(id, cursor), headers);
+          refused = 0;
         } on Exception {
-          final end = await _refused(id);
+          // Each check is an audited read: on the first failed handshake in a row, then on every third.
+          refused++;
+          final end = refused == 1 || refused % 3 == 0 ? await _refused(id) : null;
           if (stopped) return;
           if (end != null) return onEnd(end);
           await _wait(chatBackoff(attempt++));

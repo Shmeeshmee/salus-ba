@@ -1920,11 +1920,11 @@ abstract class AppLocalizations {
   /// **'Remove the file'**
   String get chatFileRemove;
 
-  /// An upload refused because 10 files already wait to be sent (SAL-30 too_many_files).
+  /// An upload refused because the patient already has the most files waiting to be sent (SAL-30 too_many_files); count is the limit.
   ///
   /// In en, this message translates to:
-  /// **'You have 10 files waiting to be sent. Send them before adding more; files not sent are removed after 24 hours.'**
-  String get chatTooManyFiles;
+  /// **'{count, plural, one{You already have {count} file waiting to be sent. Files not sent are removed after 24 hours; try again later.} other{You already have {count} files waiting to be sent. Files not sent are removed after 24 hours; try again later.}}'**
+  String chatTooManyFiles(int count);
 
   /// An attachment that could not be read.
   ///
@@ -1961,6 +1961,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The clinic has not set chat hours.'**
   String get chatHoursNone;
+
+  /// The chat hours dialog: the clinic's IANA time zone the hours are in (shown as given, not converted).
+  ///
+  /// In en, this message translates to:
+  /// **'Times are in the clinic\'s time zone, {zone}.'**
+  String chatHoursZone(String zone);
 
   /// The clinic's expected response time, in the chat hours dialog.
   ///
@@ -2076,11 +2082,17 @@ abstract class AppLocalizations {
   /// **'Revoke the access of the doctor from another clinic'**
   String get chatRevoke;
 
-  /// [legal] The chat view's menu: revoke the access of a granted doctor from another clinic, by name and clinic.
+  /// [legal] The chat view's line for a doctor of another clinic the patient granted access, beside the revoke button.
   ///
   /// In en, this message translates to:
-  /// **'Revoke access: {doctor}, {clinic}'**
-  String chatRevokeWho(String doctor, String clinic);
+  /// **'Access granted to {doctor}, {clinic}.'**
+  String chatGrantedTo(String doctor, String clinic);
+
+  /// [legal] The granted doctor's line while their name and clinic are not known.
+  ///
+  /// In en, this message translates to:
+  /// **'Access granted to a doctor from another clinic.'**
+  String get chatGrantedToUnknown;
 
   /// [legal] The revocation dialog: its effect.
   ///

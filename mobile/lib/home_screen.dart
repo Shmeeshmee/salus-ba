@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:salus_api/api.dart';
 
@@ -92,6 +94,13 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// A chat found the session ended: back to this screen, then the sign-out path to sign-in (a session the API
+  /// already ended counts as signed out).
+  void _sessionEnded() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    unawaited(_signOut());
+  }
+
   /// Opens [screen]; a booking there may have completed the profile, so a missing one is read again after.
   Future<void> _open(Widget Function() screen) async {
     await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen()));
@@ -160,7 +169,14 @@ class _HomeScreenState extends State<HomeScreen> {
         if (widget.chats case final chats?)
           OutlinedButton(
             onPressed: () => _open(
-              () => ChatListScreen(chats: chats, places: booking.places, files: widget.files, media: widget.media, now: now),
+              () => ChatListScreen(
+                chats: chats,
+                places: booking.places,
+                files: widget.files,
+                media: widget.media,
+                now: now,
+                onSessionEnded: _sessionEnded,
+              ),
             ),
             child: Text(t.chatsTitle),
           ),

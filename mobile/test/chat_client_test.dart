@@ -30,7 +30,11 @@ Map<String, Object?> conversationJson({int unread = 2}) => {
   'staff_only': false,
 };
 
-Map<String, Object?> messageJson(int seq, {List<Map<String, Object?>>? attachments, String? body = 'Synthetic placeholder'}) => {
+Map<String, Object?> messageJson(
+  int seq, {
+  List<Map<String, Object?>>? attachments,
+  String? body = 'Synthetic placeholder',
+}) => {
   'id': 'f0000000-0000-4000-8000-${seq.toString().padLeft(12, '0')}',
   'conversation_id': conversationId,
   'seq': seq,
@@ -59,11 +63,9 @@ class Api {
   final routes = <String, Future<http.Response> Function(http.Request)>{};
   final requests = <http.Request>[];
 
-  void answer(String route, int status, [Object? body]) => routes[route] = (_) async => http.Response(
-    body == null ? '' : jsonEncode(body),
-    status,
-    headers: {'content-type': 'application/json'},
-  );
+  void answer(String route, int status, [Object? body]) =>
+      routes[route] = (_) async =>
+          http.Response(body == null ? '' : jsonEncode(body), status, headers: {'content-type': 'application/json'});
 
   http.Request last(String route) => requests.lastWhere((r) => '${r.method} ${r.url.path}' == route);
 
@@ -119,7 +121,9 @@ class Line implements ChatLine {
     client,
     dial: (url, headers) async {
       dials.add(url);
-      if (dials.length <= refused) throw const WebSocketException('Connection to the server was not upgraded to websocket');
+      if (dials.length <= refused) {
+        throw const WebSocketException('Connection to the server was not upgraded to websocket');
+      }
       final line = Line(url, headers);
       lines.add(line);
       return line;
@@ -162,11 +166,17 @@ void main() {
       'next': 'cursor-6',
     });
     final page = await s.chats.messages(conversationId, before: 'cursor-8', limit: 2);
-    expect(s.api.last('GET /conversations/$conversationId/messages').url.queryParameters, {'before': 'cursor-8', 'limit': '2'});
+    expect(s.api.last('GET /conversations/$conversationId/messages').url.queryParameters, {
+      'before': 'cursor-8',
+      'limit': '2',
+    });
     expect(page.next, 'cursor-6');
     expect(page.messages.first.body, isNull);
     final a = page.messages.first.attachments.single;
-    expect((a.status, a.thumbnail, a.filename, a.contentType), (ChatAttachmentStatusEnum.clean, true, 'synthetic-photo.jpg', ChatAttachmentContentTypeEnum.imageSlashJpeg));
+    expect(
+      (a.status, a.thumbnail, a.filename, a.contentType),
+      (ChatAttachmentStatusEnum.clean, true, 'synthetic-photo.jpg', ChatAttachmentContentTypeEnum.imageSlashJpeg),
+    );
     expect(page.messages.last.attachments, isEmpty);
   });
 
@@ -181,7 +191,12 @@ void main() {
     });
 
     s.api.answer('POST /conversations/$conversationId/messages', 200, messageJson(8, attachments: [attachmentJson()]));
-    final m = await s.chats.send(conversationId, 'cc000000-0000-4000-8000-000000000009', '', attachmentIds: ['ab000000-0000-4000-8000-000000000001']);
+    final m = await s.chats.send(
+      conversationId,
+      'cc000000-0000-4000-8000-000000000009',
+      '',
+      attachmentIds: ['ab000000-0000-4000-8000-000000000001'],
+    );
     expect(jsonDecode(s.api.last('POST /conversations/$conversationId/messages').body), {
       'client_message_id': 'cc000000-0000-4000-8000-000000000009',
       'body': '',
@@ -313,8 +328,10 @@ void main() {
     expect(r.headers['Content-Type'], 'application/octet-stream');
     expect(r.headers['Content-Disposition'], "attachment; filename*=UTF-8''synthetic%20photo.jpg");
 
-    s.api.routes['GET /conversations/$conversationId/attachments/${a.id}/content'] = (_) async => http.Response.bytes([1, 2, 3], 200);
-    s.api.routes['GET /conversations/$conversationId/attachments/${a.id}/thumbnail'] = (_) async => http.Response.bytes([9], 200);
+    s.api.routes['GET /conversations/$conversationId/attachments/${a.id}/content'] = (_) async =>
+        http.Response.bytes([1, 2, 3], 200);
+    s.api.routes['GET /conversations/$conversationId/attachments/${a.id}/thumbnail'] = (_) async =>
+        http.Response.bytes([9], 200);
     expect(await s.chats.content(conversationId, a.id), [1, 2, 3]);
     expect(await s.chats.thumbnail(conversationId, a.id), [9]);
   });
@@ -414,6 +431,19 @@ void main() {
         expect(s.waits, isEmpty);
       });
     }
+
+    // Each check is an audited read of the conversation: on the first refused handshake in a row, then every third.
+    test('reads the conversation on the first refused handshake and then only every third', () async {
+      final s = setup(refused: 7);
+      s.api.answer('GET /conversations/$conversationId', 200, conversationJson());
+      final stop = s.chats.follow(conversationId, 'cursor-7', (_) {}, (_) {});
+      for (var i = 0; i < 40; i++) {
+        await settle();
+      }
+      expect(s.dials, hasLength(8));
+      expect(s.api.requests.where((r) => r.url.path == '/conversations/$conversationId'), hasLength(3));
+      stop();
+    });
 
     test('tries again after a refused handshake while the conversation still answers', () async {
       final s = setup(refused: 2);

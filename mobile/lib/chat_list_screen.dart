@@ -23,6 +23,7 @@ class ChatListScreen extends StatefulWidget {
     required this.files,
     required this.media,
     required this.now,
+    required this.onSessionEnded,
   });
 
   final Chats chats;
@@ -30,6 +31,9 @@ class ChatListScreen extends StatefulWidget {
   final Files files;
   final Media media;
   final DateTime Function() now;
+
+  /// Called when a chat's socket says the session ended (4401): the app signs in again.
+  final VoidCallback onSessionEnded;
 
   @override
   State<ChatListScreen> createState() => _ChatListScreenState();
@@ -52,7 +56,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
     setState(() => _error = null);
     try {
       final page = await widget.chats.list();
-      final mine = [for (final c in page.conversations) if (!c.staffOnly) c];
+      final mine = [
+        for (final c in page.conversations)
+          if (!c.staffOnly) c,
+      ];
       final names = await _resolve(mine);
       if (!mounted) return;
       setState(() {
@@ -78,7 +85,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
     _loadingMore = true;
     try {
       final page = await widget.chats.list(before: _next);
-      final mine = [for (final c in page.conversations) if (!c.staffOnly) c];
+      final mine = [
+        for (final c in page.conversations)
+          if (!c.staffOnly) c,
+      ];
       final names = await _resolve([...?_conversations, ...mine]);
       if (mounted) {
         setState(() {
@@ -105,6 +115,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
           files: widget.files,
           media: widget.media,
           now: widget.now,
+          onSessionEnded: widget.onSessionEnded,
         ),
       ),
     );

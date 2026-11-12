@@ -1111,8 +1111,22 @@ class AppLocalizationsAr extends AppLocalizations {
   String get chatFileRemove => 'إزالة الملف';
 
   @override
-  String get chatTooManyFiles =>
-      'لديك 10 ملفات بانتظار الإرسال. أرسلها قبل إضافة المزيد؛ تُزال الملفات غير المرسلة بعد 24 ساعة.';
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'لديك بالفعل $count ملف بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      many:
+          'لديك بالفعل $count ملفًا بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      few:
+          'لديك بالفعل $count ملفات بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      two: 'لديك بالفعل ملفان بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      one: 'لديك بالفعل ملف واحد بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      zero: 'لا توجد لديك ملفات بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get chatOpenFailed => 'تعذّر فتح الملف. حاول مرة أخرى.';
@@ -1134,6 +1148,11 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get chatHoursNone => 'لم تحدّد العيادة مواعيد للرسائل.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'الأوقات بتوقيت العيادة، $zone.';
+  }
 
   @override
   String chatResponseTime(int hours) {
@@ -1260,9 +1279,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get chatRevoke => 'إلغاء وصول الطبيب من العيادة الأخرى';
 
   @override
-  String chatRevokeWho(String doctor, String clinic) {
-    return 'إلغاء الوصول: $doctor، $clinic';
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'تم منح الوصول: $doctor، $clinic.';
   }
+
+  @override
+  String get chatGrantedToUnknown => 'تم منح الوصول لطبيب من عيادة أخرى.';
 
   @override
   String get chatRevokeBody =>

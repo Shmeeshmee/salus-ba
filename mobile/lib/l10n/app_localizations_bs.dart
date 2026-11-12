@@ -1102,8 +1102,19 @@ class AppLocalizationsBs extends AppLocalizations {
   String get chatFileRemove => 'Ukloni datoteku';
 
   @override
-  String get chatTooManyFiles =>
-      'Imate 10 datoteka koje čekaju slanje. Pošaljite ih prije nego što dodate nove; neposlane datoteke se uklanjaju nakon 24 sata.';
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Već imate $count datoteka koje čekaju slanje. Neposlane datoteke se uklanjaju nakon 24 sata; pokušajte ponovo kasnije.',
+      few:
+          'Već imate $count datoteke koje čekaju slanje. Neposlane datoteke se uklanjaju nakon 24 sata; pokušajte ponovo kasnije.',
+      one:
+          'Već imate $count datoteku koja čeka slanje. Neposlane datoteke se uklanjaju nakon 24 sata; pokušajte ponovo kasnije.',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get chatOpenFailed =>
@@ -1127,6 +1138,11 @@ class AppLocalizationsBs extends AppLocalizations {
 
   @override
   String get chatHoursNone => 'Klinika nije odredila radno vrijeme za poruke.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'Vremena su u vremenskoj zoni klinike, $zone.';
+  }
 
   @override
   String chatResponseTime(int hours) {
@@ -1247,9 +1263,13 @@ class AppLocalizationsBs extends AppLocalizations {
   String get chatRevoke => 'Opozovi pristup ljekara iz druge klinike';
 
   @override
-  String chatRevokeWho(String doctor, String clinic) {
-    return 'Opozovi pristup: $doctor, $clinic';
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'Pristup je odobren: $doctor, $clinic.';
   }
+
+  @override
+  String get chatGrantedToUnknown =>
+      'Pristup je odobren ljekaru iz druge klinike.';
 
   @override
   String get chatRevokeBody =>

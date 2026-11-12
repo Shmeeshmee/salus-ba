@@ -52,7 +52,10 @@ class InvitationCard extends StatelessWidget {
               Text(t.chatInviteWho(named.$2.name, named.$1.name))
             else ...[
               Text(t.chatInviteUnresolved),
-              Align(alignment: AlignmentDirectional.centerStart, child: TextButton(onPressed: onRetry, child: Text(t.tryAgain))),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton(onPressed: onRetry, child: Text(t.tryAgain)),
+              ),
             ],
             const SizedBox(height: 8),
             Text(t.chatInviteSees(history)),
@@ -94,7 +97,14 @@ Future<bool> confirmRevoke(BuildContext context) async {
 
 /// The ekavian day names intl's Serbian data has, and the ijekavian ones Serbian in Bosnia and Herzegovina writes,
 /// as zones.dart writes them in dates.
-const _ijekavian = {'ponedeljak': 'ponedjeljak', 'sreda': 'srijeda', 'nedelja': 'nedjelja', 'понедељак': 'понедјељак', 'среда': 'сриједа', 'недеља': 'недјеља'};
+const _ijekavian = {
+  'ponedeljak': 'ponedjeljak',
+  'sreda': 'srijeda',
+  'nedelja': 'nedjelja',
+  'понедељак': 'понедјељак',
+  'среда': 'сриједа',
+  'недеља': 'недјеља',
+};
 
 /// The name of the chat hours' [day] in gen-l10n's locale [locale].
 String weekdayName(ChatHourDayEnum day, String locale) {
@@ -118,6 +128,8 @@ Future<void> showChatHours(BuildContext context, ChatHours hours) {
           for (final d in hours.hours) Text(t.chatHoursDay(weekdayName(d.day, t.localeName), d.start, d.end)),
           const SizedBox(height: 12),
           Text(t.chatResponseTime(hours.responseTimeHours)),
+          const SizedBox(height: 4),
+          Text(t.chatHoursZone(hours.timeZone)),
         ],
       ),
       actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(t.termClose))],

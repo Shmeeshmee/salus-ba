@@ -21,6 +21,10 @@ String uuidV4([Random? random]) {
   return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}';
 }
 
+/// How many uploads the patient may have waiting to be sent in a conversation (SAL-30): one more is
+/// `too_many_files`.
+const chatUnsentMaximum = 10;
+
 /// Why a conversation's socket ended for good: the session ended (close code 4401) or access ended (4403, 4404).
 enum ChatEnd { unauthenticated, consentRequired, forbidden, notFound }
 

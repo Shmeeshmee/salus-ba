@@ -1091,8 +1091,17 @@ class AppLocalizationsTr extends AppLocalizations {
   String get chatFileRemove => 'Dosyayı kaldır';
 
   @override
-  String get chatTooManyFiles =>
-      'Gönderilmeyi bekleyen 10 dosyanız var. Yenilerini eklemeden önce bunları gönderin; gönderilmeyen dosyalar 24 saat sonra kaldırılır.';
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Gönderilmeyi bekleyen $count dosyanız zaten var. Gönderilmeyen dosyalar 24 saat sonra kaldırılır; daha sonra tekrar deneyin.',
+      one:
+          'Gönderilmeyi bekleyen $count dosyanız zaten var. Gönderilmeyen dosyalar 24 saat sonra kaldırılır; daha sonra tekrar deneyin.',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get chatOpenFailed => 'Dosya açılamadı. Tekrar deneyin.';
@@ -1114,6 +1123,11 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get chatHoursNone => 'Klinik mesaj saatlerini belirlemedi.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'Saatler kliniğin saat dilimindedir: $zone.';
+  }
 
   @override
   String chatResponseTime(int hours) {
@@ -1237,9 +1251,13 @@ class AppLocalizationsTr extends AppLocalizations {
       'Diğer klinikteki sağlık uzmanının erişimini geri al';
 
   @override
-  String chatRevokeWho(String doctor, String clinic) {
-    return 'Erişimi geri al: $doctor, $clinic';
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'Erişim verildi: $doctor, $clinic.';
   }
+
+  @override
+  String get chatGrantedToUnknown =>
+      'Başka bir klinikteki bir sağlık uzmanına erişim verildi.';
 
   @override
   String get chatRevokeBody =>

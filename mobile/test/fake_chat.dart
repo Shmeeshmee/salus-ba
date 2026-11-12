@@ -5,7 +5,8 @@ import 'package:salus/chat.dart';
 import 'package:salus/file_prep.dart';
 import 'package:salus_api/api.dart';
 
-String _uuid(int n, String prefix) => '${prefix.padRight(8, '0')}-0000-4000-8000-${n.toRadixString(16).padLeft(12, '0')}';
+String _uuid(int n, String prefix) =>
+    '${prefix.padRight(8, '0')}-0000-4000-8000-${n.toRadixString(16).padLeft(12, '0')}';
 
 String _cursor(int seq) => 'fake-$seq';
 
@@ -24,8 +25,8 @@ final syntheticThumbnail = base64Decode(
 /// hours (SAL-29).
 class FakeChat implements Chats {
   FakeChat({int history = 0, DateTime? start, ChatHours? hours})
-      : _clock = start ?? DateTime.utc(2026, 11, 12, 8),
-        _hours = hours ?? ChatHours(timeZone: 'Europe/Sarajevo', responseTimeHours: 24, openNow: true) {
+    : _clock = start ?? DateTime.utc(2026, 11, 12, 8),
+      _hours = hours ?? ChatHours(timeZone: 'Europe/Sarajevo', responseTimeHours: 24, openNow: true) {
     final at = _clock;
     conversation = Conversation(
       id: _uuid(1, 'c'),
@@ -38,8 +39,23 @@ class FakeChat implements Chats {
       unread: 0,
       staffOnly: false,
       participants: [
-        ConversationParticipant(id: _me, role: ConversationParticipantRoleEnum.patient, status: ConversationParticipantStatusEnum.active, patientId: _uuid(1, 'b'), addedAt: at, historyFromSeq: 0),
-        ConversationParticipant(id: _doctor, role: ConversationParticipantRoleEnum.practitioner, status: ConversationParticipantStatusEnum.active, practitionerRoleId: _uuid(1, 'e'), organizationId: _uuid(1, 'a'), addedAt: at, historyFromSeq: 0),
+        ConversationParticipant(
+          id: _me,
+          role: ConversationParticipantRoleEnum.patient,
+          status: ConversationParticipantStatusEnum.active,
+          patientId: _uuid(1, 'b'),
+          addedAt: at,
+          historyFromSeq: 0,
+        ),
+        ConversationParticipant(
+          id: _doctor,
+          role: ConversationParticipantRoleEnum.practitioner,
+          status: ConversationParticipantStatusEnum.active,
+          practitionerRoleId: _uuid(1, 'e'),
+          organizationId: _uuid(1, 'a'),
+          addedAt: at,
+          historyFromSeq: 0,
+        ),
       ],
     );
     for (var i = 0; i < history; i++) {
@@ -70,8 +86,6 @@ class FakeChat implements Chats {
   /// The patient's read position: the API never shows it, only the unread count.
   int _readSeq = 0;
 
-  /// How many uploads the patient may have waiting to be sent (SAL-30).
-  static const unsentMaximum = 10;
   final _unsent = <String>{};
 
   ChatMessage _write(
@@ -110,7 +124,13 @@ class FakeChat implements Chats {
     if (from == _me) _readSeq = seq;
     conversation.unread = conversation.lastSeq - _readSeq;
     for (final f in _followers.toList()) {
-      f(ChatMessageFrame(type: ChatMessageFrameTypeEnum.message, version: ChatMessageFrameVersionEnum.number1, payload: m));
+      f(
+        ChatMessageFrame(
+          type: ChatMessageFrameTypeEnum.message,
+          version: ChatMessageFrameVersionEnum.number1,
+          payload: m,
+        ),
+      );
     }
     return m;
   }
@@ -136,7 +156,10 @@ class FakeChat implements Chats {
   }
 
   /// Writes a system message with its opaque arguments.
-  ChatMessage system(String code, Map<String, String> args) => _write(null, system: SystemMessage(code: code, args: args));
+  ChatMessage system(String code, Map<String, String> args) => _write(
+    null,
+    system: SystemMessage(code: code, args: args),
+  );
 
   /// The treating doctor invites a doctor from another clinic: a pending participant until the patient decides,
   /// reading the whole history or, with [fromSeq], the messages after it.
@@ -174,7 +197,8 @@ class FakeChat implements Chats {
   /// The scan of an upload ends: a clean image has a thumbnail.
   void scanned(String attachmentId, ChatAttachmentStatusEnum status) {
     final a = _uploads[attachmentId]!.$1..status = status;
-    a.thumbnail = status == ChatAttachmentStatusEnum.clean && a.contentType != ChatAttachmentContentTypeEnum.applicationSlashPdf;
+    a.thumbnail =
+        status == ChatAttachmentStatusEnum.clean && a.contentType != ChatAttachmentContentTypeEnum.applicationSlashPdf;
   }
 
   ChatAttachment _attachment(String filename, ChatAttachmentContentTypeEnum contentType, List<int> bytes) {
@@ -223,7 +247,12 @@ class FakeChat implements Chats {
   }
 
   @override
-  Future<ChatMessage> send(String id, String clientMessageId, String body, {List<String> attachmentIds = const []}) async {
+  Future<ChatMessage> send(
+    String id,
+    String clientMessageId,
+    String body, {
+    List<String> attachmentIds = const [],
+  }) async {
     _known(id);
     final first = _clientIds[clientMessageId];
     if (first != null) return first;
@@ -247,14 +276,22 @@ class FakeChat implements Chats {
     if (m == null) throw const ChatException('not_found');
     if (m.senderParticipantId != _me) throw const ChatException('forbidden');
     if (m.versionId != version) throw const ChatException('version_conflict');
-    _revisions.putIfAbsent(m.id, () => []).add(MessageRevision(editedAt: m.editedAt ?? m.sentAt, body: m.body ?? '', versionId: m.versionId));
+    _revisions
+        .putIfAbsent(m.id, () => [])
+        .add(MessageRevision(editedAt: m.editedAt ?? m.sentAt, body: m.body ?? '', versionId: m.versionId));
     _clock = _clock.add(const Duration(seconds: 1));
     m
       ..body = _body(body)
       ..versionId = m.versionId + 1
       ..editedAt = _clock;
     for (final f in _followers.toList()) {
-      f(ChatMessageFrame(type: ChatMessageFrameTypeEnum.messageEdited, version: ChatMessageFrameVersionEnum.number1, payload: m));
+      f(
+        ChatMessageFrame(
+          type: ChatMessageFrameTypeEnum.messageEdited,
+          version: ChatMessageFrameVersionEnum.number1,
+          payload: m,
+        ),
+      );
     }
     return m;
   }
@@ -280,7 +317,12 @@ class FakeChat implements Chats {
   }
 
   @override
-  void Function() follow(String id, String? after, void Function(ChatMessageFrame frame) onFrame, void Function(ChatEnd end) onEnd) {
+  void Function() follow(
+    String id,
+    String? after,
+    void Function(ChatMessageFrame frame) onFrame,
+    void Function(ChatEnd end) onEnd,
+  ) {
     _known(id);
     var last = after == null ? _messages.length : _seqOf(after);
     void forward(ChatMessageFrame frame) {
@@ -292,7 +334,13 @@ class FakeChat implements Chats {
     }
 
     for (final m in _messages.sublist(last)) {
-      forward(ChatMessageFrame(type: ChatMessageFrameTypeEnum.message, version: ChatMessageFrameVersionEnum.number1, payload: m));
+      forward(
+        ChatMessageFrame(
+          type: ChatMessageFrameTypeEnum.message,
+          version: ChatMessageFrameVersionEnum.number1,
+          payload: m,
+        ),
+      );
     }
     _followers.add(forward);
     _enders.add(onEnd);
@@ -343,7 +391,7 @@ class FakeChat implements Chats {
       FileKind.document => ChatAttachmentContentTypeEnum.applicationSlashPdf,
       FileKind.video => throw const ChatException('unsupported_type'),
     };
-    if (_unsent.length >= unsentMaximum) throw const ChatException('too_many_files');
+    if (_unsent.length >= chatUnsentMaximum) throw const ChatException('too_many_files');
     final a = _attachment(file.name, type, bytes);
     _unsent.add(a.id);
     return a;

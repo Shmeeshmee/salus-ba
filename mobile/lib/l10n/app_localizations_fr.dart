@@ -1109,8 +1109,17 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chatFileRemove => 'Retirer le fichier';
 
   @override
-  String get chatTooManyFiles =>
-      'Vous avez 10 fichiers en attente d’envoi. Envoyez-les avant d’en ajouter d’autres ; les fichiers non envoyés sont supprimés après 24 heures.';
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Vous avez déjà $count fichiers en attente d’envoi. Les fichiers non envoyés sont supprimés après 24 heures ; réessayez plus tard.',
+      one:
+          'Vous avez déjà $count fichier en attente d’envoi. Les fichiers non envoyés sont supprimés après 24 heures ; réessayez plus tard.',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get chatOpenFailed => 'Le fichier n’a pas pu être ouvert. Réessayez.';
@@ -1134,6 +1143,11 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get chatHoursNone =>
       'La clinique n’a pas fixé d’horaires pour les messages.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'Les heures sont celles du fuseau horaire de la clinique, $zone.';
+  }
 
   @override
   String chatResponseTime(int hours) {
@@ -1254,9 +1268,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chatRevoke => 'Retirer l’accès du praticien de l’autre clinique';
 
   @override
-  String chatRevokeWho(String doctor, String clinic) {
-    return 'Retirer l’accès : $doctor, $clinic';
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'Accès accordé : $doctor, $clinic.';
   }
+
+  @override
+  String get chatGrantedToUnknown =>
+      'Accès accordé à un praticien d’une autre clinique.';
 
   @override
   String get chatRevokeBody =>
