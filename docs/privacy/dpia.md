@@ -1659,9 +1659,45 @@ points below are settled.
   on the fakes until their DPAs are signed. The attachments are backed up nightly like the dumps (point 7).
 - **Open (ADR 0011 points 1 and 7).** The DPAs (Hetzner, the SMTP relay) and the backups' retention.
 
+## Chat (`docs/plans/chat.md`, ADR 0012)
+
+### SAL-27: core messaging
+
+**Processing added.** Four tables: `conversation` (a chat about one patient in one clinic, with its treating
+practitioner and optionally an encounter), `conversation_participant` (the patient and the practitioners who take
+part, by profile and role, with each one's read position), `communication` (each message: its text, its time, who
+wrote it) and `communication_revision` (the earlier text of an edited message). Messages travel live through Redis
+pub/sub (`chat:<conversation_id>`), never stored there. No new processor.
+
+**Purpose and lawful basis.** Care between visits (Art. 9(2)(h)), shared with the clinic under the patient's care
+consent (docs/booking/SPEC.md section 3). Not used for analytics, training or marketing. The AI summary of SAL-31
+is a further purpose and needs its own basis (plan, "Notes for the wave-1 packages").
+
+**Necessity and minimisation.** Each column is listed in the plan's "Personal data" with its reason. The API never
+returns the sender's account or the patient's id with a message; system messages carry codes and opaque ids, never a
+name. The read position is the reader's own (owner, 2026-11-12); read receipts and typing are not stored (SAL-30).
+
+**Retention.** Kept with the clinical record (`ThenKeep`), like the encounter and the transcript; needs a legal
+decision before production. Never deleted by a user or the app: no role has `DELETE`, and triggers refuse `DELETE`
+and `TRUNCATE` for every role, the owner included. Erasure under Art. 17 is limited by medical-record retention law
+and comes with the subject-rights feature (export through `Patient/$everything` there too).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A clinic, or another patient, reads a patient's messages | Row-level security on all four tables: the patient sees their own conversations, never a doctor-only one; a clinic its conversations only while the care consent is active; messages only with the conversation set in a scope that sees it (migration tests over every scope). The service checks `access.ReadsChat` and `WritesChat` as well; no admin reads a chat |
+| A revocation does not stop a doctor who has the chat open | The socket checks access again at least every 5 seconds and closes (4404); every read after the revocation is refused (app test) |
+| A doctor added later reads the history before their point (SAL-28) | `history_from_seq` bounds every page, replay, revision and live edit the service and the socket give |
+| A message is changed without trace | Only the sender edits, only the text; the earlier body is copied by a trigger in the same statement, so no edit skips the history |
+| Message text leaks into logs or notifications | No log line holds a message, a body or a name (app test checks the log); the live frames go only to sockets that passed the access check; notifications (SAL-29) never carry the text |
+| A lost message or a duplicate | Postgres is the record; pub/sub only transport. Numbers without gaps under the conversation's lock; a socket fills any gap from Postgres; a retried send with the same client id returns the first message (concurrency test on Postgres) |
+
+**Open before production.** The retention period of the chat with the clinical record (legal decision).
+
 ## Patient history (`docs/plans/patient-history.md`, ADR 0013)
 
-### Step 0: the contract (migration 00041)
+### Step 0: the contract (migration 00042)
 
 **Processing added.** The patient's allergies and current medications in their profile (FHIR AllergyIntolerance,
 MedicationStatement), and a third consent, the history consent, by which the patient shares chosen visits of theirs

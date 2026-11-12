@@ -60,16 +60,16 @@ linters:
             - pkg: github.com/twitchtv/twirp
               desc: LiveKit's transport; only internal/videosession/repository_livekit.go talks to LiveKit
         websocket:
-          # The consultation's WebSocket is served by the transcript's handler alone (SAL-6); tests dial it. The
-          # Azure speech adapter is the one WebSocket client (SAL-4): Azure's real-time protocol.
+          # Every WebSocket is served through pkg/livesocket (the consultation's, SAL-6; the chat's, ADR 0012); tests
+          # dial them. The Azure speech adapter is the one WebSocket client (SAL-4): Azure's real-time protocol.
           files:
             - "$all"
-            - "!**/internal/transcript/handler_http.go"
+            - "!**/pkg/livesocket/livesocket.go"
             - "!**/pkg/stt/azure/azure.go"
             - "!$test"
           deny:
             - pkg: github.com/gorilla/websocket
-              desc: only internal/transcript/handler_http.go serves a WebSocket, and only pkg/stt/azure dials one
+              desc: only pkg/livesocket serves a WebSocket, and only pkg/stt/azure dials one
         repositories:
           files: ["**/internal/*/repository_*.go"]
           deny:

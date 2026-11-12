@@ -1558,6 +1558,148 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's conversations, newest activity first, with their unread counts
+         * @description The conversations the caller takes part in, 50 a page; a practitioner's only while the patient's care consent is active. Audited as one search.
+         */
+        get: operations["listConversations"];
+        put?: never;
+        /**
+         * Open the conversation with a patient or a practitioner, or return the one there is
+         * @description Staff name the patient and open it with their own role; a patient names the clinic and the practitioner role. Allowed with the patient's active care consent with the clinic and an appointment of the patient with that role, of any time or status (docs/plans/chat.md). One conversation per patient, role and encounter (none counts as one): opening it again answers 200 with it. Audited.
+         */
+        post: operations["openConversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One conversation with its active participants */
+        get: operations["getConversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A page of the conversation's messages, newest first
+         * @description Before the `before` cursor, or the newest; `next` is the cursor of the older page and absent at the start. A practitioner added later reads from their `history_from_seq`. Audited as one read of the rows returned.
+         */
+        get: operations["listMessages"];
+        put?: never;
+        /**
+         * Send a text message
+         * @description Idempotent by `client_message_id` per sender: a repeat answers 200 with the first message, which is not sent again. The patient writes while their care consent is active; a practitioner while they take part and the consent is active. Audited; the message goes to every open socket of the conversation.
+         */
+        post: operations["sendMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit the body of one's own text message
+         * @description `If-Match` is the message's version (its ETag). The earlier body is kept (`.../revisions`); the edit goes to every open socket as `message_edited`. Audited.
+         */
+        patch: operations["editMessage"];
+        trace?: never;
+    };
+    "/conversations/{id}/messages/{message_id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The earlier bodies of an edited message, oldest first */
+        get: operations["listMessageRevisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Move the caller's read position
+         * @description The caller has read the messages up to `seq`; the position never goes back. Not audited.
+         */
+        put: operations["markConversationRead"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The conversation's messages, live, over a WebSocket
+         * @description A WebSocket (RFC 6455) upgrade (ADR 0012). Every message after `after` is replayed from the record, in order, then the live ones follow as `message` frames, and edits as `message_edited` (`ChatFrame`); a client drops a message whose `seq` it has. Without `after`, only messages sent from now on. The handshake must come from the API's own origin, or carry no Origin (the mobile app, with its bearer token). Access is checked again at least every 5 seconds, the session too: when it ends the socket closes with 4401 `unauthenticated` (a logout, a revoked or expired session), 4403 `consent_required` or `forbidden`, or 4404 `not_found` (staff after the patient's revocation); 1011 on a server error. The subscription is audited. The client may send `send` frames (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of the JSON API, or `rate_limited` past five at once and one every 200 ms. Pass the conversation's or the last message's `cursor` as `after`.
+         */
+        get: operations["followConversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2223,7 +2365,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin";
             /** @description With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
@@ -2695,6 +2837,206 @@ export interface components {
         HistorySharingList: {
             sharing: components["schemas"]["HistorySharing"][];
         };
+        /** @description Staff send `patient_id`; a patient sends `organization_id` and `practitioner_role_id`. */
+        OpenConversationRequest: {
+            /** Format: uuid */
+            patient_id?: string;
+            /** Format: uuid */
+            organization_id?: string;
+            /** Format: uuid */
+            practitioner_role_id?: string;
+            /**
+             * Format: uuid
+             * @description The consultation the conversation is about.
+             */
+            encounter_id?: string;
+        };
+        Conversation: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organization_id: string;
+            /** Format: uuid */
+            patient_id: string;
+            /**
+             * Format: uuid
+             * @description The treating practitioner.
+             */
+            practitioner_role_id: string;
+            /** Format: uuid */
+            encounter_id?: string;
+            /**
+             * Format: uuid
+             * @description A doctor-only side thread's conversation (SAL-28).
+             */
+            parent_id?: string;
+            /** Format: date-time */
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description Absent before the first message.
+             */
+            last_sent_at?: string;
+            /**
+             * Format: int64
+             * @description The number of the latest message; 0 before the first.
+             */
+            last_seq: number;
+            /** @description The latest message's cursor, or the start's for an empty conversation: the socket's `after`, so nothing sent since this was read is missed. */
+            cursor: string;
+            /**
+             * Format: int64
+             * @description The caller's messages after their read position.
+             */
+            unread: number;
+            /** @description A doctor-only side thread (SAL-28); never shown to the patient. */
+            staff_only: boolean;
+            /** @description The active participants, the patient first; absent in a list. */
+            participants?: components["schemas"]["ConversationParticipant"][];
+        };
+        /** @description A participant. Nobody's read position is shown to the others (that would be a stored read receipt); the caller's own is the conversation's `unread`. */
+        ConversationParticipant: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            role: "patient" | "practitioner";
+            /** Format: uuid */
+            patient_id?: string;
+            /** Format: uuid */
+            practitioner_role_id?: string;
+            /** Format: date-time */
+            added_at: string;
+            /**
+             * Format: int64
+             * @description The participant reads the messages after this number; 0 for all.
+             */
+            history_from_seq: number;
+        };
+        ConversationList: {
+            conversations: components["schemas"]["Conversation"][];
+            /** @description The cursor of the next page; absent at the end. */
+            next?: string;
+        };
+        /** @description A message (FHIR Communication), a participant's text (`body`) or a system message (`system`). */
+        ChatMessage: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            conversation_id: string;
+            /**
+             * Format: int64
+             * @description The message's number in the conversation
+             */
+            seq: number;
+            /** @description Opaque: the `before` of a page, the `after` of the socket. */
+            cursor: string;
+            /**
+             * Format: uuid
+             * @description Absent for a system message.
+             */
+            sender_participant_id?: string;
+            /** @enum {string} */
+            sender_role: "patient" | "practitioner" | "system";
+            /** @enum {string} */
+            kind: "text" | "system";
+            /** @description A text's body, 1 to 4000 characters. */
+            body?: string;
+            system?: components["schemas"]["SystemMessage"];
+            /** Format: uuid */
+            client_message_id: string;
+            /** Format: date-time */
+            sent_at: string;
+            /**
+             * Format: date-time
+             * @description Absent for a message never edited.
+             */
+            edited_at?: string;
+            /** Format: int32 */
+            version_id: number;
+        };
+        /** @description The code the apps render from their catalogs, and its opaque ids. */
+        SystemMessage: {
+            code: string;
+            args?: {
+                [key: string]: string;
+            };
+        };
+        MessagePage: {
+            messages: components["schemas"]["ChatMessage"][];
+            /** @description The cursor of the older page; absent at the start of the conversation. */
+            next?: string;
+        };
+        SendMessageRequest: {
+            /**
+             * Format: uuid
+             * @description The client's id of the message; a retry repeats it.
+             */
+            client_message_id: string;
+            body: string;
+        };
+        EditMessageRequest: {
+            body: string;
+        };
+        MessageRevision: {
+            /**
+             * Format: date-time
+             * @description When this body was written.
+             */
+            edited_at: string;
+            body: string;
+            /** Format: int32 */
+            version_id: number;
+        };
+        MessageRevisions: {
+            revisions: components["schemas"]["MessageRevision"][];
+        };
+        ReadPosition: {
+            /** Format: int64 */
+            seq: number;
+        };
+        ChatMessageFrame: {
+            /** @enum {string} */
+            type: "message" | "message_edited";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["ChatMessage"];
+        };
+        SendAck: {
+            /** Format: uuid */
+            client_message_id: string;
+            message: components["schemas"]["ChatMessage"];
+        };
+        SendAckFrame: {
+            /** @constant */
+            type: "send_ack";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["SendAck"];
+        };
+        ChatCommandError: {
+            /** @description The type of the client's frame; empty when it was no envelope. */
+            command: string;
+            /** @description The client message id the frame named. */
+            id?: string;
+            error: string;
+        };
+        ChatCommandErrorFrame: {
+            /** @constant */
+            type: "command_error";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["ChatCommandError"];
+        };
+        /** @description A frame the conversation's socket sends. */
+        ChatFrame: components["schemas"]["ChatMessageFrame"] | components["schemas"]["SendAckFrame"] | components["schemas"]["ChatCommandErrorFrame"];
+        /** @description A frame the client sends on the conversation's socket. */
+        ChatCommand: {
+            /** @constant */
+            type: "send";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["SendMessageRequest"];
+        };
     };
     responses: {
         /** @description `csrf`: the session cookie without the CSRF header. */
@@ -2746,6 +3088,42 @@ export interface components {
         };
         /** @description `version_conflict`: the entry changed since it was read; read it again. */
         EntryConflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content?: never;
+        };
+        /** @description The message; its ETag is its version. */
+        ChatMessage: {
+            headers: {
+                ETag?: string;
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ChatMessage"];
+            };
+        };
+        /** @description `invalid_request`: a body that is not the request, an id that is no UUID, a body of 0 or over 4000 characters, a limit out of range, a `seq` past the last message; `invalid_cursor`: a cursor the API did not give. */
+        ChatInvalidRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `forbidden`: an admin, or a practitioner who does not take part; `consent_required`: a patient's write after their revocation. */
+        ChatForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `not_found`: no such conversation or message for the caller, also for staff after the patient's revocation. */
+        ChatNotFound: {
             headers: {
                 [name: string]: unknown;
             };
@@ -3037,6 +3415,10 @@ export interface components {
         HistoryFrom: string;
         /** @description Only items before this instant. */
         HistoryTo: string;
+        /** @description The conversation's id. */
+        ConversationID: string;
+        /** @description The message's id (FHIR Communication.id). */
+        MessageID: string;
         /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
         CSRF: "1";
         /** @description The version's id (FHIR Questionnaire.id). */
@@ -6897,6 +7279,336 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
+        };
+    };
+    listConversations: {
+        parameters: {
+            query?: {
+                /** @description The `next` of the previous page. */
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of conversations. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationList"];
+                };
+            };
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+        };
+    };
+    openConversation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenConversationRequest"];
+            };
+        };
+        responses: {
+            /** @description The existing conversation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Conversation"];
+                };
+            };
+            /** @description The new conversation. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Conversation"];
+                };
+            };
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `consent_required`: no active care consent; `forbidden`: an admin, or a patient without an appointment with the role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: staff without an appointment with the patient, or an encounter that is not the patient's in the clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The conversation. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Conversation"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
+    listMessages: {
+        parameters: {
+            query?: {
+                /** @description A message's `cursor`, or a page's `next`. */
+                before?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of messages. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagePage"];
+                };
+            };
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
+    sendMessage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendMessageRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ChatMessage"];
+            201: components["responses"]["ChatMessage"];
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
+    editMessage: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                "If-Match": string;
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+                /** @description The message's id (FHIR Communication.id). */
+                message_id: components["parameters"]["MessageID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditMessageRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ChatMessage"];
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: someone else's message, a system message, or a caller who may not write; `consent_required`: the patient after their revocation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["ChatNotFound"];
+            /** @description `version_conflict`: the message changed since it was read. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `if_match_required`: no or an unreadable If-Match. */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listMessageRevisions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+                /** @description The message's id (FHIR Communication.id). */
+                message_id: components["parameters"]["MessageID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The revisions; empty for a message never edited. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageRevisions"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
+    markConversationRead: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadPosition"];
+            };
+        };
+        responses: {
+            /** @description Moved, or left where it was ahead. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
+    followConversation: {
+        parameters: {
+            query?: {
+                /** @description The `cursor` of the last message the client has. */
+                after?: string;
+            };
+            header?: never;
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Switching protocols: the WebSocket, carrying `ChatFrame` text frames. */
+            101: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatFrame"];
+                };
+            };
+            /** @description `websocket_required`: no WebSocket handshake; `invalid_cursor`: an `after` the API did not give. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `origin`: another origin; `forbidden` or `consent_required` as for the page. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["ChatNotFound"];
         };
     };
 }

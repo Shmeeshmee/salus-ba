@@ -251,7 +251,7 @@ func TestRules_KeepTheReviewerPermissionWhileGranted(t *testing.T) {
 	t.Error("no rule for term_reviewer")
 }
 
-// The patient history's tables (00041, ADR 0013) are kept with the clinical record: allergies and medications as
+// The patient history's tables (00042, ADR 0013) are kept with the clinical record: allergies and medications as
 // part of it (a patient's own unconfirmed entry is deleted when they remove it, by the service, not by this rule),
 // the history consent and its selections as proof of what was shared when (Art. 7(1)).
 func TestRules_KeepThePatientHistoryWithTheClinicalRecord(t *testing.T) {

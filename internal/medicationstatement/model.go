@@ -19,7 +19,7 @@ const (
 )
 
 // DoseUnits returns the dose units, UCUM codes (http://unitsofmeasure.org): units, and the annotated counts a patient
-// doses in, as the table's check (00041) lists them.
+// doses in, as the table's check (00042) lists them.
 func DoseUnits() []string {
 	return []string{"mg", "g", "ug", "mL", "[iU]", "{tablet}", "{capsule}", "{drop}", "{puff}", "{patch}"}
 }

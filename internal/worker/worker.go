@@ -21,6 +21,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/slot"
@@ -70,7 +71,7 @@ func New(pool, retentionPool *pgxpool.Pool, provider videosession.Provider, file
 	addDefaultWorkers(workers, defaultServices{
 		rules: rules, slots: newSlots(pool, clock.System{}), appointments: newRevocations(pool, inserter, clock.System{}),
 		sessions: newSessions(pool, provider, clock.System{}), responses: responses,
-		files: newFiles(pool, files, responses, clock.System{}),
+		files: newFiles(pool, files, responses, clock.System{}), chat: newChatPartitions(pool, clock.System{}),
 	}, log)
 	cfg := workConfig(log, river.QueueDefault, workers)
 	cfg.Queues = workerQueues()
@@ -90,6 +91,7 @@ type defaultServices struct {
 	sessions     *videosession.Service
 	responses    *questionnaireresponse.Service
 	files        *binary.Service
+	chat         *communication.Service
 }
 
 // addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with no services:
@@ -98,6 +100,7 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &noopWorker{})
 	river.AddWorker(workers, &retentionWorker{rules: s.rules, log: log})
 	river.AddWorker(workers, &slotsWorker{slots: s.slots, log: log})
+	river.AddWorker(workers, &chatPartitionsWorker{chat: s.chat})
 	river.AddWorker(workers, &revocationWorker{appointments: s.appointments, sessions: s.sessions, log: log})
 	river.AddWorker(workers, &transcriptionRevocationWorker{sessions: s.sessions})
 	river.AddWorker(workers, &windowCloseWorker{sessions: s.sessions, log: log})

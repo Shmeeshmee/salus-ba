@@ -38,9 +38,9 @@ Settled by this plan, within those decisions:
 | Diagnoses in the doctor's view (SAL-40) | Shown from the signed documents' coded fields. The analytics epic is adding a `condition` domain (docs/plans/analytics.md, SAL-19): once it is on main, SAL-40 reads diagnoses through `condition.Service` instead, without touching its code |
 | AI | No part of the history is sent to the language model (ADR 0013 "No AI"). The suggestions and the drafting keep reading only the consultation's transcript; SAL-42 adds a test that a shared or unshared visit's content never reaches their input |
 
-## Contract (step 0, this PR, migration 00041)
+## Contract (step 0, this PR, migration 00042)
 
-- **Migration `00041_patient_history.sql`**: `allergy_intolerance`, `medication_statement`, `history_consent`,
+- **Migration `00042_patient_history.sql`**: `allergy_intolerance`, `medication_statement`, `history_consent`,
   `history_consent_encounter`, the function `history_shared(encounter, patient)`, the `*_shared` policies, the
   profile tables' policies, the `profile_entry_update_check` trigger, 00031's transcript and suggestion policies
   narrowed to the clinic's own encounters, and the grants. Its policies call `history_shared` for every encounter row
@@ -77,7 +77,7 @@ owner.
   `internal/history/service_patient.go`: the patient's own items from every clinic. A source per item type, each a
   port on the owning domain's service (encounter, composition, questionnaireresponse, binary) returning the
   patient's items after a cursor, already filtered by its own access rule and audited. The service merges them by
-  `Cursor.Before` and cuts the page. Chats plug in as another source of `TypeCommunication` once SAL-26 exists.
+  `Cursor.Before` and cuts the page. Chats plug in later as another source of `TypeCommunication` through `internal/communication` (SAL-27, on main since 2026-11-12), not in this package.
 - The clinic name of each item: the patient's scope cannot read `organization` today; add what is needed (a method
   on `organization.Service` for the clinics of the patient's own appointments, and if row-level security needs it, a
   `SECURITY DEFINER` lookup like `encounter_organization`, 00033) in this package's own migration.
@@ -95,7 +95,7 @@ owner.
   (now with the shared visits) and the patient's appointments there; every source filters with `access.HistoryVisit`
   before it lists or counts. Each owning domain gets a read for a practitioner's visits and for shared encounter
   ids, applying `access.HistoryVisit` (not its own appointment rule, which refuses another clinic's visit).
-- The questions of a shared questionnaire response: 00041 does not open another clinic's `questionnaire` rows. A
+- The questions of a shared questionnaire response: 00042 does not open another clinic's `questionnaire` rows. A
   `questionnaire_shared` policy chained on `questionnaire_response` made the planner spin (an UPDATE of
   `questionnaire_translation` never finished), so read the versions a shared completed response answers through a
   `SECURITY DEFINER` lookup that returns only those versions (as `encounter_organization`, 00033), in this
@@ -137,7 +137,7 @@ owner.
 ## Waves and merge order
 
 ```
-Step 0 (this PR): plan, ADR 0013, the contract (00041)
+Step 0 (this PR): plan, ADR 0013, the contract (00042)
 Wave 1, in parallel:  SAL-39   SAL-40   SAL-41   SAL-42
 Merge order:          SAL-41, SAL-39, SAL-40, SAL-42
 ```
@@ -156,7 +156,7 @@ app image, so the sessions never share a stack.
 
 ## Migrations
 
-Step 0 is `00041`. A package that needs one takes the next free number when it merges main before its own merge (a
+Step 0 is `00042`. A package that needs one takes the next free number when it merges main before its own merge (a
 migration not yet on main may be renumbered; `scripts/check-migrations.sh` guards only main's).
 
 ## Checks per PR

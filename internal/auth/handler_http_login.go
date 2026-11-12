@@ -195,3 +195,21 @@ func isTrusted(ip netip.Addr, trusted []netip.Prefix) bool {
 	}
 	return false
 }
+
+// Active reports whether the request's session is still open now: the check a long-lived socket repeats after its
+// handshake, so a logout or a revocation ends it (docs/plans/chat.md). False for no credentials or a session that
+// ended; an error only for a failure.
+func (h *Handler) Active(r *http.Request) (bool, error) {
+	token, _ := sessionToken(r)
+	if token == "" {
+		return false, nil
+	}
+	_, err := h.svc.Authenticate(r.Context(), token)
+	switch {
+	case errors.Is(err, ErrUnauthenticated):
+		return false, nil
+	case err != nil:
+		return false, err
+	}
+	return true, nil
+}

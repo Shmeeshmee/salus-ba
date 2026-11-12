@@ -212,6 +212,10 @@ enum ErrorErrorEnum {
   noteRequired._(r'note_required'),
   internalError._(r'internal error'),
   timeout._(r'timeout'),
+  invalidCursor._(r'invalid_cursor'),
+  ifMatchRequired._(r'if_match_required'),
+  websocketRequired._(r'websocket_required'),
+  origin._(r'origin'),
   ;
 
   /// Instantiate a new enum with the provided value.
@@ -399,6 +403,14 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.internalError;
         case r'timeout':
           return ErrorErrorEnum.timeout;
+        case r'invalid_cursor':
+          return ErrorErrorEnum.invalidCursor;
+        case r'if_match_required':
+          return ErrorErrorEnum.ifMatchRequired;
+        case r'websocket_required':
+          return ErrorErrorEnum.websocketRequired;
+        case r'origin':
+          return ErrorErrorEnum.origin;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

@@ -59,7 +59,7 @@ summarises the history (SAL-39, SAL-40) filters with it before it does anything 
 cannot leak through a count, an empty state or a search result.
 
 **Cross-clinic only through a FHIR Consent.** The history consent is a third kind of Consent per patient and
-receiving clinic (table `history_consent`, 00041; category v3-ActCode IDSCL, action disclose, purpose TREAT), listing
+receiving clinic (table `history_consent`, 00042; category v3-ActCode IDSCL, action disclose, purpose TREAT), listing
 the shared visits in `provision.data` (`Encounter/<id>`, meaning `instance`: `dependents` would claim every resource
 that refers to the visit, its transcript included). Each selection is a row of
 `history_consent_encounter` with its `added_at` and `removed_at`. A removal or a revocation ends the clinic's access
@@ -70,7 +70,7 @@ consent lists at least one visit: removing the last one revokes it.
 `history_shared(encounter, patient)` is true only while the history consent is active and lists the visit and the
 care consent is active, and the `*_shared` policies on encounter, document_draft, questionnaire_response, binary,
 organization and practitioner_role use it. Opening another clinic's encounter would have opened the
-policies that follow encounter's visibility (the transcript's and the suggestions'), so 00041 recreates those for the
+policies that follow encounter's visibility (the transcript's and the suggestions'), so 00042 recreates those for the
 clinic's own encounters. The patient lists only their own finished visits at other clinics; a removal and a
 revocation are final; the clinic sees only the open selections of an active consent. A trigger
 (`profile_entry_update_check`) says what row-level security cannot: the patient never confirms an entry or edits a

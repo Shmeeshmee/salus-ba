@@ -9,6 +9,7 @@
 package access
 
 import (
+	"slices"
 	"strconv"
 	"time"
 )
@@ -219,4 +220,27 @@ func ofPractitioner(v Viewer, a Visit) bool {
 // past reports whether a started before the latest revocation, without an active consent.
 func past(f Facts, a Visit) bool {
 	return !f.Consent.Active && !f.Consent.RevokedAt.IsZero() && a.Start.Before(f.Consent.RevokedAt)
+}
+
+// OpensChat reports whether viewer may open a conversation between the facts' patient and the practitioner role
+// in the facts' clinic (docs/plans/chat.md "Who opens a conversation"): the patient themselves or the practitioner
+// of that role, with an active consent and an appointment of the patient with that role, of any time or status.
+func OpensChat(v Viewer, f Facts, role string) bool {
+	if !f.Consent.Active || role == "" || !slices.ContainsFunc(f.Visits, func(a Visit) bool { return a.PractitionerRole == role }) {
+		return false
+	}
+	return self(v, f) || (v.Role == RolePractitioner && staffOf(v, f) && v.PractitionerRole == role)
+}
+
+// ReadsChat reports whether viewer may read a conversation about the facts' patient in the facts' clinic (plan,
+// "Who reads and writes"): the patient themselves whatever the consent, as their own record (GDPR Art. 15); a
+// practitioner of the clinic who takes part (participant) while the consent is active; nobody else, never an admin.
+func ReadsChat(v Viewer, f Facts, participant bool) bool {
+	return self(v, f) || (v.Role == RolePractitioner && staffOf(v, f) && participant && f.Consent.Active)
+}
+
+// WritesChat reports whether viewer may write in that conversation: as ReadsChat, and only while the consent is
+// active, so nothing is sent that the clinic may not read.
+func WritesChat(v Viewer, f Facts, participant bool) bool {
+	return ReadsChat(v, f, participant) && f.Consent.Active
 }

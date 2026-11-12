@@ -164,7 +164,7 @@ type GrantConsentRow struct {
 }
 
 // consent holds the care consents, transcription_consent the transcription consents (migration 00040) and
-// history_consent the history consents (00041): the same shape, a kind each. A read of both is their UNION ALL, each table on its own index and under its own
+// history_consent the history consents (00042): the same shape, a kind each. A read of both is their UNION ALL, each table on its own index and under its own
 // row-level security.
 // A second active consent with the clinic inserts nothing (no row), so the transaction stays usable for the
 // audit.
@@ -237,7 +237,7 @@ type HistorySharedParams struct {
 	OrganizationID pgtype.UUID
 }
 
-// The visits the patient's active history consent with the clinic lists now (migration 00041), oldest selection
+// The visits the patient's active history consent with the clinic lists now (migration 00042), oldest selection
 // first.
 func (q *Queries) HistoryShared(ctx context.Context, arg HistorySharedParams) ([]pgtype.UUID, error) {
 	rows, err := q.db.Query(ctx, historyShared, arg.PatientID, arg.OrganizationID)

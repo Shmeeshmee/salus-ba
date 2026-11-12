@@ -162,3 +162,11 @@ sql:
         package: compositiondb
         out: internal/composition/compositiondb
         sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/communication/query.sql
+    gen:
+      go:
+        package: communicationdb
+        out: internal/communication/communicationdb
+        sql_package: pgx/v5

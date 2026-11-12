@@ -53,7 +53,7 @@ type Consent struct {
 }
 
 // SharedVisit is one visit a history consent lists: the encounter and when the patient added it. Removing it and
-// adding it again is a new selection; the record of each is kept (history_consent_encounter, 00041).
+// adding it again is a new selection; the record of each is kept (history_consent_encounter, 00042).
 type SharedVisit struct {
 	AddedAt     time.Time
 	EncounterID string
