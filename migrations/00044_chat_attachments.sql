@@ -180,6 +180,10 @@ DECLARE
     org uuid := NULLIF(current_setting('app.organization_id', true), '')::uuid;
     role uuid := NULLIF(current_setting('app.chat_practitioner_role_id', true), '')::uuid;
     account text := NULLIF(current_setting('app.account_id', true), '');
+    newest timestamptz;
+    span interval;
+    ids uuid[];
+    ats timestamptz[];
 BEGIN
     IF lim IS NULL OR lim < 1 OR lim > 100 THEN
         RAISE EXCEPTION 'communication_search: lim must be 1 to 100';
@@ -193,20 +197,34 @@ BEGIN
              ORDER BY m.sent_at DESC, m.seq DESC LIMIT $4'
             USING patient, q, only_conversation, lim;
     ELSIF account IS NULL AND org IS NOT NULL AND role IS NOT NULL THEN
-        RETURN QUERY EXECUTE
-            'WITH readable AS (
-                 SELECT p.conversation_id, p.history_from_seq FROM public.conversation_participant p
-                 JOIN public.conversation c ON c.id = p.conversation_id
-                 WHERE p.practitioner_role_id = $1 AND p.removed_at IS NULL AND c.organization_id = $2
-                   AND ($4::uuid IS NULL OR c.id = $4)
-                   AND EXISTS (SELECT 1 FROM public.consent k
-                               WHERE k.patient_id = c.patient_id AND k.organization_id = c.organization_id AND k.status = ''active''))
-             SELECT m.id, m.sent_at FROM public.communication m
-             JOIN readable r ON r.conversation_id = m.conversation_id AND m.seq > r.history_from_seq
-             WHERE ($4::uuid IS NULL OR m.conversation_id = $4)
-               AND to_tsvector(''public.chat_search''::regconfig, m.body) @@ $3
-             ORDER BY m.sent_at DESC, m.seq DESC LIMIT $5'
-            USING role, org, q, only_conversation, lim;
+        -- Newest first across many conversations: the last 7 days of the newest readable message, then 90, then all,
+        -- until lim are found, so a word in many messages reads one window's, not the whole history's.
+        EXECUTE
+            'SELECT max(c.last_sent_at) FROM public.conversation_participant p
+             JOIN public.conversation c ON c.id = p.conversation_id
+             WHERE p.practitioner_role_id = $1 AND p.removed_at IS NULL AND c.organization_id = $2 AND ($3::uuid IS NULL OR c.id = $3)'
+            INTO newest USING role, org, only_conversation;
+        FOREACH span IN ARRAY ARRAY[interval '7 days', interval '90 days', NULL] LOOP
+            EXECUTE
+                'WITH readable AS (
+                     SELECT p.conversation_id, p.history_from_seq FROM public.conversation_participant p
+                     JOIN public.conversation c ON c.id = p.conversation_id
+                     WHERE p.practitioner_role_id = $1 AND p.removed_at IS NULL AND c.organization_id = $2
+                       AND ($4::uuid IS NULL OR c.id = $4)
+                       AND EXISTS (SELECT 1 FROM public.consent k
+                                   WHERE k.patient_id = c.patient_id AND k.organization_id = c.organization_id AND k.status = ''active'')),
+                 found AS (
+                     SELECT m.id, m.sent_at, m.seq FROM public.communication m
+                     JOIN readable r ON r.conversation_id = m.conversation_id AND m.seq > r.history_from_seq
+                     WHERE ($4::uuid IS NULL OR m.conversation_id = $4) AND ($6::timestamptz IS NULL OR m.sent_at >= $6)
+                       AND to_tsvector(''public.chat_search''::regconfig, m.body) @@ $3
+                     ORDER BY m.sent_at DESC, m.seq DESC LIMIT $5)
+                 SELECT coalesce(array_agg(id ORDER BY sent_at DESC, seq DESC), ''{}''), coalesce(array_agg(sent_at ORDER BY sent_at DESC, seq DESC), ''{}'')
+                 FROM found'
+                INTO ids, ats USING role, org, q, only_conversation, lim, newest - span;
+            EXIT WHEN cardinality(ids) >= lim OR span IS NULL OR newest IS NULL;
+        END LOOP;
+        RETURN QUERY SELECT * FROM unnest(ids, ats);
     END IF;
 END
 $$;
