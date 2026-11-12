@@ -84,20 +84,32 @@ func chatRole(clinic, role string) map[string]string {
 }
 
 // A conversation's files are seen exactly where its messages are (00041): by its patient, never in a doctor-only
-// thread; with the conversation set in a scope that sees it; by the practitioner role's scope in the conversations
-// it takes part in, while the care consent is active; by the scan job's scope of the conversation. A clinic without
-// a conversation set sees none of them (its questionnaire files' policy needs a response).
+// thread, and before it is sent only their own upload; with the conversation set in a scope that sees it; by the
+// practitioner role's scope in the conversations it takes part in, while the care consent is active, those of the
+// messages after its history_from_seq and its own uploads not yet sent (SAL-30 review, finding 6); by the scan job's
+// scope of the conversation. A clinic without a conversation set sees none of them (its questionnaire files' policy
+// needs a response).
 func TestChatFiles_EachScopeSeesTheFilesOfTheConversationsItSees(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
 	r := seedChatFiles(t, owner)
 	pA, pB := r.p[0].patient, r.p[1].patient
-	inA := append(r.files("inA"), r.unattached)
-	slices.Sort(inA)
-	both := append(slices.Clone(inA), r.file["inB"])
-	slices.Sort(both)
-	roleA := append(slices.Clone(inA), r.file["staffA"])
-	slices.Sort(roleA)
+	// In inA, besides the file of its first message (before the practitioner's history_from_seq) and the patient's
+	// upload not sent: a file of its second message, and the practitioner's upload not sent.
+	var second, practUnsent string
+	if err := owner.QueryRow(t.Context(), insertChatFile, clinicA, pA, r.conv["inA"], r.part["inA"]).Scan(&second); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(t.Context(), `UPDATE "binary" SET communication_id = $2, communication_sent_at = '2026-11-12T10:05:00Z' WHERE id = $1`,
+		second, r.second); err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.QueryRow(t.Context(), insertChatFile, clinicA, pA, r.conv["inA"], r.pract["inA"]).Scan(&practUnsent); err != nil {
+		t.Fatal(err)
+	}
+	inA := sorted(r.file["inA"], second, r.unattached, practUnsent)
+	both := sorted(r.file["inA"], second, r.unattached, r.file["inB"])
+	roleA := sorted(second, practUnsent, r.file["staffA"])
 
 	for _, tt := range []struct {
 		scope map[string]string
@@ -117,6 +129,8 @@ func TestChatFiles_EachScopeSeesTheFilesOfTheConversationsItSees(t *testing.T) {
 		{name: "role A of clinic A", scope: chatRole(clinicA, r.dir[clinicA].role), want: roleA},
 		{name: "role B of clinic B after the revocation", scope: chatRole(clinicB, r.dir[clinicB].role)},
 		{name: "role A without its clinic", scope: map[string]string{"app.chat_practitioner_role_id": r.dir[clinicA].role}},
+		{name: "role A with an account set", scope: map[string]string{"app.organization_id": clinicA, "app.chat_practitioner_role_id": r.dir[clinicA].role,
+			"app.account_id": r.p[0].account}},
 		{name: "role A with patient A set", scope: map[string]string{"app.patient_id": pA, "app.chat_practitioner_role_id": r.dir[clinicA].role}, want: both},
 		{name: "the scan job of inA", scope: map[string]string{"app.organization_id": clinicA, "app.binary_conversation_id": r.conv["inA"]}, want: inA},
 		{name: "the scan job of inA in another clinic", scope: map[string]string{"app.organization_id": clinicB, "app.binary_conversation_id": r.conv["inA"]}},

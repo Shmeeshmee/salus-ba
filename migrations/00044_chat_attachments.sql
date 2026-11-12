@@ -10,13 +10,14 @@
 -- key) and data key.
 --
 -- Row-level security of the chat files, as the messages' (00041):
---   - the patient (app.patient_id) sees the files of their conversations, never of a doctor-only one;
+--   - the patient (app.patient_id) sees the files of their conversations' messages, never of a doctor-only one, and
+--     of the files not sent yet only their own;
 --   - a scope with app.conversation_id set sees, inserts and attaches that conversation's files when it sees the
 --     conversation (the clinic's needs the active care consent); an insert names one of its active participants and
 --     the conversation's clinic and patient;
---   - the practitioner role's scope (app.chat_practitioner_role_id with app.organization_id, for the search across a
---     doctor's conversations) reads the files and messages of the conversations the role takes part in while the
---     consent is active, the messages after its history_from_seq only;
+--   - the practitioner role's scope (app.chat_practitioner_role_id with app.organization_id, no account, for the
+--     search across a doctor's conversations) reads the messages of the conversations the role takes part in while the
+--     consent is active, those after its history_from_seq only, and their files, with its own uploads not sent yet;
 --   - the scan job's scope (app.binary_conversation_id with app.organization_id) reads and updates the files of that
 --     one conversation, whatever the consent.
 -- The questionnaire files' policies binary_own and binary_own_delete now name their kind of parent, so a patient sees
@@ -64,7 +65,10 @@ ALTER POLICY binary_own_delete ON "binary"
 CREATE POLICY binary_chat_own ON "binary" FOR SELECT
     USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid
            AND conversation_id IS NOT NULL
-           AND EXISTS (SELECT 1 FROM conversation c WHERE c.id = "binary".conversation_id));
+           AND EXISTS (SELECT 1 FROM conversation c WHERE c.id = "binary".conversation_id)
+           AND (communication_id IS NOT NULL
+                OR EXISTS (SELECT 1 FROM conversation_participant p
+                           WHERE p.id = "binary".conversation_participant_id AND p.role = 'patient')));
 CREATE POLICY binary_chat ON "binary" FOR SELECT
     USING (conversation_id = NULLIF(current_setting('app.conversation_id', true), '')::uuid
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
@@ -87,11 +91,16 @@ CREATE POLICY binary_chat_update ON "binary" FOR UPDATE
            AND EXISTS (SELECT 1 FROM conversation c WHERE c.id = NULLIF(current_setting('app.conversation_id', true), '')::uuid));
 CREATE POLICY binary_chat_practitioner ON "binary" FOR SELECT
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
            AND conversation_id IS NOT NULL
            AND EXISTS (SELECT 1 FROM conversation_participant p
                        WHERE p.conversation_id = "binary".conversation_id
                          AND p.practitioner_role_id = NULLIF(current_setting('app.chat_practitioner_role_id', true), '')::uuid
-                         AND p.removed_at IS NULL));
+                         AND p.removed_at IS NULL
+                         AND CASE WHEN "binary".communication_id IS NULL THEN "binary".conversation_participant_id = p.id
+                             ELSE EXISTS (SELECT 1 FROM communication m
+                                          WHERE m.id = "binary".communication_id AND m.sent_at = "binary".communication_sent_at
+                                            AND m.seq > p.history_from_seq) END));
 CREATE POLICY binary_chat_job ON "binary" FOR SELECT
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
