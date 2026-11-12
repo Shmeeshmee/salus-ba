@@ -154,7 +154,7 @@ func checkShared(t *testing.T, app *pgxpool.Pool, state string, want map[string]
 	}
 }
 
-// ADR 0013: another clinic's visit is seen by a clinic only while the patient's history consent with it is active,
+// ADR 0014: another clinic's visit is seen by a clinic only while the patient's history consent with it is active,
 // lists the visit, and their care consent with it is active; a removal or a revocation ends it when it commits.
 func TestHistorySharing_AClinicSeesAnotherClinicsVisitOnlyWhileItIsShared(t *testing.T) {
 	t.Parallel()
@@ -349,7 +349,7 @@ func seedEntries(t *testing.T, owner *pgxpool.Pool, h historyRows, insert string
 	return r
 }
 
-// The visit-scoped rule (ADR 0013): the patient sees all their entries; a clinic sees a patient's profile entries
+// The visit-scoped rule (ADR 0014): the patient sees all their entries; a clinic sees a patient's profile entries
 // while their care consent with it is active, and an entry recorded in a visit wherever it sees the visit: its own
 // clinic's, and another clinic's only while it is shared. Who of the clinic may see which is the service's rule.
 func TestProfileEntries_EachScopeSeesTheEntriesOfItsVisitsAndTheProfile(t *testing.T) {
@@ -512,7 +512,7 @@ var closedQueries = map[string]string{
 	"unshared documents": `SELECT d.id::text FROM document_draft d WHERE d.encounter_id IN (SELECT id FROM encounter WHERE organization_id = '` + clinicB + `') AND d.encounter_id NOT IN (SELECT encounter_id FROM history_consent_encounter)`,
 }
 
-// ADR 0013: a shared visit brings its signed record and nothing else, in every scope a clinic's transaction may carry
+// ADR 0014: a shared visit brings its signed record and nothing else, in every scope a clinic's transaction may carry
 // beside its own, and a clinic writes nothing into it.
 func TestHistorySharing_WhatAVisitNeverBringsStaysClosed(t *testing.T) {
 	t.Parallel()

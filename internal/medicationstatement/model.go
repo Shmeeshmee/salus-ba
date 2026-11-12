@@ -1,5 +1,5 @@
 // Package medicationstatement is the patient's current medications: FHIR R4 MedicationStatement
-// (docs/plans/patient-history.md, ADR 0013, SAL-41). Same sources and visibility as allergyintolerance: the patient's
+// (docs/plans/patient-history.md, ADR 0014, SAL-41). Same sources and visibility as allergyintolerance: the patient's
 // own entry is always in their profile, a clinic's belongs to its visit until the patient adds it to the profile;
 // which clinic recorded or confirmed it is shown only to the patient and that clinic. Every read and write is
 // audited.
@@ -19,7 +19,7 @@ const (
 )
 
 // DoseUnits returns the dose units, UCUM codes (http://unitsofmeasure.org): units, and the annotated counts a patient
-// doses in, as the table's check (00042) lists them.
+// doses in, as the table's check (00043) lists them.
 func DoseUnits() []string {
 	return []string{"mg", "g", "ug", "mL", "[iU]", "{tablet}", "{capsule}", "{drop}", "{puff}", "{patch}"}
 }

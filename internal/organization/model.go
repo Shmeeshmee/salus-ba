@@ -39,3 +39,10 @@ type Caller struct {
 	OrganizationID string // the caller's clinic; empty for a patient
 	Admin          bool   // the caller is an admin of that clinic
 }
+
+// Location is a clinic as the aggregate builds need it (docs/plans/analytics.md §3): its id and time zone (the
+// local day and hour of its figures). No name.
+type Location struct {
+	ID       string
+	TimeZone string
+}

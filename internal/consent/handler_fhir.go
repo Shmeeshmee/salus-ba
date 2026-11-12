@@ -73,7 +73,7 @@ type provision struct {
 
 // data is one visit a history consent shares (meaning instance): the Consent claims the Encounter itself and no more.
 // What else of the visit the clinic is shown (its signed documents, completed answers and their files, never the
-// transcript, suggestions or drafts) is the access rule's (ADR 0013), which `dependents` would overstate.
+// transcript, suggestions or drafts) is the access rule's (ADR 0014), which `dependents` would overstate.
 type data struct {
 	Meaning   string         `json:"meaning"`
 	Reference fhir.Reference `json:"reference"`
@@ -91,7 +91,7 @@ func concept(system, code string) fhir.CodeableConcept {
 // toFHIR is c as a FHIR Consent. A transcription consent (SAL-12) is told apart from the care consent by its
 // second category, v3-ActCode ICOL (information collection: what is said is transcribed into the record), and
 // its provision's actions, consentaction collect and use (transcribed and translated, used for the AI
-// assistance), still for treatment. No standard code names transcription itself. A history consent (ADR 0013) is
+// assistance), still for treatment. No standard code names transcription itself. A history consent (ADR 0014) is
 // information disclosure (v3-ActCode IDSCL) with the action disclose, and lists in provision.data the visits it
 // shares (meaning instance).
 func toFHIR(c Consent) resource {

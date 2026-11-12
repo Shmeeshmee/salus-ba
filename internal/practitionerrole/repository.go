@@ -29,3 +29,9 @@ type Repository interface {
 	// at; or returns ErrConflict when version is not the current one (or the role is outside the scope).
 	SetSpecialty(ctx context.Context, id, code string, version int32, at time.Time) (PractitionerRole, error)
 }
+
+// StatsRepository reads the roles for the aggregate builds, on salus_stats.
+type StatsRepository interface {
+	// Specialties returns a clinic's roles with their specialty's SNOMED CT code, empty for none, by role id.
+	Specialties(ctx context.Context, orgID string) (map[string]string, error)
+}

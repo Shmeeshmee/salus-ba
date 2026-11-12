@@ -1,5 +1,5 @@
 -- +goose Up
--- Patient history (SAL-38, docs/plans/patient-history.md, ADR 0013): the patient's allergies and current
+-- Patient history (SAL-38, docs/plans/patient-history.md, ADR 0014): the patient's allergies and current
 -- medications, and their consent to share chosen visits from other clinics with one clinic.
 --
 -- Allergies and medications (FHIR AllergyIntolerance, MedicationStatement). An entry is either the patient's own
@@ -8,7 +8,7 @@
 -- clinic's entry belongs to its visit and is seen wherever the visit is seen (the clinic's own scope, another
 -- clinic's only while the visit is shared with it), until the patient adds it to their profile (in_profile). A
 -- confirmation names the confirming role and its clinic for that clinic's record; the service never shows them to
--- another clinic (ADR 0013, "Doctor entries").
+-- another clinic (ADR 0014, "Doctor entries").
 --
 -- History consent (FHIR Consent, the third kind beside 00016's care consent and 00040's transcription consent): per
 -- patient and clinic, off unless the patient grants it, listing the visits it shares. A table of its own, as 00040

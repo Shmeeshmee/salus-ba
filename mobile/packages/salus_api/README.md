@@ -155,10 +155,15 @@ Class | Method | HTTP request | Description
 *QuestionnairesApi* | [**withdrawQuestionnaire**](doc//QuestionnairesApi.md#withdrawquestionnaire) | **POST** /questionnaire-responses/{id}/withdraw | Withdraw a questionnaire request
 *SchedulingApi* | [**getAvailability**](doc//SchedulingApi.md#getavailability) | **GET** /practitioner-roles/{id}/availability | Read a practitioner role's weekly availability
 *SchedulingApi* | [**saveAvailability**](doc//SchedulingApi.md#saveavailability) | **PUT** /practitioner-roles/{id}/availability | Set a practitioner role's weekly availability
+*TerminologyApi* | [**editDiagnosisGroupName**](doc//TerminologyApi.md#editdiagnosisgroupname) | **PUT** /terminology/diagnosis-groups/{code}/names/{language} | Edit a diagnosis group's name
 *TerminologyApi* | [**editTermTranslation**](doc//TerminologyApi.md#edittermtranslation) | **PUT** /terminology/terms/{id}/translations/{language} | Edit a term's labels in one language
 *TerminologyApi* | [**getTermExplanations**](doc//TerminologyApi.md#gettermexplanations) | **GET** /terminology/explanations | The plain-language explanations of the terms
 *TerminologyApi* | [**getTermReviewProgress**](doc//TerminologyApi.md#gettermreviewprogress) | **GET** /terminology/review/progress | How far the review is in each language
+*TerminologyApi* | [**listDiagnosisGroupReview**](doc//TerminologyApi.md#listdiagnosisgroupreview) | **GET** /terminology/review/diagnosis-groups | The diagnosis groups' names in one language, for review
+*TerminologyApi* | [**listDiagnosisGroups**](doc//TerminologyApi.md#listdiagnosisgroups) | **GET** /terminology/diagnosis-groups | The diagnosis groups, named in a language
+*TerminologyApi* | [**listPlaces**](doc//TerminologyApi.md#listplaces) | **GET** /places | The places of a clinic's location
 *TerminologyApi* | [**listTermReview**](doc//TerminologyApi.md#listtermreview) | **GET** /terminology/review | The review queue of the medical terms in one language
+*TerminologyApi* | [**reviewDiagnosisGroupName**](doc//TerminologyApi.md#reviewdiagnosisgroupname) | **POST** /terminology/diagnosis-groups/{code}/names/{language}/review | Approve a diagnosis group's name or mark it as needing changes
 *TerminologyApi* | [**reviewTermExplanation**](doc//TerminologyApi.md#reviewtermexplanation) | **POST** /terminology/terms/{id}/explanations/{language}/review | Approve a term's explanation, or mark it as needing changes
 *TerminologyApi* | [**reviewTermTranslation**](doc//TerminologyApi.md#reviewtermtranslation) | **POST** /terminology/terms/{id}/translations/{language}/review | Approve a term's labels in one language, or mark them as needing changes
 *TerminologyApi* | [**searchTerminology**](doc//TerminologyApi.md#searchterminology) | **GET** /terminology/search | Search the medical terminology
@@ -203,6 +208,10 @@ Class | Method | HTTP request | Description
  - [ConversationParticipant](doc//ConversationParticipant.md)
  - [Cursor](doc//Cursor.md)
  - [CursorMessage](doc//CursorMessage.md)
+ - [DiagnosisGroup](doc//DiagnosisGroup.md)
+ - [DiagnosisGroupList](doc//DiagnosisGroupList.md)
+ - [DiagnosisGroupName](doc//DiagnosisGroupName.md)
+ - [DiagnosisGroupNameList](doc//DiagnosisGroupNameList.md)
  - [DocumentFieldTexts](doc//DocumentFieldTexts.md)
  - [DocumentTemplate](doc//DocumentTemplate.md)
  - [DocumentTemplateField](doc//DocumentTemplateField.md)
@@ -217,6 +226,7 @@ Class | Method | HTTP request | Description
  - [DraftMessage](doc//DraftMessage.md)
  - [DraftValue](doc//DraftValue.md)
  - [Drafts](doc//Drafts.md)
+ - [EditDiagnosisGroupNameRequest](doc//EditDiagnosisGroupNameRequest.md)
  - [EditMessageRequest](doc//EditMessageRequest.md)
  - [EnrolRequest](doc//EnrolRequest.md)
  - [Enrolment](doc//Enrolment.md)
@@ -250,6 +260,8 @@ Class | Method | HTTP request | Description
  - [OpenItem](doc//OpenItem.md)
  - [Patient](doc//Patient.md)
  - [PeriodUnit](doc//PeriodUnit.md)
+ - [Place](doc//Place.md)
+ - [PlaceList](doc//PlaceList.md)
  - [Questionnaire](doc//Questionnaire.md)
  - [QuestionnaireDefault](doc//QuestionnaireDefault.md)
  - [QuestionnaireItem](doc//QuestionnaireItem.md)

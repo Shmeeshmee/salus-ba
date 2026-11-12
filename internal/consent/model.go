@@ -27,7 +27,7 @@ const (
 	// KindTranscription lets the clinic's consultations with the patient be transcribed and translated, with AI
 	// assistance for the practitioner (suggestions, document drafts). It is used only with an active care consent.
 	KindTranscription Kind = "transcription"
-	// KindHistory shares chosen visits of the patient's at other clinics with the clinic (ADR 0013,
+	// KindHistory shares chosen visits of the patient's at other clinics with the clinic (ADR 0014,
 	// docs/plans/patient-history.md): only the visits it lists, while it and the care consent are active. Off unless
 	// the patient grants it at booking or in their settings.
 	KindHistory Kind = "history"
@@ -53,7 +53,7 @@ type Consent struct {
 }
 
 // SharedVisit is one visit a history consent lists: the encounter and when the patient added it. Removing it and
-// adding it again is a new selection; the record of each is kept (history_consent_encounter, 00042).
+// adding it again is a new selection; the record of each is kept (history_consent_encounter, 00043).
 type SharedVisit struct {
 	AddedAt     time.Time
 	EncounterID string

@@ -1,5 +1,5 @@
 // Package history is the patient's history as one view over the domains that own it (docs/plans/patient-history.md,
-// ADR 0013): the patient's timeline across every clinic (SAL-39), and a practitioner's view of the visits they may
+// ADR 0014): the patient's timeline across every clinic (SAL-39), and a practitioner's view of the visits they may
 // see with the pre-visit summary (SAL-40). It owns no table: each item comes from its owning domain's service, which
 // applies its access rule and audits the read. Nothing the viewer may not see (access.HistoryVisit) is listed,
 // counted, searched or summarised.

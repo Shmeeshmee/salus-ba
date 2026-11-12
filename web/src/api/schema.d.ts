@@ -818,7 +818,7 @@ export interface paths {
         put?: never;
         /**
          * Sign a draft
-         * @description Signs the draft, as it was read (If-Match), with the value the practitioner left in every field: a value as drafted keeps its sources, an edited or typed one has none, an empty one is missing. The draft becomes the final FHIR Composition, attested by the encounter's practitioner; its PDF is stored encrypted as a DocumentReference, and a Provenance records the signature. The final draft is pushed on the event stream. For the encounter's practitioner with the patient's active consent only. Audited, also when refused.
+         * @description Signs the draft, as it was read (If-Match), with the value the practitioner left in every field: a value as drafted keeps its sources, an edited or typed one has none, an empty one is missing. The draft becomes the final FHIR Composition, attested by the encounter's practitioner; its PDF is stored encrypted as a DocumentReference, and a Provenance records the signature. The final draft is pushed on the event stream. For the encounter's practitioner with the patient's active consent only. Every filled coded field (an ICD-10 diagnosis) needs the practitioner's confirmation (`confirmed`) and becomes a confirmed FHIR Condition of the encounter's patient, written and audited with the signature (SAL-19, docs/plans/analytics.md §3). Audited, also when refused.
          */
         post: operations["signDraft"];
         delete?: never;
@@ -1057,6 +1057,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/terminology/diagnosis-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The diagnosis groups, named in a language
+         * @description Our own diagnosis groups on ICD-10 code ranges (docs/plans/analytics.md appendix A, ADR 0013), in their order, each with its parent group (a subgroup) and its name in the language with the name's review status. For staff. Reference data: nothing is audited, and the browser may cache it for five minutes.
+         */
+        get: operations["listDiagnosisGroups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The places of a clinic's location
+         * @description Bosnia and Herzegovina's Federation, its ten cantons, Republika Srpska and Brcko District as regions, and 143 municipalities and cities (docs/plans/analytics.md §3): the entity first, then the regions, then the cities, each by parent and Latin name. Names are proper nouns in Latin and Cyrillic script. For staff. Reference data: nothing is audited, and the browser may cache it for five minutes.
+         */
+        get: operations["listPlaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/terminology/review/diagnosis-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The diagnosis groups' names in one language, for review
+         * @description Every diagnosis group in its order with its name in the language, the name's review and version (docs/plans/analytics.md §3: the doctor partner reviews them in the term review panel). For staff. Not audited: reference data.
+         */
+        get: operations["listDiagnosisGroupReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/terminology/diagnosis-groups/{code}/names/{language}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+                language: components["schemas"]["Language"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Edit a diagnosis group's name
+         * @description Replaces the group's name in the language (trimmed, 1 to 100 characters) at the version read (If-Match); the name becomes unreviewed, keeping its last review. The same text changes nothing. For a reviewer of the term list; audited on diagnosis_group_name, also when refused.
+         */
+        put: operations["editDiagnosisGroupName"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/terminology/diagnosis-groups/{code}/names/{language}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+                language: components["schemas"]["Language"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a diagnosis group's name or mark it as needing changes
+         * @description Records the reviewer's decision on the group's name in the language at the version read (If-Match): the reviewer and the time are the review's; needs_changes takes a note. For a reviewer of the term list; audited on diagnosis_group_name, also when refused.
+         */
+        post: operations["reviewDiagnosisGroupName"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/terminology/review": {
         parameters: {
             query?: never;
@@ -1221,7 +1327,7 @@ export interface paths {
         };
         /**
          * A patient's history as the practitioner may see it
-         * @description SAL-40. For a practitioner of the caller's clinic with an appointment with the patient and the patient's active care consent (ADR 0013): the visits at this clinic the practitioner held themselves, and the visits at other clinics the patient shared with this clinic (`shared`, marked with their clinic), with what belongs to each, newest first. Nothing else exists for the caller: an unshared visit is not listed, counted or hinted at. 404 to anyone else, the clinic's admin included. Not cached. Every view is audited.
+         * @description SAL-40. For a practitioner of the caller's clinic with an appointment with the patient and the patient's active care consent (ADR 0014): the visits at this clinic the practitioner held themselves, and the visits at other clinics the patient shared with this clinic (`shared`, marked with their clinic), with what belongs to each, newest first. Nothing else exists for the caller: an unshared visit is not listed, counted or hinted at. 404 to anyone else, the clinic's admin included. Not cached. Every view is audited.
          */
         get: operations["listPatientHistory"];
         put?: never;
@@ -1289,7 +1395,7 @@ export interface paths {
         put?: never;
         /**
          * Record an allergy in a visit
-         * @description SAL-41. The visit's practitioner records a confirmed allergy in it. It belongs to the visit (ADR 0013): seen where the visit is seen, until the patient adds it to their profile. Audited.
+         * @description SAL-41. The visit's practitioner records a confirmed allergy in it. It belongs to the visit (ADR 0014): seen where the visit is seen, until the patient adds it to their profile. Audited.
          */
         post: operations["recordAllergy"];
         delete?: never;
@@ -1827,6 +1933,43 @@ export interface components {
          * @enum {string}
          */
         Language: "bs" | "hr" | "sr-Latn" | "sr-Cyrl" | "en" | "de" | "ar" | "tr" | "it" | "fr";
+        DiagnosisGroupNameList: {
+            groups: components["schemas"]["DiagnosisGroupName"][];
+        };
+        DiagnosisGroupName: {
+            code: string;
+            /** @description The group of a subgroup; absent for a group and in a write's answer. */
+            parent?: string;
+            language: components["schemas"]["Language"];
+            text: string;
+            review: components["schemas"]["Review"];
+            /** Format: int32 */
+            versionId: number;
+        };
+        DiagnosisGroupList: {
+            groups: components["schemas"]["DiagnosisGroup"][];
+        };
+        DiagnosisGroup: {
+            /** @description A stable slug, such as respiratory-infections. */
+            code: string;
+            /** @description The group of a subgroup; absent for a group. */
+            parent?: string;
+            name: string;
+            reviewStatus: components["schemas"]["ReviewStatus"];
+        };
+        PlaceList: {
+            places: components["schemas"]["Place"][];
+        };
+        Place: {
+            /** @description An ISO 3166-2:BA code (entity, region) or a Wikidata id (city). */
+            id: string;
+            /** @enum {string} */
+            kind: "entity" | "region" | "city";
+            /** @description Absent for the entity and for a region that is its own entity. */
+            parent?: string;
+            nameLatn: string;
+            nameCyrl: string;
+        };
         /**
          * @description A label's language (docs/terminology/SPEC.md §3 "Database"), Latin then the ten app languages.
          * @enum {string}
@@ -2678,6 +2821,8 @@ export interface components {
         DraftValue: {
             key: string;
             value: string;
+            /** @description The practitioner confirmed the value of a coded field (an ICD-10 diagnosis), whether it was suggested by the drafting or typed by them. Required for a filled coded field; ignored for the other types. */
+            confirmed?: boolean;
         };
         KeyedError: {
             error: string;
@@ -3186,6 +3331,42 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["KeyedError"];
+            };
+        };
+        /** @description `invalid_request`: no If-Match, an unreadable body, a language the app does not have, a name outside 1 to 100 characters, or a decision other than approved or needs_changes. */
+        GroupNameInvalid: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `forbidden`: the caller is no reviewer of the term list. */
+        GroupNameForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `not_found`: no such group, or no name in the language. */
+        GroupNameNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `version_conflict`: the name changed since it was read. */
+        GroupNameConflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
             };
         };
         /** @description `unauthenticated`: no valid session. */
@@ -5684,7 +5865,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `invalid_values`: a value of no field, a field without or with two values, or a value not of its field's type; `required_missing`: a required field left empty. `keys` names the fields. */
+            /** @description `invalid_values`: a value of no field, a field without or with two values, or a value not of its field's type; `required_missing`: a required field left empty; `diagnosis_unconfirmed`: a filled coded field the practitioner did not confirm. `keys` names the fields. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6166,6 +6347,234 @@ export interface operations {
             };
             /** @description `unauthenticated`: no valid session. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listDiagnosisGroups: {
+        parameters: {
+            query: {
+                language: components["schemas"]["Language"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The groups. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, max-age=300";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosisGroupList"];
+                };
+            };
+            /** @description `invalid_request`: no language or one the app does not have. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: the caller is not staff of a clinic. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listPlaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The places. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, max-age=300";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceList"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: the caller is not staff of a clinic. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listDiagnosisGroupReview: {
+        parameters: {
+            query: {
+                language: components["schemas"]["Language"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The groups' names. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosisGroupNameList"];
+                };
+            };
+            /** @description `invalid_request`: no language or one the app does not have. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: the caller is not staff of a clinic. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    editDiagnosisGroupName: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                code: string;
+                language: components["schemas"]["Language"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosisGroupName"];
+                };
+            };
+            400: components["responses"]["GroupNameInvalid"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["GroupNameForbidden"];
+            404: components["responses"]["GroupNameNotFound"];
+            412: components["responses"]["GroupNameConflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    reviewDiagnosisGroupName: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                code: string;
+                language: components["schemas"]["Language"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewDecision"];
+            };
+        };
+        responses: {
+            /** @description The name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosisGroupName"];
+                };
+            };
+            400: components["responses"]["GroupNameInvalid"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["GroupNameForbidden"];
+            404: components["responses"]["GroupNameNotFound"];
+            412: components["responses"]["GroupNameConflict"];
+            /** @description `note_required`: needs_changes without a note. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

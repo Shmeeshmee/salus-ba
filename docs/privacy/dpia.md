@@ -1695,9 +1695,49 @@ and comes with the subject-rights feature (export through `Patient/$everything` 
 
 **Open before production.** The retention period of the chat with the clinical record (legal decision).
 
-## Patient history (`docs/plans/patient-history.md`, ADR 0013)
+## Analytics (`docs/plans/analytics.md`, ADR 0013)
 
-### Step 0: the contract (migration 00042)
+### SAL-19: coded diagnoses and diagnosis groups
+
+**Processing added.** `condition`: one FHIR Condition per filled coded field of a signed document (an ICD-10 code,
+the patient, the encounter, the clinic, the signing practitioner role, the signing time): health data (Art. 9)
+already in the signed document, now kept as a coded record. The documents signed before this feature got theirs
+by a backfill, marked unconfirmed and not counted. The diagnosis groups and the places are reference data with no
+personal data. A new database role, `salus_stats`, may read the source columns of the future aggregates (codes,
+times, statuses, clinic, practitioner role, and the patient id of `condition` and `appointment`); no binary logs in
+as it yet.
+
+**Purpose and lawful basis.** The clinical record (Art. 9(2)(h)), as the signed document it comes from; it is the
+source of the clinic's statistics (SAL-20) on the clinic's behalf. The platform-wide figures (SAL-21) are behind a
+feature flag that stays off until the owner confirms the legal answers (plan, L1 to L8).
+
+**Necessity and minimisation.** The columns are listed in the plan, §3, each with its reason. No free text, no
+transcript, no questionnaire answer is read. `salus_stats` reads no name, contact detail, document field or
+transcript (tested in the migration); a patient id leaves `condition` and `appointment` only as HMAC-SHA256 under a
+key that lives for one build (`pkg/pseudonym`).
+
+**Access.** Row-level security: the clinic's scope sees its own Conditions and inserts them, the patient's scope
+sees their own, a video room's scope and an account's see none; the application never updates or deletes one
+(tested, migration 00042). Signing refuses a filled diagnosis code the practitioner did not confirm.
+
+**Audit.** Each Condition's creation is audited with the signature, in its transaction. The group-name reviews are
+audited on `diagnosis_group_name`, also when refused.
+
+**Retention.** `condition`: kept with the clinical record, as `document_draft` (a legal decision before production,
+as the other clinical tables).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A model-suggested code recorded as a diagnosis nobody made | The practitioner confirms each code before the signature (tested in the service, the API and the browser journey); the backfilled codes are unconfirmed and not counted |
+| Another clinic's diagnoses | Row-level security by clinic (tested) |
+| The aggregate builds reading identities | `salus_stats` has column grants on the source columns only (tested); patients are pseudonymised per build |
+| WHO or national-edition text used without a licence | Codes only, as identifiers; group names are our own (ADR 0013) |
+
+## Patient history (`docs/plans/patient-history.md`, ADR 0014)
+
+### Step 0: the contract (migration 00043)
 
 **Processing added.** The patient's allergies and current medications in their profile (FHIR AllergyIntolerance,
 MedicationStatement), and a third consent, the history consent, by which the patient shares chosen visits of theirs
@@ -1709,7 +1749,7 @@ processor is added; nothing of the history goes to a language model.
 clinical record (retention `keep`, needs a legal decision before production). A patient's own unconfirmed entry is
 deleted when they remove it; anything confirmed or recorded by a clinic is kept as entered-in-error.
 
-**Who sees what.** ADR 0013 "Access model": the patient their whole history; a practitioner only the visits they
+**Who sees what.** ADR 0014 "Access model": the patient their whole history; a practitioner only the visits they
 held themselves at their clinic and the visits the patient shared with that clinic; the profile where the care
 consent and an appointment allow it (as the profile today); a clinic's entry only where its visit is seen; which
 clinic recorded or confirmed an entry only to the patient and that clinic. Row-level security says the same in the
@@ -1722,7 +1762,7 @@ practitioner. Every read, grant, change and revocation is audited.
 | --- | --- |
 | A visit the patient did not tick reaches the doctor | It is never selected: `history_shared` and the `*_shared` policies open only listed visits, `access.HistoryVisit` refuses the rest before anything is listed, counted, searched or summarised (migration and access tests; service tests in SAL-40) |
 | A removal or revocation that does not take effect at once | Both end access when their transaction commits, in row-level security and in the rule, which read the current state (tests); revoking the care consent revokes the history consent too |
-| A doctor's entry in the profile tells another clinic where the patient was treated | Doctor entries belong to their visit (ADR 0013 decision 4); the patient adds one to the profile only on purpose, and then it shows no clinic, no practitioner and no visit (`access.Attributed`, FHIR golden files) |
+| A doctor's entry in the profile tells another clinic where the patient was treated | Doctor entries belong to their visit (ADR 0014 decision 4); the patient adds one to the profile only on purpose, and then it shows no clinic, no practitioner and no visit (`access.Attributed`, FHIR golden files) |
 | The patient shares another patient's visit, or one of the receiving clinic's own, or one still in progress | Refused by the insert check of `history_consent_encounter` as well as the service |
 | A shared visit exposes more than its record | Only the encounter, signed documents, completed answers and their clean files, and the entries recorded in it; never the transcript, suggestions, drafts or appointment (policy tests) |
 | History reaches the language model | Not in this epic: suggestions and drafting read only the consultation's transcript (SAL-42 adds the test) |

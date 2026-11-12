@@ -154,6 +154,11 @@
           ]
         },
         {
+          "type": "Condition",
+          "interaction": [{ "code": "read" }],
+          "documentation": "An encounter diagnosis (ICD-10) of a signed Composition, its evidence (SAL-19): one per filled coded field, confirmed by the signing practitioner, written with the signature and never changed. Read by whoever may read the signed document: the encounter's practitioner while the patient's consent is active, and its patient whatever the consent (their own record). No search, create or update."
+        },
+        {
           "type": "Composition",
           "interaction": [{ "code": "read" }],
           "documentation": "A document drafted during a consultation from one of the clinic's templates: preliminary while it is drafted and edited, final once the encounter's practitioner signed it (attester, mode legal). Each field of the template is a section, its value the narrative; a field with no value has an emptyReason. Read by the encounter's practitioner while the patient's consent is active, and a final one by its patient whatever the consent (their own record; a preliminary one is not found for them); anyone else gets 403 or 404. No create or update: drafts are written and signed through the JSON API."

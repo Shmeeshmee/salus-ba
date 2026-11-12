@@ -2,7 +2,7 @@ package access
 
 import "slices"
 
-// Record is one visit of the patient's history (docs/plans/patient-history.md, ADR 0013): its encounter, the clinic
+// Record is one visit of the patient's history (docs/plans/patient-history.md, ADR 0014): its encounter, the clinic
 // it was at and its practitioner.
 type Record struct {
 	Encounter        string
@@ -12,7 +12,7 @@ type Record struct {
 
 // HistoryVisit reports whether viewer may see the visit r in the patient's history and what belongs to it (its
 // signed documents, completed questionnaire answers, their clean files and the entries recorded in it), as Facts
-// gathered for the viewer's clinic tell (ADR 0013 "Access model"): the patient always; at the viewer's own clinic, a
+// gathered for the viewer's clinic tell (ADR 0014 "Access model"): the patient always; at the viewer's own clinic, a
 // practitioner only the visits they held themselves, with an active care consent; a visit at another clinic, a
 // practitioner of the facts' clinic with an appointment with the patient there, while the care consent and the
 // history consent with that clinic are active and the history consent lists the visit. The admin never, and nobody
@@ -41,7 +41,7 @@ func ProfileEntry(v Viewer, f Facts, inProfile bool, r Record) bool {
 
 // Attributed reports whether viewer may see that clinic recorded or confirmed an entry, and who there: the patient,
 // and staff of that clinic. Anyone else sees "confirmed by a clinician" at most: naming the clinic would tell that
-// the patient was treated there (ADR 0013 "Doctor entries").
+// the patient was treated there (ADR 0014 "Doctor entries").
 func Attributed(v Viewer, f Facts, clinic string) bool {
 	return self(v, f) || (staffOf(v, f) && clinic != "" && clinic == f.Clinic)
 }

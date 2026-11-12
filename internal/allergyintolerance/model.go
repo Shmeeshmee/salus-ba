@@ -1,5 +1,5 @@
 // Package allergyintolerance is the patient's allergies: FHIR R4 AllergyIntolerance (docs/plans/patient-history.md,
-// ADR 0013, SAL-41). An allergy is the patient's own, entered in the app and always in their profile, or recorded
+// ADR 0014, SAL-41). An allergy is the patient's own, entered in the app and always in their profile, or recorded
 // by a clinic in one of its visits, which belongs to that visit until the patient adds it to their profile. The
 // profile is seen by every clinic with the patient's active care consent and an appointment; a visit's entry
 // wherever the visit is seen (access.ProfileEntry). Which clinic recorded or confirmed an entry is shown only to the

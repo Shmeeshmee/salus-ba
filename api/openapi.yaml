@@ -1901,8 +1901,10 @@ paths:
         as drafted keeps its sources, an edited or typed one has none, an empty one is missing. The draft becomes
         the final FHIR Composition, attested by the encounter's practitioner; its PDF is stored encrypted as a
         DocumentReference, and a Provenance records the signature. The final draft is pushed on the event
-        stream. For the encounter's practitioner with the patient's active consent only. Audited, also when
-        refused.
+        stream. For the encounter's practitioner with the patient's active consent only. Every filled coded field
+        (an ICD-10 diagnosis) needs the practitioner's confirmation (`confirmed`) and becomes a confirmed FHIR
+        Condition of the encounter's patient, written and audited with the signature (SAL-19,
+        docs/plans/analytics.md §3). Audited, also when refused.
       tags: [documents]
       security:
         - sessionCookie: []
@@ -1942,7 +1944,8 @@ paths:
         "422":
           description: >-
             `invalid_values`: a value of no field, a field without or with two values, or a value not of its
-            field's type; `required_missing`: a required field left empty. `keys` names the fields.
+            field's type; `required_missing`: a required field left empty; `diagnosis_unconfirmed`: a filled coded
+            field the practitioner did not confirm. `keys` names the fields.
           content:
             application/json:
               schema: {$ref: "#/components/schemas/KeyedError"}
@@ -2442,6 +2445,202 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /terminology/diagnosis-groups:
+    get:
+      operationId: listDiagnosisGroups
+      summary: The diagnosis groups, named in a language
+      description: >-
+        Our own diagnosis groups on ICD-10 code ranges (docs/plans/analytics.md appendix A, ADR 0013), in their
+        order, each with its parent group (a subgroup) and its name in the language with the name's review status.
+        For staff. Reference data: nothing is audited, and the browser may cache it for five minutes.
+      tags: [terminology]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - name: language
+          in: query
+          required: true
+          schema: {$ref: "#/components/schemas/Language"}
+      responses:
+        "200":
+          description: The groups.
+          headers:
+            Cache-Control: {schema: {type: string, const: "private, max-age=300"}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DiagnosisGroupList"}
+        "400":
+          description: "`invalid_request`: no language or one the app does not have."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: the caller is not staff of a clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /places:
+    get:
+      operationId: listPlaces
+      summary: The places of a clinic's location
+      description: >-
+        Bosnia and Herzegovina's Federation, its ten cantons, Republika Srpska and Brcko District as regions, and
+        143 municipalities and cities (docs/plans/analytics.md §3): the entity first, then the regions, then the
+        cities, each by parent and Latin name. Names are proper nouns in Latin and Cyrillic script. For staff.
+        Reference data: nothing is audited, and the browser may cache it for five minutes.
+      tags: [terminology]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The places.
+          headers:
+            Cache-Control: {schema: {type: string, const: "private, max-age=300"}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PlaceList"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: the caller is not staff of a clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /terminology/review/diagnosis-groups:
+    get:
+      operationId: listDiagnosisGroupReview
+      summary: The diagnosis groups' names in one language, for review
+      description: >-
+        Every diagnosis group in its order with its name in the language, the name's review and version
+        (docs/plans/analytics.md §3: the doctor partner reviews them in the term review panel). For staff. Not
+        audited: reference data.
+      tags: [terminology]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - name: language
+          in: query
+          required: true
+          schema: {$ref: "#/components/schemas/Language"}
+      responses:
+        "200":
+          description: The groups' names.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DiagnosisGroupNameList"}
+        "400":
+          description: "`invalid_request`: no language or one the app does not have."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: the caller is not staff of a clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /terminology/diagnosis-groups/{code}/names/{language}:
+    parameters:
+      - {name: code, in: path, required: true, schema: {type: string}}
+      - {name: language, in: path, required: true, schema: {$ref: "#/components/schemas/Language"}}
+    put:
+      operationId: editDiagnosisGroupName
+      summary: Edit a diagnosis group's name
+      description: >-
+        Replaces the group's name in the language (trimmed, 1 to 100 characters) at the version read (If-Match);
+        the name becomes unreviewed, keeping its last review. The same text changes nothing. For a reviewer of the
+        term list; audited on diagnosis_group_name, also when refused.
+      tags: [terminology]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: {type: string}
+      responses:
+        "200":
+          description: The name.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DiagnosisGroupName"}
+        "400": {$ref: "#/components/responses/GroupNameInvalid"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/GroupNameForbidden"}
+        "404": {$ref: "#/components/responses/GroupNameNotFound"}
+        "412": {$ref: "#/components/responses/GroupNameConflict"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /terminology/diagnosis-groups/{code}/names/{language}/review:
+    parameters:
+      - {name: code, in: path, required: true, schema: {type: string}}
+      - {name: language, in: path, required: true, schema: {$ref: "#/components/schemas/Language"}}
+    post:
+      operationId: reviewDiagnosisGroupName
+      summary: Approve a diagnosis group's name or mark it as needing changes
+      description: >-
+        Records the reviewer's decision on the group's name in the language at the version read (If-Match): the
+        reviewer and the time are the review's; needs_changes takes a note. For a reviewer of the term list;
+        audited on diagnosis_group_name, also when refused.
+      tags: [terminology]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewDecision"}
+      responses:
+        "200":
+          description: The name.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DiagnosisGroupName"}
+        "400": {$ref: "#/components/responses/GroupNameInvalid"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/GroupNameForbidden"}
+        "404": {$ref: "#/components/responses/GroupNameNotFound"}
+        "412": {$ref: "#/components/responses/GroupNameConflict"}
+        "422":
+          description: "`note_required`: needs_changes without a note."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /terminology/review:
     get:
       operationId: listTermReview
@@ -2821,7 +3020,7 @@ paths:
       summary: A patient's history as the practitioner may see it
       description: >-
         SAL-40. For a practitioner of the caller's clinic with an appointment with the patient and the patient's
-        active care consent (ADR 0013): the visits at this clinic the practitioner held themselves, and the visits at
+        active care consent (ADR 0014): the visits at this clinic the practitioner held themselves, and the visits at
         other clinics the patient shared with this clinic (`shared`, marked with their clinic), with what belongs to
         each, newest first. Nothing else exists for the caller: an unshared visit is not listed, counted or hinted
         at. 404 to anyone else, the clinic's admin included. Not cached. Every view is audited.
@@ -2934,7 +3133,7 @@ paths:
       operationId: recordAllergy
       summary: Record an allergy in a visit
       description: >-
-        SAL-41. The visit's practitioner records a confirmed allergy in it. It belongs to the visit (ADR 0013): seen
+        SAL-41. The visit's practitioner records a confirmed allergy in it. It belongs to the visit (ADR 0014): seen
         where the visit is seen, until the patient adds it to their profile. Audited.
       tags: [history]
       security:
@@ -3912,6 +4111,26 @@ components:
       content:
         application/json:
           schema: {$ref: "#/components/schemas/KeyedError"}
+    GroupNameInvalid:
+      description: "`invalid_request`: no If-Match, an unreadable body, a language the app does not have, a name outside 1 to 100 characters, or a decision other than approved or needs_changes."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    GroupNameForbidden:
+      description: "`forbidden`: the caller is no reviewer of the term list."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    GroupNameNotFound:
+      description: "`not_found`: no such group, or no name in the language."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    GroupNameConflict:
+      description: "`version_conflict`: the name changed since it was read."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
     Unauthenticated:
       description: "`unauthenticated`: no valid session."
       content:
@@ -4298,6 +4517,54 @@ components:
       description: >-
         A BCP 47 tag (docs/i18n/SPEC.md §3 "Tags"). Staff accounts and a clinic's default language take only
         the staff languages, the first five: bs, hr, sr-Latn, sr-Cyrl, en. Serbian is ijekavian in both scripts.
+    DiagnosisGroupNameList:
+      type: object
+      required: [groups]
+      properties:
+        groups:
+          type: array
+          items: {$ref: "#/components/schemas/DiagnosisGroupName"}
+    DiagnosisGroupName:
+      type: object
+      required: [code, language, text, review, versionId]
+      properties:
+        code: {type: string}
+        parent: {type: string, description: "The group of a subgroup; absent for a group and in a write's answer."}
+        language: {$ref: "#/components/schemas/Language"}
+        text: {type: string}
+        review: {$ref: "#/components/schemas/Review"}
+        versionId: {type: integer, format: int32}
+    DiagnosisGroupList:
+      type: object
+      required: [groups]
+      properties:
+        groups:
+          type: array
+          items: {$ref: "#/components/schemas/DiagnosisGroup"}
+    DiagnosisGroup:
+      type: object
+      required: [code, name, reviewStatus]
+      properties:
+        code: {type: string, description: "A stable slug, such as respiratory-infections."}
+        parent: {type: string, description: "The group of a subgroup; absent for a group."}
+        name: {type: string}
+        reviewStatus: {$ref: "#/components/schemas/ReviewStatus"}
+    PlaceList:
+      type: object
+      required: [places]
+      properties:
+        places:
+          type: array
+          items: {$ref: "#/components/schemas/Place"}
+    Place:
+      type: object
+      required: [id, kind, nameLatn, nameCyrl]
+      properties:
+        id: {type: string, description: "An ISO 3166-2:BA code (entity, region) or a Wikidata id (city)."}
+        kind: {type: string, enum: [entity, region, city]}
+        parent: {type: string, description: "Absent for the entity and for a region that is its own entity."}
+        nameLatn: {type: string}
+        nameCyrl: {type: string}
     TermLanguage:
       type: string
       enum: [la, bs, hr, sr-Latn, sr-Cyrl, en, de, ar, tr, it, fr]
@@ -5650,6 +5917,11 @@ components:
       properties:
         key: {type: string}
         value: {type: string}
+        confirmed:
+          type: boolean
+          description: >-
+            The practitioner confirmed the value of a coded field (an ICD-10 diagnosis), whether it was suggested
+            by the drafting or typed by them. Required for a filled coded field; ignored for the other types.
     KeyedError:
       type: object
       required: [error, keys]

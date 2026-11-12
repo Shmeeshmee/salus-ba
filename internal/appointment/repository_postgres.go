@@ -171,3 +171,31 @@ func toAppointment(row appointmentdb.AppointmentByIDRow) Appointment {
 	}
 	return a
 }
+
+type postgresStatsRepository struct {
+	db postgres.Querier
+}
+
+// NewPostgresStatsRepository returns the StatsRepository on db, the salus_stats pool.
+func NewPostgresStatsRepository(db postgres.Querier) StatsRepository {
+	return &postgresStatsRepository{db: db}
+}
+
+func (r *postgresStatsRepository) Booked(ctx context.Context, orgID string, from, to time.Time) ([]Booked, error) {
+	var org pgtype.UUID
+	if org.Scan(orgID) != nil {
+		return nil, ErrNotFound
+	}
+	rows, err := appointmentdb.New(postgres.Conn(ctx, r.db)).ListBookedForStats(ctx, appointmentdb.ListBookedForStatsParams{
+		OrganizationID: org, FromAt: pgtype.Timestamptz{Time: from, Valid: true}, ToAt: pgtype.Timestamptz{Time: to, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Booked, len(rows))
+	for i, row := range rows {
+		out[i] = Booked{Start: row.StartAt.Time.UTC(), PatientID: row.PatientID.String(),
+			PractitionerRoleID: row.PractitionerRoleID.String(), Status: Status(row.Status)}
+	}
+	return out, nil
+}

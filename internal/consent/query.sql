@@ -1,5 +1,5 @@
 -- consent holds the care consents, transcription_consent the transcription consents (migration 00040) and
--- history_consent the history consents (00042): the same shape, a kind each. A read of both is their UNION ALL, each table on its own index and under its own
+-- history_consent the history consents (00043): the same shape, a kind each. A read of both is their UNION ALL, each table on its own index and under its own
 -- row-level security.
 
 -- A second active consent with the clinic inserts nothing (no row), so the transaction stays usable for the
@@ -65,7 +65,7 @@ SELECT coalesce(bool_or(status = 'active'), false)::boolean AS active, max(revok
 FROM consent
 WHERE patient_id = @patient_id AND organization_id = @organization_id;
 
--- The visits the patient's active history consent with the clinic lists now (migration 00042), oldest selection
+-- The visits the patient's active history consent with the clinic lists now (migration 00043), oldest selection
 -- first.
 -- name: HistoryShared :many
 SELECT s.encounter_id

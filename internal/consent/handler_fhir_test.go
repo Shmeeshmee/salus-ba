@@ -138,7 +138,7 @@ func TestFHIRHandlerRead_SendsAFixedOperationOutcomeOnAnError(t *testing.T) {
 	}
 }
 
-// The history consent (ADR 0013) is a Consent of its own: information disclosure (v3-ActCode IDSCL) beside the
+// The history consent (ADR 0014) is a Consent of its own: information disclosure (v3-ActCode IDSCL) beside the
 // patient consent category, the provision permitting the receiving clinic the disclosure, for treatment, of the
 // listed visits (meaning instance: dependents would claim every resource referring to them, the transcript included).
 func TestFHIRHandlerRead_SendsAHistoryConsentWithTheVisitsItShares(t *testing.T) {

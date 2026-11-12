@@ -40,7 +40,7 @@ func historyFacts(care, history bool, visits []access.Visit) access.Facts {
 
 var booked = []access.Visit{{PractitionerRole: roleA1, Start: revokedAt.Add(48 * time.Hour)}}
 
-// ADR 0013 "Access model": the patient sees their whole history; a practitioner sees, at their own clinic, only the
+// ADR 0014 "Access model": the patient sees their whole history; a practitioner sees, at their own clinic, only the
 // visits they held themselves, with an active care consent; another clinic's visit only while the patient's history
 // consent with the practitioner's clinic lists it, the care consent is active and the practitioner has an
 // appointment with the patient; the admin and everyone else nothing.
@@ -111,7 +111,7 @@ func TestProfileEntry_TheProfileUnderProfileAVisitsEntryUnderHistoryVisit(t *tes
 }
 
 // Which clinic recorded or confirmed an entry is shown to the patient and to staff of that clinic only: anywhere
-// else it would tell that the patient was treated there ("Confirmed by a clinician", ADR 0013).
+// else it would tell that the patient was treated there ("Confirmed by a clinician", ADR 0014).
 func TestAttributed_OnlyThePatientAndTheRecordingClinic(t *testing.T) {
 	f := historyFacts(true, true, booked)
 	for _, tc := range []struct {

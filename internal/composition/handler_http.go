@@ -328,8 +328,11 @@ func (h *HTTPHandler) writeError(w http.ResponseWriter, r *http.Request, err err
 	}
 	if fields, ok := errors.AsType[*FieldsError](err); ok {
 		code := "invalid_values"
-		if errors.Is(fields.Err, ErrRequiredMissing) {
+		switch {
+		case errors.Is(fields.Err, ErrRequiredMissing):
 			code = "required_missing"
+		case errors.Is(fields.Err, ErrDiagnosisUnconfirmed):
+			code = "diagnosis_unconfirmed"
 		}
 		httpx.JSON(w, http.StatusUnprocessableEntity, keyedError{code, nonNil(fields.Keys)})
 		return

@@ -22,3 +22,9 @@ type Repository interface {
 	// Create stores a new active clinic and returns it. Only the owner may (the operator command).
 	Create(ctx context.Context, name string) (Organization, error)
 }
+
+// StatsRepository reads the clinics for the aggregate builds, on salus_stats.
+type StatsRepository interface {
+	// Locations returns every clinic with its time zone, by id.
+	Locations(ctx context.Context) ([]Location, error)
+}

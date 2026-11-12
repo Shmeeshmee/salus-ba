@@ -824,7 +824,7 @@ class HistoryApi {
 
   /// A patient's history as the practitioner may see it
   ///
-  /// SAL-40. For a practitioner of the caller's clinic with an appointment with the patient and the patient's active care consent (ADR 0013): the visits at this clinic the practitioner held themselves, and the visits at other clinics the patient shared with this clinic (`shared`, marked with their clinic), with what belongs to each, newest first. Nothing else exists for the caller: an unshared visit is not listed, counted or hinted at. 404 to anyone else, the clinic's admin included. Not cached. Every view is audited.
+  /// SAL-40. For a practitioner of the caller's clinic with an appointment with the patient and the patient's active care consent (ADR 0014): the visits at this clinic the practitioner held themselves, and the visits at other clinics the patient shared with this clinic (`shared`, marked with their clinic), with what belongs to each, newest first. Nothing else exists for the caller: an unshared visit is not listed, counted or hinted at. 404 to anyone else, the clinic's admin included. Not cached. Every view is audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -877,7 +877,7 @@ class HistoryApi {
 
   /// A patient's history as the practitioner may see it
   ///
-  /// SAL-40. For a practitioner of the caller's clinic with an appointment with the patient and the patient's active care consent (ADR 0013): the visits at this clinic the practitioner held themselves, and the visits at other clinics the patient shared with this clinic (`shared`, marked with their clinic), with what belongs to each, newest first. Nothing else exists for the caller: an unshared visit is not listed, counted or hinted at. 404 to anyone else, the clinic's admin included. Not cached. Every view is audited.
+  /// SAL-40. For a practitioner of the caller's clinic with an appointment with the patient and the patient's active care consent (ADR 0014): the visits at this clinic the practitioner held themselves, and the visits at other clinics the patient shared with this clinic (`shared`, marked with their clinic), with what belongs to each, newest first. Nothing else exists for the caller: an unshared visit is not listed, counted or hinted at. 404 to anyone else, the clinic's admin included. Not cached. Every view is audited.
   ///
   /// Parameters:
   ///
@@ -990,7 +990,7 @@ class HistoryApi {
 
   /// Record an allergy in a visit
   ///
-  /// SAL-41. The visit's practitioner records a confirmed allergy in it. It belongs to the visit (ADR 0013): seen where the visit is seen, until the patient adds it to their profile. Audited.
+  /// SAL-41. The visit's practitioner records a confirmed allergy in it. It belongs to the visit (ADR 0014): seen where the visit is seen, until the patient adds it to their profile. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -1039,7 +1039,7 @@ class HistoryApi {
 
   /// Record an allergy in a visit
   ///
-  /// SAL-41. The visit's practitioner records a confirmed allergy in it. It belongs to the visit (ADR 0013): seen where the visit is seen, until the patient adds it to their profile. Audited.
+  /// SAL-41. The visit's practitioner records a confirmed allergy in it. It belongs to the visit (ADR 0014): seen where the visit is seen, until the patient adds it to their profile. Audited.
   ///
   /// Parameters:
   ///

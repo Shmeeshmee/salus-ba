@@ -273,3 +273,39 @@ ORDER BY e.term_id, e.language = @language::term_language DESC;
 
 -- name: TermIDByWikidata :one
 SELECT id FROM term WHERE wikidata_id = @wikidata_id;
+
+-- name: ListDiagnosisGroups :many
+-- Our diagnosis groups (00042, docs/plans/analytics.md appendix A), in their order.
+SELECT code, parent_code FROM diagnosis_group ORDER BY position;
+
+-- name: ListDiagnosisGroupNames :many
+-- Every group's names with their reviews, by group order and then by language in the enum's order.
+SELECT n.group_code, n.language::text AS language, n.text, n.review_status::text AS review_status, n.reviewed_at,
+       n.reviewed_by, n.note, n.version_id
+FROM diagnosis_group_name n JOIN diagnosis_group g ON g.code = n.group_code
+ORDER BY g.position, n.language;
+
+-- name: ListDiagnosisGroupRanges :many
+-- Every group's ranges of ICD-10 codes, by group order and then by their first code.
+SELECT r.group_code, r.from_code, r.to_code
+FROM diagnosis_group_range r JOIN diagnosis_group g ON g.code = r.group_code
+ORDER BY g.position, r.from_code;
+
+-- name: ListPlaces :many
+-- The places of a clinic's location: the entity, the regions, then the cities, each by parent and Latin name.
+SELECT id, kind, parent_id, name_latn, name_cyrl
+FROM place
+ORDER BY CASE kind WHEN 'entity' THEN 0 WHEN 'region' THEN 1 ELSE 2 END, parent_id NULLS FIRST, name_latn, id;
+
+-- name: LockGroupName :one
+-- A group's name in a language, locked for a review write.
+SELECT language::text AS language, text, review_status::text AS review_status, reviewed_at, reviewed_by, note, version_id
+FROM diagnosis_group_name
+WHERE group_code = @group_code AND language::text = @language::text
+FOR UPDATE;
+
+-- name: UpdateGroupName :exec
+UPDATE diagnosis_group_name
+SET text = sqlc.arg(name_text)::text, review_status = sqlc.arg(review_status)::text, reviewed_at = @reviewed_at, reviewed_by = @reviewed_by,
+    note = @note, version_id = @version_id, updated_at = @updated_at
+WHERE group_code = @group_code AND language::text = @language::text;

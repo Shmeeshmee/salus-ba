@@ -1,7 +1,7 @@
 # Patient history: SAL-39, SAL-40, SAL-41, SAL-42
 
-Epic SAL-38. Status: planned, 2026-11-12. The access model and the owner's decisions are ADR 0013
-(docs/adr/0013-patient-history-access.md); this plan holds the contract, the packages and how they run.
+Epic SAL-38. Status: planned, 2026-11-12. The access model and the owner's decisions are ADR 0014
+(docs/adr/0014-patient-history-access.md); this plan holds the contract, the packages and how they run.
 PROGRESS: docs/plans/patient-history.PROGRESS.md.
 
 ## Tickets
@@ -15,7 +15,7 @@ PROGRESS: docs/plans/patient-history.PROGRESS.md.
 
 ## Decisions
 
-Recorded in ADR 0013 "Decisions" (owner, 2026-11-12): the minimal profile; sharing off by default and per visit;
+Recorded in ADR 0014 "Decisions" (owner, 2026-11-12): the minimal profile; sharing off by default and per visit;
 own visits only; doctor entries visit-scoped. Not to be reopened by a package; a package that finds them in conflict
 with the code stops and reports.
 
@@ -23,7 +23,7 @@ Settled by this plan, within those decisions:
 
 | Topic | Decision |
 | --- | --- |
-| A practitioner's shared visits | Seen while the care and history consents with their clinic are active, the history consent lists the visit, and the practitioner has an appointment with the patient at the clinic (`access.Profile`'s rule), as ADR 0013 says |
+| A practitioner's shared visits | Seen while the care and history consents with their clinic are active, the history consent lists the visit, and the practitioner has an appointment with the patient at the clinic (`access.Profile`'s rule), as ADR 0014 says |
 | What a shared visit brings | Its encounter, its signed documents (Composition, DocumentReference, PDF), its completed questionnaire responses and their clean files, the entries recorded in it. Never the transcript, suggestions, drafts or the appointment |
 | Only finished visits | A visit is shareable once its encounter is finished; row-level security refuses another |
 | An empty selection | An active history consent lists at least one visit: saving none revokes it (`PUT /history-sharing/{organizationId}` with `[]`) |
@@ -36,11 +36,11 @@ Settled by this plan, within those decisions:
 | Who a confirmation vouches for | The confirming clinic: a colleague at that clinic may correct the entry and keep it confirmed; the recording clinic corrects its own entry by clearing another clinic's confirmation. A removed entry stays removed |
 | Coding | A substance or medication picked from the terminology carries its ATC code (`http://www.whocc.no/atc`) and its label as text; one typed by hand is text only (no free-text code). Units and periods are UCUM |
 | Diagnoses in the doctor's view (SAL-40) | Shown from the signed documents' coded fields. The analytics epic is adding a `condition` domain (docs/plans/analytics.md, SAL-19): once it is on main, SAL-40 reads diagnoses through `condition.Service` instead, without touching its code |
-| AI | No part of the history is sent to the language model (ADR 0013 "No AI"). The suggestions and the drafting keep reading only the consultation's transcript; SAL-42 adds a test that a shared or unshared visit's content never reaches their input |
+| AI | No part of the history is sent to the language model (ADR 0014 "No AI"). The suggestions and the drafting keep reading only the consultation's transcript; SAL-42 adds a test that a shared or unshared visit's content never reaches their input |
 
-## Contract (step 0, this PR, migration 00042)
+## Contract (step 0, this PR, migration 00043)
 
-- **Migration `00042_patient_history.sql`**: `allergy_intolerance`, `medication_statement`, `history_consent`,
+- **Migration `00043_patient_history.sql`**: `allergy_intolerance`, `medication_statement`, `history_consent`,
   `history_consent_encounter`, the function `history_shared(encounter, patient)`, the `*_shared` policies, the
   profile tables' policies, the `profile_entry_update_check` trigger, 00031's transcript and suggestion policies
   narrowed to the clinic's own encounters, and the grants. Its policies call `history_shared` for every encounter row
@@ -95,7 +95,7 @@ owner.
   (now with the shared visits) and the patient's appointments there; every source filters with `access.HistoryVisit`
   before it lists or counts. Each owning domain gets a read for a practitioner's visits and for shared encounter
   ids, applying `access.HistoryVisit` (not its own appointment rule, which refuses another clinic's visit).
-- The questions of a shared questionnaire response: 00042 does not open another clinic's `questionnaire` rows. A
+- The questions of a shared questionnaire response: 00043 does not open another clinic's `questionnaire` rows. A
   `questionnaire_shared` policy chained on `questionnaire_response` made the planner spin (an UPDATE of
   `questionnaire_translation` never finished), so read the versions a shared completed response answers through a
   `SECURITY DEFINER` lookup that returns only those versions (as `encounter_organization`, 00033), in this
@@ -137,7 +137,7 @@ owner.
 ## Waves and merge order
 
 ```
-Step 0 (this PR): plan, ADR 0013, the contract (00042)
+Step 0 (this PR): plan, ADR 0014, the contract (00043)
 Wave 1, in parallel:  SAL-39   SAL-40   SAL-41   SAL-42
 Merge order:          SAL-41, SAL-39, SAL-40, SAL-42
 ```
@@ -156,7 +156,7 @@ app image, so the sessions never share a stack.
 
 ## Migrations
 
-Step 0 is `00042`. A package that needs one takes the next free number when it merges main before its own merge (a
+Step 0 is `00043`. A package that needs one takes the next free number when it merges main before its own merge (a
 migration not yet on main may be renumbered; `scripts/check-migrations.sh` guards only main's).
 
 ## Checks per PR

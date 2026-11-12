@@ -61,7 +61,7 @@ type Viewer struct {
 type Consent struct {
 	RevokedAt time.Time // the latest revocation of the care consent; zero when none was ever revoked
 	// Shared is the encounters the history consent lists (share chosen visits from other clinics with this one,
-	// ADR 0013); empty unless History.
+	// ADR 0014); empty unless History.
 	Shared        []string
 	Active        bool // the care consent is active
 	Transcription bool // the transcription consent (transcription, translation, AI assistance) is active
