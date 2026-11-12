@@ -25,15 +25,18 @@ const (
 // ScanResult is what a scan did: the file's new status, empty when there was nothing to scan, and for a
 // rejected file the signature clamd found (a ClamAV name, not personal data; never logged beside a patient id).
 type ScanResult struct {
-	Status    Status
-	Signature string
+	// ThumbnailErr is why a clean chat image got no thumbnail, for the log; the file is clean all the same.
+	ThumbnailErr error
+	Status       Status
+	Signature    string
 }
 
 // Scan is the binary_scan job, enqueued with every upload (docs/attachments/SPEC.md §2 "Scan"). In the job
 // scope of the file's response (a chat file's conversation) it reads the quarantined file, then, outside any
 // transaction, streams its object through the envelope decrypter into clamd. A clean file becomes clean and its
-// attachment no longer pending; a clean chat image gets its thumbnail; a file clamd flags becomes rejected, its
-// wrapped key cleared and its attachment removed, and its object is deleted after the commit. Each result is
+// attachment no longer pending; a clean chat image gets its thumbnail, or none when making it fails (ThumbnailErr,
+// for the log: a preview never fails the scan); a file clamd flags becomes rejected, its wrapped key cleared and its
+// attachment removed, and its object is deleted after the commit. Each result is
 // audited with the job as agent (update for clean, delete for rejected, whose bytes are gone). Any error (clamd
 // unreachable, the store, the commit) leaves the file quarantined, so nobody downloads it, and River retries the job;
 // a chat file past clamd's stream limit is rejected at once, and one the job gives up on through Unscannable. A file
@@ -55,10 +58,9 @@ func (s *Service) Scan(ctx context.Context, job ScanArgs) (ScanResult, error) {
 		status = StatusRejected
 	}
 	var thumb Thumbnail
+	var thumbErr error
 	if status == StatusClean && job.ConversationID != "" {
-		if thumb, err = s.thumbnail(ctx, b); err != nil {
-			return ScanResult{}, wrapScan(err)
-		}
+		thumb, thumbErr = s.thumbnail(ctx, b) // a preview: its failure never fails the scan of a clean file
 	}
 	marked, err := s.markScanned(ctx, job, b, status, thumb)
 	switch {
@@ -70,7 +72,7 @@ func (s *Service) Scan(ctx context.Context, job ScanArgs) (ScanResult, error) {
 	case status == StatusRejected:
 		_ = s.Store.Delete(context.WithoutCancel(ctx), b.ID) // the purger removes an object left behind (SPEC.md §5)
 	}
-	return ScanResult{Status: status, Signature: found.Signature}, nil
+	return ScanResult{Status: status, Signature: found.Signature, ThumbnailErr: wrapScan(thumbErr)}, nil
 }
 
 // markScanned records the scan's status of b in one transaction of the job's scope, with what goes with it: the

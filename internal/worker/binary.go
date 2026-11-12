@@ -85,6 +85,9 @@ func (w *binaryScanWorker) Work(ctx context.Context, job *river.Job[binary.ScanA
 	case binary.StatusRejected:
 		attrs = append(attrs, "signature", res.Signature)
 	}
+	if res.ThumbnailErr != nil { // the file is clean without its preview
+		attrs = append(attrs, "thumbnail_error", res.ThumbnailErr.Error())
+	}
 	attrs = append(attrs, "duration_ms", w.clock.Now().Sub(start).Milliseconds())
 	w.log.InfoContext(ctx, "binary scan done", attrs...)
 	return nil

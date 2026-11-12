@@ -6,6 +6,7 @@ import (
 	"errors"
 	"image"
 	"image/png"
+	"io"
 	"testing"
 
 	"github.com/riverqueue/river"
@@ -95,6 +96,39 @@ func TestBinaryScan_MarksAChatImageCleanWithItsThumbnail(t *testing.T) {
 		t.Errorf("the file is %s (thumbnail %v), want clean with its thumbnail", status, thumbnail)
 	}
 	checkFilesLog(t, logs, b, `"msg":"binary scan done","binary_id":"`+f.id+`","result":"clean"`)
+}
+
+// refusingPuts is the store with its puts refused: a thumbnail cannot be stored.
+type refusingPuts struct{ binary.Store }
+
+func (refusingPuts) Put(context.Context, string, io.Reader, int64) error {
+	return errors.New("synthetic store failure")
+}
+
+// A chat image whose thumbnail cannot be stored is clean all the same, without one; the log says the thumbnail
+// failed (SAL-30 review, finding 5).
+func TestBinaryScan_MarksAChatImageCleanWhenItsThumbnailFails(t *testing.T) {
+	t.Parallel()
+	db := newLogins(t)
+	b := seedBooking(t, db.owner)
+	files := testFiles(t)
+	var img bytes.Buffer
+	if err := png.Encode(&img, image.NewGray(image.Rect(0, 0, 640, 480))); err != nil {
+		t.Fatal(err)
+	}
+	f := seedChatFile(t, db, b, files, img.Bytes(), "image/png")
+	files.Store = refusingPuts{files.Store}
+
+	ended, logs := runFilesJob(t, db, files, binary.ScanArgs{BinaryID: f.id, ConversationID: f.conversation, OrganizationID: clinicID},
+		&river.InsertOpts{Queue: binary.QueueScan, MaxAttempts: 1})
+
+	if ended != river.EventKindJobCompleted {
+		t.Fatalf("the job ended %s, want completed:\n%s", ended, logs)
+	}
+	if status, thumbnail := chatScanState(t, db, f); status != "clean" || thumbnail {
+		t.Errorf("the file is %s (thumbnail %v), want clean without one", status, thumbnail)
+	}
+	checkFilesLog(t, logs, b, `"result":"clean","thumbnail_error":"binary: scan: synthetic store failure"`)
 }
 
 // A chat file's scan that fails on its last attempt rejects it (unscannable), so its message never shows it as

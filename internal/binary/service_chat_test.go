@@ -316,6 +316,22 @@ func TestScan_ChatFilesAreScannedInTheirConversationAndCleanImagesGetAThumbnail(
 	}
 }
 
+// A clean image whose thumbnail cannot be made (the store refuses it) is clean all the same, without a thumbnail: the
+// failure is reported for the log, never fails the scan, so a clean file is never rejected for its preview.
+func TestScan_ACleanImageWhoseThumbnailFailsIsCleanWithoutOne(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	file := f.chatFile(t, pngBytes(t), binary.StatusQuarantined)
+	f.store.putErr = errors.New("synthetic store failure")
+	got, err := f.scanning(fakeScanner{}).Scan(t.Context(), chatScanArgs(file))
+	if err != nil || got.Status != binary.StatusClean || got.ThumbnailErr == nil {
+		t.Fatalf("Scan() = %+v, %v; want clean, with the thumbnail's failure reported", got, err)
+	}
+	if stored := f.repo.files[file.ID]; stored.Status != binary.StatusClean || stored.Thumbnail.ID != "" {
+		t.Errorf("stored %s with thumbnail %+v; want clean without one", stored.Status, stored.Thumbnail)
+	}
+}
+
 // A chat file that cannot be scanned is rejected, never left quarantined: clamd's stream limit at once, any other
 // failure when the job gives up (Unscannable, its last attempt). A questionnaire file stays quarantined, as before.
 func TestScan_AChatFileThatCannotBeScannedIsRejected(t *testing.T) {
