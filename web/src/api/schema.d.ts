@@ -2524,11 +2524,8 @@ export interface components {
              * @description The number of the latest message it covers.
              */
             up_to_seq: number;
-            /**
-             * @description Always true; every client labels the summary AI generated.
-             * @constant
-             */
-            ai_generated: true;
+            /** @description Always true; every client labels the summary AI generated. */
+            ai_generated: boolean;
         };
         ReadPosition: {
             /** Format: int64 */

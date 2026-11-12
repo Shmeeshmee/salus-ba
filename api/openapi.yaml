@@ -5158,7 +5158,7 @@ components:
         summary: {type: string, description: The summary's text; never a diagnosis.}
         generated_at: {type: string, format: date-time}
         up_to_seq: {type: integer, format: int64, description: The number of the latest message it covers.}
-        ai_generated: {type: boolean, const: true, description: Always true; every client labels the summary AI generated.}
+        ai_generated: {type: boolean, description: Always true; every client labels the summary AI generated.}
     ReadPosition:
       type: object
       required: [seq]
