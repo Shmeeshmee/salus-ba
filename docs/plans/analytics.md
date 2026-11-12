@@ -2,7 +2,7 @@
 
 Epic SAL-18 (SAL-19 to SAL-22). Status: approved by the owner, 2026-11-12, with the answers in section 10; the
 platform view is built behind a feature flag that stays off until the legal questions are answered (section 2a). Decision record: docs/adr/0012-icd10-diagnosis-groups-and-anonymized-analytics.md. Revised the
-same day after a subagent review of PR #71 (suppression fixed over the whole month instead of per query,
+same day after two subagent reviews of PR #71 (suppression fixed over the whole month instead of per query,
 distinct patients, frozen months, the clinic rules, features that do not exist yet taken out).
 
 ## 1. Goal
@@ -105,7 +105,7 @@ func (s *Service) Specialties(ctx context.Context, orgID string) (map[string]str
 
 // organization: every clinic with its time zone and, once ANA-3 adds them, its region and city.
 func (s *Service) Locations(ctx context.Context) ([]Location, error)
-type Location struct { ID, TimeZone, Region, City string }
+type Location struct { LocationSince, ContributesSince time.Time; ID, TimeZone, Region, City string; Contributes bool }
 
 // The enqueue port each producer declares (appointment, composition), so none imports clinicstats:
 type StatsQueue interface { EnqueueStatsRefresh(ctx context.Context, orgID string, day time.Time) error }
@@ -113,8 +113,8 @@ type StatsQueue interface { EnqueueStatsRefresh(ctx context.Context, orgID strin
 
 `Patient` is HMAC-SHA256(key, patient id); `clinicstats` passes a nil key and gets a zero value (it does not
 count patients); `trends` passes the build's key. Before ANA-1 is merged, `StatsQueue` is implemented by a no-op
-in `internal/api/app.go`; ANA-2 replaces it with `clinicstats`' River enqueue. `Region` and `City` are empty
-until ANA-3.
+in `internal/api/app.go`; ANA-2 replaces it with `clinicstats`' River enqueue. `Region`, `City`, `LocationSince`,
+`Contributes` and `ContributesSince` are zero until ANA-3 (no clinic contributes before ANA-3, so no build counts anything).
 
 ## 4. Clinic statistics (SAL-20)
 
@@ -143,55 +143,72 @@ of synthetic data; numbers in the PROGRESS file.
 
 ## 5. Platform anonymization (SAL-21)
 
-**What is published.** For each closed calendar month `m`, built once on the 8th of the following month
-(`trends_month_build`, scheduler) and then frozen, three tables of distinct-patient counts from confirmed
-Conditions, plus one from appointments:
+**What is published.** Distinct-patient counts, built once per closed period and then frozen:
 
-| Table | Dimensions (each with an "all" level) | Source |
-| --- | --- | --- |
-| G×D | geography (all → entity → region → city) × diagnosis (all → group → subgroup → code) | Conditions |
-| G×S | geography × specialty | Conditions |
-| S×D | specialty × diagnosis, geography = all only | Conditions |
-| Heatmap | geography down to region × weekday × hour, per closed quarter | Fulfilled appointments |
+| Table | Dimensions (each with an "all" level) | Source | Period, built |
+| --- | --- | --- | --- |
+| G×D | geography (all → entity → region → city) × diagnosis (all → group → subgroup → code) | Confirmed Conditions | Calendar month, on the 8th of the next month |
+| G×S | geography × specialty | Confirmed Conditions | Same |
+| S×D | specialty × diagnosis, geography = all only | Confirmed Conditions | Same |
+| Heatmap | geography (all → entity → region) × weekday (all → day) × hour (all → hour) | Fulfilled appointments | Calendar quarter, on the 8th after the quarter |
 
 Every cell of every table, including totals, is one row of `trends_cell` (`period`, `table`, the dimension
 values, `count` rounded, `suppressed`). No clinic, practitioner or patient column exists. A query picks a table,
 fixes any of its dimensions and breaks down by one; there is no other combination (no region × specialty ×
 group, no age, sex, clinic or practitioner).
 
-**How suppression is decided** (`trends.Suppress(cells, relations, k)`, pure, in the build). The build holds,
-in memory only, each cell's distinct-patient count and its contribution per clinic.
+**Which clinics count.** A clinic contributes to a period only if it contributed (O6) and kept the same region
+and city for the whole period: `organization.Service.Locations` returns `LocationSince` and `ContributesSince`,
+and a clinic whose location or contribution changed during the period is left out of it. A late build
+(`salusctl trends build`) therefore never places a moved clinic in its new city for an old month.
+
+**What a count is.** The number of distinct patients (per-build pseudonyms) in the cell. A patient can be in two
+children of one parent (two subgroups, two cities), so a relation is an inequality:
+`max(children) ≤ parent ≤ Σ children`. A clinic's contribution to a cell is its distinct patients in it.
+
+**How suppression is decided** (`trends.Suppress`, pure, in the build). The build holds, in memory only, each
+cell's pseudonym set and its contribution per clinic.
 
 | Rule | |
 | --- | --- |
 | A1 | No identifiers in any table, service type or response. A test walks the response JSON and fails on any key outside an allow-list |
 | A2 | Geography is the clinic's region and city only, never the patient's address |
-| A3 | Periods: closed calendar months for the tables, closed quarters for the heatmap, closed ISO weeks for rise flags only. Nothing is published for an open period. A month is published once and never recomputed |
-| A4 | Primary suppression: fewer than `k` patients (`ANALYTICS_MIN_COUNT`, default 10, config refuses below 10), fewer than 3 contributing clinics, or the p% rule (the cell minus its two largest clinic contributions is below 10% of the largest), so neither one clinic nor a pair of clinics can recover another's figure |
-| A5 | Relations: every parent with its children along each dimension, in every table, and the cells shared between tables (a G×D cell with diagnosis = all is the G×S cell with specialty = all) are one set of relations solved together for the month |
-| A6 | Secondary suppression: in every relation, the suppressed cells are 0 or at least 2, together have at least `k` patients and pass A4's clinic rules on their combined contributions; otherwise the smallest published non-total cell of the relation is suppressed too. Repeated over all relations until nothing changes |
-| A7 | The check (test, not production): for every suppressed cell, the interval of values consistent with the published cells and the relations (an exact LP over the month's tables, small synthetic months) is at least `k` wide |
-| A8 | Totals over several months are sums of published month cells, marked `partial` when any is suppressed; never a raw total |
-| A9 | Published counts are rounded to the nearest 5 (O4); the rule checks use the raw counts |
-| A10 | Only confirmed Conditions; restricted records are left out once restriction exists |
-| A11 | Rise flags only per section 6 |
-| A12 | Build logs carry counts of cells and of suppressed cells only |
+| A3 | Periods as in the table above; nothing is published for an open period; a period is published once and never recomputed |
+| A4 | Primary suppression. With `T` the cell's patients and `x1 ≥ x2` its two largest clinic contributions: published only if `T ≥ k`, at least 3 clinics contributed, and `T − x1 − x2 ≥ max(k, 0.1·x1)`, so that the two largest clinics together, knowing their own patients, still face at least `k` patients they cannot attribute. `k` is `ANALYTICS_MIN_COUNT`, default 10; config refuses below 10 |
+| A5 | Relations: every parent with its children along each dimension, in every table, and the cells shared between tables (a G×D cell with diagnosis = all is the G×S cell with specialty = all), are one set solved together for the period |
+| A6 | Secondary suppression: in every relation, the suppressed cells are none, or at least 2 whose distinct union of patients passes A4 (the union of pseudonym sets and of clinic contributions, not the sum). Otherwise the smallest published non-total cell of the relation is suppressed too, ties broken by key; when only the relation's total is left published, the total is suppressed. Repeated over all relations until nothing changes; it ends because suppression only grows over a finite set |
+| A7 | Audit, in the build, fail closed: for every suppressed cell, the interval of values consistent with the published cells (each read as `[v−2, v+2]` for the rounding), the inequality relations, and the two largest clinics' own contributions to every cell treated as known, must be at least `k` wide. Computed as an LP (gonum's `lp`), interval ends rounded inward. A failing cell's relation gets one more suppression and A6 and A7 run again; if the period still fails, its `code` level is dropped for that period, and if it still fails, the period is not published (logged by count only) |
+| A8 | Keys: a breakdown returns every key of its dimension, with `null` for 0 and for any suppressed count alike, so absence never tells 0 from 1. For `code`, the keys are the codes published at geography = all and specialty = all for that period; any other code is not a key anywhere in that period |
+| A9 | Totals over several periods are sums of published cells, labelled "patient-months" (a patient seen in two months counts twice), marked `partial` when any is suppressed; never a raw total. Rounding error adds up (±2 per month), said in the tooltip |
+| A10 | Published counts are rounded to the nearest 5 (O4); A4 to A7 use the raw counts |
+| A11 | Only confirmed Conditions; restricted records are left out once restriction exists |
+| A12 | Rise flags only per section 6 |
+| A13 | Build logs carry counts of cells, suppressed cells and refused periods only |
 
-Tests: table-driven cases per rule; the A7 interval check over many random small months; the case the review
-found (a city's specialty recovered from the city total and the other specialties) and the 3-clinic case (a
-region minus a city leaving one or two clinics) as named tests; the JSON allow-list test; a frozen month is not
-changed by a later build.
+Tests: table-driven cases per rule; an exact integer check (enumeration over small synthetic months, two
+clinics' contributions known, published values as intervals) that A7's LP audit never passes a month the exact
+check fails; named cases for the attacks the reviews found (a city's specialty from the city total and its other
+specialties; a region minus a city leaving one or two clinics; two subgroups holding the same patients; two large
+clinics recovering a small third; 0 versus suppressed; a clinic moving between cities); the JSON allow-list
+test; a frozen period is not changed by a later build; the same input gives the same suppression.
+
+The All of Salus view shows a suppressed cell as "Hidden", with a tooltip that small or dominated groups are
+hidden to protect privacy (a cell hidden by A6 or by the clinic rules can hold more than `k` patients).
 
 ## 6. Unusual rises
 
-Per closed ISO week `w`, leaf region and diagnosis group (internal weekly distinct-patient counts, held only
-during the build): baseline = weeks `w-9` to `w-2` (skipping `w-1`); `μ` their mean, `σ` their sample standard
-deviation (n−1), `σ' = max(σ, √μ, 1)`. Flag when the week has at least `k` patients from at least 3 clinics
-(A4's clinic rules), the baseline has at least `k` patients in total, `count ≥ 1.5·μ` and `count > μ + 3σ'`.
-Computed once, on the Tuesday after the week, and frozen (`trends_rise`: week, region, group; no count).
-Tests on synthetic series: a flat series is never flagged; a step to three times the level is flagged in its
-first week; a ramp of 5% a week is not; a spike below `k` is not; a rise from a baseline below `k` is not.
-Copy: "Unusual rise", with a tooltip that it compares with the previous weeks and is not a public-health alert.
+Per closed ISO week `w`, leaf region and diagnosis group, over the clinics that contributed and kept their
+location in that region through all of weeks `w-9` to `w` (so a clinic joining, leaving or moving never raises a
+flag by itself): `c_i` the week's distinct patients for week `i`; baseline weeks `w-9` to `w-2` (skipping `w-1`);
+`μ` their mean, `σ` their sample standard deviation (n−1), `σ' = max(σ, √μ, 1)`. Flag when the week's cell passes
+all of A4 (`k`, 3 clinics, the two-largest rule), the baseline's `Σ c_i` is at least `k`, `c_w ≥ 1.5·μ` and
+`c_w > μ + 3σ'`. Computed once, on the Tuesday after the week, frozen (`trends_rise`: week, region, group; no count).
+
+Tests, on fixed series and on seeded Poisson series: a flat series is flagged in at most 1% of 1,000 seeds; a
+step to three times the level (μ ≥ 3) is flagged in its first week; a ramp of 5% a week is not (ratio about 1.31
+after 8 weeks, under 1.5); a spike below `k` is not; a rise from a baseline below `k` in total is not; a clinic
+joining the region with many patients is not; a week dominated by one clinic is not. Copy: "Unusual rise", with a
+tooltip that it compares with the previous weeks and is not a public-health alert.
 
 ## 7. Personal data and DPIA note
 
@@ -296,7 +313,7 @@ with tooltips, keyboard focus and `prefers-reduced-motion`; filters (group with 
 specialty, practitioner on My clinic only; on All of Salus, only the table combinations of section 5, so the UI
 never offers a filter the API refuses); dates and numbers through `Intl` in the UI language, five staff
 languages; the All of Salus tab shown only when `features` has `analytics_platform` and the clinic contributes;
-a suppressed platform cell reads "Fewer than {min_count}" with `min_count` from the API. Built against
+a suppressed platform cell reads "Hidden" with the tooltip of section 5. Built against
 typed fixtures of section 8 first; after ANA-2 and ANA-3 are merged, the generated client replaces the fixtures
 and an e2e test switches views and filters. Component tests in Vitest; a render benchmark on 3 years of monthly
 data with every group.

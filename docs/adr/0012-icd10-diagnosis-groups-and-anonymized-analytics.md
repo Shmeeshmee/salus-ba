@@ -78,10 +78,14 @@ services (not from `clinicstats`, so the two can be built in parallel). The publ
 calendar month**, computed once, seven days after the month ends, and then **frozen**. For each month, one fixed
 set of tables, each with at most two non-time dimensions (geography × diagnosis, geography × specialty,
 specialty × diagnosis), every dimension hierarchical (all → entity → region → city; group → subgroup → code;
-specialty), counting distinct patients. Suppression is decided once for the whole set, not per query: primary
-suppression (fewer than `k` = 10 patients, fewer than 3 clinics, or a p% dominance rule), then secondary
-suppression over every parent-children relation of every table until no suppressed cell can be recovered from
-the published ones (tested with an exact interval check). The API returns only frozen published cells; a
+specialty), counting distinct patients, so a parent is bounded by its children rather than their sum. Suppression
+is decided once for the whole set, not per query: primary suppression (fewer than `k` = 10 patients, fewer than
+3 clinics, or fewer than `k` patients left once the two largest clinics' own are taken out), then secondary
+suppression over every relation of every table, measured on the distinct union of the suppressed cells, then an
+audit in the build (an LP over the inequalities, rounding and two clinics' knowledge) that fails closed: more
+suppression, then no `code` level, then no publication for that month. A breakdown returns every key with `null`
+for zero and for suppressed alike. Only clinics with the same location and contribution for the whole period
+count. The API returns only frozen published cells; a
 total over months is the sum of published month cells, marked partial when any is suppressed. Published counts
 are rounded to the nearest 5. Region and city are the clinic's location, never the patient's.
 
