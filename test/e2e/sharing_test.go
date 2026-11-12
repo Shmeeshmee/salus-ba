@@ -23,7 +23,7 @@ func TestSharing_ThePatientSharesTwoOfThreeVisitsAndTheClinicSeesExactlyThose(t 
 	elsewhere, receiving := newBookableClinic(t), newBookableClinic(t)
 	p := newPatientWithProfile(t)
 	visits := p.finishedVisits(elsewhere, 3)
-	p.bookFirstTime(receiving)
+	p.bookAgainAt(receiving)
 
 	var preview struct {
 		Candidates []struct {
@@ -105,6 +105,18 @@ func (p *patient) finishedVisits(clinic *bookableClinic, n int) []string {
 		}
 	}
 	return encounters
+}
+
+// bookAgainAt consents to the clinic and books its first free slot, as bookFirstTime does for a patient whose
+// booking e-mails from another clinic are in Mailpit already.
+func (p *patient) bookAgainAt(clinic *bookableClinic) {
+	p.t.Helper()
+	slots := freeSlots(p.t, p.api, clinic.scheduleID)
+	if len(slots) == 0 {
+		p.t.Fatal("the patient finds no free slot")
+	}
+	p.must(http.StatusCreated, http.MethodPost, "/consents", map[string]string{"organizationId": clinic.id}, nil)
+	p.must(http.StatusCreated, http.MethodPost, "/appointments", map[string]string{"slotId": slots[0]}, nil)
 }
 
 // sharedWith is the clinic's practitioner's FHIR read of the history consent: the encounters it lists, and nil when
