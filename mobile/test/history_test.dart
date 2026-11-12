@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
 import 'documents_test.dart' show composition, compositionEn, documentReference, encounterId, referenceEn;
+import 'questionnaires.dart' show everyType, questionnaireUrl, response;
 import 'support.dart';
 
 // SAL-39: the patient's history across every clinic (docs/plans/patient-history.md). Synthetic items only. Now is
@@ -167,5 +168,29 @@ void main() {
     await tapOutlined(tester, 'Try again');
     expect(find.text('More of your history could not be loaded.'), findsNothing);
     expect(historyRequests(h).last.url.queryParameters, {'cursor': 'c2'});
+  });
+
+  testWidgets("opens a questionnaire's answers by reading that response and its version only", (tester) async {
+    final h = await atHistory(tester);
+    h.api.on(
+      'GET /fhir/R4/QuestionnaireResponse/$responseId',
+      (_) async => fhirResponse(200, response(responseId, status: 'completed', authored: '2026-11-01T08:00:00Z')),
+    );
+    h.api.on('GET /fhir/R4/Questionnaire', (_) async => fhirResponse(200, bundle([everyType()])));
+
+    await tapFound(tester, find.descendant(of: find.byType(Card), matching: find.text('Questionnaire answers')));
+    expect(h.api.last('GET /fhir/R4/Questionnaire').url.queryParameters, {'url': questionnaireUrl, 'version': '1'});
+    expect(
+      [for (final r in h.api.requests) if (r.url.path == '/fhir/R4/QuestionnaireResponse') r],
+      isEmpty,
+      reason: 'not every response of the patient',
+    );
+    expect(find.text('Placeholder intake questionnaire'), findsWidgets);
+  });
+
+  testWidgets('a page left empty with a next page does not say the history is empty', (tester) async {
+    await atHistory(tester, pages: [{'items': <Object>[], 'next': 'c2'}]);
+    expect(find.text('There is nothing in your history yet. Your visits, documents and answers appear here.'), findsNothing);
+    expect(find.text('Show more'), findsOneWidget);
   });
 }

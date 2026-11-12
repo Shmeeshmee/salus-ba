@@ -170,7 +170,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           if (_error != null)
             ui.LoadFailed(_error!, onRetry: _reload)
           else ...[
-            if (_items.isEmpty && !_loading) Text(_filtered ? t.historyNoMatch : t.historyEmpty),
+            if (_items.isEmpty && !_loading && _next == null) Text(_filtered ? t.historyNoMatch : t.historyEmpty),
             for (final it in _items) _card(t, it),
             if (_loading) const ui.Loading(),
             if (_moreFailed) ...[
@@ -305,12 +305,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _openAnswers(String responseId, String clinic, Zone zone) async {
-    final me = await widget.booking.me();
-    if (me == null) throw const ApiFailure(status: 404);
-    final all = await widget.booking.fhir.questionnaireResponses(me.id);
-    final r = all.responses.where((r) => r.id == responseId).firstOrNull;
-    final v = r == null ? null : all.versions[r.questionnaire];
-    if (r == null || v == null) throw const ApiFailure(status: 404);
+    final r = await widget.booking.fhir.questionnaireResponse(responseId);
+    final v = await widget.booking.fhir.questionnaireVersion(r.questionnaire);
+    if (v == null) throw const ApiFailure(status: 404);
     if (!mounted) return;
     _push(
       () => QuestionnaireLanguage(

@@ -140,6 +140,17 @@ class Fhir {
     );
   }
 
+  /// The version [canonical] (`<url>|<version>`) names, of those the patient's own responses answer; null for none.
+  Future<Version?> questionnaireVersion(String canonical) async {
+    final i = canonical.lastIndexOf('|');
+    if (i < 0) return null;
+    final found = await _search('Questionnaire', [
+      QueryParam('url', canonical.substring(0, i)),
+      QueryParam('version', canonical.substring(i + 1)),
+    ]);
+    return found.isEmpty ? null : Version.fromFhir(found.first);
+  }
+
   /// One questionnaire response, read again.
   Future<Response> questionnaireResponse(String id) async => Response.fromFhir(await _get('QuestionnaireResponse/$id'));
 
