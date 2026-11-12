@@ -9,7 +9,8 @@ import (
 
 // Purger is the retention job's applier for "binary" (internal/retention: delete, 24 h), built on the retention
 // role's pool and the object store in internal/worker. Each row otherwise lives exactly as long as its
-// questionnaire response and goes with it or with its answer; the purger removes what is left over.
+// questionnaire response and goes with it or with its answer, or, a chat file attached to a message, as long as the
+// message (kept with the record); the purger removes what is left over.
 type Purger struct {
 	repo  Repository
 	store Store
@@ -20,16 +21,21 @@ func NewPurger(repo Repository, store Store) *Purger {
 	return &Purger{repo: repo, store: store}
 }
 
-// Purge deletes the rejected rows scanned before before, then every object written before before whose key
-// is a binary id (a UUID; other keys, such as composition's PDFs under composition/, are another owner's) and
-// that has no row (a deleted or rejected file's ciphertext, an upload that never reached its answer), and
-// counts both. An upload stores its object before its row, so a younger object without a row may be an upload
+// Purge deletes the rejected rows scanned before before and the chat files uploaded before before and never attached
+// to a message, then every object written before before whose key is a binary id (a UUID; other keys, such as
+// composition's PDFs under composition/, are another owner's) and that has no row as a file or a thumbnail (a deleted
+// or rejected file's ciphertext, an upload that never reached its answer), and counts them all. An upload stores its object before its row, so a younger object without a row may be an upload
 // in progress and is kept.
 func (p *Purger) Purge(ctx context.Context, before time.Time) (int64, error) {
 	n, err := p.repo.DeleteRejectedBefore(ctx, before)
 	if err != nil {
 		return 0, err
 	}
+	unattached, err := p.repo.DeleteUnattachedBefore(ctx, before)
+	if err != nil {
+		return 0, err
+	}
+	n += unattached
 	err = p.store.ListOlderThan(ctx, before, func(keys []string) error {
 		existing, err := p.repo.Existing(ctx, keys)
 		if err != nil {

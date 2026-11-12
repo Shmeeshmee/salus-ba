@@ -247,9 +247,9 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 
 const insertMessage = `-- name: InsertMessage :one
 INSERT INTO communication (sent_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-    client_message_id, seq, staff_only, sender_role, kind, body, system_code, system_args)
+    client_message_id, seq, staff_only, sender_role, kind, body, system_code, system_args, attachment_count)
 VALUES ($1, $2, $3, $4, $5, $6,
-    $7, $8, $9, $10, $11, $12, $13, $14)
+    $7, $8, $9, $10, $11, $12, $13, $14, $15)
 RETURNING id
 `
 
@@ -268,6 +268,7 @@ type InsertMessageParams struct {
 	Body                pgtype.Text
 	SystemCode          pgtype.Text
 	SystemArgs          []byte
+	AttachmentCount     int16
 }
 
 func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (pgtype.UUID, error) {
@@ -286,6 +287,7 @@ func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (p
 		arg.Body,
 		arg.SystemCode,
 		arg.SystemArgs,
+		arg.AttachmentCount,
 	)
 	var id pgtype.UUID
 	err := row.Scan(&id)
@@ -336,7 +338,7 @@ func (q *Queries) InsertParticipant(ctx context.Context, arg InsertParticipantPa
 
 const latestMessages = `-- name: LatestMessages :many
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = $1 AND seq > $2
 ORDER BY sent_at DESC, seq DESC
@@ -377,6 +379,7 @@ func (q *Queries) LatestMessages(ctx context.Context, arg LatestMessagesParams) 
 			&i.Body,
 			&i.SystemCode,
 			&i.SystemArgs,
+			&i.AttachmentCount,
 		); err != nil {
 			return nil, err
 		}
@@ -404,7 +407,7 @@ func (q *Queries) MarkRead(ctx context.Context, arg MarkReadParams) error {
 
 const message = `-- name: Message :one
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = $1 AND id = $2
 `
@@ -435,13 +438,14 @@ func (q *Queries) Message(ctx context.Context, arg MessageParams) (Communication
 		&i.Body,
 		&i.SystemCode,
 		&i.SystemArgs,
+		&i.AttachmentCount,
 	)
 	return i, err
 }
 
 const messageByClientID = `-- name: MessageByClientID :one
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = $1 AND client_message_id = $2 AND sender_participant_id = $3
   AND sent_at >= $4::timestamptz
@@ -481,13 +485,14 @@ func (q *Queries) MessageByClientID(ctx context.Context, arg MessageByClientIDPa
 		&i.Body,
 		&i.SystemCode,
 		&i.SystemArgs,
+		&i.AttachmentCount,
 	)
 	return i, err
 }
 
 const messagesAfter = `-- name: MessagesAfter :many
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = $1 AND seq > $2 AND (sent_at, seq) > ($3::timestamptz, $4::bigint)
 ORDER BY sent_at, seq
@@ -535,6 +540,7 @@ func (q *Queries) MessagesAfter(ctx context.Context, arg MessagesAfterParams) ([
 			&i.Body,
 			&i.SystemCode,
 			&i.SystemArgs,
+			&i.AttachmentCount,
 		); err != nil {
 			return nil, err
 		}
@@ -548,7 +554,7 @@ func (q *Queries) MessagesAfter(ctx context.Context, arg MessagesAfterParams) ([
 
 const messagesBefore = `-- name: MessagesBefore :many
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = $1 AND seq > $2 AND (sent_at, seq) < ($3::timestamptz, $4::bigint)
 ORDER BY sent_at DESC, seq DESC
@@ -596,6 +602,7 @@ func (q *Queries) MessagesBefore(ctx context.Context, arg MessagesBeforeParams) 
 			&i.Body,
 			&i.SystemCode,
 			&i.SystemArgs,
+			&i.AttachmentCount,
 		); err != nil {
 			return nil, err
 		}
@@ -674,6 +681,124 @@ func (q *Queries) Revisions(ctx context.Context, arg RevisionsParams) ([]Revisio
 	for rows.Next() {
 		var i RevisionsRow
 		if err := rows.Scan(&i.EditedAt, &i.Body, &i.VersionID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchConversation = `-- name: SearchConversation :many
+SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
+FROM communication
+WHERE conversation_id = $1 AND seq > $2
+  AND to_tsvector('public.chat_search'::regconfig, body) @@ to_tsquery('public.chat_search'::regconfig, $3)
+ORDER BY sent_at DESC, seq DESC
+LIMIT $4
+`
+
+type SearchConversationParams struct {
+	ConversationID pgtype.UUID
+	FromSeq        int64
+	Query          string
+	Lim            int32
+}
+
+// A conversation's messages whose body matches the query (chat_search, migration 00044), newest first, of numbers
+// above from_seq.
+func (q *Queries) SearchConversation(ctx context.Context, arg SearchConversationParams) ([]Communication, error) {
+	rows, err := q.db.Query(ctx, searchConversation,
+		arg.ConversationID,
+		arg.FromSeq,
+		arg.Query,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Communication
+	for rows.Next() {
+		var i Communication
+		if err := rows.Scan(
+			&i.ID,
+			&i.SentAt,
+			&i.EditedAt,
+			&i.ConversationID,
+			&i.OrganizationID,
+			&i.PatientID,
+			&i.SenderParticipantID,
+			&i.SenderAccountID,
+			&i.ClientMessageID,
+			&i.Seq,
+			&i.VersionID,
+			&i.StaffOnly,
+			&i.SenderRole,
+			&i.Kind,
+			&i.Body,
+			&i.SystemCode,
+			&i.SystemArgs,
+			&i.AttachmentCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchMessages = `-- name: SearchMessages :many
+SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
+FROM communication
+WHERE to_tsvector('public.chat_search'::regconfig, body) @@ to_tsquery('public.chat_search'::regconfig, $1)
+ORDER BY sent_at DESC, seq DESC
+LIMIT $2
+`
+
+type SearchMessagesParams struct {
+	Query string
+	Lim   int32
+}
+
+// The messages the scope shows whose body matches the query, newest first: the patient's own conversations, or
+// those of the practitioner role's scope, after its history_from_seq (row-level security decides which).
+func (q *Queries) SearchMessages(ctx context.Context, arg SearchMessagesParams) ([]Communication, error) {
+	rows, err := q.db.Query(ctx, searchMessages, arg.Query, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Communication
+	for rows.Next() {
+		var i Communication
+		if err := rows.Scan(
+			&i.ID,
+			&i.SentAt,
+			&i.EditedAt,
+			&i.ConversationID,
+			&i.OrganizationID,
+			&i.PatientID,
+			&i.SenderParticipantID,
+			&i.SenderAccountID,
+			&i.ClientMessageID,
+			&i.Seq,
+			&i.VersionID,
+			&i.StaffOnly,
+			&i.SenderRole,
+			&i.Kind,
+			&i.Body,
+			&i.SystemCode,
+			&i.SystemArgs,
+			&i.AttachmentCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

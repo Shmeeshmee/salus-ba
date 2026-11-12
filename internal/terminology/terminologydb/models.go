@@ -258,23 +258,30 @@ type AuditEvent struct {
 }
 
 type Binary struct {
-	ID                      pgtype.UUID
-	CreatedAt               pgtype.Timestamptz
-	UpdatedAt               pgtype.Timestamptz
-	ScannedAt               pgtype.Timestamptz
-	OrganizationID          pgtype.UUID
-	PatientID               pgtype.UUID
-	AppointmentID           pgtype.UUID
-	QuestionnaireResponseID pgtype.UUID
-	Size                    int64
-	SegmentSize             int32
-	LinkID                  string
-	ContentType             string
-	Title                   string
-	Status                  string
-	KekID                   string
-	Sha1                    []byte
-	WrappedKey              []byte
+	ID                        pgtype.UUID
+	CreatedAt                 pgtype.Timestamptz
+	UpdatedAt                 pgtype.Timestamptz
+	ScannedAt                 pgtype.Timestamptz
+	OrganizationID            pgtype.UUID
+	PatientID                 pgtype.UUID
+	AppointmentID             pgtype.UUID
+	QuestionnaireResponseID   pgtype.UUID
+	Size                      int64
+	SegmentSize               int32
+	LinkID                    pgtype.Text
+	ContentType               string
+	Title                     string
+	Status                    string
+	KekID                     string
+	Sha1                      []byte
+	WrappedKey                []byte
+	ConversationID            pgtype.UUID
+	ConversationParticipantID pgtype.UUID
+	CommunicationID           pgtype.UUID
+	CommunicationSentAt       pgtype.Timestamptz
+	ThumbnailID               pgtype.UUID
+	ThumbnailSize             pgtype.Int8
+	ThumbnailWrappedKey       []byte
 }
 
 type Communication struct {
@@ -295,6 +302,7 @@ type Communication struct {
 	Body                pgtype.Text
 	SystemCode          pgtype.Text
 	SystemArgs          []byte
+	AttachmentCount     int16
 }
 
 type CommunicationRevision struct {

@@ -53,7 +53,7 @@ LIMIT @lim;
 -- name: LatestMessages :many
 -- The newest page: the partitions are read newest first and the scan stops once the page is full (ADR 0012).
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = @conversation_id AND seq > @from_seq
 ORDER BY sent_at DESC, seq DESC
@@ -61,7 +61,7 @@ LIMIT @lim;
 
 -- name: MessagesBefore :many
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = @conversation_id AND seq > @from_seq AND (sent_at, seq) < (@sent_at::timestamptz, @seq::bigint)
 ORDER BY sent_at DESC, seq DESC
@@ -69,7 +69,7 @@ LIMIT @lim;
 
 -- name: MessagesAfter :many
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = @conversation_id AND seq > @from_seq AND (sent_at, seq) > (@sent_at::timestamptz, @seq::bigint)
 ORDER BY sent_at, seq
@@ -77,23 +77,23 @@ LIMIT @lim;
 
 -- name: Message :one
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = @conversation_id AND id = @id;
 
 -- name: MessageByClientID :one
 -- A repeat of the client's id within the idempotency window: run-time pruning reads that day's partitions only.
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = @conversation_id AND client_message_id = @client_message_id AND sender_participant_id = @sender_participant_id
   AND sent_at >= @since::timestamptz;
 
 -- name: InsertMessage :one
 INSERT INTO communication (sent_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-    client_message_id, seq, staff_only, sender_role, kind, body, system_code, system_args)
+    client_message_id, seq, staff_only, sender_role, kind, body, system_code, system_args, attachment_count)
 VALUES (@sent_at, @conversation_id, @organization_id, @patient_id, sqlc.narg(sender_participant_id), sqlc.narg(sender_account_id),
-    @client_message_id, @seq, @staff_only, @sender_role, @kind, sqlc.narg(body), sqlc.narg(system_code), sqlc.narg(system_args))
+    @client_message_id, @seq, @staff_only, @sender_role, @kind, sqlc.narg(body), sqlc.narg(system_code), sqlc.narg(system_args), @attachment_count)
 RETURNING id;
 
 -- name: AdvanceConversation :exec
@@ -115,3 +115,24 @@ ORDER BY version_id;
 
 -- name: AddPartitions :exec
 SELECT communication_add_partitions(@from_day::date, @months::integer);
+
+-- name: SearchConversation :many
+-- A conversation's messages whose body matches the query (chat_search, migration 00044), newest first, of numbers
+-- above from_seq.
+SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
+FROM communication
+WHERE conversation_id = @conversation_id AND seq > @from_seq
+  AND to_tsvector('public.chat_search'::regconfig, body) @@ to_tsquery('public.chat_search'::regconfig, @query)
+ORDER BY sent_at DESC, seq DESC
+LIMIT @lim;
+
+-- name: SearchMessages :many
+-- The messages the scope shows whose body matches the query, newest first: the patient's own conversations, or
+-- those of the practitioner role's scope, after its history_from_seq (row-level security decides which).
+SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
+FROM communication
+WHERE to_tsvector('public.chat_search'::regconfig, body) @@ to_tsquery('public.chat_search'::regconfig, @query)
+ORDER BY sent_at DESC, seq DESC
+LIMIT @lim;
