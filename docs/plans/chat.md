@@ -30,9 +30,8 @@ Wave 1, in parallel, each in its own worktree and compose project:  SAL-28   SAL
   core's files only where it must.
 - **Compose projects** `-p salus-sal28`, `salus-sal29`, `salus-sal30`, `salus-sal31`, each with an override file
   without published host ports and its own app image tag.
-- **Migrations.** SAL-27 takes `00041`. Reserved while in flight: SAL-28 `00042`, SAL-29 `00043`, SAL-30 `00044`,
-  SAL-31 `00045` (if it needs one). A branch renumbers to the next free number when it merges main before its own
-  merge (`scripts/check-migrations.sh` guards only main's).
+- **Migrations.** SAL-27 takes `00041`. Main took `00042` (SAL-19) and `00043` (SAL-38) meanwhile, so each chat
+  branch takes the next free number when it merges main before its own merge: SAL-28 took `00044`.
 
 ## Decisions
 

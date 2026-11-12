@@ -14,7 +14,7 @@ type Repository interface {
 	SetClinic(ctx context.Context, id string) error
 	SetConversation(ctx context.Context, id string) error
 	// SetPractitionerRole sets app.practitioner_role_id, the signed-in practitioner's role: as a doctor invited from
-	// another clinic, they see the conversations they were granted (00042).
+	// another clinic, they see the conversations they were granted (00044).
 	SetPractitionerRole(ctx context.Context, id string) error
 
 	// CreateConversation stores c with its participants unless the patient, role and encounter have their one

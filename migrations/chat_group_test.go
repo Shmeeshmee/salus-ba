@@ -11,7 +11,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-// chatGuestLookupRole owns chat_guest_conversations (migration 00042).
+// chatGuestLookupRole owns chat_guest_conversations (migration 00044).
 const chatGuestLookupRole = "salus_chat_guest"
 
 // The states of a doctor of clinic B invited into patient A's conversation inA with clinic A (docs/plans/chat.md,

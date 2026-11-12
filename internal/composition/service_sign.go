@@ -7,9 +7,11 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/condition"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/pkg/envelope"
 	"github.com/Shmeeshmee/salus/pkg/pdfdoc"
@@ -57,11 +59,19 @@ func (s *Service) Sign(ctx context.Context, c appointment.Caller, id string, val
 		if d, err = s.Repo.Sign(ctx, d, at); err != nil {
 			return err
 		}
-		for _, e := range []entry{
+		conditions := diagnoses(d, enc, at)
+		if err := s.Conditions.Record(ctx, conditions); err != nil {
+			return err
+		}
+		entries := []entry{
 			{interaction: auditevent.CodeUpdate, reference: "Composition/" + d.ID},
 			{interaction: auditevent.CodeCreate, reference: "DocumentReference/" + d.DocumentReferenceID},
 			{interaction: auditevent.CodeCreate, reference: "Provenance/" + d.ProvenanceID},
-		} {
+		}
+		for _, c := range conditions {
+			entries = append(entries, entry{interaction: auditevent.CodeCreate, reference: "Condition/" + c.ID})
+		}
+		for _, e := range entries {
 			e.c, e.org = c, enc.OrganizationID
 			if err := s.record(ctx, e); err != nil {
 				return err
@@ -136,12 +146,13 @@ func (s *Service) reach(ctx context.Context, c appointment.Caller, id string, fi
 // merge sets each field to the practitioner's value, or returns the *FieldsError.
 func merge(fields []DraftField, values []Value) ([]DraftField, error) {
 	byKey := make(map[string]string, len(values))
-	var bad []string
+	confirmed := make(map[string]bool, len(values))
+	var bad, unconfirmed []string
 	for _, v := range values {
 		if _, twice := byKey[v.Key]; twice && !slices.Contains(bad, v.Key) {
 			bad = append(bad, v.Key)
 		}
-		byKey[v.Key] = v.Value
+		byKey[v.Key], confirmed[v.Key] = v.Value, v.Confirmed
 	}
 	unknown := false
 	for key := range byKey {
@@ -165,6 +176,8 @@ func merge(fields []DraftField, values []Value) ([]DraftField, error) {
 			}
 		case !typed:
 			bad = append(bad, f.Key)
+		case f.Type == FieldCoded && !confirmed[f.Key]:
+			unconfirmed = append(unconfirmed, f.Key)
 		case value == f.Value && !f.Missing:
 		default:
 			out[i].Field = Field{Key: f.Key, Value: value}
@@ -175,8 +188,27 @@ func merge(fields []DraftField, values []Value) ([]DraftField, error) {
 		return nil, &FieldsError{Err: ErrInvalidValues, Keys: inOrder(fields, bad)}
 	case len(missing) > 0:
 		return nil, &FieldsError{Err: ErrRequiredMissing, Keys: missing}
+	case len(unconfirmed) > 0:
+		return nil, &FieldsError{Err: ErrDiagnosisUnconfirmed, Keys: unconfirmed}
 	}
 	return out, nil
+}
+
+// diagnoses are the Conditions of the signed draft d: one per filled coded field, confirmed by the signature
+// (merge refused the unconfirmed), of the encounter's patient and clinic, recorded at by the signing role.
+func diagnoses(d Draft, enc encounter.Encounter, at time.Time) []condition.Condition {
+	var out []condition.Condition
+	for _, f := range d.Fields {
+		if f.Type != FieldCoded || f.Missing || f.Value == "" {
+			continue
+		}
+		out = append(out, condition.Condition{
+			ID: newID(), RecordedAt: at, OrganizationID: enc.OrganizationID, PatientID: enc.PatientID, EncounterID: enc.ID,
+			DocumentID: d.ID, PractitionerRoleID: d.SignerRoleID, FieldKey: f.Key, Code: f.Value,
+			VerificationStatus: condition.VerificationConfirmed,
+		})
+	}
+	return out
 }
 
 // inOrder is the keys in the fields' order.

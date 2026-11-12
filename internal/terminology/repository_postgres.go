@@ -444,3 +444,100 @@ func review(status string, at pgtype.Timestamptz, by pgtype.UUID, note pgtype.Te
 func instant(t time.Time) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: t, Valid: !t.IsZero()}
 }
+
+type postgresCatalogRepository struct {
+	db postgres.Querier
+}
+
+// NewPostgresCatalogRepository returns the CatalogRepository on db (salus_app or salus_stats: both read them).
+func NewPostgresCatalogRepository(db postgres.Querier) CatalogRepository {
+	return &postgresCatalogRepository{db: db}
+}
+
+func (r *postgresCatalogRepository) Grouping(ctx context.Context) ([]DiagnosisGroup, []GroupRange, error) {
+	q := terminologydb.New(postgres.Conn(ctx, r.db))
+	groupRows, err := q.ListDiagnosisGroups(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	rangeRows, err := q.ListDiagnosisGroupRanges(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	groups := make([]DiagnosisGroup, len(groupRows))
+	for i, g := range groupRows {
+		groups[i] = DiagnosisGroup{Code: g.Code, Parent: g.ParentCode.String}
+	}
+	ranges := make([]GroupRange, len(rangeRows))
+	for i, rg := range rangeRows {
+		ranges[i] = GroupRange{Group: rg.GroupCode, From: rg.FromCode, To: rg.ToCode}
+	}
+	return groups, ranges, nil
+}
+
+func (r *postgresCatalogRepository) DiagnosisGroups(ctx context.Context) ([]DiagnosisGroup, []GroupRange, error) {
+	groups, ranges, err := r.Grouping(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	nameRows, err := terminologydb.New(postgres.Conn(ctx, r.db)).ListDiagnosisGroupNames(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	at := make(map[string]int, len(groups))
+	for i, g := range groups {
+		at[g.Code] = i
+	}
+	for _, n := range nameRows {
+		d := &groups[at[n.GroupCode]]
+		d.Names = append(d.Names, GroupName{
+			Review: review(n.ReviewStatus, n.ReviewedAt, n.ReviewedBy, n.Note), Language: n.Language, Text: n.Text,
+			VersionID: n.VersionID,
+		})
+	}
+	return groups, ranges, nil
+}
+
+func (r *postgresCatalogRepository) Places(ctx context.Context) ([]Place, error) {
+	rows, err := terminologydb.New(postgres.Conn(ctx, r.db)).ListPlaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+	places := make([]Place, len(rows))
+	for i, p := range rows {
+		places[i] = Place{ID: p.ID, Kind: p.Kind, Parent: p.ParentID.String, NameLatn: p.NameLatn, NameCyrl: p.NameCyrl}
+	}
+	return places, nil
+}
+
+// NewPostgresGroupReviewRepository returns the GroupReviewRepository on db (salus_app), using the transaction in
+// the context when there is one.
+func NewPostgresGroupReviewRepository(db postgres.Querier) GroupReviewRepository {
+	return &postgresCatalogRepository{db: db}
+}
+
+func (r *postgresCatalogRepository) LockGroupName(ctx context.Context, group, language string) (GroupName, error) {
+	row, err := terminologydb.New(postgres.Conn(ctx, r.db)).LockGroupName(ctx, terminologydb.LockGroupNameParams{GroupCode: group, Language: language})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return GroupName{}, ErrNoGroupName
+	case err != nil:
+		return GroupName{}, err
+	}
+	return GroupName{
+		Review: review(row.ReviewStatus, row.ReviewedAt, row.ReviewedBy, row.Note), Language: row.Language, Text: row.Text,
+		VersionID: row.VersionID,
+	}, nil
+}
+
+func (r *postgresCatalogRepository) PutGroupName(ctx context.Context, group string, n GroupName, at time.Time) error {
+	by, ok := optionalUUID(n.ReviewedBy)
+	if !ok {
+		return ErrInvalidReview
+	}
+	return terminologydb.New(postgres.Conn(ctx, r.db)).UpdateGroupName(ctx, terminologydb.UpdateGroupNameParams{
+		NameText: n.Text, ReviewStatus: n.Status, ReviewedAt: instant(n.ReviewedAt), ReviewedBy: by,
+		Note: pgtype.Text{String: n.Note, Valid: n.Note != ""}, VersionID: n.VersionID,
+		UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true}, GroupCode: group, Language: n.Language,
+	})
+}

@@ -169,3 +169,38 @@ func TestRun_UpSetsTheRetentionRolePasswordAndTheRoleCanLogIn(t *testing.T) {
 	}
 	pool.Close()
 }
+
+func TestRun_UpSetsTheStatsRolePasswordAndTheRoleCanLogIn(t *testing.T) {
+	dbURL := pgtest.NewDatabaseURL(t)
+	// up sets the password on this test's database, out of reach of the lock every other package's Main takes
+	// on the server's: hold that lock too, so they wait instead of failing.
+	pgtest.HoldRoleLock(t)
+	// Cluster-wide, like salus_app: the value every other test package logs in with.
+	password := os.Getenv("TEST_STATS_DATABASE_PASSWORD")
+	if password == "" {
+		t.Fatal("TEST_STATS_DATABASE_PASSWORD is not set; run the tests with `make test`")
+	}
+	t.Setenv("DATABASE_URL", dbURL)
+	t.Setenv("APP_DATABASE_PASSWORD", "")
+	t.Setenv("STATS_DATABASE_PASSWORD", password)
+	if err := run(t.Context(), []string{"up"}, &bytes.Buffer{}); err != nil { // creates the role on a new server
+		t.Fatalf("up: %v", err)
+	}
+	before := roleSecret(t, dbURL, pgtest.StatsRole)
+	var out bytes.Buffer
+
+	if err := run(t.Context(), []string{"up"}, &out); err != nil {
+		t.Fatalf("up: %v", err)
+	}
+	if roleSecret(t, dbURL, pgtest.StatsRole) == before {
+		t.Error("up did not set the salus_stats password")
+	}
+	if strings.Contains(out.String(), password) || strings.Contains(out.String(), "set the password of "+pgtest.AppRole) {
+		t.Errorf("up output holds the password, or set the app role's without APP_DATABASE_PASSWORD:\n%s", out.String())
+	}
+	pool, err := postgres.Open(t.Context(), pgtest.StatsURL(t, dbURL))
+	if err != nil {
+		t.Fatalf("log in as %s: %v", pgtest.StatsRole, err)
+	}
+	pool.Close()
+}

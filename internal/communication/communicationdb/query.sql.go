@@ -756,7 +756,7 @@ type ParticipantByIDRow struct {
 	Reason             pgtype.Text
 }
 
-// Group consults (migration 00042, SAL-28).
+// Group consults (migration 00044, SAL-28).
 // A participant, pending or active, where the scope sees their conversation.
 func (q *Queries) ParticipantByID(ctx context.Context, id pgtype.UUID) (ParticipantByIDRow, error) {
 	row := q.db.QueryRow(ctx, participantByID, id)
@@ -847,7 +847,7 @@ type RemoveParticipantParams struct {
 	ID        pgtype.UUID
 }
 
-// The trigger of 00042 removes the role from the conversation's side threads in the same statement.
+// The trigger of 00044 removes the role from the conversation's side threads in the same statement.
 func (q *Queries) RemoveParticipant(ctx context.Context, arg RemoveParticipantParams) error {
 	_, err := q.db.Exec(ctx, removeParticipant, arg.RemovedAt, arg.ID)
 	return err

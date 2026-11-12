@@ -120,7 +120,7 @@ ORDER BY version_id;
 -- name: AddPartitions :exec
 SELECT communication_add_partitions(@from_day::date, @months::integer);
 
--- Group consults (migration 00042, SAL-28).
+-- Group consults (migration 00044, SAL-28).
 
 -- name: ParticipantByID :one
 -- A participant, pending or active, where the scope sees their conversation.
@@ -133,7 +133,7 @@ WHERE id = @id AND removed_at IS NULL;
 UPDATE conversation_participant SET status = 'active' WHERE id = @id AND status = 'pending_consent' AND removed_at IS NULL;
 
 -- name: RemoveParticipant :exec
--- The trigger of 00042 removes the role from the conversation's side threads in the same statement.
+-- The trigger of 00044 removes the role from the conversation's side threads in the same statement.
 UPDATE conversation_participant SET removed_at = @removed_at WHERE id = @id AND removed_at IS NULL;
 
 -- name: InsertThread :one

@@ -45,5 +45,12 @@
   "language.ar": "Arabic",
   "language.tr": "Turkish",
   "language.it": "Italian",
-  "language.fr": "French"
+  "language.fr": "French",
+  "view.terms": "Terms",
+  "view.groups": "Diagnosis groups",
+  "groups.intro": "Check the names of the diagnosis groups the statistics use. A change reaches every clinic.",
+  "groups.subgroupOf": "Subgroup of {group}",
+  "groups.nameLabel": "Name",
+  "groups.loadFailed": "The diagnosis groups could not be loaded.",
+  "groups.invalid": "A name has 1 to 100 characters."
 }

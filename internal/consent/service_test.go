@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -266,7 +267,7 @@ func TestGrant_StoresAnActiveConsentOfTheCallingPatientAndAuditsIt(t *testing.T)
 	f := newFixture()
 	got, err := f.svc.Grant(t.Context(), other, clinicA, consent.KindCare)
 	want := consent.Consent{ID: newID, PatientID: patientB, OrganizationID: clinicA, Kind: consent.KindCare, Status: consent.StatusActive, DateTime: now, LastUpdated: now, VersionID: 1}
-	if err != nil || got != want {
+	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("Grant() = %+v, %v;\nwant %+v", got, err, want)
 	}
 	if want := []string{"SetPatient", "Grant"}; !slices.Equal(f.repo.calls, want) || f.repo.patient != patientB {
@@ -554,7 +555,7 @@ func TestGrant_StoresATranscriptionConsentBesideTheCareConsent(t *testing.T) {
 	f := newFixture()
 	got, err := f.svc.Grant(t.Context(), me, clinicA, consent.KindTranscription)
 	want := consent.Consent{ID: newID, PatientID: patientA, OrganizationID: clinicA, Kind: consent.KindTranscription, Status: consent.StatusActive, DateTime: now, LastUpdated: now, VersionID: 1}
-	if err != nil || got != want {
+	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("Grant(transcription) = %+v, %v;\nwant %+v", got, err, want)
 	}
 	checkEvents(t, "Grant", f.audit, event(me, auditevent.CodeCreate, newID, auditevent.OutcomeSuccess))

@@ -46,6 +46,36 @@ func (q *Queries) CreateOrganization(ctx context.Context, name string) (CreateOr
 	return i, err
 }
 
+const listLocationsForStats = `-- name: ListLocationsForStats :many
+SELECT id, time_zone FROM organization ORDER BY id
+`
+
+type ListLocationsForStatsRow struct {
+	ID       pgtype.UUID
+	TimeZone string
+}
+
+// Every clinic with its time zone: the columns salus_stats may read.
+func (q *Queries) ListLocationsForStats(ctx context.Context) ([]ListLocationsForStatsRow, error) {
+	rows, err := q.db.Query(ctx, listLocationsForStats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListLocationsForStatsRow
+	for rows.Next() {
+		var i ListLocationsForStatsRow
+		if err := rows.Scan(&i.ID, &i.TimeZone); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listedOrganizations = `-- name: ListedOrganizations :many
 SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy
 FROM organization

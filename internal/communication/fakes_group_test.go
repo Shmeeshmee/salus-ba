@@ -80,7 +80,7 @@ func (f *fixture) consented(conv, role, patient, clinic string) bool {
 	return f.chat[conv+role] && f.consent[patient+clinic].Active
 }
 
-// guestOf is the guest's row-level security of 00042, under r.mu: the conversation (or the one a side thread belongs
+// guestOf is the guest's row-level security of 00044, under r.mu: the conversation (or the one a side thread belongs
 // to) has the scope's role as an active participant of the scope's clinic, another than the conversation's, with the
 // chat consent and the care consent active.
 func (r *fakeRepo) guestOf(sc scope, c communication.Conversation) bool {
@@ -143,7 +143,7 @@ func (r *fakeRepo) ActivateParticipant(_ context.Context, id string) error {
 	return nil
 }
 
-// RemoveParticipant drops the row, and the role's rows in the conversation's side threads (the trigger of 00042).
+// RemoveParticipant drops the row, and the role's rows in the conversation's side threads (the trigger of 00044).
 func (r *fakeRepo) RemoveParticipant(_ context.Context, id string, _ time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

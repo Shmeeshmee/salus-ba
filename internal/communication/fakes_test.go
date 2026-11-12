@@ -364,7 +364,7 @@ func (r *fakeRepo) SetConversation(ctx context.Context, id string) error {
 	return nil
 }
 
-// visible is the conversation row-level security for the scope (00041), and the guest's (00042): a conversation and
+// visible is the conversation row-level security for the scope (00041), and the guest's (00044): a conversation and
 // its side threads to a doctor of another clinic who is an active participant of it with both consents active.
 func (r *fakeRepo) visible(sc scope, c communication.Conversation) bool {
 	if sc.patient != "" {

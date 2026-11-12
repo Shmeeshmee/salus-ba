@@ -47,7 +47,7 @@ are in the numbers.
 
 ## SAL-28: group consults
 
-Migration 00042; the pure rules `access.GuestChat`, `ManagesChat`, `OpensChatThread`, `GrantsChatGuest`; in
+Migration 00044; the pure rules `access.GuestChat`, `ManagesChat`, `OpensChatThread`, `GrantsChatGuest`; in
 `internal/communication` the new `service_participants.go`, `service_threads.go`, `handler_participants.go`
 (`GroupHandler`, mounted beside `HTTPHandler` in `internal/api/chat.go`); in `internal/consent` the chat consent
 (`KindChat`, `GrantChat`, `RevokeChat`, `ChatGranted`, table `chat_consent`).

@@ -89,6 +89,7 @@ services:
       DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable # the owner; local only
       APP_DATABASE_PASSWORD: local-app-password # set on salus_app after the migrations; synthetic, local only
       RETENTION_DATABASE_PASSWORD: local-retention-password # set on salus_retention likewise
+      STATS_DATABASE_PASSWORD: local-stats-password # set on salus_stats likewise (the aggregate builds, ADR 0013)
     restart: "no"
     depends_on:
       postgres: {condition: service_healthy}
@@ -290,6 +291,8 @@ services:
       TEST_APP_DATABASE_PASSWORD: local-app-password
       # salus_retention, the retention job's login, is cluster-wide too: the value migrate sets.
       TEST_RETENTION_DATABASE_PASSWORD: local-retention-password
+      # salus_stats, the aggregate builds' login (ADR 0013), likewise.
+      TEST_STATS_DATABASE_PASSWORD: local-stats-password
       TEST_REDIS_URL: redis://redis:6379/0
       # The SMTP sender's tests deliver to the compose Mailpit and read its API, then delete what they sent.
       TEST_SMTP_ADDR: mailpit:1025
@@ -319,6 +322,7 @@ services:
       DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable # make migrate: the owner
       APP_DATABASE_PASSWORD: local-app-password
       RETENTION_DATABASE_PASSWORD: local-retention-password # make migrate sets it on salus_retention
+      STATS_DATABASE_PASSWORD: local-stats-password # and on salus_stats
     volumes:
       - ..:/src
       # The git directory at its host path (make exports GIT_COMMON_DIR): a worktree's .git file points there, so

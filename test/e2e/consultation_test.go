@@ -62,7 +62,21 @@ func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIs
 		t.Errorf("the patient was disconnected with %v, want ROOM_DELETED (the practitioner's end deletes the room)", reason)
 	}
 	finished(t, p, appt.ID)
+	theSignedDiagnosisIsAConfirmedCondition(t, appt.ID, "J06.9")
 	patientOpensTheSignedDocument(t, clinic, p, appt.ID, template, term)
+}
+
+// theSignedDiagnosisIsAConfirmedCondition: the code the practitioner confirmed in the browser is the one Condition
+// of the appointment's encounter, confirmed (SAL-19), read as the owner (DATABASE_URL): no API reads Conditions.
+func theSignedDiagnosisIsAConfirmedCondition(t *testing.T, appointmentID, code string) {
+	t.Helper()
+	var got, status string
+	var n int
+	err := ownerConn(t).QueryRow(t.Context(), `SELECT min(c.code), min(c.verification_status), count(*)
+		FROM condition c JOIN encounter e ON e.id = c.encounter_id WHERE e.appointment_id = $1`, appointmentID).Scan(&got, &status, &n)
+	if err != nil || n != 1 || got != code || status != "confirmed" {
+		t.Errorf("the encounter's Conditions: %d, %q %q, %v; want one confirmed %s", n, got, status, err, code)
+	}
 }
 
 // TestConsultation_ARevocationDuringTheCallRemovesThePatient: both are in the call of an appointment that has
@@ -285,8 +299,8 @@ type browser struct {
 // web app with the password and a TOTP code, joins the appointment's consultation, checks the patient is seen and
 // heard, and waits for the test's signal to end it. livekitURL is the join answer's URL, which the spec forwards
 // to the compose LiveKit as Docker forwards it on a developer's host.
-// newDocumentTemplate makes a synthetic English template in the clinic, one required field and one optional, and
-// returns its title.
+// newDocumentTemplate makes a synthetic English template in the clinic, one required field, one optional and an
+// optional diagnosis (a coded field, SAL-19), and returns its title.
 func newDocumentTemplate(t *testing.T, clinic *bookableClinic) string {
 	t.Helper()
 	title := "Placeholder e2e findings " + suffix(t)
@@ -295,6 +309,7 @@ func newDocumentTemplate(t *testing.T, clinic *bookableClinic) string {
 		"fields": []map[string]any{
 			{"key": "reason", "type": "text", "label": "Placeholder reason", "required": true},
 			{"key": "plan", "type": "text", "label": "Placeholder plan", "required": false},
+			{"key": "diagnosis", "type": "coded", "label": "Placeholder diagnosis", "required": false},
 		},
 	}, nil)
 	return title

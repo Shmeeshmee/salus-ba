@@ -34,3 +34,9 @@ type Repository interface {
 	// ErrClosed when it is not booked.
 	SetStatus(ctx context.Context, id string, status Status, at time.Time) (Appointment, error)
 }
+
+// StatsRepository reads the appointments for the aggregate builds, on salus_stats.
+type StatsRepository interface {
+	// Booked returns a clinic's appointments starting in [from, to), every status, oldest first.
+	Booked(ctx context.Context, orgID string, from, to time.Time) ([]Booked, error)
+}

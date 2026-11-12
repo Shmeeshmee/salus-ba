@@ -116,6 +116,8 @@
   "live.signFinal": "Nakon potpisivanja dokument je konačan i više se ne može mijenjati.",
   "live.signEmpty": "{count, plural, one {# polje je prazno i ostaje prazno.} few {# polja su prazna i ostaju prazna.} other {# polja je prazno i ostaje prazno.}}",
   "live.requiredEmpty": "{count, plural, one {# obavezno polje je prazno. Popunite ga prije potpisivanja.} few {# obavezna polja su prazna. Popunite ih prije potpisivanja.} other {# obaveznih polja je prazno. Popunite ih prije potpisivanja.}}",
+  "live.confirmDiagnosis": "Potvrđujem ovu šifru dijagnoze",
+  "live.diagnosisUnconfirmed": "Potvrdite svaku šifru dijagnoze prije potpisivanja.",
   "live.keepEditing": "Nastavi uređivati",
   "live.regenerateQuestion": "Ponovo generisati nacrt?",
   "live.regenerateReplaces": "Vaše izmjene polja zamjenjuje novi nacrt iz transkripta.",
