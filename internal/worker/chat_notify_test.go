@@ -85,7 +85,7 @@ func seedChatNotifications(t *testing.T, owner *pgxpool.Pool, b booking) chatRow
 		args []any
 	}{
 		{`INSERT INTO conversation_participant (conversation_id, role, patient_id, added_by) VALUES ($1, 'patient', $2, $3)`, []any{r.conv, b.patient, patientAccount}},
-		{`INSERT INTO conversation_participant (conversation_id, role, practitioner_role_id, added_by) VALUES ($1, 'practitioner', $2, $3)`, []any{r.conv, role, patientAccount}},
+		{`INSERT INTO conversation_participant (conversation_id, role, practitioner_role_id, organization_id, added_by) VALUES ($1, 'practitioner', $2, $3, $4)`, []any{r.conv, role, clinicID, patientAccount}},
 		{`INSERT INTO push_device (account_id, platform, token) VALUES ($1, 'ios', 'synthetic-device-token')`, []any{patientAccount}},
 		{`INSERT INTO organization_chat_settings (organization_id, response_time_hours, email_after_minutes) VALUES ($1, 24, 5)`, []any{clinicID}},
 		{`INSERT INTO webhook_endpoint (id, organization_id, created_by, url, events, secret_sealed)
