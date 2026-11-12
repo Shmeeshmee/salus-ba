@@ -41,6 +41,7 @@ func serveFHIR(t *testing.T, svc condition.Reader, signed bool, path string) *ht
 func TestFHIRRead_WritesTheCondition(t *testing.T) {
 	c := valid()
 	c.ID, c.VersionID, c.LastUpdated = condID, 1, signedAt.Add(time.Second)
+	c.DocumentID = "00000000-0000-4000-8000-0000000000d0" // not the encounter's id, so a swap would show
 	rec := serveFHIR(t, stubReader{c: c}, true, "/fhir/R4/Condition/"+condID)
 	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/fhir+json" || rec.Header().Get("ETag") != `W/"1"` {
 		t.Fatalf("GET = %d %v", rec.Code, rec.Header())

@@ -28,8 +28,8 @@ export function GroupNames({ api, reviewer }: { api: ApiClient; reviewer: boolea
   const [open, setOpen] = useState<Open>()
   const [error, setError] = useState<string>()
   const [reload, setReload] = useState(0)
-  // shown is the language on screen: an answer to a write in another one is dropped.
-  const shown = useRef(language)
+  // switches counts the language switches: an answer to a write made before the last one is dropped.
+  const switches = useRef(0)
 
   useEffect(() => {
     let live = true
@@ -45,9 +45,9 @@ export function GroupNames({ api, reviewer }: { api: ApiClient; reviewer: boolea
   const text = new Map(groups.map((g) => [g.code, g.text]))
 
   async function write(g: GroupName, request: Promise<{ data?: GroupName; error?: unknown; response: Response }>) {
-    const asked = shown.current
+    const asked = switches.current
     const res = await attempt(request)
-    if (shown.current !== asked) return
+    if (switches.current !== asked) return
     if (!res.ok) {
       if (res.code === 'version_conflict') {
         setError(t('review.conflict'))
@@ -80,10 +80,10 @@ export function GroupNames({ api, reviewer }: { api: ApiClient; reviewer: boolea
             id="group-language"
             value={language}
             onChange={(e) => {
-              shown.current = e.target.value as Language
+              switches.current++
               setOpen(undefined)
               setError(undefined)
-              setLanguage(shown.current)
+              setLanguage(e.target.value as Language)
             }}
           >
             {languages.map((l) => (

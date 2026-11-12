@@ -133,7 +133,15 @@ func TestGet_Refusals(t *testing.T) {
 			t.Errorf("%s: Get = %v, want %v", name, err, tt.want)
 		}
 		if len(audit.events) != 1 || audit.events[0].Outcome == auditevent.OutcomeSuccess {
-			t.Errorf("%s: audit = %+v, want the refusal", name, audit.events)
+			t.Fatalf("%s: audit = %+v, want the refusal", name, audit.events)
+		}
+		// A refusal of a Condition the caller sees names it, under its clinic; one it does not see names nothing.
+		ref, org := "", tt.c.OrganizationID
+		if !errors.Is(tt.want, condition.ErrNotFound) {
+			ref, org = "Condition/"+condID, clinic
+		}
+		if e := audit.events[0]; e.EntityReference != ref || e.OrganizationID != org {
+			t.Errorf("%s: audited %q under %q, want %q under %q", name, e.EntityReference, e.OrganizationID, ref, org)
 		}
 	}
 }

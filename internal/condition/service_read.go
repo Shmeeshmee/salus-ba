@@ -66,8 +66,11 @@ func (s *Reads) Get(ctx context.Context, c appointment.Caller, id string) (Condi
 			e.Purpose.Code = auditevent.CodePATRQT
 		}
 		switch {
-		case errors.Is(err, ErrNotFound), errors.Is(err, ErrForbidden), errors.Is(err, ErrConsentRequired):
+		case errors.Is(err, ErrNotFound):
 			refused, e.Outcome = err, auditevent.OutcomeMinorFailure
+		case errors.Is(err, ErrForbidden), errors.Is(err, ErrConsentRequired):
+			// The caller sees the Condition but may not read it: the refusal names it.
+			refused, e.Outcome, e.EntityReference = err, auditevent.OutcomeMinorFailure, "Condition/"+cond.ID
 		case err != nil:
 			return err
 		default:
@@ -129,7 +132,7 @@ func (s *Reads) allowed(ctx context.Context, c appointment.Caller, id string) (C
 	case access.SignedDocument(v, f, visit, true):
 		return cond, cond.OrganizationID, nil
 	case att.Practitioner && !att.ConsentActive:
-		return Condition{}, cond.OrganizationID, ErrConsentRequired
+		return Condition{ID: cond.ID}, cond.OrganizationID, ErrConsentRequired
 	}
-	return Condition{}, cond.OrganizationID, ErrForbidden
+	return Condition{ID: cond.ID}, cond.OrganizationID, ErrForbidden
 }
