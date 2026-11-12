@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'chat.dart';
+import 'package:salus_api/api.dart' show ChatAttachment;
 import 'messages.dart';
 
 /// A file in the composer: prepared and uploading, then uploaded (its [attachment]) until the message is sent.

@@ -1,9 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:salus_api/api.dart' show ChatMessage, SystemMessage;
+import 'package:salus_api/api.dart' show ChatAttachment, ChatAttachmentContentTypeEnum, ChatAttachmentStatusEnum, ChatMessage, SystemMessage;
 
-import 'chat.dart';
 import 'l10n/app_localizations.dart';
 import 'messages.dart';
 import 'zones.dart';
@@ -105,12 +104,12 @@ class _Attachment extends StatelessWidget {
       ),
     );
     return switch (a.status) {
-      AttachmentStatus.scanning => line(Icons.hourglass_empty, [Text(a.filename), Text(t.checkingFile)]),
-      AttachmentStatus.rejected => line(Icons.block, [
+      ChatAttachmentStatusEnum.scanning => line(Icons.hourglass_empty, [Text(a.filename), Text(t.checkingFile)]),
+      ChatAttachmentStatusEnum.rejected => line(Icons.block, [
         Text(a.filename),
         Text(t.chatFileRejected, style: TextStyle(color: colors.error)),
       ]),
-      AttachmentStatus.clean when a.image && a.thumbnail => Padding(
+      ChatAttachmentStatusEnum.clean when a.contentType != ChatAttachmentContentTypeEnum.applicationSlashPdf && a.thumbnail => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: InkWell(
           onTap: () => onOpen(a),
@@ -125,7 +124,7 @@ class _Attachment extends StatelessWidget {
           ),
         ),
       ),
-      AttachmentStatus.clean => InkWell(
+      ChatAttachmentStatusEnum.clean => InkWell(
         onTap: () => onOpen(a),
         child: line(Icons.description_outlined, [Text(a.filename)]),
       ),

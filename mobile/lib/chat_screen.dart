@@ -22,7 +22,8 @@ import 'uploads.dart' show pollDelay;
 // The patient's chat view (SAL-31): the messages in a lazy list, newest at the bottom, older pages read when the
 // patient scrolls up, live ones from the socket, each marked read; the composer with files from the camera or the
 // files; the clinic's chat hours and the out-of-hours notice; the consent prompt for a doctor of another clinic and
-// the revocation of one granted here. A doctor-only thread or an AI summary never reaches the patient: the screen
+// the revocation of every one granted in this conversation (listed by the API, so also after a restart). Messages
+// are marked read only while the newest is in view and the app is in the foreground. A doctor-only thread or an AI summary never reaches the patient: the screen
 // reads only this conversation's messages. Nothing here logs.
 
 /// What a chat file may be: a photo (the camera or the library) or a PDF from the documents.
@@ -54,7 +55,7 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   /// Newest first, as the reversed list shows them from the bottom.
   final _messages = <ChatMessage>[];
   final _seqs = <int>{};
@@ -68,8 +69,13 @@ class _ChatScreenState extends State<ChatScreen> {
   ChatHours? _hours;
   var _invitations = <ChatInvitation>[];
 
-  /// Invitations granted in this view, which the patient may revoke from its menu.
-  final _granted = <ChatInvitation>[];
+  /// What each invited doctor would read (`full` or `from`), by the invitation's id, which is the invited
+  /// participant's: their `history_from_seq` in the conversation.
+  var _histories = <String, String>{};
+
+  /// The doctors of other clinics the patient granted access to this conversation, which they may revoke from the
+  /// menu.
+  var _granted = <ChatInvitation>[];
   Places _names = const Places({}, {});
   var _deciding = false;
 
@@ -77,6 +83,12 @@ class _ChatScreenState extends State<ChatScreen> {
   void Function()? _stop;
 
   final _text = TextEditingController();
+  final _scroll = ScrollController();
+
+  /// Whether the newest message is in view (the list is reversed: its start is the bottom) and the app is in the
+  /// foreground: only then is the newest message read.
+  var _atBottom = true;
+  var _foreground = true;
 
   /// The client id of the message being sent; kept after a failure so that the retry cannot send it twice.
   String? _clientId;
@@ -93,6 +105,12 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _foreground = switch (WidgetsBinding.instance.lifecycleState) {
+      null || AppLifecycleState.resumed => true,
+      _ => false,
+    };
+    _scroll.addListener(_scrolled);
     _text.addListener(() => setState(() {}));
     _load();
     unawaited(_loadHours());
@@ -101,6 +119,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _scroll.dispose();
     _stop?.call();
     _scan?.cancel();
     _text.dispose();
@@ -174,7 +194,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _insert(m);
       }
     });
-    if (m.system?.code == 'participant_invited') unawaited(_loadInvitations());
+    if (m.system?.code case 'participant_invited' || 'participant_removed') unawaited(_loadInvitations());
     _read();
     _watchScans();
   }
@@ -183,8 +203,23 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) setState(() => _ended = end);
   }
 
-  /// Moves the read position to the newest message shown; a failure is tried again with the next message.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _read();
+  }
+
+  void _scrolled() {
+    final bottom = _scroll.position.pixels <= 48;
+    if (bottom == _atBottom) return;
+    _atBottom = bottom;
+    _read();
+  }
+
+  /// Moves the read position to the newest message, while it is in view and the app in the foreground; a failure
+  /// is tried again with the next message.
   void _read() {
+    if (!_atBottom || !_foreground) return;
     final newest = _messages.firstOrNull?.seq ?? 0;
     if (newest <= _readSeq) return;
     final before = _readSeq;
@@ -197,7 +232,7 @@ class _ChatScreenState extends State<ChatScreen> {
   /// While a recent message has a file being checked, its page is read again (every 2 s at first, as for the
   /// questionnaire's files) until the scan has ended.
   void _watchScans() {
-    final scanning = _messages.take(50).any((m) => m.attachments.any((a) => a.status == AttachmentStatus.scanning));
+    final scanning = _messages.take(50).any((m) => m.attachments.any((a) => a.status == ChatAttachmentStatusEnum.scanning));
     if (!scanning) {
       _scans = 0;
       return;
@@ -235,23 +270,43 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _loadInvitations() async {
     try {
       final mine = [for (final i in await widget.chats.invitations()) if (i.conversationId == _id) i];
-      var names = _names;
+      final granted = [for (final i in await widget.chats.invitations(granted: true)) if (i.conversationId == _id) i];
+      final names = await _namesOf([...mine, ...granted]);
+      var histories = _histories;
       if (mine.isNotEmpty) {
         try {
-          names = await widget.places({for (final i in mine) i.organizationId});
-        } on Exception {
-          // The prompt reads without the doctor's name.
+          final participants = (await widget.chats.get(_id)).participants;
+          histories = {for (final p in participants) p.id: p.historyFromSeq == 0 ? 'full' : 'from'};
+        } on ChatException {
+          // The prompt says "the conversation" without it.
         }
       }
       if (mounted) {
         setState(() {
           _invitations = mine;
+          _granted = granted;
           _names = names;
+          _histories = histories;
         });
       }
     } on ChatException {
       // Asked again when the chat is next opened or the next invitation arrives.
     }
+  }
+
+  /// The names of the invited doctors and their clinics; those known so far when they cannot be read.
+  Future<Places> _namesOf(List<ChatInvitation> invitations) async {
+    if (invitations.isEmpty) return _names;
+    try {
+      return await widget.places({for (final i in invitations) i.organizationId});
+    } on Exception {
+      return _names; // The prompt waits for them (InvitationCard) and the menu names no doctor.
+    }
+  }
+
+  Future<void> _retryNames() async {
+    final names = await _namesOf([..._invitations, ..._granted]);
+    if (mounted) setState(() => _names = names);
   }
 
   String _failure(ChatException e) => e.code == 'unreachable' ? context.t.unreachable : context.t.somethingWrong;
@@ -311,8 +366,8 @@ class _ChatScreenState extends State<ChatScreen> {
       _drop(entry, t.fileTooLarge(e.kind.maxMegabytes));
     } on CannotPrepare {
       _drop(entry, t.cannotPrepareFile);
-    } on ChatException {
-      _drop(entry, t.fileNotUploaded);
+    } on ChatException catch (e) {
+      _drop(entry, e.code == 'too_many_files' ? t.chatTooManyFiles : t.fileNotUploaded);
     } finally {
       await file?.discard();
     }
@@ -360,7 +415,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final bytes = await widget.chats.content(_id, a.id);
       if (!mounted) return;
-      if (!a.image) return await widget.files.sharePdf(a.filename, bytes);
+      if (a.contentType == ChatAttachmentContentTypeEnum.applicationSlashPdf) return await widget.files.sharePdf(a.filename, bytes);
       await showDialog<void>(
         context: context,
         builder: (context) => Dialog(
@@ -391,7 +446,16 @@ class _ChatScreenState extends State<ChatScreen> {
           if (_granted.isNotEmpty)
             PopupMenuButton<ChatInvitation>(
               onSelected: _revoke,
-              itemBuilder: (_) => [for (final g in _granted) PopupMenuItem(value: g, child: Text(t.chatRevoke))],
+              itemBuilder: (_) => [
+                for (final g in _granted)
+                  PopupMenuItem(
+                    value: g,
+                    child: Text(switch (_names.roles[g.practitionerRoleId]) {
+                      (final clinic, final role) => t.chatRevokeWho(role.name, clinic.name),
+                      null => t.chatRevoke,
+                    }),
+                  ),
+              ],
             ),
         ],
       ),
@@ -406,7 +470,14 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: Column(
                     children: [
                       for (final i in _invitations)
-                        InvitationCard(invitation: i, names: _names, busy: _deciding, onDecide: (grant) => _decide(i, grant)),
+                        InvitationCard(
+                          invitation: i,
+                          history: _histories[i.id] ?? 'unknown',
+                          names: _names,
+                          busy: _deciding,
+                          onDecide: (grant) => _decide(i, grant),
+                          onRetry: _retryNames,
+                        ),
                     ],
                   ),
                 ),
@@ -452,6 +523,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final more = _older != null;
     return ListView.builder(
       key: const Key('chat-messages'),
+      controller: _scroll,
       reverse: true,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       itemCount: _messages.length + (more ? 1 : 0),

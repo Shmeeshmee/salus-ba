@@ -8,9 +8,11 @@ import 'package:salus/chat.dart';
 import 'package:salus/chat_bubbles.dart';
 import 'package:salus/chat_list_screen.dart';
 import 'package:salus/fhir.dart';
+import 'package:salus/file_prep.dart' show Prepared;
 import 'package:salus/l10n/app_localizations.dart';
 import 'package:salus/l10n/language.dart';
-import 'package:salus_api/api.dart' show ChatMessage, Conversation;
+import 'package:salus_api/api.dart'
+    show ChatAttachment, ChatAttachmentContentTypeEnum, ChatAttachmentStatusEnum, ChatInvitation, ChatInvitationReasonEnum, ChatMessage, Conversation;
 
 import 'fake_call.dart';
 import 'fake_chat.dart';
@@ -31,9 +33,10 @@ Future<Places> names(Iterable<String> clinicIds) async {
 }
 
 class Rig {
-  Rig(this.chat);
+  Rig(this.chat, {this.places = names});
 
   final FakeChat chat;
+  final Future<Places> Function(Iterable<String> clinicIds) places;
   final files = FakeFiles();
   final media = FakeMedia();
 
@@ -43,7 +46,7 @@ class Rig {
         locale: localeOf('en'),
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
-        home: ChatListScreen(chats: chat, places: names, files: files, media: media, now: () => DateTime.utc(2026, 11, 12, 9)),
+        home: ChatListScreen(chats: chat, places: places, files: files, media: media, now: () => DateTime.utc(2026, 11, 12, 9)),
       ),
     );
     await tester.pumpAndSettle();
@@ -66,6 +69,12 @@ class FlakyChat extends FakeChat {
     if (ids.length == 1) throw const ChatException('unreachable');
     return super.send(id, clientMessageId, body, attachmentIds: attachmentIds);
   }
+}
+
+/// Refuses every upload: the patient already has 10 files waiting to be sent (SAL-30).
+class FullChat extends FakeChat {
+  @override
+  Future<ChatAttachment> upload(String id, Prepared file) async => throw const ChatException('too_many_files');
 }
 
 /// Lists a doctor-only side thread too, as an API that forgot the rule would.
@@ -176,7 +185,7 @@ void main() {
   testWidgets('system messages are written from the catalog, never from their arguments', (tester) async {
     final chat = FakeChat();
     chat
-      ..invite(reason: 'specialist_review')
+      ..invite(reason: ChatInvitationReasonEnum.specialistReview)
       ..system('participant_removed', {'practitioner_role_id': 'e0000000-0000-4000-8000-000000000002'})
       ..system('something_new', {});
     await Rig(chat).open(tester);
@@ -188,12 +197,12 @@ void main() {
 
   testWidgets('the consent prompt explains the invitation; granting lets the patient revoke it later', (tester) async {
     final chat = FakeChat();
-    final invitation = chat.invite(reason: 'second_opinion');
+    final invitation = chat.invite();
     await Rig(chat).open(tester);
     expect(find.text(t.chatInviteTitle), findsOneWidget);
     expect(find.text(t.chatInviteBody('second_opinion')), findsOneWidget);
     expect(find.text(t.chatInviteWho('Dee Example', 'Synthetic clinic Ilidža')), findsOneWidget);
-    expect(find.text(t.chatInviteSees('unknown')), findsOneWidget);
+    expect(find.text(t.chatInviteSees('full')), findsOneWidget);
     expect(find.text(t.chatInviteChoice), findsOneWidget);
 
     await tester.ensureVisible(find.widgetWithText(FilledButton, t.chatGrant));
@@ -205,7 +214,7 @@ void main() {
 
     await tester.tap(find.byType(PopupMenuButton<ChatInvitation>));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(t.chatRevoke));
+    await tester.tap(find.text(t.chatRevokeWho('Dee Example', 'Synthetic clinic Ilidža')));
     await tester.pumpAndSettle();
     expect(find.text(t.chatRevokeBody), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, t.chatRevokeConfirm));
@@ -215,11 +224,11 @@ void main() {
     expect(find.byType(PopupMenuButton<ChatInvitation>), findsNothing);
   });
 
-  testWidgets('the prompt says what the doctor would see when the invitation says it; declining ends it', (tester) async {
-    final chat = FakeChat();
-    chat.invite(reason: 'handover', history: 'full');
+  testWidgets('the prompt says the doctor would read from a message on; declining ends it', (tester) async {
+    final chat = FakeChat(history: 3);
+    chat.invite(reason: ChatInvitationReasonEnum.handover, fromSeq: 2);
     await Rig(chat).open(tester);
-    expect(find.text(t.chatInviteSees('full')), findsOneWidget);
+    expect(find.text(t.chatInviteSees('from')), findsOneWidget);
     await tester.ensureVisible(find.widgetWithText(OutlinedButton, t.chatDecline));
     await tester.tap(find.widgetWithText(OutlinedButton, t.chatDecline));
     await tester.pumpAndSettle();
@@ -227,6 +236,85 @@ void main() {
     expect(find.text(t.chatDeclined), findsOneWidget);
     expect(find.text(t.chatSystemDeclined), findsOneWidget);
     expect(find.byType(PopupMenuButton<ChatInvitation>), findsNothing);
+  });
+
+  testWidgets('a doctor granted earlier can still be revoked after the app restarts', (tester) async {
+    final chat = FakeChat();
+    final invitation = chat.invite();
+    await chat.decide(invitation.id, grant: true);
+    await Rig(chat).open(tester);
+    expect(find.text(t.chatInviteTitle), findsNothing);
+
+    await tester.tap(find.byType(PopupMenuButton<ChatInvitation>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(t.chatRevokeWho('Dee Example', 'Synthetic clinic Ilidža')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, t.chatRevokeConfirm));
+    await tester.pumpAndSettle();
+    expect(chat.revoked, [invitation.id]);
+    expect(find.byType(PopupMenuButton<ChatInvitation>), findsNothing);
+  });
+
+  testWidgets('access cannot be granted until the invited doctor and their clinic are shown', (tester) async {
+    final chat = FakeChat();
+    chat.invite();
+    var calls = 0;
+    Future<Places> flaky(Iterable<String> ids) {
+      if (++calls == 2) throw const SocketException('synthetic');
+      return names(ids);
+    }
+
+    await Rig(chat, places: flaky).open(tester);
+    expect(find.text(t.chatInviteUnresolved), findsOneWidget);
+    expect(find.textContaining('Dee Example'), findsNothing);
+    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, t.chatGrant)).onPressed, isNull);
+    expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, t.chatDecline)).onPressed, isNotNull);
+
+    await tester.ensureVisible(find.widgetWithText(TextButton, t.tryAgain));
+    await tester.tap(find.widgetWithText(TextButton, t.tryAgain));
+    await tester.pumpAndSettle();
+    expect(find.text(t.chatInviteWho('Dee Example', 'Synthetic clinic Ilidža')), findsOneWidget);
+    expect(find.text(t.chatInviteUnresolved), findsNothing);
+    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, t.chatGrant)).onPressed, isNotNull);
+  });
+
+  testWidgets('messages are marked read only while the newest is in view and the app is in the foreground', (tester) async {
+    final chat = FakeChat(history: 60);
+    final id = chat.conversation.id;
+    await Rig(chat).open(tester);
+    expect((await chat.get(id)).unread, 0);
+
+    for (final state in [AppLifecycleState.inactive, AppLifecycleState.hidden, AppLifecycleState.paused]) {
+      tester.binding.handleAppLifecycleStateChanged(state);
+    }
+    chat.deliver('Synthetic placeholder in the background');
+    await tester.pumpAndSettle();
+    expect((await chat.get(id)).unread, 1);
+    for (final state in [AppLifecycleState.hidden, AppLifecycleState.inactive, AppLifecycleState.resumed]) {
+      tester.binding.handleAppLifecycleStateChanged(state);
+    }
+    await tester.pumpAndSettle();
+    expect((await chat.get(id)).unread, 0);
+
+    await tester.drag(find.byKey(const Key('chat-messages')), const Offset(0, 1500));
+    await tester.pumpAndSettle();
+    chat.deliver('Synthetic placeholder while reading older ones');
+    await tester.pumpAndSettle();
+    expect((await chat.get(id)).unread, 1);
+    await tester.drag(find.byKey(const Key('chat-messages')), const Offset(0, -5000));
+    await tester.pumpAndSettle();
+    expect((await chat.get(id)).unread, 0);
+  });
+
+  testWidgets('an upload refused for ten files waiting says so', (tester) async {
+    final chat = FullChat();
+    await Rig(chat).open(tester);
+    await tester.tap(find.byTooltip(t.chatAttach));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(t.chooseFromPhotos));
+    await tester.pumpAndSettle();
+    expect(find.text(t.chatTooManyFiles), findsOneWidget);
+    expect(find.byType(InputChip), findsNothing);
   });
 
   testWidgets('an invitation sent while the chat is open is asked at once', (tester) async {
@@ -272,7 +360,7 @@ void main() {
     expect(sent.attachments, hasLength(1));
     expect(find.text(t.checkingFile), findsOneWidget);
 
-    chat.scanned(sent.attachments.single.id, AttachmentStatus.clean);
+    chat.scanned(sent.attachments.single.id, ChatAttachmentStatusEnum.clean);
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(find.text(t.checkingFile), findsNothing);
@@ -294,8 +382,8 @@ void main() {
 
   testWidgets("the doctor's files: a rejected one says so, a clean PDF opens in the share sheet", (tester) async {
     final chat = FakeChat()
-      ..deliverFile('synthetic-virus.pdf', 'application/pdf', AttachmentStatus.rejected)
-      ..deliverFile('synthetic-report.pdf', 'application/pdf', AttachmentStatus.clean);
+      ..deliverFile('synthetic-virus.pdf', ChatAttachmentContentTypeEnum.applicationSlashPdf, ChatAttachmentStatusEnum.rejected)
+      ..deliverFile('synthetic-report.pdf', ChatAttachmentContentTypeEnum.applicationSlashPdf, ChatAttachmentStatusEnum.clean);
     final rig = Rig(chat);
     await rig.open(tester);
     expect(find.text(t.chatFileRejected), findsOneWidget);

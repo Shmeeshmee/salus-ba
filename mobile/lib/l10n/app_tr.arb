@@ -301,6 +301,7 @@
   "chatSendFailed": "Mesaj gönderilmedi. Bağlantınızı kontrol edip tekrar deneyin.",
   "chatFileRejected": "Bu dosya kabul edilmedi.",
   "chatFileRemove": "Dosyayı kaldır",
+  "chatTooManyFiles": "Gönderilmeyi bekleyen 10 dosyanız var. Yenilerini eklemeden önce bunları gönderin; gönderilmeyen dosyalar 24 saat sonra kaldırılır.",
   "chatOpenFailed": "Dosya açılamadı. Tekrar deneyin.",
   "chatEndedSession": "Oturumunuz sona erdi. Yeni mesajları görmek için tekrar giriş yapın.",
   "chatEnded": "Bu yazışmada yeni mesajlar artık gösterilemiyor.",
@@ -318,6 +319,7 @@
   "chatInviteTitle": "Başka bir klinikten bir sağlık uzmanı katılmak istiyor",
   "chatInviteBody": "{reason, select, second_opinion{Kliniğiniz, başka bir klinikten bir sağlık uzmanının ikinci görüş için bu yazışmaya katılmasını istiyor.} specialist_review{Kliniğiniz, başka bir klinikten bir sağlık uzmanının uzman değerlendirmesi için bu yazışmaya katılmasını istiyor.} handover{Kliniğiniz, başka bir klinikten bir sağlık uzmanının tedavinizi devralmak üzere bu yazışmaya katılmasını istiyor.} other{Kliniğiniz, başka bir klinikten bir sağlık uzmanının bu yazışmaya katılmasını istiyor.}}",
   "chatInviteWho": "Sağlık uzmanı: {doctor}, {clinic}",
+  "chatInviteUnresolved": "Davet edilen sağlık uzmanının adı ve kliniği yüklenemedi. Erişime ancak bunlar gösterildiğinde izin verebilirsiniz.",
   "chatInviteSees": "{history, select, full{Kabul ederseniz sağlık uzmanı, önceki mesajlar dahil yazışmanın tamamını görür ve yazışmaya yazabilir.} from{Kabul ederseniz sağlık uzmanı, yazışmayı kliniğinizin seçtiği bir mesajdan itibaren görür ve yazışmaya yazabilir.} other{Kabul ederseniz sağlık uzmanı yazışmayı görür ve yazışmaya yazabilir.}}",
   "chatInviteChoice": "Reddedebilirsiniz. Kabul ederseniz sağlık uzmanının erişimini daha sonra bu yazışmadan geri alabilirsiniz; erişim hemen sona erer.",
   "chatGrant": "Erişim ver",
@@ -325,6 +327,7 @@
   "chatGranted": "Erişim verildi. İstediğiniz zaman bu yazışmadan geri alabilirsiniz.",
   "chatDeclined": "Reddedildi. Sağlık uzmanı bu yazışmaya katılmıyor.",
   "chatRevoke": "Diğer klinikteki sağlık uzmanının erişimini geri al",
+  "chatRevokeWho": "Erişimi geri al: {doctor}, {clinic}",
   "chatRevokeBody": "Diğer klinikteki sağlık uzmanı bu yazışmaya erişimini hemen kaybeder. Daha önce yazılmış mesajlar yazışmada kalır.",
   "chatRevokeConfirm": "Erişimi geri al",
   "chatRevoked": "Erişim geri alındı."

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 
+import 'package:salus_api/api.dart' show ChatInvitation;
+
 import 'booking.dart' show Places;
 import 'chat.dart';
 import 'messages.dart';
@@ -10,24 +12,33 @@ import 'ui.dart' as ui;
 // revocation of a granted one, and the clinic's chat hours (SAL-29). The prompt's and the revocation's words carry
 // the legal tag in the catalogs.
 
-/// The consent prompt: who asks and why, what the doctor would see, that the patient may decline or later revoke.
+/// The consent prompt: who asks and why, which doctor of which clinic, what the doctor would see, that the patient
+/// may decline or later revoke. Access cannot be granted before the doctor and their clinic are shown: until then
+/// the card says so and offers to load them again ([onRetry]).
 class InvitationCard extends StatelessWidget {
-  const InvitationCard({super.key, required this.invitation, required this.names, required this.busy, required this.onDecide});
+  const InvitationCard({
+    super.key,
+    required this.invitation,
+    required this.history,
+    required this.names,
+    required this.busy,
+    required this.onDecide,
+    required this.onRetry,
+  });
 
   final ChatInvitation invitation;
+
+  /// What the doctor would read: `full`, `from`, or `unknown` when the invited participant could not be read.
+  final String history;
   final Places names;
   final bool busy;
   final void Function(bool grant) onDecide;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     final t = context.t;
     final named = names.roles[invitation.practitionerRoleId];
-    final history = switch (invitation.history) {
-      'full' => 'full',
-      'from' => 'from',
-      _ => 'unknown',
-    };
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -36,8 +47,14 @@ class InvitationCard extends StatelessWidget {
           children: [
             ui.Heading(t.chatInviteTitle),
             const SizedBox(height: 8),
-            Text(t.chatInviteBody(invitation.reason)),
-            if (named != null) ...[const SizedBox(height: 8), Text(t.chatInviteWho(named.$2.name, named.$1.name))],
+            Text(t.chatInviteBody(invitation.reason.toString())),
+            const SizedBox(height: 8),
+            if (named != null)
+              Text(t.chatInviteWho(named.$2.name, named.$1.name))
+            else ...[
+              Text(t.chatInviteUnresolved),
+              Align(alignment: AlignmentDirectional.centerStart, child: TextButton(onPressed: onRetry, child: Text(t.tryAgain))),
+            ],
             const SizedBox(height: 8),
             Text(t.chatInviteSees(history)),
             const SizedBox(height: 8),
@@ -49,7 +66,7 @@ class InvitationCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 OutlinedButton(onPressed: busy ? null : () => onDecide(false), child: Text(t.chatDecline)),
-                FilledButton(onPressed: busy ? null : () => onDecide(true), child: Text(t.chatGrant)),
+                FilledButton(onPressed: busy || named == null ? null : () => onDecide(true), child: Text(t.chatGrant)),
               ],
             ),
           ],

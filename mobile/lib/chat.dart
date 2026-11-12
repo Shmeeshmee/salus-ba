@@ -3,9 +3,9 @@
 // models. test/fake_chat.dart implements it in memory, and lib/chat_client.dart on the API. Nothing here logs, and
 // no message text leaves the app but to the API.
 //
-// The wave's calls (docs/plans/chat.md "Contract of wave 1": SAL-28's invitations, SAL-29's chat hours, SAL-30's
-// attachments) are not in api/openapi.yaml yet: their types are written here by hand, field names as the contract
-// has them on the wire, and move to the generated types once SAL-28 to SAL-30 are merged.
+// SAL-28's invitations and SAL-30's attachments are the generated models; SAL-29's chat hours are not in
+// api/openapi.yaml yet: their type is written here by hand, field names as the contract has them on the wire, and
+// moves to the generated one once SAL-29 is merged.
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -44,41 +44,6 @@ class ConversationsPage {
   final String? next;
 }
 
-/// A pending invitation of a doctor from another clinic to one of the patient's conversations (SAL-28,
-/// `GET /me/chat-invitations`). [history] (`full` or `from`) is read when the API sends it; the contract does not
-/// promise it, so the screen says "the conversation" without it.
-class ChatInvitation {
-  const ChatInvitation({
-    required this.id,
-    required this.conversationId,
-    required this.organizationId,
-    required this.practitionerRoleId,
-    required this.reason,
-    required this.invitedAt,
-    this.history,
-  });
-
-  final String id;
-  final String conversationId;
-  final String organizationId;
-  final String practitionerRoleId;
-
-  /// `second_opinion`, `specialist_review` or `handover`.
-  final String reason;
-  final DateTime invitedAt;
-  final String? history;
-
-  static ChatInvitation fromJson(Map<String, dynamic> json) => ChatInvitation(
-    id: json['id'] as String,
-    conversationId: json['conversation_id'] as String,
-    organizationId: json['organization_id'] as String,
-    practitionerRoleId: json['practitioner_role_id'] as String,
-    reason: json['reason'] as String,
-    invitedAt: DateTime.parse(json['invited_at'] as String),
-    history: json['history'] as String?,
-  );
-}
-
 /// One weekday's chat hours in the clinic's zone (SAL-29): [weekday] ISO (Monday 1), [start] and [end] `HH:MM`.
 class ChatHoursDay {
   const ChatHoursDay(this.weekday, this.start, this.end);
@@ -108,55 +73,6 @@ class ChatHours {
   );
 }
 
-/// Where an attachment's scan stands (SAL-30).
-enum AttachmentStatus { scanning, clean, rejected }
-
-/// A file sent with a message (SAL-30 `ChatAttachment`). [thumbnail] is whether `…/thumbnail` has an image: the
-/// contract names the field without its type, so a `true` or a non-empty string both count.
-class ChatAttachment {
-  ChatAttachment({
-    required this.id,
-    required this.contentType,
-    required this.size,
-    required this.filename,
-    required this.status,
-    this.thumbnail = false,
-  });
-
-  final String id;
-  final String contentType;
-  final int size;
-  final String filename;
-  AttachmentStatus status;
-  bool thumbnail;
-
-  bool get image => contentType.startsWith('image/');
-
-  static ChatAttachment fromJson(Map<String, dynamic> json) {
-    final thumbnail = json['thumbnail'];
-    return ChatAttachment(
-      id: json['id'] as String,
-      contentType: json['content_type'] as String,
-      size: json['size'] as int,
-      filename: json['filename'] as String,
-      status: AttachmentStatus.values.firstWhere(
-        (s) => s.name == json['status'],
-        orElse: () => AttachmentStatus.scanning,
-      ),
-      thumbnail: thumbnail == true || (thumbnail is String && thumbnail.isNotEmpty),
-    );
-  }
-}
-
-final _attachments = Expando<List<ChatAttachment>>('attachments');
-
-/// SAL-30's `ChatMessage.attachments`, kept beside the generated model until the generated client has the field;
-/// then this extension is deleted and the screens read the generated field of the same name.
-extension ChatMessageAttachments on ChatMessage {
-  List<ChatAttachment> get attachments => _attachments[this] ?? const [];
-  set attachments(List<ChatAttachment> list) => _attachments[this] = list;
-}
-
 abstract interface class Chats {
   /// A page of the caller's conversations, newest activity first.
   Future<ConversationsPage> list({String? before});
@@ -182,8 +98,9 @@ abstract interface class Chats {
   /// function is called or access ends.
   void Function() follow(String id, String? after, void Function(ChatMessageFrame frame) onFrame, void Function(ChatEnd end) onEnd);
 
-  /// The patient's pending invitations of doctors from other clinics, every conversation's.
-  Future<List<ChatInvitation>> invitations();
+  /// The patient's invitations of doctors from other clinics, every conversation's: the pending ones, or with
+  /// [granted] those the patient granted, which they may revoke.
+  Future<List<ChatInvitation>> invitations({bool granted = false});
 
   /// The patient's answer to an invitation: a grant is a consent for that conversation and that doctor.
   Future<void> decide(String invitationId, {required bool grant});

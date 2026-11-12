@@ -1920,6 +1920,12 @@ abstract class AppLocalizations {
   /// **'Remove the file'**
   String get chatFileRemove;
 
+  /// An upload refused because 10 files already wait to be sent (SAL-30 too_many_files).
+  ///
+  /// In en, this message translates to:
+  /// **'You have 10 files waiting to be sent. Send them before adding more; files not sent are removed after 24 hours.'**
+  String get chatTooManyFiles;
+
   /// An attachment that could not be read.
   ///
   /// In en, this message translates to:
@@ -2022,6 +2028,12 @@ abstract class AppLocalizations {
   /// **'Doctor: {doctor}, {clinic}'**
   String chatInviteWho(String doctor, String clinic);
 
+  /// [legal] The consent prompt while the invited doctor's name and clinic are not known: the grant waits for them.
+  ///
+  /// In en, this message translates to:
+  /// **'The invited doctor\'s name and clinic could not be loaded. Access can be granted only once they are shown.'**
+  String get chatInviteUnresolved;
+
   /// [legal] The consent prompt: what the doctor would see; history is full, from or unknown.
   ///
   /// In en, this message translates to:
@@ -2063,6 +2075,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Revoke the access of the doctor from another clinic'**
   String get chatRevoke;
+
+  /// [legal] The chat view's menu: revoke the access of a granted doctor from another clinic, by name and clinic.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke access: {doctor}, {clinic}'**
+  String chatRevokeWho(String doctor, String clinic);
 
   /// [legal] The revocation dialog: its effect.
   ///

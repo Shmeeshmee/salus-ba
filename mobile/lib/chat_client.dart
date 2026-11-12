@@ -10,11 +10,11 @@ import 'booking.dart' show contentDisposition;
 import 'chat.dart';
 import 'file_prep.dart' show Prepared;
 
-// The patient's chat (Chats) on the API: SAL-27's routes through the generated ChatApi, read raw where a message
-// can carry SAL-30's attachments (the generated ChatMessage has no such field yet); the wave's routes (SAL-28's
-// invitations, SAL-29's chat hours, SAL-30's attachments) as plain requests on the same client and bearer token,
-// until SAL-28 to SAL-30 are merged and generated. The socket carries the bearer token and no Origin. Nothing
-// here logs.
+// The patient's chat (Chats) on the API: the routes of SAL-27, SAL-28 and SAL-30 through the generated ChatApi and
+// models, except where the generated client cannot stream (an upload's bytes, a file's bytes): those are plain
+// requests on the same client and bearer token, read into the generated models. SAL-29's chat hours are a plain
+// request until SAL-29 is merged and generated. The socket carries the bearer token and no Origin. Nothing here
+// logs.
 
 /// A conversation's open socket, as [ChatClient] reads it; tests fake it.
 abstract interface class ChatLine {
@@ -97,14 +97,6 @@ class ChatClient implements Chats {
     () => _client.invokeAPI(path, method, [], body, {...?headers}, {}, body == null ? null : 'application/json'),
   ).then(_ok);
 
-  /// A message with its attachments, from the API's JSON.
-  static ChatMessage _message(Object? json) {
-    final m = _present(ChatMessage.fromJson(json));
-    final list = (json as Map)['attachments'];
-    if (list is List) m.attachments = [for (final a in list) ChatAttachment.fromJson((a as Map).cast())];
-    return m;
-  }
-
   @override
   Future<ConversationsPage> list({String? before}) async {
     final l = _present(await _call(() => _api.listConversations(before: before)));
@@ -119,25 +111,16 @@ class ChatClient implements Chats {
   Future<Conversation> get(String id) async => _present(await _call<Conversation?>(() => _api.getConversation(id)));
 
   @override
-  Future<MessagePage> messages(String id, {String? before, int limit = 50}) async {
-    final r = _ok(await _call(() => _api.listMessagesWithHttpInfo(id, before: before, limit: limit)));
-    final json = jsonDecode(r.body) as Map<String, dynamic>;
-    return MessagePage(
-      messages: [for (final m in json['messages'] as List) _message(m)],
-      next: json['next'] as String?,
-    );
-  }
+  Future<MessagePage> messages(String id, {String? before, int limit = 50}) async =>
+      _present(await _call<MessagePage?>(() => _api.listMessages(id, before: before, limit: limit)));
 
-  /// A plain request: the generated SendMessageRequest has no `attachment_ids` yet (SAL-30).
   @override
-  Future<ChatMessage> send(String id, String clientMessageId, String body, {List<String> attachmentIds = const []}) async {
-    final r = await _plain(
-      'POST',
-      '/conversations/${_seg(id)}/messages',
-      body: {'client_message_id': clientMessageId, 'body': body, if (attachmentIds.isNotEmpty) 'attachment_ids': attachmentIds},
-    );
-    return _message(jsonDecode(r.body));
-  }
+  Future<ChatMessage> send(String id, String clientMessageId, String body, {List<String> attachmentIds = const []}) async =>
+      _present(
+        await _call<ChatMessage?>(
+          () => _api.sendMessage(id, SendMessageRequest(clientMessageId: clientMessageId, body: body, attachmentIds: attachmentIds)),
+        ),
+      );
 
   @override
   Future<ChatMessage> edit(String id, String messageId, String body, int version) async =>
@@ -150,20 +133,20 @@ class ChatClient implements Chats {
   @override
   Future<void> markRead(String id, int seq) => _call(() => _api.markConversationRead(id, ReadPosition(seq: seq)));
 
-  /// `{invitations: [...]}`, assumed until SAL-28 is merged.
   @override
-  Future<List<ChatInvitation>> invitations() async {
-    final r = await _plain('GET', '/me/chat-invitations');
-    final list = (jsonDecode(r.body) as Map)['invitations'] as List? ?? const [];
-    return [for (final i in list) ChatInvitation.fromJson((i as Map).cast())];
-  }
+  Future<List<ChatInvitation>> invitations({bool granted = false}) async =>
+      _present(await _call(() => _api.listChatInvitations(status: granted ? 'active' : 'pending_consent'))).invitations;
 
   @override
-  Future<void> decide(String invitationId, {required bool grant}) =>
-      _plain('POST', '/me/chat-invitations/${_seg(invitationId)}/decision', body: {'decision': grant ? 'grant' : 'decline'});
+  Future<void> decide(String invitationId, {required bool grant}) => _call(
+    () => _api.decideChatInvitation(
+      invitationId,
+      ChatInvitationDecision(decision: grant ? ChatInvitationDecisionDecisionEnum.grant : ChatInvitationDecisionDecisionEnum.decline),
+    ),
+  );
 
   @override
-  Future<void> revoke(String invitationId) => _plain('POST', '/me/chat-invitations/${_seg(invitationId)}/revoke');
+  Future<void> revoke(String invitationId) => _call(() => _api.revokeChatInvitation(invitationId));
 
   @override
   Future<ChatHours> chatHours(String organizationId) async {
@@ -192,7 +175,7 @@ class ChatClient implements Chats {
     } on Exception {
       throw const ChatException('unreachable');
     }
-    return ChatAttachment.fromJson(jsonDecode(_ok(r).body) as Map<String, dynamic>);
+    return _present(ChatAttachment.fromJson(jsonDecode(_ok(r).body)));
   }
 
   Future<Uint8List> _bytes(String id, String attachmentId, String part) async => (await _plain(
@@ -224,20 +207,38 @@ class ChatClient implements Chats {
     _ => null,
   };
 
+  /// Why the conversation is refused, as its socket would have closed; null while it still answers or the API
+  /// cannot be reached.
+  Future<ChatEnd?> _refused(String id) async {
+    try {
+      await get(id);
+      return null;
+    } on ChatException catch (e) {
+      return switch (e.code) {
+        'unauthenticated' => ChatEnd.unauthenticated,
+        'consent_required' => ChatEnd.consentRequired,
+        'forbidden' => ChatEnd.forbidden,
+        'not_found' => ChatEnd.notFound,
+        _ => null,
+      };
+    }
+  }
+
   /// A `message` or `message_edited` frame; any other (`send_ack`, `receipt`, `typing`, …) is null.
   static ChatMessageFrame? _frame(Object? data) {
     try {
       final json = jsonDecode(data as String) as Map<String, dynamic>;
       final type = ChatMessageFrameTypeEnum.fromJson(json['type']);
       if (type == null) return null;
-      return ChatMessageFrame(type: type, version: ChatMessageFrameVersionEnum.number1, payload: _message(json['payload']));
+      return ChatMessageFrame(type: type, version: ChatMessageFrameVersionEnum.number1, payload: _present(ChatMessage.fromJson(json['payload'])));
     } on Object {
       return null; // A frame the app does not know is ignored.
     }
   }
 
   /// Reconnects with [chatBackoff] after a drop, resuming after the last message forwarded; a `seq` already
-  /// forwarded is dropped. Stops for good on 4401, 4403 and 4404 with [onEnd].
+  /// forwarded is dropped. Stops for good on 4401, 4403 and 4404 with [onEnd], and when a handshake fails and the
+  /// conversation itself is refused (a refused upgrade gives no status to read).
   @override
   void Function() follow(String id, String? after, void Function(ChatMessageFrame frame) onFrame, void Function(ChatEnd end) onEnd) {
     var stopped = false;
@@ -257,10 +258,19 @@ class ChatClient implements Chats {
 
     Future<void> run() async {
       while (!stopped) {
+        final headers = <String, String>{};
+        await _client.authentication?.applyToParams(<QueryParam>[], headers);
+        final ChatLine open;
         try {
-          final headers = <String, String>{};
-          await _client.authentication?.applyToParams(<QueryParam>[], headers);
-          final open = line = await _dial(_events(id, cursor), headers);
+          open = line = await _dial(_events(id, cursor), headers);
+        } on Exception {
+          final end = await _refused(id);
+          if (stopped) return;
+          if (end != null) return onEnd(end);
+          await _wait(chatBackoff(attempt++));
+          continue;
+        }
+        try {
           if (stopped) return unawaited(open.close());
           await for (final data in open.incoming) {
             attempt = 0;
@@ -273,7 +283,7 @@ class ChatClient implements Chats {
             return;
           }
         } on Exception {
-          // A socket that could not open or broke is opened again.
+          // A socket that broke is opened again.
         }
         if (stopped) return;
         await _wait(chatBackoff(attempt++));

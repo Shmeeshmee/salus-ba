@@ -301,6 +301,7 @@
   "chatSendFailed": "Il messaggio non è stato inviato. Controlli la connessione e riprovi.",
   "chatFileRejected": "Questo file non è stato accettato.",
   "chatFileRemove": "Rimuovi il file",
+  "chatTooManyFiles": "Ha 10 file in attesa di invio. Li invii prima di aggiungerne altri; i file non inviati vengono rimossi dopo 24 ore.",
   "chatOpenFailed": "Non è stato possibile aprire il file. Riprovi.",
   "chatEndedSession": "La sessione è terminata. Acceda di nuovo per vedere i nuovi messaggi.",
   "chatEnded": "In questa conversazione non è più possibile mostrare nuovi messaggi.",
@@ -318,6 +319,7 @@
   "chatInviteTitle": "Un medico di un’altra clinica chiede di partecipare",
   "chatInviteBody": "{reason, select, second_opinion{La Sua clinica chiede che un medico di un’altra clinica si unisca a questa conversazione per un secondo parere.} specialist_review{La Sua clinica chiede che un medico di un’altra clinica si unisca a questa conversazione per una valutazione specialistica.} handover{La Sua clinica chiede che un medico di un’altra clinica si unisca a questa conversazione per prendere in carico le Sue cure.} other{La Sua clinica chiede che un medico di un’altra clinica si unisca a questa conversazione.}}",
   "chatInviteWho": "Medico: {doctor}, {clinic}",
+  "chatInviteUnresolved": "Non è stato possibile caricare il nome e la clinica del medico invitato. Potrà concedere l’accesso solo quando saranno visualizzati.",
   "chatInviteSees": "{history, select, full{Se acconsente, il medico vede l’intera conversazione, compresi i messaggi precedenti, e può scrivervi.} from{Se acconsente, il medico vede la conversazione a partire da un messaggio scelto dalla Sua clinica e può scrivervi.} other{Se acconsente, il medico vede la conversazione e può scrivervi.}}",
   "chatInviteChoice": "Può rifiutare. Se acconsente, può revocare l’accesso del medico in seguito in questa conversazione; termina subito.",
   "chatGrant": "Concedi l’accesso",
@@ -325,6 +327,7 @@
   "chatGranted": "Accesso concesso. Può revocarlo in qualsiasi momento in questa conversazione.",
   "chatDeclined": "Rifiutato. Il medico non si unisce a questa conversazione.",
   "chatRevoke": "Revoca l’accesso del medico dell’altra clinica",
+  "chatRevokeWho": "Revoca l’accesso: {doctor}, {clinic}",
   "chatRevokeBody": "Il medico dell’altra clinica perde subito l’accesso a questa conversazione. I messaggi già scritti vi restano.",
   "chatRevokeConfirm": "Revoca l’accesso",
   "chatRevoked": "Accesso revocato."

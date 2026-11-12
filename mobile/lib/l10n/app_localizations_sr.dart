@@ -1102,6 +1102,10 @@ class AppLocalizationsSr extends AppLocalizations {
   String get chatFileRemove => 'Уклони датотеку';
 
   @override
+  String get chatTooManyFiles =>
+      'Имате 10 датотека које чекају слање. Пошаљите их прије него што додате нове; непослате датотеке се уклањају након 24 сата.';
+
+  @override
   String get chatOpenFailed =>
       'Датотека није могла да се отвори. Покушајте поново.';
 
@@ -1208,6 +1212,10 @@ class AppLocalizationsSr extends AppLocalizations {
   }
 
   @override
+  String get chatInviteUnresolved =>
+      'Име и клиника позваног љекара нису могли да се учитају. Приступ можете да одобрите тек када буду приказани.';
+
+  @override
   String chatInviteSees(String history) {
     String _temp0 = intl.Intl.selectLogic(history, {
       'full': 'Ако пристанете, љекар види цијели разговор, укључујући раније поруке, и може да пише у њему.',
@@ -1236,6 +1244,11 @@ class AppLocalizationsSr extends AppLocalizations {
 
   @override
   String get chatRevoke => 'Опозови приступ љекара из друге клинике';
+
+  @override
+  String chatRevokeWho(String doctor, String clinic) {
+    return 'Опозови приступ: $doctor, $clinic';
+  }
 
   @override
   String get chatRevokeBody =>
@@ -2345,6 +2358,10 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   String get chatFileRemove => 'Уклони датотеку';
 
   @override
+  String get chatTooManyFiles =>
+      'Имате 10 датотека које чекају слање. Пошаљите их прије него што додате нове; непослате датотеке се уклањају након 24 сата.';
+
+  @override
   String get chatOpenFailed =>
       'Датотека није могла да се отвори. Покушајте поново.';
 
@@ -2451,6 +2468,10 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   }
 
   @override
+  String get chatInviteUnresolved =>
+      'Име и клиника позваног љекара нису могли да се учитају. Приступ можете да одобрите тек када буду приказани.';
+
+  @override
   String chatInviteSees(String history) {
     String _temp0 = intl.Intl.selectLogic(history, {
       'full': 'Ако пристанете, љекар види цијели разговор, укључујући раније поруке, и може да пише у њему.',
@@ -2479,6 +2500,11 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
 
   @override
   String get chatRevoke => 'Опозови приступ љекара из друге клинике';
+
+  @override
+  String chatRevokeWho(String doctor, String clinic) {
+    return 'Опозови приступ: $doctor, $clinic';
+  }
 
   @override
   String get chatRevokeBody =>
@@ -3588,6 +3614,10 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   String get chatFileRemove => 'Ukloni datoteku';
 
   @override
+  String get chatTooManyFiles =>
+      'Imate 10 datoteka koje čekaju slanje. Pošaljite ih prije nego što dodate nove; neposlate datoteke se uklanjaju nakon 24 sata.';
+
+  @override
   String get chatOpenFailed =>
       'Datoteka nije mogla da se otvori. Pokušajte ponovo.';
 
@@ -3694,6 +3724,10 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   }
 
   @override
+  String get chatInviteUnresolved =>
+      'Ime i klinika pozvanog ljekara nisu mogli da se učitaju. Pristup možete da odobrite tek kada budu prikazani.';
+
+  @override
   String chatInviteSees(String history) {
     String _temp0 = intl.Intl.selectLogic(history, {
       'full': 'Ako pristanete, ljekar vidi cijeli razgovor, uključujući ranije poruke, i može da piše u njemu.',
@@ -3723,6 +3757,11 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String get chatRevoke => 'Opozovi pristup ljekara iz druge klinike';
+
+  @override
+  String chatRevokeWho(String doctor, String clinic) {
+    return 'Opozovi pristup: $doctor, $clinic';
+  }
 
   @override
   String get chatRevokeBody =>

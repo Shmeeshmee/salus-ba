@@ -1467,6 +1467,10 @@
   "@chatFileRemove": {
     "description": "The composer: remove a file not yet sent, tooltip."
   },
+  "chatTooManyFiles": "You have 10 files waiting to be sent. Send them before adding more; files not sent are removed after 24 hours.",
+  "@chatTooManyFiles": {
+    "description": "An upload refused because 10 files already wait to be sent (SAL-30 too_many_files)."
+  },
   "chatOpenFailed": "The file could not be opened. Try again.",
   "@chatOpenFailed": {
     "description": "An attachment that could not be read."
@@ -1579,6 +1583,10 @@
       }
     }
   },
+  "chatInviteUnresolved": "The invited doctor's name and clinic could not be loaded. Access can be granted only once they are shown.",
+  "@chatInviteUnresolved": {
+    "description": "[legal] The consent prompt while the invited doctor's name and clinic are not known: the grant waits for them."
+  },
   "chatInviteSees": "{history, select, full{If you agree, the doctor sees the whole conversation, including the earlier messages, and can write in it.} from{If you agree, the doctor sees the conversation from a message your clinic chose onwards, and can write in it.} other{If you agree, the doctor sees the conversation and can write in it.}}",
   "@chatInviteSees": {
     "description": "[legal] The consent prompt: what the doctor would see; history is full, from or unknown.",
@@ -1611,6 +1619,18 @@
   "chatRevoke": "Revoke the access of the doctor from another clinic",
   "@chatRevoke": {
     "description": "[legal] The chat view's menu: revoke a granted invitation."
+  },
+  "chatRevokeWho": "Revoke access: {doctor}, {clinic}",
+  "@chatRevokeWho": {
+    "description": "[legal] The chat view's menu: revoke the access of a granted doctor from another clinic, by name and clinic.",
+    "placeholders": {
+      "doctor": {
+        "type": "String"
+      },
+      "clinic": {
+        "type": "String"
+      }
+    }
   },
   "chatRevokeBody": "The doctor from the other clinic loses access to this conversation at once. The messages already written stay in it.",
   "@chatRevokeBody": {

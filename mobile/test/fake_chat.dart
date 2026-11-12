@@ -18,9 +18,10 @@ final syntheticThumbnail = base64Decode(
 
 /// The chat (Chats) in memory, for tests and for building the screens on synthetic data. It keeps the API's rules the
 /// screens see: pages newest first by cursor, idempotent sends, edits by the sender with the current version, the
-/// read position never going back, each frame once. The caller is the conversation's patient. It also has the
-/// wave's calls as docs/plans/chat.md "Contract of wave 1" shapes them: invitations of doctors from other clinics
-/// with their system messages, the clinic's chat hours, and attachments whose scan a test moves on.
+/// read position never going back, each frame once. The caller is the conversation's patient. It also has SAL-28's
+/// invitations of doctors from other clinics (each a pending participant of the conversation until granted) with
+/// their system messages, SAL-30's attachments whose scan a test moves on (at most 10 unsent), and the clinic's chat
+/// hours as the plan's contract shapes them for SAL-29.
 class FakeChat implements Chats {
   FakeChat({int history = 0, DateTime? start}) : _clock = start ?? DateTime.utc(2026, 11, 12, 8) {
     final at = _clock;
@@ -69,6 +70,10 @@ class FakeChat implements Chats {
   /// The patient's read position: the API never shows it, only the unread count.
   int _readSeq = 0;
 
+  /// How many uploads the patient may have waiting to be sent (SAL-30).
+  static const unsentMaximum = 10;
+  final _unsent = <String>{};
+
   ChatMessage _write(
     String? from, {
     String? body,
@@ -95,7 +100,8 @@ class FakeChat implements Chats {
       clientMessageId: clientId ?? _uuid(++_ids, 'dd'),
       sentAt: _clock,
       versionId: 1,
-    )..attachments = attachments;
+      attachments: attachments,
+    );
     _messages.add(m);
     conversation
       ..lastSeq = seq
@@ -123,7 +129,7 @@ class FakeChat implements Chats {
   ChatMessage deliver(String body) => _write(_doctor, body: _body(body));
 
   /// Sends a file as the practitioner, with its scan at [status].
-  ChatMessage deliverFile(String filename, String contentType, AttachmentStatus status) {
+  ChatMessage deliverFile(String filename, ChatAttachmentContentTypeEnum contentType, ChatAttachmentStatusEnum status) {
     final a = _attachment(filename, contentType, syntheticThumbnail);
     scanned(a.id, status);
     return _write(_doctor, attachments: [a]);
@@ -132,8 +138,9 @@ class FakeChat implements Chats {
   /// Writes a system message with its opaque arguments.
   ChatMessage system(String code, Map<String, String> args) => _write(null, system: SystemMessage(code: code, args: args));
 
-  /// The treating doctor invites a doctor from another clinic: pending until the patient decides.
-  ChatInvitation invite({String reason = 'second_opinion', String? history}) {
+  /// The treating doctor invites a doctor from another clinic: a pending participant until the patient decides,
+  /// reading the whole history or, with [fromSeq], the messages after it.
+  ChatInvitation invite({ChatInvitationReasonEnum reason = ChatInvitationReasonEnum.secondOpinion, int fromSeq = 0}) {
     final n = _invitations.length + _granted.length + 2;
     final i = ChatInvitation(
       id: _uuid(n, '1a'),
@@ -142,31 +149,42 @@ class FakeChat implements Chats {
       practitionerRoleId: _uuid(n, 'e'),
       reason: reason,
       invitedAt: _clock,
-      history: history,
+      status: ChatInvitationStatusEnum.pendingConsent,
     );
     _invitations.add(i);
+    conversation.participants.add(
+      ConversationParticipant(
+        id: i.id,
+        role: ConversationParticipantRoleEnum.practitioner,
+        status: ConversationParticipantStatusEnum.pendingConsent,
+        practitionerRoleId: i.practitionerRoleId,
+        organizationId: i.organizationId,
+        addedAt: _clock,
+        historyFromSeq: fromSeq,
+      ),
+    );
     system('participant_invited', {
       'practitioner_role_id': i.practitionerRoleId,
       'organization_id': i.organizationId,
-      'reason': reason,
+      'reason': reason.toString(),
     });
     return i;
   }
 
   /// The scan of an upload ends: a clean image has a thumbnail.
-  void scanned(String attachmentId, AttachmentStatus status) {
-    final a = _uploads[attachmentId]!.$1
-      ..status = status;
-    a.thumbnail = status == AttachmentStatus.clean && a.image;
+  void scanned(String attachmentId, ChatAttachmentStatusEnum status) {
+    final a = _uploads[attachmentId]!.$1..status = status;
+    a.thumbnail = status == ChatAttachmentStatusEnum.clean && a.contentType != ChatAttachmentContentTypeEnum.applicationSlashPdf;
   }
 
-  ChatAttachment _attachment(String filename, String contentType, List<int> bytes) {
+  ChatAttachment _attachment(String filename, ChatAttachmentContentTypeEnum contentType, List<int> bytes) {
     final a = ChatAttachment(
       id: _uuid(++_ids, 'ab'),
       contentType: contentType,
       size: bytes.length,
       filename: filename,
-      status: AttachmentStatus.scanning,
+      status: ChatAttachmentStatusEnum.scanning,
+      thumbnail: false,
     );
     _uploads[a.id] = (a, bytes);
     return a;
@@ -212,12 +230,14 @@ class FakeChat implements Chats {
     final files = [
       for (final a in attachmentIds)
         switch (_uploads[a]?.$1) {
-          final f? when f.status != AttachmentStatus.rejected => f,
+          final f? when f.status != ChatAttachmentStatusEnum.rejected && _unsent.contains(a) => f,
           _ => throw const ChatException('invalid_request'),
         },
     ];
     final text = files.isNotEmpty && body.trim().isEmpty ? null : _body(body);
-    return _clientIds[clientMessageId] = _write(_me, body: text, attachments: files, clientId: clientMessageId);
+    final m = _clientIds[clientMessageId] = _write(_me, body: text, attachments: files, clientId: clientMessageId);
+    _unsent.removeAll(attachmentIds);
+    return m;
   }
 
   @override
@@ -277,7 +297,7 @@ class FakeChat implements Chats {
   }
 
   @override
-  Future<List<ChatInvitation>> invitations() async => List.of(_invitations);
+  Future<List<ChatInvitation>> invitations({bool granted = false}) async => List.of(granted ? _granted : _invitations);
 
   @override
   Future<void> decide(String invitationId, {required bool grant}) async {
@@ -286,12 +306,16 @@ class FakeChat implements Chats {
     _invitations.remove(i);
     final role = {'practitioner_role_id': i.practitionerRoleId};
     if (!grant) {
+      conversation.participants.removeWhere((p) => p.id == i.id);
       system('consent_declined', role);
       return;
     }
-    _granted.add(i);
+    _granted.add(i..status = ChatInvitationStatusEnum.active);
+    for (final p in conversation.participants.where((p) => p.id == i.id)) {
+      p.status = ConversationParticipantStatusEnum.active;
+    }
     system('consent_granted', role);
-    system('participant_added', {...role, 'organization_id': i.organizationId, 'reason': i.reason});
+    system('participant_added', {...role, 'organization_id': i.organizationId, 'reason': i.reason.toString()});
   }
 
   @override
@@ -300,6 +324,7 @@ class FakeChat implements Chats {
     if (i == null) throw const ChatException('not_found');
     _granted.remove(i);
     revoked.add(i.id);
+    conversation.participants.removeWhere((p) => p.id == i.id);
     system('participant_removed', {'practitioner_role_id': i.practitionerRoleId});
   }
 
@@ -318,17 +343,20 @@ class FakeChat implements Chats {
     _known(id);
     final bytes = [await for (final chunk in file.read()) ...chunk];
     final type = switch (file.kind) {
-      FileKind.photo => 'image/jpeg',
-      FileKind.document => 'application/pdf',
-      FileKind.video => 'video/mp4',
+      FileKind.photo => ChatAttachmentContentTypeEnum.imageSlashJpeg,
+      FileKind.document => ChatAttachmentContentTypeEnum.applicationSlashPdf,
+      FileKind.video => throw const ChatException('unsupported_type'),
     };
-    return _attachment(file.name, type, bytes);
+    if (_unsent.length >= unsentMaximum) throw const ChatException('too_many_files');
+    final a = _attachment(file.name, type, bytes);
+    _unsent.add(a.id);
+    return a;
   }
 
   ChatAttachment _clean(String id, String attachmentId) {
     _known(id);
     final a = _uploads[attachmentId]?.$1;
-    if (a == null || a.status != AttachmentStatus.clean) throw const ChatException('not_found');
+    if (a == null || a.status != ChatAttachmentStatusEnum.clean) throw const ChatException('not_found');
     return a;
   }
 

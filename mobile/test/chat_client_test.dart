@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show WebSocketException;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -44,13 +45,13 @@ Map<String, Object?> messageJson(int seq, {List<Map<String, Object?>>? attachmen
   'attachments': ?attachments,
 };
 
-Map<String, Object?> attachmentJson({String status = 'scanning', Object? thumbnail}) => {
+Map<String, Object?> attachmentJson({String status = 'scanning', bool thumbnail = false}) => {
   'id': 'ab000000-0000-4000-8000-000000000001',
   'content_type': 'image/jpeg',
   'size': 3,
   'filename': 'synthetic-photo.jpg',
   'status': status,
-  'thumbnail': ?thumbnail,
+  'thumbnail': thumbnail,
 };
 
 /// The API: one answer per "METHOD /path", every request recorded with its body.
@@ -106,22 +107,26 @@ class Line implements ChatLine {
   }
 }
 
-({Api api, ChatClient chats, List<Line> lines, List<Duration> waits}) setup() {
+/// The API and the socket the client talks to; the first [refused] handshakes fail as a refused upgrade does.
+({Api api, ChatClient chats, List<Line> lines, List<Duration> waits, List<Uri> dials}) setup({int refused = 0}) {
   final api = Api();
   final lines = <Line>[];
   final waits = <Duration>[];
+  final dials = <Uri>[];
   final bearer = HttpBearerAuth()..accessToken = token;
   final client = ApiClient(basePath: 'https://api.test', authentication: bearer)..client = MockClient(api.handle);
   final chats = ChatClient(
     client,
     dial: (url, headers) async {
+      dials.add(url);
+      if (dials.length <= refused) throw const WebSocketException('Connection to the server was not upgraded to websocket');
       final line = Line(url, headers);
       lines.add(line);
       return line;
     },
     wait: (d) async => waits.add(d),
   );
-  return (api: api, chats: chats, lines: lines, waits: waits);
+  return (api: api, chats: chats, lines: lines, waits: waits, dials: dials);
 }
 
 Future<void> settle() => Future<void>.delayed(Duration.zero);
@@ -161,17 +166,18 @@ void main() {
     expect(page.next, 'cursor-6');
     expect(page.messages.first.body, isNull);
     final a = page.messages.first.attachments.single;
-    expect((a.status, a.thumbnail, a.filename, a.image), (AttachmentStatus.clean, true, 'synthetic-photo.jpg', true));
+    expect((a.status, a.thumbnail, a.filename, a.contentType), (ChatAttachmentStatusEnum.clean, true, 'synthetic-photo.jpg', ChatAttachmentContentTypeEnum.imageSlashJpeg));
     expect(page.messages.last.attachments, isEmpty);
   });
 
-  test('sends with the client id, and with attachment ids only when there are some', () async {
+  test('sends with the client id and the attachment ids, empty for none', () async {
     final s = setup();
     s.api.answer('POST /conversations/$conversationId/messages', 201, messageJson(8));
     await s.chats.send(conversationId, 'cc000000-0000-4000-8000-000000000008', 'Synthetic placeholder');
     expect(jsonDecode(s.api.last('POST /conversations/$conversationId/messages').body), {
       'client_message_id': 'cc000000-0000-4000-8000-000000000008',
       'body': 'Synthetic placeholder',
+      'attachment_ids': <String>[],
     });
 
     s.api.answer('POST /conversations/$conversationId/messages', 200, messageJson(8, attachments: [attachmentJson()]));
@@ -181,7 +187,7 @@ void main() {
       'body': '',
       'attachment_ids': ['ab000000-0000-4000-8000-000000000001'],
     });
-    expect(m.attachments.single.status, AttachmentStatus.scanning);
+    expect(m.attachments.single.status, ChatAttachmentStatusEnum.scanning);
   });
 
   test('marks read, edits with If-Match and reads the revisions', () async {
@@ -234,7 +240,25 @@ void main() {
       ],
     });
     final i = (await s.chats.invitations()).single;
-    expect((i.reason, i.history, i.conversationId), ('specialist_review', null, conversationId));
+    expect(s.api.last('GET /me/chat-invitations').url.queryParameters, {'status': 'pending_consent'});
+    expect((i.reason, i.status, i.conversationId), (ChatInvitationReasonEnum.specialistReview, null, conversationId));
+
+    s.api.answer('GET /me/chat-invitations', 200, {
+      'invitations': [
+        {
+          'id': i.id,
+          'conversation_id': conversationId,
+          'organization_id': i.organizationId,
+          'practitioner_role_id': i.practitionerRoleId,
+          'reason': 'specialist_review',
+          'invited_at': '2026-11-12T08:06:00Z',
+          'status': 'active',
+        },
+      ],
+    });
+    final granted = (await s.chats.invitations(granted: true)).single;
+    expect(s.api.last('GET /me/chat-invitations').url.queryParameters, {'status': 'active'});
+    expect(granted.status, ChatInvitationStatusEnum.active);
 
     s.api.answer('POST /me/chat-invitations/${i.id}/decision', 204);
     await s.chats.decide(i.id, grant: true);
@@ -277,7 +301,7 @@ void main() {
         discard: () async {},
       ),
     );
-    expect(a.status, AttachmentStatus.scanning);
+    expect(a.status, ChatAttachmentStatusEnum.scanning);
     final r = s.api.last('POST /conversations/$conversationId/attachments');
     expect(r.bodyBytes, [1, 2, 3]);
     expect(r.headers['Authorization'], 'Bearer $token');
@@ -363,5 +387,41 @@ void main() {
         expect(s.lines, hasLength(1));
       });
     }
+
+    // A handshake the API refuses (401, 403 or 404 before the upgrade) comes back as an exception without the
+    // status; the conversation's own answer says whether access ended.
+    for (final (status, code, end) in [
+      (401, 'unauthenticated', ChatEnd.unauthenticated),
+      (403, 'consent_required', ChatEnd.consentRequired),
+      (403, 'forbidden', ChatEnd.forbidden),
+      (404, 'not_found', ChatEnd.notFound),
+    ]) {
+      test('ends for good when the handshake is refused and the conversation answers $status $code', () async {
+        final s = setup(refused: 1);
+        s.api.answer('GET /conversations/$conversationId', status, {'error': code});
+        final ends = <ChatEnd>[];
+        s.chats.follow(conversationId, 'cursor-7', (_) {}, ends.add);
+        for (var i = 0; i < 5; i++) {
+          await settle();
+        }
+        expect(ends, [end]);
+        expect(s.dials, hasLength(1));
+        expect(s.waits, isEmpty);
+      });
+    }
+
+    test('tries again after a refused handshake while the conversation still answers', () async {
+      final s = setup(refused: 2);
+      s.api.answer('GET /conversations/$conversationId', 200, conversationJson());
+      final ends = <ChatEnd>[];
+      final stop = s.chats.follow(conversationId, 'cursor-7', (_) {}, ends.add);
+      for (var i = 0; i < 10; i++) {
+        await settle();
+      }
+      expect(ends, isEmpty);
+      expect((s.dials.length, s.lines.length), (3, 1));
+      expect(s.waits, [const Duration(seconds: 1), const Duration(seconds: 2)]);
+      stop();
+    });
   });
 }

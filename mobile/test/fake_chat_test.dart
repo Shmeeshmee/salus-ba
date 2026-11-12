@@ -67,9 +67,11 @@ void main() {
   test('an invitation of a doctor from another clinic is pending until the patient decides', () async {
     final chat = FakeChat();
     final id = chat.conversation.id;
-    final invitation = chat.invite(reason: 'second_opinion');
+    final invitation = chat.invite();
     expect((await chat.invitations()).single.id, invitation.id);
     expect(invitation.conversationId, id);
+    final pending = (await chat.get(id)).participants.singleWhere((p) => p.id == invitation.id);
+    expect((pending.status, pending.historyFromSeq), (ConversationParticipantStatusEnum.pendingConsent, 0));
     final invited = (await chat.messages(id)).messages.first;
     expect(invited.kind, ChatMessageKindEnum.system);
     expect(invited.system!.code, 'participant_invited');
@@ -81,23 +83,27 @@ void main() {
 
     await chat.decide(invitation.id, grant: true);
     expect(await chat.invitations(), isEmpty);
+    expect([for (final g in await chat.invitations(granted: true)) (g.id, g.status)], [(invitation.id, ChatInvitationStatusEnum.active)]);
     expect([for (final m in (await chat.messages(id)).messages.take(2)) m.system!.code], ['participant_added', 'consent_granted']);
     expect(() => chat.decide(invitation.id, grant: false), throwsA(isA<ChatException>().having((e) => e.code, 'code', 'not_found')));
 
     await chat.revoke(invitation.id);
     expect((await chat.messages(id)).messages.first.system!.code, 'participant_removed');
     expect(chat.revoked, [invitation.id]);
+    expect(await chat.invitations(granted: true), isEmpty);
+    expect((await chat.get(id)).participants.where((p) => p.id == invitation.id), isEmpty);
   });
 
   test('a declined invitation writes consent_declined and cannot be revoked', () async {
     final chat = FakeChat();
-    final invitation = chat.invite(reason: 'handover', history: 'full');
-    expect(invitation.history, 'full');
+    final invitation = chat.invite(reason: ChatInvitationReasonEnum.handover, fromSeq: 1);
+    expect((await chat.get(chat.conversation.id)).participants.last.historyFromSeq, 1);
     await chat.decide(invitation.id, grant: false);
     final last = (await chat.messages(chat.conversation.id)).messages.first;
     expect(last.system!.code, 'consent_declined');
     expect(last.system!.args, {'practitioner_role_id': invitation.practitionerRoleId});
     expect(() => chat.revoke(invitation.id), throwsA(isA<ChatException>().having((e) => e.code, 'code', 'not_found')));
+    expect((await chat.get(chat.conversation.id)).participants.where((p) => p.id == invitation.id), isEmpty);
   });
 
   test("the clinic's chat hours say whether it is open now", () async {
@@ -123,8 +129,8 @@ void main() {
       discard: () async {},
     );
     final a = await chat.upload(id, file);
-    expect(a.status, AttachmentStatus.scanning);
-    expect(a.contentType, 'image/jpeg');
+    expect(a.status, ChatAttachmentStatusEnum.scanning);
+    expect(a.contentType, ChatAttachmentContentTypeEnum.imageSlashJpeg);
     expect(() => chat.content(id, a.id), throwsA(isA<ChatException>()));
 
     final m = await chat.send(id, clientId(1), '', attachmentIds: [a.id]);
@@ -132,9 +138,9 @@ void main() {
     expect(m.attachments.single.id, a.id);
     expect(() => chat.send(id, clientId(2), '', attachmentIds: ['unknown']), throwsA(isA<ChatException>()));
 
-    chat.scanned(a.id, AttachmentStatus.clean);
+    chat.scanned(a.id, ChatAttachmentStatusEnum.clean);
     final shown = (await chat.messages(id)).messages.first;
-    expect(shown.attachments.single.status, AttachmentStatus.clean);
+    expect(shown.attachments.single.status, ChatAttachmentStatusEnum.clean);
     expect(shown.attachments.single.thumbnail, isTrue);
     expect(await chat.content(id, a.id), [1, 2, 3]);
     expect(await chat.thumbnail(id, a.id), isNotEmpty);
@@ -142,7 +148,7 @@ void main() {
 
   test('the doctor sends an attachment', () async {
     final chat = FakeChat();
-    final m = chat.deliverFile('synthetic-report.pdf', 'application/pdf', AttachmentStatus.clean);
+    final m = chat.deliverFile('synthetic-report.pdf', ChatAttachmentContentTypeEnum.applicationSlashPdf, ChatAttachmentStatusEnum.clean);
     expect(m.attachments.single.filename, 'synthetic-report.pdf');
     expect(m.attachments.single.thumbnail, isFalse);
   });

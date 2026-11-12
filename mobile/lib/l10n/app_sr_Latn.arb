@@ -301,6 +301,7 @@
   "chatSendFailed": "Poruka nije poslata. Provjerite internet vezu i pokušajte ponovo.",
   "chatFileRejected": "Ova datoteka nije prihvaćena.",
   "chatFileRemove": "Ukloni datoteku",
+  "chatTooManyFiles": "Imate 10 datoteka koje čekaju slanje. Pošaljite ih prije nego što dodate nove; neposlate datoteke se uklanjaju nakon 24 sata.",
   "chatOpenFailed": "Datoteka nije mogla da se otvori. Pokušajte ponovo.",
   "chatEndedSession": "Vaša sesija je istekla. Ponovo se prijavite da biste vidjeli nove poruke.",
   "chatEnded": "Nove poruke u ovom razgovoru više ne mogu da se prikažu.",
@@ -318,6 +319,7 @@
   "chatInviteTitle": "Ljekar iz druge klinike traži pristup razgovoru",
   "chatInviteBody": "{reason, select, second_opinion{Vaša klinika traži da se ljekar iz druge klinike pridruži ovom razgovoru radi drugog mišljenja.} specialist_review{Vaša klinika traži da se ljekar iz druge klinike pridruži ovom razgovoru radi specijalističkog pregleda.} handover{Vaša klinika traži da se ljekar iz druge klinike pridruži ovom razgovoru da preuzme vaše liječenje.} other{Vaša klinika traži da se ljekar iz druge klinike pridruži ovom razgovoru.}}",
   "chatInviteWho": "Ljekar: {doctor}, {clinic}",
+  "chatInviteUnresolved": "Ime i klinika pozvanog ljekara nisu mogli da se učitaju. Pristup možete da odobrite tek kada budu prikazani.",
   "chatInviteSees": "{history, select, full{Ako pristanete, ljekar vidi cijeli razgovor, uključujući ranije poruke, i može da piše u njemu.} from{Ako pristanete, ljekar vidi razgovor od poruke koju je izabrala vaša klinika nadalje i može da piše u njemu.} other{Ako pristanete, ljekar vidi razgovor i može da piše u njemu.}}",
   "chatInviteChoice": "Možete da odbijete. Ako pristanete, pristup ljekara možete kasnije da opozovete u ovom razgovoru; prestaje odmah.",
   "chatGrant": "Odobri pristup",
@@ -325,6 +327,7 @@
   "chatGranted": "Pristup je odobren. Možete da ga opozovete u ovom razgovoru u bilo kom trenutku.",
   "chatDeclined": "Odbijeno. Ljekar se ne pridružuje ovom razgovoru.",
   "chatRevoke": "Opozovi pristup ljekara iz druge klinike",
+  "chatRevokeWho": "Opozovi pristup: {doctor}, {clinic}",
   "chatRevokeBody": "Ljekar iz druge klinike odmah gubi pristup ovom razgovoru. Već napisane poruke ostaju u njemu.",
   "chatRevokeConfirm": "Opozovi pristup",
   "chatRevoked": "Pristup je opozvan."

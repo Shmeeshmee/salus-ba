@@ -1091,6 +1091,10 @@ class AppLocalizationsTr extends AppLocalizations {
   String get chatFileRemove => 'Dosyayı kaldır';
 
   @override
+  String get chatTooManyFiles =>
+      'Gönderilmeyi bekleyen 10 dosyanız var. Yenilerini eklemeden önce bunları gönderin; gönderilmeyen dosyalar 24 saat sonra kaldırılır.';
+
+  @override
   String get chatOpenFailed => 'Dosya açılamadı. Tekrar deneyin.';
 
   @override
@@ -1197,6 +1201,10 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
+  String get chatInviteUnresolved =>
+      'Davet edilen sağlık uzmanının adı ve kliniği yüklenemedi. Erişime ancak bunlar gösterildiğinde izin verebilirsiniz.';
+
+  @override
   String chatInviteSees(String history) {
     String _temp0 = intl.Intl.selectLogic(history, {
       'full': 'Kabul ederseniz sağlık uzmanı, önceki mesajlar dahil yazışmanın tamamını görür ve yazışmaya yazabilir.',
@@ -1227,6 +1235,11 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get chatRevoke =>
       'Diğer klinikteki sağlık uzmanının erişimini geri al';
+
+  @override
+  String chatRevokeWho(String doctor, String clinic) {
+    return 'Erişimi geri al: $doctor, $clinic';
+  }
 
   @override
   String get chatRevokeBody =>

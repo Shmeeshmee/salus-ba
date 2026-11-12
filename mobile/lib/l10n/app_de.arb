@@ -301,6 +301,7 @@
   "chatSendFailed": "Die Nachricht wurde nicht gesendet. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
   "chatFileRejected": "Diese Datei wurde nicht angenommen.",
   "chatFileRemove": "Datei entfernen",
+  "chatTooManyFiles": "Sie haben 10 Dateien, die auf das Senden warten. Senden Sie diese, bevor Sie weitere hinzufügen; nicht gesendete Dateien werden nach 24 Stunden entfernt.",
   "chatOpenFailed": "Die Datei konnte nicht geöffnet werden. Versuchen Sie es erneut.",
   "chatEndedSession": "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um neue Nachrichten zu sehen.",
   "chatEnded": "Neue Nachrichten können in dieser Unterhaltung nicht mehr angezeigt werden.",
@@ -318,6 +319,7 @@
   "chatInviteTitle": "Ein Behandler einer anderen Klinik möchte teilnehmen",
   "chatInviteBody": "{reason, select, second_opinion{Ihre Klinik möchte einen Behandler einer anderen Klinik für eine Zweitmeinung zu dieser Unterhaltung hinzuziehen.} specialist_review{Ihre Klinik möchte einen Behandler einer anderen Klinik für eine fachärztliche Beurteilung zu dieser Unterhaltung hinzuziehen.} handover{Ihre Klinik möchte einen Behandler einer anderen Klinik zu dieser Unterhaltung hinzuziehen, der Ihre Behandlung übernimmt.} other{Ihre Klinik möchte einen Behandler einer anderen Klinik zu dieser Unterhaltung hinzuziehen.}}",
   "chatInviteWho": "Behandler: {doctor}, {clinic}",
+  "chatInviteUnresolved": "Name und Klinik des eingeladenen Behandlers konnten nicht geladen werden. Sie können den Zugang erst gewähren, wenn sie angezeigt werden.",
   "chatInviteSees": "{history, select, full{Wenn Sie zustimmen, sieht der Behandler die ganze Unterhaltung, auch die früheren Nachrichten, und kann darin schreiben.} from{Wenn Sie zustimmen, sieht der Behandler die Unterhaltung ab einer Nachricht, die Ihre Klinik gewählt hat, und kann darin schreiben.} other{Wenn Sie zustimmen, sieht der Behandler die Unterhaltung und kann darin schreiben.}}",
   "chatInviteChoice": "Sie können ablehnen. Wenn Sie zustimmen, können Sie den Zugang später in dieser Unterhaltung widerrufen; er endet sofort.",
   "chatGrant": "Zugang gewähren",
@@ -325,6 +327,7 @@
   "chatGranted": "Zugang gewährt. Sie können ihn jederzeit in dieser Unterhaltung widerrufen.",
   "chatDeclined": "Abgelehnt. Der Behandler nimmt nicht an dieser Unterhaltung teil.",
   "chatRevoke": "Zugang des Behandlers der anderen Klinik widerrufen",
+  "chatRevokeWho": "Zugang widerrufen: {doctor}, {clinic}",
   "chatRevokeBody": "Der Behandler der anderen Klinik verliert sofort den Zugang zu dieser Unterhaltung. Die bereits geschriebenen Nachrichten bleiben darin.",
   "chatRevokeConfirm": "Zugang widerrufen",
   "chatRevoked": "Zugang widerrufen."

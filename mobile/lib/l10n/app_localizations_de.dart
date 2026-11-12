@@ -1112,6 +1112,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatFileRemove => 'Datei entfernen';
 
   @override
+  String get chatTooManyFiles =>
+      'Sie haben 10 Dateien, die auf das Senden warten. Senden Sie diese, bevor Sie weitere hinzufügen; nicht gesendete Dateien werden nach 24 Stunden entfernt.';
+
+  @override
   String get chatOpenFailed =>
       'Die Datei konnte nicht geöffnet werden. Versuchen Sie es erneut.';
 
@@ -1217,6 +1221,10 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get chatInviteUnresolved =>
+      'Name und Klinik des eingeladenen Behandlers konnten nicht geladen werden. Sie können den Zugang erst gewähren, wenn sie angezeigt werden.';
+
+  @override
   String chatInviteSees(String history) {
     String _temp0 = intl.Intl.selectLogic(history, {
       'full': 'Wenn Sie zustimmen, sieht der Behandler die ganze Unterhaltung, auch die früheren Nachrichten, und kann darin schreiben.',
@@ -1247,6 +1255,11 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get chatRevoke =>
       'Zugang des Behandlers der anderen Klinik widerrufen';
+
+  @override
+  String chatRevokeWho(String doctor, String clinic) {
+    return 'Zugang widerrufen: $doctor, $clinic';
+  }
 
   @override
   String get chatRevokeBody =>
