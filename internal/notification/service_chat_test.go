@@ -169,6 +169,23 @@ func TestUnreadEmail_MailsAParticipantWhoHasNotReadTheMessage(t *testing.T) {
 	}
 }
 
+// A recipient whose account cannot be found (a practitioner's role or account gone, or of another clinic: SAL-28's
+// participants) gets nothing, and the job completes instead of retrying what cannot change.
+func TestUnreadEmail_CompletesWhenTheRecipientHasNoAccount(t *testing.T) {
+	f := newChatFixture(t)
+	f.chats.parts[1].PractitionerRoleID = "b9000000-0000-4000-8000-0000000000b9" // no such role in the clinic
+	if err := f.svc.UnreadEmail(t.Context(), notification.ChatUnreadEmailArgs{ParticipantID: practPart, ConversationID: convID, OrganizationID: clinicID, Seq: 2}); err != nil {
+		t.Errorf("UnreadEmail(no role) = %v, want nil", err)
+	}
+	f.chats.parts[0].PatientID = "d9000000-0000-4000-8000-0000000000d9" // not seen in the clinic's scope
+	if err := f.svc.UnreadEmail(t.Context(), notification.ChatUnreadEmailArgs{ParticipantID: patientPart, ConversationID: convID, OrganizationID: clinicID, Seq: 2}); err != nil {
+		t.Errorf("UnreadEmail(no patient) = %v, want nil", err)
+	}
+	if len(f.mail.sent) != 0 {
+		t.Errorf("sent %+v", f.mail.sent)
+	}
+}
+
 // What every job of a message carries, serialised as River stores it, holds no text and no name.
 func TestJobArguments_HoldIDsOnly(t *testing.T) {
 	for _, a := range []any{

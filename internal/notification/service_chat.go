@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/communication"
+	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/push"
@@ -269,6 +271,9 @@ func (s *Chat) UnreadEmail(ctx context.Context, a ChatUnreadEmailArgs) error {
 		return nil
 	}
 	to, language, kind, link, err := s.recipient(ctx, a.OrganizationID, p)
+	if gone(err) {
+		return nil // no account to write to (a role or account gone): nothing a retry would change
+	}
 	if err != nil {
 		return fmt.Errorf("notification: unread e-mail: %w", err)
 	}
@@ -298,6 +303,11 @@ func (s *Chat) recipient(ctx context.Context, org string, p communication.Partic
 	}
 	_, to, language, err = s.Accounts.PractitionerAccount(ctx, agentUnread, org, role.PractitionerID)
 	return to, language, "chat_unread_staff", s.WebBaseURL + "/chat", err
+}
+
+// gone tells whether err is a lookup's "not found": the participant has no account to write to.
+func gone(err error) bool {
+	return errors.Is(err, patient.ErrNotFound) || errors.Is(err, practitionerrole.ErrNotFound) || errors.Is(err, auth.ErrNotFound)
 }
 
 // recordDevices audits the job agent's read of n of the account's devices.

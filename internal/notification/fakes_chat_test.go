@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/notification"
+	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/push"
@@ -265,7 +267,7 @@ type fakePatients struct{ asked []string }
 func (p *fakePatients) NoticeAccount(_ context.Context, agent, org, id string) (string, error) {
 	p.asked = append(p.asked, agent+"/"+org+"/"+id)
 	if id != patientID || org != clinicID {
-		return "", communication.ErrNotFound
+		return "", patient.ErrNotFound
 	}
 	return patientAccount, nil
 }
@@ -301,7 +303,7 @@ func (a *fakeChatAccounts) AccountLanguage(_ context.Context, agent, id string) 
 func (a *fakeChatAccounts) PractitionerAccount(_ context.Context, agent, org, practitioner string) (string, string, string, error) {
 	a.asked = append(a.asked, agent+"/practitioner/"+practitioner)
 	if org != clinicID || practitioner != practitionerID {
-		return "", "", "", communication.ErrNotFound
+		return "", "", "", auth.ErrNotFound
 	}
 	return practAccount, "dr.example@example.test", a.language[practAccount], nil
 }
