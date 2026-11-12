@@ -8,7 +8,8 @@ import (
 
 func TestOf_IsKeyedAndStable(t *testing.T) {
 	a, b := []byte("synthetic key a"), []byte("synthetic key b")
-	if pseudonym.Of(a, "x") != pseudonym.Of(a, "x") {
+	first, again := pseudonym.Of(a, "x"), pseudonym.Of(a, "x")
+	if first != again {
 		t.Error("the same id and key give two pseudonyms")
 	}
 	if pseudonym.Of(a, "x") == pseudonym.Of(a, "y") || pseudonym.Of(a, "x") == pseudonym.Of(b, "x") {

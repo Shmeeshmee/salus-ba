@@ -62,7 +62,7 @@ func (h *CatalogHandler) groups(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]groupJSON, len(list))
 	for i, g := range list {
-		out[i] = groupJSON{Code: g.Code, Parent: g.Parent, Name: g.Name, ReviewStatus: g.ReviewStatus}
+		out[i] = groupJSON(g)
 	}
 	w.Header().Set("Cache-Control", "private, max-age=300")
 	httpx.JSON(w, http.StatusOK, map[string][]groupJSON{"groups": out})
@@ -80,7 +80,7 @@ func (h *CatalogHandler) places(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]placeJSON, len(list))
 	for i, p := range list {
-		out[i] = placeJSON{ID: p.ID, Kind: p.Kind, Parent: p.Parent, NameLatn: p.NameLatn, NameCyrl: p.NameCyrl}
+		out[i] = placeJSON(p)
 	}
 	w.Header().Set("Cache-Control", "private, max-age=300")
 	httpx.JSON(w, http.StatusOK, map[string][]placeJSON{"places": out})

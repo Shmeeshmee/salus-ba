@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type Dispatch } from 'react'
-import { SignRefused, TranscriptionDeclined, type ConsultActions, type ConsultMessage, type DocumentTerms, type DraftEvent, type DraftField, type Template } from './consult'
+import { DiagnosisUnconfirmed, SignRefused, TranscriptionDeclined, type ConsultActions, type ConsultMessage, type DocumentTerms, type DraftEvent, type DraftField, type Template } from './consult'
 import { useLanguage, useT } from './i18n/useT'
 import { TermTextLines } from './terminology/Explain'
 import { Alert, Confirm } from './ui'
@@ -20,7 +20,8 @@ type Asking = 'sign' | 'regenerate'
 // Documents drafts a clinic document during the call: pick a template, generate it from the transcript, read the
 // filled fields with their sources and the flags on what the conversation has not covered, edit, and sign. A
 // generation answers with the stored draft, which also comes on the live source (and again on every change); the
-// edits stay on this page until it is signed. A sign needs every required field filled.
+// edits stay on this page until it is signed. A sign needs every required field filled, and every filled coded field
+// (an ICD-10 diagnosis) confirmed by the practitioner: a code they typed counts as confirmed (SAL-19).
 export function Documents({ appointmentId, drafts, dispatch, actions, onSources }: Props) {
   const t = useT()
   const { language } = useLanguage()
@@ -34,6 +35,12 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
   const [refused, setRefused] = useState<string[]>([])
   // edits are the practitioner's field values by draft, then by field key, so no edit reaches another draft.
   const [edits, setEdits] = useState<Record<string, Record<string, string>>>({})
+  // confirmed are the practitioner's confirmations of coded fields by draft, then by field key.
+  const [confirmed, setConfirmed] = useState<Record<string, Record<string, boolean>>>({})
+  // unconfirmedAsked are the coded fields a blocked sign found unconfirmed, by key; unconfirmedRefused those a
+  // refused sign named, shown until the next sign.
+  const [unconfirmedAsked, setUnconfirmedAsked] = useState<string[]>([])
+  const [unconfirmedRefused, setUnconfirmedRefused] = useState<string[]>([])
   const [asking, setAsking] = useState<Asking>()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
@@ -63,7 +70,12 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
     setAsking(undefined)
     setError(undefined)
     setRefused([])
-    if (current) setEdits((e) => without(e, current.draft_id))
+    setUnconfirmedAsked([])
+    setUnconfirmedRefused([])
+    if (current) {
+      setEdits((e) => without(e, current.draft_id))
+      setConfirmed((c) => without(c, current.draft_id))
+    }
     setWaiting(template.id)
     try {
       const stored = await actions.generate(appointmentId, template.id, template.language)
@@ -78,11 +90,16 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
     setBusy(true)
     setError(undefined)
     try {
-      const signed = await actions.sign(d, d.fields.map((f) => ({ key: f.key, value: valueOf(d, f) })))
+      const values = d.fields.map((f) =>
+        coded.has(f.key) ? { key: f.key, value: valueOf(d, f), confirmed: confirmed[d.draft_id]?.[f.key] === true } : { key: f.key, value: valueOf(d, f) },
+      )
+      const signed = await actions.sign(d, values)
       dispatch({ type: 'draft', version: 1, payload: signed })
       setEdits((e) => without(e, d.draft_id))
+      setConfirmed((c) => without(c, d.draft_id))
     } catch (e) {
       if (e instanceof SignRefused) setRefused(e.keys)
+      else if (e instanceof DiagnosisUnconfirmed) setUnconfirmedRefused(e.keys)
       else setError(t('consultation.live.signFailed'))
     }
     setBusy(false)
@@ -97,11 +114,24 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
   // unfilled are the required fields of the draft still empty: they block a sign.
   const unfilled = new Set(draft?.fields.filter((f) => required.has(f.key) && blank(f)).map((f) => f.key))
   const shownUnfilled = new Set([...unfilled].filter((k) => refused.includes(k)))
+  const coded = new Set(template?.fields.filter((f) => f.type === 'coded').map((f) => f.key))
+  const isConfirmed = (key: string) => (draft && confirmed[draft.draft_id]?.[key]) === true
+  // unconfirmed are the filled coded fields of the draft not confirmed yet: they block a sign.
+  const unconfirmed = new Set(draft?.fields.filter((f) => coded.has(f.key) && !blank(f) && !isConfirmed(f.key)).map((f) => f.key))
+  const shownUnconfirmed = new Set([...[...unconfirmed].filter((k) => unconfirmedAsked.includes(k)), ...unconfirmedRefused])
 
   function ask(a: Asking | undefined) {
     if (a === 'sign' && unfilled.size > 0) {
       setRefused([...unfilled])
       return
+    }
+    if (a === 'sign' && unconfirmed.size > 0) {
+      setUnconfirmedAsked([...unconfirmed])
+      return
+    }
+    if (a === 'sign') {
+      setUnconfirmedAsked([])
+      setUnconfirmedRefused([])
     }
     if (a === 'regenerate' && Object.keys(own).length === 0) return void generate()
     setAsking(a)
@@ -125,7 +155,16 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
           </button>
         )}
       </div>
-      <Alert message={error ?? (shownUnfilled.size > 0 ? t('consultation.live.requiredEmpty', { count: shownUnfilled.size }) : undefined)} />
+      <Alert
+        message={
+          error ??
+          (shownUnfilled.size > 0
+            ? t('consultation.live.requiredEmpty', { count: shownUnfilled.size })
+            : shownUnconfirmed.size > 0
+              ? t('consultation.live.diagnosisUnconfirmed')
+              : undefined)
+        }
+      />
       {generating && (
         <p className="muted" role="status">
           {t('consultation.live.generating')}
@@ -141,8 +180,17 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
               field={f}
               label={labels.get(f.key) ?? f.key}
               edited={own[f.key]}
-              invalid={shownUnfilled.has(f.key)}
-              onEdit={(value) => setEdits((e) => ({ ...e, [draft.draft_id]: { ...e[draft.draft_id], [f.key]: value } }))}
+              invalid={shownUnfilled.has(f.key) || shownUnconfirmed.has(f.key)}
+              confirm={
+                coded.has(f.key) && !blank(f)
+                  ? { checked: isConfirmed(f.key), onChange: (v) => setConfirmed((c) => ({ ...c, [draft.draft_id]: { ...c[draft.draft_id], [f.key]: v } })) }
+                  : undefined
+              }
+              onEdit={(value) => {
+                setEdits((e) => ({ ...e, [draft.draft_id]: { ...e[draft.draft_id], [f.key]: value } }))
+                // A code the practitioner typed is theirs: confirmed.
+                if (coded.has(f.key)) setConfirmed((c) => ({ ...c, [draft.draft_id]: { ...c[draft.draft_id], [f.key]: true } }))
+              }}
               onSources={onSources}
             />
           ))}
@@ -161,7 +209,7 @@ export function Documents({ appointmentId, drafts, dispatch, actions, onSources 
 }
 
 // without is edits less one draft's.
-function without(edits: Record<string, Record<string, string>>, draftId: string) {
+function without<T>(edits: Record<string, Record<string, T>>, draftId: string) {
   const rest = { ...edits }
   delete rest[draftId]
   return rest
@@ -231,14 +279,16 @@ type FieldProps = {
   label: string
   edited?: string
   invalid: boolean
+  // confirm is the confirmation of a filled coded field (a diagnosis code); absent for any other field.
+  confirm?: { checked: boolean; onChange: (checked: boolean) => void }
   onEdit: (value: string) => void
   onSources: (ids: string[]) => void
 }
 
 // FieldEdit is one field of the draft. Once the practitioner types in it, its sources and its flag no longer
 // describe it, so both go.
-// invalid marks a required field a sign found empty.
-function FieldEdit({ field, label, edited, invalid, onEdit, onSources }: FieldProps) {
+// invalid marks a required field a sign found empty, or a diagnosis code it found unconfirmed.
+function FieldEdit({ field, label, edited, invalid, confirm, onEdit, onSources }: FieldProps) {
   const t = useT()
   const id = useId()
   const value = edited ?? field.value
@@ -255,6 +305,12 @@ function FieldEdit({ field, label, edited, invalid, onEdit, onSources }: FieldPr
         aria-describedby={missing ? `${id}-flag` : undefined}
         onChange={(e) => onEdit(e.target.value)}
       />
+      {confirm && (
+        <label className="confirm-code">
+          <input type="checkbox" checked={confirm.checked} onChange={(e) => confirm.onChange(e.target.checked)} />
+          {t('consultation.live.confirmDiagnosis')}
+        </label>
+      )}
       {missing && (
         <p className="flag" id={`${id}-flag`}>
           {t('consultation.live.missing')}

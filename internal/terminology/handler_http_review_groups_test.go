@@ -14,8 +14,8 @@ import (
 
 // stubGroupReviews is the GroupReviewService: fixed answers, what it was asked.
 type stubGroupReviews struct {
-	asked []string
 	err   error
+	asked []string
 }
 
 var stubName = terminology.GroupName{
@@ -80,18 +80,17 @@ func TestHTTPGroupReviews_MapsTheErrors(t *testing.T) {
 	t.Parallel()
 	put := "/terminology/diagnosis-groups/common-cold/names/en"
 	for name, tt := range map[string]struct {
-		err            error
-		body, ifMatch  string
-		want           int
-		method, target string
+		err                           error
+		body, ifMatch, method, target string
+		want                          int
 	}{
-		"no If-Match":     {nil, `{"text":"x"}`, "", http.StatusBadRequest, http.MethodPut, put},
-		"no text":         {nil, `{}`, `"1"`, http.StatusBadRequest, http.MethodPut, put},
-		"no status":       {nil, `{"note":"x"}`, `"1"`, http.StatusBadRequest, http.MethodPost, put + "/review"},
-		"not a reviewer":  {terminology.ErrForbidden, `{"text":"x"}`, `"1"`, http.StatusForbidden, http.MethodPut, put},
-		"a stale version": {terminology.ErrVersionConflict, `{"text":"x"}`, `"1"`, http.StatusPreconditionFailed, http.MethodPut, put},
-		"no such name":    {terminology.ErrNoGroupName, `{"text":"x"}`, `"1"`, http.StatusNotFound, http.MethodPut, put},
-		"a bad language":  {terminology.ErrInvalidReview, "", "", http.StatusBadRequest, http.MethodGet, "/terminology/review/diagnosis-groups?language=la"},
+		"no If-Match":     {nil, `{"text":"x"}`, "", http.MethodPut, put, http.StatusBadRequest},
+		"no text":         {nil, `{}`, `"1"`, http.MethodPut, put, http.StatusBadRequest},
+		"no status":       {nil, `{"note":"x"}`, `"1"`, http.MethodPost, put + "/review", http.StatusBadRequest},
+		"not a reviewer":  {terminology.ErrForbidden, `{"text":"x"}`, `"1"`, http.MethodPut, put, http.StatusForbidden},
+		"a stale version": {terminology.ErrVersionConflict, `{"text":"x"}`, `"1"`, http.MethodPut, put, http.StatusPreconditionFailed},
+		"no such name":    {terminology.ErrNoGroupName, `{"text":"x"}`, `"1"`, http.MethodPut, put, http.StatusNotFound},
+		"a bad language":  {terminology.ErrInvalidReview, "", "", http.MethodGet, "/terminology/review/diagnosis-groups?language=la", http.StatusBadRequest},
 	} {
 		if rec := serveGroupReviews(t, &stubGroupReviews{err: tt.err}, tt.method, tt.target, tt.body, tt.ifMatch); rec.Code != tt.want {
 			t.Errorf("%s = %d %s, want %d", name, rec.Code, rec.Body, tt.want)

@@ -13,9 +13,9 @@ import (
 
 // stubCatalog is the CatalogService: fixed answers, the caller and language it was asked with.
 type stubCatalog struct {
-	caller   terminology.Caller
-	language string
 	err      error
+	language string
+	caller   terminology.Caller
 }
 
 func (s *stubCatalog) GroupNames(_ context.Context, c terminology.Caller, language string) ([]terminology.GroupEntry, error) {

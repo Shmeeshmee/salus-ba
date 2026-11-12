@@ -521,7 +521,7 @@ func (r *postgresCatalogRepository) LockGroupName(ctx context.Context, group, la
 }
 
 func (r *postgresCatalogRepository) PutGroupName(ctx context.Context, group string, n GroupName, at time.Time) error {
-	by, ok := optionalUUID(n.Review.ReviewedBy)
+	by, ok := optionalUUID(n.ReviewedBy)
 	if !ok {
 		return ErrInvalidReview
 	}

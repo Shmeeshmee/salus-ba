@@ -12,10 +12,10 @@ import (
 
 // fakeRepo is the Repository: it keeps what it is given and answers Diagnoses with diagnoses.
 type fakeRepo struct {
-	inserted  []condition.Condition
-	diagnoses []condition.Diagnosis
 	asked     [3]any
 	err       error
+	inserted  []condition.Condition
+	diagnoses []condition.Diagnosis
 }
 
 func (f *fakeRepo) Insert(_ context.Context, cs []condition.Condition) error {

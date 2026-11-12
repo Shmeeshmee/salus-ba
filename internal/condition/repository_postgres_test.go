@@ -122,7 +122,7 @@ func TestRepository_TheClinicWritesOnlyItsOwn(t *testing.T) {
 	owner, app := pgtest.NewAppDatabase(t)
 	s := seedSigned(t, owner)
 	err := inClinic(t, app, "00000000-0000-4000-8000-0000000000ff", func(ctx context.Context) error {
-		return condition.NewPostgresRepository(app).Insert(ctx, []condition.Condition{s.condition("a", "J00", condition.VerificationConfirmed, time.Now())})
+		return condition.NewPostgresRepository(app).Insert(ctx, []condition.Condition{s.condition("a", "J00", condition.VerificationConfirmed, time.Date(2026, 11, 2, 9, 30, 0, 0, time.UTC))})
 	})
 	if err == nil {
 		t.Error("another clinic's scope wrote the Condition")

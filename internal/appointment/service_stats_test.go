@@ -13,8 +13,8 @@ import (
 
 // fakeStatsRepo answers Booked with its rows.
 type fakeStatsRepo struct {
-	rows []appointment.Booked
 	err  error
+	rows []appointment.Booked
 }
 
 func (f fakeStatsRepo) Booked(context.Context, string, time.Time, time.Time) ([]appointment.Booked, error) {
