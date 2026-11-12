@@ -35,9 +35,12 @@ const places = {
   ],
 }
 
-function renderSettings(routes: Record<string, Route>, language: Language = 'en') {
+function renderSettings(routes: Record<string, Route>, language: Language = 'en', platform = true) {
   const fake = fakeFetch({ 'GET /places': () => Response.json(places), ...routes })
-  renderInLanguage(<ClinicSettings api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} organizationId={id} />, language)
+  renderInLanguage(
+    <ClinicSettings api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} organizationId={id} platform={platform} />,
+    language,
+  )
   return fake
 }
 
@@ -281,6 +284,39 @@ describe("the clinic's location and its contribution to the platform figures", (
     await rename('Renamed clinic')
 
     expect((await screen.findByRole('alert')).textContent).toBe('Choose a city of the region.')
+  })
+
+  it('hides the opt-out and the location hint while the All of Salus view is off', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(located) }, 'en', false)
+
+    expect(await screen.findByLabelText('Region')).toBeTruthy()
+    expect(screen.queryByLabelText('Contribute to the All of Salus figures')).toBeNull()
+    expect(screen.queryByText(/The All of Salus figures group clinics/)).toBeNull()
+  })
+
+  it('refuses to save a region without a city', async () => {
+    const { requests } = renderSettings({ [`GET ${path}`]: () => fhirJSON(located) })
+
+    await vi.waitFor(() => expect((screen.getByLabelText('Region') as HTMLSelectElement).value).toBe('BA-09'))
+    fireEvent.change(screen.getByLabelText('Region'), { target: { value: 'BA-SRP' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Choose a city of the region.')
+    expect(requests.filter((r) => r.method === 'PUT')).toHaveLength(0)
+  })
+
+  it('does not offer to clear a location once set', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(located) })
+
+    await vi.waitFor(() => expect((screen.getByLabelText('Region') as HTMLSelectElement).value).toBe('BA-09'))
+    const none = [...(screen.getByLabelText('Region') as HTMLSelectElement).options].find((o) => o.value === '')!
+    expect(none.disabled).toBe(true)
+  })
+
+  it('says when the regions and cities cannot be loaded', async () => {
+    renderSettings({ 'GET /places': () => new Response(null, { status: 500 }), [`GET ${path}`]: () => fhirJSON(located) })
+
+    expect((await screen.findByRole('alert')).textContent).toBe('The regions and cities could not be loaded. Reload the page to try again.')
   })
 
   it('is in Serbian Cyrillic', async () => {

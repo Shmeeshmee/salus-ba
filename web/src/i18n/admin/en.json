@@ -26,6 +26,7 @@
   "inviteForbidden": "Only a clinic admin can send invites.",
   "clinicSettings": "Clinic settings",
   "clinicLoadFailed": "The clinic could not be loaded. Reload the page to try again.",
+  "placesLoadFailed": "The regions and cities could not be loaded. Reload the page to try again.",
   "clinicName": "Clinic name",
   "timeZone": "Time zone",
   "timeZoneHint": "Appointments and working hours are shown in this time zone.",

@@ -1858,8 +1858,14 @@ of Conditions or appointments read. Build logs carry the period and counts of ce
 only (A13).
 
 **Retention.** `trends_cell` and `trends_rise`: deleted five years after their build (retention rule, purged by
-`salus_retention`); the period row stays, so a period is never built again. `organization`'s new columns: with the
-clinic.
+`salus_retention`); the period row stays, so a period is never built again, and is no longer listed once its cells
+are gone. `organization`'s new columns: with the clinic. While L3 is open, `trends_cell` and `trends_rise` are marked
+`personal_data: true` in `docs/architecture/archcheck/ownership.yaml`: the safe choice, so they keep a retention rule
+and count as personal data until the lawyer says the output is anonymous.
+
+**Pending L3.** The Clinic settings copy calls the figures "anonymized" (`admin.contributes`, `admin.contributesHint`,
+tagged `legal`): the wording waits for L3 and the owner's approval. Until the view is on, the opt-out and the
+location hint are not shown.
 
 **Risks and measures.**
 

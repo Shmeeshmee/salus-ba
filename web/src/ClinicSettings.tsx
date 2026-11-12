@@ -17,7 +17,19 @@ type Place = components['schemas']['Place']
 // ClinicSettings reads the clinic's Organization and saves its name, time zone, default language, whether it is
 // listed in the patient app, whether its patients get a copy of their transcripts, its location (a region and a
 // city of GET /places) and whether it contributes to the All of Salus figures, with If-Match on the version read.
-export function ClinicSettings({ api, fhir, organizationId }: { api: ApiClient; fhir: FhirClient; organizationId: string }) {
+// platform is whether the All of Salus view is on (GET /auth/me features): off, the opt-out and the location hint,
+// which speak of that view, are not shown (docs/plans/analytics.md §2a).
+export function ClinicSettings({
+  api,
+  fhir,
+  organizationId,
+  platform,
+}: {
+  api: ApiClient
+  fhir: FhirClient
+  organizationId: string
+  platform: boolean
+}) {
   const t = useT()
   const { state: places } = useLoad(async () => {
     const res = await attempt(api.GET('/places'))
@@ -48,11 +60,13 @@ export function ClinicSettings({ api, fhir, organizationId }: { api: ApiClient; 
       <h1>{t('admin.clinicSettings')}</h1>
       {load.name === 'loading' && <p className="muted">{t('common.loading')}</p>}
       {load.name === 'failed' && <Alert message={t('admin.clinicLoadFailed')} />}
+      {load.name === 'loaded' && places.name === 'failed' && <Alert message={t('admin.placesLoadFailed')} />}
       {load.name === 'loaded' && (
         <SettingsForm
           key={reads}
           org={load.org}
           places={places.name === 'loaded' ? places.value : []}
+          platform={platform}
           save={(s) => fhir.put<Organization>(`Organization/${encodeURIComponent(load.org.id)}`, withSettings(load.org, s), load.org.meta.versionId)}
           onSaved={(org) => setLoad({ name: 'loaded', org })}
           onReload={reload}
@@ -65,19 +79,22 @@ export function ClinicSettings({ api, fhir, organizationId }: { api: ApiClient; 
 type SettingsFormProps = {
   org: Organization
   places: Place[]
+  platform: boolean
   save: (s: Settings) => Promise<Organization>
   onSaved: (org: Organization) => void
   onReload: () => void
 }
 
-function SettingsForm({ org, places, save, onSaved, onReload }: SettingsFormProps) {
+function SettingsForm({ org, places, platform, save, onSaved, onReload }: SettingsFormProps) {
   const t = useT()
   const [settings, setSettings] = useState(settingsOf(org))
   const [saved, setSaved] = useState(false)
   const [conflict, setConflict] = useState(false)
+  const located = settingsOf(org).city !== ''
   const { busy, error, onSubmit } = useSubmit(async () => {
     setSaved(false)
     setConflict(false)
+    if (settings.region !== '' && settings.city === '') return t('admin.invalidLocation')
     try {
       onSaved(await save(settings))
       setSaved(true)
@@ -148,22 +165,24 @@ function SettingsForm({ org, places, save, onSaved, onReload }: SettingsFormProp
           </p>
         </div>
       </div>
-      <Location places={places} settings={settings} change={change} />
-      <div className="check">
-        <input
-          id="contributes"
-          type="checkbox"
-          checked={settings.contributes}
-          onChange={(e) => change({ contributes: e.target.checked })}
-          aria-describedby="contributes-hint"
-        />
-        <div className="stack">
-          <label htmlFor="contributes">{t('admin.contributes')}</label>
-          <p className="hint" id="contributes-hint">
-            {t('admin.contributesHint')}
-          </p>
+      <Location places={places} settings={settings} change={change} located={located} hint={platform} />
+      {platform && (
+        <div className="check">
+          <input
+            id="contributes"
+            type="checkbox"
+            checked={settings.contributes}
+            onChange={(e) => change({ contributes: e.target.checked })}
+            aria-describedby="contributes-hint"
+          />
+          <div className="stack">
+            <label htmlFor="contributes">{t('admin.contributes')}</label>
+            <p className="hint" id="contributes-hint">
+              {t('admin.contributesHint')}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
       <Alert message={error} />
       {saved && <Notice message={t('admin.saved')} />}
       <div className="actions">
@@ -178,8 +197,17 @@ function SettingsForm({ org, places, save, onSaved, onReload }: SettingsFormProp
   )
 }
 
-// Location is the clinic's region and a city of it, chosen from the places; a new region clears the city.
-function Location({ places, settings, change }: { places: Place[]; settings: Settings; change: (next: Partial<Settings>) => void }) {
+type LocationProps = {
+  places: Place[]
+  settings: Settings
+  change: (next: Partial<Settings>) => void
+  located: boolean
+  hint: boolean
+}
+
+// Location is the clinic's region and a city of it, chosen from the places; a new region clears the city. A location
+// once saved can be changed, not cleared; hint shows what the All of Salus view does with it.
+function Location({ places, settings, change, located, hint }: LocationProps) {
   const t = useT()
   const name = useLanguage().language === 'sr-Cyrl' ? (p: Place) => p.nameCyrl : (p: Place) => p.nameLatn
   const byName = (a: Place, b: Place) => name(a).localeCompare(name(b))
@@ -193,18 +221,22 @@ function Location({ places, settings, change }: { places: Place[]; settings: Set
           id="region"
           value={settings.region}
           onChange={(e) => change({ region: e.target.value, city: '', cityName: '' })}
-          aria-describedby="location-hint"
+          aria-describedby={hint ? 'location-hint' : undefined}
         >
-          <option value="">{t('admin.chooseRegion')}</option>
+          <option value="" disabled={located}>
+            {t('admin.chooseRegion')}
+          </option>
           {regions.map((p) => (
             <option key={p.id} value={p.id}>
               {name(p)}
             </option>
           ))}
         </select>
-        <p className="hint" id="location-hint">
-          {t('admin.locationHint')}
-        </p>
+        {hint && (
+          <p className="hint" id="location-hint">
+            {t('admin.locationHint')}
+          </p>
+        )}
       </div>
       <div className="field">
         <label htmlFor="city">{t('admin.city')}</label>
