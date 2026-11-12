@@ -157,8 +157,8 @@ func (a *fakeAuditor) Record(_ context.Context, e auditevent.AuditEvent) error {
 // fakeConsents is consent.Service.State: the given state, whatever is asked.
 type fakeConsents struct {
 	err   error
-	args  []string
 	state access.Consent
+	args  []string
 }
 
 func (f *fakeConsents) State(_ context.Context, patientID, organizationID string) (access.Consent, error) {
@@ -431,12 +431,12 @@ func TestRead_GivesStaffTheProfileOnlyAtFullAccessAndAuditsIt(t *testing.T) {
 	past := access.Visit{PractitionerRole: roleA, Start: revokedAt.Add(-24 * time.Hour)}
 	future := access.Visit{PractitionerRole: roleA, Start: now.Add(24 * time.Hour)}
 	tests := []struct {
+		consent access.Consent
 		name    string
 		id      string
 		visits  []access.Visit
 		calls   []string
 		caller  patient.Caller
-		consent access.Consent
 		want    bool // the profile is returned
 	}{
 		{name: "practitioner, active consent, an appointment with them", caller: practitioner, id: patientA,

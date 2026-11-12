@@ -9,6 +9,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
+	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 )
@@ -47,6 +48,9 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 			river.NewPeriodicJob(river.PeriodicInterval(slotsInterval), func() (river.JobArgs, *river.InsertOpts) {
 				return schedule.SlotsGenerateArgs{}, nil
 			}, &river.PeriodicJobOpts{RunOnStart: true}),
+			river.NewPeriodicJob(clinicStatsAt, func() (river.JobArgs, *river.InsertOpts) {
+				return clinicstats.NightlyArgs{}, nil
+			}, nil),
 			// Also when it starts leading: a deploy near a month's end must not wait for the next day.
 			river.NewPeriodicJob(dailyAt{hour: chatPartitionsHour}, func() (river.JobArgs, *river.InsertOpts) {
 				return communication.PartitionsArgs{}, nil
@@ -57,13 +61,13 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 	})
 }
 
-// dailyAt is a River schedule that fires every day at hour:00 UTC.
-type dailyAt struct{ hour int }
+// dailyAt is a River schedule that fires every day at hour:minute UTC.
+type dailyAt struct{ hour, minute int }
 
-// Next returns the first hour:00 UTC strictly after t.
+// Next returns the first hour:minute UTC strictly after t.
 func (d dailyAt) Next(t time.Time) time.Time {
 	t = t.UTC()
-	next := time.Date(t.Year(), t.Month(), t.Day(), d.hour, 0, 0, 0, time.UTC)
+	next := time.Date(t.Year(), t.Month(), t.Day(), d.hour, d.minute, 0, 0, time.UTC)
 	if !next.After(t) {
 		next = next.AddDate(0, 0, 1)
 	}

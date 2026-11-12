@@ -251,21 +251,19 @@ func TestRules_KeepTheReviewerPermissionWhileGranted(t *testing.T) {
 	t.Error("no rule for term_reviewer")
 }
 
-// The patient history's tables (00043, ADR 0014) are kept with the clinical record: allergies and medications as
-// part of it (a patient's own unconfirmed entry is deleted when they remove it, by the service, not by this rule),
-// the history consent and its selections as proof of what was shared when (Art. 7(1)).
-func TestRules_KeepThePatientHistoryWithTheClinicalRecord(t *testing.T) {
-	want := map[string]bool{"allergy_intolerance": true, "medication_statement": true, "history_consent": true, "history_consent_encounter": true}
+// The clinic's statistics are counts recomputed from appointment and condition, both kept with the clinical record:
+// they are kept as long (docs/plans/analytics.md §7).
+func TestRules_KeepTheClinicStatisticsWithTheirSources(t *testing.T) {
+	found := 0
 	for _, r := range retention.Rules() {
-		if !want[r.Table] {
-			continue
+		if r.Table == "clinic_appointment_stat" || r.Table == "clinic_diagnosis_stat" {
+			found++
+			if r.Then != retention.ThenKeep {
+				t.Errorf("%s then %q, want %q like its sources", r.Table, r.Then, retention.ThenKeep)
+			}
 		}
-		if r.Then != retention.ThenKeep {
-			t.Errorf("%s then %q, want %q", r.Table, r.Then, retention.ThenKeep)
-		}
-		delete(want, r.Table)
 	}
-	for table := range want {
-		t.Errorf("no rule for %s", table)
+	if found != 2 {
+		t.Errorf("%d rules for the clinic statistics, want 2", found)
 	}
 }

@@ -126,24 +126,11 @@ func (r *postgresRepository) State(ctx context.Context, patientID, organizationI
 	if p.Scan(patientID) != nil || o.Scan(organizationID) != nil {
 		return access.Consent{}, nil
 	}
-	q := consentdb.New(postgres.Conn(ctx, r.db))
-	row, err := q.ConsentState(ctx, consentdb.ConsentStateParams{PatientID: p, OrganizationID: o})
+	row, err := consentdb.New(postgres.Conn(ctx, r.db)).ConsentState(ctx, consentdb.ConsentStateParams{PatientID: p, OrganizationID: o})
 	if err != nil {
 		return access.Consent{}, err
 	}
-	st := access.Consent{Active: row.Active, RevokedAt: row.RevokedAt.Time, Transcription: row.Transcription, History: row.History}
-	if !st.History {
-		return st, nil
-	}
-	shared, err := q.HistoryShared(ctx, consentdb.HistorySharedParams{PatientID: p, OrganizationID: o})
-	if err != nil {
-		return access.Consent{}, err
-	}
-	st.Shared = make([]string, 0, len(shared))
-	for _, e := range shared {
-		st.Shared = append(st.Shared, e.String())
-	}
-	return st, nil
+	return access.Consent{Active: row.Active, RevokedAt: row.RevokedAt.Time, Transcription: row.Transcription}, nil
 }
 
 // toConsent maps a row of kind to the model, and no row to noRows.

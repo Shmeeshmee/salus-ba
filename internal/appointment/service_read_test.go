@@ -36,9 +36,9 @@ func TestRead_GivesStaffWhatAccessAllows(t *testing.T) {
 	revoked := now.Add(-time.Minute)
 	tests := []struct {
 		at      time.Time
+		consent access.Consent
 		name    string
 		caller  appointment.Caller
-		consent access.Consent
 		level   access.Level
 	}{
 		{name: "the practitioner, with consent", caller: pract, at: start, consent: access.Consent{Active: true}, level: access.Full},

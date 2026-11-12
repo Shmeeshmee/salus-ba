@@ -1735,34 +1735,41 @@ as the other clinical tables).
 | The aggregate builds reading identities | `salus_stats` has column grants on the source columns only (tested); patients are pseudonymised per build |
 | WHO or national-edition text used without a licence | Codes only, as identifiers; group names are our own (ADR 0013) |
 
-## Patient history (`docs/plans/patient-history.md`, ADR 0014)
+### SAL-20: the clinic's own statistics
 
-### Step 0: the contract (migration 00043)
+**Processing added.** `clinic_appointment_stat` and `clinic_diagnosis_stat`: counts per clinic, local day and hour,
+practitioner role and its specialty, and appointment status or diagnosis group, subgroup and ICD-10 code. No patient
+identifier is stored, read or pseudonymised: the builds ask the sources without a key. The counts are personal data
+of the practitioners (their workload and the diagnoses they recorded). Computed by the `clinicstats_refresh` job (a
+clinic-day, enqueued in the transaction of every appointment write and every signature with a diagnosis, with the
+clinic's id and an instant only) and the nightly `clinicstats_nightly` job, as `salus_stats`, which `cmd/worker` now
+logs in as (`STATS_DATABASE_URL`).
 
-**Processing added.** The patient's allergies and current medications in their profile (FHIR AllergyIntolerance,
-MedicationStatement), and a third consent, the history consent, by which the patient shares chosen visits of theirs
-at other clinics with one clinic. Lawful basis: care (Art. 9(2)(h)) for the profile, as for the rest of the record;
-the patient's explicit consent for sharing across clinics, granular per visit, off by default, revocable at once. No
-processor is added; nothing of the history goes to a language model.
+**Purpose and lawful basis.** The management of the clinic's health-care services, on the clinic's behalf as
+controller, Salus as processor (Art. 9(2)(h)). Not used for the platform figures (those are built from the sources,
+SAL-21), for marketing, profiling or model training.
 
-**Personal data added.** The four tables of the plan's "Personal data" section, all health data, all kept with the
-clinical record (retention `keep`, needs a legal decision before production). A patient's own unconfirmed entry is
-deleted when they remove it; anything confirmed or recorded by a clinic is kept as entered-in-error.
+**Necessity and minimisation.** Only counts; no age, sex, residence or free text. Only confirmed diagnoses count.
 
-**Who sees what.** ADR 0014 "Access model": the patient their whole history; a practitioner only the visits they
-held themselves at their clinic and the visits the patient shared with that clinic; the profile where the care
-consent and an appointment allow it (as the profile today); a clinic's entry only where its visit is seen; which
-clinic recorded or confirmed an entry only to the patient and that clinic. Row-level security says the same in the
-clinic's scope (tested per scope and table); the service rule (`access.HistoryVisit`) narrows it to the
-practitioner. Every read, grant, change and revocation is audited.
+**Access.** Only the clinic's staff, in the service (rules C1 to C3, plan §4): the admin sees everything of their
+clinic, the breakdown per practitioner included; a practitioner who is not an admin sees the clinic's appointment
+figures (or their own role's) and only their own role's diagnoses; anyone else is refused. Row-level security by
+clinic on both tables (one clinic's scope reads none of another's rows, tested); only `salus_stats` writes them
+(insert and delete; tested in migration 00043).
+
+**Audit.** Every read and every refusal writes an AuditEvent on `Organization/<clinic>`, purpose `HOPERAT`
+(v3-ActReason has no code for statistics), in the read's transaction. The builds are not audited: they read and write
+counts only, on behalf of no one.
+
+**Retention.** Kept as long as their sources (appointment and condition, with the clinical record) and recomputed
+from them; a refresh replaces its days. When erasure and restriction are built (`datarequest`), they enqueue the
+refresh of the affected days.
 
 **Risks and measures.**
 
 | Risk | Measure |
 | --- | --- |
-| A visit the patient did not tick reaches the doctor | It is never selected: `history_shared` and the `*_shared` policies open only listed visits, `access.HistoryVisit` refuses the rest before anything is listed, counted, searched or summarised (migration and access tests; service tests in SAL-40) |
-| A removal or revocation that does not take effect at once | Both end access when their transaction commits, in row-level security and in the rule, which read the current state (tests); revoking the care consent revokes the history consent too |
-| A doctor's entry in the profile tells another clinic where the patient was treated | Doctor entries belong to their visit (ADR 0014 decision 4); the patient adds one to the profile only on purpose, and then it shows no clinic, no practitioner and no visit (`access.Attributed`, FHIR golden files) |
-| The patient shares another patient's visit, or one of the receiving clinic's own, or one still in progress | Refused by the insert check of `history_consent_encounter` as well as the service |
-| A shared visit exposes more than its record | Only the encounter, signed documents, completed answers and their clean files, and the entries recorded in it; never the transcript, suggestions, drafts or appointment (policy tests) |
-| History reaches the language model | Not in this epic: suggestions and drafting read only the consultation's transcript (SAL-42 adds the test) |
+| A practitioner learning about patients outside their care through the clinic's diagnosis totals | C2: their own role's diagnoses only, another role's refused (tested per role) |
+| Small counts singling out a patient within the clinic | The figures stay inside the clinic that holds the records; no count leaves it (the platform view is SAL-21's, with its own suppression) |
+| Per-practitioner workload as employee monitoring | Admins only; open question L5 for the owner's lawyer before production |
+| Stale or lost counts | The nightly pass recomputes the last 35 days of every clinic; the refresh is idempotent (tested) |

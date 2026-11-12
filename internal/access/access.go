@@ -59,13 +59,9 @@ type Viewer struct {
 
 // Consent is the state of the patient's consents with one clinic.
 type Consent struct {
-	RevokedAt time.Time // the latest revocation of the care consent; zero when none was ever revoked
-	// Shared is the encounters the history consent lists (share chosen visits from other clinics with this one,
-	// ADR 0014); empty unless History.
-	Shared        []string
-	Active        bool // the care consent is active
-	Transcription bool // the transcription consent (transcription, translation, AI assistance) is active
-	History       bool // the history consent is active
+	RevokedAt     time.Time // the latest revocation of the care consent; zero when none was ever revoked
+	Active        bool      // the care consent is active
+	Transcription bool      // the transcription consent (transcription, translation, AI assistance) is active
 }
 
 // Visit is one of the patient's appointments in the clinic, of any status.
@@ -76,10 +72,10 @@ type Visit struct {
 
 // Facts are what is known about one patient in one clinic.
 type Facts struct {
+	Consent Consent
 	Patient string
 	Clinic  string  // the clinic the consent and the visits are about
 	Visits  []Visit // the patient's appointments in Clinic
-	Consent Consent
 }
 
 // Profile is what viewer may see of the patient's profile: the patient themselves everything; with an active

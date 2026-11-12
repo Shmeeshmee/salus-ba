@@ -1,9 +1,6 @@
 package retention
 
-import (
-	"slices"
-	"time"
-)
+import "time"
 
 // day is a calendar day for retention periods; a period in days is rounded up so it is never short.
 const day = 24 * time.Hour
@@ -93,7 +90,20 @@ func Rules() []Rule {
 			Keep:  day, // after scanned_at of a rejected row; after an object's last write
 			Then:  ThenDelete,
 		},
-	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), historyRules())...)
+	}, append(append(append(consultIntelligenceRules(), termReviewRules()...), chatRules()...), clinicStatsRules()...)...)
+}
+
+// clinicStatsRules are the rules of the clinic's own statistics (docs/plans/analytics.md §4, §7): counts with no
+// patient identifier, but the practitioners' workload and diagnoses, recomputed from appointment and condition.
+func clinicStatsRules() []Rule {
+	basis := "The management of the clinic's health-care services, on its behalf (GDPR Art. 9(2)(h)): counts per day, hour, " +
+		"practitioner role and code with no patient identifier, recomputed from appointment and condition and kept as long " +
+		"as they are (with the clinical record); a refresh of a day replaces its rows; needs a legal decision before " +
+		"production (docs/plans/analytics.md §7, L5)"
+	return []Rule{
+		{Table: "clinic_appointment_stat", Basis: basis, Then: ThenKeep},
+		{Table: "clinic_diagnosis_stat", Basis: basis, Then: ThenKeep},
+	}
 }
 
 // chatRules are the rules of the chat between the patient and their clinic's doctors (docs/plans/chat.md, SAL-27):
@@ -157,34 +167,6 @@ func consultIntelligenceRules() []Rule {
 		{
 			Table: "document_draft",
 			Basis: "The document the practitioner writes about the patient during the consultation (GDPR Art. 9(2)(h)); kept with the clinical record, a discarded one as entered-in-error; needs a legal decision before production (docs/plans/consult-intelligence.md, \"Personal data\")",
-			Then:  ThenKeep,
-		},
-	}
-}
-
-// historyRules are the rules of the patient history's tables (00043, docs/plans/patient-history.md, ADR 0014): the
-// allergies and medications are part of the clinical record, the history consent and its selections the proof of
-// what the patient shared with whom and when.
-func historyRules() []Rule {
-	return []Rule{
-		{
-			Table: "allergy_intolerance",
-			Basis: "The patient's allergies, safety-critical for their care (GDPR Art. 9(2)(h)); kept with the clinical record, a mistaken entry as entered-in-error, and the patient's own unconfirmed entry deleted when they remove it; needs a legal decision before production (docs/plans/patient-history.md, \"Personal data\")",
-			Then:  ThenKeep,
-		},
-		{
-			Table: "medication_statement",
-			Basis: "The patient's current medications, for their care (GDPR Art. 9(2)(h)); kept as allergy_intolerance is; needs a legal decision before production (docs/plans/patient-history.md, \"Personal data\")",
-			Then:  ThenKeep,
-		},
-		{
-			Table: "history_consent",
-			Basis: "Proof of the patient's decision to share visits from other clinics with a clinic (GDPR Art. 7(1)), kept with the clinical record like consent (Art. 9(2)(h)); needs a legal decision before production (docs/plans/patient-history.md)",
-			Then:  ThenKeep,
-		},
-		{
-			Table: "history_consent_encounter",
-			Basis: "Proof of which visits the patient shared with the clinic and when (GDPR Art. 7(1)), kept with its history consent; needs a legal decision before production (docs/plans/patient-history.md)",
 			Then:  ThenKeep,
 		},
 	}

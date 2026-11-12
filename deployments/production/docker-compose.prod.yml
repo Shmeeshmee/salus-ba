@@ -152,6 +152,8 @@ services:
       CLAMD_ADDR: clamd:3310
       # The retention_apply job's own login (BYPASSRLS, delete on the tables whose rule is delete). Only here.
       RETENTION_DATABASE_URL: postgres://salus_retention:${RETENTION_DATABASE_PASSWORD}@postgres:5432/salus?sslmode=disable
+      # The clinic statistics' builds' own login (ADR 0013: BYPASSRLS, the source columns only). Only here.
+      STATS_DATABASE_URL: postgres://salus_stats:${STATS_DATABASE_PASSWORD}@postgres:5432/salus?sslmode=disable
     secrets: [binary_kek]
     depends_on:
       <<: *app-deps

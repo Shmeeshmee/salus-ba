@@ -21,6 +21,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/retention"
@@ -46,11 +47,15 @@ func (noopWorker) Work(context.Context, *river.Job[NoopArgs]) error { return nil
 
 // New returns the River client cmd/worker runs: it works the default queue and the scan queue on pool, the
 // salus_app login. retentionPool, the salus_retention login (RETENTION_DATABASE_URL), goes to the
-// retention_apply job's purgers and nowhere else; provider, the video server, to the consultation's jobs; files
-// to the binary jobs and binary's purger.
-func New(pool, retentionPool *pgxpool.Pool, provider videosession.Provider, files Files, log *slog.Logger) (*river.Client[pgx.Tx], error) {
+// retention_apply job's purgers and nowhere else; statsPool, the salus_stats login (STATS_DATABASE_URL), to the
+// clinic statistics' builds; provider, the video server, to the consultation's jobs; files to the binary jobs
+// and binary's purger.
+func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Provider, files Files, log *slog.Logger) (*river.Client[pgx.Tx], error) {
 	if retentionPool == nil {
 		return nil, errors.New("worker: the retention_apply job needs the retention role's pool")
+	}
+	if statsPool == nil {
+		return nil, errors.New("worker: the clinic statistics' jobs need the stats role's pool")
 	}
 	if provider == nil {
 		return nil, errors.New("worker: the consultation's jobs need the video provider")
@@ -70,8 +75,9 @@ func New(pool, retentionPool *pgxpool.Pool, provider videosession.Provider, file
 	workers := river.NewWorkers()
 	addDefaultWorkers(workers, defaultServices{
 		rules: rules, slots: newSlots(pool, clock.System{}), appointments: newRevocations(pool, inserter, clock.System{}),
-		sessions: newSessions(pool, provider, clock.System{}), responses: responses,
+		sessions: newSessions(pool, provider, inserter, clock.System{}), responses: responses,
 		files: newFiles(pool, files, responses, clock.System{}), chat: newChatPartitions(pool, clock.System{}),
+		clinicStats: newClinicStats(statsPool, clock.System{}),
 	}, log)
 	cfg := workConfig(log, river.QueueDefault, workers)
 	cfg.Queues = workerQueues()
@@ -92,6 +98,7 @@ type defaultServices struct {
 	responses    *questionnaireresponse.Service
 	files        *binary.Service
 	chat         *communication.Service
+	clinicStats  *clinicstats.Builder
 }
 
 // addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with no services:
@@ -109,6 +116,8 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &questionnaireDiscardWorker{responses: s.responses, log: log})
 	river.AddWorker(workers, &binaryScanWorker{files: s.files, clock: clock.System{}, log: log})
 	river.AddWorker(workers, &binaryDiscardWorker{files: s.files, log: log})
+	river.AddWorker(workers, &clinicStatsRefreshWorker{builds: s.clinicStats})
+	river.AddWorker(workers, &clinicStatsNightlyWorker{builds: s.clinicStats})
 }
 
 // workConfig is the configuration of a client that works queue with workers and never leads.

@@ -720,11 +720,11 @@ func TestLoad_NeverReadsTheStatsRolesCredentials(t *testing.T) {
 	}
 }
 
-// Only cmd/migrate (to set the role's password) calls LoadStats until the aggregate builds land in cmd/worker
-// (docs/plans/analytics.md, ANA-2 and ANA-3), and no other Go file reads the variables.
-func TestLoadStats_IsCalledOnlyByMigrate(t *testing.T) {
+// Only cmd/migrate (to set the role's password) and cmd/worker (the aggregate builds' pool) call LoadStats, and only
+// config.go names the variables (docs/plans/analytics.md, ADR 0013).
+func TestLoadStats_IsCalledOnlyByMigrateAndWorker(t *testing.T) {
 	callers, readers := goFilesContaining(t, "config.LoadStats(", `Getenv("STATS_DATABASE_`)
-	if want := []string{"cmd/migrate/main.go"}; !slices.Equal(callers, want) {
+	if want := []string{"cmd/migrate/main.go", "cmd/worker/main.go"}; !slices.Equal(callers, want) {
 		t.Errorf("LoadStats is called by %v, want %v", callers, want)
 	}
 	if want := []string{"internal/config/config.go"}; !slices.Equal(readers, want) {
