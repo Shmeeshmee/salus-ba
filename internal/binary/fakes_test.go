@@ -286,6 +286,20 @@ func (r *fakeRepository) OfMessages(ctx context.Context, conversationIDs, messag
 	return out, r.err
 }
 
+func (r *fakeRepository) PendingChat(ctx context.Context, conversationID, participantID string) (int64, error) {
+	if err := inTx(ctx); err != nil {
+		return 0, err
+	}
+	var n int64
+	for _, b := range r.files {
+		if r.conversation == conversationID && b.ConversationID == conversationID && b.ParticipantID == participantID && b.MessageID == "" &&
+			b.Status != binary.StatusRejected {
+			n++
+		}
+	}
+	return n, r.err
+}
+
 func (r *fakeRepository) SetThumbnail(ctx context.Context, id string, t binary.Thumbnail, at time.Time) (bool, error) {
 	if err := inTx(ctx); err != nil {
 		return false, err

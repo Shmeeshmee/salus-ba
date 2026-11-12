@@ -38,7 +38,8 @@ const entityBinary = "binary"
 // pipeline (docs/plans/chat.md, SAL-30): who may write in the conversation may upload (enter, before a byte is
 // read, and again in the transaction that stores the file, so a revocation meanwhile refuses it); the file is
 // quarantined until its scan, and audited as created. binary's refusals (ErrLengthRequired, ErrTooLarge,
-// ErrUnsupportedType, ErrShortBody) are audited too, as a refused creation in the patient's chat.
+// ErrUnsupportedType, ErrShortBody, and ErrTooManyFiles past binary.MaxPendingChat files waiting for a message) are
+// audited too, as a refused creation in the patient's chat.
 func (s *Service) Upload(ctx context.Context, c Caller, id string, in Upload) (Attachment, error) {
 	var e entered
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
@@ -73,7 +74,7 @@ func (s *Service) Upload(ctx context.Context, c Caller, id string, in Upload) (A
 
 // fileRefusal is whether err is binary's refusal of an upload's bytes.
 func fileRefusal(err error) bool {
-	for _, r := range []error{binary.ErrLengthRequired, binary.ErrTooLarge, binary.ErrUnsupportedType, binary.ErrShortBody} {
+	for _, r := range []error{binary.ErrLengthRequired, binary.ErrTooLarge, binary.ErrUnsupportedType, binary.ErrShortBody, binary.ErrTooManyFiles} {
 		if errors.Is(err, r) {
 			return true
 		}

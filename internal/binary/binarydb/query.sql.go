@@ -430,6 +430,16 @@ func (q *Queries) InsertBinary(ctx context.Context, arg InsertBinaryParams) (Bin
 	return i, err
 }
 
+const lockChatUploads = `-- name: LockChatUploads :exec
+SELECT pg_advisory_xact_lock(hashtextextended('binary-chat:' || $1::text, 0))
+`
+
+// A participant's uploads count their files and insert one after the other, until the transaction ends.
+func (q *Queries) LockChatUploads(ctx context.Context, conversationParticipantID string) error {
+	_, err := q.db.Exec(ctx, lockChatUploads, conversationParticipantID)
+	return err
+}
+
 const lockResponseBinaries = `-- name: LockResponseBinaries :exec
 SELECT pg_advisory_xact_lock(hashtextextended('binary:' || $1::text, 0))
 `
@@ -461,6 +471,25 @@ func (q *Queries) MarkBinaryScanned(ctx context.Context, arg MarkBinaryScannedPa
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const pendingChatBinaries = `-- name: PendingChatBinaries :one
+SELECT count(*) FROM "binary"
+WHERE conversation_id = $1 AND conversation_participant_id = $2
+  AND communication_id IS NULL AND status <> 'rejected'
+`
+
+type PendingChatBinariesParams struct {
+	ConversationID            pgtype.UUID
+	ConversationParticipantID pgtype.UUID
+}
+
+// The participant's files of the conversation waiting for a message: neither attached nor rejected.
+func (q *Queries) PendingChatBinaries(ctx context.Context, arg PendingChatBinariesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, pendingChatBinaries, arg.ConversationID, arg.ConversationParticipantID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const responseBinarySize = `-- name: ResponseBinarySize :one

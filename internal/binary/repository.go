@@ -66,6 +66,9 @@ type Repository interface {
 	// AttachToMessage attaches to the message those of the files that the participant uploaded to the conversation
 	// and that are neither attached nor rejected, at at, and returns them.
 	AttachToMessage(ctx context.Context, m MessageFiles, at time.Time) ([]Binary, error)
+	// PendingChat serialises the participant's uploads until the transaction ends (an advisory lock) and counts
+	// their files of the conversation that are neither attached nor rejected.
+	PendingChat(ctx context.Context, conversationID, participantID string) (int64, error)
 	// OfMessages returns the files of the messages of the conversations, as the scope shows them, oldest first.
 	OfMessages(ctx context.Context, conversationIDs, messageIDs []string) ([]Binary, error)
 	// SetThumbnail stores the thumbnail of the clean file id that has none, at at, and reports whether it did.

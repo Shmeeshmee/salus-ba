@@ -176,6 +176,18 @@ func (r *postgresRepository) AttachToMessage(ctx context.Context, m MessageFiles
 	return toBinaries(rows), nil
 }
 
+func (r *postgresRepository) PendingChat(ctx context.Context, conversationID, participantID string) (int64, error) {
+	var conv, part pgtype.UUID
+	if conv.Scan(conversationID) != nil || part.Scan(participantID) != nil {
+		return 0, nil
+	}
+	q := r.q(ctx)
+	if err := q.LockChatUploads(ctx, participantID); err != nil {
+		return 0, err
+	}
+	return q.PendingChatBinaries(ctx, binarydb.PendingChatBinariesParams{ConversationID: conv, ConversationParticipantID: part})
+}
+
 func (r *postgresRepository) OfMessages(ctx context.Context, conversationIDs, messageIDs []string) ([]Binary, error) {
 	rows, err := r.q(ctx).ChatBinariesOfMessages(ctx, binarydb.ChatBinariesOfMessagesParams{
 		ConversationIds: uuids(conversationIDs), CommunicationIds: uuids(messageIDs),

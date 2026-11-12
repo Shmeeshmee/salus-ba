@@ -90,6 +90,22 @@ func TestUpload_RefusesWhoMayNotWriteAndAuditsTheRefusals(t *testing.T) {
 	}
 }
 
+// binary's refusal of an upload past the participant's files waiting for a message is audited as a refused creation
+// in the patient's chat, as its other refusals are (SAL-30 review, finding 3).
+func TestUpload_AuditsTheRefusalPastThePendingFiles(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	c := f.open(t)
+	f.sal30.files.err = binary.ErrTooManyFiles
+	if _, err := f.svc.Upload(t.Context(), me, c.ID, communication.Upload{Body: strings.NewReader(pdfBytes), Size: 3}); !errors.Is(err, binary.ErrTooManyFiles) {
+		t.Fatalf("Upload() = %v, want binary.ErrTooManyFiles", err)
+	}
+	if e := f.audit.last(t); e.Outcome != auditevent.OutcomeMinorFailure || e.Action != auditevent.ActionCreate || e.EntityName != "binary" ||
+		e.EntityReference != "Patient/"+patientA {
+		t.Errorf("the refusal's audit = %+v", e)
+	}
+}
+
 // A send carries the sender's uploads: the body may then be empty; the message lists them, as stored, in its answer,
 // its live frame and its page; a repeat answers the first with them.
 func TestSend_AttachesTheSendersUploadsToTheMessage(t *testing.T) {

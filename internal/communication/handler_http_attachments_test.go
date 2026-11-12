@@ -103,7 +103,7 @@ func TestHTTP_UploadStreamsTheBodyAndAnswersTheAttachment(t *testing.T) {
 	}
 	for err, want := range map[error]string{
 		binary.ErrUnsupportedType: "415 unsupported_type", binary.ErrTooLarge: "413 too_large", binary.ErrLengthRequired: "411 length_required",
-		binary.ErrShortBody: "400 invalid_request", communication.ErrConsentRequired: "403 consent_required", communication.ErrNotFound: "404 not_found",
+		binary.ErrShortBody: "400 invalid_request", binary.ErrTooManyFiles: "409 too_many_files", communication.ErrConsentRequired: "403 consent_required", communication.ErrNotFound: "404 not_found",
 	} {
 		svc.sal30.err = err
 		code, body, _ := do(t, srv, http.MethodPost, convPath+"/attachments", "x", nil)

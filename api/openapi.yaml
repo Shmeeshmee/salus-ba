@@ -3072,7 +3072,8 @@ paths:
         20 MB. The file name is the `filename*` of `Content-Disposition` (RFC 6266), cut to 200 characters, the path
         removed; never put it in the query string. The file is encrypted, stored and `scanning` until the malware
         scan says it is `clean` (an image then gets a thumbnail) or `rejected`; only its uploader sees it before it is
-        sent. A file never sent is deleted after 24 hours. Audited, also when refused.
+        sent. A participant has at most 10 files waiting to be sent (scanning or clean, not yet in a message). A file
+        never sent is deleted after 24 hours. Audited, also when refused.
       tags: [chat]
       security:
         - sessionCookie: []
@@ -3114,6 +3115,11 @@ paths:
           $ref: "#/components/responses/ChatForbidden"
         "404":
           $ref: "#/components/responses/ChatNotFound"
+        "409":
+          description: "`too_many_files`: the caller already has 10 files waiting to be sent in the conversation."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
         "411":
           description: "`length_required`: no `Content-Length`."
           content:

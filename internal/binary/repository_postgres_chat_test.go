@@ -270,3 +270,38 @@ func TestPostgres_TheRetentionRoleDeletesOldUnattachedChatFilesAndKnowsThumbnail
 		t.Errorf("Existing() = %v, %v; want %v", got, err, want)
 	}
 }
+
+// PendingChat counts the participant's files of the conversation that wait for a message: neither attached nor
+// rejected; another participant's, an attached and a rejected one do not count.
+func TestPostgres_PendingChatCountsTheParticipantsUnsentFiles(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	c := seedChatDB(t, owner)
+	scope := inConversation(asPatient(c.patient), c.conv)
+	free, attached, rejected, theirs := c.chatFile(c.patientPart, 10), c.chatFile(c.patientPart, 20), c.chatFile(c.patientPart, 30),
+		c.chatFile(c.practPart, 40)
+	err := in(t, app, scope, func(ctx context.Context, r binary.Repository) error {
+		for _, b := range []binary.Binary{free, attached, rejected, theirs} {
+			if _, err := r.Insert(ctx, b, now); err != nil {
+				return err
+			}
+		}
+		_, err := r.AttachToMessage(ctx, binary.MessageFiles{ConversationID: c.conv, ParticipantID: c.patientPart, MessageID: c.message,
+			SentAt: messageAt, IDs: []string{attached.ID}}, now)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(t.Context(), `UPDATE "binary" SET status = 'rejected', scanned_at = now(), wrapped_key = NULL WHERE id = $1`, rejected.ID); err != nil {
+		t.Fatal(err)
+	}
+	for part, want := range map[string]int64{c.patientPart: 1, c.practPart: 1, c.otherPart: 0} {
+		_ = in(t, app, scope, func(ctx context.Context, r binary.Repository) error {
+			if n, err := r.PendingChat(ctx, c.conv, part); err != nil || n != want {
+				t.Errorf("PendingChat(%s) = %d, %v; want %d", part, n, err, want)
+			}
+			return nil
+		})
+	}
+}

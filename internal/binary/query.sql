@@ -64,6 +64,16 @@ WHERE id = ANY(@ids::uuid[]) AND conversation_id = @conversation_id AND conversa
   AND communication_id IS NULL AND status <> 'rejected'
 RETURNING *;
 
+-- name: LockChatUploads :exec
+-- A participant's uploads count their files and insert one after the other, until the transaction ends.
+SELECT pg_advisory_xact_lock(hashtextextended('binary-chat:' || @conversation_participant_id::text, 0));
+
+-- name: PendingChatBinaries :one
+-- The participant's files of the conversation waiting for a message: neither attached nor rejected.
+SELECT count(*) FROM "binary"
+WHERE conversation_id = @conversation_id AND conversation_participant_id = @conversation_participant_id
+  AND communication_id IS NULL AND status <> 'rejected';
+
 -- name: ChatBinariesOfMessages :many
 -- The files of the messages, as the scope shows them, oldest first.
 SELECT * FROM "binary"

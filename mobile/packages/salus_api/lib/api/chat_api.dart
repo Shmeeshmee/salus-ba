@@ -1082,7 +1082,7 @@ class ChatApi {
 
   /// Upload a file to send in the conversation
   ///
-  /// A participant who may write uploads one file (SAL-30), then names it in `attachment_ids` of their next message. The body is the file's bytes, streamed; `Content-Length` is required. The type is detected from the bytes, never from `Content-Type` or the name: a photo (JPEG, PNG) or a PDF (lab results among them), at most 20 MB. The file name is the `filename*` of `Content-Disposition` (RFC 6266), cut to 200 characters, the path removed; never put it in the query string. The file is encrypted, stored and `scanning` until the malware scan says it is `clean` (an image then gets a thumbnail) or `rejected`; only its uploader sees it before it is sent. A file never sent is deleted after 24 hours. Audited, also when refused.
+  /// A participant who may write uploads one file (SAL-30), then names it in `attachment_ids` of their next message. The body is the file's bytes, streamed; `Content-Length` is required. The type is detected from the bytes, never from `Content-Type` or the name: a photo (JPEG, PNG) or a PDF (lab results among them), at most 20 MB. The file name is the `filename*` of `Content-Disposition` (RFC 6266), cut to 200 characters, the path removed; never put it in the query string. The file is encrypted, stored and `scanning` until the malware scan says it is `clean` (an image then gets a thumbnail) or `rejected`; only its uploader sees it before it is sent. A participant has at most 10 files waiting to be sent (scanning or clean, not yet in a message). A file never sent is deleted after 24 hours. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -1144,7 +1144,7 @@ class ChatApi {
 
   /// Upload a file to send in the conversation
   ///
-  /// A participant who may write uploads one file (SAL-30), then names it in `attachment_ids` of their next message. The body is the file's bytes, streamed; `Content-Length` is required. The type is detected from the bytes, never from `Content-Type` or the name: a photo (JPEG, PNG) or a PDF (lab results among them), at most 20 MB. The file name is the `filename*` of `Content-Disposition` (RFC 6266), cut to 200 characters, the path removed; never put it in the query string. The file is encrypted, stored and `scanning` until the malware scan says it is `clean` (an image then gets a thumbnail) or `rejected`; only its uploader sees it before it is sent. A file never sent is deleted after 24 hours. Audited, also when refused.
+  /// A participant who may write uploads one file (SAL-30), then names it in `attachment_ids` of their next message. The body is the file's bytes, streamed; `Content-Length` is required. The type is detected from the bytes, never from `Content-Type` or the name: a photo (JPEG, PNG) or a PDF (lab results among them), at most 20 MB. The file name is the `filename*` of `Content-Disposition` (RFC 6266), cut to 200 characters, the path removed; never put it in the query string. The file is encrypted, stored and `scanning` until the malware scan says it is `clean` (an image then gets a thumbnail) or `rejected`; only its uploader sees it before it is sent. A participant has at most 10 files waiting to be sent (scanning or clean, not yet in a message). A file never sent is deleted after 24 hours. Audited, also when refused.
   ///
   /// Parameters:
   ///

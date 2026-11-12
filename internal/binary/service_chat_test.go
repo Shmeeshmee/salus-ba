@@ -422,3 +422,33 @@ func must(r io.Reader, err error) io.Reader {
 type errReader struct{ err error }
 
 func (e errReader) Read([]byte) (int, error) { return 0, e.err }
+
+// A participant has at most MaxPendingChat files waiting for a message (SAL-30 review, finding 3): the next upload is
+// refused with ErrTooManyFiles once its bytes are read, before commit's audit, and its object deleted; a sent or a
+// rejected file makes room, and another participant's files do not count.
+func TestUploadChat_RefusesPastTheParticipantsPendingFiles(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	var pending []binary.Binary
+	for range binary.MaxPendingChat {
+		pending = append(pending, f.chatFile(t, pdf(), binary.StatusQuarantined))
+	}
+	e := &enterConversation{repo: f.repo}
+	if _, err := f.svc.UploadChat(t.Context(), chatUpload(pdf()), e.commit); !errors.Is(err, binary.ErrTooManyFiles) {
+		t.Fatalf("one past the limit: %v, want ErrTooManyFiles", err)
+	}
+	if len(f.store.deleted) != 1 || f.store.deleted[0] != f.store.puts[len(f.store.puts)-1] {
+		t.Errorf("deleted %v, want the refused upload's object", f.store.deleted)
+	}
+	theirs := chatUpload(pdf())
+	theirs.ParticipantID = partPract
+	if _, err := f.svc.UploadChat(t.Context(), theirs, e.commit); err != nil {
+		t.Errorf("another participant: %v", err)
+	}
+	rejected := pending[0]
+	rejected.Status = binary.StatusRejected
+	f.repo.files[rejected.ID] = rejected
+	if _, err := f.svc.UploadChat(t.Context(), chatUpload(pdf()), e.commit); err != nil {
+		t.Errorf("once one is rejected: %v", err)
+	}
+}

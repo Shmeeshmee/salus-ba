@@ -19,6 +19,7 @@ var fileErrorCodes = []struct {
 	{binary.ErrShortBody, "invalid_request", http.StatusBadRequest},
 	{binary.ErrTooLarge, "too_large", http.StatusRequestEntityTooLarge},
 	{binary.ErrUnsupportedType, "unsupported_type", http.StatusUnsupportedMediaType},
+	{binary.ErrTooManyFiles, "too_many_files", http.StatusConflict},
 	{binary.ErrScanning, "scanning", http.StatusConflict},
 }
 

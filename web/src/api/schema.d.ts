@@ -1342,7 +1342,7 @@ export interface paths {
         put?: never;
         /**
          * Upload a file to send in the conversation
-         * @description A participant who may write uploads one file (SAL-30), then names it in `attachment_ids` of their next message. The body is the file's bytes, streamed; `Content-Length` is required. The type is detected from the bytes, never from `Content-Type` or the name: a photo (JPEG, PNG) or a PDF (lab results among them), at most 20 MB. The file name is the `filename*` of `Content-Disposition` (RFC 6266), cut to 200 characters, the path removed; never put it in the query string. The file is encrypted, stored and `scanning` until the malware scan says it is `clean` (an image then gets a thumbnail) or `rejected`; only its uploader sees it before it is sent. A file never sent is deleted after 24 hours. Audited, also when refused.
+         * @description A participant who may write uploads one file (SAL-30), then names it in `attachment_ids` of their next message. The body is the file's bytes, streamed; `Content-Length` is required. The type is detected from the bytes, never from `Content-Type` or the name: a photo (JPEG, PNG) or a PDF (lab results among them), at most 20 MB. The file name is the `filename*` of `Content-Disposition` (RFC 6266), cut to 200 characters, the path removed; never put it in the query string. The file is encrypted, stored and `scanning` until the malware scan says it is `clean` (an image then gets a thumbnail) or `rejected`; only its uploader sees it before it is sent. A participant has at most 10 files waiting to be sent (scanning or clean, not yet in a message). A file never sent is deleted after 24 hours. Audited, also when refused.
          */
         post: operations["uploadChatAttachment"];
         delete?: never;
@@ -6544,6 +6544,15 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["ChatForbidden"];
             404: components["responses"]["ChatNotFound"];
+            /** @description `too_many_files`: the caller already has 10 files waiting to be sent in the conversation. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description `length_required`: no `Content-Length`. */
             411: {
                 headers: {

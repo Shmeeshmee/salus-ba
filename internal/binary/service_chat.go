@@ -15,6 +15,11 @@ import (
 // chatKinds are what the chat takes: photos (lab results photographed among them) and PDFs. No video.
 var chatKinds = []Kind{KindPhoto, KindDocument}
 
+// MaxPendingChat is how many files a participant may have waiting for a message in a conversation: uploaded, neither
+// sent nor rejected (a message carries at most 10). It bounds what one account stores and has scanned for nothing; a
+// file never sent is deleted after 24 hours.
+const MaxPendingChat = 10
+
 // ChatUpload is one file a participant uploads to a conversation before sending the message it goes with: exactly
 // Size bytes of Body (-1 when the request gave no length). OrganizationID and PatientID are the conversation's.
 type ChatUpload struct {
@@ -31,7 +36,8 @@ type ChatUpload struct {
 // bytes, a photo or a PDF of at most MaxPhotoSize bytes, streamed sealed into the store outside any transaction;
 // then one transaction runs commit first (the chat's checks and its audit, which name the file), stores the row
 // quarantined in the conversation and enqueues its scan. ErrLengthRequired, ErrTooLarge, ErrUnsupportedType and
-// ErrShortBody refuse the bytes before commit runs; commit's error is returned as it is. After any failure once
+// ErrShortBody refuse the bytes before commit runs; commit's error is returned as it is; ErrTooManyFiles, after it,
+// a participant who already has MaxPendingChat files waiting (their uploads counted one after the other). After any failure once
 // stored, the object is deleted. Nothing here is audited: the chat audits the call it serves.
 func (s *Service) UploadChat(ctx context.Context, in ChatUpload, commit func(ctx context.Context, b Binary) error) (Binary, error) {
 	switch {
@@ -55,7 +61,13 @@ func (s *Service) UploadChat(ctx context.Context, in ChatUpload, commit func(ctx
 		if err := commit(ctx, b); err != nil {
 			return err
 		}
-		var err error
+		pending, err := s.Repo.PendingChat(ctx, b.ConversationID, b.ParticipantID)
+		switch {
+		case err != nil:
+			return err
+		case pending >= MaxPendingChat:
+			return ErrTooManyFiles
+		}
 		if out, err = s.Repo.Insert(ctx, b, s.Clock.Now()); err != nil {
 			return err
 		}
