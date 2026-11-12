@@ -1753,15 +1753,14 @@ as the other clinical tables).
 
 | Risk | Measure |
 | --- | --- |
-| An invited doctor reads the conversation before the patient consents, or after a revocation, a decline or a removal | Row-level security: a doctor of another clinic (their clinic and role set) sees a conversation and its side threads only while they are an active participant, the patient's chat consent for them is active and the care consent with the treating clinic is active; one `SECURITY DEFINER` function, owned by a role that reads only the columns it needs, decides it (migration tests over every state and scope). The service checks `access.GuestChat` as well (service tests on fakes and on Postgres, app test). An open socket checks again every 5 s |
+| An invited doctor reads the conversation before the patient consents, or after a revocation, a decline or a removal | Row-level security: a doctor of another clinic (their clinic and role set) sees a conversation, and those of its side threads they take part in, only while they are an active participant, the patient's chat consent for them is active and the care consent with the treating clinic is active (never another doctor's pending invitation); one `SECURITY DEFINER` function, owned by a role that reads only the columns it needs, decides it (migration tests over every state and scope). The service checks `access.GuestChat` as well (service tests on fakes and on Postgres, app test). An open socket checks again every 5 s |
 | The patient sees a doctor-only side thread | The patient's policies exclude every `staff_only` conversation and its messages; the service refuses the side threads' list and their creation to the patient (service tests on every path, app test) |
 | A doctor removed from a conversation keeps its side threads | A trigger removes them from the conversation's side threads in the same statement, whoever removes them (migration test) |
 | A doctor is added who should not be | Only the treating practitioner adds and removes (`access.ManagesChat`); a doctor of the clinic must be an active role of it, one of another clinic in the public directory |
-| No proof of what the patient decided | Every invitation, add, removal, grant, decline and revocation is audited in its transaction; a grant is a stored Consent with its time, a revocation keeps the row |
+| No proof of what the patient decided | Every invitation, add, removal, grant, decline and revocation is audited in its transaction, naming the participant by its opaque id; a refused revocation too; a grant is a stored Consent with its time, a revocation keeps the row |
+| A consent left granted to a doctor who was removed, which the patient can no longer see or withdraw | A removal by the treating practitioner ends the patient's chat consent for that doctor in the same transaction, as the clinic, audited (the clinic may end a chat consent, never grant one: migration test); the patient lists their granted invitations (`GET /me/chat-invitations?status=active`) and revokes each (Art. 7(3)) |
 
-**Open before production.** The retention of `chat_consent` with the clinical record (legal decision); whether a
-removal by the treating practitioner should also end the patient's chat consent (it ends the access now; a new
-invitation asks the patient again).
+**Open before production.** The retention of `chat_consent` with the clinical record (legal decision).
 
 | A model-suggested code recorded as a diagnosis nobody made | The practitioner confirms each code before the signature (tested in the service, the API and the browser journey); the backfilled codes are unconfirmed and not counted |
 | Another clinic's diagnoses | Row-level security by clinic (tested) |

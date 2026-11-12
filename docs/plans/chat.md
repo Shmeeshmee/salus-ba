@@ -145,9 +145,9 @@ add a field, never rename or drop one here; a change it needs is reported, not m
 
 | Route | What |
 | --- | --- |
-| `POST /conversations/{id}/participants` | The treating practitioner adds a practitioner role: `practitioner_role_id`, `organization_id`, `reason` (`second_opinion` \| `specialist_review` \| `handover`), `history` (`full` \| `from`) and `from_seq` with `from`. Same clinic: active at once. Another clinic: `status` `pending_consent` until the patient consents. 201 `ConversationParticipant` |
-| `DELETE /conversations/{id}/participants/{participant_id}` | The treating practitioner removes one (not the patient, not themselves); 204 |
-| `GET /me/chat-invitations` | The patient's pending invitations of doctors from other clinics: `id`, `conversation_id`, `organization_id`, `practitioner_role_id`, `reason`, `invited_at` |
+| `POST /conversations/{id}/participants` | The treating practitioner adds a practitioner role: `practitioner_role_id`, `organization_id`, `reason` (`second_opinion` \| `specialist_review` \| `handover`), `history` (`full` \| `from`) and `from_seq` with `from`: `from_seq` is the last message the added doctor does **not** see (they read the messages with `seq` > `from_seq`; to show them message 5 onwards, send 4; 0 is the whole history, at most `last_seq`). Same clinic: active at once. Another clinic: `status` `pending_consent` until the patient consents. 201 `ConversationParticipant` |
+| `DELETE /conversations/{id}/participants/{participant_id}` | The treating practitioner removes one (not the patient, not themselves); a granted doctor of another clinic's chat consent ends with it; 204 |
+| `GET /me/chat-invitations` | The patient's pending invitations of doctors from other clinics: `id`, `conversation_id`, `organization_id`, `practitioner_role_id`, `reason`, `invited_at`, `status`. `?status=active` lists the granted ones instead (the default is `pending_consent`), whose `id` `/revoke` takes (added in SAL-28's review) |
 | `POST /me/chat-invitations/{id}/decision` | `decision`: `grant` \| `decline`; a grant is a FHIR `Consent` (granular: that conversation and that role; revocable) |
 | `POST /me/chat-invitations/{id}/revoke` | Revokes a granted one; the doctor loses access at once |
 | `POST /conversations/{id}/threads`, `GET /conversations/{id}/threads` | A doctor-only side thread (`staff_only`, `parent_id`), and the list; never the patient's |
