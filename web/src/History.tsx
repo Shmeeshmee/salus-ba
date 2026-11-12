@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { binaryContentURL, type ApiClient } from './api/client'
-import { participant, type Appointment, type FhirClient } from './api/fhir'
+import { participant, type Appointment, type FhirClient, type Questionnaire, type QuestionnaireResponse } from './api/fhir'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
 import { useFormat, useT } from './i18n/useT'
 import { useLoad } from './load'
+import { Answers } from './AppointmentQuestionnaires'
+import { requestsOf, type Request } from './responses'
 import { Alert } from './ui'
 
 type Item = components['schemas']['HistoryItem']
@@ -23,14 +25,14 @@ type Composition = { section?: { title: string; text?: { div: string } }[] }
 // decides what is shown and audits every view; nothing here filters or counts.
 export function PatientHistory({ api, fhir, patientId, appointmentId, zone }: Props) {
   const t = useT()
+  // The summary and the history are read apart: a summary that fails never loses the history, nor the other way.
   const { state, set } = useLoad(async () => {
-    const path = { params: { path: { id: patientId } } }
     const [summary, page] = await Promise.all([
       attempt(api.GET('/patients/{id}/history/summary', { params: { path: { id: patientId }, query: { appointment: appointmentId } } })),
-      attempt(api.GET('/patients/{id}/history', path)),
+      attempt(api.GET('/patients/{id}/history', { params: { path: { id: patientId } } })),
     ])
-    if (!summary.ok || !page.ok) throw new Error('history')
-    return { summary: summary.data, items: page.data.items, next: page.data.next }
+    if (!page.ok) throw new Error('history')
+    return { summary: summary.ok ? summary.data : undefined, items: page.data.items, next: page.data.next }
   }, [api, patientId, appointmentId])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
@@ -55,13 +57,13 @@ export function PatientHistory({ api, fhir, patientId, appointmentId, zone }: Pr
       {state.name === 'failed' && <Alert message={t('history.loadFailed')} />}
       {state.name === 'loaded' && (
         <>
-          <SummaryView summary={state.value.summary} zone={zone} />
+          {state.value.summary ? <SummaryView summary={state.value.summary} zone={zone} /> : <Alert message={t('history.summaryFailed')} />}
           <h3>{t('history.items')}</h3>
           {state.value.items.length === 0 && <p className="muted">{t('history.empty')}</p>}
           <ul className="history-items">
             {state.value.items.map((it) => (
               <li key={it.reference}>
-                <ItemRow fhir={fhir} item={it} zone={zone} />
+                <ItemRow api={api} fhir={fhir} item={it} zone={zone} />
               </li>
             ))}
           </ul>
@@ -85,7 +87,9 @@ function SummaryView({ summary, zone }: { summary: Summary; zone: string }) {
     <div className="history-summary">
       <h3>{t('history.summary')}</h3>
       <h4>{t('history.allergies')}</h4>
-      {summary.allergies.length === 0 ? (
+      {summary.allergiesUnavailable ? (
+        <Alert message={t('history.allergiesUnavailable')} />
+      ) : summary.allergies.length === 0 ? (
         <p className="muted">{t('history.noAllergies')}</p>
       ) : (
         <ul>
@@ -99,7 +103,9 @@ function SummaryView({ summary, zone }: { summary: Summary; zone: string }) {
         </ul>
       )}
       <h4>{t('history.medications')}</h4>
-      {summary.medications.length === 0 ? (
+      {summary.medicationsUnavailable ? (
+        <Alert message={t('history.medicationsUnavailable')} />
+      ) : summary.medications.length === 0 ? (
         <p className="muted">{t('history.noMedications')}</p>
       ) : (
         <ul>
@@ -136,8 +142,22 @@ function ItemLine({ item, zone }: { item: Item; zone: string }) {
       <span className="history-date">{f.dateTime(new Date(item.date), zone)}</span>
       <span className="history-name">{item.title || t(`history.type.${item.type}`)}</span>
       {item.title && <span className="muted">{t(`history.type.${item.type}`)}</span>}
-      {item.shared ? <span className="tag shared">{t('history.sharedFrom', { clinic: item.clinic.name })}</span> : <span className="muted">{item.clinic.name}</span>}
-      {item.diagnoses && item.diagnoses.length > 0 && <span>{t('history.diagnoses', { codes: item.diagnoses.join(', ') })}</span>}
+      {item.shared ? (
+        <span className="tag shared">{item.clinic.name ? t('history.sharedFrom', { clinic: item.clinic.name }) : t('history.sharedByPatient')}</span>
+      ) : (
+        <span className="muted">{item.clinic.name}</span>
+      )}
+      {item.diagnoses && item.diagnoses.length > 0 && (
+        <ul className="history-diagnoses">
+          {item.diagnoses.map((d) => (
+            // A document's coded fields are distinct by label and code.
+            <li key={`${d.label} ${d.code}`}>
+              {t('history.diagnosis', { label: d.label, code: d.code })}
+              {!d.confirmed && <span className="tag">{t('history.notConfirmed')}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
     </span>
   )
 }
@@ -153,13 +173,28 @@ export function CallHistory({ api, fhir, appointmentId }: { api: ApiClient; fhir
 
 const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
-// ItemRow is an item with what opens it: a signed document's sections in place, a file's download.
-function ItemRow({ fhir, item, zone }: { fhir: FhirClient; item: Item; zone: string }) {
+// What an item opens to: a signed document's sections, or a response's answers with their questions.
+type Opened = { composition: Composition } | { request: Request }
+
+// ItemRow is an item with what opens it: a signed document's sections or a completed response's answers in place,
+// a file's download.
+function ItemRow({ api, fhir, item, zone }: { api: ApiClient; fhir: FhirClient; item: Item; zone: string }) {
   const t = useT()
-  const [open, setOpen] = useState<Composition>()
+  const [open, setOpen] = useState<Opened>()
   const [failed, setFailed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [, id] = item.reference.split('/')
+  const opens = item.type === 'document' || (item.type === 'questionnaire_response' && item.questionnaire !== undefined)
+
+  async function read(): Promise<Opened> {
+    if (item.type === 'document') return { composition: await fhir.get<Composition>(`Composition/${encodeURIComponent(id)}`) }
+    const [response, version] = await Promise.all([
+      fhir.get<QuestionnaireResponse>(`QuestionnaireResponse/${encodeURIComponent(id)}`),
+      fhir.get<Questionnaire>(`Questionnaire/${encodeURIComponent(item.questionnaire ?? '')}`),
+    ])
+    const [request] = requestsOf({ resourceType: 'Bundle', type: 'searchset', entry: [{ fullUrl: '', resource: response }, { fullUrl: '', resource: version }] })
+    return { request }
+  }
 
   async function toggle() {
     if (open) {
@@ -169,7 +204,7 @@ function ItemRow({ fhir, item, zone }: { fhir: FhirClient; item: Item; zone: str
     setBusy(true)
     setFailed(false)
     try {
-      setOpen(await fhir.get<Composition>(`Composition/${encodeURIComponent(id)}`))
+      setOpen(await read())
     } catch {
       setFailed(true)
     }
@@ -179,7 +214,7 @@ function ItemRow({ fhir, item, zone }: { fhir: FhirClient; item: Item; zone: str
   return (
     <>
       <ItemLine item={item} zone={zone} />
-      {item.type === 'document' && (
+      {opens && (
         <button type="button" className="quiet" aria-expanded={open !== undefined} disabled={busy} onClick={toggle}>
           {t(open ? 'history.closeDocument' : 'history.openDocument')}
         </button>
@@ -189,8 +224,9 @@ function ItemRow({ fhir, item, zone }: { fhir: FhirClient; item: Item; zone: str
           {t('attachments.download')}
         </a>
       )}
-      {failed && <Alert message={t('history.documentFailed')} />}
-      {open && <Sections composition={open} t={t} />}
+      {failed && <Alert message={t(item.type === 'document' ? 'history.documentFailed' : 'history.answersFailed')} />}
+      {open && 'composition' in open && <Sections composition={open.composition} t={t} />}
+      {open && 'request' in open && <Answers api={api} request={open.request} />}
     </>
   )
 }

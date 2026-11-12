@@ -25,7 +25,8 @@ type Detail = { zone: string; appt: Appointment; profile?: Patient; consultation
 // outcome once the appointment has started; the practitioner and the admin can cancel it. The practitioner joins
 // the video consultation inside its window (an admin cannot join), and both see whether each side joined.
 // Both see the appointment's questionnaire requests; only the appointment's own practitioner changes them. Its own
-// practitioner also sees the patient's history and the pre-visit summary (SAL-40).
+// practitioner also opens the patient's history and the pre-visit summary (SAL-40), read and audited only once asked
+// for.
 // Everything above the questionnaires is read in one load, so the page appears in one piece: a section that came
 // in on its own would push down what is already shown, under a click on its way.
 export function AppointmentDetail({ api, fhir, account, id, now = () => new Date() }: Props) {
@@ -123,7 +124,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
       {practitioner && join === 'before' && <p className="hint join">{t('calendar.joinFrom')}</p>}
       {consultation && <Consultation status={consultation} zone={zone} />}
       <AppointmentQuestionnaires api={api} fhir={fhir} appt={appt} zone={zone} own={own} admin={admin} now={at} />
-      {own && patientId && <PatientHistory api={api} fhir={fhir} patientId={patientId} appointmentId={appt.id} zone={zone} />}
+      {own && patientId && <HistoryToggle api={api} fhir={fhir} patientId={patientId} appointmentId={appt.id} zone={zone} />}
       {appt.status === 'booked' && <Actions api={api} id={appt.id} practitioner={practitioner} started={at >= start} onChanged={onChanged} />}
     </>
   )
@@ -244,4 +245,23 @@ function actionMessage(t: T, code?: string): string {
   if (code === 'forbidden') return t('calendar.forbidden')
   if (code === 'not_found') return t('calendar.notFound')
   return t('common.somethingWrong')
+}
+
+type HistoryProps = { api: ApiClient; fhir: FhirClient; patientId: string; appointmentId: string; zone: string }
+
+// HistoryToggle opens the patient's history on request, as the call page's tab does: opening a booking does not
+// read (and audit) the patient's history.
+function HistoryToggle(props: HistoryProps) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <div className="actions">
+        <button type="button" className="quiet" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {t(open ? 'history.hideHistory' : 'history.showHistory')}
+        </button>
+      </div>
+      {open && <PatientHistory {...props} />}
+    </>
+  )
 }
