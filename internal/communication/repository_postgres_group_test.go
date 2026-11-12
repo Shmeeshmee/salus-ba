@@ -21,8 +21,9 @@ import (
 type scopedChatConsents struct{ db *pgxpool.Pool }
 
 func (o scopedChatConsents) GrantChat(ctx context.Context, by consent.Caller, g consent.ChatGrant) (consent.Consent, error) {
-	_, err := postgres.Conn(ctx, o.db).Exec(ctx, `INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id, status, date_time)
-		VALUES ($1, $2, $3, $4, 'active', now())`, by.PatientID, g.OrganizationID, g.ConversationID, g.PractitionerRoleID)
+	_, err := postgres.Conn(ctx, o.db).Exec(ctx, `INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id,
+		practitioner_organization_id, status, date_time) VALUES ($1, $2, $3, $4, $5, 'active', now())`,
+		by.PatientID, g.OrganizationID, g.ConversationID, g.PractitionerRoleID, g.PractitionerOrganizationID)
 	return consent.Consent{Kind: consent.KindChat}, err
 }
 

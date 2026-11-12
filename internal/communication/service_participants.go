@@ -227,6 +227,7 @@ func (s *Service) DecideInvitation(ctx context.Context, c Caller, id string, d D
 		}
 		if _, err := s.ChatConsents.GrantChat(ctx, patientCaller(c), consent.ChatGrant{
 			ConversationID: e.conv.ID, OrganizationID: e.conv.OrganizationID, PractitionerRoleID: p.PractitionerRoleID,
+			PractitionerOrganizationID: p.OrganizationID,
 		}); err != nil {
 			return err
 		}

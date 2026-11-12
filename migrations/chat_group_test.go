@@ -54,8 +54,8 @@ func seedGuest(t *testing.T, owner *pgxpool.Pool, state string) guestRows {
 		VALUES ($1, $2, $3, 'practitioner', $4)`, g.conv["staffA"], g.role, clinicB, g.p[0].account); err != nil {
 		t.Fatal(err)
 	}
-	if err := owner.QueryRow(ctx, `INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id, status, date_time)
-		VALUES ($1, $2, $3, $4, 'active', '2026-11-12T10:05:00Z') RETURNING id`, g.p[0].patient, clinicA, g.conv["inA"], g.role).Scan(&g.consent); err != nil {
+	if err := owner.QueryRow(ctx, `INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id, practitioner_organization_id,
+			status, date_time) VALUES ($1, $2, $3, $4, $5, 'active', '2026-11-12T10:05:00Z') RETURNING id`, g.p[0].patient, clinicA, g.conv["inA"], g.role, clinicB).Scan(&g.consent); err != nil {
 		t.Fatal(err)
 	}
 	var stmt string
@@ -271,10 +271,12 @@ func TestChatGroup_HoldsAConsistentState(t *testing.T) {
 			VALUES ($1, $2, $3, 'patient', $4)`, []any{g.conv["inB"], g.p[0].patient, clinicA, acc}},
 		{"the patient pending a consent", `UPDATE conversation_participant SET status = 'pending_consent' WHERE id = $1`, []any{g.chatRows.part["inA"]}},
 		{"a reason not in the list", `UPDATE conversation_participant SET reason = 'curiosity' WHERE id = $1`, []any{g.part}},
-		{"a second active chat consent for the role", `INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id, status, date_time)
-			VALUES ($1, $2, $3, $4, 'active', now())`, []any{g.p[0].patient, clinicA, conv, roleB}},
+		{"a second active chat consent for the role", `INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id,
+			practitioner_organization_id, status, date_time) VALUES ($1, $2, $3, $4, $5, 'active', now())`, []any{g.p[0].patient, clinicA, conv, roleB, clinicB}},
 		{"a chat consent for another patient's conversation", `INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id,
-			status, date_time) VALUES ($1, $2, $3, $4, 'active', now())`, []any{g.p[1].patient, clinicA, conv, roleA}},
+			practitioner_organization_id, status, date_time) VALUES ($1, $2, $3, $4, $5, 'active', now())`, []any{g.p[1].patient, clinicA, conv, roleA, clinicA}},
+		{"a chat consent naming another clinic than its role's", `INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id,
+			practitioner_organization_id, status, date_time) VALUES ($1, $2, $3, $4, $5, 'active', now())`, []any{g.p[0].patient, clinicA, conv, roleA, clinicB}},
 		{"an inactive chat consent without its revocation", `UPDATE chat_consent SET status = 'inactive' WHERE id = $1`, []any{g.consent}},
 	} {
 		if _, err := owner.Exec(t.Context(), tt.stmt, tt.args...); err == nil {
@@ -292,7 +294,7 @@ func TestChatGroup_TheAppRoleChangesOnlyWhatTheApplicationNeeds(t *testing.T) {
 		"UPDATE conversation_participant SET organization_id = organization_id", "UPDATE conversation_participant SET reason = reason",
 		"UPDATE conversation_participant SET added_by = added_by",
 		"UPDATE chat_consent SET conversation_id = conversation_id", "UPDATE chat_consent SET practitioner_role_id = practitioner_role_id",
-		"UPDATE chat_consent SET patient_id = patient_id", "DELETE FROM chat_consent", "TRUNCATE chat_consent",
+		"UPDATE chat_consent SET patient_id = patient_id", "UPDATE chat_consent SET practitioner_organization_id = practitioner_organization_id", "DELETE FROM chat_consent", "TRUNCATE chat_consent",
 	} {
 		err := asApp(t, app, scope, func(ctx context.Context, db postgres.Querier) error {
 			_, err := db.Exec(ctx, stmt)
@@ -356,3 +358,29 @@ func TestChatGroup_TheLookupFunctionIsOwnedByAnUnprivilegedRoleWithAFixedSearchP
 		t.Errorf("%s holds %d table privileges (%v), want none", chatGuestLookupRole, tables, err)
 	}
 }
+
+// The chat's policies read no table through another policy that leads back to them: appointment's policies read
+// consent, whose guest policy reads chat_consent; chat_consent's policies compare columns only, so reading an
+// appointment, a role, an encounter or a consent never recurses through practitioner_role's policies of 00043
+// (SAL-28 after main's SAL-38), in any scope.
+func TestChatGroup_ThePoliciesDoNotRecurseThroughTheAppointments(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	p, _, _ := seedAppointments(t, owner)
+	for name, scope := range map[string]map[string]string{
+		"clinic A":            {"app.organization_id": clinicA},
+		"a guest of clinic B": {"app.organization_id": clinicB, "app.practitioner_role_id": "b1000000-0000-4000-8000-0000000000b1"},
+		"patient A":           {"app.patient_id": p[0].patient},
+	} {
+		for _, table := range []string{"appointment", "practitioner_role", "encounter", "consent", "chat_consent", "conversation"} {
+			err := asApp(t, app, scope, func(ctx context.Context, db postgres.Querier) error {
+				var n int
+				return db.QueryRow(ctx, "SELECT count(*) FROM "+table).Scan(&n)
+			})
+			if err != nil {
+				t.Errorf("%s reads %s: %v", name, table, err)
+			}
+		}
+	}
+}
+

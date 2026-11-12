@@ -50,10 +50,11 @@ type Consent struct {
 	OrganizationID string // Consent.organization and provision.actor (IRCP)
 	// ConversationID and PractitionerRoleID are a chat consent's provision.data and provision.actor; empty for the
 	// other kinds.
-	ConversationID     string
-	PractitionerRoleID string
-	Kind               Kind
-	Status             Status
+	ConversationID             string
+	PractitionerRoleID         string
+	PractitionerOrganizationID string // the invited role's clinic
+	Kind                       Kind
+	Status                     Status
 	// Shared is what a history consent lists now (provision.data), the oldest selection first; nil for the other
 	// kinds and for a revoked history consent, which permits nothing.
 	Shared    []SharedVisit
@@ -61,11 +62,12 @@ type Consent struct {
 }
 
 // ChatGrant is what a chat consent is for: the patient's conversation with the clinic OrganizationID, and the
-// practitioner role of another clinic invited into it.
+// practitioner role of another clinic invited into it, with that role's clinic.
 type ChatGrant struct {
-	ConversationID     string
-	OrganizationID     string
-	PractitionerRoleID string
+	ConversationID             string
+	OrganizationID             string
+	PractitionerRoleID         string
+	PractitionerOrganizationID string
 }
 
 // SharedVisit is one visit a history consent lists: the encounter and when the patient added it. Removing it and

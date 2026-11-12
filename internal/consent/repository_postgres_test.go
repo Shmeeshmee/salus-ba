@@ -476,7 +476,7 @@ func TestChat_GrantsRevokesAndShowsTheConsentForTheConversationAndRole(t *testin
 	repo := consent.NewPostgresRepository(app)
 	at := granted.Add(48 * time.Hour)
 	asA := func(ctx context.Context) error { return repo.SetPatient(ctx, patientA) }
-	g := consent.ChatGrant{ConversationID: conversationA, OrganizationID: clinicA, PractitionerRoleID: roleB}
+	g := consent.ChatGrant{ConversationID: conversationA, OrganizationID: clinicA, PractitionerRoleID: roleB, PractitionerOrganizationID: clinicB}
 
 	var got consent.Consent
 	err := in(t, app, asA, func(ctx context.Context) error {
@@ -486,7 +486,8 @@ func TestChat_GrantsRevokesAndShowsTheConsentForTheConversationAndRole(t *testin
 	})
 	want := consent.Consent{ID: got.ID, PatientID: patientA, OrganizationID: clinicA, ConversationID: conversationA, PractitionerRoleID: roleB,
 		Kind: consent.KindChat, Status: consent.StatusActive, DateTime: at, LastUpdated: at, VersionID: 1}
-	if err != nil || got.ID == "" || !same(got, want) || got.ConversationID != conversationA || got.PractitionerRoleID != roleB {
+	if err != nil || got.ID == "" || !same(got, want) || got.ConversationID != conversationA || got.PractitionerRoleID != roleB ||
+		got.PractitionerOrganizationID != clinicB {
 		t.Fatalf("GrantChat() = %+v, %v;\nwant %+v", got, err, want)
 	}
 	err = in(t, app, asA, func(ctx context.Context) error { _, err := repo.GrantChat(ctx, patientA, g, at); return err })
@@ -540,11 +541,29 @@ func TestChat_GrantsRevokesAndShowsTheConsentForTheConversationAndRole(t *testin
 	if !errors.Is(err, consent.ErrInactive) {
 		t.Errorf("a second RevokeChat() = %v, want ErrInactive", err)
 	}
-	err = in(t, app, func(ctx context.Context) error { return repo.SetPatient(ctx, patientB) }, func(ctx context.Context) error {
-		_, err := repo.GrantChat(ctx, patientB, g, at)
+}
+
+// A chat consent is refused for another patient's conversation and for a clinic that is not the role's.
+func TestChat_RefusesAGrantForAnotherPatientOrAnotherClinicThanTheRoles(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seedChat(t, owner)
+	repo := consent.NewPostgresRepository(app)
+	g := consent.ChatGrant{ConversationID: conversationA, OrganizationID: clinicA, PractitionerRoleID: roleB, PractitionerOrganizationID: clinicB}
+	err := in(t, app, func(ctx context.Context) error { return repo.SetPatient(ctx, patientB) }, func(ctx context.Context) error {
+		_, err := repo.GrantChat(ctx, patientB, g, granted)
 		return err
 	})
 	if err == nil {
 		t.Error("patient B grants for patient A's conversation: accepted")
+	}
+	wrong := g
+	wrong.PractitionerOrganizationID = clinicA
+	err = in(t, app, func(ctx context.Context) error { return repo.SetPatient(ctx, patientA) }, func(ctx context.Context) error {
+		_, err := repo.GrantChat(ctx, patientA, wrong, granted)
+		return err
+	})
+	if err == nil {
+		t.Error("a grant naming another clinic than the role's: accepted")
 	}
 }

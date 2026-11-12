@@ -77,12 +77,17 @@ CREATE TABLE chat_consent (
     patient_id uuid NOT NULL REFERENCES patient (id),
     organization_id uuid NOT NULL REFERENCES organization (id),
     conversation_id uuid NOT NULL,
-    practitioner_role_id uuid NOT NULL REFERENCES practitioner_role (id),
+    practitioner_role_id uuid NOT NULL,
+    -- The invited role's clinic, copied at the grant: the guest's policy compares it, never reading practitioner_role
+    -- through its row-level security (which reads encounters, 00043, and so back to appointment and consent).
+    practitioner_organization_id uuid NOT NULL,
     version_id integer DEFAULT 1 NOT NULL,
     status text NOT NULL CHECK (status IN ('active', 'inactive')),
     CONSTRAINT chat_consent_revoked_when_inactive CHECK ((status = 'inactive') = (revoked_at IS NOT NULL)),
     CONSTRAINT chat_consent_conversation_fkey FOREIGN KEY (conversation_id, organization_id, patient_id)
-        REFERENCES conversation (id, organization_id, patient_id)
+        REFERENCES conversation (id, organization_id, patient_id),
+    CONSTRAINT chat_consent_role_fkey FOREIGN KEY (practitioner_role_id, practitioner_organization_id)
+        REFERENCES practitioner_role (id, organization_id)
 );
 
 CREATE UNIQUE INDEX chat_consent_one_active ON chat_consent (conversation_id, practitioner_role_id) WHERE status = 'active';
@@ -96,14 +101,13 @@ CREATE POLICY chat_consent_clinic ON chat_consent FOR SELECT TO salus_app
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
            AND organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
--- The guest's own, while their role is of the clinic set (practitioner_role's policy shows only that clinic's roles).
+-- The guest's own, while their role is of the clinic set. Columns only: reading practitioner_role here recursed
+-- through its policies (00043) to encounter, appointment and consent.
 CREATE POLICY chat_consent_guest ON chat_consent FOR SELECT TO salus_app
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
            AND practitioner_role_id = NULLIF(current_setting('app.practitioner_role_id', true), '')::uuid
-           AND EXISTS (SELECT 1 FROM practitioner_role r
-                       WHERE r.id = chat_consent.practitioner_role_id
-                         AND r.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid));
+           AND practitioner_organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
 
 -- No DELETE or TRUNCATE: kept as proof (retention keep). Who, with whom and about what never change; only the
 -- revocation does.

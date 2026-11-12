@@ -301,17 +301,18 @@ type Binary struct {
 }
 
 type ChatConsent struct {
-	ID                 pgtype.UUID
-	CreatedAt          pgtype.Timestamptz
-	UpdatedAt          pgtype.Timestamptz
-	DateTime           pgtype.Timestamptz
-	RevokedAt          pgtype.Timestamptz
-	PatientID          pgtype.UUID
-	OrganizationID     pgtype.UUID
-	ConversationID     pgtype.UUID
-	PractitionerRoleID pgtype.UUID
-	VersionID          int32
-	Status             string
+	ID                         pgtype.UUID
+	CreatedAt                  pgtype.Timestamptz
+	UpdatedAt                  pgtype.Timestamptz
+	DateTime                   pgtype.Timestamptz
+	RevokedAt                  pgtype.Timestamptz
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	VersionID                  int32
+	Status                     string
 }
 
 type Communication struct {

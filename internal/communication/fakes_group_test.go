@@ -2,6 +2,7 @@ package communication_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"time"
 
@@ -48,6 +49,9 @@ func (c fakeChatConsents) GrantChat(_ context.Context, by consent.Caller, g cons
 	defer c.f.mu.Unlock()
 	if by.OrganizationID != "" || by.PatientID == "" {
 		return consent.Consent{}, consent.ErrForbidden
+	}
+	if g.PractitionerOrganizationID != clinicB || g.PractitionerRoleID != roleB1 {
+		return consent.Consent{}, errors.New("the grant names another role or clinic than the invited doctor's")
 	}
 	c.f.chat[g.ConversationID+g.PractitionerRoleID] = true
 	return consent.Consent{ID: "f9000000-0000-4000-8000-0000000000f9", Kind: consent.KindChat, PatientID: by.PatientID,

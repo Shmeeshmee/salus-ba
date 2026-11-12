@@ -163,12 +163,14 @@ func toConsent(kind Kind, row consentdb.GrantConsentRow, err, noRows error) (Con
 }
 
 func (r *postgresRepository) GrantChat(ctx context.Context, patientID string, g ChatGrant, at time.Time) (Consent, error) {
-	var p, o, c, role pgtype.UUID
-	if p.Scan(patientID) != nil || o.Scan(g.OrganizationID) != nil || c.Scan(g.ConversationID) != nil || role.Scan(g.PractitionerRoleID) != nil {
+	var p, o, c, role, roleOrg pgtype.UUID
+	if p.Scan(patientID) != nil || o.Scan(g.OrganizationID) != nil || c.Scan(g.ConversationID) != nil || role.Scan(g.PractitionerRoleID) != nil ||
+		roleOrg.Scan(g.PractitionerOrganizationID) != nil {
 		return Consent{}, errors.New("consent: a chat grant id is not a UUID")
 	}
 	row, err := consentdb.New(postgres.Conn(ctx, r.db)).GrantChatConsent(ctx, consentdb.GrantChatConsentParams{
-		PatientID: p, OrganizationID: o, ConversationID: c, PractitionerRoleID: role, DateTime: pgtype.Timestamptz{Time: at, Valid: true},
+		PatientID: p, OrganizationID: o, ConversationID: c, PractitionerRoleID: role, PractitionerOrganizationID: roleOrg,
+		DateTime: pgtype.Timestamptz{Time: at, Valid: true},
 	})
 	if err != nil {
 		return Consent{}, fmt.Errorf("consent: grant chat: %w", err)
@@ -208,7 +210,8 @@ func (r *postgresRepository) ChatGranted(ctx context.Context, conversationID, ro
 func chatConsent(row consentdb.GrantChatConsentRow) Consent {
 	return Consent{
 		ID: row.ID.String(), PatientID: row.PatientID.String(), OrganizationID: row.OrganizationID.String(),
-		ConversationID: row.ConversationID.String(), PractitionerRoleID: row.PractitionerRoleID.String(), Kind: KindChat,
+		ConversationID: row.ConversationID.String(), PractitionerRoleID: row.PractitionerRoleID.String(),
+		PractitionerOrganizationID: row.PractitionerOrganizationID.String(), Kind: KindChat,
 		Status: Status(row.Status), DateTime: row.DateTime.Time, RevokedAt: row.RevokedAt.Time, LastUpdated: row.UpdatedAt.Time,
 		VersionID: row.VersionID,
 	}

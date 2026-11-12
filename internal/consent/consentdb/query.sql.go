@@ -156,30 +156,34 @@ func (q *Queries) ConsentsByPatient(ctx context.Context, patientID pgtype.UUID) 
 }
 
 const grantChatConsent = `-- name: GrantChatConsent :one
-INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id, status, date_time, updated_at)
-VALUES ($1, $2, $3, $4, 'active', $5, $5)
-RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id, version_id, status
+INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id, practitioner_organization_id, status,
+    date_time, updated_at)
+VALUES ($1, $2, $3, $4, $5, 'active', $6, $6)
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id,
+    practitioner_organization_id, version_id, status
 `
 
 type GrantChatConsentParams struct {
-	PatientID          pgtype.UUID
-	OrganizationID     pgtype.UUID
-	ConversationID     pgtype.UUID
-	PractitionerRoleID pgtype.UUID
-	DateTime           pgtype.Timestamptz
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	DateTime                   pgtype.Timestamptz
 }
 
 type GrantChatConsentRow struct {
-	ID                 pgtype.UUID
-	UpdatedAt          pgtype.Timestamptz
-	DateTime           pgtype.Timestamptz
-	RevokedAt          pgtype.Timestamptz
-	PatientID          pgtype.UUID
-	OrganizationID     pgtype.UUID
-	ConversationID     pgtype.UUID
-	PractitionerRoleID pgtype.UUID
-	VersionID          int32
-	Status             string
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	DateTime                   pgtype.Timestamptz
+	RevokedAt                  pgtype.Timestamptz
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	VersionID                  int32
+	Status                     string
 }
 
 // chat_consent (migration 00044, SAL-28): the patient's consent for one conversation and one invited role.
@@ -189,6 +193,7 @@ func (q *Queries) GrantChatConsent(ctx context.Context, arg GrantChatConsentPara
 		arg.OrganizationID,
 		arg.ConversationID,
 		arg.PractitionerRoleID,
+		arg.PractitionerOrganizationID,
 		arg.DateTime,
 	)
 	var i GrantChatConsentRow
@@ -201,6 +206,7 @@ func (q *Queries) GrantChatConsent(ctx context.Context, arg GrantChatConsentPara
 		&i.OrganizationID,
 		&i.ConversationID,
 		&i.PractitionerRoleID,
+		&i.PractitionerOrganizationID,
 		&i.VersionID,
 		&i.Status,
 	)
@@ -373,7 +379,8 @@ const revokeChatConsent = `-- name: RevokeChatConsent :one
 UPDATE chat_consent
 SET status = 'inactive', revoked_at = $1, updated_at = $1, version_id = version_id + 1
 WHERE conversation_id = $2 AND practitioner_role_id = $3 AND status = 'active'
-RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id, version_id, status
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id,
+    practitioner_organization_id, version_id, status
 `
 
 type RevokeChatConsentParams struct {
@@ -383,16 +390,17 @@ type RevokeChatConsentParams struct {
 }
 
 type RevokeChatConsentRow struct {
-	ID                 pgtype.UUID
-	UpdatedAt          pgtype.Timestamptz
-	DateTime           pgtype.Timestamptz
-	RevokedAt          pgtype.Timestamptz
-	PatientID          pgtype.UUID
-	OrganizationID     pgtype.UUID
-	ConversationID     pgtype.UUID
-	PractitionerRoleID pgtype.UUID
-	VersionID          int32
-	Status             string
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	DateTime                   pgtype.Timestamptz
+	RevokedAt                  pgtype.Timestamptz
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	VersionID                  int32
+	Status                     string
 }
 
 func (q *Queries) RevokeChatConsent(ctx context.Context, arg RevokeChatConsentParams) (RevokeChatConsentRow, error) {
@@ -407,6 +415,7 @@ func (q *Queries) RevokeChatConsent(ctx context.Context, arg RevokeChatConsentPa
 		&i.OrganizationID,
 		&i.ConversationID,
 		&i.PractitionerRoleID,
+		&i.PractitionerOrganizationID,
 		&i.VersionID,
 		&i.Status,
 	)
