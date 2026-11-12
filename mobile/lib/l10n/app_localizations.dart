@@ -69,7 +69,8 @@ import 'app_localizations_tr.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale)
+    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -77,7 +78,8 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate =
+      _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -89,12 +91,13 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
-    delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
-  ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
+      <LocalizationsDelegate<dynamic>>[
+        delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
@@ -1856,9 +1859,124 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close'**
   String get termClose;
+
+  /// [legal] SAL-42: booking, the switch that shares visits from other clinics with this clinic; off by default. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Share my history from other clinics with this clinic'**
+  String get sharingToggle;
+
+  /// [legal] SAL-42: above the visits to tick, at booking and in Shared history; exactly what the clinic will see. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Tick the previous visits {clinic} may see. For each visit you tick, {clinic} sees what is shown here, with its documents, questionnaire answers and files. Visits you do not tick stay hidden from {clinic}.'**
+  String sharingIntro(String clinic);
+
+  /// [legal] SAL-42: under the sharing intro: how to change or stop it, and that it takes effect at once. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You can add or remove visits, or stop sharing, at any time under Shared history. Each change takes effect at once.'**
+  String get sharingChangeLater;
+
+  /// SAL-42: the preview when the patient has no finished visit at another clinic. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You have no previous visits at other clinics to share.'**
+  String get sharingNoVisits;
+
+  /// SAL-42: button: tick every visit. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get sharingSelectAll;
+
+  /// SAL-42: button: untick every visit. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Select none'**
+  String get sharingSelectNone;
+
+  /// SAL-42: button on My consents and the title of the screen that manages sharing per clinic. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared history'**
+  String get sharedHistory;
+
+  /// SAL-42: Shared history, above the list of clinics. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'The clinics you have consented to, and how many of your visits from other clinics each one sees.'**
+  String get sharedHistoryIntro;
+
+  /// SAL-42: Shared history without an active care consent. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You have not consented to any clinic yet.'**
+  String get sharedHistoryNone;
+
+  /// SAL-42: Shared history, under a clinic: how many visits are shared with it. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{Nothing shared} one{{count} visit shared} other{{count} visits shared}}'**
+  String sharedVisits(int count);
+
+  /// [legal] SAL-42: after saving the visits shared with a clinic. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your choice is saved and takes effect at once.'**
+  String get sharingSaved;
+
+  /// SAL-42: button: stop sharing history with the clinic (also the dialog's confirm button). Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop sharing'**
+  String get sharingStop;
+
+  /// [legal] SAL-42: dialog title before stopping the sharing. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop sharing your history?'**
+  String get sharingStopTitle;
+
+  /// [legal] SAL-42: dialog text: the effect of stopping the sharing. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{clinic} will no longer see any of the visits from other clinics you shared with it. This takes effect at once.'**
+  String sharingStopBody(String clinic);
+
+  /// SAL-42: dialog button: keep the sharing. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep sharing'**
+  String get sharingKeep;
+
+  /// [legal] SAL-42: after the sharing is stopped. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You no longer share your history with this clinic.'**
+  String get sharingStopped;
+
+  /// SAL-42: the sharing changed on another device since it was read; it is shown again. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your shared visits changed in the meantime. Check them and save again.'**
+  String get sharingChanged;
+
+  /// SAL-42: after a booking whose sharing failed. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your appointment is booked, but your history could not be shared. You can share it under Shared history.'**
+  String get bookedNotShared;
+
+  /// SAL-42: My consents, the label of a history consent. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Visits shared from other clinics'**
+  String get consentForHistory;
 }
 
-class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -1867,8 +1985,17 @@ class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> 
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['ar', 'bs', 'de', 'en', 'fr', 'hr', 'it', 'sr', 'tr'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>[
+    'ar',
+    'bs',
+    'de',
+    'en',
+    'fr',
+    'hr',
+    'it',
+    'sr',
+    'tr',
+  ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;

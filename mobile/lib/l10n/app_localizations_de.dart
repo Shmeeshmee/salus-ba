@@ -22,29 +22,34 @@ class AppLocalizationsDe extends AppLocalizations {
   String get languageSaved => 'Sprache gespeichert.';
 
   @override
-  String get somethingWrong => 'Etwas ist schiefgelaufen. Versuchen Sie es erneut.';
+  String get somethingWrong =>
+      'Etwas ist schiefgelaufen. Versuchen Sie es erneut.';
 
   @override
-  String get unreachable => 'Salus ist nicht erreichbar. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.';
+  String get unreachable =>
+      'Salus ist nicht erreichbar. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.';
 
   @override
   String get wrongCredentials => 'E-Mail-Adresse oder Passwort ist falsch.';
 
   @override
-  String get wrongCode => 'Der Code ist falsch. Prüfen Sie die Uhrzeit auf Ihrem Gerät und versuchen Sie es erneut.';
+  String get wrongCode =>
+      'Der Code ist falsch. Prüfen Sie die Uhrzeit auf Ihrem Gerät und versuchen Sie es erneut.';
 
   @override
   String get challengeEnded =>
       'Die Anmeldung ist abgelaufen. Geben Sie Ihre E-Mail-Adresse und Ihr Passwort erneut ein.';
 
   @override
-  String get emailTaken => 'Für diese E-Mail-Adresse gibt es bereits ein Konto. Melden Sie sich stattdessen an.';
+  String get emailTaken =>
+      'Für diese E-Mail-Adresse gibt es bereits ein Konto. Melden Sie sich stattdessen an.';
 
   @override
   String get invalidEmail => 'Geben Sie eine gültige E-Mail-Adresse ein.';
 
   @override
-  String get invalidPassword => 'Das Passwort muss 12 bis 128 Zeichen lang sein.';
+  String get invalidPassword =>
+      'Das Passwort muss 12 bis 128 Zeichen lang sein.';
 
   @override
   String get missingPassword => 'Geben Sie Ihr Passwort ein.';
@@ -53,16 +58,20 @@ class AppLocalizationsDe extends AppLocalizations {
   String get invalidCode => 'Der Code hat 6 Ziffern.';
 
   @override
-  String get staffOnly => 'Diese App ist für Patienten gedacht. Klinikpersonal verwendet die Web-App von Salus.';
+  String get staffOnly =>
+      'Diese App ist für Patienten gedacht. Klinikpersonal verwendet die Web-App von Salus.';
 
   @override
-  String get accountReady => 'Ihr Konto ist eingerichtet. Melden Sie sich an, um fortzufahren.';
+  String get accountReady =>
+      'Ihr Konto ist eingerichtet. Melden Sie sich an, um fortzufahren.';
 
   @override
-  String get signOutFailed => 'Abmelden nicht möglich. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.';
+  String get signOutFailed =>
+      'Abmelden nicht möglich. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.';
 
   @override
-  String get tooManyAttemptsLater => 'Zu viele Versuche. Versuchen Sie es später erneut.';
+  String get tooManyAttemptsLater =>
+      'Zu viele Versuche. Versuchen Sie es später erneut.';
 
   @override
   String tooManyAttempts(int minutes) {
@@ -91,7 +100,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get createAnAccount => 'Konto erstellen';
 
   @override
-  String get codePrompt => 'Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.';
+  String get codePrompt =>
+      'Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.';
 
   @override
   String get code => 'Code';
@@ -117,7 +127,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get completeProfile => 'Profil vervollständigen';
 
   @override
-  String get completeProfileFirst => 'Vervollständigen Sie Ihr Profil, bevor Sie einen Termin buchen.';
+  String get completeProfileFirst =>
+      'Vervollständigen Sie Ihr Profil, bevor Sie einen Termin buchen.';
 
   @override
   String get bookAppointment => 'Termin buchen';
@@ -165,19 +176,24 @@ class AppLocalizationsDe extends AppLocalizations {
   String get notNow => 'Nicht jetzt';
 
   @override
-  String get invalidGivenName => 'Geben Sie Ihren Vornamen ein, höchstens 100 Zeichen.';
+  String get invalidGivenName =>
+      'Geben Sie Ihren Vornamen ein, höchstens 100 Zeichen.';
 
   @override
-  String get invalidFamilyName => 'Geben Sie Ihren Nachnamen ein, höchstens 100 Zeichen.';
+  String get invalidFamilyName =>
+      'Geben Sie Ihren Nachnamen ein, höchstens 100 Zeichen.';
 
   @override
-  String get invalidName => 'Geben Sie Ihren Vor- und Nachnamen ein, jeweils höchstens 100 Zeichen.';
+  String get invalidName =>
+      'Geben Sie Ihren Vor- und Nachnamen ein, jeweils höchstens 100 Zeichen.';
 
   @override
-  String get birthDateFormat => 'Geben Sie Ihr Geburtsdatum im Format JJJJ-MM-TT ein.';
+  String get birthDateFormat =>
+      'Geben Sie Ihr Geburtsdatum im Format JJJJ-MM-TT ein.';
 
   @override
-  String get birthDateRange => 'Geben Sie ein Geburtsdatum in der Vergangenheit ein, frühestens 1900.';
+  String get birthDateRange =>
+      'Geben Sie ein Geburtsdatum in der Vergangenheit ein, frühestens 1900.';
 
   @override
   String invalidPhone(String example) {
@@ -185,7 +201,8 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get profileChanged => 'Ihr Profil wurde inzwischen geändert. Prüfen Sie es und speichern Sie erneut.';
+  String get profileChanged =>
+      'Ihr Profil wurde inzwischen geändert. Prüfen Sie es und speichern Sie erneut.';
 
   @override
   String get chooseClinic => 'Klinik auswählen';
@@ -194,13 +211,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get noClinics => 'Es sind noch keine Kliniken eingetragen.';
 
   @override
-  String get noPractitioners => 'Für diese Klinik sind noch keine Behandler eingetragen.';
+  String get noPractitioners =>
+      'Für diese Klinik sind noch keine Behandler eingetragen.';
 
   @override
   String get choosePractitioner => 'Wählen Sie einen Behandler.';
 
   @override
-  String get noOpenTimes => 'Dieser Behandler hat noch keine Sprechzeiten freigegeben.';
+  String get noOpenTimes =>
+      'Dieser Behandler hat noch keine Sprechzeiten freigegeben.';
 
   @override
   String timesIn(String zone) {
@@ -231,10 +250,12 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get slotTaken => 'Diese Zeit ist nicht mehr frei. Wählen Sie eine andere.';
+  String get slotTaken =>
+      'Diese Zeit ist nicht mehr frei. Wählen Sie eine andere.';
 
   @override
-  String get consentNeeded => 'Für eine Buchung bei dieser Klinik ist Ihre Einwilligung erforderlich.';
+  String get consentNeeded =>
+      'Für eine Buchung bei dieser Klinik ist Ihre Einwilligung erforderlich.';
 
   @override
   String get appointmentBooked => 'Ihr Termin ist gebucht.';
@@ -281,7 +302,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get appointmentCancelled => 'Ihr Termin ist storniert.';
 
   @override
-  String get cancelWindowHint => 'Kann bis 24 Stunden vor Beginn in der App storniert werden.';
+  String get cancelWindowHint =>
+      'Kann bis 24 Stunden vor Beginn in der App storniert werden.';
 
   @override
   String get cancelWindowClosed =>
@@ -334,7 +356,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get readPrivacyNotice => 'Datenschutzhinweise lesen';
 
   @override
-  String get privacyNoticeFailed => 'Die Datenschutzhinweise konnten nicht geöffnet werden.';
+  String get privacyNoticeFailed =>
+      'Die Datenschutzhinweise konnten nicht geöffnet werden.';
 
   @override
   String get howToRevoke => 'So widerrufen Sie';
@@ -364,7 +387,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get noConsents => 'Sie haben noch keine Einwilligungen erteilt.';
 
   @override
-  String get consentsIntro => 'Mit diesen Kliniken teilen Sie Ihr Profil und Ihre Termine für Ihre Behandlung.';
+  String get consentsIntro =>
+      'Mit diesen Kliniken teilen Sie Ihr Profil und Ihre Termine für Ihre Behandlung.';
 
   @override
   String givenOn(String date) {
@@ -384,7 +408,8 @@ class AppLocalizationsDe extends AppLocalizations {
       'Ihre Einwilligung ist widerrufen. Ihre künftigen Termine bei dieser Klinik werden storniert, und Sie erhalten für jeden eine E-Mail.';
 
   @override
-  String get consentAlreadyRevoked => 'Diese Einwilligung wurde bereits widerrufen.';
+  String get consentAlreadyRevoked =>
+      'Diese Einwilligung wurde bereits widerrufen.';
 
   @override
   String get joinConsultation => 'Sprechstunde beitreten';
@@ -396,10 +421,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get checkTitle => 'Kamera und Mikrofon prüfen';
 
   @override
-  String get checkIntro => 'Sobald Sie beitreten, kann Ihr Behandler Sie sehen und hören.';
+  String get checkIntro =>
+      'Sobald Sie beitreten, kann Ihr Behandler Sie sehen und hören.';
 
   @override
-  String get noSound => 'Kein Ton erkannt. Prüfen Sie, ob Ihr Mikrofon eingeschaltet und nicht stummgeschaltet ist.';
+  String get noSound =>
+      'Kein Ton erkannt. Prüfen Sie, ob Ihr Mikrofon eingeschaltet und nicht stummgeschaltet ist.';
 
   @override
   String get joinCameraOff => 'Mit ausgeschalteter Kamera beitreten';
@@ -469,10 +496,12 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get reconnecting => 'Verbindung unterbrochen. Verbindung wird wiederhergestellt…';
+  String get reconnecting =>
+      'Verbindung unterbrochen. Verbindung wird wiederhergestellt…';
 
   @override
-  String get notRestored => 'Die Verbindung konnte nicht wiederhergestellt werden.';
+  String get notRestored =>
+      'Die Verbindung konnte nicht wiederhergestellt werden.';
 
   @override
   String get reconnected => 'Wieder verbunden';
@@ -484,7 +513,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get closeScreen => 'Sie können diesen Bildschirm schließen.';
 
   @override
-  String get timeLimit => 'Die Sprechstunde hat ihre maximale Dauer erreicht und wurde beendet.';
+  String get timeLimit =>
+      'Die Sprechstunde hat ihre maximale Dauer erreicht und wurde beendet.';
 
   @override
   String get practitionerAbsent => 'Ihr Behandler ist nicht beigetreten';
@@ -498,19 +528,23 @@ class AppLocalizationsDe extends AppLocalizations {
       'Sie haben Ihre Einwilligung für diese Klinik widerrufen und deshalb die Sprechstunde verlassen.';
 
   @override
-  String get appointmentWasCancelled => 'Dieser Termin wurde storniert, daher ist die Sprechstunde beendet.';
+  String get appointmentWasCancelled =>
+      'Dieser Termin wurde storniert, daher ist die Sprechstunde beendet.';
 
   @override
-  String get windowNotOpen => 'Diese Sprechstunde öffnet 10 Minuten vor Beginn.';
+  String get windowNotOpen =>
+      'Diese Sprechstunde öffnet 10 Minuten vor Beginn.';
 
   @override
   String get consultationEnded => 'Diese Sprechstunde ist beendet.';
 
   @override
-  String get joinNeedsConsent => 'Für die Teilnahme ist Ihre Einwilligung für diese Klinik erforderlich.';
+  String get joinNeedsConsent =>
+      'Für die Teilnahme ist Ihre Einwilligung für diese Klinik erforderlich.';
 
   @override
-  String get consultationNotAvailable => 'Diese Sprechstunde ist nicht verfügbar.';
+  String get consultationNotAvailable =>
+      'Diese Sprechstunde ist nicht verfügbar.';
 
   @override
   String get cannotConnect =>
@@ -600,7 +634,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get viewAnswers => 'Antworten ansehen';
 
   @override
-  String get submitBeforeStart => 'Bitte senden Sie ihn vor Beginn Ihres Termins ab.';
+  String get submitBeforeStart =>
+      'Bitte senden Sie ihn vor Beginn Ihres Termins ab.';
 
   @override
   String get questionnaireClosed =>
@@ -618,7 +653,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get saving => 'Wird gespeichert…';
 
   @override
-  String get notSaved => 'Nicht gespeichert. Prüfen Sie Ihre Verbindung. Das Speichern wird erneut versucht.';
+  String get notSaved =>
+      'Nicht gespeichert. Prüfen Sie Ihre Verbindung. Das Speichern wird erneut versucht.';
 
   @override
   String get requiredQuestion => 'Erforderlich';
@@ -705,7 +741,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get notAnswered => 'Nicht beantwortet';
 
   @override
-  String get leaveUnsaved => 'Ihre letzte Antwort ist noch nicht gespeichert. Trotzdem verlassen?';
+  String get leaveUnsaved =>
+      'Ihre letzte Antwort ist noch nicht gespeichert. Trotzdem verlassen?';
 
   @override
   String get stay => 'Bleiben';
@@ -715,20 +752,24 @@ class AppLocalizationsDe extends AppLocalizations {
       'Zum Ausfüllen dieses Fragebogens ist Ihre Einwilligung für diese Klinik erforderlich.';
 
   @override
-  String get pastDue => 'Der Termin hat begonnen, daher kann dieser Fragebogen nicht mehr geändert werden.';
+  String get pastDue =>
+      'Der Termin hat begonnen, daher kann dieser Fragebogen nicht mehr geändert werden.';
 
   @override
-  String get withdrawnByClinic => 'Die Klinik hat diesen Fragebogen zurückgezogen. Sie müssen ihn nicht ausfüllen.';
+  String get withdrawnByClinic =>
+      'Die Klinik hat diesen Fragebogen zurückgezogen. Sie müssen ihn nicht ausfüllen.';
 
   @override
-  String get alreadySubmitted => 'Sie haben diesen Fragebogen bereits abgesendet.';
+  String get alreadySubmitted =>
+      'Sie haben diesen Fragebogen bereits abgesendet.';
 
   @override
   String get changedElsewhere =>
       'Diese Antworten wurden auf einem anderen Gerät geändert. Angezeigt werden die neuesten Antworten.';
 
   @override
-  String get questionnaireNotAvailable => 'Dieser Fragebogen ist nicht verfügbar.';
+  String get questionnaireNotAvailable =>
+      'Dieser Fragebogen ist nicht verfügbar.';
 
   @override
   String get done => 'Fertig';
@@ -750,7 +791,12 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String upToFilesHint(int n) {
-    String _temp0 = intl.Intl.pluralLogic(n, locale: localeName, other: 'Bis zu $n Dateien.', one: 'Bis zu $n Datei.');
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: 'Bis zu $n Dateien.',
+      one: 'Bis zu $n Datei.',
+    );
     return '$_temp0';
   }
 
@@ -805,7 +851,8 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get fileTypeRefused => 'Dieser Dateityp kann zu dieser Frage nicht hinzugefügt werden.';
+  String get fileTypeRefused =>
+      'Dieser Dateityp kann zu dieser Frage nicht hinzugefügt werden.';
 
   @override
   String tooManyFiles(int n) {
@@ -823,21 +870,29 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Dateien in diesem Fragebogen haben 500 MB erreicht. Entfernen Sie eine Datei, um eine weitere hinzuzufügen.';
 
   @override
-  String get fileNotUploaded => 'Die Datei konnte nicht hochgeladen werden. Versuchen Sie es erneut.';
+  String get fileNotUploaded =>
+      'Die Datei konnte nicht hochgeladen werden. Versuchen Sie es erneut.';
 
   @override
   String get cannotPrepareFile =>
       'Diese Datei konnte nicht für das Hochladen vorbereitet werden. Wählen Sie eine andere Datei.';
 
   @override
-  String get filesBeingChecked => 'Einige Dateien werden noch geprüft. Sie können absenden, sobald sie bereit sind.';
+  String get filesBeingChecked =>
+      'Einige Dateien werden noch geprüft. Sie können absenden, sobald sie bereit sind.';
 
   @override
-  String get leaveUploading => 'Eine Datei wird noch hochgeladen. Trotzdem verlassen? Das Hochladen wird abgebrochen.';
+  String get leaveUploading =>
+      'Eine Datei wird noch hochgeladen. Trotzdem verlassen? Das Hochladen wird abgebrochen.';
 
   @override
   String fileCount(int n) {
-    String _temp0 = intl.Intl.pluralLogic(n, locale: localeName, other: '$n Dateien', one: '$n Datei');
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n Dateien',
+      one: '$n Datei',
+    );
     return '$_temp0';
   }
 
@@ -991,7 +1046,8 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Sprechstunde, wie sie automatisch transkribiert und übersetzt wurde. Sie kann Fehler enthalten.';
 
   @override
-  String get transcriptEmpty => 'In dieser Sprechstunde wurde nichts transkribiert.';
+  String get transcriptEmpty =>
+      'In dieser Sprechstunde wurde nichts transkribiert.';
 
   @override
   String get speakerYou => 'Sie';
@@ -1015,4 +1071,82 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get termClose => 'Schließen';
+
+  @override
+  String get sharingToggle =>
+      'Meine Vorgeschichte aus anderen Kliniken mit dieser Klinik teilen';
+
+  @override
+  String sharingIntro(String clinic) {
+    return 'Wählen Sie die früheren Besuche aus, die $clinic sehen darf. Für jeden ausgewählten Besuch sieht $clinic, was hier angezeigt wird, mit seinen Dokumenten, Fragebogenantworten und Dateien. Besuche, die Sie nicht auswählen, bleiben vor $clinic verborgen.';
+  }
+
+  @override
+  String get sharingChangeLater =>
+      'Sie können jederzeit unter „Geteilte Vorgeschichte“ Besuche hinzufügen oder entfernen oder das Teilen beenden. Jede Änderung gilt sofort.';
+
+  @override
+  String get sharingNoVisits =>
+      'Sie haben keine früheren Besuche in anderen Kliniken, die Sie teilen könnten.';
+
+  @override
+  String get sharingSelectAll => 'Alle auswählen';
+
+  @override
+  String get sharingSelectNone => 'Keine auswählen';
+
+  @override
+  String get sharedHistory => 'Geteilte Vorgeschichte';
+
+  @override
+  String get sharedHistoryIntro =>
+      'Die Kliniken, denen Sie eine Einwilligung gegeben haben, und wie viele Ihrer Besuche aus anderen Kliniken jede davon sieht.';
+
+  @override
+  String get sharedHistoryNone =>
+      'Sie haben noch keiner Klinik eine Einwilligung gegeben.';
+
+  @override
+  String sharedVisits(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Besuche geteilt',
+      one: '$count Besuch geteilt',
+      zero: 'Nichts geteilt',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sharingSaved => 'Ihre Auswahl ist gespeichert und gilt sofort.';
+
+  @override
+  String get sharingStop => 'Teilen beenden';
+
+  @override
+  String get sharingStopTitle => 'Teilen Ihrer Vorgeschichte beenden?';
+
+  @override
+  String sharingStopBody(String clinic) {
+    return '$clinic sieht dann keinen der Besuche aus anderen Kliniken mehr, die Sie mit ihr geteilt haben. Das gilt sofort.';
+  }
+
+  @override
+  String get sharingKeep => 'Weiter teilen';
+
+  @override
+  String get sharingStopped =>
+      'Sie teilen Ihre Vorgeschichte nicht mehr mit dieser Klinik.';
+
+  @override
+  String get sharingChanged =>
+      'Ihre geteilten Besuche haben sich inzwischen geändert. Prüfen Sie sie und speichern Sie erneut.';
+
+  @override
+  String get bookedNotShared =>
+      'Ihr Termin ist gebucht, aber Ihre Vorgeschichte konnte nicht geteilt werden. Sie können sie unter „Geteilte Vorgeschichte“ teilen.';
+
+  @override
+  String get consentForHistory => 'Aus anderen Kliniken geteilte Besuche';
 }

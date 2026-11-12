@@ -10,6 +10,7 @@ import 'loading.dart';
 import 'messages.dart';
 import 'profile_screen.dart';
 import 'session.dart';
+import 'sharing.dart';
 import 'ui.dart' as ui;
 import 'zones.dart';
 
@@ -161,13 +162,54 @@ class _BookScreenState extends State<BookScreen> {
   bool _taken = false;
   bool _busy = false;
 
+  /// Sharing the history from other clinics (SAL-42): off until the patient turns it on, which loads the preview.
+  bool _share = false;
+  SharingChoice? _choice;
+  Set<String> _selected = {};
+
+  Future<void> _toggleSharing(bool on) async {
+    setState(() {
+      _share = on;
+      _error = null;
+    });
+    if (!on || _choice != null) return;
+    try {
+      final choice = await sharingChoice(widget.booking, widget.clinic.id);
+      if (!mounted) return;
+      setState(() {
+        _choice = choice;
+        _selected = {
+          for (final c in choice.candidates)
+            if (c.selected) c.encounterId,
+        };
+      });
+    } on ApiFailure catch (failure) {
+      if (mounted) setState(() => _error = bookingMessage(context.t, failure));
+    }
+  }
+
+  /// Shares the visits ticked once the appointment is booked (the care consent is there then); false when it failed.
+  Future<bool> _shareTicked() async {
+    final choice = _choice;
+    if (!_share || choice == null || (_selected.isEmpty && choice.version == null)) return true;
+    try {
+      await widget.booking.setSharing(widget.clinic.id, [
+        for (final c in choice.candidates)
+          if (_selected.contains(c.encounterId)) c.encounterId,
+      ], choice.version);
+      return true;
+    } on ApiFailure {
+      return false;
+    }
+  }
+
   Future<void> _book() async {
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      if (await _bookWithSteps() && mounted) _booked();
+      if (await _bookWithSteps() && mounted) _booked(await _shareTicked());
     } on ApiFailure catch (failure) {
       if (!mounted) return;
       setState(() {
@@ -222,9 +264,10 @@ class _BookScreenState extends State<BookScreen> {
     return true;
   }
 
-  void _booked() {
+  void _booked(bool shared) {
+    if (!mounted) return;
     final navigator = Navigator.of(context);
-    final booked = context.t.appointmentBooked;
+    final booked = shared ? context.t.appointmentBooked : context.t.bookedNotShared;
     navigator.popUntil((route) => route.isFirst);
     navigator.push(
       MaterialPageRoute<void>(
@@ -252,6 +295,15 @@ class _BookScreenState extends State<BookScreen> {
         Text(widget.role.name),
         if (specialty != null) Text(specialty),
         Text(widget.clinic.name),
+        SwitchListTile(value: _share, onChanged: _busy ? null : _toggleSharing, title: Text(t.sharingToggle)),
+        if (_share && _choice != null)
+          SharingPicker(
+            clinicName: widget.clinic.name,
+            zone: _zone,
+            candidates: _choice!.candidates,
+            selected: _selected,
+            onChanged: (s) => setState(() => _selected = s),
+          ),
         if (_taken)
           TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(t.chooseAnotherTime))
         else
