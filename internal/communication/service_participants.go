@@ -267,6 +267,7 @@ func (s *Service) DecideInvitation(ctx context.Context, c Caller, id string, d D
 // names the role; the revocation is audited. ErrNotFound for no granted invitation of theirs, ErrForbidden to staff.
 func (s *Service) RevokeInvitation(ctx context.Context, c Caller, id string) error {
 	var msg Message
+	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		e, p, err := s.invitation(ctx, c, id, StatusActive, false)
 		switch {
@@ -277,16 +278,20 @@ func (s *Service) RevokeInvitation(ctx context.Context, c Caller, id string) err
 		}
 		_, err = s.ChatConsents.RevokeChat(ctx, patientCaller(c), e.conv.ID, p.PractitionerRoleID)
 		switch {
-		case errors.Is(err, consent.ErrInactive):
-			return ErrNotFound
+		case errors.Is(err, consent.ErrInactive): // commits the refusal the consent domain audited, and nothing else
+			refused = ErrNotFound
+			return nil
 		case err != nil:
 			return err
 		}
 		msg, err = s.leave(ctx, c, e.conv, p, SystemParticipantRemoved)
 		return err
 	})
-	if err != nil {
+	switch {
+	case err != nil:
 		return wrap("revoke invitation", s.refusal(ctx, c, "", err))
+	case refused != nil:
+		return wrap("revoke invitation", refused)
 	}
 	s.publish(ctx, MessageType, msg)
 	return nil

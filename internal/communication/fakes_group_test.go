@@ -59,13 +59,19 @@ func (c fakeChatConsents) GrantChat(_ context.Context, by consent.Caller, g cons
 		OrganizationID: g.OrganizationID, ConversationID: g.ConversationID, PractitionerRoleID: g.PractitionerRoleID, Status: consent.StatusActive}, nil
 }
 
-func (c fakeChatConsents) RevokeChat(_ context.Context, by consent.Caller, conv, role string) (consent.Consent, error) {
+// RevokeChat audits a revocation of no active consent as a refusal in the caller's transaction, as
+// consent.Service.RevokeChat does.
+func (c fakeChatConsents) RevokeChat(ctx context.Context, by consent.Caller, conv, role string) (consent.Consent, error) {
 	c.f.mu.Lock()
 	defer c.f.mu.Unlock()
 	if by.OrganizationID != "" {
 		return consent.Consent{}, consent.ErrForbidden
 	}
 	if !c.f.chat[conv+role] {
+		if err := c.f.audit.Record(ctx, auditevent.AuditEvent{Action: auditevent.ActionUpdate, AgentAccountID: by.AccountID,
+			Outcome: auditevent.OutcomeMinorFailure}); err != nil {
+			return consent.Consent{}, err
+		}
 		return consent.Consent{}, consent.ErrInactive
 	}
 	c.f.chat[conv+role] = false

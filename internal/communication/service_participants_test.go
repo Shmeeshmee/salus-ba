@@ -495,3 +495,21 @@ func TestRemoveParticipant_AGrantedGuestsRemovalEndsTheirChatConsent(t *testing.
 		t.Errorf("a revocation after the removal: %v, want ErrNotFound", err)
 	}
 }
+
+// A revocation of a grant whose chat consent is no longer active is refused, and the refusal the consent domain
+// audits is kept (SAL-28 review, finding 8).
+func TestRevokeInvitation_KeepsTheRefusalOfAnInactiveConsentAudited(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	conv := f.open(t)
+	invited := f.invite(t, conv.ID)
+	f.mu.Lock()
+	f.chat[conv.ID+roleB1] = false
+	f.mu.Unlock()
+	if err := f.svc.RevokeInvitation(t.Context(), me, invited.ID); !errors.Is(err, communication.ErrNotFound) {
+		t.Fatalf("RevokeInvitation = %v, want ErrNotFound", err)
+	}
+	if e := f.audit.last(t); e.Outcome != auditevent.OutcomeMinorFailure || e.AgentAccountID != me.AccountID {
+		t.Errorf("the last audit = %+v, want the refused revocation", e)
+	}
+}
