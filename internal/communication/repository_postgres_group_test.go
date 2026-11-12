@@ -242,11 +242,11 @@ func systemCount(t *testing.T, owner *pgxpool.Pool, conv, code string) (systems,
 func TestPostgres_ADecisionRacingAnotherChangeOfTheInvitationActsOnItsStateUnderTheLock(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {
-		granted bool                                                           // the invitation is granted before the race
 		race    func(ctx context.Context, f *fixture, conv, part string) error // the other request
 		act     func(ctx context.Context, f *fixture, part string) error       // the request that read the invitation first
 		code    string                                                         // the system message there is one of
 		chat    int                                                            // the active chat consents after both
+		granted bool                                                           // the invitation is granted before the race
 	}{
 		"a grant after a removal": {
 			race: func(ctx context.Context, f *fixture, conv, part string) error {
