@@ -53,7 +53,12 @@ export function useConversation(chat: ChatApi, id: string) {
             setConversation((x) => x && { ...x, last_seq: Math.max(x.last_seq, frame.payload.seq) })
             if (frame.payload.kind === 'system') refresh()
           },
-          (end) => current && setEnded(end),
+          (end) => {
+            if (!current) return
+            setEnded(end)
+            setMessages([]) // nothing of a conversation the doctor may no longer read stays in memory
+            setConversation(undefined)
+          },
         )
       },
       (error: unknown) => current && setFailure({ error }),

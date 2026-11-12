@@ -19,6 +19,7 @@ export function SummaryPanel({ summary, zone, onDismiss }: { summary: Summary; z
         </button>
       </div>
       <p className="chat-summary-text">{summary.summary}</p>
+      <p className="hint">{t('chat.summary.hint')}</p>
       <p className="muted small">{t('chat.summary.meta', { time: format.time(new Date(summary.generated_at), zone), n: summary.up_to_seq })}</p>
     </section>
   )

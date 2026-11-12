@@ -59,7 +59,7 @@ export function systemText(m: ChatMessage, staff: Member[], t: T): { text: strin
   return { text, reason }
 }
 
-const explained = ['forbidden', 'consent_required', 'not_found', 'rate_limited', 'too_large', 'unsupported_type']
+const explained = ['forbidden', 'consent_required', 'not_found', 'rate_limited', 'too_large', 'unsupported_type', 'too_many_files']
 
 // errorText is what a refused call says: the API's code where the catalog explains it, the action's own message
 // (fallback, from the catalog) otherwise.

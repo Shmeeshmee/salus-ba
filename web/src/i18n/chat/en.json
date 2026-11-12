@@ -124,5 +124,6 @@
   "error.not_found": "This conversation is no longer available.",
   "error.rate_limited": "Too many messages at once. Wait a moment and try again.",
   "error.too_large": "The file is too large.",
-  "error.unsupported_type": "This type of file cannot be sent."
+  "error.unsupported_type": "This type of file cannot be sent.",
+  "error.too_many_files": "You have 10 files waiting to be sent. Send them before adding more; files not sent are removed after 24 hours."
 }

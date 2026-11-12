@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { newApiClient } from '../api/client'
-import { apiError, expectCsrfOnWrites, fakeFetch, type Route } from '../test/fakeFetch'
+import { apiError, expectCsrfOnWrites, fakeFetch, paths, type Route } from '../test/fakeFetch'
 import { ChatError, type ChatEnd, type ChatMessageFrame } from './chatApi'
 import { chatClient } from './chatClient'
 
@@ -90,7 +90,7 @@ describe('chatClient: the JSON API', () => {
     expectCsrfOnWrites(requests)
   })
 
-  it('adds and removes a doctor and opens and lists the doctor-only threads (the contract of SAL-28)', async () => {
+  it('adds and removes a doctor and opens and lists the doctor-only threads (SAL-28)', async () => {
     const participant = { id: 'd0000003-0000-4000-8000-000000000000', role: 'practitioner', practitioner_role_id: 'e0000002-0000-4000-8000-000000000000', organization_id: conversation.organization_id, status: 'active', added_at: '2026-11-12T10:00:00Z', history_from_seq: 2 }
     const thread = { ...conversation, id: 'c0000002-0000-4000-8000-000000000000', parent_id: conv, staff_only: true }
     const { chat, requests } = setup({
@@ -107,12 +107,12 @@ describe('chatClient: the JSON API', () => {
     expect(await chat.threads(conv)).toEqual([thread])
 
     expect(JSON.parse(await bodyOf(requests[0]))).toEqual(req)
-    expect(await bodyOf(requests[2])).toBe('{}')
+    expect(await bodyOf(requests[2])).toBe('')
     expectCsrfOnWrites(requests)
   })
 
-  it("streams a file's bytes to the attachments with its name in Content-Disposition (the contract of SAL-30)", async () => {
-    const attachment = { id: 'ab000001-0000-4000-8000-000000000000', content_type: 'image/png', size: 15, filename: 'placeholder scan.png', status: 'scanning' }
+  it("streams a file's bytes to the attachments with its name in Content-Disposition (SAL-30)", async () => {
+    const attachment = { id: 'ab000001-0000-4000-8000-000000000000', content_type: 'image/png', size: 15, filename: 'placeholder scan.png', status: 'scanning', thumbnail: false }
     const { chat, requests } = setup({ [`POST ${path}/attachments`]: () => Response.json(attachment, { status: 201 }) })
 
     expect(await chat.upload(conv, new File(['synthetic bytes'], 'placeholder scan.png', { type: 'image/png' }))).toEqual(attachment)
@@ -142,6 +142,9 @@ class FakeSocket {
   frame(...frames: unknown[]) {
     for (const f of frames) this.onmessage?.({ data: typeof f === 'string' ? f : JSON.stringify(f) })
   }
+  open() {
+    this.onopen?.()
+  }
   end(code: number, reason = '') {
     this.onclose?.({ code, reason })
   }
@@ -153,8 +156,8 @@ describe('chatClient: follow', () => {
   beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }))
   afterEach(() => vi.useRealTimers())
 
-  function follow(after?: string) {
-    const t = setup({})
+  function follow(after?: string, routes: Record<string, Route> = {}) {
+    const t = setup(routes)
     const frames: ChatMessageFrame[] = []
     const ends: ChatEnd[] = []
     const stop = t.chat.follow(conv, after, (f) => frames.push(f), (e) => ends.push(e))
@@ -204,6 +207,49 @@ describe('chatClient: follow', () => {
     await vi.advanceTimersByTimeAsync(60_000)
     expect(sockets).toHaveLength(1)
     expect(ends).toEqual([end])
+  })
+
+  // A handshake the API refuses (401, 403 or 404 before the upgrade) reaches the page as a close without a code of
+  // its own; the conversation's own answer says whether access ended.
+  it.each([
+    [401, 'unauthenticated', 'unauthenticated'],
+    [403, 'consent_required', 'consent_required'],
+    [403, 'forbidden', 'forbidden'],
+    [404, 'not_found', 'not_found'],
+  ])('ends for good when a connection is refused and the conversation answers %i %s', async (status, code, end) => {
+    const { sockets, ends, requests } = follow('AAAAAQ', { [`GET ${path}`]: () => apiError(status, code) })
+    sockets[0].end(1006)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(sockets).toHaveLength(1)
+    expect(ends).toEqual([end])
+    expect(paths(requests)).toEqual([`GET ${path}`])
+  })
+
+  it('tries again after a refused connection while the conversation still answers, or the API cannot be reached', async () => {
+    let reachable = false
+    const { sockets, ends } = follow('AAAAAQ', {
+      [`GET ${path}`]: () => {
+        if (!reachable) throw new TypeError('network')
+        return json(conversationJSON)
+      },
+    })
+    sockets[0].end(1006)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(sockets).toHaveLength(2)
+    reachable = true
+    sockets[1].end(1006)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(sockets).toHaveLength(3)
+    expect(ends).toEqual([])
+  })
+
+  it('does not ask for the conversation after a connection that was open', async () => {
+    const { sockets, requests } = follow('AAAAAQ', {})
+    sockets[0].open()
+    sockets[0].end(1006)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(sockets).toHaveLength(2)
+    expect(requests).toHaveLength(0)
   })
 
   it('closes the socket and does not come back once stopped', async () => {

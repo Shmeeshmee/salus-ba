@@ -104,7 +104,9 @@ describe('ChatView', () => {
 
     expect(await screen.findByText('Synthetic Doctor 3 joined the conversation.')).toBeTruthy()
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(add).toHaveBeenCalledWith(chat.conversations[0].id, { practitioner_role_id: role(3), organization_id: org, reason: 'specialist_review', history: 'from', from_seq: 4 })
+    // from_seq is the last message they do not read: the one before the chosen one (SAL-28).
+    expect(add).toHaveBeenCalledWith(chat.conversations[0].id, { practitioner_role_id: role(3), organization_id: org, reason: 'specialist_review', history: 'from', from_seq: 3 })
+    expect((await chat.get(chat.conversations[0].id)).participants?.find((p) => p.practitioner_role_id === role(3))?.history_from_seq).toBe(3)
     fireEvent.click(await screen.findByText('2 doctors'))
     expect(screen.getByRole('button', { name: 'Remove Synthetic Doctor 3' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Remove Synthetic Doctor 1' })).toBeNull()
@@ -233,6 +235,7 @@ describe('ChatView', () => {
     expect(within(panel).getByText('AI generated')).toBeTruthy()
     expect(within(panel).getByText('[en] Placeholder summary of 60 messages')).toBeTruthy()
     expect(within(panel).getByText('Generated 09:01, up to message 60. The messages below are unchanged.')).toBeTruthy()
+    expect(within(panel).getByText('An AI generated summary of what was written. It is not a diagnosis.')).toBeTruthy()
     expect(summarize).toHaveBeenCalledWith(chat.conversations[0].id, 'en')
     expect(panel.compareDocumentPosition(log()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(within(log()).getByText('Synthetic placeholder message 60')).toBeTruthy()
@@ -251,15 +254,54 @@ describe('ChatView', () => {
     expect(await screen.findByText('The summary could not be generated.')).toBeTruthy()
   })
 
-  it('closes the conversation when access ends, and says why', async () => {
-    const chat = fakeChat({ history: 1 })
+  it('closes the conversation when access ends, says why and shows nothing of it any more', async () => {
+    const chat = fakeChat({ history: 60 })
     show(chat)
-    await screen.findByText('Synthetic placeholder message 1')
+    fireEvent.click(await screen.findByRole('button', { name: 'Summarize' }))
+    await screen.findByText('[en] Placeholder summary of 60 messages')
 
     act(() => chat.end(chat.conversations[0].id, 'consent_required'))
 
     expect(await screen.findByText("The patient's consent for care has ended, so this conversation is closed.")).toBeTruthy()
-    expect((screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement).disabled).toBe(true)
+    expect(screen.queryByText('Synthetic placeholder message 60')).toBeNull()
+    expect(screen.queryByText('[en] Placeholder summary of 60 messages')).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Synthetic Patient' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Doctor-only threads' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'All messages' })).toBeTruthy()
+  })
+
+  it('unlocks the text after a refusal that a retry cannot change, and keeps it for one that it can', async () => {
+    const chat = fakeChat()
+    const send = vi.spyOn(chat, 'send').mockRejectedValueOnce(new ChatError('invalid_request')).mockRejectedValueOnce(new ChatError('rate_limited'))
+    show(chat)
+    const box = (await screen.findByRole('textbox', { name: 'Message' })) as HTMLTextAreaElement
+
+    fireEvent.change(box, { target: { value: 'Synthetic placeholder question' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(await screen.findByText('The message was not sent.')).toBeTruthy()
+    expect(box.readOnly).toBe(false)
+    expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy()
+
+    fireEvent.change(box, { target: { value: 'Synthetic placeholder, shorter' } })
+    expect(box.value).toBe('Synthetic placeholder, shorter')
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(await screen.findByText('Too many messages at once. Wait a moment and try again.')).toBeTruthy()
+    expect(box.readOnly).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    expect(await within(log()).findByText('Synthetic placeholder, shorter')).toBeTruthy()
+    expect(send.mock.calls[1][1]).not.toBe(send.mock.calls[0][1])
+    expect(send.mock.calls[2][1]).toBe(send.mock.calls[1][1])
+  })
+
+  it('says when the caller already has ten files waiting to be sent', async () => {
+    const chat = fakeChat()
+    vi.spyOn(chat, 'upload').mockRejectedValueOnce(new ChatError('too_many_files'))
+    show(chat)
+    fireEvent.change(await screen.findByLabelText('Attach a file'), { target: { files: [new File(['x'], 'placeholder.png', { type: 'image/png' })] } })
+
+    expect(await screen.findByText('You have 10 files waiting to be sent. Send them before adding more; files not sent are removed after 24 hours.')).toBeTruthy()
   })
 
   it('says when the conversation cannot be loaded', async () => {

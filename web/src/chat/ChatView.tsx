@@ -31,10 +31,41 @@ export type ChatProps = {
 // summaryMinimum is the API's long conversation: the doctor reads at least 50 messages of it.
 const summaryMinimum = 50
 
-export function ChatView({ chat, id, staff, practitionerId, organizationId, zone, patientName }: ChatProps & { id: string }) {
+export function ChatView(props: ChatProps & { id: string }) {
   const t = useT()
-  const { conversation, messages, older, failure, ended, loadOlder, add, refresh } = useConversation(chat, id)
-  const patient = usePatientName(patientName, conversation?.patient_id)
+  const state = useConversation(props.chat, props.id)
+  const { conversation, failure, ended } = state
+
+  // Once access ends nothing of the conversation stays on the screen: the open view, with its summary and panels,
+  // is unmounted, and the hook has dropped the messages.
+  if (ended) {
+    return (
+      <div className="chat">
+        <Link to="/chats" className="back">
+          {t('chat.back')}
+        </Link>
+        <p className="alert" role="alert">
+          {t(`chat.ended.${ended}`)}
+        </p>
+      </div>
+    )
+  }
+  if (failure) {
+    return (
+      <p className="alert" role="alert">
+        {errorText(failure.error, t('chat.conversationFailed'), t)}
+      </p>
+    )
+  }
+  if (!conversation) return <p className="muted">{t('common.loading')}</p>
+  return <OpenConversation {...props} {...state} conversation={conversation} />
+}
+
+type OpenProps = ChatProps & Omit<ReturnType<typeof useConversation>, 'conversation' | 'failure' | 'ended'> & { id: string; conversation: Conversation }
+
+function OpenConversation({ chat, id, staff, practitionerId, organizationId, zone, patientName, conversation, messages, older, loadOlder, add, refresh }: OpenProps) {
+  const t = useT()
+  const patient = usePatientName(patientName, conversation.patient_id)
   const [atBottom, setAtBottom] = useState(true)
   const [panel, setPanel] = useState<'add' | 'threads'>()
   const [summary, setSummary] = useState<SummaryState>()
@@ -67,15 +98,6 @@ export function ChatView({ chat, id, staff, practitionerId, organizationId, zone
     [loadOlder],
   )
 
-  if (failure) {
-    return (
-      <p className="alert" role="alert">
-        {errorText(failure.error, t('chat.conversationFailed'), t)}
-      </p>
-    )
-  }
-  if (!conversation) return <p className="muted">{t('common.loading')}</p>
-
   const myRoles = new Set(staff.filter((m) => m.practitionerId === practitionerId).map((m) => m.roleId))
   const me = conversation.participants?.find((p) => p.role === 'practitioner' && myRoles.has(p.practitioner_role_id ?? ''))
   const long = me !== undefined && conversation.last_seq - me.history_from_seq >= summaryMinimum
@@ -91,7 +113,7 @@ export function ChatView({ chat, id, staff, practitionerId, organizationId, zone
         <Header conversation={conversation} staff={staff} patient={patient} meId={me?.id} treating={treating} chat={chat} onChanged={refresh} />
         <div className="chat-tools">
           {treating && (
-            <button type="button" onClick={() => setPanel('add')} disabled={ended !== undefined}>
+            <button type="button" onClick={() => setPanel('add')}>
               {t('chat.add.open')}
             </button>
           )}
@@ -117,12 +139,7 @@ export function ChatView({ chat, id, staff, practitionerId, organizationId, zone
         </p>
         {messages.length === 0 && <p className="muted">{t('chat.noMessages')}</p>}
         <VirtualList items={messages} keyOf={seqOf} render={row} label={t('chat.history')} onScrolled={onScrolled} />
-        {ended && (
-          <p className="alert" role="alert">
-            {t(`chat.ended.${ended}`)}
-          </p>
-        )}
-        <Composer chat={chat} id={id} disabled={ended !== undefined} onSent={add} />
+        <Composer chat={chat} id={id} onSent={add} />
       </div>
       {panel === 'threads' && <Threads chat={chat} id={id} zone={zone} onClose={() => setPanel(undefined)} />}
       {panel === 'add' && <AddDoctor chat={chat} conversation={conversation} organizationId={organizationId} staff={staff} messages={messages} zone={zone} onAdded={refresh} onClose={() => setPanel(undefined)} />}

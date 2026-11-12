@@ -1,5 +1,6 @@
 import {
   ChatError,
+  fileTypes,
   reasons,
   type ChatApi,
   type ChatAttachment,
@@ -37,6 +38,9 @@ const seqOf = (cursor: string) => Number(cursor.slice('fake-'.length))
 // summaryMinimum is the API's "long conversation": the summary needs 50 messages the practitioner reads.
 const summaryMinimum = 50
 
+// unsentMaximum is how many uploads a participant may have waiting to be sent (SAL-30).
+const unsentMaximum = 10
+
 export type FakeChatOptions = {
   // me is the caller's role and participant id: their messages are the ones they may edit.
   me?: Who
@@ -53,6 +57,7 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
   const enders = new Map<string, Set<(end: ChatEnd) => void>>()
   const clientIds = new Map<string, ChatMessage>()
   const uploads = new Map<string, ChatAttachment>()
+  const unsent = new Set<string>()
   let clock = start.getTime()
   let ids = 0
   const now = () => new Date(clock).toISOString()
@@ -120,9 +125,10 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
   }
 
   function attachmentsOf(ids: string[] = []): ChatAttachment[] {
+    if (ids.length > unsentMaximum) throw new ChatError('invalid_request')
     return ids.map((id) => {
       const a = uploads.get(id)
-      if (!a) throw new ChatError('invalid_request')
+      if (!a || !unsent.has(id)) throw new ChatError('invalid_request')
       return a
     })
   }
@@ -159,6 +165,7 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
       const fields = attachments.length > 0 ? { attachments: attachments.map((a) => ({ ...a })) } : {}
       const m = write(c, me, { kind: 'text', body: body(text, attachments), ...fields }, clientMessageId)
       if (m.body === undefined) delete m.body
+      for (const a of attachments) unsent.delete(a.id)
       clientIds.set(`${id}/${clientMessageId}`, m)
       return m
     },
@@ -217,12 +224,13 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
       practitionerOnly()
       const c = find(id)
       const known = c.participants?.some((p) => p.practitioner_role_id === req.practitioner_role_id)
+      // from_seq is the last message the added doctor does not read: they read those after it.
       const from = req.history === 'from' ? req.from_seq : 0
-      if (known || !reasons.includes(req.reason) || from === undefined || from < 0 || from > c.last_seq + 1) throw new ChatError('invalid_request')
+      if (known || !reasons.includes(req.reason) || from === undefined || from < 0 || from > c.last_seq) throw new ChatError('invalid_request')
       const status = req.organization_id === c.organization_id ? 'active' : 'pending_consent'
       const p: ConversationParticipant = {
         id: uuid(++ids, 'da'), role: 'practitioner', practitioner_role_id: req.practitioner_role_id, organization_id: req.organization_id,
-        status, added_at: now(), history_from_seq: Math.max(0, from - 1),
+        status, added_at: now(), history_from_seq: from,
       }
       c.participants = [...(c.participants ?? []), p]
       const args = { practitioner_role_id: req.practitioner_role_id, organization_id: req.organization_id, reason: req.reason }
@@ -256,8 +264,12 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
     },
     async upload(id, file) {
       find(id)
-      const a: ChatAttachment = { id: uuid(++ids, 'ab'), content_type: file.type, size: file.size, filename: file.name, status: 'scanning' }
+      const type = fileTypes.find((t) => t === file.type)
+      if (!type) throw new ChatError('unsupported_type')
+      if (unsent.size >= unsentMaximum) throw new ChatError('too_many_files')
+      const a: ChatAttachment = { id: uuid(++ids, 'ab'), content_type: type, size: file.size, filename: file.name, status: 'scanning', thumbnail: false }
       uploads.set(a.id, a)
+      unsent.add(a.id)
       return { ...a }
     },
     scan(attachmentId, status) {

@@ -45,7 +45,8 @@ export function AddDoctor({ chat, conversation, organizationId, staff, messages,
     setError(undefined)
     try {
       const base = { practitioner_role_id: roleId, organization_id: organizationId, reason }
-      await chat.addParticipant(conversation.id, history === 'full' ? { ...base, history } : { ...base, history, from_seq: fromSeq })
+      // The doctor chooses the first message the colleague reads; from_seq is the last one they do not.
+      await chat.addParticipant(conversation.id, history === 'full' ? { ...base, history } : { ...base, history, from_seq: fromSeq - 1 })
       onAdded()
       onClose()
     } catch (err) {

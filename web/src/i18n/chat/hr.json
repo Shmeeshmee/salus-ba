@@ -124,5 +124,6 @@
   "error.not_found": "Ovaj razgovor više nije dostupan.",
   "error.rate_limited": "Previše poruka odjednom. Pričekajte trenutak i pokušajte ponovno.",
   "error.too_large": "Datoteka je prevelika.",
-  "error.unsupported_type": "Ova se vrsta datoteke ne može poslati."
+  "error.unsupported_type": "Ova se vrsta datoteke ne može poslati.",
+  "error.too_many_files": "Imate 10 datoteka koje čekaju slanje. Pošaljite ih prije nego što dodate nove; neposlane datoteke uklanjaju se nakon 24 sata."
 }

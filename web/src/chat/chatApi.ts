@@ -7,44 +7,26 @@ import type { components } from '../api/schema'
 
 type Schemas = components['schemas']
 
-// The wave's shapes (the plan's "Contract of wave 1": SAL-28 participants and threads, SAL-30 attachments) are
-// written by hand here, field names as the contract has them; they move to the generated types once SAL-28 to
-// SAL-30 are merged and `make gen-clients` has them.
-
-// ChatAttachment is a file of a message (SAL-30). thumbnail is taken to say whether `.../thumbnail` has a
-// picture of it (the contract names the field, not its type).
-export type ChatAttachment = {
-  id: string
-  content_type: string
-  size: number
-  filename: string
-  status: 'scanning' | 'clean' | 'rejected'
-  thumbnail?: boolean
-}
-
-export type ConversationParticipant = Schemas['ConversationParticipant'] & { status?: 'active' | 'pending_consent'; organization_id?: string }
-export type Conversation = Omit<Schemas['Conversation'], 'participants'> & { participants?: ConversationParticipant[] }
-export type ChatMessage = Schemas['ChatMessage'] & { attachments?: ChatAttachment[] }
-export type MessagePage = { messages: ChatMessage[]; next?: string }
-export type ChatMessageFrame = { type: 'message' | 'message_edited'; version: 1; payload: ChatMessage }
+export type ChatAttachment = Schemas['ChatAttachment']
+export type ConversationParticipant = Schemas['ConversationParticipant']
+export type Conversation = Schemas['Conversation']
+export type ChatMessage = Schemas['ChatMessage']
+export type MessagePage = Schemas['MessagePage']
+export type ChatMessageFrame = Schemas['ChatMessageFrame']
 export type MessageRevision = Schemas['MessageRevision']
 export type OpenConversationRequest = Schemas['OpenConversationRequest']
 export type ErrorCode = Schemas['Error']['error']
 export type Summary = Schemas['SummaryResponse']
 export type SummaryLanguage = NonNullable<Schemas['SummaryRequest']['lang']>
+// AddParticipantRequest adds a practitioner role (SAL-28): with history `from`, from_seq is the last message the
+// added doctor does not read; they read the messages after it.
+export type AddParticipantRequest = Schemas['AddParticipantRequest']
+export type Reason = AddParticipantRequest['reason']
 
-export const reasons = ['second_opinion', 'specialist_review', 'handover'] as const
-export type Reason = (typeof reasons)[number]
+export const reasons = ['second_opinion', 'specialist_review', 'handover'] as const satisfies readonly Reason[]
 
-// AddParticipantRequest adds a practitioner role (SAL-28): from_seq goes with history `from`, the first message the
-// added doctor reads.
-export type AddParticipantRequest = {
-  practitioner_role_id: string
-  organization_id: string
-  reason: Reason
-  history: 'full' | 'from'
-  from_seq?: number
-}
+// fileTypes are the types an upload may have (SAL-30: detected from the bytes on the server).
+export const fileTypes = ['image/jpeg', 'image/png', 'application/pdf'] as const satisfies readonly ChatAttachment['content_type'][]
 
 // ChatEnd is why a conversation's socket ended for good: access ended (close codes 4403 and 4404), or the
 // session did (4401).

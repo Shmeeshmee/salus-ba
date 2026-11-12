@@ -1,7 +1,7 @@
 import { useId, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react'
 import { CrossIcon, PaperclipIcon } from '../icons'
 import { useT } from '../i18n/useT'
-import type { ChatApi, ChatAttachment, ChatMessage } from './chatApi'
+import { ChatError, type ChatApi, type ChatAttachment, type ChatMessage } from './chatApi'
 import { errorText } from './names'
 
 // Composer writes a message: its text and the files uploaded for it. A send carries a fresh client id
@@ -11,9 +11,13 @@ import { errorText } from './names'
 type Pending = { clientId: string; body: string; attachmentIds: string[] }
 type Upload = { key: string; name: string; attachment?: ChatAttachment; error?: string }
 
-type Props = { chat: ChatApi; id: string; disabled: boolean; onSent: (m: ChatMessage) => void }
+type Props = { chat: ChatApi; id: string; onSent: (m: ChatMessage) => void }
 
-export function Composer({ chat, id, disabled, onSent }: Props) {
+// retryable are the refusals a retry of the same message can get past; after any other the text is the doctor's
+// to change, and the next send is a new message.
+const retryable = new Set<string>(['rate_limited', 'internal error', 'timeout'])
+
+export function Composer({ chat, id, onSent }: Props) {
   const t = useT()
   const boxId = useId()
   const [text, setText] = useState('')
@@ -37,6 +41,7 @@ export function Composer({ chat, id, disabled, onSent }: Props) {
       setPending(undefined)
       setState('idle')
     } catch (err) {
+      if (err instanceof ChatError && !retryable.has(err.code)) setPending(undefined)
       setState('failed')
       setError(errorText(err, t('chat.composer.failed'), t))
     }
@@ -44,7 +49,7 @@ export function Composer({ chat, id, disabled, onSent }: Props) {
 
   function submit(e?: FormEvent) {
     e?.preventDefault()
-    if (disabled || state === 'sending' || uploading) return
+    if (state === 'sending' || uploading) return
     if (pending) return void send(pending)
     const body = text.trim()
     if (body === '' && ready.length === 0) return
@@ -73,7 +78,7 @@ export function Composer({ chat, id, disabled, onSent }: Props) {
     }
   }
 
-  const locked = disabled || pending !== undefined
+  const locked = pending !== undefined
   return (
     <form className="chat-composer" onSubmit={submit}>
       {uploads.length > 0 && (
@@ -104,9 +109,9 @@ export function Composer({ chat, id, disabled, onSent }: Props) {
         <label htmlFor={boxId} className="sr-only">
           {t('chat.composer.label')}
         </label>
-        <textarea id={boxId} rows={2} value={text} disabled={disabled} readOnly={pending !== undefined} maxLength={4000} onChange={(e) => setText(e.target.value)} onKeyDown={onKeyDown} />
-        <button type="submit" className="primary" disabled={disabled || state === 'sending' || uploading}>
-          {state === 'sending' ? t('chat.composer.sending') : state === 'failed' ? t('chat.composer.retry') : t('chat.composer.send')}
+        <textarea id={boxId} rows={2} value={text} readOnly={pending !== undefined} maxLength={4000} onChange={(e) => setText(e.target.value)} onKeyDown={onKeyDown} />
+        <button type="submit" className="primary" disabled={state === 'sending' || uploading}>
+          {state === 'sending' ? t('chat.composer.sending') : state === 'failed' && pending ? t('chat.composer.retry') : t('chat.composer.send')}
         </button>
       </div>
     </form>

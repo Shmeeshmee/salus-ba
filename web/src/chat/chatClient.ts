@@ -1,6 +1,6 @@
 import type { ApiClient } from '../api/client'
 import { attempt } from '../api/result'
-import { ChatError, type ChatApi, type ChatEnd, type ChatMessage, type ChatMessageFrame, type Conversation, type ConversationParticipant, type ChatAttachment } from './chatApi'
+import { ChatError, type ChatApi, type ChatEnd, type ChatMessage, type ChatMessageFrame } from './chatApi'
 
 // chatClient is the ChatApi on the JSON API (api/client.ts: same origin, the session cookie, X-Salus-CSRF on every
 // write) and the conversation's WebSocket, GET /conversations/{id}/events (SAL-27). Nothing here logs, and no
@@ -16,13 +16,6 @@ const ends: Record<string, ChatEnd> = {
   '4404 not_found': 'not_found',
   '4401 unauthenticated': 'unauthenticated',
 }
-
-// Wave is the API client without its route types, for the routes of SAL-28 and SAL-30 that are not in the
-// generated schema yet (the plan's "Contract of wave 1"); the same client, so the same origin and CSRF header.
-// These calls move to the typed routes once SAL-28 to SAL-30 are merged and `make gen-clients` has them.
-type Init = { params?: { path?: Record<string, string> }; body?: unknown; headers?: Record<string, string>; bodySerializer?: (body: unknown) => BodyInit }
-type Answer = Promise<{ data?: unknown; error?: unknown; response: Response }>
-type Wave = { GET(path: string, init?: Init): Answer; POST(path: string, init?: Init): Answer; DELETE(path: string, init?: Init): Answer }
 
 type Options = {
   api: ApiClient
@@ -47,14 +40,10 @@ function filenameHeader(name: string): string {
 }
 
 export function chatClient({ api, open = (url) => new WebSocket(url) }: Options): ChatApi {
-  const wave = api as unknown as Wave
   const at = (id: string) => ({ params: { path: { id } } })
 
   return {
-    async list(before) {
-      const data = await call(api.GET('/conversations', { params: { query: before === undefined ? {} : { before } } }))
-      return data as { conversations: Conversation[]; next?: string }
-    },
+    list: (before) => call(api.GET('/conversations', { params: { query: before === undefined ? {} : { before } } })),
     open: (req) => call(api.POST('/conversations', { body: req })),
     get: (id) => call(api.GET('/conversations/{id}', at(id))),
     messages: (id, { before, limit } = {}) => call(api.GET('/conversations/{id}/messages', { params: { path: { id }, query: { before, limit } } })),
@@ -77,47 +66,71 @@ export function chatClient({ api, open = (url) => new WebSocket(url) }: Options)
       await call(api.PUT('/conversations/{id}/read', { ...at(id), body: { seq } }))
     },
     summarize: (id, lang) => call(api.POST('/conversations/{id}/summary', { ...at(id), body: { lang } })),
-    async addParticipant(id, req) {
-      return (await call(wave.POST('/conversations/{id}/participants', { ...at(id), body: req }))) as ConversationParticipant
-    },
+    addParticipant: (id, req) => call(api.POST('/conversations/{id}/participants', { ...at(id), body: req })),
     async removeParticipant(id, participantId) {
-      await call(wave.DELETE('/conversations/{id}/participants/{participant_id}', { params: { path: { id, participant_id: participantId } } }))
+      await call(api.DELETE('/conversations/{id}/participants/{participant_id}', { params: { path: { id, participant_id: participantId } } }))
     },
-    // The list is taken to be {conversations: [...]}, as GET /conversations answers.
     async threads(id) {
-      return ((await call(wave.GET('/conversations/{id}/threads', at(id)))) as { conversations: Conversation[] }).conversations
+      return (await call(api.GET('/conversations/{id}/threads', at(id)))).conversations
     },
-    // A thread is opened with an empty body: the parent names its patient and doctors.
-    async openThread(id) {
-      return (await call(wave.POST('/conversations/{id}/threads', { ...at(id), body: {} }))) as Conversation
-    },
-    async upload(id, file) {
-      const headers = { 'Content-Type': 'application/octet-stream', 'Content-Disposition': filenameHeader(file.name) }
-      const res = wave.POST('/conversations/{id}/attachments', { ...at(id), body: file, headers, bodySerializer: (b) => b as File })
-      return (await call(res)) as ChatAttachment
+    // A side thread is opened without a body: it has nothing of its own but its messages.
+    openThread: (id) => call(api.POST('/conversations/{id}/threads', at(id))),
+    // The browser sets Content-Length from the File itself (a page may not set it), so only the name is a header.
+    upload(id, file) {
+      const header = { 'Content-Disposition': filenameHeader(file.name) } as { 'Content-Length': number; 'Content-Disposition': string }
+      return call(
+        api.POST('/conversations/{id}/attachments', {
+          params: { path: { id }, header },
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: file as unknown as string,
+          bodySerializer: (b) => b as unknown as File,
+        }),
+      )
     },
     follow(id, after, onFrame, onEnd) {
-      return follow(open, id, after, onFrame, onEnd)
+      return follow(open, () => call(api.GET('/conversations/{id}', at(id))), id, after, onFrame, onEnd)
     },
   }
 }
 
+// refusals are the conversation's answers that end the socket for good, as its close codes do.
+const refusals: Partial<Record<string, ChatEnd>> = { consent_required: 'consent_required', forbidden: 'forbidden', not_found: 'not_found', unauthenticated: 'unauthenticated' }
+
 // follow keeps the conversation's socket open until stopped: on a dropped connection it comes back after the last
 // message it delivered, so nothing is lost; a message whose seq it has already delivered is dropped. Frames it does
-// not know (send_ack, receipt, typing, anything newer) are ignored.
-function follow(open: (url: string) => WebSocket, id: string, after: string | undefined, onFrame: (f: ChatMessageFrame) => void, onEnd: (e: ChatEnd) => void): () => void {
+// not know (send_ack, receipt, typing, anything newer) are ignored. A connection that never opened may be a
+// handshake the API refused (the page sees no status), so the conversation is read (check) first: a refusal of
+// access or of the session ends the socket for good; anything else tries again.
+function follow(
+  open: (url: string) => WebSocket,
+  check: () => Promise<unknown>,
+  id: string,
+  after: string | undefined,
+  onFrame: (f: ChatMessageFrame) => void,
+  onEnd: (e: ChatEnd) => void,
+): () => void {
   let failures = 0
   let last = 0
+  let stopped = false
   let timer: ReturnType<typeof setTimeout> | undefined
   let socket: WebSocket | undefined
+
+  function later() {
+    if (!stopped) timer = setTimeout(connect, retry[Math.min(failures++, retry.length - 1)])
+  }
 
   function connect() {
     const url = new URL(`/conversations/${encodeURIComponent(id)}/events`, location.href)
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
     if (after) url.searchParams.set('after', after)
     const ws = open(url.toString())
+    let opened = false
     socket = ws
+    ws.onopen = () => {
+      opened = true
+    }
     ws.onmessage = (e) => {
+      opened = true
       const f = typeof e.data === 'string' ? parse(e.data) : undefined
       if (!f) return
       failures = 0
@@ -131,15 +144,22 @@ function follow(open: (url: string) => WebSocket, id: string, after: string | un
     ws.onclose = (e) => {
       const end = ends[`${e.code} ${e.reason}`]
       if (end) return onEnd(end)
-      timer = setTimeout(connect, retry[Math.min(failures++, retry.length - 1)])
+      if (opened) return later()
+      check().then(later, (err: unknown) => {
+        const refused = err instanceof ChatError ? refusals[err.code] : undefined
+        if (stopped) return
+        if (refused) onEnd(refused)
+        else later()
+      })
     }
   }
 
   connect()
   return () => {
+    stopped = true
     clearTimeout(timer)
     if (socket) {
-      socket.onmessage = socket.onclose = null
+      socket.onopen = socket.onmessage = socket.onclose = null
       socket.close()
     }
   }

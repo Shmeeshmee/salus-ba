@@ -81,7 +81,7 @@ describe('fakeChat', () => {
     const frames: ChatMessageFrame[] = []
     chat.follow(c.id, c.cursor, (f) => frames.push(f), () => {})
     const added = await chat.addParticipant(c.id, { practitioner_role_id: role2, organization_id: c.organization_id, reason: 'second_opinion', history: 'from', from_seq: 3 })
-    expect(added).toMatchObject({ role: 'practitioner', practitioner_role_id: role2, organization_id: c.organization_id, status: 'active', history_from_seq: 2 })
+    expect(added).toMatchObject({ role: 'practitioner', practitioner_role_id: role2, organization_id: c.organization_id, status: 'active', history_from_seq: 3 })
     const invited = await chat.addParticipant(c.id, { practitioner_role_id: role3, organization_id: otherClinic, reason: 'specialist_review', history: 'full' })
     expect(invited).toMatchObject({ status: 'pending_consent', history_from_seq: 0 })
     expect(frames.map((f) => f.payload.system)).toEqual([
@@ -91,6 +91,10 @@ describe('fakeChat', () => {
     expect(frames[0].payload).toMatchObject({ kind: 'system', sender_role: 'system', seq: 5 })
     expect((await chat.get(c.id)).participants?.map((p) => p.practitioner_role_id)).toContain(role2)
     await expect(chat.addParticipant(c.id, { practitioner_role_id: role2, organization_id: c.organization_id, reason: 'handover', history: 'from' })).rejects.toEqual(new ChatError('invalid_request'))
+    // from_seq is the last message the added doctor does not read (SAL-28): at most the conversation's last.
+    const role4 = 'e0000000-0000-4000-8000-000000000004'
+    await expect(chat.addParticipant(c.id, { practitioner_role_id: role4, organization_id: c.organization_id, reason: 'handover', history: 'from', from_seq: 7 })).rejects.toEqual(new ChatError('invalid_request'))
+    expect(await chat.addParticipant(c.id, { practitioner_role_id: role4, organization_id: c.organization_id, reason: 'handover', history: 'from', from_seq: 6 })).toMatchObject({ history_from_seq: 6 })
   })
 
   it('removes an added doctor, never the patient or the caller', async () => {
@@ -125,7 +129,7 @@ describe('fakeChat', () => {
     const id = chat.conversations[0].id
     const file = new File(['synthetic bytes'], 'placeholder.png', { type: 'image/png' })
     const a = await chat.upload(id, file)
-    expect(a).toMatchObject({ filename: 'placeholder.png', content_type: 'image/png', size: 15, status: 'scanning' })
+    expect(a).toMatchObject({ filename: 'placeholder.png', content_type: 'image/png', size: 15, status: 'scanning', thumbnail: false })
     const frames: ChatMessageFrame[] = []
     chat.follow(id, undefined, (f) => frames.push(f), () => {})
     const m = await chat.send(id, clientId(1), '', [a.id])
@@ -135,5 +139,18 @@ describe('fakeChat', () => {
     expect((await chat.messages(id)).messages[0].attachments?.[0].status).toBe('clean')
     await expect(chat.send(id, clientId(2), '', [])).rejects.toEqual(new ChatError('invalid_request'))
     await expect(chat.send(id, clientId(3), '', ['f0000000-0000-4000-8000-00000000dead'])).rejects.toEqual(new ChatError('invalid_request'))
+  })
+
+  it('refuses a file of another type, and an eleventh unsent upload of the caller (SAL-30)', async () => {
+    const chat = fakeChat()
+    const id = chat.conversations[0].id
+    const png = () => new File(['synthetic'], 'placeholder.png', { type: 'image/png' })
+    await expect(chat.upload(id, new File(['x'], 'placeholder.mp4', { type: 'video/mp4' }))).rejects.toEqual(new ChatError('unsupported_type'))
+    const ten = await Promise.all(Array.from({ length: 10 }, png))
+    const uploaded = []
+    for (const f of ten) uploaded.push(await chat.upload(id, f))
+    await expect(chat.upload(id, png())).rejects.toEqual(new ChatError('too_many_files'))
+    await chat.send(id, clientId(9), '', [uploaded[0].id])
+    expect(await chat.upload(id, png())).toMatchObject({ status: 'scanning' })
   })
 })
