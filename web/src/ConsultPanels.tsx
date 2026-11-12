@@ -2,7 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, typ
 import type { ConsultActions, ConsultMessage, ConsultState, End, SuggestionEvent, TranscriptEvent } from './consult'
 import { AllergyWarning } from './AllergiesPanel'
 import { Documents } from './Documents'
-import type { Allergy } from './entries'
+import type { PatientEntries } from './entries'
 import { useFormat, useT } from './i18n/useT'
 import { TermList, TermText } from './terminology/Explain'
 import { explained, useExplain } from './terminology/terms'
@@ -67,7 +67,7 @@ type SideProps = {
   end?: End
   // entries are the patient's allergies, warned of above the drafting editor (shown, never sent: ADR 0014 "No AI"),
   // and the panel of their allergies and medications, a tab of its own (SAL-41). Without them neither is shown.
-  entries?: { allergies: Allergy[]; panel: ReactNode }
+  entries?: { state: PatientEntries; panel: ReactNode }
 }
 
 // ConsultSide is the panel beside the video. A suggestion's or a field's sources open the transcript at
@@ -137,7 +137,7 @@ export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end
         <Suggestions suggestions={state.suggestions} dispatch={dispatch} actions={actions} onSources={show} />
       </div>
       <div className="side-panel" role="tabpanel" id={`${id}-documents`} aria-labelledby={`${id}-documents-tab`} hidden={tab !== 'documents'}>
-        {entries && <AllergyWarning allergies={entries.allergies} />}
+        {entries && <AllergyWarning entries={entries.state} />}
         <Documents appointmentId={appointmentId} drafts={state.drafts} dispatch={dispatch} actions={actions} onSources={show} />
       </div>
       {entries && (

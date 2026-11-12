@@ -70,11 +70,10 @@ export function CallScreen({ api, fhir, id, media = liveKit, consult }: Props) {
   const params = { params: { path: { id } } }
   const [live, dispatch, ended] = useConsult(consult?.live, id, phase.name === 'call' || phase.name === 'reconnecting')
   const entries = usePatientEntries(fhir, id)
-  const allergies = entries.entries?.allergies ?? []
   // warned is a state of the page with the allergy warning on top.
   const warned = (page: ReactNode) => (
     <>
-      <AllergyWarning allergies={allergies} />
+      <AllergyWarning entries={entries} />
       {page}
     </>
   )
@@ -311,7 +310,7 @@ export function CallScreen({ api, fhir, id, media = liveKit, consult }: Props) {
           actions={consult.actions}
           zone={zone}
           end={ended}
-          entries={fhir && { allergies, panel: <EntriesPanel api={api} fhir={fhir} appointmentId={id} entries={entries} /> }}
+          entries={fhir && { state: entries, panel: <EntriesPanel api={api} fhir={fhir} appointmentId={id} entries={entries} /> }}
         />
       )}
     </section>

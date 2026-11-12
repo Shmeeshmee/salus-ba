@@ -1,6 +1,9 @@
 {
   "warningTitle": "Aktivne alergije",
   "reactionSeverity": "{reaction} ({severity, select, mild {blaga} moderate {umjerena} severe {teška} other {}})",
+  "warningLoading": "Učitavanje alergija…",
+  "warningFailed": "Alergije nije moguće učitati. Ne pretpostavljajte da ih pacijent nema.",
+  "retry": "Pokušajte ponovo",
   "tab": "Alergije i lijekovi",
   "allergies": "Alergije",
   "medications": "Lijekovi",

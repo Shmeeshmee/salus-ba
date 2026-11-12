@@ -13,24 +13,43 @@ import { Alert } from './ui'
 
 type Fhir = Pick<FhirClient, 'get'>
 
-// AllergyWarning lists every active allergy with its reaction and severity; nothing when there is none.
-export function AllergyWarning({ allergies }: { allergies: Allergy[] }) {
+// AllergyWarning lists every active allergy with its reaction and severity, and nothing when there is none. A list
+// still being read, or one that could not be read, never looks like none: it says so (with Try again on a failure),
+// keeping the allergies last read.
+export function AllergyWarning({ entries }: { entries: PatientEntries }) {
   const t = useT()
   const id = useId()
-  const active = activeAllergies(allergies)
-  if (active.length === 0) return null
+  const loaded = entries.entries
+  const active = activeAllergies(loaded?.allergies ?? [])
   return (
-    <section className="allergy-warning" aria-labelledby={id}>
-      <h2 id={id}>{t('allergies.warningTitle')}</h2>
-      <ul>
-        {active.map((a) => (
-          <li key={a.id}>
-            <span className="strong">{a.text}</span>
-            {a.reaction && <span>{reactionText(t, a)}</span>}
-          </li>
-        ))}
-      </ul>
-    </section>
+    <>
+      {entries.failed && (
+        <div className="allergy-warning failed" role="alert">
+          <p className="strong">{t('allergies.warningFailed')}</p>
+          <button type="button" onClick={entries.reload}>
+            {t('allergies.retry')}
+          </button>
+        </div>
+      )}
+      {!loaded && !entries.failed && (
+        <p className="allergy-warning pending" role="status">
+          {t('allergies.warningLoading')}
+        </p>
+      )}
+      {active.length > 0 && (
+        <section className="allergy-warning" aria-labelledby={id}>
+          <h2 id={id}>{t('allergies.warningTitle')}</h2>
+          <ul>
+            {active.map((a) => (
+              <li key={a.id}>
+                <span className="strong">{a.text}</span>
+                {a.reaction && <span>{reactionText(t, a)}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
   )
 }
 

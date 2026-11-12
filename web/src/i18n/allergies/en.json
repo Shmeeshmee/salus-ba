@@ -1,6 +1,9 @@
 {
   "warningTitle": "Active allergies",
   "reactionSeverity": "{reaction} ({severity, select, mild {mild} moderate {moderate} severe {severe} other {}})",
+  "warningLoading": "Loading allergies…",
+  "warningFailed": "Allergies could not be loaded. Do not assume the patient has none.",
+  "retry": "Try again",
   "tab": "Allergies and medications",
   "allergies": "Allergies",
   "medications": "Medications",

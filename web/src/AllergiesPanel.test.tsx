@@ -1,10 +1,10 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { newApiClient } from './api/client'
 import { newFhirClient } from './api/fhir'
 import { AllergyWarning, EntriesPanel } from './AllergiesPanel'
-import { allergiesOf, usePatientEntries, type Allergy } from './entries'
+import { allergiesOf, usePatientEntries, type Allergy, type PatientEntries } from './entries'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import type { Language } from './i18n/languages'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, paths, type Route } from './test/fakeFetch'
@@ -37,20 +37,20 @@ const term = {
   ],
 }
 
-function Panel({ fake }: { fake: ReturnType<typeof fakeFetch> }) {
+function Panel({ fake, refresh }: { fake: ReturnType<typeof fakeFetch>; refresh?: number }) {
   const [{ fhir, api }] = useState(() => ({ fhir: newFhirClient(fake.fetch), api: newApiClient(fake.fetch) }))
-  const entries = usePatientEntries(fhir, appointment)
+  const entries = usePatientEntries(fhir, appointment, refresh)
   return (
     <>
-      <AllergyWarning allergies={entries.entries?.allergies ?? []} />
+      <AllergyWarning entries={entries} />
       <EntriesPanel api={api} fhir={fhir} appointmentId={appointment} entries={entries} />
     </>
   )
 }
 
-type Setup = { routes?: Record<string, Route>; allergies?: () => Response; medications?: () => Response; language?: Language }
+type Setup = { routes?: Record<string, Route>; allergies?: () => Response; medications?: () => Response; language?: Language; refresh?: number }
 
-function renderPanel({ routes = {}, allergies, medications, language = 'en' }: Setup = {}) {
+function renderPanel({ routes = {}, allergies, medications, language = 'en', refresh }: Setup = {}) {
   const fake = fakeFetch({
     [`GET /fhir/R4/Appointment/${appointment}`]: () => fhirJSON(appointmentResource),
     'GET /fhir/R4/AllergyIntolerance': allergies ?? (() => fhirJSON(allergyBundle(ownAllergy(), clinicAllergy()))),
@@ -59,7 +59,7 @@ function renderPanel({ routes = {}, allergies, medications, language = 'en' }: S
     'GET /terminology/search': () => Response.json({ terms: [term] }),
     ...routes,
   })
-  renderInLanguage(<Panel fake={fake} />, language)
+  renderInLanguage(<Panel fake={fake} refresh={refresh} />, language)
   return fake
 }
 
@@ -69,24 +69,51 @@ const medicationList = () => screen.getByRole('list', { name: 'Medications' })
 
 describe('AllergyWarning', () => {
   const list = (...a: Parameters<typeof allergyBundle>): Allergy[] => allergiesOf(allergyBundle(...a))
+  const loaded = (allergies: Allergy[]): PatientEntries => ({ entries: { allergies, medications: [] }, failed: false, reload() {} })
 
   it('lists each active allergy with its reaction and severity', () => {
-    renderInLanguage(<AllergyWarning allergies={list(ownAllergy(), clinicAllergy())} />, 'en')
+    renderInLanguage(<AllergyWarning entries={loaded(list(ownAllergy(), clinicAllergy()))} />, 'en')
     const warning = screen.getByRole('region', { name: 'Active allergies' })
     const items = within(warning).getAllByRole('listitem').map((li) => li.textContent)
     expect(items).toEqual(['Placeholder substance APlaceholder reaction (moderate)', 'Placeholder substance B'])
   })
 
   it('is in the UI language', () => {
-    renderInLanguage(<AllergyWarning allergies={list(ownAllergy())} />, 'sr-Cyrl')
+    renderInLanguage(<AllergyWarning entries={loaded(list(ownAllergy()))} />, 'sr-Cyrl')
     const warning = screen.getByRole('region', { name: 'Активне алергије' })
     expect(within(warning).getByText('Placeholder reaction (умјерена)')).toBeTruthy()
   })
 
   it('is not shown without an active allergy', () => {
     const resolved = ownAllergy({ clinicalStatus: { coding: [{ system: 'http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical', code: 'resolved' }] } })
-    renderInLanguage(<AllergyWarning allergies={list(resolved)} />, 'en')
+    renderInLanguage(<AllergyWarning entries={loaded(list(resolved))} />, 'en')
     expect(screen.queryByRole('region')).toBeNull()
+  })
+
+  // A list that is not read yet, or could not be read, never looks like a patient without allergies.
+  it('says the allergies are being loaded until they are', () => {
+    renderInLanguage(<AllergyWarning entries={{ failed: false, reload() {} }} />, 'en')
+    expect(screen.getByRole('status').textContent).toBe('Loading allergies…')
+  })
+
+  it('says the allergies could not be loaded, and loads them again on Try again', () => {
+    const reload = vi.fn()
+    renderInLanguage(<AllergyWarning entries={{ failed: true, reload }} />, 'en')
+    expect(screen.getByRole('alert').textContent).toContain('Allergies could not be loaded. Do not assume the patient has none.')
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the allergies last read beside the notice when a later read fails', () => {
+    renderInLanguage(<AllergyWarning entries={{ ...loaded(list(ownAllergy())), failed: true }} />, 'en')
+    expect(screen.getByRole('alert')).toBeTruthy()
+    expect(within(screen.getByRole('region', { name: 'Active allergies' })).getByText('Placeholder substance A')).toBeTruthy()
+  })
+
+  it('is in the UI language when the allergies could not be loaded', () => {
+    renderInLanguage(<AllergyWarning entries={{ failed: true, reload() {} }} />, 'sr-Cyrl')
+    expect(screen.getByRole('alert').textContent).toContain('Алергије није могуће учитати.')
+    expect(screen.getByRole('button', { name: 'Покушајте поново' })).toBeTruthy()
   })
 })
 
@@ -121,7 +148,20 @@ describe("EntriesPanel: the patient's entries", () => {
 
   it('says when they cannot be loaded', async () => {
     renderPanel({ allergies: () => fhirJSON({}, 500) })
-    expect((await screen.findByRole('alert')).textContent).toBe('Allergies and medications could not be loaded.')
+    // The panel says so, and the warning above it too (AllergyWarning).
+    const alerts = (await screen.findAllByRole('alert')).map((a) => a.textContent)
+    expect(alerts).toEqual(['Allergies could not be loaded. Do not assume the patient has none.Try again', 'Allergies and medications could not be loaded.'])
+  })
+})
+
+describe('usePatientEntries: during the visit', () => {
+  it('reads the allergies and medications again while the page is open, so one added meanwhile is shown', async () => {
+    let allergies = allergyBundle(ownAllergy())
+    const fake = renderPanel({ allergies: () => fhirJSON(allergies), refresh: 20 })
+    expect(await within(await screen.findByRole('list', { name: 'Allergies' })).findByText('Placeholder substance A')).toBeTruthy()
+    allergies = allergyBundle(ownAllergy(), clinicAllergy())
+    await waitFor(() => expect(within(allergyList()).getAllByRole('listitem')).toHaveLength(2))
+    expect(reads(fake.requests, 'AllergyIntolerance')).toBeGreaterThan(1)
   })
 })
 

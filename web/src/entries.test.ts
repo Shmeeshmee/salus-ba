@@ -63,12 +63,13 @@ describe('entries: the requests', () => {
     expect(fake.requests.map((r) => new URL(r.url).search).sort()).toEqual([`?patient=${patientID}`, `?patient=${patientID}`])
   })
 
-  it('reads a 404 as none', async () => {
+  // The search answers an empty searchset when the caller sees nothing, never a 404: a 404 is a failure, never none.
+  it('fails on a 404', async () => {
     const fake = fakeFetch({
       'GET /fhir/R4/AllergyIntolerance': () => outcome(404, 'not-found'),
-      'GET /fhir/R4/MedicationStatement': () => outcome(404, 'not-found'),
+      'GET /fhir/R4/MedicationStatement': () => fhirJSON(medicationBundle()),
     })
-    expect(await readEntries(newFhirClient(fake.fetch), patientID)).toEqual({ allergies: [], medications: [] })
+    await expect(readEntries(newFhirClient(fake.fetch), patientID)).rejects.toThrow()
   })
 
   it('fails on another error', async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ApiClient } from './api/client'
-import { FhirError, participant, type Appointment, type Bundle, type CodeableConcept, type Extension, type FhirClient, type Meta, type Reference } from './api/fhir'
+import { participant, type Appointment, type Bundle, type CodeableConcept, type Extension, type FhirClient, type Meta, type Reference } from './api/fhir'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
 
@@ -133,21 +133,11 @@ export function activeAllergies(list: Allergy[]): Allergy[] {
   return list.filter((a) => a.clinicalStatus === 'active')
 }
 
-// search reads a searchset; a 404 is none (the API may answer it when there is nothing the caller may see).
-async function search<R>(fhir: Pick<FhirClient, 'get'>, path: string): Promise<Bundle<R>> {
-  try {
-    return await fhir.get<Bundle<R>>(path)
-  } catch (e) {
-    if (e instanceof FhirError && e.status === 404) return { resourceType: 'Bundle', type: 'searchset' }
-    throw e
-  }
-}
-
 export async function readEntries(fhir: Pick<FhirClient, 'get'>, patientId: string): Promise<Entries> {
   const q = `?patient=${encodeURIComponent(patientId)}`
   const [allergies, medications] = await Promise.all([
-    search<AllergyIntolerance>(fhir, `AllergyIntolerance${q}`),
-    search<MedicationStatement>(fhir, `MedicationStatement${q}`),
+    fhir.get<Bundle<AllergyIntolerance>>(`AllergyIntolerance${q}`),
+    fhir.get<Bundle<MedicationStatement>>(`MedicationStatement${q}`),
   ])
   return { allergies: allergiesOf(allergies), medications: medicationsOf(medications) }
 }
@@ -196,11 +186,20 @@ type Fhir = Pick<FhirClient, 'get'>
 
 export type PatientEntries = { entries?: Entries; failed: boolean; reload: () => void }
 
-// usePatientEntries reads the appointment's patient, then their allergies and medications, and again on reload. The
-// last list read stays shown while it is read again.
-export function usePatientEntries(fhir: Fhir | undefined, appointmentId: string): PatientEntries {
+// refreshEvery is how often the call page reads the lists again, so an entry another clinician or the patient adds
+// during the visit is shown.
+export const refreshEvery = 60_000
+
+// usePatientEntries reads the appointment's patient, then their allergies and medications, again every refresh
+// milliseconds and on reload. The last list read stays shown while it is read again.
+export function usePatientEntries(fhir: Fhir | undefined, appointmentId: string, refresh = refreshEvery): PatientEntries {
   const [state, setState] = useState<{ entries?: Entries; failed: boolean }>({ failed: false })
   const [reads, setReads] = useState(0)
+
+  useEffect(() => {
+    const timer = setInterval(() => setReads((n) => n + 1), refresh)
+    return () => clearInterval(timer)
+  }, [refresh])
 
   useEffect(() => {
     if (!fhir) return

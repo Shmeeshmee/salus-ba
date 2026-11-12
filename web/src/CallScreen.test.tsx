@@ -694,12 +694,12 @@ describe('CallScreen: allergies and medications (SAL-41)', () => {
     participant: [{ status: 'accepted', actor: { reference: `Patient/${patientID}`, display: 'Ada Example' } }],
   }
 
-  function renderWithEntries(allergies = allergyBundle(ownAllergy(), clinicAllergy())) {
+  function renderWithEntries(allergies: unknown = allergyBundle(ownAllergy(), clinicAllergy()), read: Route = () => fhirJSON(allergies)) {
     const fake = fakeFetch({
       [joinPost]: () => Response.json(joined),
       [statusGet]: () => Response.json(open),
       [`GET /fhir/R4/Appointment/${id}`]: () => fhirJSON(appointment),
-      'GET /fhir/R4/AllergyIntolerance': () => fhirJSON(allergies),
+      'GET /fhir/R4/AllergyIntolerance': read,
       'GET /fhir/R4/MedicationStatement': () => fhirJSON(medicationBundle(ownMedication())),
       'GET /terminology/explanations': () => Response.json({ explanations: [] }),
     })
@@ -727,6 +727,26 @@ describe('CallScreen: allergies and medications (SAL-41)', () => {
     await vi.waitFor(() => expect(paths(fake.requests)).toContain('GET /fhir/R4/AllergyIntolerance'))
     await screen.findByRole('button', { name: 'Join' })
     expect(screen.queryByRole('region', { name: 'Active allergies' })).toBeNull()
+  })
+
+  it('says the allergies could not be loaded from the device check on, in the call and above the drafting editor', async () => {
+    renderWithEntries(undefined, () => Response.json({ resourceType: 'OperationOutcome', issue: [{ severity: 'error', code: 'exception' }] }, { status: 500 }))
+    const failed = 'Allergies could not be loaded. Do not assume the patient has none.'
+    await vi.waitFor(() => expect(screen.getAllByRole('alert').map((a) => a.textContent).join()).toContain(failed))
+    expect(screen.getByRole('heading', { name: 'Check your camera and microphone' })).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    await screen.findByRole('button', { name: 'Leave' })
+    expect(screen.getAllByRole('alert').filter((a) => a.textContent?.includes(failed))).toHaveLength(1) // the Documents tab is hidden
+    fireEvent.click(screen.getByRole('tab', { name: 'Documents' }))
+    const panel = screen.getByRole('tabpanel', { name: 'Documents' })
+    expect(within(panel).getByRole('alert').textContent).toContain(failed)
+    expect(screen.queryByRole('region', { name: 'Active allergies' })).toBeNull()
+  })
+
+  it('says the allergies are being loaded until they are, never that there are none', async () => {
+    renderWithEntries(undefined, () => new Promise<Response>(() => {}))
+    expect((await screen.findByText('Loading allergies…')).getAttribute('role')).toBe('status')
+    expect(screen.getByRole('heading', { name: 'Check your camera and microphone' })).toBeTruthy()
   })
 
   it('lists the allergies and medications beside the video, and shows the warning above the drafting editor', async () => {

@@ -525,6 +525,9 @@ p.hint.join { margin-bottom: 20px; }
 .allergy-warning li { color: var(--color-ink); }
 .allergy-warning li span + span::before { content: ' '; }
 .side-panel .allergy-warning { margin-bottom: 12px; }
+.allergy-warning p { margin: 0; }
+.allergy-warning.failed { justify-items: start; }
+.allergy-warning.pending { color: var(--color-text-muted); background: none; border-color: var(--color-border); }
 .call-side .tabs { flex-wrap: wrap; }
 .entries { display: grid; gap: 14px; }
 .entry-group { display: grid; gap: 8px; }

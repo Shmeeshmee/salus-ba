@@ -6,7 +6,7 @@ import { useConsult, type DraftEvent, type Template } from './consult'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import { newApiClient } from './api/client'
 import { newFhirClient } from './api/fhir'
-import { allergiesOf } from './entries'
+import { allergiesOf, type PatientEntries } from './entries'
 import { consultSocket } from './live'
 import { allergyBundle, ownAllergy } from './test/entries'
 import { draft, fakeActions, fakeLive, segment, templates } from './test/fakeConsult'
@@ -438,12 +438,20 @@ describe('Documents: the allergy warning (SAL-41)', () => {
     versionId: 1,
   }
 
-  function Drafting({ fake }: { fake: ReturnType<typeof fakeFetch> }) {
+  function Drafting({ fake, failed = false }: { fake: ReturnType<typeof fakeFetch>; failed?: boolean }) {
     const [{ live, actions }] = useState(() => consultSocket({ api: newApiClient(fake.fetch), fhir: newFhirClient(fake.fetch), open: () => ({ close() {} }) as unknown as WebSocket }))
     const [state, dispatch] = useConsult(live, id, false)
-    const allergies = allergiesOf(allergyBundle(ownAllergy()))
-    return <ConsultSide appointmentId={id} state={state} dispatch={dispatch} actions={actions} zone="Europe/Sarajevo" entries={{ allergies, panel: null }} />
+    const entries: PatientEntries = { entries: { allergies: allergiesOf(allergyBundle(ownAllergy())), medications: [] }, failed: false, reload() {} }
+    return <ConsultSide appointmentId={id} state={state} dispatch={dispatch} actions={actions} zone="Europe/Sarajevo" entries={{ state: failed ? { failed: true, reload() {} } : entries, panel: null }} />
   }
+
+  it('says above the editor when the allergies could not be loaded', () => {
+    const fake = fakeFetch({ 'GET /document-templates': () => Response.json({ templates: [templateRow] }) })
+    renderInLanguage(<Drafting fake={fake} failed />, 'en')
+    fireEvent.click(screen.getByRole('tab', { name: 'Documents' }))
+    const panel = screen.getByRole('tabpanel', { name: 'Documents' })
+    expect(within(panel).getByRole('alert').textContent).toContain('Allergies could not be loaded. Do not assume the patient has none.')
+  })
 
   it('is shown above the editor and is in no drafting request', async () => {
     const fake = fakeFetch({
