@@ -231,3 +231,6 @@ PROGRESS when merged.
 | `read_seq` | Unread counts and the e-mail fallback (owner, 2026-11-12) |
 | `client_message_id` | Idempotent send; an opaque UUID the client makes |
 | `encounter_id` | The optional link to the consultation the conversation is about |
+| `conversation_participant.organization_id` | A practitioner's clinic: who is a doctor of another clinic, whose access needs the patient's consent (SAL-28) |
+| `conversation_participant.status`, `reason` | Whether an invited doctor waits for the patient's consent, and why the treating practitioner added them (a code): shown to the patient with the invitation (SAL-28) |
+| `chat_consent` (`patient_id`, `organization_id`, `conversation_id`, `practitioner_role_id`, `date_time`, `revoked_at`) | Proof of the patient's consent that a doctor of another clinic reads and writes in that conversation, and of its revocation (GDPR Art. 7(1); SAL-28) |
