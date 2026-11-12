@@ -1,4 +1,4 @@
-// Package condition is the coded diagnoses of the signed documents (docs/plans/analytics.md §3, ADR 0012): one
+// Package condition is the coded diagnoses of the signed documents (docs/plans/analytics.md §3, ADR 0013): one
 // FHIR Condition (category encounter-diagnosis) per filled coded field of a signed Composition, written in the
 // signing transaction and never changed, the source of the analytics. Owns the condition table.
 package condition

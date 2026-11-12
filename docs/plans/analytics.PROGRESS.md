@@ -6,7 +6,7 @@ platform view stays behind `ANALYTICS_PLATFORM_ENABLED`, off, until the owner co
 
 ## ANA-0 plan (PR #71, merged 2026-11-12)
 
-ADR 0012 and the plan. Two subagent reviews: the first (14 findings) moved the platform figures from per-query to
+ADR 0013 and the plan. Two subagent reviews: the first (14 findings) moved the platform figures from per-query to
 per-month suppression over distinct patients, froze closed months, took out features that do not exist yet; the
 second, of sections 5 and 6 only (12 findings), made the relations inequalities, measured secondary suppression on
 the distinct union, ran the audit in the build failing closed, and kept moving or opting-out clinics out of a
@@ -14,7 +14,7 @@ period and of the rises. The owner's answers O1 to O8 and the feature flag are i
 
 ## ANA-1 SAL-19 diagnoses (branch `analytics-diagnoses`)
 
-Built: migration 00041 (diagnosis groups with appendix A's names, unreviewed; places; `condition` with RLS and the
+Built: migration 00042 (diagnosis groups with appendix A's names, unreviewed; places; `condition` with RLS and the
 backfill as `unconfirmed`; the `salus_stats` role and its column grants), `internal/condition`, the catalog and the
 group-name review in `terminology`, the confirmation in `composition`'s signing, the stats readers, `pkg/pseudonym`,
 `salusctl conditions unconfirmed`, `GET /fhir/R4/Condition/{id}` (the signed document's rule, audited), the web

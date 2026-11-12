@@ -90,7 +90,22 @@ func Rules() []Rule {
 			Keep:  day, // after scanned_at of a rejected row; after an object's last write
 			Then:  ThenDelete,
 		},
-	}, append(consultIntelligenceRules(), termReviewRules()...)...)
+	}, append(append(consultIntelligenceRules(), termReviewRules()...), chatRules()...)...)
+}
+
+// chatRules are the rules of the chat between the patient and their clinic's doctors (docs/plans/chat.md, SAL-27):
+// the messages are part of the clinical record, never deleted by anyone (ADR 0012), and kept with it.
+func chatRules() []Rule {
+	basis := "Care between visits (GDPR Art. 9(2)(h), with the care consent for the clinic's access): the messages, their " +
+		"earlier versions, who takes part and their read position are part of the clinical record and kept with it, like " +
+		"the encounter and the transcript; never deleted by a user or the app; needs a legal decision before production " +
+		"(docs/plans/chat.md \"Personal data\")"
+	return []Rule{
+		{Table: "conversation", Basis: basis, Then: ThenKeep},
+		{Table: "conversation_participant", Basis: basis, Then: ThenKeep},
+		{Table: "communication", Basis: basis, Then: ThenKeep},
+		{Table: "communication_revision", Basis: basis, Then: ThenKeep},
+	}
 }
 
 // termReviewRules are the rules of the term list's reviews (docs/plans/v1-finish.md "Contract"): the reference

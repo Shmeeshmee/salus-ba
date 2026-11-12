@@ -28,7 +28,7 @@ import (
 const usage = "usage: migrate up | status | create [-dir migrations] <name>"
 
 // The roles the migrations create: appRole, which the application binaries log in as, retentionRole, which only
-// the retention_apply job logs in as, and statsRole, which only the aggregate builds log in as (ADR 0012).
+// the retention_apply job logs in as, and statsRole, which only the aggregate builds log in as (ADR 0013).
 const (
 	appRole       = "salus_app"
 	retentionRole = "salus_retention"

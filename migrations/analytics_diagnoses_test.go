@@ -15,8 +15,8 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-// analyticsDiagnoses is the version of 00041 (SAL-19, docs/plans/analytics.md §3).
-const analyticsDiagnoses = 41
+// analyticsDiagnoses is the version of 00042 (SAL-19, docs/plans/analytics.md §3).
+const analyticsDiagnoses = 42
 
 // signWithCodes signs the encounter's seeded draft as the owner, with a coded field per code and one text field,
 // as composition's Sign stores them.
@@ -39,7 +39,7 @@ func signWithCodes(t *testing.T, owner *pgxpool.Pool, encounter string, codes ..
 	return id
 }
 
-// The backfill turns every coded value of a document signed before 00041 into an unconfirmed Condition of the
+// The backfill turns every coded value of a document signed before 00042 into an unconfirmed Condition of the
 // document's patient and clinic, recorded when and by whom it was signed; open drafts and empty values make none.
 func TestAnalyticsDiagnoses_TheBackfillMakesUnconfirmedConditionsOfSignedDocuments(t *testing.T) {
 	t.Parallel()

@@ -8,7 +8,7 @@ import (
 // GroupOther is the diagnosis group of every code outside the ranges (docs/plans/analytics.md, appendix A).
 const GroupOther = "other"
 
-// DiagnosisGroup is one of our own diagnosis groups (ADR 0012): a stable code, the group it is a subgroup of
+// DiagnosisGroup is one of our own diagnosis groups (ADR 0013): a stable code, the group it is a subgroup of
 // (empty for a group), and its names, by language in the enum's order. Reference data.
 type DiagnosisGroup struct {
 	Code   string
@@ -126,7 +126,7 @@ func (g Groups) Of(code string) (group, subgroup string) {
 // List returns the groups in their order.
 func (g Groups) List() []DiagnosisGroup { return g.groups }
 
-// Place is a place of a clinic's location (00041): an entity, a leaf region (an ISO 3166-2:BA code) or a city (a
+// Place is a place of a clinic's location (00042): an entity, a leaf region (an ISO 3166-2:BA code) or a city (a
 // Wikidata id), with its parent (empty for an entity and for a region that is its own entity) and its name, a
 // proper noun, in Latin and Cyrillic script. Reference data.
 type Place struct {

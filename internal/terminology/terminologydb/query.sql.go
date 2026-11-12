@@ -317,7 +317,7 @@ type ListDiagnosisGroupsRow struct {
 	ParentCode pgtype.Text
 }
 
-// Our diagnosis groups (00041, docs/plans/analytics.md appendix A), in their order.
+// Our diagnosis groups (00042, docs/plans/analytics.md appendix A), in their order.
 func (q *Queries) ListDiagnosisGroups(ctx context.Context) ([]ListDiagnosisGroupsRow, error) {
 	rows, err := q.db.Query(ctx, listDiagnosisGroups)
 	if err != nil {

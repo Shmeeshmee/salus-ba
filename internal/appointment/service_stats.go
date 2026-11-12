@@ -8,7 +8,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/pseudonym"
 )
 
-// Stats serves the appointments to the aggregate builds (docs/plans/analytics.md §3, ADR 0012), on the
+// Stats serves the appointments to the aggregate builds (docs/plans/analytics.md §3, ADR 0013), on the
 // salus_stats role. No access decision: only the builds in cmd/worker hold that role, and they audit their build.
 type Stats struct {
 	repo StatsRepository

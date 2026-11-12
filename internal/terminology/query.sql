@@ -275,7 +275,7 @@ ORDER BY e.term_id, e.language = @language::term_language DESC;
 SELECT id FROM term WHERE wikidata_id = @wikidata_id;
 
 -- name: ListDiagnosisGroups :many
--- Our diagnosis groups (00041, docs/plans/analytics.md appendix A), in their order.
+-- Our diagnosis groups (00042, docs/plans/analytics.md appendix A), in their order.
 SELECT code, parent_code FROM diagnosis_group ORDER BY position;
 
 -- name: ListDiagnosisGroupNames :many

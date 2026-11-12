@@ -110,7 +110,7 @@ func LoadRetention() Retention {
 }
 
 // Stats holds the aggregate builds' credentials: the salus_stats role, which bypasses row-level security and
-// reads only the source columns of the analytics (docs/plans/analytics.md, ADR 0012). Load never reads them;
+// reads only the source columns of the analytics (docs/plans/analytics.md, ADR 0013). Load never reads them;
 // cmd/migrate (which sets the role's password) and, with the builds, cmd/worker call LoadStats.
 type Stats struct {
 	// DatabaseURL is the role's login (STATS_DATABASE_URL).

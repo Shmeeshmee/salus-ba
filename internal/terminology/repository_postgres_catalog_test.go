@@ -11,7 +11,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-// The seeded grouping (00041, appendix A of docs/plans/analytics.md) is one grouping, in the appendix's order,
+// The seeded grouping (00042, appendix A of docs/plans/analytics.md) is one grouping, in the appendix's order,
 // every group named in the ten languages and unreviewed, and maps the appendix's examples as listed.
 func TestCatalogRepository_TheSeededGroupsMapTheAppendixExamples(t *testing.T) {
 	t.Parallel()

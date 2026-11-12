@@ -1,5 +1,5 @@
 -- +goose Up
--- Coded diagnoses for analytics (SAL-19, docs/plans/analytics.md §3, ADR 0012):
+-- Coded diagnoses for analytics (SAL-19, docs/plans/analytics.md §3, ADR 0013):
 --   - diagnosis_group, diagnosis_group_range, diagnosis_group_name: our own diagnosis groups on ICD-10 code ranges
 --     (appendix A), reference data with no personal data. A range is inclusive and compared on a code's first
 --     length(from_code) characters. The names are ours, never WHO's titles, in the ten languages, unreviewed until

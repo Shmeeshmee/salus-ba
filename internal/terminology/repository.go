@@ -84,7 +84,7 @@ type ReviewRepository interface {
 	SetTermReview(ctx context.Context, termID string, r Review, at time.Time) error
 }
 
-// CatalogRepository reads the diagnosis groups and the places (00041): reference data, no scope, read-only.
+// CatalogRepository reads the diagnosis groups and the places (00042): reference data, no scope, read-only.
 type CatalogRepository interface {
 	// DiagnosisGroups returns the groups in their order, each with its names by language in the enum's order,
 	// and every group's ranges.

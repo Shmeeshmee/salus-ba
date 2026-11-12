@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/schedule"
@@ -114,7 +115,7 @@ func TestScheduler_KnowsEveryKindTheWorkerTheNotifierAndTheAgentWork(t *testing.
 		NoopArgs{}, RetentionApplyArgs{}, schedule.SlotsGenerateArgs{}, consent.RevokedArgs{}, auth.InviteEmailArgs{},
 		appointment.BookedEmailArgs{}, appointment.CancelledEmailArgs{}, appointment.ReminderEmailArgs{}, appointment.AccessEndArgs{},
 		videosession.WindowCloseArgs{}, appointment.QuestionnaireRequestArgs{}, appointment.QuestionnaireDiscardArgs{},
-		binary.ScanArgs{}, binary.DiscardArgs{}, videosession.AgentJoinArgs{}, composition.SignedEmailArgs{},
+		binary.ScanArgs{}, binary.DiscardArgs{}, videosession.AgentJoinArgs{}, composition.SignedEmailArgs{}, communication.PartitionsArgs{},
 	} {
 		var unknown *river.UnknownJobKindError
 		if _, err := client.Insert(t.Context(), args, nil); errors.As(err, &unknown) || err != nil {
@@ -155,5 +156,32 @@ func TestScheduler_EnqueuesTheHourlySlotGenerationWhenItStartsLeading(t *testing
 			t.Fatal("no slots_generate job within 15 s")
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// communication_partitions runs daily, and once as soon as the scheduler leads (ADR 0012).
+func TestScheduler_EnqueuesTheChatPartitionsWhenItStartsLeading(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	client, err := NewScheduler(app, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("NewScheduler() error = %v", err)
+	}
+	if err := client.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = client.Stop(context.WithoutCancel(t.Context())) })
+	wall := clock.System{}
+	for deadline := wall.Now().Add(15 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		var n int
+		if err := owner.QueryRow(t.Context(), "SELECT count(*) FROM river_job WHERE kind = 'communication_partitions'").Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n == 1 {
+			return
+		}
+		if n > 1 || wall.Now().After(deadline) {
+			t.Fatalf("%d communication_partitions jobs within 15 s, want 1", n)
+		}
 	}
 }

@@ -38,7 +38,7 @@ const AppRole = "salus_app"
 // and DELETE on the tables whose rows are deleted after their period.
 const RetentionRole = "salus_retention"
 
-// StatsRole is the aggregate builds' role (docs/plans/analytics.md, ADR 0012): BYPASSRLS, no superuser, owner of
+// StatsRole is the aggregate builds' role (docs/plans/analytics.md, ADR 0013): BYPASSRLS, no superuser, owner of
 // nothing, granted SELECT on the source columns only.
 const StatsRole = "salus_stats"
 

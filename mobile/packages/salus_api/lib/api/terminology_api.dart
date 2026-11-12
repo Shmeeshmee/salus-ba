@@ -431,7 +431,7 @@ class TerminologyApi {
 
   /// The diagnosis groups, named in a language
   ///
-  /// Our own diagnosis groups on ICD-10 code ranges (docs/plans/analytics.md appendix A, ADR 0012), in their order, each with its parent group (a subgroup) and its name in the language with the name's review status. For staff. Reference data: nothing is audited, and the browser may cache it for five minutes.
+  /// Our own diagnosis groups on ICD-10 code ranges (docs/plans/analytics.md appendix A, ADR 0013), in their order, each with its parent group (a subgroup) and its name in the language with the name's review status. For staff. Reference data: nothing is audited, and the browser may cache it for five minutes.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -470,7 +470,7 @@ class TerminologyApi {
 
   /// The diagnosis groups, named in a language
   ///
-  /// Our own diagnosis groups on ICD-10 code ranges (docs/plans/analytics.md appendix A, ADR 0012), in their order, each with its parent group (a subgroup) and its name in the language with the name's review status. For staff. Reference data: nothing is audited, and the browser may cache it for five minutes.
+  /// Our own diagnosis groups on ICD-10 code ranges (docs/plans/analytics.md appendix A, ADR 0013), in their order, each with its parent group (a subgroup) and its name in the language with the name's review status. For staff. Reference data: nothing is audited, and the browser may cache it for five minutes.
   ///
   /// Parameters:
   ///

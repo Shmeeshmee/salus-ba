@@ -6,7 +6,7 @@ import (
 	"slices"
 )
 
-// Catalog serves the diagnosis groups and the places (00041, docs/plans/analytics.md §3): reference data, not
+// Catalog serves the diagnosis groups and the places (00042, docs/plans/analytics.md §3): reference data, not
 // audited, no patient data.
 type Catalog struct {
 	repo CatalogRepository
