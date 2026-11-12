@@ -22,7 +22,7 @@ require (
 	github.com/tphakala/go-opus v1.4.0
 	github.com/twitchtv/twirp v8.1.3+incompatible
 	golang.org/x/crypto v0.58.0
-	golang.org/x/image v0.46.0
+	golang.org/x/image v0.47.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
