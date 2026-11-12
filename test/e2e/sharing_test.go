@@ -42,6 +42,7 @@ func TestSharing_ThePatientSharesTwoOfThreeVisitsAndTheClinicSeesExactlyThose(t 
 	}
 
 	shared := []string{visits[0], visits[2]}
+	slices.Sort(shared) // visits added at once are listed by id (oldest selection first, then encounter id)
 	var sharing struct {
 		ConsentID, VersionID string
 		Shared               []string
