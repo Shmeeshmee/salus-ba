@@ -1,5 +1,5 @@
 -- consent holds the care consents, transcription_consent the transcription consents (migration 00040) and
--- history_consent the history consents (00043): the same shape, a kind each. A read of both is their UNION ALL, each table on its own index and under its own
+-- history_consent the history consents (00043): the same shape, a kind each. A read of all is their UNION ALL, each table on its own index and under its own
 -- row-level security.
 
 -- A second active consent with the clinic inserts nothing (no row), so the transaction stays usable for the
@@ -23,7 +23,11 @@ WHERE c.id = @id
 UNION ALL
 SELECT 'transcription'::text AS kind, t.id, t.updated_at, t.date_time, t.revoked_at, t.patient_id, t.organization_id, t.version_id, t.status
 FROM transcription_consent t
-WHERE t.id = @id;
+WHERE t.id = @id
+UNION ALL
+SELECT 'history'::text AS kind, h.id, h.updated_at, h.date_time, h.revoked_at, h.patient_id, h.organization_id, h.version_id, h.status
+FROM history_consent h
+WHERE h.id = @id;
 
 -- Only an active consent is revoked; a concurrent second revocation finds no row.
 -- name: RevokeConsent :one
@@ -36,6 +40,19 @@ RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, ve
 UPDATE transcription_consent
 SET status = 'inactive', revoked_at = @revoked_at, updated_at = @revoked_at, version_id = version_id + 1
 WHERE id = @id AND status = 'active'
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status;
+
+-- name: RevokeHistoryConsent :one
+UPDATE history_consent
+SET status = 'inactive', revoked_at = @revoked_at, updated_at = @revoked_at, version_id = version_id + 1
+WHERE id = @id AND status = 'active'
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status;
+
+-- The patient's active history consent with the clinic, revoked by the patient or with their care consent there.
+-- name: RevokeActiveHistoryConsent :one
+UPDATE history_consent
+SET status = 'inactive', revoked_at = @revoked_at, updated_at = @revoked_at, version_id = version_id + 1
+WHERE patient_id = @patient_id AND organization_id = @organization_id AND status = 'active'
 RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status;
 
 -- The patient's active transcription consent with the clinic, revoked with their care consent there.
@@ -53,6 +70,10 @@ UNION ALL
 SELECT 'transcription'::text AS kind, t.id, t.updated_at, t.date_time, t.revoked_at, t.patient_id, t.organization_id, t.version_id, t.status
 FROM transcription_consent t
 WHERE t.patient_id = @patient_id
+UNION ALL
+SELECT 'history'::text AS kind, h.id, h.updated_at, h.date_time, h.revoked_at, h.patient_id, h.organization_id, h.version_id, h.status
+FROM history_consent h
+WHERE h.patient_id = @patient_id
 ORDER BY date_time DESC, id;
 
 -- revoked_at is the care consent's latest revocation (access reads it for the care record).
@@ -73,3 +94,40 @@ FROM history_consent_encounter s
 JOIN history_consent h ON h.id = s.consent_id
 WHERE h.patient_id = @patient_id AND h.organization_id = @organization_id AND h.status = 'active' AND s.removed_at IS NULL
 ORDER BY s.added_at, s.encounter_id;
+
+-- A second active history consent with the clinic inserts nothing (no row).
+-- name: GrantHistoryConsent :one
+INSERT INTO history_consent (patient_id, organization_id, status, date_time, updated_at)
+VALUES (@patient_id, @organization_id, 'active', @date_time, @date_time)
+ON CONFLICT (patient_id, organization_id) WHERE status = 'active' DO NOTHING
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status;
+
+-- name: ActiveHistoryConsent :one
+SELECT id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status
+FROM history_consent
+WHERE patient_id = @patient_id AND organization_id = @organization_id AND status = 'active';
+
+-- A change of the selection names the version it changes: a concurrent change or revocation finds no row.
+-- name: ChangeHistoryConsent :one
+UPDATE history_consent
+SET updated_at = @updated_at, version_id = version_id + 1
+WHERE id = @id AND version_id = @version_id AND status = 'active'
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status;
+
+-- Row-level security refuses a visit that is not a finished one of the patient's at another clinic.
+-- name: AddHistoryVisits :exec
+INSERT INTO history_consent_encounter (consent_id, encounter_id, added_at)
+SELECT @consent_id::uuid, e, @added_at::timestamptz FROM unnest(@encounter_ids::uuid[]) AS e;
+
+-- A removal is final: the selection keeps its period, adding the visit again adds a row.
+-- name: RemoveHistoryVisits :exec
+UPDATE history_consent_encounter
+SET removed_at = @removed_at
+WHERE consent_id = @consent_id AND encounter_id = ANY(@encounter_ids::uuid[]) AND removed_at IS NULL;
+
+-- The visits the history consents list now, oldest selection first.
+-- name: HistoryVisits :many
+SELECT consent_id, encounter_id, added_at
+FROM history_consent_encounter
+WHERE consent_id = ANY(@consent_ids::uuid[]) AND removed_at IS NULL
+ORDER BY added_at, encounter_id;

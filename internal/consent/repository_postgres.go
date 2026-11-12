@@ -17,7 +17,11 @@ import (
 // organizationFK is the constraint an unknown clinic violates, per kind.
 var organizationFK = map[Kind]string{
 	KindCare: "consent_organization_id_fkey", KindTranscription: "transcription_consent_organization_id_fkey",
+	KindHistory: "history_consent_organization_id_fkey",
 }
+
+// insufficientPrivilege is the SQLSTATE of a row-level security policy's refusal of a row.
+const insufficientPrivilege = "42501"
 
 type postgresRepository struct {
 	db postgres.Querier
@@ -69,10 +73,14 @@ func (r *postgresRepository) ByID(ctx context.Context, id string) (Consent, erro
 		return Consent{}, ErrNotFound
 	}
 	row, err := consentdb.New(postgres.Conn(ctx, r.db)).ConsentByID(ctx, u)
-	return toConsent(Kind(row.Kind), consentdb.GrantConsentRow{
+	c, err := toConsent(Kind(row.Kind), consentdb.GrantConsentRow{
 		ID: row.ID, UpdatedAt: row.UpdatedAt, DateTime: row.DateTime, RevokedAt: row.RevokedAt, PatientID: row.PatientID,
 		OrganizationID: row.OrganizationID, VersionID: row.VersionID, Status: row.Status,
 	}, err, ErrNotFound)
+	if err != nil {
+		return Consent{}, err
+	}
+	return r.withShared(ctx, c)
 }
 
 func (r *postgresRepository) Revoke(ctx context.Context, kind Kind, id string, at time.Time) (Consent, error) {
@@ -82,8 +90,12 @@ func (r *postgresRepository) Revoke(ctx context.Context, kind Kind, id string, a
 	}
 	q := consentdb.New(postgres.Conn(ctx, r.db))
 	ts := pgtype.Timestamptz{Time: at, Valid: true}
-	if kind == KindTranscription {
+	switch kind {
+	case KindTranscription:
 		row, err := q.RevokeTranscriptionConsent(ctx, consentdb.RevokeTranscriptionConsentParams{ID: u, RevokedAt: ts})
+		return toConsent(kind, consentdb.GrantConsentRow(row), err, ErrInactive)
+	case KindHistory:
+		row, err := q.RevokeHistoryConsent(ctx, consentdb.RevokeHistoryConsentParams{ID: u, RevokedAt: ts})
 		return toConsent(kind, consentdb.GrantConsentRow(row), err, ErrInactive)
 	}
 	row, err := q.RevokeConsent(ctx, consentdb.RevokeConsentParams{ID: u, RevokedAt: ts})
@@ -118,7 +130,7 @@ func (r *postgresRepository) ByPatient(ctx context.Context, patientID string) ([
 		}, nil, nil)
 		consents = append(consents, c)
 	}
-	return consents, nil
+	return r.withAllShared(ctx, consents)
 }
 
 func (r *postgresRepository) State(ctx context.Context, patientID, organizationID string) (access.Consent, error) {

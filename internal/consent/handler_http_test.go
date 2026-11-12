@@ -21,6 +21,11 @@ type stubConsents struct {
 	kind   consent.Kind // the kind granted
 	out    []consent.Consent
 	calls  []string
+	// candidates and sharing are the answers of the history's calls; set and version what SetSharing was given.
+	candidates []consent.Candidate
+	sharing    []consent.Sharing
+	set        consent.SetSharing
+	version    int32
 }
 
 func (s *stubConsents) Grant(_ context.Context, c consent.Caller, organizationID string, kind consent.Kind) (consent.Consent, error) {

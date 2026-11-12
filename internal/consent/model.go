@@ -34,7 +34,7 @@ const (
 )
 
 // Valid reports whether k is one of the kinds.
-func (k Kind) Valid() bool { return k == KindCare || k == KindTranscription }
+func (k Kind) Valid() bool { return k == KindCare || k == KindTranscription || k == KindHistory }
 
 // Consent is one patient's consent of one kind with one clinic.
 type Consent struct {

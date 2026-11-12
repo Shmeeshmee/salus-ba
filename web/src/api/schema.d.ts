@@ -2166,11 +2166,11 @@ export interface components {
             kind?: components["schemas"]["ConsentKind"];
         };
         /**
-         * @description What the consent is for: `care`, sharing the profile and appointments with the clinic; `transcription`, transcription and translation of the consultations with the clinic, with AI assistance for the practitioner (suggestions, document drafts), used only with an active care consent (SAL-12).
+         * @description What the consent is for: `care`, sharing the profile and appointments with the clinic; `transcription`, transcription and translation of the consultations with the clinic, with AI assistance for the practitioner (suggestions, document drafts), used only with an active care consent (SAL-12); `history`, sharing chosen visits at other clinics with the clinic (SAL-42), granted and changed only through `PUT /history-sharing/{organizationId}` (a grant of it here is `invalid_request`), listed and revoked here like the others.
          * @default care
          * @enum {string}
          */
-        ConsentKind: "care" | "transcription";
+        ConsentKind: "care" | "transcription" | "history";
         /** @description A patient's consent with a clinic (FHIR Consent): to share their profile and appointments with it for care, or to transcription. Health data: it shows whom the patient consults. */
         Consent: {
             /** Format: uuid */
