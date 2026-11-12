@@ -222,3 +222,28 @@ func TestNoticeConversation_ASideThreadNeverNotifiesThePatient(t *testing.T) {
 		t.Errorf("the side thread's notices: %+v, want its two doctors only", got)
 	}
 }
+
+// A message with files (SAL-30) notifies like any other: one job with the ids and the number only, nothing of its
+// files (no attachment id, name or count) and no text.
+func TestSend_AMessageWithFilesEnqueuesIDsOnly(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	c := f.open(t)
+	a := f.upload(t, me, c.ID, pdfBytes)
+	m, _, err := f.svc.Send(t.Context(), me, c.ID, clientID1, secretText, a.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.jobs.count() != 1 || f.jobs.sent[0].MessageID != m.ID {
+		t.Fatalf("jobs %+v, want the message's one", f.jobs.sent)
+	}
+	b, err := json.Marshal(f.jobs.sent[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, never := range []string{"7f3a", a.ID, "Synthetic lab result", "attachment"} {
+		if strings.Contains(string(b), never) {
+			t.Errorf("the job's arguments %s hold %q", b, never)
+		}
+	}
+}
