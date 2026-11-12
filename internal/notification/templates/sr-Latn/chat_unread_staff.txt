@@ -1,0 +1,6 @@
+Nova poruka u četu u aplikaciji Salus
+
+Imate nepročitanu poruku u četu u aplikaciji Salus.
+
+Da biste je pročitali, prijavite se u Salus:
+{{.Link}}

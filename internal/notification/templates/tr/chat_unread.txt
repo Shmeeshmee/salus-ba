@@ -1,0 +1,6 @@
+Kliniğinizden yeni mesaj
+
+Kliniğinizden yeni bir mesajınız var.
+
+Mesajı okumak için Salus uygulamasını açın:
+{{.Link}}

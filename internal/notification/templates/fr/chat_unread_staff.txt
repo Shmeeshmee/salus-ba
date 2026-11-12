@@ -1,0 +1,6 @@
+Nouveau message de discussion dans Salus
+
+Vous avez un message de discussion non lu dans Salus.
+
+Pour le lire, connectez-vous à Salus :
+{{.Link}}
