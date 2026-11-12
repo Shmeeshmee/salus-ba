@@ -82,3 +82,31 @@ Needs a contract change (reported, not made):
 
 Copy waiting for the owner: none. The backend adds no user-facing string; the new error codes (`scanning`,
 `unsupported_type`, `too_large`, `length_required` on the chat's routes) are binary's, rendered by the apps (SAL-31).
+
+### Measured (SAL-30, 2026-11-12)
+
+`make bench-chat` on SAL-27's table (3 000 021 messages, 50 010 conversations, 24 monthly partitions), its bodies now
+carrying one word of a synthetic vocabulary of 5 000 (`w0` to `w4999`: a word in about one message in 5 000, a prefix
+such as `w12` in more) besides `placeholder`, in every message. Through the service: the role's scope, the service's
+own check of every result, the audit. One practitioner takes part in all 50 010 conversations: the worst case (a
+doctor has hundreds). The shared host ran at a load average of 30 to 95 from other sessions throughout.
+
+| Measure | p50 | p95 | p99 |
+| --- | --- | --- | --- |
+| Search a 100 000-message conversation, a rare word | 28 ms | 59 ms | 110 ms |
+| Search a 100 000-message conversation, a word in every message | 23 ms | 178 ms | 453 ms |
+| Search a small conversation, a rare word | 35 ms | 83 ms | 433 ms |
+| Search across 50 010 conversations, a rare word | 121 ms | 295 ms | 414 ms |
+| Search across 50 010 conversations, a word in every message | 124 ms | 462 ms | 1.07 s |
+| A 12-megapixel JPEG's thumbnail (decode, scale, encode; `BenchmarkThumbnail`) | 353 ms, 49 MB allocated | | |
+
+- Before `communication_search` the same searches ran under row-level security alone: a rare word in a long
+  conversation 451 ms at p50 (1.27 s p95), one search across the 50 010 conversations over 24 s (the run was stopped).
+  The match operator is not leakproof, so the policies ran first over every message the scope sees. Before its
+  windows (7 days, 90, all) a word in every message across them took 4.3 s at p50 (14.8 s p95).
+- The SAL-27 measures in the same runs: latest page 9.3 to 11.8 ms p50, 25 ms p95 (target met); page 22 7 to 12 ms
+  p50 (met); a send alone 11 to 19 ms p50. Delivery at 200 messages a second missed its target in both runs (p95 17 to
+  21 s, the commits waiting on `LWLock:WALWrite` and `IO:WalSync`), and as much without the new GIN index (an A/B run
+  with `communication_search` dropped after the seed: commit p95 24 s, delivery 4.8 s, load average 48): the host's
+  load, not SAL-30's index. To be measured again on a quiet host before the merge; SAL-27's run had 86 ms p95 at a load
+  average of 10 to 14.
