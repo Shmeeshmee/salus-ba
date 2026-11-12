@@ -44,3 +44,47 @@ are in the numbers.
   same code varied by a factor of two with the host's load; earlier runs before the database was vacuumed after the
   seed had multi-second tails from its autovacuum and write-back.
 - The load test asserts the targets at 200 messages a second and reports 400 and 1000 as capacity.
+
+## SAL-31: the chat on web and mobile, and the AI summary
+
+Built on `web/src/chat/fakeChat.ts` and `mobile/test/fake_chat.dart`, then the real clients. SAL-28 to SAL-30's
+routes are called as the plan's "Contract of wave 1" shapes them, with hand-written types until their schemas are
+merged into `api/openapi.yaml`; each is marked in the code to move to the generated types then.
+
+As built (agent decisions, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| Summary engine | `pkg/llm.Summarizer` with the fake (`llmtest.Summarizer`) only; `config.LoadChatSummary` refuses any `CHAT_SUMMARY_ENGINE` but `fake`, whatever `LLM_ENGINE` says. **Waiting for the owner**: the basis for a real model reading the chat (SAL-12's transcription consent covers the consultation only), then the processor's DPA |
+| Long conversation | At least 50 messages the doctor reads (`last_seq - history_from_seq`, one page); below it the endpoint answers `400 invalid_request` and the web app shows no button. A summary covers the latest 500 messages (bounds the read and the model's input) |
+| Summary endpoint | `POST /conversations/{id}/summary`, optional `{lang}` (a staff language, default `bs`); practitioners only (`403` for the patient); the read audited as one read of the rows summarised, in its transaction; the model called after the commit, 30 s timeout; not stored. `ai_generated` is a plain boolean in the schema (a `const` broke the Dart generator) |
+| Web: virtual list | Written by hand (`web/src/chat/VirtualList.tsx`, 137 lines: overscan 8, a 64 px estimate replaced by each row's measured height, `ResizeObserver` for late changes); no dependency |
+| Web: add a doctor | Only the clinic's own doctors (the web app has no search of another clinic's); only the treating practitioner sees add and remove; "from a message" picks among the latest 20 loaded |
+| Web: names | The patient's name read once through FHIR `Patient/{id}` (an audited read), doctors from the clinic's staff list; system messages from their code only |
+| Web: chat hours | Not shown to doctors: they are the patient app's notice |
+| Both: socket | As `web/src/live.ts`: backoff, resume after the last shown cursor, drop a seen `seq`, stop for good on 4401, 4403, 4404 (`ChatEnd` gains `unauthenticated`) |
+| Both: attachment status | The contract has no status route or frame for a scan's outcome: web takes it from a `message_edited` frame, mobile re-reads the newest page while a file is scanning. SAL-30 to confirm or add one |
+| Mobile: revoke | Offered only for an invitation granted in the open chat view: `GET /me/chat-invitations` lists pending ones, so after a restart the app cannot find a granted one's id. SAL-28 to provide it (a granted list, or the invitation id on the participant) |
+| Mobile: removed file | A file taken off before sending stays uploaded and unreferenced: the contract has no delete route |
+| Mobile: wiring | `SalusApp` and `HomeScreen` take an optional `Chats` (none hides Messages); `main.dart` passes the real client. `chat_screen.dart` is 486 lines, over the ~400 guideline |
+| Routing | `/conversations` added to the Vite dev proxy (with `ws`) and to the production Caddyfile |
+| e2e | `TestChat_ThePatientAndTheDoctorChat` passes; `TestChat_TheDoctorAddsAColleagueAndThePatientSeesIt` is written on SAL-28's contract and fails until it is merged (`POST .../participants = 404`) |
+
+### Measured
+
+| Measure | Result |
+| --- | --- |
+| Web, `fakeChat({ history: 5000 })`, every page loaded by scrolling up, 600 px viewport, rows of 48, 84 and 120 px (Vitest, jsdom, `ChatView.scroll.test.tsx`) | at most 152 DOM nodes under the list, 24 rows rendered; a render after a scroll step 5.0 to 5.4 ms median, 8.5 to 11.2 ms max over three runs of 50 steps (no long task, which starts at 50 ms) |
+| Mobile, `FakeChat(history: 5000)`, every page loaded, 390x844 | 10 message widgets built (`ListView.builder`) |
+
+### Copy waiting for the owner
+
+Web, area `chat` (five staff languages) and `shell.messages`: the list, the view, the composer, the socket's ends, the
+system messages (each with an anonymous variant), the reasons, the add-doctor dialog, the threads, the attachments,
+the summary (`summary.label` "AI generated", `summary.hint` "An AI generated summary of what was written. It is not a
+diagnosis.") and the errors; tagged `legal`: `staffOnlyNote`, `pending`, `ended.consent_required`,
+`participant_invited`, `consent_granted`, `consent_declined`, `threads.note`, `error.consent_required`.
+Mobile (ten languages): `chats*`, `chat*` keys of the list, composer, files, chat hours and out-of-hours notice,
+system messages, and the consent prompt and revocation (`chatInvite*`, `chatGrant`, `chatDecline`, `chatGranted`,
+`chatDeclined`, `chatRevoke*`, `chatRevoked`, all tagged `legal`). Open question: whether the out-of-hours notice
+names an emergency number.

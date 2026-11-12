@@ -231,3 +231,4 @@ PROGRESS when merged.
 | `read_seq` | Unread counts and the e-mail fallback (owner, 2026-11-12) |
 | `client_message_id` | Idempotent send; an opaque UUID the client makes |
 | `encounter_id` | The optional link to the consultation the conversation is about |
+| The AI summary (SAL-31) | Not stored: generated on demand from the latest messages for the doctor who reads them, labelled AI generated; the fake engine only until the owner decides the basis for a real model |
