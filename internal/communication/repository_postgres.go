@@ -320,8 +320,8 @@ func (r *postgresRepository) Threads(ctx context.Context, parentID, roleID strin
 	return out, nil
 }
 
-func (r *postgresRepository) Invitations(ctx context.Context, patientID string) ([]Invitation, error) {
-	rows, err := r.q(ctx).Invitations(ctx, uid(patientID))
+func (r *postgresRepository) Invitations(ctx context.Context, patientID string, status ParticipantStatus) ([]Invitation, error) {
+	rows, err := r.q(ctx).Invitations(ctx, communicationdb.InvitationsParams{PatientID: uid(patientID), Status: string(status)})
 	if err != nil {
 		return nil, fmt.Errorf("communication: invitations: %w", err)
 	}
@@ -329,7 +329,7 @@ func (r *postgresRepository) Invitations(ctx context.Context, patientID string) 
 	for _, row := range rows {
 		out = append(out, Invitation{
 			InvitedAt: row.AddedAt.Time, ID: str(row.ID), ConversationID: str(row.ConversationID), OrganizationID: str(row.OrganizationID),
-			PractitionerRoleID: str(row.PractitionerRoleID), Reason: Reason(row.Reason.String),
+			PractitionerRoleID: str(row.PractitionerRoleID), Reason: Reason(row.Reason.String), Status: ParticipantStatus(row.Status),
 		})
 	}
 	return out, nil

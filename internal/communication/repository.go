@@ -67,8 +67,9 @@ type Repository interface {
 	// Threads returns the side threads of the conversation the practitioner role takes part in, with that
 	// participant's unread count, newest first.
 	Threads(ctx context.Context, parentID, roleID string) ([]Conversation, error)
-	// Invitations returns the patient's pending invitations, oldest first.
-	Invitations(ctx context.Context, patientID string) ([]Invitation, error)
+	// Invitations returns the patient's invitations of doctors from other clinics of status (pending or granted),
+	// oldest first.
+	Invitations(ctx context.Context, patientID string, status ParticipantStatus) ([]Invitation, error)
 	// AddPartitions creates the monthly partitions of the messages from the month of from for months months,
 	// skipping those that exist (communication_add_partitions).
 	AddPartitions(ctx context.Context, from time.Time, months int) error

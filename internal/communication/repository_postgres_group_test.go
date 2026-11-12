@@ -124,12 +124,16 @@ func TestPostgres_AGuestSeesTheConversationOnlyWhileTheirInvitationIsGranted(t *
 	}
 	checkNothing(t, f, guest, conv.ID)
 
-	invitations, err := f.svc.Invitations(ctx, me)
+	invitations, err := f.svc.Invitations(ctx, me, "")
 	if err != nil || len(invitations) != 1 || invitations[0].ID != invited.ID || invitations[0].Reason != communication.ReasonSecondOpinion {
 		t.Fatalf("Invitations = %+v, %v", invitations, err)
 	}
 	if err := f.svc.DecideInvitation(ctx, me, invited.ID, communication.DecisionGrant); err != nil {
 		t.Fatal(err)
+	}
+	granted, err := f.svc.Invitations(ctx, me, communication.StatusActive)
+	if err != nil || len(granted) != 1 || granted[0].ID != invited.ID || granted[0].Status != communication.StatusActive {
+		t.Fatalf("the granted invitations = %+v, %v", granted, err)
 	}
 	page, err := f.svc.Messages(ctx, guest, conv.ID, nil, 0)
 	if err != nil || len(page.Messages) != 3 || page.Messages[0].SystemCode != communication.SystemConsentGranted {

@@ -56,7 +56,7 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 		{"SendMessageRequest", communication.SendCommand{}, communication.SendCommand{}, nil},
 		{"ChatCommandError", communication.CommandError{ID: "x"}, communication.CommandError{}, nil},
 		{"AddParticipantRequest", communication.AddParticipant{FromSeq: &from}, communication.AddParticipant{}, nil},
-		{"ChatInvitation", communication.Invitation{}, communication.Invitation{}, nil},
+		{"ChatInvitation", communication.Invitation{Status: communication.StatusActive}, communication.Invitation{}, nil},
 	} {
 		sc, ok := s[tt.name]
 		if !ok {
@@ -82,6 +82,7 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 	reasons := []string{string(communication.ReasonSecondOpinion), string(communication.ReasonSpecialistReview), string(communication.ReasonHandover)}
 	for name, want := range map[string][]string{
 		"ConversationParticipant.status": {string(communication.StatusActive), string(communication.StatusPendingConsent)},
+		"ChatInvitation.status":          {string(communication.StatusPendingConsent), string(communication.StatusActive)},
 		"ConversationParticipant.reason": reasons, "AddParticipantRequest.reason": reasons, "ChatInvitation.reason": reasons,
 		"AddParticipantRequest.history":   {communication.HistoryFull, communication.HistoryFrom},
 		"ChatInvitationDecision.decision": {string(communication.DecisionGrant), string(communication.DecisionDecline)},

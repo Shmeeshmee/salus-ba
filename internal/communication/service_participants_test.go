@@ -212,7 +212,7 @@ func TestAddParticipant_ADoctorOfAnotherClinicSeesNothingBeforeThePatientConsent
 		checkNothing(t, f, guest, id)
 	}
 
-	invitations, err := f.svc.Invitations(t.Context(), me)
+	invitations, err := f.svc.Invitations(t.Context(), me, "")
 	if err != nil || len(invitations) != 1 {
 		t.Fatalf("Invitations = %+v, %v", invitations, err)
 	}
@@ -223,7 +223,7 @@ func TestAddParticipant_ADoctorOfAnotherClinicSeesNothingBeforeThePatientConsent
 	if e := f.audit.last(t); e.Action != auditevent.ActionExecute || e.EntityName != "conversation_participant" || e.EntityCount != 1 || e.Purpose.Code != auditevent.CodePATRQT {
 		t.Errorf("the invitations' audit = %+v", e)
 	}
-	if got, _ := f.svc.Invitations(t.Context(), other); len(got) != 0 {
+	if got, _ := f.svc.Invitations(t.Context(), other, ""); len(got) != 0 {
 		t.Errorf("another patient's invitations = %+v", got)
 	}
 
@@ -248,7 +248,7 @@ func TestAddParticipant_ADoctorOfAnotherClinicSeesNothingBeforeThePatientConsent
 	if _, err := f.svc.Get(t.Context(), guest, thread.ID); !errors.Is(err, communication.ErrNotFound) {
 		t.Errorf("a side thread opened before the grant: %v, want ErrNotFound (it keeps the doctors it was opened with)", err)
 	}
-	if got, _ := f.svc.Invitations(t.Context(), me); len(got) != 0 {
+	if got, _ := f.svc.Invitations(t.Context(), me, ""); len(got) != 0 {
 		t.Errorf("invitations after the grant = %+v", got)
 	}
 }
@@ -551,5 +551,42 @@ func TestParticipantChanges_AreAuditedWithTheParticipant(t *testing.T) {
 		if e := f.audit.last(t); e.EntityName != "conversation_participant" || e.EntityReference != "ConversationParticipant/"+p.ID {
 			t.Errorf("%s: audit entity %q %q, want the participant %s", name, e.EntityName, e.EntityReference, p.ID)
 		}
+	}
+}
+
+// The patient lists their granted invitations too, with the ids RevokeInvitation takes, so they can withdraw a
+// consent as easily as they gave it (GDPR Art. 7(3); SAL-28 review, finding 3); a doctor of the clinic is none.
+func TestInvitations_ThePatientListsTheirGrantedInvitationsToRevokeThem(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	conv := f.open(t)
+	f.add(t, conv.ID, roleA2, clinicA)
+	p := f.add(t, conv.ID, roleB1, clinicB)
+	for _, status := range []communication.ParticipantStatus{"", communication.StatusPendingConsent} {
+		if got, err := f.svc.Invitations(t.Context(), me, status); err != nil || len(got) != 1 || got[0].Status != communication.StatusPendingConsent {
+			t.Errorf("Invitations(%q) = %+v, %v; want the pending one", status, got, err)
+		}
+	}
+	if got, err := f.svc.Invitations(t.Context(), me, communication.StatusActive); err != nil || len(got) != 0 {
+		t.Errorf("granted before the grant = %+v, %v", got, err)
+	}
+	if err := f.svc.DecideInvitation(t.Context(), me, p.ID, communication.DecisionGrant); err != nil {
+		t.Fatal(err)
+	}
+	granted, err := f.svc.Invitations(t.Context(), me, communication.StatusActive)
+	if err != nil || len(granted) != 1 || granted[0].ID != p.ID || granted[0].Status != communication.StatusActive || granted[0].PractitionerRoleID != roleB1 {
+		t.Fatalf("granted = %+v, %v; want the guest's invitation", granted, err)
+	}
+	if e := f.audit.last(t); e.Action != auditevent.ActionExecute || e.EntityCount != 1 {
+		t.Errorf("the list's audit = %+v", e)
+	}
+	if err := f.svc.RevokeInvitation(t.Context(), me, granted[0].ID); err != nil {
+		t.Errorf("revoking the listed grant: %v", err)
+	}
+	if got, err := f.svc.Invitations(t.Context(), me, communication.StatusActive); err != nil || len(got) != 0 {
+		t.Errorf("granted after the revocation = %+v, %v", got, err)
+	}
+	if _, err := f.svc.Invitations(t.Context(), me, "removed"); !errors.Is(err, communication.ErrInvalid) {
+		t.Errorf("another status: %v, want ErrInvalid", err)
 	}
 }

@@ -431,12 +431,18 @@ class ChatApi {
     return null;
   }
 
-  /// The patient's pending invitations of doctors from other clinics (SAL-28)
+  /// The patient's invitations of doctors from other clinics, pending or granted (SAL-28)
   ///
-  /// Oldest first. The patient only (403 to staff). Audited as one search.
+  /// Oldest first: the pending invitations (`status` `pending_consent`, the default), or the granted ones (`status` `active`), whose `id` `POST /me/chat-invitations/{id}/revoke` takes, so a consent is withdrawn as easily as it was given (GDPR Art. 7(3)). A doctor of the conversation's own clinic is never one. The patient only (403 to staff). Audited as one search.
   ///
   /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] status:
+  ///   Which invitations; `pending_consent` when absent.
   Future<Response> listChatInvitationsWithHttpInfo({
+    String? status,
     Future<void>? abortTrigger,
   }) async {
     // ignore: prefer_const_declarations
@@ -448,6 +454,10 @@ class ChatApi {
     final queryParams = <QueryParam>[];
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
+
+    if (status != null) {
+      queryParams.addAll(_queryParams('', 'status', status));
+    }
 
     const contentTypes = <String>[];
 
@@ -463,13 +473,20 @@ class ChatApi {
     );
   }
 
-  /// The patient's pending invitations of doctors from other clinics (SAL-28)
+  /// The patient's invitations of doctors from other clinics, pending or granted (SAL-28)
   ///
-  /// Oldest first. The patient only (403 to staff). Audited as one search.
+  /// Oldest first: the pending invitations (`status` `pending_consent`, the default), or the granted ones (`status` `active`), whose `id` `POST /me/chat-invitations/{id}/revoke` takes, so a consent is withdrawn as easily as it was given (GDPR Art. 7(3)). A doctor of the conversation's own clinic is never one. The patient only (403 to staff). Audited as one search.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] status:
+  ///   Which invitations; `pending_consent` when absent.
   Future<ChatInvitationList?> listChatInvitations({
+    String? status,
     Future<void>? abortTrigger,
   }) async {
     final response = await listChatInvitationsWithHttpInfo(
+      status: status,
       abortTrigger: abortTrigger,
     );
     if (response.statusCode >= HttpStatus.badRequest) {

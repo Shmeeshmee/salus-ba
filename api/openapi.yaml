@@ -4028,20 +4028,32 @@ paths:
   /me/chat-invitations:
     get:
       operationId: listChatInvitations
-      summary: The patient's pending invitations of doctors from other clinics (SAL-28)
-      description: Oldest first. The patient only (403 to staff). Audited as one search.
+      summary: The patient's invitations of doctors from other clinics, pending or granted (SAL-28)
+      description: >-
+        Oldest first: the pending invitations (`status` `pending_consent`, the default), or the granted ones
+        (`status` `active`), whose `id` `POST /me/chat-invitations/{id}/revoke` takes, so a consent is withdrawn as
+        easily as it was given (GDPR Art. 7(3)). A doctor of the conversation's own clinic is never one. The patient
+        only (403 to staff). Audited as one search.
       tags: [chat]
       security:
         - sessionCookie: []
         - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Which invitations; `pending_consent` when absent.
+          schema: {type: string, enum: [pending_consent, active], default: pending_consent}
       responses:
         "200":
-          description: The pending invitations.
+          description: The invitations of that status.
           headers:
             Cache-Control: {schema: {type: string, const: no-store}}
           content:
             application/json:
               schema: {$ref: "#/components/schemas/ChatInvitationList"}
+        "400":
+          $ref: "#/components/responses/ChatInvalidRequest"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
@@ -6418,7 +6430,9 @@ components:
         from_seq: {type: integer, format: int64, minimum: 0, description: With `history` `from` only; at most the conversation's `last_seq`.}
     ChatInvitation:
       type: object
-      description: A doctor of another clinic waiting for the patient's consent to take part in their conversation.
+      description: >-
+        A doctor of another clinic invited into the patient's conversation: waiting for their consent, or taking part
+        since they granted it.
       required: [id, conversation_id, organization_id, practitioner_role_id, reason, invited_at]
       properties:
         id: {type: string, format: uuid, description: The invitation's id (the invited participant's).}
@@ -6427,6 +6441,10 @@ components:
         practitioner_role_id: {type: string, format: uuid}
         reason: {type: string, enum: [second_opinion, specialist_review, handover]}
         invited_at: {type: string, format: date-time}
+        status:
+          type: string
+          enum: [pending_consent, active]
+          description: "`pending_consent` until the patient decides, `active` once they granted it. Always sent."
     ChatInvitationList:
       type: object
       required: [invitations]

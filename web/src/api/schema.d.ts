@@ -1878,8 +1878,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The patient's pending invitations of doctors from other clinics (SAL-28)
-         * @description Oldest first. The patient only (403 to staff). Audited as one search.
+         * The patient's invitations of doctors from other clinics, pending or granted (SAL-28)
+         * @description Oldest first: the pending invitations (`status` `pending_consent`, the default), or the granted ones (`status` `active`), whose `id` `POST /me/chat-invitations/{id}/revoke` takes, so a consent is withdrawn as easily as it was given (GDPR Art. 7(3)). A doctor of the conversation's own clinic is never one. The patient only (403 to staff). Audited as one search.
          */
         get: operations["listChatInvitations"];
         put?: never;
@@ -3217,7 +3217,7 @@ export interface components {
              */
             from_seq?: number;
         };
-        /** @description A doctor of another clinic waiting for the patient's consent to take part in their conversation. */
+        /** @description A doctor of another clinic invited into the patient's conversation: waiting for their consent, or taking part since they granted it. */
         ChatInvitation: {
             /**
              * Format: uuid
@@ -3237,6 +3237,11 @@ export interface components {
             reason: "second_opinion" | "specialist_review" | "handover";
             /** Format: date-time */
             invited_at: string;
+            /**
+             * @description `pending_consent` until the patient decides, `active` once they granted it. Always sent.
+             * @enum {string}
+             */
+            status?: "pending_consent" | "active";
         };
         ChatInvitationList: {
             invitations: components["schemas"]["ChatInvitation"][];
@@ -8351,14 +8356,17 @@ export interface operations {
     };
     listChatInvitations: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Which invitations; `pending_consent` when absent. */
+                status?: "pending_consent" | "active";
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The pending invitations. */
+            /** @description The invitations of that status. */
             200: {
                 headers: {
                     "Cache-Control"?: "no-store";
@@ -8368,6 +8376,7 @@ export interface operations {
                     "application/json": components["schemas"]["ChatInvitationList"];
                 };
             };
+            400: components["responses"]["ChatInvalidRequest"];
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["ChatForbidden"];
         };

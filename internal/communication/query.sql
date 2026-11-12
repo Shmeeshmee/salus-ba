@@ -154,9 +154,11 @@ WHERE c.parent_id = @parent_id AND p.practitioner_role_id = @practitioner_role_i
 ORDER BY coalesce(c.last_sent_at, c.created_at) DESC, c.id DESC;
 
 -- name: Invitations :many
--- The patient's pending invitations, oldest first (index conversation_participant_pending).
-SELECT p.id, p.added_at, p.conversation_id, p.organization_id, p.practitioner_role_id, p.reason
+-- The patient's invitations of doctors from other clinics of the status, pending or granted, oldest first (index
+-- conversation_participant_pending for the pending).
+SELECT p.id, p.added_at, p.conversation_id, p.organization_id, p.practitioner_role_id, p.reason, p.status
 FROM conversation_participant p
 JOIN conversation c ON c.id = p.conversation_id
-WHERE c.patient_id = @patient_id AND NOT c.staff_only AND p.status = 'pending_consent' AND p.removed_at IS NULL
+WHERE c.patient_id = @patient_id AND NOT c.staff_only AND p.status = @status AND p.removed_at IS NULL
+  AND p.role = 'practitioner' AND p.organization_id <> c.organization_id
 ORDER BY p.added_at, p.id;

@@ -317,6 +317,8 @@ type Invitation struct {
 	OrganizationID     string    `json:"organization_id"`
 	PractitionerRoleID string    `json:"practitioner_role_id"`
 	Reason             Reason    `json:"reason"`
+	// Status is pending_consent while the patient has not decided, active once they granted it (revocable).
+	Status ParticipantStatus `json:"status,omitempty"`
 }
 
 // Decision is the patient's answer to an invitation.

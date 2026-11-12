@@ -199,11 +199,19 @@ func (s *Service) leave(ctx context.Context, c Caller, conv Conversation, p Part
 	return msg, s.record(ctx, c, auditevent.ActionUpdate, auditevent.CodeUpdate, participantRef(p.ID), entityParticipant, 1)
 }
 
-// Invitations returns the calling patient's pending invitations of doctors from other clinics, audited as one search.
-// ErrForbidden to staff.
-func (s *Service) Invitations(ctx context.Context, c Caller) ([]Invitation, error) {
+// Invitations returns the calling patient's invitations of doctors from other clinics of status: pending (the
+// default, status "") or granted (StatusActive), whose ids RevokeInvitation takes (GDPR Art. 7(3)); audited as one
+// search. ErrInvalid for another status, ErrForbidden to staff.
+func (s *Service) Invitations(ctx context.Context, c Caller, status ParticipantStatus) ([]Invitation, error) {
 	if c.OrganizationID != "" {
 		return nil, wrap("invitations", s.refusal(ctx, c, "", ErrForbidden))
+	}
+	switch status {
+	case "":
+		status = StatusPendingConsent
+	case StatusPendingConsent, StatusActive:
+	default:
+		return nil, invalid("status")
 	}
 	var out []Invitation
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
@@ -211,7 +219,7 @@ func (s *Service) Invitations(ctx context.Context, c Caller) ([]Invitation, erro
 			return err
 		}
 		var err error
-		if out, err = s.Repo.Invitations(ctx, c.PatientID); err != nil {
+		if out, err = s.Repo.Invitations(ctx, c.PatientID, status); err != nil {
 			return err
 		}
 		return s.record(ctx, c, auditevent.ActionExecute, auditevent.CodeSearchType, "", entityParticipant, int64(len(out)))

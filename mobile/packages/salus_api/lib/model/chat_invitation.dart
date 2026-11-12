@@ -19,6 +19,7 @@ class ChatInvitation {
     required this.practitionerRoleId,
     required this.reason,
     required this.invitedAt,
+    this.status,
   });
 
   /// The invitation's id (the invited participant's).
@@ -35,6 +36,9 @@ class ChatInvitation {
 
   DateTime invitedAt;
 
+  /// `pending_consent` until the patient decides, `active` once they granted it. Always sent.
+  ChatInvitationStatusEnum? status;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -44,7 +48,8 @@ class ChatInvitation {
           other.organizationId == organizationId &&
           other.practitionerRoleId == practitionerRoleId &&
           other.reason == reason &&
-          other.invitedAt == invitedAt;
+          other.invitedAt == invitedAt &&
+          other.status == status;
 
   @override
   int get hashCode =>
@@ -54,11 +59,12 @@ class ChatInvitation {
       (organizationId.hashCode) +
       (practitionerRoleId.hashCode) +
       (reason.hashCode) +
-      (invitedAt.hashCode);
+      (invitedAt.hashCode) +
+      (status == null ? 0 : status!.hashCode);
 
   @override
   String toString() =>
-      'ChatInvitation[id=$id, conversationId=$conversationId, organizationId=$organizationId, practitionerRoleId=$practitionerRoleId, reason=$reason, invitedAt=$invitedAt]';
+      'ChatInvitation[id=$id, conversationId=$conversationId, organizationId=$organizationId, practitionerRoleId=$practitionerRoleId, reason=$reason, invitedAt=$invitedAt, status=$status]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -68,6 +74,11 @@ class ChatInvitation {
     json[r'practitioner_role_id'] = this.practitionerRoleId;
     json[r'reason'] = this.reason;
     json[r'invited_at'] = this.invitedAt.toUtc().toIso8601String();
+    if (this.status != null) {
+      json[r'status'] = this.status;
+    } else {
+      json[r'status'] = null;
+    }
     return json;
   }
 
@@ -117,6 +128,7 @@ class ChatInvitation {
             mapValueOfType<String>(json, r'practitioner_role_id')!,
         reason: ChatInvitationReasonEnum.fromJson(json[r'reason'])!,
         invitedAt: mapDateTime(json, r'invited_at', r'')!,
+        status: ChatInvitationStatusEnum.fromJson(json[r'status']),
       );
     }
     return null;
@@ -266,4 +278,88 @@ class ChatInvitationReasonEnumTypeTransformer {
 
   /// The singleton instance of this transformer.
   static ChatInvitationReasonEnumTypeTransformer? _instance;
+}
+
+/// `pending_consent` until the patient decides, `active` once they granted it. Always sent.
+enum ChatInvitationStatusEnum {
+  pendingConsent._(r'pending_consent'),
+  active._(r'active'),
+  ;
+
+  /// Instantiate a new enum with the provided value.
+  const ChatInvitationStatusEnum._(this._value);
+
+  /// The underlying value of this enum member.
+  final String _value;
+
+  @override
+  String toString() => _value;
+
+  /// Encodes this enum as a value suitable for JSON.
+  String toJson() => _value;
+
+  /// Returns the instance of [ChatInvitationStatusEnum] that was successfully decoded
+  /// from the passed [value] on success, null otherwise.
+  static ChatInvitationStatusEnum? fromJson(dynamic value) =>
+      ChatInvitationStatusEnumTypeTransformer().decode(value);
+
+  /// Returns a [List] containing instances of [ChatInvitationStatusEnum]
+  /// that were successfully decoded from the passed [JSON][json].
+  static List<ChatInvitationStatusEnum> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final result = <ChatInvitationStatusEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = ChatInvitationStatusEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [ChatInvitationStatusEnum] to String,
+/// and [decode] dynamic data back to [ChatInvitationStatusEnum].
+class ChatInvitationStatusEnumTypeTransformer {
+  factory ChatInvitationStatusEnumTypeTransformer() =>
+      _instance ??= const ChatInvitationStatusEnumTypeTransformer._();
+
+  const ChatInvitationStatusEnumTypeTransformer._();
+
+  String encode(ChatInvitationStatusEnum data) => data._value;
+
+  /// Returns the instance of [ChatInvitationStatusEnum] that was successfully decoded
+  /// from the passed [data] value on success, null otherwise.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  ChatInvitationStatusEnum? decode(dynamic data, {bool allowNull = true}) {
+    if (data is ChatInvitationStatusEnum) {
+      return data;
+    }
+    if (data != null) {
+      switch (data) {
+        case r'pending_consent':
+          return ChatInvitationStatusEnum.pendingConsent;
+        case r'active':
+          return ChatInvitationStatusEnum.active;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// The singleton instance of this transformer.
+  static ChatInvitationStatusEnumTypeTransformer? _instance;
 }

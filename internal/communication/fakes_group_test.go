@@ -231,7 +231,7 @@ func (r *fakeRepo) Threads(ctx context.Context, parentID, roleID string) ([]comm
 	return out, nil
 }
 
-func (r *fakeRepo) Invitations(ctx context.Context, patientID string) ([]communication.Invitation, error) {
+func (r *fakeRepo) Invitations(ctx context.Context, patientID string, status communication.ParticipantStatus) ([]communication.Invitation, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []communication.Invitation
@@ -241,9 +241,9 @@ func (r *fakeRepo) Invitations(ctx context.Context, patientID string) ([]communi
 			continue
 		}
 		for _, p := range parts {
-			if p.Status == communication.StatusPendingConsent {
+			if p.Status == status && p.Role == communication.RolePractitioner && p.OrganizationID != c.OrganizationID {
 				out = append(out, communication.Invitation{InvitedAt: p.AddedAt, ID: p.ID, ConversationID: conv, OrganizationID: p.OrganizationID,
-					PractitionerRoleID: p.PractitionerRoleID, Reason: p.Reason})
+					PractitionerRoleID: p.PractitionerRoleID, Reason: p.Reason, Status: p.Status})
 			}
 		}
 	}

@@ -419,12 +419,18 @@ func (q *Queries) InsertThread(ctx context.Context, arg InsertThreadParams) (Con
 }
 
 const invitations = `-- name: Invitations :many
-SELECT p.id, p.added_at, p.conversation_id, p.organization_id, p.practitioner_role_id, p.reason
+SELECT p.id, p.added_at, p.conversation_id, p.organization_id, p.practitioner_role_id, p.reason, p.status
 FROM conversation_participant p
 JOIN conversation c ON c.id = p.conversation_id
-WHERE c.patient_id = $1 AND NOT c.staff_only AND p.status = 'pending_consent' AND p.removed_at IS NULL
+WHERE c.patient_id = $1 AND NOT c.staff_only AND p.status = $2 AND p.removed_at IS NULL
+  AND p.role = 'practitioner' AND p.organization_id <> c.organization_id
 ORDER BY p.added_at, p.id
 `
+
+type InvitationsParams struct {
+	PatientID pgtype.UUID
+	Status    string
+}
 
 type InvitationsRow struct {
 	ID                 pgtype.UUID
@@ -433,11 +439,13 @@ type InvitationsRow struct {
 	OrganizationID     pgtype.UUID
 	PractitionerRoleID pgtype.UUID
 	Reason             pgtype.Text
+	Status             string
 }
 
-// The patient's pending invitations, oldest first (index conversation_participant_pending).
-func (q *Queries) Invitations(ctx context.Context, patientID pgtype.UUID) ([]InvitationsRow, error) {
-	rows, err := q.db.Query(ctx, invitations, patientID)
+// The patient's invitations of doctors from other clinics of the status, pending or granted, oldest first (index
+// conversation_participant_pending for the pending).
+func (q *Queries) Invitations(ctx context.Context, arg InvitationsParams) ([]InvitationsRow, error) {
+	rows, err := q.db.Query(ctx, invitations, arg.PatientID, arg.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -452,6 +460,7 @@ func (q *Queries) Invitations(ctx context.Context, patientID pgtype.UUID) ([]Inv
 			&i.OrganizationID,
 			&i.PractitionerRoleID,
 			&i.Reason,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}

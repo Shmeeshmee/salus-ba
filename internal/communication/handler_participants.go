@@ -12,7 +12,7 @@ import (
 type GroupChats interface {
 	AddParticipant(ctx context.Context, c Caller, id string, in AddParticipant) (Participant, error)
 	RemoveParticipant(ctx context.Context, c Caller, id, participantID string) error
-	Invitations(ctx context.Context, c Caller) ([]Invitation, error)
+	Invitations(ctx context.Context, c Caller, status ParticipantStatus) ([]Invitation, error)
 	DecideInvitation(ctx context.Context, c Caller, id string, d Decision) error
 	RevokeInvitation(ctx context.Context, c Caller, id string) error
 	OpenThread(ctx context.Context, c Caller, id string) (Conversation, error)
@@ -74,7 +74,7 @@ func (h *GroupHandler) invitations(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	list, err := h.svc.Invitations(r.Context(), c)
+	list, err := h.svc.Invitations(r.Context(), c, ParticipantStatus(r.URL.Query().Get("status")))
 	if err != nil {
 		h.writeError(w, r, err)
 		return

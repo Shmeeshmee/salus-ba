@@ -39,7 +39,8 @@ func (s *stubGroup) RemoveParticipant(_ context.Context, _ communication.Caller,
 	return s.err
 }
 
-func (s *stubGroup) Invitations(context.Context, communication.Caller) ([]communication.Invitation, error) {
+func (s *stubGroup) Invitations(_ context.Context, _ communication.Caller, status communication.ParticipantStatus) ([]communication.Invitation, error) {
+	s.asked = append(s.asked, "invitations "+string(status))
 	return s.invitations, s.err
 }
 
@@ -121,10 +122,10 @@ func TestGroupHTTP_ThePatientListsDecidesAndRevokesInvitations(t *testing.T) {
 		t.Errorf("no invitations = %d %s", code, body)
 	}
 	svc.invitations = []communication.Invitation{{InvitedAt: start, ID: partID, ConversationID: "c0000001-0000-4000-8000-000000000000", OrganizationID: clinicB,
-		PractitionerRoleID: roleB1, Reason: communication.ReasonSpecialistReview}}
+		PractitionerRoleID: roleB1, Reason: communication.ReasonSpecialistReview, Status: communication.StatusActive}}
 	want := `{"invitations":[{"invited_at":"2026-11-12T10:00:00Z","id":"` + partID + `","conversation_id":"c0000001-0000-4000-8000-000000000000",` +
-		`"organization_id":"` + clinicB + `","practitioner_role_id":"` + roleB1 + `","reason":"specialist_review"}]}`
-	if code, body, h := do(t, srv, http.MethodGet, "/me/chat-invitations", "", nil); code != http.StatusOK || body != want || h.Get("Cache-Control") != "no-store" {
+		`"organization_id":"` + clinicB + `","practitioner_role_id":"` + roleB1 + `","reason":"specialist_review","status":"active"}]}`
+	if code, body, h := do(t, srv, http.MethodGet, "/me/chat-invitations?status=active", "", nil); code != http.StatusOK || body != want || h.Get("Cache-Control") != "no-store" {
 		t.Errorf("invitations = %d %s\nwant %s", code, body, want)
 	}
 	if code, _, _ := do(t, srv, http.MethodPost, "/me/chat-invitations/"+partID+"/decision", `{"decision":"grant"}`, nil); code != http.StatusNoContent {
@@ -136,7 +137,7 @@ func TestGroupHTTP_ThePatientListsDecidesAndRevokesInvitations(t *testing.T) {
 	if code, _, _ := do(t, srv, http.MethodPost, "/me/chat-invitations/"+partID+"/revoke", "", nil); code != http.StatusNoContent {
 		t.Errorf("revoke = %d, want 204", code)
 	}
-	if got, want := strings.Join(svc.asked, "|"), "decide "+partID+" grant|revoke "+partID; got != want {
+	if got, want := strings.Join(svc.asked, "|"), "invitations |invitations active|decide "+partID+" grant|revoke "+partID; got != want {
 		t.Errorf("calls = %q, want %q", got, want)
 	}
 }

@@ -90,7 +90,7 @@ Class | Method | HTTP request | Description
 *ChatApi* | [**editMessage**](doc//ChatApi.md#editmessage) | **PATCH** /conversations/{id}/messages/{message_id} | Edit the body of one's own text message
 *ChatApi* | [**followConversation**](doc//ChatApi.md#followconversation) | **GET** /conversations/{id}/events | The conversation's messages, live, over a WebSocket
 *ChatApi* | [**getConversation**](doc//ChatApi.md#getconversation) | **GET** /conversations/{id} | One conversation with its active participants
-*ChatApi* | [**listChatInvitations**](doc//ChatApi.md#listchatinvitations) | **GET** /me/chat-invitations | The patient's pending invitations of doctors from other clinics (SAL-28)
+*ChatApi* | [**listChatInvitations**](doc//ChatApi.md#listchatinvitations) | **GET** /me/chat-invitations | The patient's invitations of doctors from other clinics, pending or granted (SAL-28)
 *ChatApi* | [**listChatThreads**](doc//ChatApi.md#listchatthreads) | **GET** /conversations/{id}/threads | The side threads of the conversation the caller takes part in, newest first (SAL-28)
 *ChatApi* | [**listConversations**](doc//ChatApi.md#listconversations) | **GET** /conversations | The caller's conversations, newest activity first, with their unread counts
 *ChatApi* | [**listMessageRevisions**](doc//ChatApi.md#listmessagerevisions) | **GET** /conversations/{id}/messages/{message_id}/revisions | The earlier bodies of an edited message, oldest first
