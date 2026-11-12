@@ -201,3 +201,43 @@ func TestRepository_RefusesWhatTheScopeMayNotWrite(t *testing.T) {
 		t.Errorf("a dose without a unit: %v, want ErrInvalid", err)
 	}
 }
+
+// A write that matches no row says why: the entry is gone from the scope (the care consent revoked since it was
+// read) is ErrNotFound, one the scope sees but may not write ErrForbidden, never a version conflict.
+func TestRepository_TellsAHiddenEntryFromAChangedOne(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	v := seedVisit(t, owner)
+	patient := func(ctx context.Context, r medicationstatement.Repository) error { return r.SetPatient(ctx, v.patient) }
+	clinic := func(ctx context.Context, r medicationstatement.Repository) error { return r.SetClinic(ctx, v.clinic) }
+	own := medicationstatement.MedicationStatement{ID: ownID, PatientID: v.patient, DateAsserted: at, InProfile: true,
+		Code: medicationstatement.Code{Text: "Placeholder substance"}, Status: medicationstatement.StatusActive}
+	recorded := medicationstatement.MedicationStatement{ID: clinicID, PatientID: v.patient, DateAsserted: at,
+		Source:       medicationstatement.Source{OrganizationID: v.clinic, EncounterID: v.encounter, RecorderRoleID: v.role},
+		Confirmation: medicationstatement.Confirmation{At: at, RoleID: v.role, OrganizationID: v.clinic},
+		Code:         medicationstatement.Code{Text: "Placeholder food"},
+		Status:       medicationstatement.StatusActive}
+	if err := in(t, app, patient, func(ctx context.Context, r medicationstatement.Repository) error { return r.Insert(ctx, own) }); err != nil {
+		t.Fatal(err)
+	}
+	if err := in(t, app, clinic, func(ctx context.Context, r medicationstatement.Repository) error { return r.Insert(ctx, recorded) }); err != nil {
+		t.Fatal(err)
+	}
+	if err := in(t, app, patient, func(ctx context.Context, r medicationstatement.Repository) error {
+		return r.Delete(ctx, clinicID, 1)
+	}); !errors.Is(err, medicationstatement.ErrForbidden) {
+		t.Errorf("the patient deletes the clinic's entry at its version: %v, want ErrForbidden", err)
+	}
+	if _, err := owner.Exec(t.Context(), `UPDATE consent SET status = 'inactive', revoked_at = now() WHERE patient_id = $1`, v.patient); err != nil {
+		t.Fatal(err)
+	}
+	edit := own
+	edit.VersionID, edit.LastUpdated = 1, at.Add(time.Hour)
+	err := in(t, app, clinic, func(ctx context.Context, r medicationstatement.Repository) error {
+		_, err := r.Update(ctx, edit)
+		return err
+	})
+	if !errors.Is(err, medicationstatement.ErrNotFound) {
+		t.Errorf("the clinic updates the profile entry after the consent ended: %v, want ErrNotFound", err)
+	}
+}

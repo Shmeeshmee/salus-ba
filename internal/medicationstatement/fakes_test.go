@@ -118,6 +118,14 @@ func (f fakeEncounters) Access(_ context.Context, c appointment.Caller, id strin
 
 type fakeTerms map[string]string // ATC by drug term id
 
+// drugLabel is the one label of every drug term of fakeTerms.
+const drugLabel = "Placeholder substance"
+
+func (f fakeTerms) DrugLabelled(_ context.Context, id, label string) (string, bool, error) {
+	atc, ok := f[id]
+	return atc, ok && label == drugLabel, nil
+}
+
 func (f fakeTerms) DrugCodes(_ context.Context, ids []string) (map[string]string, error) {
 	out := map[string]string{}
 	for _, id := range ids {

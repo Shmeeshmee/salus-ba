@@ -42,9 +42,9 @@ func (s *Service) Add(ctx context.Context, c Caller, in Input) (MedicationStatem
 	})
 }
 
-// Record records an medication in the encounter id: by its practitioner while the patient's care consent is active
-// (access.ConsultationRecord), confirmed by them, belonging to the visit (not in the profile). Anyone else gets
-// ErrNotFound.
+// Record records a medication in the encounter id during the visit: by its practitioner while the patient's care consent
+// is active (access.ConsultationRecord), confirmed by them, belonging to the visit (not in the profile). Once the
+// visit finished ErrForbidden; anyone else gets ErrNotFound.
 func (s *Service) Record(ctx context.Context, c Caller, encounterID string, in Input) (MedicationStatement, error) {
 	return s.do(ctx, c, auditevent.CodeCreate, func(ctx context.Context) (MedicationStatement, error) {
 		if c.OrganizationID == "" || c.Admin || !fhir.IsUUID(encounterID) {
@@ -67,6 +67,9 @@ func (s *Service) Record(ctx context.Context, c Caller, encounterID string, in I
 		if !access.ConsultationRecord(v, f, visit) {
 			return MedicationStatement{}, ErrNotFound
 		}
+		if e.Status != encounter.StatusInProgress {
+			return MedicationStatement{}, ErrForbidden // recorded during the visit only
+		}
 		if err := s.Repo.SetClinic(ctx, c.OrganizationID); err != nil {
 			return MedicationStatement{}, err
 		}
@@ -83,7 +86,7 @@ func (s *Service) Record(ctx context.Context, c Caller, encounterID string, in I
 }
 
 // Update changes the medication id read at version: the patient their own entries (a confirmed one becomes unconfirmed
-// again), a practitioner the entries their clinic recorded (another clinic's confirmation is cleared, their clinic's
+// again once its content or status changes), a practitioner the entries their clinic recorded (another clinic's confirmation is cleared, their clinic's
 // stays). An input without a term id and with the entry's text keeps its term. ErrNotFound when the caller does not
 // see it, ErrForbidden when it is not theirs to change, ErrVersionConflict when it changed since version.
 func (s *Service) Update(ctx context.Context, c Caller, id string, version int32, in Input) (MedicationStatement, error) {
@@ -99,10 +102,11 @@ func (s *Service) Update(ctx context.Context, c Caller, id string, version int32
 		if in.TermID == "" && strings.TrimSpace(in.Text) == a.Code.Text {
 			in.TermID = a.Code.TermID
 		}
+		before := content(a)
 		if err := s.apply(ctx, &a, in); err != nil {
 			return MedicationStatement{}, err
 		}
-		if !a.Confirmation.At.IsZero() && (v.Role == access.RolePatient || a.Confirmation.OrganizationID != c.OrganizationID) {
+		if content(a) != before && !a.Confirmation.At.IsZero() && (v.Role == access.RolePatient || a.Confirmation.OrganizationID != c.OrganizationID) {
 			a.Confirmation = Confirmation{}
 		}
 		return s.update(ctx, a)
@@ -182,6 +186,17 @@ func (s *Service) atVersion(ctx context.Context, c Caller, id string, version in
 	return v, f, a, nil
 }
 
+// edit is what a change compares: the content and the status (the confirmation vouches for them).
+type edit struct {
+	Term, Text string
+	Status     Status
+	Dosage     Dosage
+}
+
+func content(m MedicationStatement) edit {
+	return edit{Term: m.Code.TermID, Text: m.Code.Text, Status: m.Status, Dosage: m.Dosage}
+}
+
 // named is the entry as a refusal names it: its id only.
 func named(a MedicationStatement) MedicationStatement { return MedicationStatement{ID: a.ID} }
 
@@ -196,7 +211,7 @@ func (s *Service) update(ctx context.Context, a MedicationStatement) (Medication
 	return a, nil
 }
 
-// apply validates in and writes it into a: the text trimmed, the term a drug of the terminology (with its ATC code),
+// apply validates in and writes it into a: the text trimmed, the term a drug of the terminology labelled text (with its ATC code),
 // the dosage as Dosage says (a dose with its unit, a timing complete, each within the table's bounds).
 func (s *Service) apply(ctx context.Context, a *MedicationStatement, in Input) error {
 	in.Text = strings.TrimSpace(in.Text)
@@ -204,16 +219,9 @@ func (s *Service) apply(ctx context.Context, a *MedicationStatement, in Input) e
 		(in.TermID != "" && !fhir.IsUUID(in.TermID)) || !validDosage(in.Dosage) {
 		return ErrInvalid
 	}
-	code := Code{TermID: in.TermID, Text: in.Text}
-	if in.TermID != "" {
-		atc, err := s.Terms.DrugCodes(ctx, []string{in.TermID})
-		if err != nil {
-			return err
-		}
-		var ok bool
-		if code.ATC, ok = atc[in.TermID]; !ok {
-			return ErrInvalid
-		}
+	code, err := s.code(ctx, a.Code, in.TermID, in.Text)
+	if err != nil {
+		return err
 	}
 	a.Code, a.Status, a.Dosage = code, in.Status, in.Dosage
 	return nil
@@ -227,6 +235,33 @@ func validDosage(d Dosage) bool {
 	timing := (d.PeriodUnit == "" && d.Period == 0 && d.Frequency == 0) ||
 		(slices.Contains(PeriodUnits(), d.PeriodUnit) && d.Period > 0 && d.Period <= maxPeriod && d.Frequency >= 1 && d.Frequency <= maxFrequency)
 	return dose && timing
+}
+
+// code is the code of an entry whose code was old given termID and text: text only without a term; a term picked
+// now carries its ATC code and has text as one of its labels (ErrInvalid otherwise); the term and text old already
+// had stay as they are, though the term's labels changed since.
+func (s *Service) code(ctx context.Context, old Code, termID, text string) (Code, error) {
+	code := Code{TermID: termID, Text: text}
+	var ok bool
+	switch {
+	case termID == "":
+		return code, nil
+	case termID == old.TermID && text == old.Text:
+		atc, err := s.Terms.DrugCodes(ctx, []string{termID})
+		if err != nil {
+			return Code{}, err
+		}
+		code.ATC, ok = atc[termID]
+	default:
+		var err error
+		if code.ATC, ok, err = s.Terms.DrugLabelled(ctx, termID, text); err != nil {
+			return Code{}, err
+		}
+	}
+	if !ok {
+		return Code{}, ErrInvalid
+	}
+	return code, nil
 }
 
 // newID returns a random (version 4) UUID.

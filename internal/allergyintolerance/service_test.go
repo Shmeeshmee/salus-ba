@@ -28,6 +28,7 @@ const (
 	encC         = "4c000000-0000-4000-8000-00000000004c"
 	encB         = "4b000000-0000-4000-8000-00000000004b"
 	encShared    = "4d000000-0000-4000-8000-00000000004d"
+	encFinished  = "4e000000-0000-4000-8000-00000000004e"
 	termDrug     = "5a000000-0000-4000-8000-00000000005a"
 	termAnatomy  = "5b000000-0000-4000-8000-00000000005b"
 	idOwn        = "6a000000-0000-4000-8000-000000000001"
@@ -104,7 +105,8 @@ func newWorld(repo *fakeRepo, consent access.Consent) world {
 		Visits:   fakeVisits{clinicA: {{PractitionerRole: roleA, Start: now}, {PractitionerRole: roleC, Start: now.Add(-48 * time.Hour)}}},
 		Roles:    fakeRoles{practA: roleA, practC: roleC},
 		Encounters: fakeEncounters{consent: consent.Active, byID: map[string]encounter.Encounter{
-			encA: {ID: encA, OrganizationID: clinicA, PatientID: patientP, PractitionerRoleID: roleA},
+			encA:        {ID: encA, OrganizationID: clinicA, PatientID: patientP, PractitionerRoleID: roleA, Status: encounter.StatusInProgress},
+			encFinished: {ID: encFinished, OrganizationID: clinicA, PatientID: patientP, PractitionerRoleID: roleA, Status: encounter.StatusFinished},
 		}},
 		Terms: fakeTerms{termDrug: "J01CA04"},
 	})
@@ -171,7 +173,7 @@ func TestSeen_EachViewerSeesWhatTheRuleGives(t *testing.T) {
 				refs = append(refs, "AllergyIntolerance/"+id)
 			}
 			if len(refs) == 0 {
-				refs = []string{""}
+				refs = []string{"Patient/" + patientP} // a search that found none names the patient asked about
 			}
 			if got := w.audit.refs(); !slices.Equal(got, refs) {
 				t.Errorf("audited %v, want %v", got, refs)

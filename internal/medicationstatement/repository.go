@@ -17,10 +17,10 @@ type Repository interface {
 	// not write it, ErrInvalid when the table does not take it.
 	Insert(ctx context.Context, a MedicationStatement) error
 	// Update writes a's changeable fields over the version a.VersionID, last updated at a.LastUpdated, and returns
-	// the new version: ErrVersionConflict when the entry is no longer at a.VersionID, ErrForbidden when the scope
-	// may not make the change.
+	// the new version: ErrVersionConflict when the entry is no longer at a.VersionID, ErrNotFound when the scope no
+	// longer sees it, ErrForbidden when the scope may not make the change.
 	Update(ctx context.Context, a MedicationStatement) (int32, error)
-	// Delete deletes the medication id at version: ErrVersionConflict when it is no longer at it (or the scope may not
-	// delete it).
+	// Delete deletes the medication id at version: ErrVersionConflict when it is no longer at it, ErrNotFound when the
+	// scope no longer sees it, ErrForbidden when the scope may not delete it.
 	Delete(ctx context.Context, id string, version int32) error
 }

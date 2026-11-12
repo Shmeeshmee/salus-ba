@@ -69,6 +69,7 @@ func TestAdd_RefusesAnInvalidInputAndStaff(t *testing.T) {
 		"a period over 1000":       func(in *medicationstatement.Input) { in.Dosage.Period = 1001 },
 		"an unknown period unit":   func(in *medicationstatement.Input) { in.Dosage.PeriodUnit = "s" },
 		"a term that is no drug":   func(in *medicationstatement.Input) { in.TermID = termAnatomy },
+		"a term, another text":     func(in *medicationstatement.Input) { in.TermID, in.Text = termDrug, "Placeholder other" },
 		"a term id that is no id":  func(in *medicationstatement.Input) { in.TermID = "x" },
 	} {
 		w := newWorld(newRepo(), sharing())
@@ -116,6 +117,9 @@ func TestRecord_TheVisitsPractitionerRecords(t *testing.T) {
 	}
 	if _, err := w.svc.Record(t.Context(), practitioner, encB, input()); !errors.Is(err, medicationstatement.ErrNotFound) {
 		t.Errorf("another clinic's encounter: %v, want ErrNotFound", err)
+	}
+	if _, err := w.svc.Record(t.Context(), practitioner, encFinished, input()); !errors.Is(err, medicationstatement.ErrForbidden) {
+		t.Errorf("a finished visit: %v, want ErrForbidden (only during the visit)", err)
 	}
 }
 
@@ -265,5 +269,27 @@ func TestAddToProfile(t *testing.T) {
 	}
 	if _, err := w.svc.AddToProfile(t.Context(), practitioner, idVisitA, 1); !errors.Is(err, medicationstatement.ErrForbidden) {
 		t.Errorf("staff: %v, want ErrForbidden", err)
+	}
+}
+
+// A change that changes nothing keeps the confirmation: only a change of the content or the status makes a
+// confirmed entry unconfirmed.
+func TestUpdate_AnUnchangedEntryKeepsItsConfirmation(t *testing.T) {
+	t.Parallel()
+	w := newWorld(history(), sharing())
+	same := medicationstatement.Input{Text: "Placeholder 2", Status: medicationstatement.StatusActive}
+	if _, err := w.svc.Update(t.Context(), patient, idOwnByB, 1, same); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.repo.byID[idOwnByB]; got.Confirmation != byB() {
+		t.Errorf("the entry saved unchanged: %+v, want the confirmation kept", got)
+	}
+	stopped := same
+	stopped.Status = medicationstatement.StatusStopped
+	if _, err := w.svc.Update(t.Context(), patient, idOwnByB, w.repo.byID[idOwnByB].VersionID, stopped); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.repo.byID[idOwnByB]; !got.Confirmation.At.IsZero() {
+		t.Errorf("a change of the status: %+v, want it unconfirmed", got)
 	}
 }

@@ -25,6 +25,7 @@ type fakeRepo struct {
 	explanations []terminology.Explanation
 	drugs        map[string]string // DrugCodes's answer
 	drugIDs      []string          // what DrugCodes was asked
+	labelled     [2]string         // what DrugLabelled was asked: the id and the label
 }
 
 func (f *fakeRepo) Tag(_ context.Context, candidates []terminology.Candidate) ([]terminology.CandidateTerm, error) {
@@ -54,6 +55,12 @@ func (f *fakeRepo) Search(_ context.Context, s terminology.Search) ([]terminolog
 func (f *fakeRepo) DrugCodes(_ context.Context, ids []string) (map[string]string, error) {
 	f.drugIDs = ids
 	return f.drugs, f.err
+}
+
+func (f *fakeRepo) DrugLabelled(_ context.Context, id, label string) (string, bool, error) {
+	f.labelled = [2]string{id, label}
+	atc, ok := f.drugs[id]
+	return atc, ok, f.err
 }
 
 func (f *fakeRepo) Glossary(_ context.Context, q terminology.GlossaryQuery) ([]terminology.GlossaryEntry, error) {
@@ -118,6 +125,21 @@ func TestDrugCodes(t *testing.T) {
 	repo.drugIDs = nil
 	if got, err := svc.DrugCodes(t.Context(), nil); err != nil || len(got) != 0 || repo.drugIDs != nil {
 		t.Errorf("no ids: %v, %v, asked %v", got, err, repo.drugIDs)
+	}
+}
+
+// DrugLabelled asks for the drug term by its id and the label trimmed.
+func TestDrugLabelled(t *testing.T) {
+	t.Parallel()
+	repo := &fakeRepo{drugs: map[string]string{"t1": "J01CA04"}}
+	svc := newService(repo, &fakeLanguages{})
+	atc, ok, err := svc.DrugLabelled(t.Context(), "t1", " Placeholder drug ")
+	if err != nil || !ok || atc != "J01CA04" || repo.labelled != [2]string{"t1", "Placeholder drug"} {
+		t.Errorf("DrugLabelled = %q, %v, %v; asked %v", atc, ok, err, repo.labelled)
+	}
+	repo.err = errors.New("placeholder failure")
+	if _, _, err := svc.DrugLabelled(t.Context(), "t1", "Placeholder drug"); err == nil {
+		t.Error("a failed read: no error")
 	}
 }
 

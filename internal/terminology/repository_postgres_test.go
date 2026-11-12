@@ -205,3 +205,35 @@ func TestDrugCodes_TheDrugTermsAmongTheIDs(t *testing.T) {
 		t.Errorf("DrugCodes = %v, want the two drugs", got)
 	}
 }
+
+// DrugLabelled finds a drug term by its id and one of its labels, in any language, with its ATC code; another
+// label, or a term of another category, is not found.
+func TestDrugLabelled_ADrugTermByOneOfItsLabels(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	insertTerms(t, owner)
+	const amoxicillin = "00000000-0000-4000-8000-0000000000d1"
+	if _, err := owner.Exec(t.Context(), `INSERT INTO term (id, category, atc) VALUES ($1, 'drug', 'J01CA04')`, amoxicillin); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(t.Context(), `INSERT INTO term_label (term_id, language, preferred, label)
+		VALUES ($1, 'en', true, 'Placeholder drug'), ($1, 'bs', false, 'Placeholder lijek')`, amoxicillin); err != nil {
+		t.Fatal(err)
+	}
+	r := terminology.NewPostgresRepository(app)
+	for _, tc := range []struct {
+		id, label, atc string
+		ok             bool
+	}{
+		{id: amoxicillin, label: "Placeholder drug", atc: "J01CA04", ok: true},
+		{id: amoxicillin, label: "Placeholder lijek", atc: "J01CA04", ok: true},
+		{id: amoxicillin, label: "Placeholder other"},
+		{id: liver, label: "Placeholder drug"},
+		{id: "not-an-id", label: "Placeholder drug"},
+	} {
+		atc, ok, err := r.DrugLabelled(t.Context(), tc.id, tc.label)
+		if err != nil || atc != tc.atc || ok != tc.ok {
+			t.Errorf("DrugLabelled(%s, %q) = %q, %v, %v; want %q, %v", tc.id, tc.label, atc, ok, err, tc.atc, tc.ok)
+		}
+	}
+}

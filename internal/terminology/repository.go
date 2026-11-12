@@ -27,6 +27,9 @@ type Repository interface {
 	// DrugCodes returns the ATC code ("" for none) of each drug term among ids, by id; an id that is no drug term
 	// (or no UUID) is absent.
 	DrugCodes(ctx context.Context, ids []string) (map[string]string, error)
+	// DrugLabelled returns the ATC code ("" for none) of the drug term id when label is one of its labels, in any
+	// language, and false when it is not, or id is no drug term.
+	DrugLabelled(ctx context.Context, id, label string) (string, bool, error)
 }
 
 // CurationRepository writes the terms: salusctl's, on the owner's connection (salus_app may only read them).

@@ -130,6 +130,17 @@ func match(t Term, langs []string) Match {
 	return m
 }
 
+// DrugLabelled returns the ATC code ("" for none) of the drug term id when label (trimmed) is one of its labels, and
+// false when it is not: for the allergies and medications, whose text is the label of the term picked. Reference
+// data: not audited.
+func (s *Service) DrugLabelled(ctx context.Context, id, label string) (string, bool, error) {
+	atc, ok, err := s.repo.DrugLabelled(ctx, id, strings.TrimSpace(label))
+	if err != nil {
+		return "", false, fmt.Errorf("terminology: drug labelled: %w", err)
+	}
+	return atc, ok, nil
+}
+
 // DrugCodes returns the ATC code ("" for none) of each drug term among ids, by id; an id that is no drug term is
 // absent. For the allergies and medications, which check a picked term and show its code. Reference data: not
 // audited.

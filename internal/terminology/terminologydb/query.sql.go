@@ -129,6 +129,24 @@ func (q *Queries) DrugCodes(ctx context.Context, ids []pgtype.UUID) ([]DrugCodes
 	return items, nil
 }
 
+const drugLabelled = `-- name: DrugLabelled :one
+SELECT atc FROM term
+WHERE id = $1 AND category = 'drug' AND EXISTS (SELECT 1 FROM term_label l WHERE l.term_id = term.id AND l.label = $2)
+`
+
+type DrugLabelledParams struct {
+	ID    pgtype.UUID
+	Label string
+}
+
+// The drug term id when label is one of its labels, in any language.
+func (q *Queries) DrugLabelled(ctx context.Context, arg DrugLabelledParams) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, drugLabelled, arg.ID, arg.Label)
+	var atc pgtype.Text
+	err := row.Scan(&atc)
+	return atc, err
+}
+
 const explanationsIn = `-- name: ExplanationsIn :many
 SELECT DISTINCT ON (e.term_id) e.term_id, e.language::text AS language, e.updated_at, e.reviewed_at, e.reviewed_by,
        e.version_id, e.review_status, e.note, e.text

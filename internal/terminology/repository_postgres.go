@@ -563,3 +563,18 @@ func (r *postgresRepository) DrugCodes(ctx context.Context, ids []string) (map[s
 	}
 	return out, nil
 }
+
+func (r *postgresRepository) DrugLabelled(ctx context.Context, id, label string) (string, bool, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return "", false, nil
+	}
+	atc, err := r.q(ctx).DrugLabelled(ctx, terminologydb.DrugLabelledParams{ID: u, Label: label})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return "", false, nil
+	case err != nil:
+		return "", false, err
+	}
+	return atc.String, true, nil
+}

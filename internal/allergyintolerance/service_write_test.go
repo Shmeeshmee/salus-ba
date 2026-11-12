@@ -62,6 +62,7 @@ func TestAdd_RefusesAnInvalidInputAndStaff(t *testing.T) {
 		"a severity, no reaction":  func(in *allergyintolerance.Input) { in.Reaction = " " },
 		"no clinical status":       func(in *allergyintolerance.Input) { in.ClinicalStatus = "" },
 		"a term that is no drug":   func(in *allergyintolerance.Input) { in.TermID = termAnatomy },
+		"a term, another text":     func(in *allergyintolerance.Input) { in.TermID, in.Text = termDrug, "Placeholder other" },
 		"a term id that is no id":  func(in *allergyintolerance.Input) { in.TermID = "x" },
 	} {
 		w := newWorld(newRepo(), sharing())
@@ -109,6 +110,9 @@ func TestRecord_TheVisitsPractitionerRecords(t *testing.T) {
 	}
 	if _, err := w.svc.Record(t.Context(), practitioner, encB, input()); !errors.Is(err, allergyintolerance.ErrNotFound) {
 		t.Errorf("another clinic's encounter: %v, want ErrNotFound", err)
+	}
+	if _, err := w.svc.Record(t.Context(), practitioner, encFinished, input()); !errors.Is(err, allergyintolerance.ErrForbidden) {
+		t.Errorf("a finished visit: %v, want ErrForbidden (only during the visit)", err)
 	}
 }
 
@@ -259,5 +263,27 @@ func TestAddToProfile(t *testing.T) {
 	}
 	if _, err := w.svc.AddToProfile(t.Context(), practitioner, idVisitA, 1); !errors.Is(err, allergyintolerance.ErrForbidden) {
 		t.Errorf("staff: %v, want ErrForbidden", err)
+	}
+}
+
+// A change that changes nothing keeps the confirmation: only a change of the content or the status makes a
+// confirmed entry unconfirmed.
+func TestUpdate_AnUnchangedEntryKeepsItsConfirmation(t *testing.T) {
+	t.Parallel()
+	w := newWorld(history(), sharing())
+	same := allergyintolerance.Input{Text: "Placeholder 2", ClinicalStatus: allergyintolerance.ClinicalActive}
+	if _, err := w.svc.Update(t.Context(), patient, idOwnByB, 1, same); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.repo.byID[idOwnByB]; got.Confirmation != byB() || got.VerificationStatus != allergyintolerance.VerificationConfirmed {
+		t.Errorf("the entry saved unchanged: %+v, want the confirmation kept", got)
+	}
+	inactive := same
+	inactive.ClinicalStatus = allergyintolerance.ClinicalInactive
+	if _, err := w.svc.Update(t.Context(), patient, idOwnByB, w.repo.byID[idOwnByB].VersionID, inactive); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.repo.byID[idOwnByB]; !got.Confirmation.At.IsZero() || got.VerificationStatus != allergyintolerance.VerificationUnconfirmed {
+		t.Errorf("a change of the status: %+v, want it unconfirmed", got)
 	}
 }

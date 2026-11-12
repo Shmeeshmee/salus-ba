@@ -11,6 +11,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
 
 // Transactor runs fn in a transaction carried by the context, joining one already there (postgres.Transactor).
@@ -49,6 +50,8 @@ type Encounters interface {
 // absent (terminology.Service).
 type Terms interface {
 	DrugCodes(ctx context.Context, ids []string) (map[string]string, error)
+	// DrugLabelled gives the ATC code of the drug term id when label is one of its labels, and false otherwise.
+	DrugLabelled(ctx context.Context, id, label string) (string, bool, error)
 }
 
 // Ports are the Service's dependencies.
@@ -102,7 +105,7 @@ func (s *Service) Seen(ctx context.Context, c Caller, patientID string) ([]Seen,
 			return err
 		}
 		if len(out) == 0 {
-			return s.record(ctx, c, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess)
+			return s.audit(ctx, c, auditevent.CodeSearchType, patientRef(patientID), auditevent.OutcomeSuccess)
 		}
 		for _, a := range out {
 			if err := s.record(ctx, c, auditevent.CodeSearchType, a.ID, auditevent.OutcomeSuccess); err != nil {
@@ -280,9 +283,26 @@ func (s *Service) do(ctx context.Context, c Caller, interaction string, fn func(
 	return out, nil
 }
 
-// record audits interaction by c on MedicationStatement/id ("" when none is disclosed). The purpose is the patient's
-// own request for a patient and treatment for staff; a search is an execute (FHIR AuditEvent.action).
+// patientRef is the patient a search found nothing about, as an audit names them ("" for an id that is none).
+func patientRef(id string) string {
+	if !fhir.IsUUID(id) {
+		return ""
+	}
+	return "Patient/" + id
+}
+
+// record audits interaction by c on MedicationStatement/id ("" when none is disclosed).
 func (s *Service) record(ctx context.Context, c Caller, interaction, id string, outcome auditevent.Outcome) error {
+	ref := ""
+	if id != "" {
+		ref = "MedicationStatement/" + id
+	}
+	return s.audit(ctx, c, interaction, ref, outcome)
+}
+
+// audit audits interaction by c on the entity ref ("" for none). The purpose is the patient's own request for a
+// patient and treatment for staff; a search is an execute (FHIR AuditEvent.action).
+func (s *Service) audit(ctx context.Context, c Caller, interaction, ref string, outcome auditevent.Outcome) error {
 	action := auditevent.ActionRead
 	switch interaction {
 	case auditevent.CodeCreate:
@@ -307,8 +327,6 @@ func (s *Service) record(ctx context.Context, c Caller, interaction, id string, 
 		AgentAccountID: c.AccountID,
 		OrganizationID: c.OrganizationID,
 	}
-	if id != "" {
-		e.EntityReference = "MedicationStatement/" + id
-	}
+	e.EntityReference = ref
 	return s.Audit.Record(ctx, e)
 }

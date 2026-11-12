@@ -94,7 +94,7 @@ func (r *postgresRepository) Update(ctx context.Context, a AllergyIntolerance) (
 		ID: ids[0], VersionID: a.VersionID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, ErrVersionConflict
+		return 0, r.missed(ctx, a.ID, a.VersionID)
 	}
 	return version, refusal(err)
 }
@@ -109,9 +109,23 @@ func (r *postgresRepository) Delete(ctx context.Context, id string, version int3
 	case err != nil:
 		return refusal(err)
 	case n == 0:
-		return ErrVersionConflict
+		return r.missed(ctx, id, version)
 	}
 	return nil
+}
+
+// missed says why a write of the entry id at version matched no row, read again in the transaction: ErrNotFound when
+// the scope no longer sees it, ErrVersionConflict when it is at another version, else ErrForbidden (the scope sees it
+// but may not write it).
+func (r *postgresRepository) missed(ctx context.Context, id string, version int32) error {
+	cur, err := r.ByID(ctx, id)
+	switch {
+	case err != nil:
+		return err
+	case cur.VersionID != version:
+		return ErrVersionConflict
+	}
+	return ErrForbidden
 }
 
 func fromRow(row allergyintolerancedb.AllergyIntolerance) AllergyIntolerance {

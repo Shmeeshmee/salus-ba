@@ -314,3 +314,8 @@ WHERE group_code = @group_code AND language::text = @language::text;
 -- allergies and medications (SAL-41).
 -- name: DrugCodes :many
 SELECT id, atc FROM term WHERE id = ANY(@ids::uuid[]) AND category = 'drug';
+
+-- The drug term id when label is one of its labels, in any language.
+-- name: DrugLabelled :one
+SELECT atc FROM term
+WHERE id = @id AND category = 'drug' AND EXISTS (SELECT 1 FROM term_label l WHERE l.term_id = term.id AND l.label = @label);
