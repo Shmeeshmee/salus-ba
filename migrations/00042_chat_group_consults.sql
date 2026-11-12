@@ -146,7 +146,10 @@ CREATE POLICY chat_consent_guest_lookup ON chat_consent FOR SELECT TO salus_chat
 CREATE POLICY consent_guest_lookup ON consent FOR SELECT TO salus_chat_guest USING (true);
 
 -- The conversations (never a side thread: those follow their conversation) the practitioner role of the clinic takes
--- part in as a guest whose access is granted. Nothing but their ids leaves the function.
+-- part in as a guest whose access is granted. Nothing but their ids leaves the function. It starts from the role's
+-- active chat consents (index chat_consent_role), so for the practitioners of a clinic in their own conversations, who
+-- have none, it reads one index page: the load test's doctor takes part in 50 000 conversations, and a first version
+-- that started from the participants made every send of theirs read all of them (p95 of a delivery 18.9 s).
 CREATE FUNCTION chat_guest_conversations(role_id uuid, organization_id uuid) RETURNS uuid[]
     LANGUAGE sql
     STABLE
@@ -154,19 +157,18 @@ CREATE FUNCTION chat_guest_conversations(role_id uuid, organization_id uuid) RET
     SET search_path = pg_catalog, public
 AS $$
     SELECT coalesce(array_agg(c.id), '{}')
-    FROM public.conversation_participant AS p
-    JOIN public.conversation AS c ON c.id = p.conversation_id
-    WHERE p.practitioner_role_id = chat_guest_conversations.role_id
-      AND p.organization_id = chat_guest_conversations.organization_id
-      AND p.organization_id <> c.organization_id
-      AND p.status = 'active'
-      AND p.removed_at IS NULL
-      AND EXISTS (SELECT 1 FROM public.chat_consent AS g
-                  WHERE g.conversation_id = c.id
-                    AND g.practitioner_role_id = p.practitioner_role_id
-                    AND g.patient_id = c.patient_id
-                    AND g.organization_id = c.organization_id
-                    AND g.status = 'active')
+    FROM public.chat_consent AS g
+    JOIN public.conversation AS c
+      ON c.id = g.conversation_id AND c.patient_id = g.patient_id AND c.organization_id = g.organization_id
+    WHERE g.practitioner_role_id = chat_guest_conversations.role_id
+      AND g.status = 'active'
+      AND c.organization_id <> chat_guest_conversations.organization_id
+      AND EXISTS (SELECT 1 FROM public.conversation_participant AS p
+                  WHERE p.conversation_id = c.id
+                    AND p.practitioner_role_id = g.practitioner_role_id
+                    AND p.organization_id = chat_guest_conversations.organization_id
+                    AND p.status = 'active'
+                    AND p.removed_at IS NULL)
       AND EXISTS (SELECT 1 FROM public.consent AS k
                   WHERE k.patient_id = c.patient_id
                     AND k.organization_id = c.organization_id
