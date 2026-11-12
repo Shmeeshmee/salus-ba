@@ -291,25 +291,7 @@ func TestChatLoad(t *testing.T) {
 	})
 	// SAL-29: the same send with and without its notification job (one River insert in the send's transaction),
 	// alternating, so the host's load falls on both alike.
-	t.Run("send with and without its notification job", func(t *testing.T) {
-		var with, without []time.Duration
-		for i := range 400 {
-			n := loadLong + loadSmall - 200 - i
-			s, d := svc, &with
-			if i%2 == 1 {
-				s, d = withoutJob, &without
-			}
-			began := loadWall.Now()
-			if _, _, err := s.Send(ctx, loadPatient(n), loadConversation(n), fmt.Sprintf("bbbbbbbb-0000-4000-8000-%012x", i), "Synthetic placeholder"); err != nil {
-				t.Fatal(err)
-			}
-			*d = append(*d, loadWall.Now().Sub(began))
-		}
-		report(t, "a send with its notification job, alternating", with, 0)
-		report(t, "a send without it, alternating", without, 0)
-	})
-	// The targets hold at 200 messages a second (720 000 an hour, far above the clinics' load); 400 and 1000 a second
-	// are measured as the capacity of durable commits on the test's pool of 8 (docs/plans/chat.PROGRESS.md).
+	t.Run("send with and without its notification job", func(t *testing.T) { sendWithAndWithout(t, svc, withoutJob) })
 	// SAL-29: delivery at 200 a second without the notification job, just before the same with it, on other
 	// conversations: what the job costs under load, in one run.
 	t.Run("delivery at 200 a second without the notification job", func(t *testing.T) {
@@ -324,6 +306,26 @@ func TestChatLoad(t *testing.T) {
 			stop()
 		})
 	}
+}
+
+// sendWithAndWithout sends 400 messages, alternating between with (the send with its notification job) and without,
+// on conversations of their own, and reports both.
+func sendWithAndWithout(t *testing.T, with, without *communication.Service) {
+	var withD, withoutD []time.Duration
+	for i := range 400 {
+		n := loadLong + loadSmall - 200 - i
+		s, d := with, &withD
+		if i%2 == 1 {
+			s, d = without, &withoutD
+		}
+		began := loadWall.Now()
+		if _, _, err := s.Send(t.Context(), loadPatient(n), loadConversation(n), fmt.Sprintf("bbbbbbbb-0000-4000-8000-%012x", i), "Synthetic placeholder"); err != nil {
+			t.Fatal(err)
+		}
+		*d = append(*d, loadWall.Now().Sub(began))
+	}
+	report(t, "a send with its notification job, alternating", withD, 0)
+	report(t, "a send without it, alternating", withoutD, 0)
 }
 
 // sampleWaits counts, every 20 ms until stop, what the database's active backends wait on, and logs the counts:
