@@ -43,7 +43,7 @@ func TestMarkRead_TellsTheOthersAReceiptWhenThePositionMoves(t *testing.T) {
 	if got, want := f.receipts(t), []communication.Receipt{{ParticipantID: part, Seq: 1}, {ParticipantID: part, Seq: 2}}; !slices.Equal(got, want) {
 		t.Errorf("receipts %v, want %v", got, want)
 	}
-	if got, err := f.svc.Receipts(t.Context(), c.ID); err != nil || !slices.Contains(got, communication.Receipt{ParticipantID: part, Seq: 2}) {
+	if got, err := f.svc.Receipts(t.Context(), me, c.ID); err != nil || !slices.Contains(got, communication.Receipt{ParticipantID: part, Seq: 2}) {
 		t.Errorf("Receipts() = %v, %v", got, err)
 	}
 	f.sal30.presence.mu.Lock()
@@ -77,5 +77,27 @@ func TestTyping_GoesOutAtMostOnceASecond(t *testing.T) {
 	}
 	if !slices.Equal(got, []string{part, part}) {
 		t.Errorf("typing frames %v, want two (at 0 and 1 s)", got)
+	}
+}
+
+// The receipts a socket gets when it opens are those of the conversation's current participants: a removed
+// participant's receipt, still kept in Redis, is never sent (SAL-30 review, finding 4); nor anything to who may not
+// read the conversation.
+func TestReceipts_AreThoseOfTheCurrentParticipantsOnly(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	c := f.open(t)
+	part, _ := participantOf(c, me)
+	const removed = "d0000009-0000-4000-8000-000000000009"
+	for _, id := range []string{part, removed} {
+		if err := f.sal30.presence.SetReceipt(t.Context(), c.ID, id, 4); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, err := f.svc.Receipts(t.Context(), pract, c.ID); err != nil || !slices.Equal(got, []communication.Receipt{{ParticipantID: part, Seq: 4}}) {
+		t.Errorf("Receipts() = %v, %v; want the patient's only", got, err)
+	}
+	if got, err := f.svc.Receipts(t.Context(), other, c.ID); err == nil || len(got) != 0 {
+		t.Errorf("another patient: Receipts() = %v, %v; want an error and none", got, err)
 	}
 }

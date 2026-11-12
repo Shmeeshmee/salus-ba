@@ -68,10 +68,12 @@ type Repository interface {
 type Presence interface {
 	// AllowTyping reports whether the participant may announce typing now: at most once per TypingEvery.
 	AllowTyping(ctx context.Context, conversationID, participantID string) (bool, error)
-	// SetReceipt keeps how far the participant has read, never lower than before, for ReceiptTTL.
+	// SetReceipt keeps how far the participant has read, never lower than before, for ReceiptTTL from now: each
+	// participant's receipt has its own TTL.
 	SetReceipt(ctx context.Context, conversationID, participantID string, seq int64) error
-	// Receipts returns how far each participant has read, as kept, by participant id.
-	Receipts(ctx context.Context, conversationID string) (map[string]int64, error)
+	// Receipts returns how far each of the participants has read, as kept, by participant id; none for one whose
+	// receipt has expired or was never kept.
+	Receipts(ctx context.Context, conversationID string, participantIDs []string) (map[string]int64, error)
 }
 
 // ListFilter selects the caller's conversations: by PatientID for a patient, by PractitionerRoleID for a

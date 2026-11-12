@@ -73,7 +73,7 @@ func (s *stubChats) Typing(_ context.Context, _, participantID string) error {
 	return nil
 }
 
-func (s *stubChats) Receipts(context.Context, string) ([]communication.Receipt, error) {
+func (s *stubChats) Receipts(context.Context, communication.Caller, string) ([]communication.Receipt, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.sal30.receipts, nil

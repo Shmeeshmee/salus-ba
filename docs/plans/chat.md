@@ -235,4 +235,4 @@ PROGRESS when merged.
 | `binary.title`, `content_type`, `size`, `sha1` of a chat file (SAL-30) | The file's name so the reader can tell files apart, and what a viewer needs; as for questionnaire files (docs/attachments/SPEC.md section 5) |
 | `binary.thumbnail_id`, `thumbnail_size`, `thumbnail_wrapped_key` and the thumbnail's object (SAL-30) | A clean image's preview in the message, made by the server, encrypted like the file |
 | `communication.attachment_count` (SAL-30) | How many files a message carries: a message of files alone has no text |
-| Redis `chat:<conversation>:receipts` (participant id, number; 7 days) and `chat:<conversation>:typing:<participant>` (1 s) (SAL-30) | What the others see of a participant's reading and typing, ephemeral (owner, 2026-11-12) |
+| Redis `chat:<conversation>:receipt:<participant>` (number; 7 days after the participant's last read) and `chat:<conversation>:typing:<participant>` (1 s) (SAL-30) | What the others see of a participant's reading and typing, ephemeral (owner, 2026-11-12) |

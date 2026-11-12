@@ -1704,8 +1704,9 @@ one of two parents, a questionnaire answer or a conversation (`conversation_id`,
 message once sent). A clean image gets a thumbnail (a JPEG of at most 320 pixels a side), made on our worker from the
 clean file and stored encrypted like it. The message counts its files (`communication.attachment_count`). Read
 receipts (how far each participant has read) and typing go through the Redis pub/sub channel of the conversation; the
-receipts are also kept in a Redis hash for 7 days so a socket opening later shows them, and typing leaves a key of one
-second (its rate). Neither is stored in Postgres. Search is Postgres full-text search over the message texts, with an
+receipts are also kept in Redis for 7 days after each participant's last read, each under its own key, so a socket
+opening later shows those of the conversation's current participants (a removed participant's is never sent), and
+typing leaves a key of one second (its rate). Neither is stored in Postgres. Search is Postgres full-text search over the message texts, with an
 index per partition; the query is never logged or stored. Terms are tagged on read against the reference term list
 (SAL-13) and never stored. No new processor: the object store, ClamAV and Redis are self-hosted.
 
@@ -1716,12 +1717,14 @@ chat's thumbnails are asked for by the chat's plan (SAL-30), not made for questi
 
 **Necessity and minimisation.** A file keeps its name (so the reader can tell files apart; never logged), its type,
 size and SHA-1; nothing else of the file is read but by the scan and the thumbnail. Receipts carry a participant id
-and a number, typing a participant id; both opaque. A search returns only messages the caller may read, at most 50.
+and a number, typing a participant id; both opaque. A search returns only messages the caller may read, at most 50,
+and is audited once for each patient whose messages it returns.
 
 **Retention.** A file attached to a message is part of the record with it: kept with the clinical record, never
 deleted while attached (a trigger refuses it for every role, the owner included, unless the file was rejected). A
 file never sent is deleted 24 hours after its upload, a rejected one 24 hours after its scan, an object without a row
-(a file's or a thumbnail's) 24 hours after it was written. Receipts expire after 7 days, typing after one second.
+(a file's or a thumbnail's) 24 hours after it was written. A participant's receipt expires 7 days after their last
+read, typing after one second.
 
 **Risks and measures.**
 

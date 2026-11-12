@@ -58,13 +58,25 @@ func (s *Service) receipt(ctx context.Context, conversationID, participantID str
 	}
 }
 
-// Receipts are how far each participant has read, as kept for ReceiptTTL, ordered by participant: a socket sends
-// them once it has replayed. The socket has checked the caller's access.
-func (s *Service) Receipts(ctx context.Context, conversationID string) ([]Receipt, error) {
+// Receipts are how far each of the conversation's current participants has read, as kept for ReceiptTTL, ordered
+// by participant: a socket sends them once it has replayed. A removed participant's is never read back. The caller
+// must read the conversation (enter).
+func (s *Service) Receipts(ctx context.Context, c Caller, conversationID string) ([]Receipt, error) {
 	if s.Presence == nil {
 		return nil, nil
 	}
-	kept, err := s.Presence.Receipts(ctx, conversationID)
+	var ids []string
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		e, err := s.enter(ctx, c, conversationID, false, false)
+		for _, p := range e.conv.Participants {
+			ids = append(ids, p.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, wrap("receipts", err)
+	}
+	kept, err := s.Presence.Receipts(ctx, conversationID, ids)
 	if err != nil {
 		return nil, wrap("receipts", err)
 	}

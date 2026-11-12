@@ -22,8 +22,10 @@ func TypingKey(conversationID, participantID string) string {
 	return "chat:" + conversationID + ":typing:" + participantID
 }
 
-// ReceiptsKey is the hash of a conversation's receipts: participant id to the number they have read up to.
-func ReceiptsKey(conversationID string) string { return "chat:" + conversationID + ":receipts" }
+// ReceiptKey is the key of how far a participant of a conversation has read, with its own ReceiptTTL.
+func ReceiptKey(conversationID, participantID string) string {
+	return "chat:" + conversationID + ":receipt:" + participantID
+}
 
 func (p *redisPresence) AllowTyping(ctx context.Context, conversationID, participantID string) (bool, error) {
 	ok, err := p.rdb.SetNX(ctx, TypingKey(conversationID, participantID), 1, TypingEvery).Result()
@@ -33,35 +35,45 @@ func (p *redisPresence) AllowTyping(ctx context.Context, conversationID, partici
 	return ok, nil
 }
 
-// setReceipt raises the participant's field of the hash to the number, never lowers it, and gives the hash its TTL.
+// setReceipt raises the participant's receipt to the number, never lowers it, and gives it its TTL.
 var setReceipt = goredis.NewScript(`
-local current = tonumber(redis.call('HGET', KEYS[1], ARGV[1]) or '0')
-if tonumber(ARGV[2]) > current then
-	redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
+local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+if tonumber(ARGV[1]) > current then
+	redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2])
+else
+	redis.call('PEXPIRE', KEYS[1], ARGV[2])
 end
-redis.call('PEXPIRE', KEYS[1], ARGV[3])
 return 1`)
 
 func (p *redisPresence) SetReceipt(ctx context.Context, conversationID, participantID string, seq int64) error {
-	err := setReceipt.Run(ctx, p.rdb, []string{ReceiptsKey(conversationID)}, participantID, seq, ReceiptTTL.Milliseconds()).Err()
+	err := setReceipt.Run(ctx, p.rdb, []string{ReceiptKey(conversationID, participantID)}, seq, ReceiptTTL.Milliseconds()).Err()
 	if err != nil {
 		return fmt.Errorf("communication: receipt: %w", err)
 	}
 	return nil
 }
 
-func (p *redisPresence) Receipts(ctx context.Context, conversationID string) (map[string]int64, error) {
-	all, err := p.rdb.HGetAll(ctx, ReceiptsKey(conversationID)).Result()
+func (p *redisPresence) Receipts(ctx context.Context, conversationID string, participantIDs []string) (map[string]int64, error) {
+	out := make(map[string]int64, len(participantIDs))
+	if len(participantIDs) == 0 {
+		return out, nil
+	}
+	keys := make([]string, len(participantIDs))
+	for i, id := range participantIDs {
+		keys[i] = ReceiptKey(conversationID, id)
+	}
+	vals, err := p.rdb.MGet(ctx, keys...).Result()
 	if err != nil {
 		return nil, fmt.Errorf("communication: receipts: %w", err)
 	}
-	out := make(map[string]int64, len(all))
-	for id, v := range all {
-		n, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			continue // not ours: nothing else writes the hash
+	for i, v := range vals {
+		s, ok := v.(string)
+		if !ok {
+			continue // none kept, or expired
 		}
-		out[id] = n
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+			out[participantIDs[i]] = n
+		}
 	}
 	return out, nil
 }

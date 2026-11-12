@@ -59,10 +59,10 @@ func (s *stream) typing(ctx context.Context) []byte {
 	return nil
 }
 
-// receipts sends how far each participant has read, as kept, once the socket has replayed; a failure is logged and
+// receipts sends how far each current participant has read, as kept, once the socket has replayed; a failure is logged and
 // the socket goes on without them.
 func (s *stream) receipts(ctx context.Context) error {
-	rs, err := s.h.svc.Receipts(ctx, s.id)
+	rs, err := s.h.svc.Receipts(ctx, s.c, s.id)
 	if err != nil {
 		s.h.log.WarnContext(ctx, "chat receipts failed", "conversation_id", s.id, "error", err.Error())
 		return nil

@@ -227,15 +227,17 @@ func (p *fakePresence) SetReceipt(_ context.Context, conv, part string, seq int6
 	return nil
 }
 
-func (p *fakePresence) Receipts(_ context.Context, conv string) (map[string]int64, error) {
+func (p *fakePresence) Receipts(_ context.Context, conv string, parts []string) (map[string]int64, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.err != nil {
 		return nil, p.err
 	}
 	out := map[string]int64{}
-	for k, v := range p.receipts[conv] {
-		out[k] = v
+	for _, id := range parts {
+		if v, ok := p.receipts[conv][id]; ok {
+			out[id] = v
+		}
 	}
 	return out, nil
 }

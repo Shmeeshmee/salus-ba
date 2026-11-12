@@ -40,7 +40,7 @@ type Chats interface {
 	Search(ctx context.Context, c Caller, id, q string) ([]SearchResult, error)
 	SearchAll(ctx context.Context, c Caller, q string) ([]SearchResult, error)
 	Typing(ctx context.Context, conversationID, participantID string) error
-	Receipts(ctx context.Context, conversationID string) ([]Receipt, error)
+	Receipts(ctx context.Context, c Caller, conversationID string) ([]Receipt, error)
 }
 
 // Subscriber gives a channel's live frames in this process (pkg/redis.Hub).
