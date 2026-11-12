@@ -252,6 +252,24 @@ describe('chatClient: follow', () => {
     expect(ends).toEqual([])
   })
 
+  // Each check is an audited read of the conversation: after the first refusal they are spaced out (the 3rd, the
+  // 6th, ...), at most a few a minute at the longest backoff.
+  it('asks for the conversation on the first refused connection and then only every third one', async () => {
+    const { sockets, requests } = follow('AAAAAQ', { [`GET ${path}`]: () => json(conversationJSON) })
+    for (let i = 0; i < 7; i++) {
+      sockets[i].end(1006)
+      await vi.advanceTimersByTimeAsync(10_000)
+    }
+    expect(sockets).toHaveLength(8)
+    expect(requests).toHaveLength(3)
+    sockets[7].open()
+    sockets[7].end(1006)
+    await vi.advanceTimersByTimeAsync(10_000)
+    sockets[8].end(1006)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(requests).toHaveLength(4)
+  })
+
   it('does not ask for the conversation after a connection that was open', async () => {
     const { sockets, requests } = follow('AAAAAQ', {})
     sockets[0].open()

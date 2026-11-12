@@ -26,6 +26,9 @@ export type Reason = AddParticipantRequest['reason']
 
 export const reasons = ['second_opinion', 'specialist_review', 'handover'] as const satisfies readonly Reason[]
 
+// unsentMaximum is how many uploads a participant may have waiting to be sent (SAL-30): one more is too_many_files.
+export const unsentMaximum = 10
+
 // fileTypes are the types an upload may have (SAL-30: detected from the bytes on the server).
 export const fileTypes = ['image/jpeg', 'image/png', 'application/pdf'] as const satisfies readonly ChatAttachment['content_type'][]
 

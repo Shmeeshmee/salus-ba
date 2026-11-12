@@ -2,6 +2,7 @@ import {
   ChatError,
   fileTypes,
   reasons,
+  unsentMaximum,
   type ChatApi,
   type ChatAttachment,
   type ChatEnd,
@@ -39,8 +40,6 @@ const seqOf = (cursor: string) => Number(cursor.slice('fake-'.length))
 // summaryMinimum is the API's "long conversation": the summary needs 50 messages the practitioner reads.
 const summaryMinimum = 50
 
-// unsentMaximum is how many uploads a participant may have waiting to be sent (SAL-30).
-const unsentMaximum = 10
 
 export type FakeChatOptions = {
   // me is the caller's role and participant id: their messages are the ones they may edit.

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { useT } from '../i18n/useT'
 import type { Member } from '../staff'
-import { ChatError, reasons, type ChatMessage, type Conversation, type ConversationParticipant } from './chatApi'
+import { ChatError, reasons, unsentMaximum, type ChatMessage, type Conversation, type ConversationParticipant } from './chatApi'
 
 // names.ts turns what the chat API gives (opaque ids and codes) into what the screens say, through the catalog:
 // a doctor by the clinic's staff list, the patient by their name when the app may read it, a system message from
@@ -64,6 +64,6 @@ const explained = ['forbidden', 'consent_required', 'not_found', 'rate_limited',
 // errorText is what a refused call says: the API's code where the catalog explains it, the action's own message
 // (fallback, from the catalog) otherwise.
 export function errorText(err: unknown, fallback: string, t: T): string {
-  if (err instanceof ChatError && explained.includes(err.code)) return t(`chat.error.${err.code}`)
+  if (err instanceof ChatError && explained.includes(err.code)) return t(`chat.error.${err.code}`, { n: unsentMaximum })
   return fallback
 }

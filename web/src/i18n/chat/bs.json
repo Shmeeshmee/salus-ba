@@ -125,5 +125,5 @@
   "error.rate_limited": "Previše poruka odjednom. Sačekajte trenutak i pokušajte ponovo.",
   "error.too_large": "Datoteka je prevelika.",
   "error.unsupported_type": "Ova vrsta datoteke se ne može poslati.",
-  "error.too_many_files": "Imate 10 datoteka koje čekaju slanje. Pošaljite ih prije nego što dodate nove; neposlane datoteke se uklanjaju nakon 24 sata."
+  "error.too_many_files": "{n, plural, one {Već imate # datoteku koja čeka slanje. Neposlane datoteke se uklanjaju nakon 24 sata; pokušajte ponovo kasnije.} few {Već imate # datoteke koje čekaju slanje. Neposlane datoteke se uklanjaju nakon 24 sata; pokušajte ponovo kasnije.} other {Već imate # datoteka koje čekaju slanje. Neposlane datoteke se uklanjaju nakon 24 sata; pokušajte ponovo kasnije.}}"
 }

@@ -100,8 +100,9 @@ const refusals: Partial<Record<string, ChatEnd>> = { consent_required: 'consent_
 // follow keeps the conversation's socket open until stopped: on a dropped connection it comes back after the last
 // message it delivered, so nothing is lost; a message whose seq it has already delivered is dropped. Frames it does
 // not know (send_ack, receipt, typing, anything newer) are ignored. A connection that never opened may be a
-// handshake the API refused (the page sees no status), so the conversation is read (check) first: a refusal of
-// access or of the session ends the socket for good; anything else tries again.
+// handshake the API refused (the page sees no status), so the conversation is read (check): a refusal of access or
+// of the session ends the socket for good; anything else tries again. Each check is an audited read, so it is made
+// on the first refused connection in a row and then on every third (about twice a minute at the longest wait).
 function follow(
   open: (url: string) => WebSocket,
   check: () => Promise<unknown>,
@@ -111,6 +112,7 @@ function follow(
   onEnd: (e: ChatEnd) => void,
 ): () => void {
   let failures = 0
+  let refused = 0
   let last = 0
   let stopped = false
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -129,9 +131,11 @@ function follow(
     socket = ws
     ws.onopen = () => {
       opened = true
+      refused = 0
     }
     ws.onmessage = (e) => {
       opened = true
+      refused = 0
       const f = typeof e.data === 'string' ? parse(e.data) : undefined
       if (!f) return
       failures = 0
@@ -146,6 +150,8 @@ function follow(
       const end = ends[`${e.code} ${e.reason}`]
       if (end) return onEnd(end)
       if (opened) return later()
+      refused++
+      if (refused !== 1 && refused % 3 !== 0) return later()
       check().then(later, (err: unknown) => {
         const refused = err instanceof ChatError ? refusals[err.code] : undefined
         if (stopped) return

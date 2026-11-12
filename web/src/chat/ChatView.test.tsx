@@ -301,7 +301,7 @@ describe('ChatView', () => {
     show(chat)
     fireEvent.change(await screen.findByLabelText('Attach a file'), { target: { files: [new File(['x'], 'placeholder.png', { type: 'image/png' })] } })
 
-    expect(await screen.findByText('You have 10 files waiting to be sent. Send them before adding more; files not sent are removed after 24 hours.')).toBeTruthy()
+    expect(await screen.findByText('You already have 10 files waiting to be sent. Files not sent are removed after 24 hours; try again later.')).toBeTruthy()
   })
 
   it('says when the conversation cannot be loaded', async () => {
