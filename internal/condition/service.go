@@ -58,8 +58,12 @@ func valid(c Condition) bool {
 
 // Recorded returns a clinic's confirmed Conditions recorded in [from, to), oldest first, each patient as
 // HMAC-SHA256 of their id under key: the same patient gives the same pseudonym within a build, nothing links it
-// back once the build discards the key. Without a key the pseudonym is zero.
+// back once the build discards the key. Without a key (nil) the pseudonym is zero; a key shorter than 32 bytes
+// gives ErrShortKey.
 func (s *Service) Recorded(ctx context.Context, orgID string, from, to time.Time, key []byte) ([]Recorded, error) {
+	if key != nil && len(key) < pseudonym.MinKey {
+		return nil, ErrShortKey
+	}
 	ds, err := s.repo.Diagnoses(ctx, orgID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("condition: recorded: %w", err)

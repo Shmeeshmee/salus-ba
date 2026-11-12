@@ -17,13 +17,12 @@ period and of the rises. The owner's answers O1 to O8 and the feature flag are i
 Built: migration 00041 (diagnosis groups with appendix A's names, unreviewed; places; `condition` with RLS and the
 backfill as `unconfirmed`; the `salus_stats` role and its column grants), `internal/condition`, the catalog and the
 group-name review in `terminology`, the confirmation in `composition`'s signing, the stats readers, `pkg/pseudonym`,
-`salusctl conditions unconfirmed`, the web confirm control and the review panel's "Diagnosis groups" tab, the e2e
+`salusctl conditions unconfirmed`, `GET /fhir/R4/Condition/{id}` (the signed document's rule, audited), the web
+confirm control and the review panel's "Diagnosis groups" tab, the e2e
 browser journey confirming a code and its Condition checked in the database.
 
 As built, where it differs from the plan (agent decisions, for the owner to review):
 
-- **No FHIR read of Condition yet.** Nothing reads it and no SPEC asks for one (CLAUDE.md: no code for a requirement
-  not in a SPEC); the model is FHIR-shaped and the read is added with its first consumer (the patient's export).
 - **An unconfirmed code is a 422** `diagnosis_unconfirmed` with the field keys, like `required_missing`, not a 409.
 - **The stats-refresh port moves to ANA-2**, its only user: ANA-2 declares `StatsQueue` in `composition` and
   `appointment` and implements it; ANA-1 leaves no no-op behind.
@@ -45,5 +44,12 @@ As built, where it differs from the plan (agent decisions, for the owner to revi
   `STATS_DATABASE_PASSWORD` is now required in the production `.env`: **the owner adds the secret before the next
   deploy**.
 - **Audit of the builds:** `salus_stats` cannot write `audit_event`; a build audits through the app's pool.
+- **Review of the branch** (fresh subagent): nine findings, all fixed: the builds group codes without reading the
+  names (`Catalog.Groups` on `Grouping`, which salus_stats may read); a confirmation holds only for the value
+  confirmed, so a code that changes under the tick is unconfirmed again; a refusal is kept per draft and shows the
+  checkbox even when the template no longer marks the field coded; a pseudonym key under 32 bytes is refused;
+  composite keys tie a Condition to its encounter's clinic and patient and to a document of that encounter; the
+  group names drop an answer that comes after a language switch; the FHIR read the plan settled, which a first cut
+  had left out, is built.
 - **JSON field names** of the new endpoints are camelCase, as the rest of `terminology`'s; section 8's shapes are
   indicative and the generated client is the contract.

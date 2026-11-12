@@ -2,9 +2,11 @@ package condition
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Shmeeshmee/salus/internal/condition/conditiondb"
@@ -84,4 +86,37 @@ func uuids(ids ...string) ([]pgtype.UUID, error) {
 		}
 	}
 	return out, nil
+}
+
+// NewPostgresReadRepository returns the ReadRepository on db (salus_app), using the transaction in the context.
+func NewPostgresReadRepository(db postgres.Querier) ReadRepository {
+	return &postgresRepository{db: db}
+}
+
+func (r *postgresRepository) SetClinic(ctx context.Context, id string) error {
+	return postgres.SetLocal(ctx, "app.organization_id", id)
+}
+
+func (r *postgresRepository) SetPatient(ctx context.Context, id string) error {
+	return postgres.SetLocal(ctx, "app.patient_id", id)
+}
+
+func (r *postgresRepository) ByID(ctx context.Context, id string) (Condition, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Condition{}, ErrNotFound
+	}
+	row, err := r.q(ctx).ConditionByID(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Condition{}, ErrNotFound
+	case err != nil:
+		return Condition{}, err
+	}
+	return Condition{
+		RecordedAt: row.RecordedAt.Time.UTC(), LastUpdated: row.UpdatedAt.Time.UTC(), ID: row.ID.String(),
+		OrganizationID: row.OrganizationID.String(), PatientID: row.PatientID.String(), EncounterID: row.EncounterID.String(),
+		DocumentID: row.DocumentDraftID.String(), PractitionerRoleID: row.PractitionerRoleID.String(), FieldKey: row.FieldKey,
+		Code: row.Code, VerificationStatus: row.VerificationStatus, VersionID: row.VersionID,
+	}, nil
 }

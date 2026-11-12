@@ -23,9 +23,9 @@ type GroupEntry struct {
 	ReviewStatus string
 }
 
-// Groups returns the grouping of ICD-10 codes, for the aggregate builds and the endpoints.
+// Groups returns the grouping of ICD-10 codes, without the names, for the aggregate builds (on salus_stats).
 func (c *Catalog) Groups(ctx context.Context) (Groups, error) {
-	groups, ranges, err := c.repo.DiagnosisGroups(ctx)
+	groups, ranges, err := c.repo.Grouping(ctx)
 	if err != nil {
 		return Groups{}, fmt.Errorf("terminology: diagnosis groups: %w", err)
 	}

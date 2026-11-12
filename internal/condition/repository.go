@@ -15,3 +15,13 @@ type Repository interface {
 	// Unconfirmed returns the ids of the unconfirmed Conditions (the owner, for salusctl).
 	Unconfirmed(ctx context.Context) ([]string, error)
 }
+
+// ReadRepository reads a Condition in the caller's scope, set on the transaction in ctx.
+type ReadRepository interface {
+	// SetClinic scopes the rest of the transaction in ctx to the clinic id.
+	SetClinic(ctx context.Context, id string) error
+	// SetPatient scopes the rest of the transaction in ctx to the patient id.
+	SetPatient(ctx context.Context, id string) error
+	// ByID returns the Condition id, ErrNotFound when the scope does not see it.
+	ByID(ctx context.Context, id string) (Condition, error)
+}

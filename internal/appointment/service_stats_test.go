@@ -30,7 +30,7 @@ func TestStatsStarts_PseudonymisesThePatient(t *testing.T) {
 		{Start: at, PatientID: "p1", PractitionerRoleID: "r", Status: appointment.StatusBooked},
 		{Start: at, PatientID: "p2", PractitionerRoleID: "r", Status: appointment.StatusNoShow},
 	}})
-	got, err := stats.Starts(context.Background(), "org", at, at, []byte("synthetic key"))
+	got, err := stats.Starts(context.Background(), "org", at, at, []byte("synthetic build key, 32 bytes ok"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,6 +38,9 @@ func TestStatsStarts_PseudonymisesThePatient(t *testing.T) {
 	if len(got) != 3 || got[0].Patient != got[1].Patient || got[0].Patient == got[2].Patient || got[0].Patient == zero ||
 		got[2].Status != appointment.StatusNoShow || !got[0].Start.Equal(at) || got[0].PractitionerRoleID != "r" {
 		t.Errorf("Starts = %+v", got)
+	}
+	if _, err := stats.Starts(context.Background(), "org", at, at, []byte{}); !errors.Is(err, appointment.ErrShortKey) {
+		t.Errorf("an empty key: %v, want ErrShortKey", err)
 	}
 	none, _ := stats.Starts(context.Background(), "org", at, at, nil)
 	if none[0].Patient != zero {

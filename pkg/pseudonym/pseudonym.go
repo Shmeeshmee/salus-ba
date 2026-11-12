@@ -8,6 +8,10 @@ import (
 	"crypto/sha256"
 )
 
+// MinKey is the shortest key its callers accept, in bytes: SHA-256's output size, so the key is never what makes a
+// pseudonym guessable.
+const MinKey = 32
+
 // Of returns HMAC-SHA256 of id under key.
 func Of(key []byte, id string) [32]byte {
 	m := hmac.New(sha256.New, key)

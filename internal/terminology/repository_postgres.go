@@ -454,13 +454,9 @@ func NewPostgresCatalogRepository(db postgres.Querier) CatalogRepository {
 	return &postgresCatalogRepository{db: db}
 }
 
-func (r *postgresCatalogRepository) DiagnosisGroups(ctx context.Context) ([]DiagnosisGroup, []GroupRange, error) {
+func (r *postgresCatalogRepository) Grouping(ctx context.Context) ([]DiagnosisGroup, []GroupRange, error) {
 	q := terminologydb.New(postgres.Conn(ctx, r.db))
 	groupRows, err := q.ListDiagnosisGroups(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	nameRows, err := q.ListDiagnosisGroupNames(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -468,10 +464,28 @@ func (r *postgresCatalogRepository) DiagnosisGroups(ctx context.Context) ([]Diag
 	if err != nil {
 		return nil, nil, err
 	}
-	at := make(map[string]int, len(groupRows))
 	groups := make([]DiagnosisGroup, len(groupRows))
 	for i, g := range groupRows {
 		groups[i] = DiagnosisGroup{Code: g.Code, Parent: g.ParentCode.String}
+	}
+	ranges := make([]GroupRange, len(rangeRows))
+	for i, rg := range rangeRows {
+		ranges[i] = GroupRange{Group: rg.GroupCode, From: rg.FromCode, To: rg.ToCode}
+	}
+	return groups, ranges, nil
+}
+
+func (r *postgresCatalogRepository) DiagnosisGroups(ctx context.Context) ([]DiagnosisGroup, []GroupRange, error) {
+	groups, ranges, err := r.Grouping(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	nameRows, err := terminologydb.New(postgres.Conn(ctx, r.db)).ListDiagnosisGroupNames(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	at := make(map[string]int, len(groups))
+	for i, g := range groups {
 		at[g.Code] = i
 	}
 	for _, n := range nameRows {
@@ -480,10 +494,6 @@ func (r *postgresCatalogRepository) DiagnosisGroups(ctx context.Context) ([]Diag
 			Review: review(n.ReviewStatus, n.ReviewedAt, n.ReviewedBy, n.Note), Language: n.Language, Text: n.Text,
 			VersionID: n.VersionID,
 		})
-	}
-	ranges := make([]GroupRange, len(rangeRows))
-	for i, rg := range rangeRows {
-		ranges[i] = GroupRange{Group: rg.GroupCode, From: rg.FromCode, To: rg.ToCode}
 	}
 	return groups, ranges, nil
 }

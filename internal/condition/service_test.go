@@ -91,14 +91,14 @@ func TestRecorded_PseudonymisesThePatientUnderTheKey(t *testing.T) {
 	}}
 	svc := condition.NewService(repo)
 	from, to := signedAt.Add(-time.Hour), signedAt.Add(time.Hour)
-	a, err := svc.Recorded(context.Background(), clinic, from, to, []byte("key one, 32 bytes long, synthet"))
+	a, err := svc.Recorded(context.Background(), clinic, from, to, []byte("synthetic build key one, 32 byte"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if repo.asked != [3]any{clinic, from, to} {
 		t.Errorf("asked the repository %v", repo.asked)
 	}
-	b, _ := svc.Recorded(context.Background(), clinic, from, to, []byte("key two, 32 bytes long, synthet"))
+	b, _ := svc.Recorded(context.Background(), clinic, from, to, []byte("synthetic build key two, 32 byte"))
 	none, _ := svc.Recorded(context.Background(), clinic, from, to, nil)
 	var zero [32]byte
 	switch {
@@ -110,6 +110,16 @@ func TestRecorded_PseudonymisesThePatientUnderTheKey(t *testing.T) {
 		t.Error("two keys give the same pseudonym")
 	case none[0].Patient != zero:
 		t.Error("no key gives a pseudonym")
+	}
+}
+
+// A key shorter than 32 bytes, an empty one included, is refused: it would make the pseudonyms guessable.
+func TestRecorded_RefusesAShortKey(t *testing.T) {
+	svc := condition.NewService(&fakeRepo{diagnoses: []condition.Diagnosis{{RecordedAt: signedAt, PatientID: patient, Code: "J00"}}})
+	for _, key := range [][]byte{{}, []byte("31 bytes of a synthetic key ...")} {
+		if _, err := svc.Recorded(context.Background(), clinic, signedAt, signedAt, key); !errors.Is(err, condition.ErrShortKey) {
+			t.Errorf("a %d-byte key: %v, want ErrShortKey", len(key), err)
+		}
 	}
 }
 

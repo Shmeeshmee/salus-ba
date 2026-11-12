@@ -128,3 +128,24 @@ func TestGroupReviewRepository_LocksAndPutsAName(t *testing.T) {
 		t.Errorf("an unknown group: %v", err)
 	}
 }
+
+// The aggregate builds group codes on salus_stats, which reads the groups and their ranges but not the names.
+func TestCatalogGroups_WorksOnTheStatsRole(t *testing.T) {
+	t.Parallel()
+	owner, _ := pgtest.NewAppDatabase(t)
+	stats, err := postgres.Open(t.Context(), pgtest.StatsURL(t, owner.Config().ConnString()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(stats.Close)
+	g, err := terminology.NewCatalog(terminology.NewPostgresCatalogRepository(stats)).Groups(t.Context())
+	if err != nil {
+		t.Fatalf("Groups on salus_stats: %v", err)
+	}
+	if group, sub := g.Of("J00"); group != "respiratory-infections" || sub != "common-cold" {
+		t.Errorf("Of(J00) = %s, %s", group, sub)
+	}
+	if len(g.List()) != 34 {
+		t.Errorf("%d groups", len(g.List()))
+	}
+}

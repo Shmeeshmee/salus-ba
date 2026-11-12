@@ -94,6 +94,22 @@ func TestAnalyticsDiagnoses_ConditionScopes(t *testing.T) {
 	if err := asApp(t, app, map[string]string{"app.organization_id": clinicB}, insert); err != nil {
 		t.Fatalf("clinic B inserts its Condition: %v", err)
 	}
+	// A Condition of another clinic's or patient's encounter, or of another encounter's document, is refused.
+	for name, stmt := range map[string]string{
+		"another encounter's document": `INSERT INTO condition (recorded_at, organization_id, patient_id, encounter_id, document_draft_id,
+				practitioner_role_id, field_key, code, verification_status)
+			SELECT now(), e.organization_id, e.patient_id, e.id, (SELECT id FROM document_draft WHERE encounter_id <> $1 LIMIT 1),
+				e.practitioner_role_id, 'other', 'J00', 'confirmed' FROM encounter e WHERE e.id = $1 AND $2::uuid IS NOT NULL`,
+		"another patient": `INSERT INTO condition (recorded_at, organization_id, patient_id, encounter_id, document_draft_id,
+				practitioner_role_id, field_key, code, verification_status)
+			SELECT now(), e.organization_id, $2::uuid, e.id, d.id, e.practitioner_role_id, 'other', 'J00', 'confirmed'
+			FROM encounter e JOIN document_draft d ON d.encounter_id = e.id WHERE e.id = $1`,
+	} {
+		_, err := owner.Exec(t.Context(), stmt, enc, c.patients[1].patient)
+		if sqlState(err) != "23503" {
+			t.Errorf("%s: %v, want a foreign key violation", name, err)
+		}
+	}
 	for name, tt := range map[string]struct {
 		scope map[string]string
 		want  int

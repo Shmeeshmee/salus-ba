@@ -2,10 +2,12 @@ package condition_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Shmeeshmee/salus/internal/condition"
@@ -85,10 +87,13 @@ func TestRepository_InsertsAndReadsTheDiagnoses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the clinic inserts: %v", err)
 	}
-	if err := inClinic(t, app, s.clinic, func(ctx context.Context) error {
-		return condition.NewPostgresRepository(app).Insert(ctx, []condition.Condition{s.condition("a", "J00", condition.VerificationConfirmed, at)})
-	}); err == nil {
-		t.Error("a second Condition of the same document field was written")
+	again := s.condition("a", "J00", condition.VerificationConfirmed, at)
+	again.ID = "00000000-0000-4000-8000-0000000002aa" // a new Condition, of a field that has one
+	err = inClinic(t, app, s.clinic, func(ctx context.Context) error {
+		return condition.NewPostgresRepository(app).Insert(ctx, []condition.Condition{again})
+	})
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); !ok || pgErr.Code != "23505" || pgErr.ConstraintName != "condition_document_field_key" {
+		t.Errorf("a second Condition of the same document field: %v, want the unique violation of condition_document_field_key", err)
 	}
 	stats := statsPool(t, owner)
 	got, err := condition.NewPostgresRepository(stats).Diagnoses(t.Context(), s.clinic, at, at.Add(24*time.Hour))
@@ -126,5 +131,44 @@ func TestRepository_TheClinicWritesOnlyItsOwn(t *testing.T) {
 	})
 	if err == nil {
 		t.Error("another clinic's scope wrote the Condition")
+	}
+}
+
+// ByID reads a Condition in the clinic's scope and the patient's, with its meta, and not in another clinic's.
+func TestReadRepository_ReadsInTheScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seedSigned(t, owner)
+	at := time.Date(2026, 11, 2, 9, 30, 0, 0, time.UTC)
+	c := s.condition("a", "J06.9", condition.VerificationConfirmed, at)
+	if err := inClinic(t, app, s.clinic, func(ctx context.Context) error {
+		return condition.NewPostgresRepository(app).Insert(ctx, []condition.Condition{c})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	read := func(set func(ctx context.Context, r condition.ReadRepository) error) (condition.Condition, error) {
+		var got condition.Condition
+		err := postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error {
+			r := condition.NewPostgresReadRepository(app)
+			if err := set(ctx, r); err != nil {
+				return err
+			}
+			var err error
+			got, err = r.ByID(ctx, c.ID)
+			return err
+		})
+		return got, err
+	}
+	got, err := read(func(ctx context.Context, r condition.ReadRepository) error { return r.SetClinic(ctx, s.clinic) })
+	if err != nil || got.Code != "J06.9" || got.VersionID != 1 || got.LastUpdated.IsZero() || got.DocumentID != s.document || !got.RecordedAt.Equal(at) {
+		t.Errorf("the clinic: %+v, %v", got, err)
+	}
+	if _, err := read(func(ctx context.Context, r condition.ReadRepository) error { return r.SetPatient(ctx, s.patient) }); err != nil {
+		t.Errorf("the patient: %v", err)
+	}
+	if _, err := read(func(ctx context.Context, r condition.ReadRepository) error {
+		return r.SetClinic(ctx, "00000000-0000-4000-8000-0000000000ff")
+	}); !errors.Is(err, condition.ErrNotFound) {
+		t.Errorf("another clinic: %v, want ErrNotFound", err)
 	}
 }

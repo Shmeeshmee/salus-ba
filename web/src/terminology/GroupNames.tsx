@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { ApiClient } from '../api/client'
 import type { components } from '../api/schema'
 import { attempt } from '../api/result'
@@ -28,6 +28,8 @@ export function GroupNames({ api, reviewer }: { api: ApiClient; reviewer: boolea
   const [open, setOpen] = useState<Open>()
   const [error, setError] = useState<string>()
   const [reload, setReload] = useState(0)
+  // shown is the language on screen: an answer to a write in another one is dropped.
+  const shown = useRef(language)
 
   useEffect(() => {
     let live = true
@@ -43,7 +45,9 @@ export function GroupNames({ api, reviewer }: { api: ApiClient; reviewer: boolea
   const text = new Map(groups.map((g) => [g.code, g.text]))
 
   async function write(g: GroupName, request: Promise<{ data?: GroupName; error?: unknown; response: Response }>) {
+    const asked = shown.current
     const res = await attempt(request)
+    if (shown.current !== asked) return
     if (!res.ok) {
       if (res.code === 'version_conflict') {
         setError(t('review.conflict'))
@@ -72,7 +76,16 @@ export function GroupNames({ api, reviewer }: { api: ApiClient; reviewer: boolea
       <div className="review-filters">
         <div className="field">
           <label htmlFor="group-language">{t('review.languageFilter')}</label>
-          <select id="group-language" value={language} onChange={(e) => setLanguage(e.target.value as Language)}>
+          <select
+            id="group-language"
+            value={language}
+            onChange={(e) => {
+              shown.current = e.target.value as Language
+              setOpen(undefined)
+              setError(undefined)
+              setLanguage(shown.current)
+            }}
+          >
             {languages.map((l) => (
               <option key={l} value={l}>
                 {name(l)}

@@ -65,6 +65,10 @@ CREATE INDEX place_parent_id ON place (parent_id);
 
 GRANT SELECT ON place TO salus_app;
 
+-- The keys condition's composite foreign keys reference (the ids are unique already).
+ALTER TABLE encounter ADD CONSTRAINT encounter_id_organization_patient_key UNIQUE (id, organization_id, patient_id);
+ALTER TABLE document_draft ADD CONSTRAINT document_draft_id_encounter_key UNIQUE (id, encounter_id);
+
 CREATE TABLE condition (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     created_at timestamptz DEFAULT now() NOT NULL,
@@ -72,8 +76,8 @@ CREATE TABLE condition (
     recorded_at timestamptz NOT NULL,
     organization_id uuid NOT NULL REFERENCES organization (id),
     patient_id uuid NOT NULL REFERENCES patient (id),
-    encounter_id uuid NOT NULL REFERENCES encounter (id),
-    document_draft_id uuid NOT NULL REFERENCES document_draft (id),
+    encounter_id uuid NOT NULL,
+    document_draft_id uuid NOT NULL,
     practitioner_role_id uuid NOT NULL,
     version_id integer DEFAULT 1 NOT NULL,
     field_key text NOT NULL,
@@ -82,7 +86,12 @@ CREATE TABLE condition (
     verification_status text NOT NULL CHECK (verification_status IN ('confirmed', 'unconfirmed')),
     CONSTRAINT condition_document_field_key UNIQUE (document_draft_id, field_key),
     CONSTRAINT condition_practitioner_role_fkey FOREIGN KEY (practitioner_role_id, organization_id)
-        REFERENCES practitioner_role (id, organization_id)
+        REFERENCES practitioner_role (id, organization_id),
+    -- A Condition is of its encounter's clinic and patient, and of a document of that encounter.
+    CONSTRAINT condition_encounter_fkey FOREIGN KEY (encounter_id, organization_id, patient_id)
+        REFERENCES encounter (id, organization_id, patient_id),
+    CONSTRAINT condition_document_draft_fkey FOREIGN KEY (document_draft_id, encounter_id)
+        REFERENCES document_draft (id, encounter_id)
 );
 
 -- A clinic's Conditions over a time range (the aggregate builds); a patient's (their record).

@@ -336,7 +336,8 @@ describe('Documents: diagnosis codes', () => {
   // suggested generates the diagnosis note with the code the drafting suggested.
   async function suggested(options: Parameters<typeof fakeActions>[0] = {}) {
     const docs = openDocuments({ templates: [note], ...options })
-    fireEvent.change(await screen.findByRole('combobox', { name: 'Template' }), { target: { value: note.id } })
+    const id = (options.templates as Template[] | undefined)?.[0].id ?? note.id
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Template' }), { target: { value: id } })
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
     await docs.answer(
       draft({ template_id: note.id, fields: [{ key: 'diagnosis', value: 'J06.9', missing: false, source_segment_ids: ['a1000000-0000-4000-8000-000000000001'] }] }),
@@ -388,5 +389,29 @@ describe('Documents: diagnosis codes', () => {
 
     expect((await screen.findByRole('alert')).textContent).toBe('Confirm each diagnosis code before you sign.')
     expect(field('Placeholder diagnosis').getAttribute('aria-invalid')).toBe('true')
+    const confirm = screen.getByRole('checkbox', { name: 'I confirm this diagnosis code' }) as HTMLInputElement
+    expect(confirm.checked).toBe(false)
+
+    fireEvent.click(confirm)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(field('Placeholder diagnosis').getAttribute('aria-invalid')).toBeNull()
+  })
+
+  it('takes back a confirmation when the code changes under it', async () => {
+    const { emit } = await suggested()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'I confirm this diagnosis code' }))
+    emit(draft({ template_id: note.id, version_id: 2, fields: [{ key: 'diagnosis', value: 'J18.9', missing: false, source_segment_ids: ['a1000000-0000-4000-8000-000000000001'] }] }))
+    await screen.findByDisplayValue('J18.9')
+    expect((screen.getByRole('checkbox', { name: 'I confirm this diagnosis code' }) as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('asks to confirm a code the server takes as a diagnosis though the template no longer says so', async () => {
+    const plain: Template = { ...note, fields: [{ key: 'diagnosis', label: 'Placeholder diagnosis', required: false, type: 'text' }] }
+    await suggested({ templates: [plain], failSign: { unconfirmed: ['diagnosis'] } })
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Sign' }))
+
+    expect(await screen.findByRole('checkbox', { name: 'I confirm this diagnosis code' })).toBeTruthy()
   })
 })

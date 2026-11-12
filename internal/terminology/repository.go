@@ -89,6 +89,9 @@ type CatalogRepository interface {
 	// DiagnosisGroups returns the groups in their order, each with its names by language in the enum's order,
 	// and every group's ranges.
 	DiagnosisGroups(ctx context.Context) ([]DiagnosisGroup, []GroupRange, error)
+	// Grouping returns the groups in their order without their names, and every group's ranges: what salus_stats
+	// may read, for the aggregate builds.
+	Grouping(ctx context.Context) ([]DiagnosisGroup, []GroupRange, error)
 	// Places returns the entity, the regions and the cities, each by parent and Latin name.
 	Places(ctx context.Context) ([]Place, error)
 }

@@ -95,6 +95,20 @@ describe('GroupNames', () => {
     expect(fake.requests.filter((r) => r.method === 'GET')).toHaveLength(2)
   })
 
+  it('drops an answer that comes after a switch of language', async () => {
+    let answer: (r: Response) => void = () => undefined
+    setup({
+      'POST /terminology/diagnosis-groups/other/names/en/review': () => new Promise<Response>((resolve) => (answer = resolve)),
+    })
+    await screen.findByRole('article', { name: 'Other' })
+    fireEvent.click(within(card('Other')).getByRole('button', { name: 'Approve' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Language' }), { target: { value: 'bs' } })
+    await screen.findByRole('article', { name: 'Other' })
+    answer(Response.json({ ...other, text: 'Other (en, approved)', review: { status: 'approved' }, versionId: 3 }))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(screen.queryByRole('article', { name: 'Other (en, approved)' })).toBeNull()
+  })
+
   it('has no controls without the reviewer permission', async () => {
     setup({}, false)
     await screen.findByRole('article', { name: 'Other' })

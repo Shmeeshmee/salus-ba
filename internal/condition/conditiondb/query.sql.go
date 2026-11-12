@@ -11,6 +11,47 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const conditionByID = `-- name: ConditionByID :one
+SELECT id, updated_at, recorded_at, organization_id, patient_id, encounter_id, document_draft_id, practitioner_role_id,
+       version_id, field_key, code, verification_status
+FROM condition WHERE id = $1
+`
+
+type ConditionByIDRow struct {
+	ID                 pgtype.UUID
+	UpdatedAt          pgtype.Timestamptz
+	RecordedAt         pgtype.Timestamptz
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	EncounterID        pgtype.UUID
+	DocumentDraftID    pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	VersionID          int32
+	FieldKey           string
+	Code               string
+	VerificationStatus string
+}
+
+func (q *Queries) ConditionByID(ctx context.Context, id pgtype.UUID) (ConditionByIDRow, error) {
+	row := q.db.QueryRow(ctx, conditionByID, id)
+	var i ConditionByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.RecordedAt,
+		&i.OrganizationID,
+		&i.PatientID,
+		&i.EncounterID,
+		&i.DocumentDraftID,
+		&i.PractitionerRoleID,
+		&i.VersionID,
+		&i.FieldKey,
+		&i.Code,
+		&i.VerificationStatus,
+	)
+	return i, err
+}
+
 const insertCondition = `-- name: InsertCondition :exec
 INSERT INTO condition (id, recorded_at, organization_id, patient_id, encounter_id, document_draft_id,
                        practitioner_role_id, field_key, code, verification_status)

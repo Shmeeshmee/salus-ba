@@ -237,6 +237,9 @@ func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointm
 		transcriptHandler.Routes,
 		composition.NewHTTPHandler(documents, caller, log).Routes,
 		composition.NewFHIRHandler(documents, caller, fhirBase, log).Routes,
+		condition.NewFHIRHandler(condition.NewReads(condition.ReadPorts{
+			Repo: condition.NewPostgresReadRepository(p.pool), Encounters: p.encounters, Audit: p.audit, Tx: p.tx,
+		}), caller, log).Routes,
 	}, transcriptHandler.StreamRoutes
 }
 

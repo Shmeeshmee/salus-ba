@@ -14,3 +14,8 @@ ORDER BY recorded_at, code;
 
 -- name: ListUnconfirmed :many
 SELECT id FROM condition WHERE verification_status = 'unconfirmed' ORDER BY recorded_at, id;
+
+-- name: ConditionByID :one
+SELECT id, updated_at, recorded_at, organization_id, patient_id, encounter_id, document_draft_id, practitioner_role_id,
+       version_id, field_key, code, verification_status
+FROM condition WHERE id = @id;

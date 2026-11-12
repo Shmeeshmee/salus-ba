@@ -18,8 +18,11 @@ type Stats struct {
 func NewStats(repo StatsRepository) *Stats { return &Stats{repo: repo} }
 
 // Starts returns a clinic's appointments starting in [from, to), oldest first, each patient as HMAC-SHA256 of
-// their id under key (zero without a key).
+// their id under key (zero without a key, nil; ErrShortKey for a key shorter than 32 bytes).
 func (s *Stats) Starts(ctx context.Context, orgID string, from, to time.Time, key []byte) ([]Start, error) {
+	if key != nil && len(key) < pseudonym.MinKey {
+		return nil, ErrShortKey
+	}
 	rows, err := s.repo.Booked(ctx, orgID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("appointment: starts: %w", err)

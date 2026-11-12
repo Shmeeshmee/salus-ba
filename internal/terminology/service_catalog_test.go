@@ -27,6 +27,14 @@ func (f fakeCatalog) DiagnosisGroups(context.Context) ([]terminology.DiagnosisGr
 	}, f.err
 }
 
+func (f fakeCatalog) Grouping(ctx context.Context) ([]terminology.DiagnosisGroup, []terminology.GroupRange, error) {
+	groups, ranges, err := f.DiagnosisGroups(ctx)
+	for i := range groups {
+		groups[i].Names = nil
+	}
+	return groups, ranges, err
+}
+
 func (f fakeCatalog) Places(context.Context) ([]terminology.Place, error) {
 	return []terminology.Place{
 		{ID: "BA-BIH", Kind: "entity", NameLatn: "Federacija Bosne i Hercegovine"},

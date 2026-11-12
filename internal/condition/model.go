@@ -21,6 +21,7 @@ const (
 // document and field it came from (.evidence.detail). Health data (GDPR Art. 9).
 type Condition struct {
 	RecordedAt         time.Time
+	LastUpdated        time.Time // meta.lastUpdated; set when read
 	ID                 string
 	OrganizationID     string
 	PatientID          string
@@ -30,6 +31,7 @@ type Condition struct {
 	FieldKey           string
 	Code               string
 	VerificationStatus string
+	VersionID          int32 // meta.versionId; set when read
 }
 
 // Diagnosis is a confirmed Condition as the aggregate builds read it from the store: no document, no field.
