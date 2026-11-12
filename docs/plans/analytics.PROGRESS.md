@@ -128,3 +128,15 @@ As built, where it differs from the plan (agent decisions, for the owner to revi
   `make lint`, `make archcheck`, `make test` (`cmd/migrate` and `cmd/notifier` flaked under load, the known salus_stats
   password race and a 15 s start timeout, and passed alone), `make cover` (92.4% in all, `internal/trends` 88.1%),
   `make fhir-validate`, `make e2e`, `make web-lint web-typecheck web-test`, `make gen-clients` with no diff.
+- **Review (fresh subagent)**: eight findings. Fixed: the A7 LP and the exact check now know a published cell passed
+  A4 (`r >= max(v-2-a, k)`; a k = 12 subgroup audited as [8, 22] was really [12, 22],
+  `TestSuppress_A7KnowsThatAPublishedCellPassedA4`); an unbounded program or a solver point outside a row counts as 0
+  wide (`TestWidth_AnUnboundedProgramFailsClosed`); the heatmap reads only fulfilled appointments in SQL
+  (`appointment.Stats.Fulfilled`, `TestBuild_AQuarterHeatmap`, `TestStatsFulfilled_OnlyTheFulfilledPseudonymised`);
+  Clinic settings refuses a region without a city, cannot clear a saved location, says when `/places` fails, and hides
+  the opt-out and the location hint while the view is off (`ClinicSettings.test.tsx`; the "anonymized" legal copy
+  unchanged, pending L3); a `trends_build` on a worker with the flag off is cancelled
+  (`TestTrendsWorker_CancelsABuildWhileThePlatformViewIsOff`); a purged period is no longer listed
+  (`TestRepository_WritesOnceReadsAndPurges`). Left for the owner: a clinic may opt in, read every frozen month and
+  opt out again (strict O6 would refuse the view until `contributes_since` is before the current month). The month
+  benchmark after the fix: 34.3 s and 36.1 s (was 35.4 s); the exact check over 60 months 15.5 s.
