@@ -3,13 +3,26 @@
 # with a tone and see its translation, suggestions and drafted fields. Without a scripted tone they behave as the
 # plain fakes, so the other journeys are unchanged. The compose default and production never set
 # FAKE_ENGINE_SCRIPT, and internal/config refuses it beside a real engine. Paths are relative to deployments/.
+# The platform view (All of Salus, docs/plans/analytics.md §2a) is on for this stack only, so its journey runs; the
+# compose default and production leave ANALYTICS_PLATFORM_ENABLED off.
 x-script: &script
-  environment:
-    FAKE_ENGINE_SCRIPT: /consult-script
-  volumes:
-    - ../test/testdata/consult:/consult-script:ro
+  - ../test/testdata/consult:/consult-script:ro
 
 services:
-  api: *script
-  worker: *script
-  agent: *script
+  api:
+    environment:
+      FAKE_ENGINE_SCRIPT: /consult-script
+      ANALYTICS_PLATFORM_ENABLED: "true"
+    volumes: *script
+  worker:
+    environment:
+      FAKE_ENGINE_SCRIPT: /consult-script
+      ANALYTICS_PLATFORM_ENABLED: "true"
+    volumes: *script
+  agent:
+    environment:
+      FAKE_ENGINE_SCRIPT: /consult-script
+    volumes: *script
+  scheduler:
+    environment:
+      ANALYTICS_PLATFORM_ENABLED: "true"

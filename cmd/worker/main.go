@@ -88,7 +88,14 @@ func run(ctx context.Context, logOut io.Writer) error {
 		return err
 	}
 	defer retentionPool.Close()
-	client, err := worker.New(pool, retentionPool, videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret), files, log)
+	platform, err := openTrends(ctx, cfg.Analytics)
+	if err != nil {
+		return err
+	}
+	if platform.Stats != nil {
+		defer platform.Stats.Close()
+	}
+	client, err := worker.New(pool, retentionPool, videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret), files, platform, log)
 	if err != nil {
 		return err
 	}
@@ -118,6 +125,23 @@ func run(ctx context.Context, logOut io.Writer) error {
 	}
 	log.Info("stopped")
 	return nil
+}
+
+// openTrends opens the salus_stats pool of the trends builds (STATS_DATABASE_URL, required) while
+// ANALYTICS_PLATFORM_ENABLED is on; off, none (docs/plans/analytics.md §2a).
+func openTrends(ctx context.Context, a config.Analytics) (worker.Trends, error) {
+	if !a.PlatformEnabled {
+		return worker.Trends{}, nil
+	}
+	stats := config.LoadStats()
+	if stats.DatabaseURL == "" {
+		return worker.Trends{}, errors.New("config: STATS_DATABASE_URL is required while ANALYTICS_PLATFORM_ENABLED is on")
+	}
+	pool, err := postgres.Open(ctx, stats.DatabaseURL)
+	if err != nil {
+		return worker.Trends{}, err
+	}
+	return worker.Trends{Stats: pool, MinCount: a.MinCount}, nil
 }
 
 // llmTimeout bounds one call to the language model's HTTP API; a suggestion run is bounded tighter by its own

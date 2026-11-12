@@ -61,7 +61,7 @@ func NewAgent(pool *pgxpool.Pool, rdb *goredis.Client, video Video, recognizer s
 	})
 	terms := terminology.NewService(terminology.NewPostgresRepository(pool), nil) // the glossary and the tagging only
 	live := transcript.NewLive(transcript.LivePorts{
-		Calls: sessions, Appointments: appointments, Clinics: organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk),
+		Calls: sessions, Appointments: appointments, Clinics: organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk, nil),
 		Accounts:  auth.NewService(auth.Ports{Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
 		Publisher: transcript.NewRedisPublisher(rdb), Recognizer: recognizer, Clock: clk, Log: log,
 		Translator: translator, Glossary: terms, Terms: terms,

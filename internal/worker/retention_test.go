@@ -109,7 +109,7 @@ func runWorkerJobWith(t *testing.T, db logins, p videosession.Provider, args riv
 func runJobOn(t *testing.T, db logins, p videosession.Provider, files worker.Files, args river.JobArgs, opts *river.InsertOpts) (river.EventKind, string) {
 	t.Helper()
 	logs := &syncBuffer{}
-	client, err := worker.New(db.app, db.retention, p, files, slog.New(slog.NewJSONHandler(logs, nil)))
+	client, err := worker.New(db.app, db.retention, p, files, worker.Trends{}, slog.New(slog.NewJSONHandler(logs, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -232,7 +232,7 @@ func assertNoPersonalData(t *testing.T, logs string) {
 func TestNew_RefusesToStartWithoutTheRetentionPool(t *testing.T) {
 	_, app := pgtest.NewAppDatabase(t)
 
-	if _, err := worker.New(app, nil, liveKit(t), testFiles(t), slog.New(slog.DiscardHandler)); err == nil {
+	if _, err := worker.New(app, nil, liveKit(t), testFiles(t), worker.Trends{}, slog.New(slog.DiscardHandler)); err == nil {
 		t.Fatal("New() error = nil without the retention pool")
 	}
 }

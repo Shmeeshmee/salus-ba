@@ -9,6 +9,8 @@
 # personal_data: true|false, required on every table a domain owns. A table with personal data needs a rule
 # in internal/retention/rules.go (archcheck), and its personal fields a line in the feature's SPEC.md.
 tables:
+  # (docs/bootstrap/PROGRESS.md), so it never does.
+  # River 005 recreates its own ledger only when that table already exists; River 001 is not applied here
   account: {owner: auth, personal_data: true}
   appointment: {owner: appointment, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
@@ -36,6 +38,13 @@ tables:
   questionnaire_default: {owner: questionnaire, personal_data: false}
   questionnaire_response: {owner: questionnaireresponse, personal_data: true}
   questionnaire_translation: {owner: questionnaire, personal_data: false}
+  river_client: {owner: river, dropped: true}
+  river_client_queue: {owner: river, dropped: true}
+  river_job: {owner: river}
+  river_leader: {owner: river}
+  river_migration: {owner: river, dropped: true}
+  river_notification: {owner: river}
+  river_queue: {owner: river}
   schedule: {owner: schedule, personal_data: true}
   session: {owner: auth, personal_data: true}
   slot: {owner: slot, personal_data: true}
@@ -47,13 +56,7 @@ tables:
   term_translation: {owner: terminology, personal_data: true} # reviewed_by
   transcript_segment: {owner: transcript, personal_data: true}
   transcription_consent: {owner: consent, personal_data: true}
+  trends_cell: {owner: trends, personal_data: true}
+  trends_period: {owner: trends, personal_data: false}
+  trends_rise: {owner: trends, personal_data: true}
   video_session: {owner: videosession, personal_data: true}
-  river_job: {owner: river}
-  river_leader: {owner: river}
-  river_queue: {owner: river}
-  river_notification: {owner: river}
-  river_client: {owner: river, dropped: true}
-  river_client_queue: {owner: river, dropped: true}
-  # River 005 recreates its own ledger only when that table already exists; River 001 is not applied here
-  # (docs/bootstrap/PROGRESS.md), so it never does.
-  river_migration: {owner: river, dropped: true}

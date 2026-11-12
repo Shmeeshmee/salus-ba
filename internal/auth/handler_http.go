@@ -40,11 +40,20 @@ type Handler struct {
 	log *slog.Logger
 	// trustedProxies may set X-Forwarded-For (TRUSTED_PROXY_CIDRS); from anyone else it is ignored.
 	trustedProxies []netip.Prefix
+	// features are the codes of the features turned on for the deployment, listed in GET /auth/me
+	// (analytics_platform, docs/plans/analytics.md §2a).
+	features []string
 }
 
 // NewHandler returns the handler on svc.
 func NewHandler(svc AccountService, log *slog.Logger, trustedProxies []netip.Prefix) *Handler {
 	return &Handler{svc: svc, log: log, trustedProxies: trustedProxies}
+}
+
+// WithFeatures sets the features GET /auth/me lists, and returns h.
+func (h *Handler) WithFeatures(features []string) *Handler {
+	h.features = features
+	return h
 }
 
 // Routes declares the auth routes on mux.
@@ -64,14 +73,15 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 
 // accountJSON is the Account schema: the password hash never crosses this boundary.
 type accountJSON struct {
-	ID             string `json:"id"`
-	Email          string `json:"email"`
-	Role           Role   `json:"role"`
-	OrganizationID string `json:"organizationId,omitempty"`
-	PractitionerID string `json:"practitionerId,omitempty"`
-	Language       string `json:"language,omitempty"` // the choice only: the detected language stays on the server
-	MFAEnrolled    bool   `json:"mfaEnrolled"`
-	TermReviewer   bool   `json:"termReviewer,omitempty"`
+	ID             string   `json:"id"`
+	Email          string   `json:"email"`
+	Role           Role     `json:"role"`
+	OrganizationID string   `json:"organizationId,omitempty"`
+	PractitionerID string   `json:"practitionerId,omitempty"`
+	Language       string   `json:"language,omitempty"` // the choice only: the detected language stays on the server
+	MFAEnrolled    bool     `json:"mfaEnrolled"`
+	TermReviewer   bool     `json:"termReviewer,omitempty"`
+	Features       []string `json:"features,omitempty"`
 }
 
 func toJSON(a Account) accountJSON {
@@ -140,7 +150,9 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, err)
 		return
 	}
-	httpx.JSON(w, http.StatusOK, toJSON(a))
+	out := toJSON(a)
+	out.Features = h.features
+	httpx.JSON(w, http.StatusOK, out)
 }
 
 // updateMe saves or clears the account's chosen language. The body must hold language, a tag or null.

@@ -177,7 +177,7 @@ func loadChat(t *testing.T, pool *pgxpool.Pool) (*communication.Service, http.Ha
 	t.Helper()
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
-	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{})
+	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{}, nil)
 	roles := practitionerrole.NewService(practitionerrole.Ports{
 		Repo: practitionerrole.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Clinics: clinics,
 		People: practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx),

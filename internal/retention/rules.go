@@ -90,7 +90,7 @@ func Rules() []Rule {
 			Keep:  day, // after scanned_at of a rejected row; after an object's last write
 			Then:  ThenDelete,
 		},
-	}, append(append(consultIntelligenceRules(), termReviewRules()...), chatRules()...)...)
+	}, append(append(append(consultIntelligenceRules(), termReviewRules()...), chatRules()...), trendsRules()...)...)
 }
 
 // chatRules are the rules of the chat between the patient and their clinic's doctors (docs/plans/chat.md, SAL-27):
@@ -156,5 +156,17 @@ func consultIntelligenceRules() []Rule {
 			Basis: "The document the practitioner writes about the patient during the consultation (GDPR Art. 9(2)(h)); kept with the clinical record, a discarded one as entered-in-error; needs a legal decision before production (docs/plans/consult-intelligence.md, \"Personal data\")",
 			Then:  ThenKeep,
 		},
+	}
+}
+
+// trendsRules are the rules of the platform figures (docs/plans/analytics.md §5 to §7, SAL-21): frozen counts and rise
+// flags with no identifier, kept five years after their build, then deleted.
+func trendsRules() []Rule {
+	basis := "Platform-wide figures built from the clinics' diagnoses and appointments under rules A1 to A12, with no " +
+		"clinic, practitioner or patient identifier; the lawful basis is open (docs/plans/analytics.md L1 to L3); kept " +
+		"five years after the build (§7), then deleted; needs a legal decision before production"
+	return []Rule{
+		{Table: "trends_cell", Basis: basis, Keep: 1827 * day, Then: ThenDelete}, // five years, leap days included
+		{Table: "trends_rise", Basis: basis, Keep: 1827 * day, Then: ThenDelete},
 	}
 }

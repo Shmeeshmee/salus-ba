@@ -13,7 +13,7 @@ import (
 
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organization (name) VALUES ($1)
-RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy
+RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since
 `
 
 type CreateOrganizationRow struct {
@@ -26,6 +26,11 @@ type CreateOrganizationRow struct {
 	TimeZone              string
 	DefaultLanguage       Language
 	PatientTranscriptCopy bool
+	RegionID              pgtype.Text
+	CityID                pgtype.Text
+	LocationSince         pgtype.Timestamptz
+	AnalyticsContributes  bool
+	ContributesSince      pgtype.Timestamptz
 }
 
 // The operator command only (salusctl, as the owner): salus_app has no INSERT on organization.
@@ -42,20 +47,31 @@ func (q *Queries) CreateOrganization(ctx context.Context, name string) (CreateOr
 		&i.TimeZone,
 		&i.DefaultLanguage,
 		&i.PatientTranscriptCopy,
+		&i.RegionID,
+		&i.CityID,
+		&i.LocationSince,
+		&i.AnalyticsContributes,
+		&i.ContributesSince,
 	)
 	return i, err
 }
 
 const listLocationsForStats = `-- name: ListLocationsForStats :many
-SELECT id, time_zone FROM organization ORDER BY id
+SELECT id, time_zone, region_id, city_id, location_since, analytics_contributes, contributes_since
+FROM organization ORDER BY id
 `
 
 type ListLocationsForStatsRow struct {
-	ID       pgtype.UUID
-	TimeZone string
+	ID                   pgtype.UUID
+	TimeZone             string
+	RegionID             pgtype.Text
+	CityID               pgtype.Text
+	LocationSince        pgtype.Timestamptz
+	AnalyticsContributes bool
+	ContributesSince     pgtype.Timestamptz
 }
 
-// Every clinic with its time zone: the columns salus_stats may read.
+// Every clinic with its time zone, location and contribution: the columns salus_stats may read.
 func (q *Queries) ListLocationsForStats(ctx context.Context) ([]ListLocationsForStatsRow, error) {
 	rows, err := q.db.Query(ctx, listLocationsForStats)
 	if err != nil {
@@ -65,7 +81,15 @@ func (q *Queries) ListLocationsForStats(ctx context.Context) ([]ListLocationsFor
 	var items []ListLocationsForStatsRow
 	for rows.Next() {
 		var i ListLocationsForStatsRow
-		if err := rows.Scan(&i.ID, &i.TimeZone); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.TimeZone,
+			&i.RegionID,
+			&i.CityID,
+			&i.LocationSince,
+			&i.AnalyticsContributes,
+			&i.ContributesSince,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -127,7 +151,7 @@ func (q *Queries) ListedOrganizations(ctx context.Context) ([]ListedOrganization
 }
 
 const organizationByID = `-- name: OrganizationByID :one
-SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy
+SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since
 FROM organization
 WHERE id = $1
 `
@@ -142,6 +166,11 @@ type OrganizationByIDRow struct {
 	TimeZone              string
 	DefaultLanguage       Language
 	PatientTranscriptCopy bool
+	RegionID              pgtype.Text
+	CityID                pgtype.Text
+	LocationSince         pgtype.Timestamptz
+	AnalyticsContributes  bool
+	ContributesSince      pgtype.Timestamptz
 }
 
 func (q *Queries) OrganizationByID(ctx context.Context, id pgtype.UUID) (OrganizationByIDRow, error) {
@@ -157,15 +186,23 @@ func (q *Queries) OrganizationByID(ctx context.Context, id pgtype.UUID) (Organiz
 		&i.TimeZone,
 		&i.DefaultLanguage,
 		&i.PatientTranscriptCopy,
+		&i.RegionID,
+		&i.CityID,
+		&i.LocationSince,
+		&i.AnalyticsContributes,
+		&i.ContributesSince,
 	)
 	return i, err
 }
 
 const updateOrganization = `-- name: UpdateOrganization :one
 UPDATE organization
-SET name = $1, listed = $2, time_zone = $3, default_language = $4, patient_transcript_copy = $5, version_id = version_id + 1, updated_at = $6
-WHERE id = $7 AND version_id = $8
-RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy
+SET name = $1, listed = $2, time_zone = $3, default_language = $4, patient_transcript_copy = $5,
+    region_id = $6, city_id = $7, location_since = $8,
+    analytics_contributes = $9, contributes_since = $10,
+    version_id = version_id + 1, updated_at = $11
+WHERE id = $12 AND version_id = $13
+RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since
 `
 
 type UpdateOrganizationParams struct {
@@ -174,6 +211,11 @@ type UpdateOrganizationParams struct {
 	TimeZone              string
 	DefaultLanguage       Language
 	PatientTranscriptCopy bool
+	RegionID              pgtype.Text
+	CityID                pgtype.Text
+	LocationSince         pgtype.Timestamptz
+	AnalyticsContributes  bool
+	ContributesSince      pgtype.Timestamptz
 	UpdatedAt             pgtype.Timestamptz
 	ID                    pgtype.UUID
 	VersionID             int32
@@ -189,6 +231,11 @@ type UpdateOrganizationRow struct {
 	TimeZone              string
 	DefaultLanguage       Language
 	PatientTranscriptCopy bool
+	RegionID              pgtype.Text
+	CityID                pgtype.Text
+	LocationSince         pgtype.Timestamptz
+	AnalyticsContributes  bool
+	ContributesSince      pgtype.Timestamptz
 }
 
 // Optimistic locking: only the current version changes.
@@ -199,6 +246,11 @@ func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganization
 		arg.TimeZone,
 		arg.DefaultLanguage,
 		arg.PatientTranscriptCopy,
+		arg.RegionID,
+		arg.CityID,
+		arg.LocationSince,
+		arg.AnalyticsContributes,
+		arg.ContributesSince,
 		arg.UpdatedAt,
 		arg.ID,
 		arg.VersionID,
@@ -214,6 +266,11 @@ func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganization
 		&i.TimeZone,
 		&i.DefaultLanguage,
 		&i.PatientTranscriptCopy,
+		&i.RegionID,
+		&i.CityID,
+		&i.LocationSince,
+		&i.AnalyticsContributes,
+		&i.ContributesSince,
 	)
 	return i, err
 }

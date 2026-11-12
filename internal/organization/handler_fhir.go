@@ -23,6 +23,10 @@ const (
 	extensionTimeZone        = "https://salus.invalid/fhir/StructureDefinition/organization-timezone"
 	extensionDefaultLanguage = "https://salus.invalid/fhir/StructureDefinition/organization-default-language"
 	extensionTranscriptCopy  = "https://salus.invalid/fhir/StructureDefinition/organization-patient-transcript-copy"
+	// The clinic's contribution to the platform figures (docs/plans/analytics.md O6), and the city of its address
+	// as a Wikidata id (a city's name is not unique): -organization-analytics-contributes.json, -organization-city.json.
+	extensionContributes = "https://salus.invalid/fhir/StructureDefinition/organization-analytics-contributes"
+	extensionCity        = "https://salus.invalid/fhir/StructureDefinition/organization-city"
 )
 
 // Clinics reads and changes a clinic for a caller, and lists the listed ones for anyone (Service).
@@ -63,10 +67,30 @@ type resource struct {
 	Name         string           `json:"name"`
 	Meta         fhir.Meta        `json:"meta"`
 	Extension    []fhir.Extension `json:"extension"`
+	Address      []address        `json:"address,omitempty"`
 	Active       bool             `json:"active"`
 }
 
+// address is the clinic's location (docs/plans/analytics.md O1): its leaf region's ISO 3166-2 code as the state,
+// its city's name in Latin script, and the city's Wikidata id in the organization-city extension.
+type address struct {
+	City      string           `json:"city,omitempty"`
+	State     string           `json:"state"`
+	Extension []fhir.Extension `json:"extension"`
+}
+
+// toFHIR is the clinic as its staff read it; toDirectory as the public directory shows it, without its location
+// and its contribution to the platform figures.
 func toFHIR(o Organization) resource {
+	r := toDirectory(o)
+	r.Extension = append(r.Extension, fhir.Extension{URL: extensionContributes, ValueBoolean: &o.AnalyticsContributes})
+	if o.City != "" {
+		r.Address = []address{{State: o.Region, City: o.CityName, Extension: []fhir.Extension{{URL: extensionCity, ValueCode: o.City}}}}
+	}
+	return r
+}
+
+func toDirectory(o Organization) resource {
 	return resource{
 		ResourceType: "Organization", ID: o.ID, Name: o.Name, Active: o.Active,
 		Meta: fhir.NewMeta(o.VersionID, o.LastUpdated),
@@ -93,7 +117,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	}
 	matches := make([]fhir.BundleEntry, 0, len(all))
 	for _, o := range all {
-		matches = append(matches, fhir.BundleEntry{FullURL: h.base + "/Organization/" + o.ID, Resource: toFHIR(o)})
+		matches = append(matches, fhir.BundleEntry{FullURL: h.base + "/Organization/" + o.ID, Resource: toDirectory(o)})
 	}
 	fhir.Write(w, http.StatusOK, fhir.NewSearchset(h.base+"/Organization?listed=true", matches, nil))
 }
@@ -134,19 +158,30 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 
 // updateBody is the part of an Organization an update reads.
 type updateBody struct {
-	ResourceType string `json:"resourceType"`
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Extension    []struct {
-		ValueBoolean *bool   `json:"valueBoolean"`
-		ValueCode    *string `json:"valueCode"`
-		URL          string  `json:"url"`
-	} `json:"extension"`
+	ResourceType string          `json:"resourceType"`
+	ID           string          `json:"id"`
+	Name         string          `json:"name"`
+	Extension    []bodyExtension `json:"extension"`
+	Address      []struct {
+		State     *string         `json:"state"`
+		Extension []bodyExtension `json:"extension"`
+	} `json:"address"`
 }
 
-// changes are what the body sets, and false when one of our extensions comes twice or without its value.
+// bodyExtension is an extension of an update's body.
+type bodyExtension struct {
+	ValueBoolean *bool   `json:"valueBoolean"`
+	ValueCode    *string `json:"valueCode"`
+	URL          string  `json:"url"`
+}
+
+// changes are what the body sets, and false when one of our extensions comes twice or without its value, or the
+// address is not one with a state and one city.
 func (b updateBody) changes() (Changes, bool) {
 	ch := Changes{Name: b.Name}
+	if !b.location(&ch) {
+		return Changes{}, false
+	}
 	for _, e := range b.Extension {
 		switch {
 		case e.URL == extensionListed && ch.Listed == nil && e.ValueBoolean != nil && e.ValueCode == nil:
@@ -157,11 +192,35 @@ func (b updateBody) changes() (Changes, bool) {
 			ch.DefaultLanguage = e.ValueCode
 		case e.URL == extensionTranscriptCopy && ch.PatientTranscriptCopy == nil && e.ValueBoolean != nil && e.ValueCode == nil:
 			ch.PatientTranscriptCopy = e.ValueBoolean
-		case e.URL == extensionListed || e.URL == extensionTimeZone || e.URL == extensionDefaultLanguage || e.URL == extensionTranscriptCopy:
+		case e.URL == extensionContributes && ch.AnalyticsContributes == nil && e.ValueBoolean != nil && e.ValueCode == nil:
+			ch.AnalyticsContributes = e.ValueBoolean
+		case e.URL == extensionListed || e.URL == extensionTimeZone || e.URL == extensionDefaultLanguage || e.URL == extensionTranscriptCopy ||
+			e.URL == extensionContributes:
 			return Changes{}, false
 		}
 	}
 	return ch, true
+}
+
+// location sets the region and the city of ch from the body's address, when it has one: one address with a state
+// and one organization-city extension; false for any other address. Its city name is ignored.
+func (b updateBody) location(ch *Changes) bool {
+	switch {
+	case len(b.Address) == 0:
+		return true
+	case len(b.Address) > 1 || !code(b.Address[0].State, nil):
+		return false
+	}
+	for _, e := range b.Address[0].Extension {
+		switch {
+		case e.URL == extensionCity && ch.City == nil && code(e.ValueCode, e.ValueBoolean):
+			ch.City = e.ValueCode
+		case e.URL == extensionCity:
+			return false
+		}
+	}
+	ch.Region = b.Address[0].State
+	return ch.City != nil
 }
 
 // code reports whether an extension's value is a code that is not empty, and nothing else.
@@ -206,6 +265,8 @@ func (h *Handler) write(w http.ResponseWriter, r *http.Request, o Organization, 
 		fhir.WriteError(w, http.StatusBadRequest, "value", "The time zone must be an IANA time zone name.")
 	case errors.Is(err, ErrInvalidDefaultLanguage):
 		fhir.WriteError(w, http.StatusBadRequest, "value", "The default language must be bs, hr, sr-Latn, sr-Cyrl or en.")
+	case errors.Is(err, ErrInvalidLocation):
+		fhir.WriteError(w, http.StatusBadRequest, "code-invalid", "The city must be a city of the region given as the state.")
 	case err != nil:
 		fhir.InternalError(w, r, h.log, err)
 	default:

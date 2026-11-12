@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Shmeeshmee/salus/internal/organization/organizationdb"
@@ -41,7 +42,11 @@ func (r *postgresRepository) Listed(ctx context.Context) ([]Organization, error)
 	}
 	out := make([]Organization, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, toOrganization(organizationdb.OrganizationByIDRow(row)))
+		// The directory shows no location and no contribution.
+		out = append(out, toOrganization(organizationdb.OrganizationByIDRow{
+			ID: row.ID, UpdatedAt: row.UpdatedAt, VersionID: row.VersionID, Active: row.Active, Listed: row.Listed, Name: row.Name,
+			TimeZone: row.TimeZone, DefaultLanguage: row.DefaultLanguage, PatientTranscriptCopy: row.PatientTranscriptCopy,
+		}))
 	}
 	return out, nil
 }
@@ -69,7 +74,12 @@ func (r *postgresRepository) Update(ctx context.Context, o Organization, at time
 	row, err := r.q(ctx).UpdateOrganization(ctx, organizationdb.UpdateOrganizationParams{
 		ID: u, Name: o.Name, Listed: o.Listed, TimeZone: o.TimeZone, DefaultLanguage: organizationdb.Language(o.DefaultLanguage), VersionID: o.VersionID,
 		PatientTranscriptCopy: o.PatientTranscriptCopy, UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
+		RegionID: text(o.Region), CityID: text(o.City), LocationSince: instant(o.LocationSince),
+		AnalyticsContributes: o.AnalyticsContributes, ContributesSince: instant(o.ContributesSince),
 	})
+	if foreignKeyViolation(err) {
+		return Organization{}, ErrInvalidLocation
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Organization{}, ErrConflict
 	}
@@ -91,9 +101,16 @@ func toOrganization(row organizationdb.OrganizationByIDRow) Organization {
 	return Organization{
 		ID: row.ID.String(), Name: row.Name, TimeZone: row.TimeZone, VersionID: row.VersionID, Active: row.Active,
 		Listed: row.Listed, DefaultLanguage: string(row.DefaultLanguage), LastUpdated: row.UpdatedAt.Time,
-		PatientTranscriptCopy: row.PatientTranscriptCopy,
+		PatientTranscriptCopy: row.PatientTranscriptCopy, Region: row.RegionID.String, City: row.CityID.String,
+		LocationSince: row.LocationSince.Time, AnalyticsContributes: row.AnalyticsContributes, ContributesSince: row.ContributesSince.Time,
 	}
 }
+
+// text is s as a nullable column, NULL for "".
+func text(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }
+
+// instant is t as a nullable timestamptz, NULL for the zero time.
+func instant(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: !t.IsZero()} }
 
 type postgresStatsRepository struct {
 	db postgres.Querier
@@ -111,7 +128,17 @@ func (r *postgresStatsRepository) Locations(ctx context.Context) ([]Location, er
 	}
 	out := make([]Location, len(rows))
 	for i, row := range rows {
-		out[i] = Location{ID: row.ID.String(), TimeZone: row.TimeZone}
+		out[i] = Location{
+			ID: row.ID.String(), TimeZone: row.TimeZone, Region: row.RegionID.String, City: row.CityID.String,
+			LocationSince: row.LocationSince.Time, Contributes: row.AnalyticsContributes, ContributesSince: row.ContributesSince.Time,
+		}
 	}
 	return out, nil
+}
+
+// foreignKeyViolation reports whether err is Postgres refusing a location that is not a city of a leaf region
+// (organization_region_fkey, organization_city_fkey).
+func foreignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23503"
 }

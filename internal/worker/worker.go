@@ -25,6 +25,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/slot"
+	"github.com/Shmeeshmee/salus/internal/trends"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -47,8 +48,8 @@ func (noopWorker) Work(context.Context, *river.Job[NoopArgs]) error { return nil
 // New returns the River client cmd/worker runs: it works the default queue and the scan queue on pool, the
 // salus_app login. retentionPool, the salus_retention login (RETENTION_DATABASE_URL), goes to the
 // retention_apply job's purgers and nowhere else; provider, the video server, to the consultation's jobs; files
-// to the binary jobs and binary's purger.
-func New(pool, retentionPool *pgxpool.Pool, provider videosession.Provider, files Files, log *slog.Logger) (*river.Client[pgx.Tx], error) {
+// to the binary jobs and binary's purger; platform the trends builds' salus_stats pool, nil while they are off.
+func New(pool, retentionPool *pgxpool.Pool, provider videosession.Provider, files Files, platform Trends, log *slog.Logger) (*river.Client[pgx.Tx], error) {
 	if retentionPool == nil {
 		return nil, errors.New("worker: the retention_apply job needs the retention role's pool")
 	}
@@ -72,6 +73,7 @@ func New(pool, retentionPool *pgxpool.Pool, provider videosession.Provider, file
 		rules: rules, slots: newSlots(pool, clock.System{}), appointments: newRevocations(pool, inserter, clock.System{}),
 		sessions: newSessions(pool, provider, clock.System{}), responses: responses,
 		files: newFiles(pool, files, responses, clock.System{}), chat: newChatPartitions(pool, clock.System{}),
+		trends: newTrends(pool, platform),
 	}, log)
 	cfg := workConfig(log, river.QueueDefault, workers)
 	cfg.Queues = workerQueues()
@@ -92,6 +94,7 @@ type defaultServices struct {
 	responses    *questionnaireresponse.Service
 	files        *binary.Service
 	chat         *communication.Service
+	trends       *trends.Builder // nil while the platform builds are off
 }
 
 // addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with no services:
@@ -109,6 +112,15 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &questionnaireDiscardWorker{responses: s.responses, log: log})
 	river.AddWorker(workers, &binaryScanWorker{files: s.files, clock: clock.System{}, log: log})
 	river.AddWorker(workers, &binaryDiscardWorker{files: s.files, log: log})
+	river.AddWorker(workers, &trendsWorker{builder: s.trends, log: log})
+}
+
+// newTrends is the platform build on the salus_stats pool, or nil while it is off.
+func newTrends(pool *pgxpool.Pool, platform Trends) *trends.Builder {
+	if platform.Stats == nil {
+		return nil
+	}
+	return NewTrendsBuilder(pool, platform.Stats, platform.MinCount, trendsAgent)
 }
 
 // workConfig is the configuration of a client that works queue with workers and never leads.

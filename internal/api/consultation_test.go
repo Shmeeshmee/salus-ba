@@ -70,7 +70,7 @@ func realService(tb testing.TB, app *pgxpool.Pool, at time.Time, p videosession.
 	clk := clock.Fixed{T: at}
 	tx := postgres.NewTransactor(app)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(app), tx, clk)
-	clinics := organization.NewService(organization.NewPostgresRepository(app), audit, tx, clk)
+	clinics := organization.NewService(organization.NewPostgresRepository(app), audit, tx, clk, nil)
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(app), audit, tx)
 	roles := practitionerrole.NewService(practitionerrole.Ports{
 		Repo: practitionerrole.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: clk, Clinics: clinics, People: practitioners,

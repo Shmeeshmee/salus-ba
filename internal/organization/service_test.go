@@ -82,6 +82,8 @@ func (r *fakeRepository) Update(ctx context.Context, in organization.Organizatio
 	}
 	o.Name, o.Listed, o.TimeZone, o.DefaultLanguage, o.VersionID, o.LastUpdated = in.Name, in.Listed, in.TimeZone, in.DefaultLanguage, in.VersionID+1, at
 	o.PatientTranscriptCopy = in.PatientTranscriptCopy
+	o.Region, o.City, o.LocationSince = in.Region, in.City, in.LocationSince
+	o.AnalyticsContributes, o.ContributesSince = in.AnalyticsContributes, in.ContributesSince
 	r.orgs[in.ID] = o
 	return o, nil
 }
@@ -100,7 +102,7 @@ func (a *fakeAuditor) Record(_ context.Context, e auditevent.AuditEvent) error {
 }
 
 func newService(repo *fakeRepository, audit *fakeAuditor) *organization.Service {
-	return organization.NewService(repo, audit, fakeTransactor{}, clock.Fixed{T: now})
+	return organization.NewService(repo, audit, fakeTransactor{}, clock.Fixed{T: now}, nil)
 }
 
 var (

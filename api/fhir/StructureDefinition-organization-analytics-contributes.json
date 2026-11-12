@@ -1,0 +1,56 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "organization-analytics-contributes",
+  "url": "https://salus.invalid/fhir/StructureDefinition/organization-analytics-contributes",
+  "version": "0.1.0",
+  "name": "OrganizationAnalyticsContributes",
+  "title": "Organization analytics contributes",
+  "status": "active",
+  "date": "2026-11-12",
+  "publisher": "Salus",
+  "description": "Whether the clinic's figures count in the platform-wide anonymized figures and its staff see them (docs/plans/analytics.md O6). Set by the clinic's admin; on unless the clinic opts out. An opted-out clinic is left out of every build from the next one on.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Organization"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "The clinic contributes to the platform figures",
+        "definition": "Whether the clinic's diagnoses and appointments count in the platform figures, and its staff see them.",
+        "min": 0,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "https://salus.invalid/fhir/StructureDefinition/organization-analytics-contributes"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "boolean"
+          }
+        ]
+      }
+    ]
+  }
+}

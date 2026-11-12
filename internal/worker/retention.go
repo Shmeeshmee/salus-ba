@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/slot"
+	"github.com/Shmeeshmee/salus/internal/trends"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
@@ -54,5 +55,7 @@ func newRetention(pool, retentionPool *pgxpool.Pool, store binary.Store) (*reten
 		"video_session":          videosession.NewPurger(videosession.NewPostgresRepository(retentionPool)),
 		"questionnaire_response": questionnaireresponse.NewPurger(questionnaireresponse.NewPostgresRepository(retentionPool)),
 		"binary":                 binary.NewPurger(binary.NewPostgresRepository(retentionPool), store),
+		"trends_cell":            trends.NewCellPurger(trends.NewPostgresRepository(retentionPool)),
+		"trends_rise":            trends.NewFlagPurger(trends.NewPostgresRepository(retentionPool)),
 	}, audit, clock.System{})
 }

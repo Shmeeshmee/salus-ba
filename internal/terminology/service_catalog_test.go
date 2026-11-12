@@ -103,3 +103,14 @@ func TestCatalog_WrapsTheRepositorysError(t *testing.T) {
 		t.Errorf("Places = %v", err)
 	}
 }
+
+// AllPlaces serves the places to the clinic's location check and to the builds, with no caller: reference data.
+func TestCatalogAllPlaces_ServesThePlaces(t *testing.T) {
+	if got, err := terminology.NewCatalog(fakeCatalog{}).AllPlaces(context.Background()); err != nil || len(got) != 2 || got[1].ID != "BA-09" {
+		t.Errorf("AllPlaces = %+v, %v", got, err)
+	}
+	boom := errors.New("boom")
+	if _, err := terminology.NewCatalog(fakeCatalog{err: boom}).AllPlaces(context.Background()); !errors.Is(err, boom) {
+		t.Errorf("AllPlaces = %v, want the failure", err)
+	}
+}
