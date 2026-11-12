@@ -11,7 +11,7 @@ x-app: &app
   build:
     context: ..
     dockerfile: build/package/Dockerfile
-  image: salus:dev
+  image: salus:${SALUS_IMAGE_TAG:-dev}
   environment: &app-env
     # The app binaries log in as salus_app: no superuser, no BYPASSRLS, owner of nothing, so grants and
     # row-level security apply. Only migrate (and salusctl) connect as the owner, salus. Local only.

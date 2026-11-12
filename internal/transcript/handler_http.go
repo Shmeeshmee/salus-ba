@@ -5,35 +5,17 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/url"
-	"strings"
-	"sync"
-	"time"
-
-	"github.com/gorilla/websocket"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/httpx"
+	"github.com/Shmeeshmee/salus/pkg/livesocket"
 	"github.com/Shmeeshmee/salus/pkg/wire"
 )
 
-// The WebSocket's timings: a ping keeps the connection (and any proxy on the way) alive, a peer that answers
-// no ping within pongWait is gone, and a frame that cannot be written within writeWait drops the socket.
-const (
-	pingEvery = 25 * time.Second
-	pongWait  = 60 * time.Second
-	writeWait = 10 * time.Second
-	// readLimit bounds a frame from the client: a command (a suggestion's status) is about a hundred bytes. A
-	// frame over it ends the socket.
-	readLimit = 512
-)
-
-// Application close codes (RFC 6455 §7.4.2, 4000–4999) for an end of access during the stream.
-const (
-	closeForbidden = 4403
-	closeNotFound  = 4404
-)
+// readLimit bounds a frame from the client: a command (a suggestion's status) is about a hundred bytes. A frame
+// over it ends the socket. The socket's other conventions are pkg/livesocket's.
+const readLimit = 512
 
 // Transcripts is what the handler calls (Service).
 type Transcripts interface {
@@ -76,16 +58,15 @@ type HTTPHandler struct {
 	svc      Transcripts
 	commands Commands // nil: every message is an unknown command
 	// caller is who is signed in for the request, and false for nobody (internal/api).
-	caller   func(ctx context.Context) (appointment.Caller, bool, error)
-	clock    clock.Clock // for the socket's deadlines and pings
-	log      *slog.Logger
-	upgrader websocket.Upgrader
+	caller func(ctx context.Context) (appointment.Caller, bool, error)
+	clock  clock.Clock // for the socket's deadlines and pings
+	log    *slog.Logger
 }
 
 // NewHTTPHandler returns the handler on svc, handing the client's messages to commands; clk times the socket's
 // deadlines and pings.
 func NewHTTPHandler(svc Transcripts, commands Commands, caller func(ctx context.Context) (appointment.Caller, bool, error), clk clock.Clock, log *slog.Logger) *HTTPHandler {
-	return &HTTPHandler{svc: svc, commands: commands, caller: caller, clock: clk, log: log, upgrader: websocket.Upgrader{CheckOrigin: sameOrigin}}
+	return &HTTPHandler{svc: svc, commands: commands, caller: caller, clock: clk, log: log}
 }
 
 // Routes declares the transcript's export on mux.
@@ -123,10 +104,10 @@ func (h *HTTPHandler) export(w http.ResponseWriter, r *http.Request) {
 // forwards every entry after the cursor, live, until the client leaves or access ends.
 func (h *HTTPHandler) events(w http.ResponseWriter, r *http.Request) {
 	switch {
-	case !websocket.IsWebSocketUpgrade(r):
+	case !livesocket.IsUpgrade(r):
 		writeCode(w, http.StatusBadRequest, "websocket_required")
 		return
-	case !sameOrigin(r):
+	case !livesocket.SameOrigin(r):
 		writeCode(w, http.StatusForbidden, "origin")
 		return
 	}
@@ -140,42 +121,24 @@ func (h *HTTPHandler) events(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, err)
 		return
 	}
-	conn, err := h.upgrader.Upgrade(w, r, nil)
+	sock, err := livesocket.Upgrade(w, r, h.clock)
 	if err != nil {
 		return // the upgrader answered the client
 	}
-	defer func() { _ = conn.Close() }()
-	h.forward(r, conn, c, id, after)
-}
-
-// socket is the connection with its writes made one at a time: the stream's frames and the commands' answers
-// come from two goroutines. Control frames (WriteControl) need no lock.
-type socket struct {
-	conn *websocket.Conn
-	mu   sync.Mutex
-}
-
-// write writes each frame as a text message, each within writeWait of clk's now.
-func (s *socket) write(clk clock.Clock, frames ...[]byte) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, f := range frames {
-		_ = s.conn.SetWriteDeadline(clk.Now().Add(writeWait))
-		if err := s.conn.WriteMessage(websocket.TextMessage, f); err != nil {
-			return err
-		}
-	}
-	return nil
+	defer func() { _ = sock.Conn.Close() }()
+	h.forward(r, sock, c, id, after)
 }
 
 // forward sends each entry after the cursor as a cursor frame and then its envelope's bytes unchanged, until
 // the client leaves or Next refuses, which closes the socket with the reason; meanwhile the client's messages
 // go to the commands.
-func (h *HTTPHandler) forward(r *http.Request, conn *websocket.Conn, c appointment.Caller, id, after string) {
+func (h *HTTPHandler) forward(r *http.Request, sock *livesocket.Socket, c appointment.Caller, id, after string) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	sock := &socket{conn: conn}
-	go h.receive(ctx, sock, c, id, cancel)
+	go func() {
+		defer cancel()
+		sock.Receive(ctx, readLimit, func(msg []byte) []byte { return h.command(ctx, c, id, msg) })
+	}()
 	pinged := h.clock.Now()
 	for {
 		entries, err := h.svc.Next(ctx, c, id, after)
@@ -183,7 +146,7 @@ func (h *HTTPHandler) forward(r *http.Request, conn *websocket.Conn, c appointme
 			return // the client left
 		}
 		if err != nil {
-			h.close(r, conn, id, err)
+			h.close(r, sock, id, err)
 			return
 		}
 		for _, e := range entries {
@@ -194,8 +157,8 @@ func (h *HTTPHandler) forward(r *http.Request, conn *websocket.Conn, c appointme
 			}
 			after = e.ID
 		}
-		if now := h.clock.Now(); now.Sub(pinged) >= pingEvery {
-			if err := conn.WriteControl(websocket.PingMessage, nil, now.Add(writeWait)); err != nil {
+		if now := h.clock.Now(); now.Sub(pinged) >= livesocket.PingEvery {
+			if err := sock.Ping(); err != nil {
 				return
 			}
 			pinged = now
@@ -203,38 +166,13 @@ func (h *HTTPHandler) forward(r *http.Request, conn *websocket.Conn, c appointme
 	}
 }
 
-// send writes the entry's cursor frame and then its envelope, each within writeWait.
-func (h *HTTPHandler) send(sock *socket, e Entry) error {
+// send writes the entry's cursor frame and then its envelope, each within the write deadline.
+func (h *HTTPHandler) send(sock *livesocket.Socket, e Entry) error {
 	frame, err := wire.Encode(CursorType, CursorVersion, Cursor{ID: e.ID})
 	if err != nil {
 		return err
 	}
-	return sock.write(h.clock, frame, e.Envelope)
-}
-
-// receive reads the client's frames until the connection fails, a frame is over readLimit, or the client goes
-// silent past pongWait; then it cancels the stream. Each text frame is a command: decoded from its envelope and
-// handed to the commands, whose answer goes back on the socket.
-func (h *HTTPHandler) receive(ctx context.Context, sock *socket, c appointment.Caller, id string, cancel context.CancelFunc) {
-	defer cancel()
-	conn := sock.conn
-	conn.SetReadLimit(readLimit)
-	_ = conn.SetReadDeadline(h.clock.Now().Add(pongWait))
-	conn.SetPongHandler(func(string) error { return conn.SetReadDeadline(h.clock.Now().Add(pongWait)) })
-	for {
-		typ, msg, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-		if typ != websocket.TextMessage {
-			continue
-		}
-		if answer := h.command(ctx, c, id, msg); answer != nil {
-			if err := sock.write(h.clock, answer); err != nil {
-				return
-			}
-		}
-	}
+	return sock.Write(frame, e.Envelope)
 }
 
 // command is the answer to the client's message msg, or nil.
@@ -250,31 +188,19 @@ func (h *HTTPHandler) command(ctx context.Context, c appointment.Caller, id stri
 }
 
 // close ends the socket for err: the end of access with its reason, anything else logged as internal.
-func (h *HTTPHandler) close(r *http.Request, conn *websocket.Conn, id string, err error) {
-	code, reason := websocket.CloseInternalServerErr, "internal error"
+func (h *HTTPHandler) close(r *http.Request, sock *livesocket.Socket, id string, err error) {
+	code, reason := livesocket.CloseInternalError, "internal error"
 	switch {
 	case errors.Is(err, ErrConsentRequired):
-		code, reason = closeForbidden, "consent_required"
+		code, reason = livesocket.CloseForbidden, "consent_required"
 	case errors.Is(err, ErrForbidden):
-		code, reason = closeForbidden, "forbidden"
+		code, reason = livesocket.CloseForbidden, "forbidden"
 	case errors.Is(err, ErrNotFound):
-		code, reason = closeNotFound, "not_found"
+		code, reason = livesocket.CloseNotFound, "not_found"
 	default:
 		h.log.ErrorContext(r.Context(), "event stream failed", "route", r.Pattern, "encounter_id", id, "error", err)
 	}
-	_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason), h.clock.Now().Add(writeWait))
-}
-
-// sameOrigin reports whether the handshake comes from the API's own origin, or from no browser (no Origin):
-// the web app calls the API on its own origin, and its session cookie is SameSite=Strict, but a WebSocket
-// cannot carry X-Salus-CSRF, so a page of a sibling origin of the same site is refused here.
-func sameOrigin(r *http.Request) bool {
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		return true
-	}
-	u, err := url.Parse(origin)
-	return err == nil && strings.EqualFold(u.Host, r.Host)
+	sock.Close(code, reason)
 }
 
 // signedIn returns the caller, or answers 401 (or 500) and false.

@@ -13,7 +13,11 @@ tables:
   appointment: {owner: appointment, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
   binary: {owner: binary, personal_data: true}
+  communication: {owner: communication, personal_data: true}
+  communication_revision: {owner: communication, personal_data: true}
   consent: {owner: consent, personal_data: true}
+  conversation: {owner: communication, personal_data: true}
+  conversation_participant: {owner: communication, personal_data: true}
   document_draft: {owner: composition, personal_data: true}
   document_template: {owner: composition, personal_data: false}
   document_template_translation: {owner: composition, personal_data: false}

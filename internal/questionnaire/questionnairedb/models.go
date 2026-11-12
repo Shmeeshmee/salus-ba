@@ -277,6 +277,38 @@ type Binary struct {
 	WrappedKey              []byte
 }
 
+type Communication struct {
+	ID                  pgtype.UUID
+	SentAt              pgtype.Timestamptz
+	EditedAt            pgtype.Timestamptz
+	ConversationID      pgtype.UUID
+	OrganizationID      pgtype.UUID
+	PatientID           pgtype.UUID
+	SenderParticipantID pgtype.UUID
+	SenderAccountID     pgtype.UUID
+	ClientMessageID     pgtype.UUID
+	Seq                 int64
+	VersionID           int32
+	StaffOnly           bool
+	SenderRole          string
+	Kind                string
+	Body                pgtype.Text
+	SystemCode          pgtype.Text
+	SystemArgs          []byte
+}
+
+type CommunicationRevision struct {
+	CommunicationID pgtype.UUID
+	SentAt          pgtype.Timestamptz
+	EditedAt        pgtype.Timestamptz
+	ConversationID  pgtype.UUID
+	OrganizationID  pgtype.UUID
+	PatientID       pgtype.UUID
+	VersionID       int32
+	StaffOnly       bool
+	Body            string
+}
+
 type Consent struct {
 	ID             pgtype.UUID
 	CreatedAt      pgtype.Timestamptz
@@ -287,6 +319,33 @@ type Consent struct {
 	OrganizationID pgtype.UUID
 	VersionID      int32
 	Status         string
+}
+
+type Conversation struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	LastSentAt         pgtype.Timestamptz
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	EncounterID        pgtype.UUID
+	ParentID           pgtype.UUID
+	CreatedBy          pgtype.UUID
+	LastSeq            int64
+	StaffOnly          bool
+}
+
+type ConversationParticipant struct {
+	ID                 pgtype.UUID
+	AddedAt            pgtype.Timestamptz
+	RemovedAt          pgtype.Timestamptz
+	ConversationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	AddedBy            pgtype.UUID
+	HistoryFromSeq     int64
+	ReadSeq            int64
+	Role               string
 }
 
 type DocumentDraft struct {
