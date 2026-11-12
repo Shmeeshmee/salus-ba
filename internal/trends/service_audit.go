@@ -162,13 +162,7 @@ func simplex(a [][]float64, b, c []float64) (float64, []float64, error) {
 			}
 		}
 		if enter < 0 {
-			x := make([]float64, cols)
-			for i, v := range basis {
-				if v < cols {
-					x[v] = t[i][width-1]
-				}
-			}
-			return -t[rows][width-1], x, nil
+			return -t[rows][width-1], basicPoint(t, basis, cols), nil
 		}
 		leave := -1
 		for i := range rows {
@@ -192,6 +186,17 @@ func simplex(a [][]float64, b, c []float64) (float64, []float64, error) {
 		basis[leave] = enter
 	}
 	return 0, nil, errNoFinish
+}
+
+// basicPoint is the tableau's point: each basic variable at its row's right-hand side, every other at 0.
+func basicPoint(t [][]float64, basis []int, cols int) []float64 {
+	x := make([]float64, cols)
+	for i, v := range basis {
+		if v < cols {
+			x[v] = t[i][len(t[i])-1]
+		}
+	}
+	return x
 }
 
 // pivot makes column e basic in row l.
