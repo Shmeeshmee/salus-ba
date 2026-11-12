@@ -1,0 +1,6 @@
+Nuovo messaggio in chat su Salus
+
+Ha un messaggio in chat non letto su Salus.
+
+Per leggerlo, acceda a Salus:
+{{.Link}}

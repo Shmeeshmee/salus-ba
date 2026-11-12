@@ -194,3 +194,11 @@ sql:
         package: medicationstatementdb
         out: internal/medicationstatement/medicationstatementdb
         sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/notification/query.sql
+    gen:
+      go:
+        package: notificationdb
+        out: internal/notification/notificationdb
+        sql_package: pgx/v5

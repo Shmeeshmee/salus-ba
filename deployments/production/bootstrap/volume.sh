@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # The encrypted Hetzner Volume (docs/adr/0011-single-server-deployment.md, "Decided before real patient data"):
-# Postgres's and Garage's data and the key files (BINARY_KEK, TOTP_KEY) on a LUKS2 volume that is unlocked by hand
+# Postgres's and Garage's data and the key files (BINARY_KEK, TOTP_KEY, WEBHOOK_KEY) on a LUKS2 volume that is unlocked by hand
 # after every boot. Installed by bootstrap.sh as /usr/local/sbin/salus-volume. Run as root:
 #
 #   salus-volume setup DEVICE        once: LUKS2-format the new, empty volume DEVICE (/dev/disk/by-id/scsi-0HC_Volume_…),
 #                                    create the filesystem, the layout and the key files, write /etc/salus/volume.conf
 #   salus-volume unlock [--no-start] after a reboot: open the volume, mount it, check it, start the stack
 #   salus-volume keys [--replace]    write the key files from Bitwarden (a restore onto a new volume); the volume open
-#   salus-volume check               is the volume open, mounted, laid out, with both key files? (exit 1 if not;
+#   salus-volume check               is the volume open, mounted, laid out, with every key file? (exit 1 if not;
 #                                    as root: only root reads the key files)
 #
 # The passphrase is typed into cryptsetup, never into this script, and is kept only in the owner's Bitwarden. The
@@ -21,7 +21,8 @@
 #   garage/, meta/, data/     root:root 0700     Garage's metadata and blocks (Garage runs as root)
 #   clamd/                    100:101 0700       clamd's TemporaryDirectory: the uploads it scans (the clamav user)
 #   keys/                     root:deploy 0710
-#   keys/binary_kek, totp_key 65532:65532 0400   the app image's nonroot uid, which no host account has
+#   keys/binary_kek, totp_key, webhook_key
+#                             65532:65532 0400   the app image's nonroot uid, which no host account has
 #
 # Settings: /etc/salus/volume.conf (SALUS_VOLUME_CONF), KEY=value lines written by setup: DEVICE (by LUKS UUID),
 # NAME (the dm-crypt mapping) and MOUNTPOINT (SALUS_DATA_DIR at setup, default /mnt/salus-data; the compose file's
@@ -35,7 +36,7 @@ readonly DEPLOY_GROUP=deploy
 readonly KEY_UID=65532 # gcr.io/distroless/static:nonroot, build/package/Dockerfile
 readonly PG_UID=999    # the postgres image's postgres user
 readonly CLAMAV_UID=100 CLAMAV_GID=101 # the clamav image's clamav user
-readonly KEYS=(binary_kek totp_key)
+readonly KEYS=(binary_kek totp_key webhook_key)
 readonly MOUNT_OPTIONS=nodev,nosuid,noexec
 
 DEVICE=
@@ -175,7 +176,7 @@ read_key() {
 	printf '%s' "$value"
 }
 
-# write_keys [--replace]: both key files, 65532:65532 0400; an existing file with another value is kept unless
+# write_keys [--replace]: every key file, 65532:65532 0400; an existing file with another value is kept unless
 # --replace (a different key makes the data encrypted with the old one unreadable).
 write_keys() {
 	local replace=${1:-} key file tmp value values=()
@@ -184,7 +185,11 @@ write_keys() {
 	for key in "${KEYS[@]}"; do
 		values+=("$(read_key "${key^^}")")
 	done
-	[[ ${values[0]} != "${values[1]}" ]] || die "BINARY_KEK and TOTP_KEY are the same value: paste each from its own Bitwarden field"
+	for i in "${!KEYS[@]}"; do
+		for ((j = i + 1; j < ${#KEYS[@]}; j++)); do
+			[[ ${values[i]} != "${values[j]}" ]] || die "${KEYS[i]^^} and ${KEYS[j]^^} are the same value: paste each from its own Bitwarden field"
+		done
+	done
 	for i in "${!KEYS[@]}"; do
 		key=${KEYS[i]}
 		value=${values[i]}

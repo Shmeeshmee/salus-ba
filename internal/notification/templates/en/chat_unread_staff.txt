@@ -1,0 +1,6 @@
+New chat message in Salus
+
+You have an unread chat message in Salus.
+
+To read it, sign in to Salus:
+{{.Link}}

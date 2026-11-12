@@ -4331,6 +4331,242 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+  /me/devices:
+    put:
+      operationId: registerDevice
+      summary: Register the patient app's push token
+      description: >-
+        The patient app registers its FCM (Android) or APNs (iOS) token at every start (docs/plans/chat.md, SAL-29). A
+        token is one device: registered by another account, it moves to this one. A push says only that there is a
+        new message from the clinic; it carries no text, name or id. Staff get 403: the app is the patients'. Audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PushDevice"}
+      responses:
+        "204":
+          description: Registered.
+        "400":
+          $ref: "#/components/responses/NotificationInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+    delete:
+      operationId: unregisterDevice
+      summary: Unregister the app's push token (on sign-out)
+      description: Deletes the account's device of the token; nothing for a token it does not have. Audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PushDevice"}
+      responses:
+        "204":
+          description: Unregistered, or there was nothing to unregister.
+        "400":
+          $ref: "#/components/responses/NotificationInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /organizations/{id}/chat-hours:
+    get:
+      operationId: getChatHours
+      summary: The clinic's chat hours, its response time, and whether it is within its hours now
+      description: >-
+        For the clinic's staff and for a patient with an active care consent with it; anyone else gets 404. `hours`
+        are in the clinic's `time_zone`; `open_now` is computed there (true when the clinic states no hours). The app
+        shows its out-of-hours notice from it.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The clinic's id.
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: The chat hours.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ChatHours"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: not the caller's clinic, or no active care consent with it."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /clinic/chat-settings:
+    get:
+      operationId: getChatSettings
+      summary: The admin's clinic's chat settings
+      description: The defaults (no hours, 24 hours, 60 minutes) until the admin sets them.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The settings.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ChatSettings"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+    put:
+      operationId: setChatSettings
+      summary: Replace the admin's clinic's chat settings
+      description: >-
+        Every field required. `hours`: up to 21 stretches, each within one weekday, `start` before `end` (`24:00` for
+        midnight), none overlapping. `response_time_hours` 1 to 168. `email_after_minutes` 5 to 10080: how long a
+        message stays unread before its reader gets an e-mail. Audited, also when refused.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ChatSettings"}
+      responses:
+        "200":
+          description: The settings stored.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ChatSettings"}
+        "400":
+          description: "`invalid_request`: a body that is not the settings, or a value out of its range."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+  /clinic/webhooks:
+    get:
+      operationId: listWebhooks
+      summary: The admin's clinic's webhook endpoints, without their secrets
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The endpoints, oldest first.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WebhookList"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+    post:
+      operationId: createWebhook
+      summary: Add a webhook endpoint; its secret is shown in this answer only
+      description: >-
+        The clinic's own system receives each event as a `WebhookEvent`, POSTed as JSON with the headers
+        `Salus-Event-Id` (the event's id, the same on every attempt: deduplicate on it) and `Salus-Signature`:
+        `t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<body>" with the secret>` (check it, and refuse an old `t`). A
+        status other than 2xx, or no answer within 10 seconds, is retried with backoff, 8 attempts in about an hour
+        and a half, then recorded as a dead letter. `url` is https to a public host; addresses that are not public are
+        refused at every connection. `include_clinical` (off by default) adds the message's text: the clinic is the
+        controller of what it receives. At most 10 endpoints. Audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/NewWebhook"}
+      responses:
+        "201":
+          description: The endpoint, with its secret.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CreatedWebhook"}
+        "400":
+          $ref: "#/components/responses/NotificationInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+  /clinic/webhooks/{id}:
+    delete:
+      operationId: deleteWebhook
+      summary: Delete a webhook endpoint and its dead letters
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The endpoint's id.
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no such endpoint of the clinic, or not staff of a clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
 components:
   parameters:
     ChatAttachmentID:
@@ -4598,6 +4834,21 @@ components:
           schema: {$ref: "#/components/schemas/Error"}
     GroupNameConflict:
       description: "`version_conflict`: the name changed since it was read."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    NotificationInvalidRequest:
+      description: "`invalid_request`: a body that is not the request, a platform other than android or ios, a token that is not 1 to 4096 visible ASCII characters, a webhook URL that is not https to a public host, no or an unknown event, or an eleventh webhook."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    ClinicAdminOnly:
+      description: "`forbidden`: staff of the clinic who are not its admin."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    ClinicNotFound:
+      description: "`not_found`: not staff of a clinic (a patient)."
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
@@ -6897,3 +7148,103 @@ components:
         results:
           type: array
           items: {$ref: "#/components/schemas/ChatSearchResult"}
+    PushDevice:
+      type: object
+      required: [platform, token]
+      properties:
+        platform: {type: string, enum: [android, ios]}
+        token: {type: string, minLength: 1, maxLength: 4096, description: "The FCM registration token or the APNs device token."}
+    ChatHour:
+      type: object
+      required: [day, start, end]
+      properties:
+        day: {type: string, enum: [mon, tue, wed, thu, fri, sat, sun], description: "FHIR days-of-week."}
+        start: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$", description: "HH:MM in the clinic's time zone."}
+        end: {type: string, pattern: "^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$", description: "HH:MM, after start; 24:00 for midnight."}
+    ChatHours:
+      type: object
+      required: [time_zone, hours, response_time_hours, open_now]
+      properties:
+        time_zone: {type: string, description: "The clinic's IANA time zone, which the hours are in."}
+        hours:
+          type: array
+          items: {$ref: "#/components/schemas/ChatHour"}
+        response_time_hours: {type: integer, minimum: 1, maximum: 168, description: "The response time the clinic states."}
+        open_now: {type: boolean, description: "Within the hours now, in the clinic's zone; true when it states none."}
+    ChatSettings:
+      type: object
+      required: [hours, response_time_hours, email_after_minutes]
+      properties:
+        hours:
+          type: array
+          maxItems: 21
+          items: {$ref: "#/components/schemas/ChatHour"}
+        response_time_hours: {type: integer, minimum: 1, maximum: 168}
+        email_after_minutes: {type: integer, minimum: 5, maximum: 10080, description: "How long a message stays unread before its reader gets an e-mail."}
+    Webhook:
+      type: object
+      required: [created_at, id, url, events, include_clinical]
+      properties:
+        created_at: {type: string, format: date-time}
+        id: {type: string, format: uuid}
+        url: {type: string, format: uri}
+        events:
+          type: array
+          items: {$ref: "#/components/schemas/WebhookEventType"}
+        include_clinical: {type: boolean}
+    WebhookList:
+      type: object
+      required: [webhooks]
+      properties:
+        webhooks:
+          type: array
+          items: {$ref: "#/components/schemas/Webhook"}
+    NewWebhook:
+      type: object
+      required: [url, events]
+      properties:
+        url: {type: string, format: uri, maxLength: 2048, description: "https, to a public host."}
+        events:
+          type: array
+          minItems: 1
+          items: {$ref: "#/components/schemas/WebhookEventType"}
+        include_clinical: {type: boolean, default: false, description: "Adds the message's text to each event."}
+    CreatedWebhook:
+      type: object
+      required: [created_at, id, url, secret, events, include_clinical]
+      properties:
+        created_at: {type: string, format: date-time}
+        id: {type: string, format: uuid}
+        url: {type: string, format: uri}
+        secret: {type: string, description: "whsec_ and 43 characters: the HMAC key of the signatures. Shown only here."}
+        events:
+          type: array
+          items: {$ref: "#/components/schemas/WebhookEventType"}
+        include_clinical: {type: boolean}
+    WebhookEventType:
+      type: string
+      enum: [message.created]
+    WebhookEvent:
+      type: object
+      description: "What a clinic's endpoint receives (not served by this API): the event's type and ids; the message only with include_clinical."
+      required: [id, type, organization_id, data]
+      properties:
+        id: {type: string, format: uuid, description: "The event's id, the same on every attempt."}
+        type: {$ref: "#/components/schemas/WebhookEventType"}
+        organization_id: {type: string, format: uuid}
+        data:
+          type: object
+          required: [conversation_id, message_id]
+          properties:
+            conversation_id: {type: string, format: uuid}
+            message_id: {type: string, format: uuid}
+            message:
+              type: object
+              description: "Only with include_clinical."
+              required: [sent_at, patient_id, sender_role, body, seq]
+              properties:
+                sent_at: {type: string, format: date-time}
+                patient_id: {type: string, format: uuid}
+                sender_role: {type: string, enum: [patient, practitioner]}
+                body: {type: string}
+                seq: {type: integer, format: int64}

@@ -121,9 +121,10 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
 		kek:   kek,
 	}, fhirBase, log)
-	chatAPI, chatStream, chatHub := newChat(chatPorts{db: pool, rdb: rdb, audit: audit, tx: tx, consents: consents, files: newChatFiles(pool, files, kek, jobs, tx), language: uiLanguage(accounts),
+	chatAPI, chatStream, chatHub := newChat(chatPorts{db: pool, rdb: rdb, audit: audit, tx: tx, consents: consents, jobs: jobs, files: newChatFiles(pool, files, kek, jobs, tx), language: uiLanguage(accounts),
 		visits: appointment.NewFacts(appointmentRepo), roles: roles, encounters: encounters, caller: appointmentCaller(accounts, patients), active: authHandler.Active}, log)
 	entries := newProfileEntries(profilePorts{pool, audit, tx, consents, appointmentRepo, roles, encounters, accounts, patients}, fhirBase, log)
+	chatNotifications := chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log)
 	h := router.New(router.Config{
 		Logger:  log,
 		Checks:  readiness(pool, rdb),
@@ -145,7 +146,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, append(append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI), entries.routes...)...),
+		}, append(append(append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI), entries.routes...), chatNotifications...)...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout,
 	})
@@ -204,6 +205,7 @@ func readiness(pool *pgxpool.Pool, rdb *goredis.Client) []router.Check {
 // keys are the settings New checks before it connects to anything.
 type keys struct {
 	box      *auth.AESSecretBox
+	webhooks *auth.AESSecretBox // WEBHOOK_KEY: a key of its own for the clinics' webhook secrets
 	kek      *envelope.KEK
 	fhirBase string
 }
@@ -218,6 +220,10 @@ func checkKeys(cfg config.Config, files config.ObjectStore) (keys, error) {
 	if err != nil {
 		return keys{}, errors.New("api: BINARY_KEK must be 32 bytes")
 	}
+	webhooks, err := auth.NewAESSecretBox(cfg.WebhookKey)
+	if err != nil {
+		return keys{}, errors.New("api: WEBHOOK_KEY must be 32 bytes")
+	}
 	if len(cfg.RateLimitKey) < minRateLimitKey {
 		return keys{}, errors.New("api: RATE_LIMIT_KEY must be at least 32 bytes")
 	}
@@ -225,7 +231,7 @@ func checkKeys(cfg config.Config, files config.ObjectStore) (keys, error) {
 	if err != nil {
 		return keys{}, err
 	}
-	return keys{box: box, kek: kek, fhirBase: fhirBase}, nil
+	return keys{box: box, webhooks: webhooks, kek: kek, fhirBase: fhirBase}, nil
 }
 
 // newConsultation builds the consultation's Encounter and its video sessions on LiveKit (lk), which start

@@ -95,7 +95,7 @@ func Rules() []Rule {
 			Keep: day, // after scanned_at of a rejected row; after created_at of a chat upload never attached; after an object's last write
 			Then: ThenDelete,
 		},
-	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), historyRules())...)
+	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules())...)
 }
 
 // chatRules are the rules of the chat between the patient and their clinic's doctors (docs/plans/chat.md, SAL-27):
@@ -114,6 +114,32 @@ func chatRules() []Rule {
 			Table: "chat_consent",
 			Basis: "Proof of the patient's decision to let a doctor of another clinic into their conversation (GDPR Art. 7(1), Art. 9(2)(a)), kept with the clinical record like consent; needs a legal decision before production (docs/plans/chat.md, SAL-28)",
 			Then:  ThenKeep,
+		},
+	}
+}
+
+// chatNotificationRules are the rules of the chat's notifications (docs/plans/chat.md, SAL-29).
+func chatNotificationRules() []Rule {
+	return []Rule{
+		{
+			Table: "push_device",
+			Basis: "Telling the patient of a new message (GDPR Art. 6(1)(b), the contract with the patient) while the app is " +
+				"registered on the device: deleted when the app unregisters, when the platform says the token is gone, and " +
+				"with the account (foreign key; erasure comes with the subject-rights feature)",
+			Then: ThenKeep,
+		},
+		{
+			Table: "webhook_endpoint",
+			Basis: "The clinic's integration (GDPR Art. 6(1)(b), (f), the contract with the clinic): who created it, as an " +
+				"account id; kept while the clinic keeps the endpoint, deleted by its admin",
+			Then: ThenKeep,
+		},
+		{
+			Table: "webhook_dead_letter",
+			Basis: "Operating the clinic's integration (GDPR Art. 6(1)(f)): the ids of an event its endpoint did not take, " +
+				"for its admin and support to look into, for 30 days; deleted with the endpoint",
+			Keep: 30 * day, // after created_at, the last attempt
+			Then: ThenDelete,
 		},
 	}
 }

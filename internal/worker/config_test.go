@@ -33,12 +33,12 @@ func TestWorkConfig_NeverLeads(t *testing.T) {
 	}
 }
 
-// cmd/worker works the default queue and the scan queue, which runs 2 files at a time: clamd holds each stream
-// it scans (docs/attachments/SPEC.md §2 "Scan").
+// cmd/worker works the default queue, the scan queue, which runs 2 files at a time: clamd holds each stream it
+// scans (docs/attachments/SPEC.md §2 "Scan"), and the clinics' webhooks (SAL-29).
 func TestWorkerQueues_ScanTwoFilesAtATime(t *testing.T) {
 	q := workerQueues()
 
-	if len(q) != 2 || q[river.QueueDefault].MaxWorkers != maxWorkers || q[binary.QueueScan].MaxWorkers != 2 {
-		t.Errorf("queues %+v, want the default with %d workers and %s with 2", q, maxWorkers, binary.QueueScan)
+	if len(q) != 3 || q[river.QueueDefault].MaxWorkers != maxWorkers || q[binary.QueueScan].MaxWorkers != 2 || q[webhookQueue].MaxWorkers != maxWorkers {
+		t.Errorf("queues %+v, want the default and %s with %d workers and %s with 2", q, webhookQueue, maxWorkers, binary.QueueScan)
 	}
 }

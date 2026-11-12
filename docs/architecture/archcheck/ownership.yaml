@@ -33,9 +33,11 @@ tables:
   invite: {owner: auth, personal_data: true}
   medication_statement: {owner: medicationstatement, personal_data: true} # 00043, SAL-41
   organization: {owner: organization, personal_data: false}
+  organization_chat_settings: {owner: organization, personal_data: false} # chat hours and delays (00047)
   patient: {owner: patient, personal_data: true}
   place: {owner: terminology, personal_data: false}
   practitioner: {owner: practitioner, personal_data: true}
+  push_device: {owner: notification, personal_data: true} # an account's device token (00047)
   practitioner_role: {owner: practitionerrole, personal_data: true}
   questionnaire: {owner: questionnaire, personal_data: false}
   questionnaire_default: {owner: questionnaire, personal_data: false}
@@ -53,6 +55,8 @@ tables:
   transcript_segment: {owner: transcript, personal_data: true}
   transcription_consent: {owner: consent, personal_data: true}
   video_session: {owner: videosession, personal_data: true}
+  webhook_dead_letter: {owner: notification, personal_data: true} # ids of a patient's message (00047)
+  webhook_endpoint: {owner: notification, personal_data: true} # created_by (00047)
   river_job: {owner: river}
   river_leader: {owner: river}
   river_queue: {owner: river}

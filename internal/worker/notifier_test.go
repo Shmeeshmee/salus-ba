@@ -24,6 +24,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
+	"github.com/Shmeeshmee/salus/pkg/push/pushtest"
 )
 
 const clinicID = "c0000000-0000-4000-8000-00000000000c"
@@ -62,7 +63,7 @@ func seedInviteTo(t *testing.T, owner *pgxpool.Pool, email string, accepted bool
 // job's final state.
 func runJob(t *testing.T, app *pgxpool.Pool, inviteID string) rivertype.JobState {
 	t.Helper()
-	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), mailpitSender(t), "https://app.example.test", "https://patient.example.test")
+	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), mailpitSender(t), &pushtest.Sender{}, "https://app.example.test", "https://patient.example.test")
 	if err != nil {
 		t.Fatalf("NewNotifier() error = %v", err)
 	}
@@ -143,7 +144,7 @@ func TestNewNotifier_NeedsTheSMTPServerAndTheWebAndPatientAppAddresses(t *testin
 		{sender, "", "https://patient.example.test"},
 		{sender, "https://app.example.test", ""},
 	} {
-		if _, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), cfg.sender, cfg.web, cfg.patientApp); err == nil {
+		if _, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), cfg.sender, &pushtest.Sender{}, cfg.web, cfg.patientApp); err == nil {
 			t.Errorf("NewNotifier(sender %v, %q, %q): error = nil", cfg.sender != nil, cfg.web, cfg.patientApp)
 		}
 	}

@@ -57,6 +57,7 @@ func TestRun_ServesUntilCancelledThenShutsDown(t *testing.T) {
 	t.Setenv("HTTP_ADDR", "127.0.0.1:0")
 	t.Setenv("TOTP_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtdG90cC1rZXktMzI=")       // synthetic, as in compose
 	t.Setenv("RATE_LIMIT_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtcmF0ZWxpbWl0LWs=") // synthetic, as in compose
+	t.Setenv("WEBHOOK_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtd2ViaG9vay1rZXk=")    // synthetic, as in compose
 	t.Setenv("FHIR_BASE_URL", "http://localhost:8080/fhir/R4")
 	setLiveKit(t)
 	setObjectStore(t)
@@ -172,6 +173,7 @@ func TestRun_FailsWithoutTheObjectStoreSettings(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://unused@localhost/unused")
 	t.Setenv("TOTP_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtdG90cC1rZXktMzI=")
 	t.Setenv("RATE_LIMIT_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtcmF0ZWxpbWl0LWs=")
+	t.Setenv("WEBHOOK_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtd2ViaG9vay1rZXk=")
 	t.Setenv("FHIR_BASE_URL", "http://localhost:8080/fhir/R4")
 	setLiveKit(t)
 	setObjectStore(t)

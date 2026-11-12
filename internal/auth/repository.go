@@ -14,6 +14,9 @@ type Repository interface {
 	ByEmail(ctx context.Context, email string) (Account, error)
 	// ByID returns the account, or ErrNotFound (also for an id that is not a UUID).
 	ByID(ctx context.Context, id string) (Account, error)
+	// ByPractitioner returns the account linked to the practitioner, or ErrNotFound (also for an id that is not a
+	// UUID).
+	ByPractitioner(ctx context.Context, practitionerID string) (Account, error)
 	// SetPasswordHash replaces the account's password hash.
 	SetPasswordHash(ctx context.Context, id, hash string) error
 	// SetLanguage sets the account's chosen language, or clears it for "", or returns ErrNotFound.

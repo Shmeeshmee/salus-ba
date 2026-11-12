@@ -86,25 +86,33 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**updateMe**](doc//AuthApi.md#updateme) | **PATCH** /auth/me | Choose the account's language
 *AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
 *ChatApi* | [**addConversationParticipant**](doc//ChatApi.md#addconversationparticipant) | **POST** /conversations/{id}/participants | Add a practitioner of the clinic, or invite one of another clinic (SAL-28)
+*ChatApi* | [**createWebhook**](doc//ChatApi.md#createwebhook) | **POST** /clinic/webhooks | Add a webhook endpoint; its secret is shown in this answer only
 *ChatApi* | [**decideChatInvitation**](doc//ChatApi.md#decidechatinvitation) | **POST** /me/chat-invitations/{id}/decision | Grant or decline an invitation (SAL-28)
+*ChatApi* | [**deleteWebhook**](doc//ChatApi.md#deletewebhook) | **DELETE** /clinic/webhooks/{id} | Delete a webhook endpoint and its dead letters
 *ChatApi* | [**editMessage**](doc//ChatApi.md#editmessage) | **PATCH** /conversations/{id}/messages/{message_id} | Edit the body of one's own text message
 *ChatApi* | [**followConversation**](doc//ChatApi.md#followconversation) | **GET** /conversations/{id}/events | The conversation's messages, live, over a WebSocket
 *ChatApi* | [**getChatAttachmentContent**](doc//ChatApi.md#getchatattachmentcontent) | **GET** /conversations/{id}/attachments/{attachment_id}/content | Download a message's file
 *ChatApi* | [**getChatAttachmentThumbnail**](doc//ChatApi.md#getchatattachmentthumbnail) | **GET** /conversations/{id}/attachments/{attachment_id}/thumbnail | Download a message's image thumbnail
+*ChatApi* | [**getChatHours**](doc//ChatApi.md#getchathours) | **GET** /organizations/{id}/chat-hours | The clinic's chat hours, its response time, and whether it is within its hours now
+*ChatApi* | [**getChatSettings**](doc//ChatApi.md#getchatsettings) | **GET** /clinic/chat-settings | The admin's clinic's chat settings
 *ChatApi* | [**getConversation**](doc//ChatApi.md#getconversation) | **GET** /conversations/{id} | One conversation with its active participants
 *ChatApi* | [**listChatInvitations**](doc//ChatApi.md#listchatinvitations) | **GET** /me/chat-invitations | The patient's invitations of doctors from other clinics, pending or granted (SAL-28)
 *ChatApi* | [**listChatThreads**](doc//ChatApi.md#listchatthreads) | **GET** /conversations/{id}/threads | The side threads of the conversation the caller takes part in, newest first (SAL-28)
 *ChatApi* | [**listConversations**](doc//ChatApi.md#listconversations) | **GET** /conversations | The caller's conversations, newest activity first, with their unread counts
 *ChatApi* | [**listMessageRevisions**](doc//ChatApi.md#listmessagerevisions) | **GET** /conversations/{id}/messages/{message_id}/revisions | The earlier bodies of an edited message, oldest first
 *ChatApi* | [**listMessages**](doc//ChatApi.md#listmessages) | **GET** /conversations/{id}/messages | A page of the conversation's messages, newest first
+*ChatApi* | [**listWebhooks**](doc//ChatApi.md#listwebhooks) | **GET** /clinic/webhooks | The admin's clinic's webhook endpoints, without their secrets
 *ChatApi* | [**markConversationRead**](doc//ChatApi.md#markconversationread) | **PUT** /conversations/{id}/read | Move the caller's read position
 *ChatApi* | [**openChatThread**](doc//ChatApi.md#openchatthread) | **POST** /conversations/{id}/threads | Open a doctor-only side thread of the conversation (SAL-28)
 *ChatApi* | [**openConversation**](doc//ChatApi.md#openconversation) | **POST** /conversations | Open the conversation with a patient or a practitioner, or return the one there is
+*ChatApi* | [**registerDevice**](doc//ChatApi.md#registerdevice) | **PUT** /me/devices | Register the patient app's push token
 *ChatApi* | [**removeConversationParticipant**](doc//ChatApi.md#removeconversationparticipant) | **DELETE** /conversations/{id}/participants/{participant_id} | Remove a practitioner, or withdraw an invitation (SAL-28)
 *ChatApi* | [**revokeChatInvitation**](doc//ChatApi.md#revokechatinvitation) | **POST** /me/chat-invitations/{id}/revoke | Revoke a granted invitation (SAL-28)
 *ChatApi* | [**searchConversation**](doc//ChatApi.md#searchconversation) | **GET** /conversations/{id}/search | Search a conversation's messages
 *ChatApi* | [**searchConversations**](doc//ChatApi.md#searchconversations) | **GET** /conversations/search | Search the caller's conversations
 *ChatApi* | [**sendMessage**](doc//ChatApi.md#sendmessage) | **POST** /conversations/{id}/messages | Send a text message
+*ChatApi* | [**setChatSettings**](doc//ChatApi.md#setchatsettings) | **PUT** /clinic/chat-settings | Replace the admin's clinic's chat settings
+*ChatApi* | [**unregisterDevice**](doc//ChatApi.md#unregisterdevice) | **DELETE** /me/devices | Unregister the app's push token (on sign-out)
 *ChatApi* | [**uploadChatAttachment**](doc//ChatApi.md#uploadchatattachment) | **POST** /conversations/{id}/attachments | Upload a file to send in the conversation
 *ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic, or to transcription
 *ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
@@ -204,6 +212,8 @@ Class | Method | HTTP request | Description
  - [ChatCommandError](doc//ChatCommandError.md)
  - [ChatCommandErrorFrame](doc//ChatCommandErrorFrame.md)
  - [ChatFrame](doc//ChatFrame.md)
+ - [ChatHour](doc//ChatHour.md)
+ - [ChatHours](doc//ChatHours.md)
  - [ChatInvitation](doc//ChatInvitation.md)
  - [ChatInvitationDecision](doc//ChatInvitationDecision.md)
  - [ChatInvitationList](doc//ChatInvitationList.md)
@@ -214,6 +224,7 @@ Class | Method | HTTP request | Description
  - [ChatReceiptFrame](doc//ChatReceiptFrame.md)
  - [ChatSearchResult](doc//ChatSearchResult.md)
  - [ChatSearchResults](doc//ChatSearchResults.md)
+ - [ChatSettings](doc//ChatSettings.md)
  - [ChatTyping](doc//ChatTyping.md)
  - [ChatTypingCommand](doc//ChatTypingCommand.md)
  - [ChatTypingFrame](doc//ChatTypingFrame.md)
@@ -231,6 +242,7 @@ Class | Method | HTTP request | Description
  - [Conversation](doc//Conversation.md)
  - [ConversationList](doc//ConversationList.md)
  - [ConversationParticipant](doc//ConversationParticipant.md)
+ - [CreatedWebhook](doc//CreatedWebhook.md)
  - [Cursor](doc//Cursor.md)
  - [CursorMessage](doc//CursorMessage.md)
  - [DiagnosisGroup](doc//DiagnosisGroup.md)
@@ -281,12 +293,14 @@ Class | Method | HTTP request | Description
  - [MessagePage](doc//MessagePage.md)
  - [MessageRevision](doc//MessageRevision.md)
  - [MessageRevisions](doc//MessageRevisions.md)
+ - [NewWebhook](doc//NewWebhook.md)
  - [OpenConversationRequest](doc//OpenConversationRequest.md)
  - [OpenItem](doc//OpenItem.md)
  - [Patient](doc//Patient.md)
  - [PeriodUnit](doc//PeriodUnit.md)
  - [Place](doc//Place.md)
  - [PlaceList](doc//PlaceList.md)
+ - [PushDevice](doc//PushDevice.md)
  - [Questionnaire](doc//Questionnaire.md)
  - [QuestionnaireDefault](doc//QuestionnaireDefault.md)
  - [QuestionnaireItem](doc//QuestionnaireItem.md)
@@ -350,6 +364,12 @@ Class | Method | HTTP request | Description
  - [Unavailable](doc//Unavailable.md)
  - [UpdateMeRequest](doc//UpdateMeRequest.md)
  - [VerifyRequest](doc//VerifyRequest.md)
+ - [Webhook](doc//Webhook.md)
+ - [WebhookEvent](doc//WebhookEvent.md)
+ - [WebhookEventData](doc//WebhookEventData.md)
+ - [WebhookEventDataMessage](doc//WebhookEventDataMessage.md)
+ - [WebhookEventType](doc//WebhookEventType.md)
+ - [WebhookList](doc//WebhookList.md)
 
 
 ## Documentation For Authorization
