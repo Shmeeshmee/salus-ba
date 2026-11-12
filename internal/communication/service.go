@@ -55,6 +55,7 @@ type Ports struct {
 	Encounters Encounters
 	Audit      Auditor
 	Tx         Transactor
+	Jobs       Jobs // a send enqueues its notifications (SAL-29)
 	Clock      clock.Clock
 	Log        *slog.Logger
 }

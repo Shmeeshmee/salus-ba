@@ -93,7 +93,10 @@ func (s *Service) Send(ctx context.Context, c Caller, id, clientMessageID, body 
 			return err
 		}
 		created = true
-		return s.record(ctx, c, auditevent.ActionCreate, auditevent.CodeCreate, "Communication/"+out.ID, "", 0)
+		if err := s.record(ctx, c, auditevent.ActionCreate, auditevent.CodeCreate, "Communication/"+out.ID, "", 0); err != nil {
+			return err
+		}
+		return s.enqueueSent(ctx, out)
 	})
 	if err != nil {
 		return Message{}, false, wrap("send", s.refusal(ctx, c, id, err))
@@ -192,4 +195,14 @@ func (s *Service) MarkRead(ctx context.Context, c Caller, id string, seq int64) 
 		return s.Repo.MarkRead(ctx, e.part.ID, seq)
 	})
 	return wrap("mark read", s.refusal(ctx, c, id, err))
+}
+
+// enqueueSent enqueues the new message's notifications in its transaction (SAL-29): opaque ids only.
+func (s *Service) enqueueSent(ctx context.Context, m Message) error {
+	if s.Jobs == nil {
+		return errNoJobs
+	}
+	return s.Jobs.EnqueueMessageSent(ctx, MessageSentArgs{
+		ConversationID: m.ConversationID, OrganizationID: m.OrganizationID, MessageID: m.ID, SenderParticipantID: m.SenderParticipantID, Seq: m.Seq,
+	})
 }

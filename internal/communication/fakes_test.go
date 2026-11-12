@@ -72,6 +72,7 @@ type fixture struct {
 	repo    *fakeRepo
 	audit   *fakeAudit
 	pub     *fakePublisher
+	jobs    *fakeJobs
 	clock   *testClock
 	consent map[string]access.Consent // by patient+clinic
 	visits  map[string][]access.Visit
@@ -88,7 +89,7 @@ func newFixture(t *testing.T) *fixture {
 func newFixtureOn(t *testing.T, repo communication.Repository, tx communication.Transactor) *fixture {
 	t.Helper()
 	f := &fixture{
-		repo: newFakeRepo(), audit: &fakeAudit{}, pub: &fakePublisher{}, clock: &testClock{t: start},
+		repo: newFakeRepo(), audit: &fakeAudit{}, pub: &fakePublisher{}, jobs: &fakeJobs{}, clock: &testClock{t: start},
 		consent: map[string]access.Consent{patientA + clinicA: {Active: true}},
 		visits:  map[string][]access.Visit{patientA + clinicA: {{PractitionerRole: roleA1, Start: start.Add(-48 * time.Hour)}}},
 	}
@@ -97,7 +98,7 @@ func newFixtureOn(t *testing.T, repo communication.Repository, tx communication.
 	}
 	f.svc = communication.NewService(communication.Ports{
 		Repo: repo, Publisher: f.pub, Consents: fakeConsents{f}, Visits: fakeVisits{f}, Roles: fakeRoles{},
-		Encounters: fakeEncounters{}, Audit: f.audit, Tx: tx, Clock: f.clock,
+		Encounters: fakeEncounters{}, Audit: f.audit, Tx: tx, Clock: f.clock, Jobs: f.jobs,
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	return f
@@ -151,7 +152,7 @@ func (t fakeTx) WithTx(ctx context.Context, fn func(ctx context.Context) error) 
 	t.f.repo.mu.Lock()
 	snap := t.f.repo.snapshot()
 	t.f.repo.mu.Unlock()
-	events := t.f.audit.count()
+	events, jobs := t.f.audit.count(), t.f.jobs.count()
 	tx := &txState{}
 	err := fn(context.WithValue(ctx, txKey{}, tx))
 	if err != nil {
@@ -159,6 +160,7 @@ func (t fakeTx) WithTx(ctx context.Context, fn func(ctx context.Context) error) 
 		t.f.repo.restore(snap)
 		t.f.repo.mu.Unlock()
 		t.f.audit.truncate(events)
+		t.f.jobs.truncate(jobs)
 	}
 	for _, u := range tx.unlock {
 		u()
