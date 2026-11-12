@@ -5962,6 +5962,12 @@ components:
           type: string
           description: The SNOMED CT code of the visit's practitioner role (`/specialties`).
         title: {type: string}
+        diagnoses:
+          type: array
+          description: >-
+            A signed document's diagnoses: the ICD-10 codes (http://hl7.org/fhir/sid/icd-10) of its filled coded
+            fields.
+          items: {type: string, examples: ["J06.9"]}
         shared:
           type: boolean
           description: For a practitioner, a visit of another clinic the patient shared, and everything of it.

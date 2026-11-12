@@ -10,6 +10,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -106,13 +107,15 @@ type fakeRepository struct {
 	responses   []questionnaireresponse.Response
 	searched    []questionnaireresponse.Filter
 	locked      []string
+	shared      []string // another clinic's responses the clinic's scope shows once completed (questionnaire_response_shared)
 }
 
 func (r *fakeRepository) visible(x questionnaireresponse.Response) bool {
 	if r.patient != "" {
 		return x.PatientID == r.patient
 	}
-	return r.clinic != "" && x.OrganizationID == r.clinic
+	return r.clinic != "" && (x.OrganizationID == r.clinic ||
+		(x.Status == questionnaireresponse.StatusCompleted && slices.Contains(r.shared, x.ID)))
 }
 
 func (r *fakeRepository) SetPatient(ctx context.Context, id string) error {
@@ -443,10 +446,27 @@ type fixture struct {
 	jobs           *fakeJobs
 	appts          *fakeAppointments
 	questionnaires *fakeQuestionnaires
+	encounters     *fakeEncounters
+}
+
+// fakeEncounters gives another clinic's visit shared with the caller, by account + appointment id.
+type fakeEncounters struct {
+	shared map[string]encounter.Encounter
+}
+
+func (e *fakeEncounters) SharedAppointment(ctx context.Context, c appointment.Caller, appointmentID string) (encounter.Encounter, error) {
+	if err := inTx(ctx); err != nil {
+		return encounter.Encounter{}, err
+	}
+	got, ok := e.shared[c.AccountID+appointmentID]
+	if !ok {
+		return encounter.Encounter{}, encounter.ErrNotFound
+	}
+	return got, nil
 }
 
 func newFixture(at time.Time) *fixture {
-	f := &fixture{repo: &fakeRepository{}, audit: &fakeAudit{}, jobs: &fakeJobs{}}
+	f := &fixture{repo: &fakeRepository{}, audit: &fakeAudit{}, jobs: &fakeJobs{}, encounters: &fakeEncounters{}}
 	f.appts = &fakeAppointments{
 		appts: map[string]appointment.Appointment{
 			apptA: {ID: apptA, PatientID: patientA, PractitionerRoleID: roleA1, OrganizationID: clinicA, Status: appointment.StatusBooked,
@@ -471,7 +491,7 @@ func newFixture(at time.Time) *fixture {
 	}}
 	f.svc = questionnaireresponse.NewService(questionnaireresponse.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: at},
-		Appointments: f.appts, Questionnaires: f.questionnaires, Jobs: f.jobs,
+		Appointments: f.appts, Questionnaires: f.questionnaires, Jobs: f.jobs, Encounters: f.encounters,
 	})
 	return f
 }

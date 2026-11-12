@@ -571,6 +571,49 @@ func (q *Queries) SetQuestionnaireDefault(ctx context.Context, arg SetQuestionna
 	return i, err
 }
 
+const sharedQuestionnaire = `-- name: SharedQuestionnaire :one
+SELECT id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
+FROM history_questionnaire($1::uuid)
+`
+
+type SharedQuestionnaireRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	PublishedAt    pgtype.Timestamptz
+	RetiredAt      pgtype.Timestamptz
+	SeriesID       pgtype.UUID
+	OrganizationID pgtype.UUID
+	Version        int32
+	VersionID      int32
+	Status         string
+	Title          string
+	Description    string
+	Items          []byte
+	Language       Language
+}
+
+// A version another clinic's completed response answers, of a visit shared with the scope's clinic (migration 00044).
+func (q *Queries) SharedQuestionnaire(ctx context.Context, id pgtype.UUID) (SharedQuestionnaireRow, error) {
+	row := q.db.QueryRow(ctx, sharedQuestionnaire, id)
+	var i SharedQuestionnaireRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.PublishedAt,
+		&i.RetiredAt,
+		&i.SeriesID,
+		&i.OrganizationID,
+		&i.Version,
+		&i.VersionID,
+		&i.Status,
+		&i.Title,
+		&i.Description,
+		&i.Items,
+		&i.Language,
+	)
+	return i, err
+}
+
 const updateQuestionnaireDraft = `-- name: UpdateQuestionnaireDraft :one
 UPDATE questionnaire
 SET title = $1, description = $2, items = $3,

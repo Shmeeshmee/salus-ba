@@ -316,7 +316,8 @@ func (s *Service) DeleteDraft(ctx context.Context, c Caller, id string) error {
 }
 
 // Read returns the version id of c's clinic, or, to a patient, a version their own responses reference
-// (Referenced).
+// (Referenced); to a practitioner, also another clinic's version a completed response of a visit shared with their
+// clinic answers (the history, ADR 0014), without its translations.
 func (s *Service) Read(ctx context.Context, c Caller, id string) (Questionnaire, error) {
 	if patientCaller(c) {
 		return s.Referenced(ctx, c, c.PatientID, id)
@@ -325,6 +326,9 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (Questionnaire,
 	err := s.do(ctx, c, opRead, func(ctx context.Context) ([]string, error, error) {
 		var failed, err error
 		out, failed, err = s.version(ctx, c, id, false)
+		if errors.Is(failed, ErrNotFound) && !c.Admin {
+			return s.shared(ctx, id, &out)
+		}
 		if err != nil || failed != nil {
 			return nil, failed, err
 		}
@@ -334,6 +338,21 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (Questionnaire,
 		return Questionnaire{}, err
 	}
 	return out, nil
+}
+
+// shared reads into out another clinic's version id that a completed response of a visit shared with the clinic
+// in scope answers (the history, ADR 0014), without its translations: for that clinic's practitioner to read the
+// answers. ErrNotFound as the refusal for any other.
+func (s *Service) shared(ctx context.Context, id string, out *Questionnaire) ([]string, error, error) {
+	q, err := s.Repo.Shared(ctx, id)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return nil, ErrNotFound, nil
+	case err != nil:
+		return nil, nil, err
+	}
+	*out = q
+	return []string{q.ID}, nil, nil
 }
 
 // Referenced returns the version id to the patient patientID, c their account, read in the patient's scope,

@@ -105,3 +105,8 @@ RETURNING practitioner_role_id, updated_at, organization_id, series_id, version_
 -- name: ClearQuestionnaireDefault :exec
 DELETE FROM questionnaire_default
 WHERE practitioner_role_id = @practitioner_role_id;
+
+-- name: SharedQuestionnaire :one
+-- A version another clinic's completed response answers, of a visit shared with the scope's clinic (migration 00044).
+SELECT id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
+FROM history_questionnaire(@id::uuid);

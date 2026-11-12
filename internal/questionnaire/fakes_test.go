@@ -40,6 +40,7 @@ type fakeRepository struct {
 	translationsErr error                                  // of Translations alone
 	referenced      map[string][]string                    // the versions each patient's responses reference
 	translated      map[string][]questionnaire.Translation // by version
+	shared          map[string][]string                    // the versions each clinic's scope reads through history_questionnaire
 	clinic          string
 	patient         string
 	rows            []questionnaire.Questionnaire
@@ -100,6 +101,20 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (questionnaire.Que
 	}
 	if i := r.index(id); i >= 0 {
 		return r.rows[i], nil
+	}
+	return questionnaire.Questionnaire{}, questionnaire.ErrNotFound
+}
+
+// Shared gives a version the clinic's scope reads through history_questionnaire (a shared response answers it).
+func (r *fakeRepository) Shared(ctx context.Context, id string) (questionnaire.Questionnaire, error) {
+	r.seen(ctx, "Shared")
+	if r.err != nil {
+		return questionnaire.Questionnaire{}, r.err
+	}
+	for _, q := range r.rows {
+		if q.ID == id && slices.Contains(r.shared[r.clinic], id) {
+			return q, nil
+		}
 	}
 	return questionnaire.Questionnaire{}, questionnaire.ErrNotFound
 }

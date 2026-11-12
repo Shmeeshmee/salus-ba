@@ -349,3 +349,34 @@ func (s *Service) record(ctx context.Context, c Caller, interaction, id string, 
 	}
 	return s.audit.Record(ctx, e)
 }
+
+// Specialties returns the specialty (SpecialtyCode, "" for none) of each role ids, by id, as the scope of the clinic
+// org shows them: its own roles, and those of other clinics' visits shared with it (practitioner_role_shared), for
+// the history's items; one it does not show is left out. It joins the transaction in ctx and sets the clinic's scope;
+// like Lookup, unaudited.
+func (s *Service) Specialties(ctx context.Context, org string, ids []string) (map[string]string, error) {
+	out := make(map[string]string, len(ids))
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetOrganization(ctx, org); err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if _, done := out[id]; done {
+				continue
+			}
+			p, err := s.repo.ByID(ctx, id)
+			switch {
+			case errors.Is(err, ErrNotFound):
+				continue
+			case err != nil:
+				return err
+			}
+			out[id] = p.SpecialtyCode
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("practitionerrole: specialties: %w", err)
+	}
+	return out, nil
+}

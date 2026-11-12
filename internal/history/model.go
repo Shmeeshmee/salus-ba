@@ -36,7 +36,8 @@ type Clinic struct {
 // Item is one entry of a history (api/openapi.yaml HistoryItem). Date orders the history, newest first; Reference
 // is the FHIR resource to open ("Encounter/…", "Composition/…", "QuestionnaireResponse/…", "Binary/…"); EncounterID
 // the visit it belongs to (empty for an item of none); Specialty the SNOMED CT code of the visit's practitioner
-// role; Title the document's, questionnaire's or file's title. Shared marks, for a practitioner, a visit of another
+// role; Title the document's, questionnaire's or file's title; Diagnoses, of a signed document, the ICD-10 codes
+// (http://hl7.org/fhir/sid/icd-10) of its filled coded fields. Shared marks, for a practitioner, a visit of another
 // clinic the patient shared, and everything of it.
 type Item struct {
 	Date        time.Time `json:"date"`
@@ -46,6 +47,7 @@ type Item struct {
 	EncounterID string    `json:"encounterId,omitempty"`
 	Specialty   string    `json:"specialty,omitempty"`
 	Title       string    `json:"title,omitempty"`
+	Diagnoses   []string  `json:"diagnoses,omitempty"`
 	Shared      bool      `json:"shared,omitempty"`
 }
 
@@ -66,6 +68,9 @@ type Filter struct {
 
 // ErrCursor is a cursor this package did not make.
 var ErrCursor = errors.New("history: invalid cursor")
+
+// ErrNotFound is a patient, or an appointment, the caller has no history of: nothing about it is disclosed.
+var ErrNotFound = errors.New("history: not found")
 
 // Cursor is a position in a history: the date and reference of the last item of a page. The zero Cursor is the
 // start.

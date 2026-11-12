@@ -44,6 +44,15 @@ func (r *postgresRepository) ByID(ctx context.Context, id string) (Questionnaire
 	return toQuestionnaire(row, err, ErrNotFound)
 }
 
+func (r *postgresRepository) Shared(ctx context.Context, id string) (Questionnaire, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Questionnaire{}, ErrNotFound
+	}
+	row, err := r.q(ctx).SharedQuestionnaire(ctx, u)
+	return toQuestionnaire(questionnairedb.QuestionnaireByIDRow(row), err, ErrNotFound)
+}
+
 func (r *postgresRepository) Lock(ctx context.Context, id string) (Questionnaire, error) {
 	var u pgtype.UUID
 	if u.Scan(id) != nil {

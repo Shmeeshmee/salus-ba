@@ -180,6 +180,32 @@ func TestRead_GivesStaffTheirClinicsVersionsOnly(t *testing.T) {
 		refused, refused, refused)
 }
 
+// Another clinic's version is read by a practitioner whose clinic a completed response to it was shared with (the
+// history, ADR 0014), in its original language and audited as a read; never by the admin, nor one not shared.
+func TestRead_GivesAPractitionerTheVersionASharedResponseAnswers(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	f.repo.shared = map[string][]string{clinicA: {activeB}}
+	f.repo.translated = map[string][]questionnaire.Translation{activeB: {{Language: "en", Title: "Placeholder"}}}
+
+	got, err := f.svc.Read(t.Context(), practitionerA1, activeB)
+	if err != nil || got.ID != activeB || len(got.Translations) != 0 {
+		t.Errorf("Read() of the shared version = %+v, %v; want it without translations", got.ID, err)
+	}
+	if _, err := f.svc.Read(t.Context(), adminA, activeB); !errors.Is(err, questionnaire.ErrNotFound) {
+		t.Errorf("Read() by the admin = %v, want ErrNotFound", err)
+	}
+	f.repo.shared = nil
+	if _, err := f.svc.Read(t.Context(), practitionerA1, activeB); !errors.Is(err, questionnaire.ErrNotFound) {
+		t.Errorf("Read() once not shared = %v, want ErrNotFound", err)
+	}
+	refused := func(c questionnaire.Caller) event {
+		return staffEvent(c, auditevent.CodeRead, auditevent.ActionRead, "", auditevent.OutcomeMinorFailure)
+	}
+	assertEvents(t, f.audit, staffEvent(practitionerA1, auditevent.CodeRead, auditevent.ActionRead, "Questionnaire/"+activeB, auditevent.OutcomeSuccess),
+		refused(adminA), refused(practitionerA1))
+}
+
 func TestRead_DoesNotRestOnRowLevelSecurityAlone(t *testing.T) {
 	t.Parallel()
 	f := newFixture()

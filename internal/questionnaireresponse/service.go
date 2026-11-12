@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -43,6 +45,13 @@ type Questionnaires interface {
 	ActiveDefault(ctx context.Context, agent, org, roleID string) (questionnaire.Questionnaire, error)
 }
 
+// Encounters gives the encounter of an appointment of another clinic when it is a visit the patient shared with the
+// caller's clinic and the history's rule lets the caller see it (access.HistoryVisit), unaudited (encounter.Service):
+// to read its completed responses and their files.
+type Encounters interface {
+	SharedAppointment(ctx context.Context, c appointment.Caller, appointmentID string) (encounter.Encounter, error)
+}
+
 // Ports are the Service's dependencies.
 type Ports struct {
 	Repo           Repository
@@ -52,6 +61,7 @@ type Ports struct {
 	Appointments   Appointments
 	Questionnaires Questionnaires
 	Jobs           Jobs
+	Encounters     Encounters
 }
 
 // Service holds the questionnaire response rules (SPEC.md §2 "Requests", "Access rule", "Audit").
@@ -240,6 +250,38 @@ func (s *Service) view(ctx context.Context, c appointment.Caller, id string, rea
 		return Response{}, appointment.Attendance{}, access.None, err
 	}
 	return r, att, level(c, att, r), nil
+}
+
+// shared gives the response id at Full when it is a completed response of another clinic's visit the patient shared
+// with the staff caller's clinic and the history's rule lets the caller see the visit (ADR 0014), without a file not
+// yet scanned; at None otherwise. In the caller's clinic scope, which view has set on the transaction in ctx.
+func (s *Service) shared(ctx context.Context, c appointment.Caller, id string) (Response, access.Level, error) {
+	if c.OrganizationID == "" || c.Admin {
+		return Response{}, access.None, nil
+	}
+	r, err := s.Repo.ByID(ctx, id)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return Response{}, access.None, nil
+	case err != nil:
+		return Response{}, access.None, err
+	case r.Status != StatusCompleted || r.OrganizationID == c.OrganizationID:
+		return Response{}, access.None, nil
+	}
+	_, err = s.Encounters.SharedAppointment(ctx, c, r.AppointmentID)
+	switch {
+	case errors.Is(err, encounter.ErrNotFound):
+		return Response{}, access.None, nil
+	case err != nil:
+		return Response{}, access.None, err
+	}
+	r.Attachments = scanned(r.Attachments)
+	return r, access.Full, nil
+}
+
+// scanned is the files of files that are no longer pending their scan.
+func scanned(files []binary.Attachment) []binary.Attachment {
+	return slices.DeleteFunc(slices.Clone(files), func(a binary.Attachment) bool { return a.Pending })
 }
 
 // scope scopes the transaction in ctx to the caller: a patient's own, or the staff caller's clinic; false for

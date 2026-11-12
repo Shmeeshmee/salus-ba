@@ -102,8 +102,11 @@ type fakeRepository struct {
 	clinic  string
 	job     string // the job scope's response; clinic is its clinic
 	locked  []string
+	shared  bool
 }
 
+// visible reports whether the scope shows b; shared stands for another clinic's visit shared with the clinic, whose
+// clean files the clinic's scope shows.
 func (r *fakeRepository) visible(b binary.Binary) bool {
 	switch {
 	case r.patient != "":
@@ -111,7 +114,7 @@ func (r *fakeRepository) visible(b binary.Binary) bool {
 	case r.job != "":
 		return b.ResponseID == r.job && b.OrganizationID == r.clinic
 	}
-	return r.clinic != "" && b.OrganizationID == r.clinic
+	return r.clinic != "" && (b.OrganizationID == r.clinic || (r.shared && b.Status == binary.StatusClean)) // binary_shared
 }
 
 func (r *fakeRepository) SetPatient(ctx context.Context, id string) error {

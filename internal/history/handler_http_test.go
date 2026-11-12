@@ -1,0 +1,143 @@
+package history_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/history"
+)
+
+// stubViews answers with what the test set and keeps what it was asked.
+type stubViews struct {
+	err     error
+	cursor  history.Cursor
+	page    history.Page
+	summary history.Summary
+	asked   []string
+	limit   int
+}
+
+func (s *stubViews) ForPractitioner(_ context.Context, c appointment.Caller, patientID string, at history.Cursor, limit int) (history.Page, error) {
+	s.asked = append(s.asked, c.AccountID+" history "+patientID)
+	s.cursor, s.limit = at, limit
+	return s.page, s.err
+}
+
+func (s *stubViews) Summary(_ context.Context, c appointment.Caller, patientID, appointmentID string) (history.Summary, error) {
+	s.asked = append(s.asked, c.AccountID+" summary "+patientID+" "+appointmentID)
+	return s.summary, s.err
+}
+
+func serve(t *testing.T, views *stubViews, signedIn bool, target string) (*httptest.ResponseRecorder, string) {
+	t.Helper()
+	logs := &bytes.Buffer{}
+	caller := func(context.Context) (appointment.Caller, bool, error) { return pract, signedIn, nil }
+	mux := http.NewServeMux()
+	history.NewHTTPHandler(views, caller, slog.New(slog.NewTextHandler(logs, nil))).Routes(mux)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, nil))
+	return w, logs.String()
+}
+
+func TestHTTPHandler_ServesAPageOfThePatientsHistory(t *testing.T) {
+	t.Parallel()
+	views := &stubViews{page: history.Page{Next: "abc", Items: []history.Item{{Date: day(1, 9), Clinic: history.Clinic{ID: clinicB, Name: "Synthetic clinic B"},
+		Type: history.TypeVisit, Reference: "Encounter/" + visit2, EncounterID: visit2, Shared: true}}}}
+	at := history.Cursor{Date: day(1, 10), Reference: "Encounter/" + visit1}
+	w, _ := serve(t, views, true, "/patients/"+patientA+"/history?limit=5&cursor="+at.String())
+	if w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("status %d, Cache-Control %q", w.Code, w.Header().Get("Cache-Control"))
+	}
+	want := `{"next":"abc","items":[{"date":"2026-10-01T09:00:00Z","clinic":{"id":"` + clinicB + `","name":"Synthetic clinic B"},"type":"visit",` +
+		`"reference":"Encounter/` + visit2 + `","encounterId":"` + visit2 + `","shared":true}]}`
+	if got := strings.TrimSpace(w.Body.String()); got != want {
+		t.Errorf("body %s,\nwant %s", got, want)
+	}
+	if views.cursor != at || views.limit != 5 || views.asked[0] != practAcc+" history "+patientA {
+		t.Errorf("asked %v at %+v limit %d", views.asked, views.cursor, views.limit)
+	}
+}
+
+func TestHTTPHandler_AnEmptyHistoryIsAnEmptyList(t *testing.T) {
+	t.Parallel()
+	views := &stubViews{}
+	w, _ := serve(t, views, true, "/patients/"+patientA+"/history")
+	if got := strings.TrimSpace(w.Body.String()); w.Code != http.StatusOK || got != `{"items":[]}` {
+		t.Errorf("status %d, body %s; want an empty list", w.Code, got)
+	}
+	if views.limit != 30 {
+		t.Errorf("limit %d, want the default 30", views.limit)
+	}
+}
+
+func TestHTTPHandler_RefusesABadRequestBeforeTheService(t *testing.T) {
+	t.Parallel()
+	for _, q := range []string{"?limit=0", "?limit=101", "?limit=x", "?cursor=nope", "?limit=1&limit=2"} {
+		views := &stubViews{}
+		w, _ := serve(t, views, true, "/patients/"+patientA+"/history"+q)
+		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), `"invalid_request"`) || len(views.asked) != 0 {
+			t.Errorf("%s: status %d, body %s, asked %v; want invalid_request", q, w.Code, w.Body.String(), views.asked)
+		}
+	}
+}
+
+func TestHTTPHandler_MapsErrors(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		err    error
+		code   string
+		status int
+	}{
+		{history.ErrNotFound, "not_found", http.StatusNotFound},
+		{io.ErrUnexpectedEOF, "internal", http.StatusInternalServerError},
+	} {
+		for _, target := range []string{"/patients/" + patientA + "/history", "/patients/" + patientA + "/history/summary?appointment=" + apptNow} {
+			w, logs := serve(t, &stubViews{err: tt.err}, true, target)
+			if w.Code != tt.status || (tt.status == http.StatusNotFound && !strings.Contains(w.Body.String(), `"not_found"`)) {
+				t.Errorf("%s with %v: status %d, body %s", target, tt.err, w.Code, w.Body.String())
+			}
+			if tt.status == http.StatusInternalServerError && (strings.Contains(w.Body.String(), "unexpected EOF") || !strings.Contains(logs, "unexpected EOF")) {
+				t.Errorf("%s: the internal error reached the client or missed the log", target)
+			}
+		}
+	}
+	for _, target := range []string{"/patients/" + patientA + "/history", "/patients/" + patientA + "/history/summary?appointment=" + apptNow} {
+		if w, _ := serve(t, &stubViews{}, false, target); w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), `"unauthenticated"`) {
+			t.Errorf("%s signed out: status %d", target, w.Code)
+		}
+	}
+}
+
+func TestHTTPHandler_ServesTheSummary(t *testing.T) {
+	t.Parallel()
+	views := &stubViews{summary: history.Summary{
+		Allergies:   []history.SummaryAllergy{{Reference: "AllergyIntolerance/" + allergy1, Text: "Placeholder substance", Confirmed: true}},
+		Medications: []history.SummaryMedication{},
+		OpenItems:   []history.OpenItem{{Type: history.OpenDraft, Reference: "Composition/" + draftNow}},
+	}}
+	w, _ := serve(t, views, true, "/patients/"+patientA+"/history/summary?appointment="+apptNow)
+	if w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("status %d", w.Code)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got["lastVisit"]; ok || len(got["allergies"].([]any)) != 1 || len(got["openItems"].([]any)) != 1 {
+		t.Errorf("body %s", w.Body.String())
+	}
+	if views.asked[0] != practAcc+" summary "+patientA+" "+apptNow {
+		t.Errorf("asked %v", views.asked)
+	}
+	if w, _ := serve(t, &stubViews{}, true, "/patients/"+patientA+"/history/summary"); w.Code != http.StatusNotFound {
+		t.Errorf("without an appointment: status %d, want 404", w.Code)
+	}
+}

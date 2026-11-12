@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
@@ -30,13 +32,34 @@ type Appointments interface {
 	RecordConsultationOutcome(ctx context.Context, agent, id string, patientJoined bool) error
 }
 
-// Ports are the Service's dependencies.
+// Consents gives the state of the patient's consents with a clinic, the history consent's shared visits included,
+// in the caller's scope (consent.Service): for the history's rule.
+type Consents interface {
+	State(ctx context.Context, patientID, organizationID string) (access.Consent, error)
+}
+
+// Visits gives the patient's appointments in a clinic, in the caller's scope (appointment.Facts): for the history's
+// rule.
+type Visits interface {
+	Visits(ctx context.Context, patientID, organizationID string) ([]access.Visit, error)
+}
+
+// Roles gives a practitioner's role in their clinic, in the clinic's scope (practitionerrole.Service): for the
+// history's rule.
+type Roles interface {
+	OfPractitioner(ctx context.Context, org, practitionerID string) (practitionerrole.PractitionerRole, error)
+}
+
+// Ports are the Service's dependencies. Consents, Visits and Roles serve the history only (service_history.go).
 type Ports struct {
 	Repo         Repository
 	Audit        Auditor
 	Tx           Transactor
 	Clock        clock.Clock
 	Appointments Appointments
+	Consents     Consents
+	Visits       Visits
+	Roles        Roles
 }
 
 // Service holds the encounter rules (SPEC.md §2 "Encounter", "Ending", "Outcome").
