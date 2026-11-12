@@ -169,3 +169,117 @@ func TestSearchAll_AuditsEachPatientWhoseMessagesItReturns(t *testing.T) {
 		t.Errorf("nothing found: audited %v, want %v", got, want)
 	}
 }
+
+// guestSearch is a conversation of patient A with clinic A where clinic B's doctor was invited (SAL-28), in a state:
+// a message of the conversation, one of a side thread opened before the invitation (without the guest) and, once
+// granted, one of the side thread the guest opened.
+type guestSearch struct {
+	f                   *fixture
+	conv, without, mine string
+}
+
+// The states of the guest's invitation a search sees.
+const (
+	searchPending     = "pending"
+	searchGranted     = "granted"
+	searchDeclined    = "declined"
+	searchChatRevoked = "chat consent revoked"
+	searchCareRevoked = "care consent revoked"
+	searchRemoved     = "removed"
+)
+
+func newGuestSearch(t *testing.T, f *fixture, state string) guestSearch {
+	t.Helper()
+	g := guestSearch{f: f, conv: f.open(t).ID}
+	f.send(t, me, g.conv, "Synthetic rash on the arm")
+	without, err := f.svc.OpenThread(t.Context(), pract, g.conv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.without = without.ID
+	f.send(t, pract, g.without, "Synthetic rash, between the clinic's doctors")
+	p := f.add(t, g.conv, roleB1, clinicB)
+	if state == searchPending {
+		return g
+	}
+	if state == searchDeclined {
+		if err := f.svc.DecideInvitation(t.Context(), me, p.ID, communication.DecisionDecline); err != nil {
+			t.Fatal(err)
+		}
+		return g
+	}
+	if err := f.svc.DecideInvitation(t.Context(), me, p.ID, communication.DecisionGrant); err != nil {
+		t.Fatal(err)
+	}
+	mine, err := f.svc.OpenThread(t.Context(), guest, g.conv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.mine = mine.ID
+	f.clock.set(start.Add(time.Minute))
+	f.send(t, guest, g.mine, "Synthetic rash, the guest's question")
+	switch state {
+	case searchChatRevoked:
+		err = f.svc.RevokeInvitation(t.Context(), me, p.ID)
+	case searchCareRevoked:
+		f.revoke()
+	case searchRemoved:
+		err = f.svc.RemoveParticipant(t.Context(), pract, g.conv, p.ID)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g
+}
+
+// check asserts what the guest finds in the state: granted, the conversation's message and their side thread's,
+// never the side thread without them; nothing otherwise, and each conversation not found.
+func (g guestSearch) check(t *testing.T, state string) {
+	t.Helper()
+	ctx := t.Context()
+	granted := state == searchGranted
+	var want []string
+	if granted {
+		want = []string{"Synthetic rash, the guest's question", "Synthetic rash on the arm"}
+	}
+	got, err := g.f.svc.SearchAll(ctx, guest, "rash")
+	if err != nil || !slices.Equal(bodies(got), want) {
+		t.Errorf("SearchAll = %v, %v; want %v", bodies(got), err, want)
+	}
+	for name, tt := range map[string]struct {
+		id   string
+		want []string
+	}{
+		"the conversation":             {id: g.conv, want: []string{"Synthetic rash on the arm"}},
+		"their side thread":            {id: g.mine, want: []string{"Synthetic rash, the guest's question"}},
+		"the side thread without them": {id: g.without},
+	} {
+		if tt.id == "" {
+			continue
+		}
+		got, err := g.f.svc.Search(ctx, guest, tt.id, "rash")
+		switch {
+		case granted && tt.want != nil:
+			if err != nil || !slices.Equal(bodies(got), tt.want) {
+				t.Errorf("Search in %s = %v, %v; want %v", name, bodies(got), err, tt.want)
+			}
+		case !errors.Is(err, communication.ErrNotFound) && !errors.Is(err, communication.ErrForbidden):
+			t.Errorf("Search in %s = %v, %v; want it refused", name, bodies(got), err)
+		}
+	}
+}
+
+// A doctor of another clinic (SAL-28) searches only while the patient's chat consent for them and the care consent
+// with the treating clinic are active, as an active participant: in the conversation and the side threads they take
+// part in, never one without them; nothing while pending, after a decline, a revocation of either consent or a
+// removal (SAL-30 after SAL-28, findings, 7). The service decides as enter does, whatever the scope returned.
+func TestSearch_AGuestFindsOnlyWhileGranted(t *testing.T) {
+	t.Parallel()
+	for _, state := range []string{searchPending, searchGranted, searchDeclined, searchChatRevoked, searchCareRevoked, searchRemoved} {
+		t.Run(state, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			newGuestSearch(t, f, state).check(t, state)
+		})
+	}
+}

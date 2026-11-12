@@ -79,9 +79,10 @@ func seedChatFiles(t *testing.T, owner *pgxpool.Pool) chatFileRows {
 
 func (r chatFileRows) files(names ...string) []string { return r.pick(r.file, names) }
 
-// chatRole is the scope of a practitioner's search across their conversations: their clinic and their role.
+// chatRole is the scope of a practitioner's search across their conversations, as the service sets it: their clinic,
+// their role (00044's app.practitioner_role_id) and the search's role.
 func chatRole(clinic, role string) map[string]string {
-	return map[string]string{"app.organization_id": clinic, "app.chat_practitioner_role_id": role}
+	return map[string]string{"app.organization_id": clinic, "app.practitioner_role_id": role, "app.chat_practitioner_role_id": role}
 }
 
 // A conversation's files are seen exactly where its messages are (00041): by its patient, never in a doctor-only
@@ -391,4 +392,150 @@ func TestChatSearch_TheSearchFunctionFindsOnlyWhatTheScopeMayRead(t *testing.T) 
 	if got := idsWith(t, app, chatRole(clinicA, r.dir[clinicA].role), search, ""); !slices.Equal(got, []string{r.second}) {
 		t.Errorf("role A once removed from staffA: finds %v", got)
 	}
+}
+
+// guestFiles is seedGuest (chat_group_test.go) with what a search and a download read: clinic A's treating doctor
+// in inA; a second message in inA, the only one after the guest's history_from_seq (1); a side thread of inA without
+// the guest, with a message; and a file attached to each of those messages, inA's first, its second, staffA's (the
+// side thread the guest takes part in once granted) and the thread's without them.
+type guestFiles struct {
+	file map[string]string // by "inA", "second", "staffA", "without"
+	guestRows
+	second, without, withoutMsg string
+}
+
+func seedGuestFiles(t *testing.T, owner *pgxpool.Pool, state string) guestFiles {
+	t.Helper()
+	ctx := t.Context()
+	g := guestFiles{guestRows: seedGuest(t, owner, state), file: map[string]string{}}
+	roleA := g.dir[clinicA].role
+	if _, err := owner.Exec(ctx, `UPDATE conversation_participant SET history_from_seq = 1 WHERE id = $1`, g.part); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(ctx, `INSERT INTO conversation_participant (conversation_id, practitioner_role_id, organization_id, role, added_by)
+		VALUES ($1, $2, $3, 'practitioner', $4)`, g.conv["inA"], roleA, clinicA, g.p[0].account); err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.QueryRow(ctx, `INSERT INTO communication (conversation_id, organization_id, patient_id, staff_only, seq, sent_at,
+			sender_participant_id, sender_account_id, sender_role, client_message_id, kind, body)
+		VALUES ($1, $2, $3, false, 2, '2026-11-12T10:05:00Z', $4, $5, 'patient', gen_random_uuid(), 'text', 'Synthetic placeholder two')
+		RETURNING id`, g.conv["inA"], clinicA, g.p[0].patient, g.chatRows.part["inA"], g.p[0].account).Scan(&g.second); err != nil {
+		t.Fatal(err)
+	}
+	var withoutPart string
+	if err := owner.QueryRow(ctx, `INSERT INTO conversation (organization_id, patient_id, practitioner_role_id, staff_only, parent_id, created_by,
+			last_seq, last_sent_at) VALUES ($1, $2, $3, true, $4, $5, 1, '2026-11-12T10:00:00Z') RETURNING id`,
+		clinicA, g.p[0].patient, roleA, g.conv["inA"], g.p[0].account).Scan(&g.without); err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.QueryRow(ctx, `INSERT INTO conversation_participant (conversation_id, practitioner_role_id, organization_id, role, added_by)
+		VALUES ($1, $2, $3, 'practitioner', $4) RETURNING id`, g.without, roleA, clinicA, g.p[0].account).Scan(&withoutPart); err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.QueryRow(ctx, `INSERT INTO communication (conversation_id, organization_id, patient_id, staff_only, seq, sent_at,
+			sender_participant_id, sender_account_id, sender_role, client_message_id, kind, body)
+		VALUES ($1, $2, $3, true, 1, '2026-11-12T10:00:00Z', $4, $5, 'practitioner', gen_random_uuid(), 'text', 'Synthetic placeholder between doctors')
+		RETURNING id`, g.without, clinicA, g.p[0].patient, withoutPart, g.p[0].account).Scan(&g.withoutMsg); err != nil {
+		t.Fatal(err)
+	}
+	for name, f := range map[string]struct{ conv, by, msg, at string }{
+		"inA":     {g.conv["inA"], g.chatRows.part["inA"], g.msg["inA"], "2026-11-12T10:00:00Z"},
+		"second":  {g.conv["inA"], g.chatRows.part["inA"], g.second, "2026-11-12T10:05:00Z"},
+		"staffA":  {g.conv["staffA"], g.chatRows.part["staffA"], g.msg["staffA"], "2026-11-12T10:00:00Z"},
+		"without": {g.without, withoutPart, g.withoutMsg, "2026-11-12T10:00:00Z"},
+	} {
+		var id string
+		if err := owner.QueryRow(ctx, insertChatFile, clinicA, g.p[0].patient, f.conv, f.by).Scan(&id); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if _, err := owner.Exec(ctx, `UPDATE "binary" SET communication_id = $2, communication_sent_at = $3 WHERE id = $1`, id, f.msg, f.at); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		g.file[name] = id
+	}
+	return g
+}
+
+// A doctor of another clinic (SAL-28) searches and reads the files of a search (SAL-30, finding 7) only as an active
+// participant, while the patient's chat consent for them and the care consent with the treating clinic are active:
+// in inA after their history_from_seq and in the side thread they take part in, never the side thread without them;
+// nothing while pending, after a decline, a revocation of either consent or a removal. The treating doctor of clinic
+// A reads theirs while the care consent is active, whatever the guest's state. The search function, the messages'
+// and the files' policies agree.
+func TestChatSearch_AGuestFindsAndReadsOnlyWhileGranted(t *testing.T) {
+	t.Parallel()
+	const declined = "declined"
+	for _, state := range []string{guestPending, declined, guestGranted, guestCareRevoked, guestRevoked, guestRemoved} {
+		t.Run(state, func(t *testing.T) {
+			t.Parallel()
+			owner, app := pgtest.NewAppDatabase(t)
+			seed := state
+			if state == declined {
+				seed = guestPending
+			}
+			g := seedGuestFiles(t, owner, seed)
+			if state == declined {
+				if _, err := owner.Exec(t.Context(), `UPDATE conversation_participant SET removed_at = now() WHERE id = $1`, g.part); err != nil {
+					t.Fatal(err)
+				}
+			}
+			g.check(t, app, state)
+		})
+	}
+}
+
+// check asserts what each scope finds, and reads of the messages and files, in the guest's state.
+func (g guestFiles) check(t *testing.T, app *pgxpool.Pool, state string) {
+	t.Helper()
+	var guestMsgs, guestFiles, doctorMsgs, doctorFiles []string
+	if state == guestGranted {
+		guestMsgs, guestFiles = sorted(g.second, g.msg["staffA"]), sorted(g.file["second"], g.file["staffA"])
+	}
+	if state != guestCareRevoked {
+		doctorMsgs = sorted(g.msg["inA"], g.second, g.withoutMsg)
+		doctorFiles = sorted(g.file["inA"], g.file["second"], g.file["without"])
+	}
+	search := `SELECT id::text FROM communication_search(to_tsquery('public.chat_search', 'synth:*'), NULLIF($1, '')::uuid, 50)`
+	for _, tt := range []struct {
+		scope        map[string]string
+		name, only   string
+		msgs, files  []string
+		onlyFindings []string
+	}{
+		{name: "the guest", scope: chatRole(clinicB, g.role), msgs: guestMsgs, files: guestFiles},
+		{name: "the guest in inA", scope: chatRole(clinicB, g.role), only: g.conv["inA"], onlyFindings: g.pickOf(guestMsgs, g.second)},
+		{name: "the guest in their side thread", scope: chatRole(clinicB, g.role), only: g.conv["staffA"], onlyFindings: g.pickOf(guestMsgs, g.msg["staffA"])},
+		{name: "the guest in the side thread without them", scope: chatRole(clinicB, g.role), only: g.without},
+		{name: "the guest's search role without their role", scope: map[string]string{"app.organization_id": clinicB, "app.chat_practitioner_role_id": g.role}},
+		{name: "the guest's role with clinic A", scope: chatRole(clinicA, g.role)},
+		{name: "the treating doctor", scope: chatRole(clinicA, g.dir[clinicA].role), msgs: doctorMsgs, files: doctorFiles},
+		{name: "the treating doctor's search role without their role", scope: map[string]string{"app.organization_id": clinicA,
+			"app.chat_practitioner_role_id": g.dir[clinicA].role}},
+		{name: "the treating doctor's search role with another role", scope: map[string]string{"app.organization_id": clinicA,
+			"app.chat_practitioner_role_id": g.dir[clinicA].role, "app.practitioner_role_id": g.role}},
+	} {
+		if tt.only != "" {
+			if got := idsWith(t, app, tt.scope, search, tt.only); !slices.Equal(got, tt.onlyFindings) {
+				t.Errorf("%s: finds %v, want %v", tt.name, got, tt.onlyFindings)
+			}
+			continue
+		}
+		if got := idsWith(t, app, tt.scope, search, ""); !slices.Equal(got, tt.msgs) {
+			t.Errorf("%s: finds %v, want %v", tt.name, got, tt.msgs)
+		}
+		if got := idsIn(t, app, tt.scope, `SELECT id::text FROM communication`); !slices.Equal(got, tt.msgs) {
+			t.Errorf("%s: reads the messages %v, want %v", tt.name, got, tt.msgs)
+		}
+		if got := idsIn(t, app, tt.scope, `SELECT id::text FROM "binary"`); !slices.Equal(got, tt.files) {
+			t.Errorf("%s: reads the files %v, want %v", tt.name, got, tt.files)
+		}
+	}
+}
+
+// pickOf is want when it holds id, else nothing.
+func (guestFiles) pickOf(want []string, id string) []string {
+	if slices.Contains(want, id) {
+		return []string{id}
+	}
+	return nil
 }

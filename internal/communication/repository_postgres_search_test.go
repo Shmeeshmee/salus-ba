@@ -68,6 +68,26 @@ func TestPostgres_SearchReturnsOnlyTheMessagesTheCallerMayRead(t *testing.T) {
 	}
 }
 
+// A doctor of another clinic (SAL-28) searches on Postgres only while granted, as an active participant: the
+// conversation and the side threads they take part in; nothing while pending, after a decline, a revocation of
+// either consent or a removal (SAL-30 after SAL-28, finding 7).
+func TestPostgres_AGuestSearchesOnlyWhileGranted(t *testing.T) {
+	t.Parallel()
+	for _, state := range []string{searchPending, searchGranted, searchDeclined, searchChatRevoked, searchCareRevoked, searchRemoved} {
+		t.Run(state, func(t *testing.T) {
+			t.Parallel()
+			f, owner := pgGroupFixture(t)
+			g := newGuestSearch(t, f, state)
+			if state == searchCareRevoked {
+				if _, err := owner.Exec(t.Context(), `UPDATE consent SET status = 'inactive', revoked_at = now() WHERE patient_id = $1`, patientA); err != nil {
+					t.Fatal(err)
+				}
+			}
+			g.check(t, state)
+		})
+	}
+}
+
 // A search is planned for its own query and conversation every time (plan_cache_mode force_custom_plan, for the
 // rest of its transaction): a generic plan cannot see that a conversation holds 100 000 messages and reads every
 // one's text vector where the index of the word reads twenty (make bench-chat, docs/plans/chat.PROGRESS.md).

@@ -133,7 +133,9 @@ func (s *Service) readableResults(ctx context.Context, w who, msgs []Message) ([
 	return out, nil
 }
 
-// readsFrom is the number after which the caller reads the conversation id, or -1 when they may not read it.
+// readsFrom is the number after which the caller reads the conversation id, or -1 when they may not read it: as
+// enter decides, an active participant under the care consent, or a doctor of another clinic whose invitation the
+// patient granted.
 func (s *Service) readsFrom(ctx context.Context, w who, id string) (int64, error) {
 	conv, err := s.Repo.Conversation(ctx, id, false)
 	switch {
@@ -151,7 +153,14 @@ func (s *Service) readsFrom(ctx context.Context, w who, id string) (int64, error
 	if err != nil {
 		return 0, err
 	}
-	if !access.ReadsChat(w.viewer, access.Facts{Patient: conv.PatientID, Clinic: conv.OrganizationID, Consent: state}, in) {
+	facts := access.Facts{Patient: conv.PatientID, Clinic: conv.OrganizationID, Consent: state}
+	granted := false
+	if !w.patient() && w.viewer.Clinic != conv.OrganizationID && in { // a doctor of another clinic (SAL-28), as enter
+		if granted, err = s.ChatConsents.ChatGranted(ctx, root(conv), w.role); err != nil {
+			return 0, err
+		}
+	}
+	if !access.ReadsChat(w.viewer, facts, in) && !access.GuestChat(w.viewer, facts, granted) {
 		return -1, nil
 	}
 	return part.HistoryFromSeq, nil

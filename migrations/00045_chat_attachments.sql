@@ -15,9 +15,12 @@
 --   - a scope with app.conversation_id set sees, inserts and attaches that conversation's files when it sees the
 --     conversation (the clinic's needs the active care consent); an insert names one of its active participants and
 --     the conversation's clinic and patient;
---   - the practitioner role's scope (app.chat_practitioner_role_id with app.organization_id, no account, for the
---     search across a doctor's conversations) reads the messages of the conversations the role takes part in while the
---     consent is active, those after its history_from_seq only, and their files, with its own uploads not sent yet;
+--   - the search's scope (app.chat_practitioner_role_id with app.organization_id, no account, for the search across a
+--     doctor's conversations, and with 00044's app.practitioner_role_id set to the same role) reads the
+--     messages of the conversations the role takes part in as an active participant of the scope's clinic (never a
+--     pending invitation, SAL-28), those after its history_from_seq only, and their files, with its own uploads not
+--     sent yet; which conversations the scope sees at all is their policies' (00041 and 00044): the clinic's own while
+--     the care consent is active, a doctor of another clinic's those granted to them and their side threads;
 --   - the scan job's scope (app.binary_conversation_id with app.organization_id) reads and updates the files of that
 --     one conversation, whatever the consent.
 -- The questionnaire files' policies binary_own and binary_own_delete now name their kind of parent, so a patient sees
@@ -96,6 +99,9 @@ CREATE POLICY binary_chat_practitioner ON "binary" FOR SELECT
            AND EXISTS (SELECT 1 FROM conversation_participant p
                        WHERE p.conversation_id = "binary".conversation_id
                          AND p.practitioner_role_id = NULLIF(current_setting('app.chat_practitioner_role_id', true), '')::uuid
+                         AND p.practitioner_role_id = NULLIF(current_setting('app.practitioner_role_id', true), '')::uuid
+                         AND p.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                         AND p.status = 'active'
                          AND p.removed_at IS NULL
                          AND CASE WHEN "binary".communication_id IS NULL THEN "binary".conversation_participant_id = p.id
                              ELSE EXISTS (SELECT 1 FROM communication m
@@ -149,13 +155,17 @@ ALTER TABLE communication
         AND sender_role <> 'system' AND system_code IS NULL
         AND ((body IS NOT NULL AND char_length(body) BETWEEN 1 AND 4000) OR (body IS NULL AND attachment_count > 0))));
 
--- The practitioner role's scope, for the search across a doctor's conversations: read only.
+-- The search's scope, for the search across a doctor's conversations: read only; an active participant of the scope's
+-- clinic, in a conversation its policies show (the participants follow the conversation, 00041).
 CREATE POLICY communication_practitioner ON communication FOR SELECT
     USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
            AND NULLIF(current_setting('app.account_id', true), '') IS NULL
            AND EXISTS (SELECT 1 FROM conversation_participant p
                        WHERE p.conversation_id = communication.conversation_id
                          AND p.practitioner_role_id = NULLIF(current_setting('app.chat_practitioner_role_id', true), '')::uuid
+                         AND p.practitioner_role_id = NULLIF(current_setting('app.practitioner_role_id', true), '')::uuid
+                         AND p.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                         AND p.status = 'active'
                          AND p.removed_at IS NULL
                          AND communication.seq > p.history_from_seq));
 
@@ -172,8 +182,11 @@ CREATE INDEX communication_search ON communication USING gin (to_tsvector('publi
 -- 24 s for a doctor in 50 000 conversations, make bench-chat), so this function, owned by the schema owner and
 -- SECURITY DEFINER, decides itself what the scope may read, as the policies do: the patient (app.patient_id) their
 -- conversations but no doctor-only one; the practitioner role (app.chat_practitioner_role_id with app.organization_id,
--- no patient or account) the conversations it takes part in, after its history_from_seq, while the consent is active;
--- nothing else. The app then reads the rows by these keys through the policies. EXECUTE plans each query for its own
+-- no patient or account) the conversations it takes part in as an active participant of that clinic (never a pending
+-- invitation), after its history_from_seq, while the care consent with the conversation's clinic is active: the
+-- clinic's own conversations and side threads, and for a doctor of another clinic (SAL-28) those of a conversation
+-- whose chat consent for the role is active and which the role still takes part in, as chat_guest_conversations and
+-- chat_guest_in_thread decide (only the side threads the role is a participant of); nothing else. The app then reads the rows by these keys through the policies. EXECUTE plans each query for its own
 -- values (a generic plan cannot see a conversation of 100 000 messages).
 -- +goose StatementBegin
 CREATE FUNCTION communication_search(q tsquery, only_conversation uuid, lim integer)
@@ -187,9 +200,26 @@ AS $$
 DECLARE
     patient uuid := NULLIF(current_setting('app.patient_id', true), '')::uuid;
     org uuid := NULLIF(current_setting('app.organization_id', true), '')::uuid;
-    role uuid := NULLIF(current_setting('app.chat_practitioner_role_id', true), '')::uuid;
+    -- The search's role, only when it is the scope's role too (00044's, which the policies of a guest read).
+    role uuid := CASE WHEN current_setting('app.chat_practitioner_role_id', true) = current_setting('app.practitioner_role_id', true)
+                      THEN NULLIF(current_setting('app.chat_practitioner_role_id', true), '')::uuid END;
     account text := NULLIF(current_setting('app.account_id', true), '');
     newest timestamptz;
+    -- The conversations the role reads, with its history_from_seq: $1 the role, $2 its clinic, $4 one conversation.
+    readable constant text :=
+        'SELECT p.conversation_id, p.history_from_seq, c.last_sent_at FROM public.conversation_participant p
+         JOIN public.conversation c ON c.id = p.conversation_id
+         WHERE p.practitioner_role_id = $1 AND p.organization_id = $2 AND p.status = ''active'' AND p.removed_at IS NULL
+           AND ($4::uuid IS NULL OR c.id = $4)
+           AND EXISTS (SELECT 1 FROM public.consent k
+                       WHERE k.patient_id = c.patient_id AND k.organization_id = c.organization_id AND k.status = ''active'')
+           AND (c.organization_id = $2
+                OR EXISTS (SELECT 1 FROM public.chat_consent g
+                           JOIN public.conversation_participant q
+                             ON q.conversation_id = g.conversation_id AND q.practitioner_role_id = g.practitioner_role_id
+                           WHERE g.conversation_id = coalesce(c.parent_id, c.id) AND g.practitioner_role_id = $1
+                             AND g.practitioner_organization_id = $2 AND g.status = ''active''
+                             AND q.organization_id = $2 AND q.status = ''active'' AND q.removed_at IS NULL))';
     span interval;
     ids uuid[];
     ats timestamptz[];
@@ -208,20 +238,11 @@ BEGIN
     ELSIF account IS NULL AND org IS NOT NULL AND role IS NOT NULL THEN
         -- Newest first across many conversations: the last 7 days of the newest readable message, then 90, then all,
         -- until lim are found, so a word in many messages reads one window's, not the whole history's.
-        EXECUTE
-            'SELECT max(c.last_sent_at) FROM public.conversation_participant p
-             JOIN public.conversation c ON c.id = p.conversation_id
-             WHERE p.practitioner_role_id = $1 AND p.removed_at IS NULL AND c.organization_id = $2 AND ($3::uuid IS NULL OR c.id = $3)'
-            INTO newest USING role, org, only_conversation;
+        EXECUTE 'SELECT max(r.last_sent_at) FROM (' || readable || ') r'
+            INTO newest USING role, org, q, only_conversation;
         FOREACH span IN ARRAY ARRAY[interval '7 days', interval '90 days', NULL] LOOP
             EXECUTE
-                'WITH readable AS (
-                     SELECT p.conversation_id, p.history_from_seq FROM public.conversation_participant p
-                     JOIN public.conversation c ON c.id = p.conversation_id
-                     WHERE p.practitioner_role_id = $1 AND p.removed_at IS NULL AND c.organization_id = $2
-                       AND ($4::uuid IS NULL OR c.id = $4)
-                       AND EXISTS (SELECT 1 FROM public.consent k
-                                   WHERE k.patient_id = c.patient_id AND k.organization_id = c.organization_id AND k.status = ''active'')),
+                'WITH readable AS (' || readable || '),
                  found AS (
                      SELECT m.id, m.sent_at, m.seq FROM public.communication m
                      JOIN readable r ON r.conversation_id = m.conversation_id AND m.seq > r.history_from_seq
