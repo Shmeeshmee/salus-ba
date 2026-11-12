@@ -1,0 +1,128 @@
+{
+  "title": "Poruke",
+  "empty": "Još nema razgovora.",
+  "loadFailed": "Razgovori se nisu mogli učitati.",
+  "more": "Prikaži više",
+  "patient": "Pacijent",
+  "aDoctor": "Liječnik",
+  "you": "Vi",
+  "unread": "{n, plural, one {# nepročitana poruka} few {# nepročitane poruke} other {# nepročitanih poruka}}",
+  "noMessages": "Još nema poruka.",
+  "staffOnly": "Samo liječnici",
+  "staffOnlyNote": {
+    "defaultMessage": "Ovu temu vide samo liječnici. Pacijent je ne vidi.",
+    "description": "legal"
+  },
+  "back": "Sve poruke",
+  "toParent": "Natrag na razgovor",
+  "conversationFailed": "Razgovor se nije mogao učitati.",
+  "olderLoading": "Učitavanje ranijih poruka",
+  "olderFailed": "Ranije poruke nisu se mogle učitati.",
+  "start": "Ovo je početak razgovora.",
+  "edited": "Uređeno",
+  "history": "Razgovor",
+  "doctors": "{n, plural, one {# liječnik} few {# liječnika} other {# liječnika}}",
+  "pending": {
+    "defaultMessage": "Čeka se privola pacijenta",
+    "description": "legal"
+  },
+  "remove": "Ukloni iz razgovora: {name}",
+  "removeFailed": "Liječnik se nije mogao ukloniti.",
+  "composer.label": "Poruka",
+  "composer.send": "Pošalji",
+  "composer.sending": "Slanje",
+  "composer.attach": "Priloži datoteku",
+  "composer.failed": "Poruka nije poslana.",
+  "composer.retry": "Pokušaj ponovno",
+  "composer.removeFile": "Ukloni {name}",
+  "composer.uploadFailed": "Datoteka {name} nije se mogla prenijeti.",
+  "ended.consent_required": {
+    "defaultMessage": "Pacijentova privola za liječenje prestala je, pa je ovaj razgovor zatvoren.",
+    "description": "legal"
+  },
+  "ended.forbidden": "Više nemate pristup ovom razgovoru.",
+  "ended.not_found": "Ovaj razgovor više nije dostupan.",
+  "ended.unauthenticated": "Vaša je sesija završena. Ponovno se prijavite za nastavak.",
+  "system.participant_added": "U razgovor je dodan liječnik: {name}.",
+  "system.participant_added.anonymous": "U razgovor je dodan liječnik.",
+  "system.participant_invited": {
+    "defaultMessage": "Pozvan je liječnik: {name}. Pridružuje se kad pacijent da privolu.",
+    "description": "legal"
+  },
+  "system.participant_invited.anonymous": {
+    "defaultMessage": "Pozvan je liječnik. Pridružuje se kad pacijent da privolu.",
+    "description": "legal"
+  },
+  "system.participant_removed": "Iz razgovora je uklonjen liječnik: {name}.",
+  "system.participant_removed.anonymous": "Iz razgovora je uklonjen liječnik.",
+  "system.consent_granted": {
+    "defaultMessage": "Pacijent je dao privolu da se razgovoru pridruži liječnik: {name}.",
+    "description": "legal"
+  },
+  "system.consent_granted.anonymous": {
+    "defaultMessage": "Pacijent je dao privolu da se razgovoru pridruži liječnik.",
+    "description": "legal"
+  },
+  "system.consent_declined": {
+    "defaultMessage": "Pacijent nije dao privolu da se razgovoru pridruži liječnik: {name}.",
+    "description": "legal"
+  },
+  "system.consent_declined.anonymous": {
+    "defaultMessage": "Pacijent nije dao privolu da se razgovoru pridruži liječnik.",
+    "description": "legal"
+  },
+  "system.other": "Razgovor je promijenjen.",
+  "system.reason": "Razlog: {reason}",
+  "reason.second_opinion": "Drugo mišljenje",
+  "reason.specialist_review": "Mišljenje specijalista",
+  "reason.handover": "Primopredaja pacijenta",
+  "add.open": "Dodaj liječnika",
+  "add.title": "Dodaj liječnika",
+  "add.doctor": "Liječnik",
+  "add.ownClinic": "Liječnici vaše klinike.",
+  "add.noDoctors": "Svi liječnici klinike već sudjeluju.",
+  "add.reason": "Razlog",
+  "add.history": "Što može čitati",
+  "add.full": "Cijeli razgovor",
+  "add.from": "Od određene poruke nadalje",
+  "add.fromMessage": "Prva poruka koju čita",
+  "add.messageOption": "{time}: {text}",
+  "add.attachmentOnly": "Datoteka",
+  "add.submit": "Dodaj",
+  "add.adding": "Dodavanje",
+  "add.cancel": "Odustani",
+  "add.failed": "Liječnik se nije mogao dodati.",
+  "threads.open": "Teme samo za liječnike",
+  "threads.title": "Teme samo za liječnike",
+  "threads.note": {
+    "defaultMessage": "Pacijent ih ne vidi.",
+    "description": "legal"
+  },
+  "threads.none": "Još nema tema.",
+  "threads.start": "Započni temu",
+  "threads.failed": "Teme se nisu mogle učitati.",
+  "threads.startFailed": "Tema se nije mogla započeti.",
+  "threads.item": "Tema od {time}",
+  "threads.close": "Zatvori",
+  "attachment.scanning": "{name}: provjera datoteke",
+  "attachment.rejected": "{name}: blokirano provjerom zlonamjernog softvera",
+  "attachment.open": "Otvori {name}",
+  "attachment.close": "Zatvori",
+  "summary.button": "Sažmi",
+  "summary.loading": "Izrada sažetka",
+  "summary.hint": "AI sažetak napisanoga. Nije dijagnoza.",
+  "summary.label": "Generirano pomoću AI",
+  "summary.heading": "Sažetak razgovora",
+  "summary.meta": "Generirano u {time}, do poruke {n}. Poruke ispod nisu promijenjene.",
+  "summary.dismiss": "Zatvori sažetak",
+  "summary.failed": "Sažetak se nije mogao izraditi.",
+  "error.forbidden": "Ovo ne možete učiniti u ovom razgovoru.",
+  "error.consent_required": {
+    "defaultMessage": "Pacijentova privola za liječenje nije aktivna.",
+    "description": "legal"
+  },
+  "error.not_found": "Ovaj razgovor više nije dostupan.",
+  "error.rate_limited": "Previše poruka odjednom. Pričekajte trenutak i pokušajte ponovno.",
+  "error.too_large": "Datoteka je prevelika.",
+  "error.unsupported_type": "Ova se vrsta datoteke ne može poslati."
+}

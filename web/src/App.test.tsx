@@ -32,6 +32,7 @@ const staff = (account: Account): Record<string, Route> => ({
   'GET /fhir/R4/Questionnaire': emptyBundle,
   'GET /invites': () => Response.json({ invites: [] }),
   'GET /specialties': () => Response.json({ specialties: [] }),
+  'GET /conversations': () => Response.json({ conversations: [] }),
   [`GET /fhir/R4/Organization/${org}`]: organization,
 })
 
@@ -71,6 +72,7 @@ describe('App', () => {
     ['Working hours', '/availability'],
     ['Practitioners', '/practitioners'],
     ['Questionnaires', '/questionnaires'],
+    ['Messages', '/chats'],
   ])('gives staff the calendar and %s', async (screenName, path) => {
     renderAt('/', staff({ ...admin, role: 'practitioner', practitionerId: 'a3000000-0000-4000-8000-0000000000a1' }))
 

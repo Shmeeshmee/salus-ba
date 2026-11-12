@@ -1,0 +1,128 @@
+{
+  "title": "Messages",
+  "empty": "No conversations yet.",
+  "loadFailed": "The conversations could not be loaded.",
+  "more": "Show more",
+  "patient": "Patient",
+  "aDoctor": "A doctor",
+  "you": "You",
+  "unread": "{n, plural, one {# unread message} other {# unread messages}}",
+  "noMessages": "No messages yet.",
+  "staffOnly": "Doctors only",
+  "staffOnlyNote": {
+    "defaultMessage": "Only doctors see this thread. It is not visible to the patient.",
+    "description": "legal"
+  },
+  "back": "All messages",
+  "toParent": "Back to the conversation",
+  "conversationFailed": "The conversation could not be loaded.",
+  "olderLoading": "Loading earlier messages",
+  "olderFailed": "Earlier messages could not be loaded.",
+  "start": "This is the start of the conversation.",
+  "edited": "Edited",
+  "history": "Conversation",
+  "doctors": "{n, plural, one {# doctor} other {# doctors}}",
+  "pending": {
+    "defaultMessage": "Waiting for the patient's consent",
+    "description": "legal"
+  },
+  "remove": "Remove {name}",
+  "removeFailed": "The doctor could not be removed.",
+  "composer.label": "Message",
+  "composer.send": "Send",
+  "composer.sending": "Sending",
+  "composer.attach": "Attach a file",
+  "composer.failed": "The message was not sent.",
+  "composer.retry": "Try again",
+  "composer.removeFile": "Remove {name}",
+  "composer.uploadFailed": "{name} could not be uploaded.",
+  "ended.consent_required": {
+    "defaultMessage": "The patient's consent for care has ended, so this conversation is closed.",
+    "description": "legal"
+  },
+  "ended.forbidden": "You no longer have access to this conversation.",
+  "ended.not_found": "This conversation is no longer available.",
+  "ended.unauthenticated": "Your session has ended. Sign in again to continue.",
+  "system.participant_added": "{name} joined the conversation.",
+  "system.participant_added.anonymous": "A doctor joined the conversation.",
+  "system.participant_invited": {
+    "defaultMessage": "{name} was invited and joins once the patient consents.",
+    "description": "legal"
+  },
+  "system.participant_invited.anonymous": {
+    "defaultMessage": "A doctor was invited and joins once the patient consents.",
+    "description": "legal"
+  },
+  "system.participant_removed": "{name} was removed from the conversation.",
+  "system.participant_removed.anonymous": "A doctor was removed from the conversation.",
+  "system.consent_granted": {
+    "defaultMessage": "The patient agreed that {name} joins the conversation.",
+    "description": "legal"
+  },
+  "system.consent_granted.anonymous": {
+    "defaultMessage": "The patient agreed that a doctor joins the conversation.",
+    "description": "legal"
+  },
+  "system.consent_declined": {
+    "defaultMessage": "The patient declined that {name} joins the conversation.",
+    "description": "legal"
+  },
+  "system.consent_declined.anonymous": {
+    "defaultMessage": "The patient declined that a doctor joins the conversation.",
+    "description": "legal"
+  },
+  "system.other": "The conversation was changed.",
+  "system.reason": "Reason: {reason}",
+  "reason.second_opinion": "Second opinion",
+  "reason.specialist_review": "Specialist review",
+  "reason.handover": "Handover",
+  "add.open": "Add a doctor",
+  "add.title": "Add a doctor",
+  "add.doctor": "Doctor",
+  "add.ownClinic": "Doctors of your clinic.",
+  "add.noDoctors": "Every doctor of the clinic already takes part.",
+  "add.reason": "Reason",
+  "add.history": "What they can read",
+  "add.full": "The whole conversation",
+  "add.from": "From a message on",
+  "add.fromMessage": "First message they read",
+  "add.messageOption": "{time}: {text}",
+  "add.attachmentOnly": "File",
+  "add.submit": "Add",
+  "add.adding": "Adding",
+  "add.cancel": "Cancel",
+  "add.failed": "The doctor could not be added.",
+  "threads.open": "Doctor-only threads",
+  "threads.title": "Doctor-only threads",
+  "threads.note": {
+    "defaultMessage": "Not visible to the patient.",
+    "description": "legal"
+  },
+  "threads.none": "No threads yet.",
+  "threads.start": "Start a thread",
+  "threads.failed": "The threads could not be loaded.",
+  "threads.startFailed": "The thread could not be started.",
+  "threads.item": "Thread from {time}",
+  "threads.close": "Close",
+  "attachment.scanning": "{name}: checking the file",
+  "attachment.rejected": "{name}: blocked by the malware check",
+  "attachment.open": "Open {name}",
+  "attachment.close": "Close",
+  "summary.button": "Summarize",
+  "summary.loading": "Summarizing",
+  "summary.hint": "An AI generated summary of what was written. It is not a diagnosis.",
+  "summary.label": "AI generated",
+  "summary.heading": "Summary of the conversation",
+  "summary.meta": "Generated {time}, up to message {n}. The messages below are unchanged.",
+  "summary.dismiss": "Dismiss the summary",
+  "summary.failed": "The summary could not be generated.",
+  "error.forbidden": "You may not do this in this conversation.",
+  "error.consent_required": {
+    "defaultMessage": "The patient's consent for care is not active.",
+    "description": "legal"
+  },
+  "error.not_found": "This conversation is no longer available.",
+  "error.rate_limited": "Too many messages at once. Wait a moment and try again.",
+  "error.too_large": "The file is too large.",
+  "error.unsupported_type": "This type of file cannot be sent."
+}
