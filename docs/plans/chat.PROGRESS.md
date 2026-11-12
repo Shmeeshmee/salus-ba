@@ -79,6 +79,9 @@ Needs a contract change (reported, not made):
 - An `attachment_scanned` frame (or a `message_edited` with the new statuses) when a file's scan ends, so the apps need not
   read the page again to see a thumbnail or a rejection. Today the scan job (`binary`, the worker) does not publish on
   the chat's channel.
+- A `DELETE /conversations/{id}/attachments/{attachment_id}` for an upload removed before it is sent. The contract of
+  wave 1 has none; today such an upload stays the uploader's alone, is never shown to anyone, and is deleted 24 h after
+  its upload by `binary`'s retention.
 
 Copy waiting for the owner: none. The backend adds no user-facing string; the new error codes (`scanning`,
 `unsupported_type`, `too_large`, `length_required` on the chat's routes) are binary's, rendered by the apps (SAL-31).
