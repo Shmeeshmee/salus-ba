@@ -119,7 +119,10 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		kek:   kek,
 	}, fhirBase, log)
 	chatAPI, chatStream, chatHub := newChat(chatPorts{db: pool, rdb: rdb, audit: audit, tx: tx, consents: consents,
-		visits: appointment.NewFacts(appointmentRepo), roles: roles, encounters: encounters, caller: appointmentCaller(accounts, patients), active: authHandler.Active}, log)
+		visits: appointment.NewFacts(appointmentRepo), roles: roles, encounters: encounters, caller: appointmentCaller(accounts, patients), active: authHandler.Active,
+		files: newChatFiles(pool, binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID,
+			files.SecretAccessKey, s3PageSize), kek, jobs, tx),
+		terms: terminology.NewService(terminology.NewPostgresRepository(pool), nil), language: uiLanguage(accounts)}, log)
 
 	h := router.New(router.Config{
 		Logger:  log,

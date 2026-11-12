@@ -3,6 +3,7 @@ package worker_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/png"
 	"testing"
@@ -116,4 +117,27 @@ func TestBinaryScan_RejectsAChatFileItCannotScanOnTheLastAttempt(t *testing.T) {
 		t.Errorf("the file is %s, want rejected", status)
 	}
 	checkFilesLog(t, logs, b, `"msg":"binary scan done","binary_id":"`+f.id+`","result":"unscannable"`)
+}
+
+// An infected chat file (the EICAR test string in a PDF) is rejected by clamd and its object deleted: its message
+// never opens it (SAL-30, acceptance).
+func TestBinaryScan_RejectsAnInfectedChatFile(t *testing.T) {
+	t.Parallel()
+	db := newLogins(t)
+	b := seedBooking(t, db.owner)
+	files := testFiles(t)
+	f := seedChatFile(t, db, b, files, pdfWith(eicar()), "application/pdf")
+
+	ended, logs := runFilesJob(t, db, files, binary.ScanArgs{BinaryID: f.id, ConversationID: f.conversation, OrganizationID: clinicID}, scanQueue)
+
+	if ended != river.EventKindJobCompleted {
+		t.Fatalf("the job ended %s, want completed:\n%s", ended, logs)
+	}
+	if status, thumbnail := chatScanState(t, db, f); status != "rejected" || thumbnail {
+		t.Errorf("the file is %s (thumbnail %v), want rejected without one", status, thumbnail)
+	}
+	if _, err := files.Store.GetRange(t.Context(), f.id, 0, 0); !errors.Is(err, binary.ErrObjectNotFound) {
+		t.Errorf("the rejected file's object: %v, want ErrObjectNotFound", err)
+	}
+	checkFilesLog(t, logs, b, `"result":"rejected","signature":"Eicar-Signature"`)
 }

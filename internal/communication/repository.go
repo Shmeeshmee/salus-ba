@@ -51,6 +51,27 @@ type Repository interface {
 	// AddPartitions creates the monthly partitions of the messages from the month of from for months months,
 	// skipping those that exist (communication_add_partitions).
 	AddPartitions(ctx context.Context, from time.Time, months int) error
+
+	// SetPractitionerRole scopes the transaction to the conversations the practitioner role takes part in, for a
+	// search across them (app.chat_practitioner_role_id, migration 00044): their messages after the role's
+	// history_from_seq, while the care consent is active. Read only.
+	SetPractitionerRole(ctx context.Context, id string) error
+	// SearchConversation returns up to limit of the conversation's messages of numbers above fromSeq whose body
+	// matches query (a to_tsquery of chat_search), newest first.
+	SearchConversation(ctx context.Context, conversationID, query string, fromSeq int64, limit int) ([]Message, error)
+	// Search returns up to limit of the messages the scope shows whose body matches query, newest first.
+	Search(ctx context.Context, query string, limit int) ([]Message, error)
+}
+
+// Presence holds what the conversation's participants show each other live and nobody stores (owner, 2026-11-12;
+// SAL-30): in Redis, every key with a TTL.
+type Presence interface {
+	// AllowTyping reports whether the participant may announce typing now: at most once per TypingEvery.
+	AllowTyping(ctx context.Context, conversationID, participantID string) (bool, error)
+	// SetReceipt keeps how far the participant has read, never lower than before, for ReceiptTTL.
+	SetReceipt(ctx context.Context, conversationID, participantID string, seq int64) error
+	// Receipts returns how far each participant has read, as kept, by participant id.
+	Receipts(ctx context.Context, conversationID string) (map[string]int64, error)
 }
 
 // ListFilter selects the caller's conversations: by PatientID for a patient, by PractitionerRoleID for a

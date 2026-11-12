@@ -34,11 +34,15 @@ func (s *Service) Messages(ctx context.Context, c Caller, id string, before *Cur
 			page.Next = &next
 		}
 		page.Messages = msgs
+		if err := s.withAttachments(ctx, msgs); err != nil {
+			return err
+		}
 		return s.record(ctx, c, auditevent.ActionRead, auditevent.CodeRead, "Patient/"+e.conv.PatientID, entityCommunication, int64(len(msgs)))
 	})
 	if err != nil {
 		return Page{}, wrap("messages", s.refusal(ctx, c, id, err))
 	}
+	s.withTerms(ctx, c, page.Messages)
 	return page, nil
 }
 
@@ -51,9 +55,11 @@ const IdempotencyWindow = 24 * time.Hour
 // "Ordering", "Idempotent send"). Under the conversation's lock it finds a repeat of the client's id first, within
 // IdempotencyWindow, and returns that message, unchanged and not published again; otherwise the message gets the next number and a time
 // that never goes back, the sender has read it, the write is audited, and after the commit it goes to the live
-// channel. ErrInvalid for a body or client id the contract refuses; access as enter's for a write.
-func (s *Service) Send(ctx context.Context, c Caller, id, clientMessageID, body string) (Message, bool, error) {
-	body, err := normalizeBody(body)
+// channel. With attachmentIDs (SAL-30) the body may be empty: the sender's uploads to the conversation, neither
+// attached nor rejected, are attached to the message in its transaction. ErrInvalid for a body, client id or files
+// the contract refuses; access as enter's for a write.
+func (s *Service) Send(ctx context.Context, c Caller, id, clientMessageID, body string, attachmentIDs ...string) (Message, bool, error) {
+	body, err := normalizeSend(body, attachmentIDs)
 	if err != nil {
 		return Message{}, false, err
 	}
@@ -70,6 +76,9 @@ func (s *Service) Send(ctx context.Context, c Caller, id, clientMessageID, body 
 		out, err = s.Repo.MessageByClientID(ctx, id, e.part.ID, clientMessageID, e.conv.LastSentAt.Add(-IdempotencyWindow))
 		switch {
 		case err == nil: // a repeat: the stored message is read back, and that read is audited
+			if err := s.withAttachmentsOf(ctx, &out); err != nil {
+				return err
+			}
 			return s.record(ctx, c, auditevent.ActionRead, auditevent.CodeRead, "Communication/"+out.ID, "", 0)
 		case !errors.Is(err, ErrNotFound):
 			return err
@@ -82,8 +91,12 @@ func (s *Service) Send(ctx context.Context, c Caller, id, clientMessageID, body 
 			SentAt: sent, ConversationID: id, OrganizationID: e.conv.OrganizationID, PatientID: e.conv.PatientID,
 			StaffOnly: e.conv.StaffOnly, Seq: e.conv.LastSeq + 1, SenderParticipantID: e.part.ID, SenderAccountID: c.AccountID,
 			SenderRole: e.part.Role, ClientMessageID: clientMessageID, Kind: KindText, Body: body, VersionID: 1,
+			AttachmentCount: len(attachmentIDs),
 		})
 		if err != nil {
+			return err
+		}
+		if err := s.attach(ctx, &out, attachmentIDs); err != nil {
 			return err
 		}
 		if err := s.Repo.Advance(ctx, id, out.Seq, out.SentAt); err != nil {
@@ -101,6 +114,7 @@ func (s *Service) Send(ctx context.Context, c Caller, id, clientMessageID, body 
 	if created {
 		s.publish(ctx, MessageType, out)
 	}
+	s.withTermsOf(ctx, c, &out)
 	return out, created, nil
 }
 
@@ -128,7 +142,7 @@ func (s *Service) Edit(ctx context.Context, c Caller, id, messageID, body string
 			return err
 		case m.Seq <= e.fromSeq():
 			return ErrNotFound
-		case m.Kind != KindText || m.SenderParticipantID != e.part.ID:
+		case m.Kind != KindText || m.SenderParticipantID != e.part.ID || m.Body == "": // files alone have no body to edit
 			return ErrForbidden
 		case m.VersionID != version:
 			return ErrVersionConflict
@@ -138,6 +152,9 @@ func (s *Service) Edit(ctx context.Context, c Caller, id, messageID, body string
 		if err := s.Repo.UpdateBody(ctx, m); err != nil {
 			return err
 		}
+		if err := s.withAttachmentsOf(ctx, &m); err != nil {
+			return err
+		}
 		out = m
 		return s.record(ctx, c, auditevent.ActionUpdate, auditevent.CodeUpdate, "Communication/"+m.ID, "", 0)
 	})
@@ -145,6 +162,7 @@ func (s *Service) Edit(ctx context.Context, c Caller, id, messageID, body string
 		return Message{}, wrap("edit", s.refusal(ctx, c, id, err))
 	}
 	s.publish(ctx, MessageEditedType, out)
+	s.withTermsOf(ctx, c, &out)
 	return out, nil
 }
 
@@ -179,11 +197,12 @@ func (s *Service) Revisions(ctx context.Context, c Caller, id, messageID string)
 
 // MarkRead moves the caller's read position in the conversation to seq (owner, 2026-11-12); it never goes back,
 // and seq is at most the conversation's last message. Not audited: the position is the reader's own, not the
-// patient's data.
+// patient's data. A position that moved goes to the others as a receipt, ephemeral (SAL-30).
 func (s *Service) MarkRead(ctx context.Context, c Caller, id string, seq int64) error {
+	var e entered
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		e, err := s.enter(ctx, c, id, false, false)
-		if err != nil {
+		var err error
+		if e, err = s.enter(ctx, c, id, false, false); err != nil {
 			return err
 		}
 		if seq < 0 || seq > e.conv.LastSeq {
@@ -191,5 +210,8 @@ func (s *Service) MarkRead(ctx context.Context, c Caller, id string, seq int64) 
 		}
 		return s.Repo.MarkRead(ctx, e.part.ID, seq)
 	})
+	if err == nil && seq > e.part.ReadSeq {
+		s.receipt(ctx, id, e.part.ID, seq)
+	}
 	return wrap("mark read", s.refusal(ctx, c, id, err))
 }

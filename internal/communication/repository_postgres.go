@@ -39,6 +39,28 @@ func (r *postgresRepository) SetConversation(ctx context.Context, id string) err
 	return postgres.SetLocal(ctx, "app.conversation_id", id)
 }
 
+func (r *postgresRepository) SetPractitionerRole(ctx context.Context, id string) error {
+	return postgres.SetLocal(ctx, "app.chat_practitioner_role_id", id)
+}
+
+func (r *postgresRepository) SearchConversation(ctx context.Context, conversationID, query string, fromSeq int64, limit int) ([]Message, error) {
+	rows, err := r.q(ctx).SearchConversation(ctx, communicationdb.SearchConversationParams{
+		ConversationID: uid(conversationID), FromSeq: fromSeq, Query: query, Lim: int32(limit), //nolint:gosec // SearchSize
+	})
+	if err != nil {
+		return nil, fmt.Errorf("communication: search conversation: %w", err)
+	}
+	return messages(rows)
+}
+
+func (r *postgresRepository) Search(ctx context.Context, query string, limit int) ([]Message, error) {
+	rows, err := r.q(ctx).SearchMessages(ctx, communicationdb.SearchMessagesParams{Query: query, Lim: int32(limit)}) //nolint:gosec // SearchSize
+	if err != nil {
+		return nil, fmt.Errorf("communication: search: %w", err)
+	}
+	return messages(rows)
+}
+
 func (r *postgresRepository) CreateConversation(ctx context.Context, c Conversation, parts []Participant) (Conversation, bool, error) {
 	q := r.q(ctx)
 	row, err := q.CreateConversation(ctx, communicationdb.CreateConversationParams{
@@ -175,6 +197,7 @@ func (r *postgresRepository) InsertMessage(ctx context.Context, m Message) (Mess
 		SenderParticipantID: optUID(m.SenderParticipantID), SenderAccountID: optUID(m.SenderAccountID),
 		ClientMessageID: uid(m.ClientMessageID), Seq: m.Seq, StaffOnly: m.StaffOnly, SenderRole: string(m.SenderRole),
 		Kind: string(m.Kind), Body: text(m.Body), SystemCode: text(m.SystemCode), SystemArgs: args,
+		AttachmentCount: int16(m.AttachmentCount), //nolint:gosec // at most MaxAttachments
 	})
 	if err != nil {
 		return Message{}, fmt.Errorf("communication: insert message: %w", err)
@@ -268,7 +291,7 @@ func message(c communicationdb.Communication) (Message, error) {
 		OrganizationID: str(c.OrganizationID), PatientID: str(c.PatientID), SenderParticipantID: str(c.SenderParticipantID),
 		SenderAccountID: str(c.SenderAccountID), ClientMessageID: str(c.ClientMessageID), Body: c.Body.String,
 		SystemCode: c.SystemCode.String, SenderRole: Role(c.SenderRole), Kind: Kind(c.Kind), Seq: c.Seq, VersionID: c.VersionID,
-		StaffOnly: c.StaffOnly,
+		StaffOnly: c.StaffOnly, AttachmentCount: int(c.AttachmentCount),
 	}
 	if len(c.SystemArgs) > 0 {
 		if err := json.Unmarshal(c.SystemArgs, &m.SystemArgs); err != nil {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -73,6 +74,7 @@ type fixture struct {
 	audit   *fakeAudit
 	pub     *fakePublisher
 	clock   *testClock
+	sal30   sal30Fakes // the files, terms, languages and presence (SAL-30)
 	consent map[string]access.Consent // by patient+clinic
 	visits  map[string][]access.Visit
 	mu      sync.Mutex
@@ -95,10 +97,12 @@ func newFixtureOn(t *testing.T, repo communication.Repository, tx communication.
 	if repo == nil {
 		repo, tx = f.repo, fakeTx{f}
 	}
+	f.sal30 = newSAL30Fakes(f, tx)
 	f.svc = communication.NewService(communication.Ports{
 		Repo: repo, Publisher: f.pub, Consents: fakeConsents{f}, Visits: fakeVisits{f}, Roles: fakeRoles{},
 		Encounters: fakeEncounters{}, Audit: f.audit, Tx: tx, Clock: f.clock,
-		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Log:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Files: f.sal30.files, Terms: f.sal30.terms, Languages: f.sal30.languages, Presence: f.sal30.presence,
 	})
 	return f
 }
@@ -277,7 +281,7 @@ func (p *fakePublisher) published() []wire.Envelope {
 }
 
 // scope is the fake transaction's settings.
-type scope struct{ patient, clinic, conversation string }
+type scope struct{ patient, clinic, conversation, role string }
 
 // fakeRepo keeps the rows in memory and applies the row-level security of migration 00041 that the rules lean on:
 // a patient sees their own conversations but no doctor-only one; a clinic its own; messages only with the
@@ -291,6 +295,7 @@ type fakeRepo struct {
 	revs       map[string][]communication.Revision
 	locks      map[string]*sync.Mutex
 	partitions []string // the AddPartitions calls, "<from>/<months>"
+	queries    []string // the searches' text queries
 	nextID     int
 	clientSeq  int
 	mu         sync.Mutex
@@ -588,4 +593,72 @@ func (r *fakeRepo) AddPartitions(_ context.Context, from time.Time, months int) 
 	}
 	r.partitions = append(r.partitions, fmt.Sprintf("%s/%d", from.Format(time.DateOnly), months))
 	return nil
+}
+
+func (r *fakeRepo) SetPractitionerRole(ctx context.Context, id string) error {
+	txOf(ctx).scope.role = id
+	return nil
+}
+
+// matches is the fake's text search: every word of the query (its 'word':* terms) starts a word of the body, case
+// aside.
+func matches(query, body string) bool {
+	words := strings.Fields(strings.ToLower(body))
+	for _, term := range strings.Split(query, " & ") {
+		w := strings.TrimSuffix(strings.TrimPrefix(term, "'"), "':*")
+		if !slices.ContainsFunc(words, func(b string) bool { return strings.HasPrefix(b, strings.ToLower(w)) }) {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *fakeRepo) SearchConversation(ctx context.Context, id, query string, fromSeq int64, limit int) ([]communication.Message, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.fail(); err != nil {
+		return nil, err
+	}
+	r.queries = append(r.queries, query)
+	if !r.messagesVisible(ctx, id) {
+		return nil, nil
+	}
+	var out []communication.Message
+	all := r.msgs[id]
+	for i := len(all) - 1; i >= 0 && len(out) < limit; i-- {
+		if all[i].Seq > fromSeq && matches(query, all[i].Body) {
+			out = append(out, all[i])
+		}
+	}
+	return out, nil
+}
+
+// Search shows the patient their conversations' messages, but no doctor-only one; the practitioner role's scope the
+// messages after its history_from_seq of the clinic's conversations it takes part in (the consent is the service's
+// and the database's, tested on Postgres).
+func (r *fakeRepo) Search(ctx context.Context, query string, limit int) ([]communication.Message, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.fail(); err != nil {
+		return nil, err
+	}
+	r.queries = append(r.queries, query)
+	sc := txOf(ctx).scope
+	var out []communication.Message
+	for id, msgs := range r.msgs {
+		c := r.convs[id]
+		from, ok := int64(0), sc.patient != "" && c.PatientID == sc.patient && !c.StaffOnly
+		for _, p := range r.parts[id] {
+			if sc.patient == "" && sc.role != "" && sc.clinic == c.OrganizationID && p.PractitionerRoleID == sc.role {
+				from, ok = p.HistoryFromSeq, true
+			}
+		}
+		for _, m := range msgs {
+			if ok && m.Seq > from && matches(query, m.Body) {
+				out = append(out, m)
+			}
+		}
+	}
+	slices.SortFunc(out, func(a, b communication.Message) int { return b.SentAt.Compare(a.SentAt) })
+	return out[:min(len(out), limit)], nil
 }
