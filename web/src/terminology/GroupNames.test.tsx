@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { newApiClient } from '../api/client'
 import type { components } from '../api/schema'
 import { renderInLanguage } from '../i18n/renderInLanguage'
@@ -92,7 +92,8 @@ describe('GroupNames', () => {
     await screen.findByRole('article', { name: 'Other' })
     fireEvent.click(within(card('Other')).getByRole('button', { name: 'Approve' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Someone changed this entry in the meantime. The queue has been reloaded.')
-    expect(fake.requests.filter((r) => r.method === 'GET')).toHaveLength(2)
+    // The reload goes out from an effect after the alert renders, so it is waited for, not counted at once.
+    await vi.waitFor(() => expect(fake.requests.filter((r) => r.method === 'GET')).toHaveLength(2))
   })
 
   it('drops an answer that comes after a switch of language', async () => {
