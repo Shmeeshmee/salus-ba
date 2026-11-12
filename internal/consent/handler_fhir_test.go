@@ -137,3 +137,27 @@ func TestFHIRHandlerRead_SendsAFixedOperationOutcomeOnAnError(t *testing.T) {
 		}
 	}
 }
+
+// The history consent (ADR 0013) is a Consent of its own: information disclosure (v3-ActCode IDSCL) beside the
+// patient consent category, the provision permitting the receiving clinic the disclosure, for treatment, of the
+// listed visits and what refers to them (meaning dependents: their documents, answers and files), and nothing else.
+func TestFHIRHandlerRead_SendsAHistoryConsentWithTheVisitsItShares(t *testing.T) {
+	hc := consent.Consent{ID: consentID, PatientID: patientA, OrganizationID: clinicA, Kind: consent.KindHistory,
+		Status: consent.StatusActive, DateTime: now.Add(-24 * time.Hour), VersionID: 3, LastUpdated: now,
+		Shared: []consent.SharedVisit{
+			{EncounterID: "e2000000-0000-4000-8000-0000000000e2", AddedAt: now.Add(-24 * time.Hour)},
+			{EncounterID: "e3000000-0000-4000-8000-0000000000e3", AddedAt: now},
+		}}
+	rec := readFHIR(t, &stubReader{out: hc}, as(me), &bytes.Buffer{})
+	if rec.Code != http.StatusOK || rec.Header().Get("ETag") != `W/"3"` {
+		t.Fatalf("status = %d %s, want 200 at version 3", rec.Code, rec.Body)
+	}
+	assertGolden(t, "history_consent.json", rec.Body.Bytes())
+
+	// Revoked, it permits nothing: no visit is listed.
+	hc.Status, hc.RevokedAt, hc.Shared = consent.StatusInactive, now, nil
+	rec = readFHIR(t, &stubReader{out: hc}, as(me), &bytes.Buffer{})
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), `"data"`) {
+		t.Errorf("a revoked history consent = %d %s, want no data", rec.Code, rec.Body)
+	}
+}

@@ -1,0 +1,293 @@
+-- +goose Up
+-- Patient history (SAL-38, docs/plans/patient-history.md, ADR 0013): the patient's allergies and current
+-- medications, and their consent to share chosen visits from other clinics with one clinic.
+--
+-- Allergies and medications (FHIR AllergyIntolerance, MedicationStatement). An entry is either the patient's own
+-- (organization_id, encounter_id and recorder_role_id null, always in the profile) or recorded by a clinic in one of
+-- its visits (all three set). The profile is what every clinic with the patient's active care consent sees; a
+-- clinic's entry belongs to its visit and is seen wherever the visit is seen (the clinic's own scope, another
+-- clinic's only while the visit is shared with it), until the patient adds it to their profile (in_profile). A
+-- confirmation names the confirming role and its clinic for that clinic's record; the service never shows them to
+-- another clinic (ADR 0013, "Doctor entries").
+--
+-- History consent (FHIR Consent, the third kind beside 00016's care consent and 00040's transcription consent): per
+-- patient and clinic, off unless the patient grants it, listing the visits it shares. A table of its own, as 00040
+-- says why: the policies that read consent as the care consent must never be opened by it. history_consent_encounter
+-- holds one row per period a visit is shared: removing a visit sets removed_at, adding it again adds a row, so the
+-- record of what was shared when is kept as proof (Art. 7(1)). Only a finished visit of the patient's at another
+-- clinic can be listed, checked here as well as in the service.
+--
+-- Sharing opens, read-only, to the receiving clinic's scope (app.organization_id, neither patient setting set) while
+-- the history consent is active, lists the visit, and the care consent with that clinic is active:
+--   - the visit's encounter, its signed documents (final, never a draft), its completed questionnaire responses and
+--     their clean files (never one in quarantine or rejected), and the entries recorded in it;
+--   - the visit's clinic and practitioner role, for the clinic name and specialty the shared visit is marked with.
+-- Never the transcript, the suggestions, the appointment or anything not listed. Which practitioner of the clinic
+-- sees it is the service's rule (access.HistoryVisit). A removal or revocation ends it when its transaction commits.
+-- NULLIF: an unset setting reads as '' on a pooled connection and must match nothing.
+
+CREATE TABLE allergy_intolerance (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL,
+    recorded_date timestamptz NOT NULL,
+    confirmed_at timestamptz,
+    patient_id uuid NOT NULL REFERENCES patient (id),
+    organization_id uuid REFERENCES organization (id), -- the recording clinic; null for the patient's own
+    encounter_id uuid REFERENCES encounter (id), -- the visit it was recorded in
+    recorder_role_id uuid REFERENCES practitioner_role (id),
+    confirmed_by_role_id uuid REFERENCES practitioner_role (id),
+    confirmed_organization_id uuid REFERENCES organization (id),
+    term_id uuid REFERENCES term (id), -- the substance from the terminology, when picked from it
+    version_id integer DEFAULT 1 NOT NULL,
+    in_profile boolean DEFAULT true NOT NULL,
+    code_text text NOT NULL CHECK (code_text <> '' AND code_text = btrim(code_text) AND length(code_text) <= 200),
+    category text CHECK (category IN ('food', 'medication', 'environment', 'biologic')),
+    reaction_text text CHECK (reaction_text <> '' AND reaction_text = btrim(reaction_text) AND length(reaction_text) <= 200),
+    severity text CHECK (severity IN ('mild', 'moderate', 'severe')),
+    clinical_status text DEFAULT 'active' NOT NULL CHECK (clinical_status IN ('active', 'inactive', 'resolved')),
+    verification_status text NOT NULL CHECK (verification_status IN ('unconfirmed', 'confirmed', 'entered-in-error')),
+    CONSTRAINT allergy_intolerance_source CHECK (num_nulls(organization_id, encounter_id, recorder_role_id) IN (0, 3)),
+    CONSTRAINT allergy_intolerance_own_in_profile CHECK (organization_id IS NOT NULL OR in_profile),
+    CONSTRAINT allergy_intolerance_confirmation CHECK (num_nulls(confirmed_at, confirmed_by_role_id, confirmed_organization_id) IN (0, 3)),
+    CONSTRAINT allergy_intolerance_confirmed CHECK (verification_status <> 'confirmed' OR confirmed_at IS NOT NULL),
+    -- FHIR: a reaction has at least one manifestation; a severity is a reaction's.
+    CONSTRAINT allergy_intolerance_severity CHECK (severity IS NULL OR reaction_text IS NOT NULL)
+);
+
+CREATE TABLE medication_statement (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL,
+    date_asserted timestamptz NOT NULL,
+    confirmed_at timestamptz,
+    patient_id uuid NOT NULL REFERENCES patient (id),
+    organization_id uuid REFERENCES organization (id),
+    encounter_id uuid REFERENCES encounter (id),
+    recorder_role_id uuid REFERENCES practitioner_role (id),
+    confirmed_by_role_id uuid REFERENCES practitioner_role (id),
+    confirmed_organization_id uuid REFERENCES organization (id),
+    term_id uuid REFERENCES term (id),
+    dose_value numeric CHECK (dose_value > 0 AND dose_value < 100000),
+    period numeric CHECK (period > 0 AND period <= 1000),
+    version_id integer DEFAULT 1 NOT NULL,
+    frequency integer CHECK (frequency BETWEEN 1 AND 100),
+    in_profile boolean DEFAULT true NOT NULL,
+    as_needed boolean DEFAULT false NOT NULL,
+    medication_text text NOT NULL CHECK (medication_text <> '' AND medication_text = btrim(medication_text) AND length(medication_text) <= 200),
+    -- UCUM codes (http://unitsofmeasure.org): the units and the annotated counts a patient doses in.
+    dose_unit text CHECK (dose_unit IN ('mg', 'g', 'ug', 'mL', '[iU]', '{tablet}', '{capsule}', '{drop}', '{puff}', '{patch}')),
+    period_unit text CHECK (period_unit IN ('h', 'd', 'wk', 'mo')), -- UCUM, as FHIR Timing.repeat.periodUnit
+    status text DEFAULT 'active' NOT NULL CHECK (status IN ('active', 'stopped', 'entered-in-error')),
+    CONSTRAINT medication_statement_source CHECK (num_nulls(organization_id, encounter_id, recorder_role_id) IN (0, 3)),
+    CONSTRAINT medication_statement_own_in_profile CHECK (organization_id IS NOT NULL OR in_profile),
+    CONSTRAINT medication_statement_confirmation CHECK (num_nulls(confirmed_at, confirmed_by_role_id, confirmed_organization_id) IN (0, 3)),
+    CONSTRAINT medication_statement_dose CHECK (num_nulls(dose_value, dose_unit) IN (0, 2)),
+    CONSTRAINT medication_statement_timing CHECK (num_nulls(frequency, period, period_unit) IN (0, 3))
+);
+
+-- A patient's entries, and a visit's.
+CREATE INDEX allergy_intolerance_patient ON allergy_intolerance (patient_id);
+CREATE INDEX allergy_intolerance_encounter ON allergy_intolerance (encounter_id) WHERE encounter_id IS NOT NULL;
+CREATE INDEX medication_statement_patient ON medication_statement (patient_id);
+CREATE INDEX medication_statement_encounter ON medication_statement (encounter_id) WHERE encounter_id IS NOT NULL;
+
+CREATE TABLE history_consent (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL,
+    date_time timestamptz NOT NULL, -- granted
+    revoked_at timestamptz,
+    patient_id uuid NOT NULL REFERENCES patient (id),
+    organization_id uuid NOT NULL REFERENCES organization (id), -- the receiving clinic
+    version_id integer DEFAULT 1 NOT NULL, -- bumped by every change of the selection
+    status text NOT NULL CHECK (status IN ('active', 'inactive')),
+    CONSTRAINT history_consent_revoked_when_inactive CHECK ((status = 'inactive') = (revoked_at IS NOT NULL))
+);
+
+CREATE UNIQUE INDEX history_consent_one_active ON history_consent (patient_id, organization_id) WHERE status = 'active';
+CREATE INDEX history_consent_patient_organization ON history_consent (patient_id, organization_id);
+
+CREATE TABLE history_consent_encounter (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    added_at timestamptz NOT NULL,
+    removed_at timestamptz,
+    consent_id uuid NOT NULL REFERENCES history_consent (id),
+    encounter_id uuid NOT NULL REFERENCES encounter (id),
+    CONSTRAINT history_consent_encounter_period CHECK (removed_at IS NULL OR removed_at >= added_at)
+);
+
+-- The open selection of a visit, at most one per consent; the lookup of a visit's open selections.
+CREATE UNIQUE INDEX history_consent_encounter_open ON history_consent_encounter (consent_id, encounter_id) WHERE removed_at IS NULL;
+CREATE INDEX history_consent_encounter_encounter ON history_consent_encounter (encounter_id) WHERE removed_at IS NULL;
+
+ALTER TABLE history_consent ENABLE ROW LEVEL SECURITY;
+CREATE POLICY history_consent_own ON history_consent
+    USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid);
+CREATE POLICY history_consent_clinic ON history_consent FOR SELECT
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
+
+-- Both branches through history_consent's own policies: the consent decides the scope.
+ALTER TABLE history_consent_encounter ENABLE ROW LEVEL SECURITY;
+CREATE POLICY history_consent_encounter_read ON history_consent_encounter FOR SELECT
+    USING (EXISTS (SELECT 1 FROM history_consent h WHERE h.id = history_consent_encounter.consent_id));
+-- The patient lists a finished visit of their own at another clinic, into their own active consent.
+CREATE POLICY history_consent_encounter_own_insert ON history_consent_encounter FOR INSERT
+    WITH CHECK (EXISTS (SELECT 1 FROM history_consent h JOIN encounter e ON e.id = history_consent_encounter.encounter_id
+                        WHERE h.id = history_consent_encounter.consent_id
+                          AND h.status = 'active'
+                          AND h.patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid
+                          AND e.patient_id = h.patient_id
+                          AND e.organization_id <> h.organization_id
+                          AND e.status = 'finished'));
+CREATE POLICY history_consent_encounter_own_update ON history_consent_encounter FOR UPDATE
+    USING (EXISTS (SELECT 1 FROM history_consent h
+                   WHERE h.id = history_consent_encounter.consent_id
+                     AND h.patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid));
+
+-- Whether the visit encounter_id of the patient is shared with the clinic of the transaction's scope: the clinic's
+-- scope only, an active history consent listing it, and an active care consent. Invoker's rights, so the policies of
+-- the tables it reads apply too.
+CREATE FUNCTION history_shared(encounter_id uuid, patient_id uuid) RETURNS boolean
+    LANGUAGE sql
+    STABLE
+    SET search_path = pg_catalog, public
+AS $$
+    SELECT NULLIF(current_setting('app.patient_id', true), '') IS NULL
+       AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+       AND EXISTS (SELECT 1 FROM public.history_consent_encounter s
+                   JOIN public.history_consent h ON h.id = s.consent_id
+                   WHERE s.encounter_id = history_shared.encounter_id
+                     AND s.removed_at IS NULL
+                     AND h.status = 'active'
+                     AND h.patient_id = history_shared.patient_id
+                     AND h.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                     AND EXISTS (SELECT 1 FROM public.consent c
+                                 WHERE c.patient_id = h.patient_id
+                                   AND c.organization_id = h.organization_id
+                                   AND c.status = 'active'))
+$$;
+REVOKE EXECUTE ON FUNCTION history_shared(uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION history_shared(uuid, uuid) TO salus_app;
+
+CREATE POLICY encounter_shared ON encounter FOR SELECT
+    USING (status = 'finished' AND history_shared(id, patient_id));
+CREATE POLICY document_draft_shared ON document_draft FOR SELECT
+    USING (status = 'final'
+           AND NULLIF(current_setting('app.video_room', true), '') IS NULL
+           AND EXISTS (SELECT 1 FROM encounter e
+                       WHERE e.id = document_draft.encounter_id AND history_shared(e.id, e.patient_id)));
+CREATE POLICY questionnaire_response_shared ON questionnaire_response FOR SELECT
+    USING (status = 'completed'
+           AND EXISTS (SELECT 1 FROM encounter e
+                       WHERE e.appointment_id = questionnaire_response.appointment_id
+                         AND e.patient_id = questionnaire_response.patient_id
+                         AND history_shared(e.id, e.patient_id)));
+CREATE POLICY binary_shared ON "binary" FOR SELECT
+    USING (status = 'clean'
+           AND NULLIF(current_setting('app.questionnaire_response_id', true), '') IS NULL
+           AND EXISTS (SELECT 1 FROM questionnaire_response r
+                       WHERE r.id = "binary".questionnaire_response_id AND r.status = 'completed')
+           AND EXISTS (SELECT 1 FROM encounter e
+                       WHERE e.appointment_id = "binary".appointment_id
+                         AND e.patient_id = "binary".patient_id
+                         AND history_shared(e.id, e.patient_id)));
+CREATE POLICY organization_shared ON organization FOR SELECT
+    USING (EXISTS (SELECT 1 FROM history_consent_encounter s JOIN encounter e ON e.id = s.encounter_id
+                   WHERE s.removed_at IS NULL AND e.organization_id = organization.id
+                     AND history_shared(e.id, e.patient_id)));
+CREATE POLICY practitioner_role_shared ON practitioner_role FOR SELECT
+    USING (EXISTS (SELECT 1 FROM history_consent_encounter s JOIN encounter e ON e.id = s.encounter_id
+                   WHERE s.removed_at IS NULL AND e.practitioner_role_id = practitioner_role.id
+                     AND history_shared(e.id, e.patient_id)));
+
+-- The profile tables: the patient's own scope sees all of theirs, writes its own entries and deletes only its own
+-- unconfirmed ones; a clinic sees the profile under an active care consent and the entries of the visits it sees,
+-- records entries in its own visits and confirms (updates) what it sees.
+ALTER TABLE allergy_intolerance ENABLE ROW LEVEL SECURITY;
+CREATE POLICY allergy_intolerance_own ON allergy_intolerance FOR SELECT
+    USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid);
+CREATE POLICY allergy_intolerance_own_insert ON allergy_intolerance FOR INSERT
+    WITH CHECK (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid AND organization_id IS NULL);
+CREATE POLICY allergy_intolerance_own_update ON allergy_intolerance FOR UPDATE
+    USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid);
+CREATE POLICY allergy_intolerance_own_delete ON allergy_intolerance FOR DELETE
+    USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid
+           AND organization_id IS NULL AND confirmed_at IS NULL);
+CREATE POLICY allergy_intolerance_clinic ON allergy_intolerance FOR SELECT
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND ((in_profile AND EXISTS (SELECT 1 FROM consent c
+                                        WHERE c.patient_id = allergy_intolerance.patient_id
+                                          AND c.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                                          AND c.status = 'active'))
+                OR EXISTS (SELECT 1 FROM encounter e WHERE e.id = allergy_intolerance.encounter_id)));
+CREATE POLICY allergy_intolerance_clinic_insert ON allergy_intolerance FOR INSERT
+    WITH CHECK (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+                AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+                AND NOT in_profile
+                AND organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                AND EXISTS (SELECT 1 FROM encounter e
+                            WHERE e.id = allergy_intolerance.encounter_id
+                              AND e.organization_id = allergy_intolerance.organization_id
+                              AND e.patient_id = allergy_intolerance.patient_id));
+CREATE POLICY allergy_intolerance_clinic_update ON allergy_intolerance FOR UPDATE
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND ((in_profile AND EXISTS (SELECT 1 FROM consent c
+                                        WHERE c.patient_id = allergy_intolerance.patient_id
+                                          AND c.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                                          AND c.status = 'active'))
+                OR EXISTS (SELECT 1 FROM encounter e WHERE e.id = allergy_intolerance.encounter_id)));
+
+ALTER TABLE medication_statement ENABLE ROW LEVEL SECURITY;
+CREATE POLICY medication_statement_own ON medication_statement FOR SELECT
+    USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid);
+CREATE POLICY medication_statement_own_insert ON medication_statement FOR INSERT
+    WITH CHECK (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid AND organization_id IS NULL);
+CREATE POLICY medication_statement_own_update ON medication_statement FOR UPDATE
+    USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid);
+CREATE POLICY medication_statement_own_delete ON medication_statement FOR DELETE
+    USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid
+           AND organization_id IS NULL AND confirmed_at IS NULL);
+CREATE POLICY medication_statement_clinic ON medication_statement FOR SELECT
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND ((in_profile AND EXISTS (SELECT 1 FROM consent c
+                                        WHERE c.patient_id = medication_statement.patient_id
+                                          AND c.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                                          AND c.status = 'active'))
+                OR EXISTS (SELECT 1 FROM encounter e WHERE e.id = medication_statement.encounter_id)));
+CREATE POLICY medication_statement_clinic_insert ON medication_statement FOR INSERT
+    WITH CHECK (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+                AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+                AND NOT in_profile
+                AND organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                AND EXISTS (SELECT 1 FROM encounter e
+                            WHERE e.id = medication_statement.encounter_id
+                              AND e.organization_id = medication_statement.organization_id
+                              AND e.patient_id = medication_statement.patient_id));
+CREATE POLICY medication_statement_clinic_update ON medication_statement FOR UPDATE
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND ((in_profile AND EXISTS (SELECT 1 FROM consent c
+                                        WHERE c.patient_id = medication_statement.patient_id
+                                          AND c.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                                          AND c.status = 'active'))
+                OR EXISTS (SELECT 1 FROM encounter e WHERE e.id = medication_statement.encounter_id)));
+
+-- Who, which clinic, which visit and who recorded it never change. The patient's own unconfirmed entries can be
+-- deleted; everything else is kept with the clinical record (entered-in-error instead).
+GRANT SELECT, INSERT, DELETE ON allergy_intolerance TO salus_app;
+GRANT UPDATE (updated_at, version_id, in_profile, term_id, code_text, category, reaction_text, severity, clinical_status,
+    verification_status, confirmed_at, confirmed_by_role_id, confirmed_organization_id) ON allergy_intolerance TO salus_app;
+GRANT SELECT, INSERT, DELETE ON medication_statement TO salus_app;
+GRANT UPDATE (updated_at, version_id, in_profile, term_id, medication_text, dose_value, dose_unit, frequency, period,
+    period_unit, as_needed, status, confirmed_at, confirmed_by_role_id, confirmed_organization_id) ON medication_statement TO salus_app;
+-- Consents are kept as proof: no DELETE. A selection's removal is its removed_at.
+GRANT SELECT, INSERT ON history_consent TO salus_app;
+GRANT UPDATE (status, revoked_at, updated_at, version_id) ON history_consent TO salus_app;
+GRANT SELECT, INSERT ON history_consent_encounter TO salus_app;
+GRANT UPDATE (removed_at) ON history_consent_encounter TO salus_app;

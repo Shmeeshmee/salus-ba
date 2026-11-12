@@ -68,6 +68,13 @@ type provision struct {
 	Actor   []actor                `json:"actor"`
 	Action  []fhir.CodeableConcept `json:"action,omitempty"`
 	Purpose []fhir.Coding          `json:"purpose"`
+	Data    []data                 `json:"data,omitempty"`
+}
+
+// data is one resource a history consent shares, with what refers to it (meaning dependents).
+type data struct {
+	Meaning   string         `json:"meaning"`
+	Reference fhir.Reference `json:"reference"`
 }
 
 type actor struct {
@@ -82,7 +89,9 @@ func concept(system, code string) fhir.CodeableConcept {
 // toFHIR is c as a FHIR Consent. A transcription consent (SAL-12) is told apart from the care consent by its
 // second category, v3-ActCode ICOL (information collection: what is said is transcribed into the record), and
 // its provision's actions, consentaction collect and use (transcribed and translated, used for the AI
-// assistance), still for treatment. No standard code names transcription itself.
+// assistance), still for treatment. No standard code names transcription itself. A history consent (ADR 0013) is
+// information disclosure (v3-ActCode IDSCL) with the action disclose, and lists in provision.data the visits it
+// shares, each with what refers to it (meaning dependents): its signed documents, completed answers and their files.
 func toFHIR(c Consent) resource {
 	patient := fhir.Reference{Reference: "Patient/" + c.PatientID}
 	clinic := fhir.Reference{Reference: "Organization/" + c.OrganizationID}
@@ -99,9 +108,16 @@ func toFHIR(c Consent) resource {
 			Purpose: []fhir.Coding{{System: systemActReason, Code: "TREAT"}},
 		},
 	}
-	if c.Kind == KindTranscription {
+	switch c.Kind {
+	case KindTranscription:
 		res.Category = append(res.Category, concept(systemActCode, "ICOL"))
 		res.Provision.Action = []fhir.CodeableConcept{concept(systemConsentAction, "collect"), concept(systemConsentAction, "use")}
+	case KindHistory:
+		res.Category = append(res.Category, concept(systemActCode, "IDSCL"))
+		res.Provision.Action = []fhir.CodeableConcept{concept(systemConsentAction, "disclose")}
+		for _, v := range c.Shared {
+			res.Provision.Data = append(res.Provision.Data, data{Meaning: "dependents", Reference: fhir.Reference{Reference: "Encounter/" + v.EncounterID}})
+		}
 	}
 	return res
 }

@@ -2756,6 +2756,571 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /me/history:
+    get:
+      operationId: listMyHistory
+      summary: The signed-in patient's history across every clinic
+      description: >-
+        SAL-39. The patient's own visits, signed documents, completed questionnaire answers and their files, from
+        every clinic, newest first, one page at a time. Never a draft, a response in progress or a file not yet
+        scanned. Chats are not listed yet (item type `communication` is reserved for them). Patients only. Not
+        cached. Each item returned is audited by its owning domain.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/HistoryCursor"
+        - $ref: "#/components/parameters/HistoryLimit"
+        - name: organization
+          in: query
+          required: false
+          description: Only this clinic's items.
+          schema: {type: string, format: uuid}
+        - name: type
+          in: query
+          required: false
+          description: Only items of these types (repeat the parameter for several).
+          schema:
+            type: array
+            items: {$ref: "#/components/schemas/HistoryItemType"}
+          style: form
+          explode: true
+        - $ref: "#/components/parameters/HistoryFrom"
+        - $ref: "#/components/parameters/HistoryTo"
+      responses:
+        "200":
+          description: One page of the history.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/HistoryPage"}
+        "400":
+          description: "`invalid_request`: a cursor this API did not make, a limit out of range or an unknown type."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /patients/{id}/history:
+    parameters:
+      - $ref: "#/components/parameters/PatientID"
+    get:
+      operationId: listPatientHistory
+      summary: A patient's history as the practitioner may see it
+      description: >-
+        SAL-40. For a practitioner of the caller's clinic with an appointment with the patient and the patient's
+        active care consent (ADR 0013): the visits at this clinic the practitioner held themselves, and the visits at
+        other clinics the patient shared with this clinic (`shared`, marked with their clinic), with what belongs to
+        each, newest first. Nothing else exists for the caller: an unshared visit is not listed, counted or hinted
+        at. 404 to anyone else, the clinic's admin included. Not cached. Every view is audited.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/HistoryCursor"
+        - $ref: "#/components/parameters/HistoryLimit"
+      responses:
+        "200":
+          description: One page of the history.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/HistoryPage"}
+        "400":
+          description: "`invalid_request`: a cursor this API did not make or a limit out of range."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such patient for the caller."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /patients/{id}/history/summary:
+    parameters:
+      - $ref: "#/components/parameters/PatientID"
+    get:
+      operationId: getPatientHistorySummary
+      summary: The pre-visit summary of a patient
+      description: >-
+        SAL-40. The allergies and current medications the practitioner may see, the latest visit they may see, and
+        what is open for the appointment (a questionnaire not completed, a document not signed). Same access as the
+        history. Not cached. Audited.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - name: appointment
+          in: query
+          required: true
+          description: The appointment the summary is for, one of the practitioner's with the patient.
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: The summary.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/HistorySummary"}
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such patient or appointment for the caller."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/allergies:
+    post:
+      operationId: addMyAllergy
+      summary: Add an allergy to the signed-in patient's profile
+      description: >-
+        SAL-41. Stored as an unconfirmed FHIR AllergyIntolerance in the patient's profile, seen by every clinic with
+        the patient's active care consent and an appointment. Read it through the FHIR API
+        (`GET /fhir/R4/AllergyIntolerance?patient=…`). Patients only. Audited.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AllergyIntoleranceInput"}
+      responses:
+        "201": {$ref: "#/components/responses/EntryWritten"}
+        "400": {$ref: "#/components/responses/EntryInvalid"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /encounters/{id}/allergies:
+    parameters:
+      - $ref: "#/components/parameters/EncounterID"
+    post:
+      operationId: recordAllergy
+      summary: Record an allergy in a visit
+      description: >-
+        SAL-41. The visit's practitioner records a confirmed allergy in it. It belongs to the visit (ADR 0013): seen
+        where the visit is seen, until the patient adds it to their profile. Audited.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AllergyIntoleranceInput"}
+      responses:
+        "201": {$ref: "#/components/responses/EntryWritten"}
+        "400": {$ref: "#/components/responses/EntryInvalid"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/CSRFOnly"}
+        "404": {$ref: "#/components/responses/EntryNotFound"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /allergies/{id}:
+    parameters:
+      - $ref: "#/components/parameters/EntryID"
+    put:
+      operationId: updateAllergy
+      summary: Change an allergy
+      description: >-
+        SAL-41. The patient changes their own entries; a practitioner the entries recorded in their visits. Send
+        If-Match with the version read. A patient's change to a confirmed entry makes it unconfirmed again. Audited.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AllergyIntoleranceInput"}
+      responses:
+        "200": {$ref: "#/components/responses/EntryWritten"}
+        "400": {$ref: "#/components/responses/EntryInvalid"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/EntryForbidden"}
+        "404": {$ref: "#/components/responses/EntryNotFound"}
+        "412": {$ref: "#/components/responses/EntryConflict"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      operationId: removeAllergy
+      summary: Remove an allergy
+      description: >-
+        SAL-41. The patient removes an entry from what anyone sees: their own unconfirmed entry is deleted; a
+        confirmed one or one a clinic recorded is kept with the record as entered-in-error. Audited.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204": {description: Removed.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/EntryForbidden"}
+        "404": {$ref: "#/components/responses/EntryNotFound"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /allergies/{id}/confirm:
+    parameters:
+      - $ref: "#/components/parameters/EntryID"
+    post:
+      operationId: confirmAllergy
+      summary: Confirm an allergy
+      description: >-
+        SAL-41. A practitioner who may see the entry confirms it during a visit. Other clinics see "confirmed by a
+        clinician" without the clinic or the practitioner. Send If-Match. Audited.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200": {$ref: "#/components/responses/EntryWritten"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/EntryForbidden"}
+        "404": {$ref: "#/components/responses/EntryNotFound"}
+        "412": {$ref: "#/components/responses/EntryConflict"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /allergies/{id}/profile:
+    parameters:
+      - $ref: "#/components/parameters/EntryID"
+    post:
+      operationId: addAllergyToProfile
+      summary: Add a clinic's allergy to the profile
+      description: >-
+        SAL-41. The patient adds an entry a clinic recorded in one of their visits to their profile, so every clinic
+        with their care consent sees it (without the clinic that recorded it). Send If-Match. Audited.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200": {$ref: "#/components/responses/EntryWritten"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/EntryForbidden"}
+        "404": {$ref: "#/components/responses/EntryNotFound"}
+        "412": {$ref: "#/components/responses/EntryConflict"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/medications:
+    post:
+      operationId: addMyMedication
+      summary: Add a medication to the signed-in patient's profile
+      description: >-
+        SAL-41. As `POST /me/allergies`, for a FHIR MedicationStatement (`GET /fhir/R4/MedicationStatement?patient=…`).
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/MedicationStatementInput"}
+      responses:
+        "201": {$ref: "#/components/responses/EntryWritten"}
+        "400": {$ref: "#/components/responses/EntryInvalid"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /encounters/{id}/medications:
+    parameters:
+      - $ref: "#/components/parameters/EncounterID"
+    post:
+      operationId: recordMedication
+      summary: Record a medication in a visit
+      description: SAL-41. As `POST /encounters/{id}/allergies`, for a medication.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/MedicationStatementInput"}
+      responses:
+        "201": {$ref: "#/components/responses/EntryWritten"}
+        "400": {$ref: "#/components/responses/EntryInvalid"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/CSRFOnly"}
+        "404": {$ref: "#/components/responses/EntryNotFound"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /medications/{id}:
+    parameters:
+      - $ref: "#/components/parameters/EntryID"
+    put:
+      operationId: updateMedication
+      summary: Change a medication
+      description: SAL-41. As `PUT /allergies/{id}`, for a medication.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/MedicationStatementInput"}
+      responses:
+        "200": {$ref: "#/components/responses/EntryWritten"}
+        "400": {$ref: "#/components/responses/EntryInvalid"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/EntryForbidden"}
+        "404": {$ref: "#/components/responses/EntryNotFound"}
+        "412": {$ref: "#/components/responses/EntryConflict"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      operationId: removeMedication
+      summary: Remove a medication
+      description: SAL-41. As `DELETE /allergies/{id}`, for a medication.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204": {description: Removed.}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/EntryForbidden"}
+        "404": {$ref: "#/components/responses/EntryNotFound"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /medications/{id}/confirm:
+    parameters:
+      - $ref: "#/components/parameters/EntryID"
+    post:
+      operationId: confirmMedication
+      summary: Confirm a medication
+      description: SAL-41. As `POST /allergies/{id}/confirm`, for a medication.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200": {$ref: "#/components/responses/EntryWritten"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/EntryForbidden"}
+        "404": {$ref: "#/components/responses/EntryNotFound"}
+        "412": {$ref: "#/components/responses/EntryConflict"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /medications/{id}/profile:
+    parameters:
+      - $ref: "#/components/parameters/EntryID"
+    post:
+      operationId: addMedicationToProfile
+      summary: Add a clinic's medication to the profile
+      description: SAL-41. As `POST /allergies/{id}/profile`, for a medication.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200": {$ref: "#/components/responses/EntryWritten"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403": {$ref: "#/components/responses/EntryForbidden"}
+        "404": {$ref: "#/components/responses/EntryNotFound"}
+        "412": {$ref: "#/components/responses/EntryConflict"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/history-sharing:
+    get:
+      operationId: listMyHistorySharing
+      summary: The clinics the signed-in patient shares history with
+      description: >-
+        SAL-42. Every clinic with an active history consent of the patient's, with the visits it lists now. Patients
+        only. Not cached. Audited.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The sharing per clinic.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/HistorySharingList"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /history-sharing/{organizationId}:
+    parameters:
+      - $ref: "#/components/parameters/SharingOrganizationID"
+    get:
+      operationId: previewHistorySharing
+      summary: The visits the patient may share with a clinic
+      description: >-
+        SAL-42. The preview at booking and in settings: every finished visit of the patient's at other clinics, each
+        exactly as the clinic would see it marked (date, clinic, specialty, title), with whether it is shared now.
+        Patients only. Not cached. Audited.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The candidates, newest first.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SharingCandidateList"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      operationId: setHistorySharing
+      summary: Share exactly these visits with a clinic
+      description: >-
+        SAL-42. Grants the history consent with the clinic, or changes the visits it lists, to exactly the ones sent:
+        each a finished visit of the patient's at another clinic. An empty list revokes it. Takes effect when it
+        commits. Needs the care consent with the clinic. Every grant, change and revocation is audited.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SetHistorySharingRequest"}
+      responses:
+        "200":
+          description: The sharing now; `shared` empty after a revocation.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/HistorySharing"}
+        "400":
+          description: >-
+            `invalid_request`: not the request; `invalid_visit`: a visit that is not a finished one of the patient's at
+            another clinic; `care_consent_required`: no active care consent with the clinic.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      operationId: revokeHistorySharing
+      summary: Stop sharing history with a clinic
+      description: SAL-42. Revokes the history consent with the clinic; takes effect when it commits. Audited.
+      tags: [history]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204": {description: "Revoked, or nothing was shared."}
+        "401": {$ref: "#/components/responses/Unauthenticated"}
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /webhooks/livekit:
     post:
       operationId: receiveLiveKitWebhook
@@ -2795,6 +3360,48 @@ paths:
           $ref: "#/components/responses/InternalError"
 components:
   parameters:
+    PatientID:
+      name: id
+      in: path
+      required: true
+      description: The patient's id (FHIR Patient.id).
+      schema: {type: string, format: uuid}
+    EntryID:
+      name: id
+      in: path
+      required: true
+      description: The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id).
+      schema: {type: string, format: uuid}
+    SharingOrganizationID:
+      name: organizationId
+      in: path
+      required: true
+      description: The receiving clinic (FHIR Organization.id).
+      schema: {type: string, format: uuid}
+    HistoryCursor:
+      name: cursor
+      in: query
+      required: false
+      description: The `next` of the previous page; absent for the first.
+      schema: {type: string, maxLength: 512}
+    HistoryLimit:
+      name: limit
+      in: query
+      required: false
+      description: Items per page.
+      schema: {type: integer, minimum: 1, maximum: 100, default: 30}
+    HistoryFrom:
+      name: from
+      in: query
+      required: false
+      description: Only items on or after this instant.
+      schema: {type: string, format: date-time}
+    HistoryTo:
+      name: to
+      in: query
+      required: false
+      description: Only items before this instant.
+      schema: {type: string, format: date-time}
     CSRF:
       name: X-Salus-CSRF
       in: header
@@ -2866,6 +3473,38 @@ components:
         type: string
         format: uuid
   responses:
+    CSRFOnly:
+      description: "`csrf`: the session cookie without the CSRF header."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    EntryWritten:
+      description: The entry at its version; read it through the FHIR API. Its ETag is the version.
+      headers:
+        ETag: {schema: {type: string}, description: 'W/"<versionId>".'}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/EntryWritten"}
+    EntryInvalid:
+      description: "`invalid_request`: not the request, an unreadable If-Match, or a value outside its set or length."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    EntryForbidden:
+      description: "`forbidden`: the caller sees the entry but may not make this change; or `csrf`."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    EntryNotFound:
+      description: "`not_found`: no such entry or visit for the caller."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    EntryConflict:
+      description: "`version_conflict`: the entry changed since it was read; read it again."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
     DocumentTemplate:
       description: The template; its ETag is its version.
       headers:
@@ -4645,3 +5284,205 @@ components:
         keys:
           type: array
           items: {type: string}
+    HistoryItemType:
+      type: string
+      enum: [visit, document, questionnaire_response, attachment, communication]
+      description: >-
+        What a history item is; its reference opens the FHIR resource. `communication` is reserved for chats
+        (SAL-26) and not served yet.
+    HistoryClinic:
+      type: object
+      required: [id, name]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+    HistoryItem:
+      type: object
+      required: [date, clinic, type, reference]
+      description: One entry of a history. Health data.
+      properties:
+        date: {type: string, format: date-time}
+        clinic: {$ref: "#/components/schemas/HistoryClinic"}
+        type: {$ref: "#/components/schemas/HistoryItemType"}
+        reference:
+          type: string
+          description: The FHIR resource to open, `Type/id`.
+          examples: ["Composition/a1000000-0000-4000-8000-0000000000a1"]
+        encounterId:
+          type: string
+          format: uuid
+          description: The visit it belongs to.
+        specialty:
+          type: string
+          description: The SNOMED CT code of the visit's practitioner role (`/specialties`).
+        title: {type: string}
+        shared:
+          type: boolean
+          description: For a practitioner, a visit of another clinic the patient shared, and everything of it.
+    HistoryPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/HistoryItem"}
+        next:
+          type: string
+          description: The cursor of the next page; absent on the last.
+    HistorySummary:
+      type: object
+      required: [allergies, medications, openItems]
+      description: The pre-visit summary. Health data.
+      properties:
+        lastVisit: {$ref: "#/components/schemas/HistoryItem"}
+        allergies:
+          type: array
+          items: {$ref: "#/components/schemas/SummaryAllergy"}
+        medications:
+          type: array
+          items: {$ref: "#/components/schemas/SummaryMedication"}
+        openItems:
+          type: array
+          items: {$ref: "#/components/schemas/OpenItem"}
+    SummaryAllergy:
+      type: object
+      required: [reference, text, confirmed]
+      properties:
+        reference: {type: string, description: "AllergyIntolerance/id"}
+        text: {type: string}
+        reaction: {type: string}
+        severity: {$ref: "#/components/schemas/AllergySeverity"}
+        confirmed: {type: boolean}
+    SummaryMedication:
+      type: object
+      required: [dosage, reference, text, confirmed]
+      properties:
+        dosage: {$ref: "#/components/schemas/Dosage"}
+        reference: {type: string, description: "MedicationStatement/id"}
+        text: {type: string}
+        confirmed: {type: boolean}
+    OpenItem:
+      type: object
+      required: [type, reference]
+      properties:
+        type:
+          type: string
+          enum: [questionnaire_pending, draft_unsigned]
+        reference: {type: string}
+    AllergyCategory:
+      type: string
+      enum: [food, medication, environment, biologic]
+    AllergySeverity:
+      type: string
+      enum: [mild, moderate, severe]
+    AllergyClinicalStatus:
+      type: string
+      enum: [active, inactive, resolved]
+    AllergyIntoleranceInput:
+      type: object
+      required: [text, clinicalStatus]
+      additionalProperties: false
+      description: >-
+        An allergy as the patient or a practitioner writes it. termId is a term of the terminology search
+        (its label in the caller's language goes in text); without it text is what was typed. A severity needs a
+        reaction.
+      properties:
+        termId: {type: string, format: uuid}
+        text: {type: string, minLength: 1, maxLength: 200}
+        category: {$ref: "#/components/schemas/AllergyCategory"}
+        reaction: {type: string, minLength: 1, maxLength: 200}
+        severity: {$ref: "#/components/schemas/AllergySeverity"}
+        clinicalStatus: {$ref: "#/components/schemas/AllergyClinicalStatus"}
+    DoseUnit:
+      type: string
+      enum: [mg, g, ug, mL, "[iU]", "{tablet}", "{capsule}", "{drop}", "{puff}", "{patch}"]
+      description: A UCUM code.
+    PeriodUnit:
+      type: string
+      enum: [h, d, wk, mo]
+      description: A UCUM code, as FHIR Timing.repeat.periodUnit.
+    Dosage:
+      type: object
+      additionalProperties: false
+      description: >-
+        How a medication is taken: a dose (doseValue and doseUnit, both or neither) and how often (frequency times
+        per period periodUnit, all three or none), or as needed.
+      properties:
+        doseUnit: {$ref: "#/components/schemas/DoseUnit"}
+        periodUnit: {$ref: "#/components/schemas/PeriodUnit"}
+        doseValue: {type: number, exclusiveMinimum: 0, exclusiveMaximum: 100000}
+        period: {type: number, exclusiveMinimum: 0, maximum: 1000}
+        frequency: {type: integer, minimum: 1, maximum: 100}
+        asNeeded: {type: boolean}
+    MedicationStatus:
+      type: string
+      enum: [active, stopped]
+      description: Whether it is a current medication. (entered-in-error is a removal, never written.)
+    MedicationStatementInput:
+      type: object
+      required: [text, status, dosage]
+      additionalProperties: false
+      properties:
+        termId: {type: string, format: uuid}
+        text: {type: string, minLength: 1, maxLength: 200}
+        status: {$ref: "#/components/schemas/MedicationStatus"}
+        dosage: {$ref: "#/components/schemas/Dosage"}
+    EntryWritten:
+      type: object
+      required: [id, versionId]
+      properties:
+        id: {type: string, format: uuid}
+        versionId: {type: string}
+    SharingCandidate:
+      type: object
+      required: [date, encounterId, organizationId, organizationName, selected]
+      description: >-
+        A finished visit of the patient's at another clinic, exactly as the receiving clinic will see it marked.
+        Health data.
+      properties:
+        date: {type: string, format: date-time}
+        encounterId: {type: string, format: uuid}
+        organizationId: {type: string, format: uuid}
+        organizationName: {type: string}
+        specialty: {type: string, description: SNOMED CT code (`/specialties`).}
+        title: {type: string, description: The title of the visit's first signed document.}
+        selected: {type: boolean, description: Shared with the clinic now.}
+    SharingCandidateList:
+      type: object
+      required: [candidates]
+      properties:
+        candidates:
+          type: array
+          items: {$ref: "#/components/schemas/SharingCandidate"}
+    SetHistorySharingRequest:
+      type: object
+      required: [encounterIds]
+      additionalProperties: false
+      properties:
+        encounterIds:
+          type: array
+          maxItems: 500
+          uniqueItems: true
+          items: {type: string, format: uuid}
+    HistorySharing:
+      type: object
+      required: [organizationId, shared]
+      description: What the patient shares with one clinic now. Health data.
+      properties:
+        organizationId: {type: string, format: uuid}
+        consentId:
+          type: string
+          format: uuid
+          description: The history consent (FHIR Consent); absent when nothing is shared.
+        versionId: {type: string}
+        shared:
+          type: array
+          items: {type: string, format: uuid}
+          description: The encounters shared.
+    HistorySharingList:
+      type: object
+      required: [sharing]
+      properties:
+        sharing:
+          type: array
+          items: {$ref: "#/components/schemas/HistorySharing"}

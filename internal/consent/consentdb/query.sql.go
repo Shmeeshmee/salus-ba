@@ -53,7 +53,9 @@ func (q *Queries) ConsentByID(ctx context.Context, id pgtype.UUID) (ConsentByIDR
 const consentState = `-- name: ConsentState :one
 SELECT coalesce(bool_or(status = 'active'), false)::boolean AS active, max(revoked_at)::timestamptz AS revoked_at,
        EXISTS (SELECT 1 FROM transcription_consent t
-               WHERE t.patient_id = $1 AND t.organization_id = $2 AND t.status = 'active')::boolean AS transcription
+               WHERE t.patient_id = $1 AND t.organization_id = $2 AND t.status = 'active')::boolean AS transcription,
+       EXISTS (SELECT 1 FROM history_consent h
+               WHERE h.patient_id = $1 AND h.organization_id = $2 AND h.status = 'active')::boolean AS history
 FROM consent
 WHERE patient_id = $1 AND organization_id = $2
 `
@@ -67,13 +69,19 @@ type ConsentStateRow struct {
 	Active        bool
 	RevokedAt     pgtype.Timestamptz
 	Transcription bool
+	History       bool
 }
 
 // revoked_at is the care consent's latest revocation (access reads it for the care record).
 func (q *Queries) ConsentState(ctx context.Context, arg ConsentStateParams) (ConsentStateRow, error) {
 	row := q.db.QueryRow(ctx, consentState, arg.PatientID, arg.OrganizationID)
 	var i ConsentStateRow
-	err := row.Scan(&i.Active, &i.RevokedAt, &i.Transcription)
+	err := row.Scan(
+		&i.Active,
+		&i.RevokedAt,
+		&i.Transcription,
+		&i.History,
+	)
 	return i, err
 }
 
@@ -155,8 +163,8 @@ type GrantConsentRow struct {
 	Status         string
 }
 
-// consent holds the care consents, transcription_consent the transcription consents (migration 00040): the same
-// shape, a kind each. A read of both is their UNION ALL, each table on its own index and under its own
+// consent holds the care consents, transcription_consent the transcription consents (migration 00040) and
+// history_consent the history consents (00041): the same shape, a kind each. A read of both is their UNION ALL, each table on its own index and under its own
 // row-level security.
 // A second active consent with the clinic inserts nothing (no row), so the transaction stays usable for the
 // audit.
@@ -214,6 +222,41 @@ func (q *Queries) GrantTranscriptionConsent(ctx context.Context, arg GrantTransc
 		&i.Status,
 	)
 	return i, err
+}
+
+const historyShared = `-- name: HistoryShared :many
+SELECT s.encounter_id
+FROM history_consent_encounter s
+JOIN history_consent h ON h.id = s.consent_id
+WHERE h.patient_id = $1 AND h.organization_id = $2 AND h.status = 'active' AND s.removed_at IS NULL
+ORDER BY s.added_at, s.encounter_id
+`
+
+type HistorySharedParams struct {
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+}
+
+// The visits the patient's active history consent with the clinic lists now (migration 00041), oldest selection
+// first.
+func (q *Queries) HistoryShared(ctx context.Context, arg HistorySharedParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, historyShared, arg.PatientID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var encounter_id pgtype.UUID
+		if err := rows.Scan(&encounter_id); err != nil {
+			return nil, err
+		}
+		items = append(items, encounter_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const revokeActiveTranscriptionConsent = `-- name: RevokeActiveTranscriptionConsent :one
