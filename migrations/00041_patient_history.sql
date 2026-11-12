@@ -57,7 +57,9 @@ CREATE TABLE allergy_intolerance (
     CONSTRAINT allergy_intolerance_source CHECK (num_nulls(organization_id, encounter_id, recorder_role_id) IN (0, 3)),
     CONSTRAINT allergy_intolerance_own_in_profile CHECK (organization_id IS NOT NULL OR in_profile),
     CONSTRAINT allergy_intolerance_confirmation CHECK (num_nulls(confirmed_at, confirmed_by_role_id, confirmed_organization_id) IN (0, 3)),
-    CONSTRAINT allergy_intolerance_confirmed CHECK (verification_status <> 'confirmed' OR confirmed_at IS NOT NULL),
+    -- Confirmed exactly when it carries a confirmation; a removed entry keeps the one it had.
+    CONSTRAINT allergy_intolerance_confirmed CHECK (verification_status = 'entered-in-error'
+                                                    OR (verification_status = 'confirmed') = (confirmed_at IS NOT NULL)),
     -- FHIR: a reaction has at least one manifestation; a severity is a reaction's.
     CONSTRAINT allergy_intolerance_severity CHECK (severity IS NULL OR reaction_text IS NOT NULL)
 );
@@ -362,53 +364,63 @@ CREATE FUNCTION profile_entry_update_check() RETURNS trigger
 AS $$
 DECLARE
     clinic uuid := NULLIF(current_setting('app.organization_id', true), '')::uuid;
+    patient_scope boolean := NULLIF(current_setting('app.patient_id', true), '') IS NOT NULL;
     -- The columns compared apart: all others are the entry's content.
     apart text[] := ARRAY['updated_at', 'version_id', 'in_profile', 'verification_status', 'status',
                           'confirmed_at', 'confirmed_by_role_id', 'confirmed_organization_id'];
     old_row jsonb := to_jsonb(OLD);
     new_row jsonb := to_jsonb(NEW);
-    content_changed boolean := (new_row - apart) IS DISTINCT FROM (old_row - apart);
     old_state text := coalesce(old_row->>'verification_status', old_row->>'status');
     new_state text := coalesce(new_row->>'verification_status', new_row->>'status');
     confirmation_changed boolean := (NEW.confirmed_at, NEW.confirmed_by_role_id, NEW.confirmed_organization_id)
         IS DISTINCT FROM (OLD.confirmed_at, OLD.confirmed_by_role_id, OLD.confirmed_organization_id);
+    -- An edit: the content, or the status to anything but a removal or (for an allergy) a confirmation.
+    edited boolean := (new_row - apart) IS DISTINCT FROM (old_row - apart)
+        OR (new_state IS DISTINCT FROM old_state AND new_state NOT IN ('entered-in-error', 'confirmed'));
+    own boolean := OLD.organization_id IS NOT DISTINCT FROM clinic AND NOT patient_scope;
 BEGIN
     -- The table's owner (migrations, salusctl) only; every other role is checked.
     IF current_user = (SELECT r.rolname FROM pg_class c JOIN pg_roles r ON r.oid = c.relowner WHERE c.oid = TG_RELID) THEN
         RETURN NEW;
     END IF;
-    -- A confirmation vouches for the content it confirmed: an edit keeps it only when the confirming clinic makes it.
-    IF content_changed AND NEW.confirmed_at IS NOT NULL AND NOT confirmation_changed
-       AND NEW.confirmed_organization_id IS DISTINCT FROM clinic THEN
+    -- A removal is final: the entry is kept with the record and shown to no one.
+    IF old_state = 'entered-in-error' THEN
+        RAISE EXCEPTION 'a removed entry does not change' USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    -- A confirmation vouches for what it confirmed: an edit keeps it only when the confirming clinic makes it.
+    IF edited AND NEW.confirmed_at IS NOT NULL AND NOT confirmation_changed
+       AND (patient_scope OR NEW.confirmed_organization_id IS DISTINCT FROM clinic) THEN
         RAISE EXCEPTION 'an edit of a confirmed entry clears or renews the confirmation' USING ERRCODE = 'insufficient_privilege';
     END IF;
-    IF NULLIF(current_setting('app.patient_id', true), '') IS NOT NULL THEN
+    IF patient_scope THEN
+        -- The patient never confirms; of a clinic's entry they only add it to the profile or remove it.
         IF confirmation_changed AND (NEW.confirmed_at IS NOT NULL OR OLD.organization_id IS NOT NULL) THEN
             RAISE EXCEPTION 'a patient does not confirm an entry' USING ERRCODE = 'insufficient_privilege';
         END IF;
-        IF content_changed AND NEW.confirmed_at IS NOT NULL THEN
-            RAISE EXCEPTION 'a patient''s edit clears the confirmation' USING ERRCODE = 'insufficient_privilege';
-        END IF;
-        IF OLD.organization_id IS NOT NULL
-           AND (content_changed OR (new_state IS DISTINCT FROM old_state AND new_state <> 'entered-in-error')) THEN
+        IF OLD.organization_id IS NOT NULL AND (edited OR new_state = 'confirmed' AND old_state <> 'confirmed') THEN
             RAISE EXCEPTION 'a patient does not edit a clinic''s entry' USING ERRCODE = 'insufficient_privilege';
         END IF;
         RETURN NEW;
     END IF;
+    -- A clinic never moves an entry into or out of the profile.
     IF NEW.in_profile IS DISTINCT FROM OLD.in_profile THEN
         RAISE EXCEPTION 'a clinic does not change the profile' USING ERRCODE = 'insufficient_privilege';
     END IF;
-    IF confirmation_changed AND OLD.confirmed_organization_id IS DISTINCT FROM clinic AND OLD.confirmed_at IS NOT NULL THEN
-        RAISE EXCEPTION 'a clinic does not overwrite another clinic''s confirmation' USING ERRCODE = 'insufficient_privilege';
+    IF confirmation_changed AND NEW.confirmed_at IS NOT NULL THEN
+        -- It confirms only as itself, with one of its roles, and never over another clinic's confirmation.
+        IF OLD.confirmed_at IS NOT NULL AND OLD.confirmed_organization_id IS DISTINCT FROM clinic THEN
+            RAISE EXCEPTION 'a clinic does not overwrite another clinic''s confirmation' USING ERRCODE = 'insufficient_privilege';
+        END IF;
+        IF NEW.confirmed_organization_id IS DISTINCT FROM clinic
+           OR NOT EXISTS (SELECT 1 FROM practitioner_role r WHERE r.id = NEW.confirmed_by_role_id AND r.organization_id = clinic) THEN
+            RAISE EXCEPTION 'a clinic confirms only as itself' USING ERRCODE = 'insufficient_privilege';
+        END IF;
+    ELSIF confirmation_changed AND NOT (own OR OLD.confirmed_organization_id IS NOT DISTINCT FROM clinic) THEN
+        -- It clears a confirmation only of its own entry (to correct it) or its own confirmation.
+        RAISE EXCEPTION 'a clinic clears only its own entry''s or its own confirmation' USING ERRCODE = 'insufficient_privilege';
     END IF;
-    IF confirmation_changed
-       AND NOT (NEW.confirmed_organization_id IS NOT DISTINCT FROM clinic
-                AND EXISTS (SELECT 1 FROM practitioner_role r
-                            WHERE r.id = NEW.confirmed_by_role_id AND r.organization_id = clinic)) THEN
-        RAISE EXCEPTION 'a clinic confirms only as itself' USING ERRCODE = 'insufficient_privilege';
-    END IF;
-    IF OLD.organization_id IS DISTINCT FROM clinic
-       AND (content_changed OR (new_state IS DISTINCT FROM old_state AND NOT (new_state = 'confirmed' AND confirmation_changed))) THEN
+    -- It edits and removes only its own entries; of another's it may only confirm.
+    IF NOT own AND (edited OR (new_state IS DISTINCT FROM old_state AND NOT (new_state = 'confirmed' AND confirmation_changed))) THEN
         RAISE EXCEPTION 'a clinic edits only its own entries' USING ERRCODE = 'insufficient_privilege';
     END IF;
     RETURN NEW;

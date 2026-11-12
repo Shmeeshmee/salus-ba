@@ -32,7 +32,8 @@ Settled by this plan, within those decisions:
 | Revoking the care consent | Also revokes the history consent with that clinic, in the same transaction (as the transcription consent) |
 | The visit's title in the preview | The title of its first signed document, else none (the app shows the specialty); the same fields the receiving clinic sees, so the preview is exactly what the doctor will see |
 | Removing an entry | The patient's own unconfirmed entry is deleted; anything confirmed or recorded by a clinic becomes entered-in-error, kept with the record and shown to no one |
-| A patient's change to a confirmed entry | Makes it unconfirmed again |
+| A patient's change to a confirmed entry | Makes it unconfirmed again (a change of status too): the service clears the confirmation in the same update, and the database refuses an edit that keeps another's confirmation |
+| Who a confirmation vouches for | The confirming clinic: a colleague at that clinic may correct the entry and keep it confirmed; the recording clinic corrects its own entry by clearing another clinic's confirmation. A removed entry stays removed |
 | Coding | A substance or medication picked from the terminology carries its ATC code (`http://www.whocc.no/atc`) and its label as text; one typed by hand is text only (no free-text code). Units and periods are UCUM |
 | Diagnoses in the doctor's view (SAL-40) | Shown from the signed documents' coded fields. The analytics epic is adding a `condition` domain (docs/plans/analytics.md, SAL-19): once it is on main, SAL-40 reads diagnoses through `condition.Service` instead, without touching its code |
 | AI | No part of the history is sent to the language model (ADR 0013 "No AI"). The suggestions and the drafting keep reading only the consultation's transcript; SAL-42 adds a test that a shared or unshared visit's content never reaches their input |

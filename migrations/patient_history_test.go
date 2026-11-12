@@ -426,8 +426,7 @@ func TestProfileEntries_EachScopeWritesOnlyWhatItMay(t *testing.T) {
 			}
 			// The clinic confirms the patient's own entry; the patient can no longer delete it, nor a clinic's.
 			err := asApp(t, app, clinic, func(ctx context.Context, db postgres.Querier) error {
-				tag, err := db.Exec(ctx, `UPDATE `+table+` SET confirmed_at = now(), confirmed_by_role_id = $2, confirmed_organization_id = $3,
-					version_id = version_id + 1 WHERE id = $1`, r.own, h.r.roles[clinicA], clinicA)
+				tag, err := db.Exec(ctx, entryWrites[table]["confirm"], r.own, h.r.roles[clinicA], clinicA)
 				if err == nil && tag.RowsAffected() != 1 {
 					t.Errorf("the clinic confirmed %d entries, want 1", tag.RowsAffected())
 				}
@@ -653,7 +652,6 @@ func TestProfileEntries_NoScopeWritesWhatIsNotItsOwn(t *testing.T) {
 				{patientA, "the patient edits their own entry", w["edit"], r.own, roleA, clinicA, true},
 				{patientA, "the patient edits a clinic's entry", w["edit"], r.atB, roleA, clinicA, false},
 				{patientA, "the patient adds a clinic's entry to the profile", w["profile"], r.atB, roleA, clinicA, true},
-				{patientA, "the patient removes a clinic's entry", w["remove"], r.atA, roleA, clinicA, true},
 				{clinic, "the clinic moves the shared visit's entry into the profile", w["profile"], r.atB, roleA, clinicA, false},
 				{clinic, "the clinic moves its own entry into the profile", w["profile"], r.atA, roleA, clinicA, false},
 				{clinic, "the clinic edits the shared visit's entry", w["edit"], r.atB, roleA, clinicA, false},
@@ -669,6 +667,7 @@ func TestProfileEntries_NoScopeWritesWhatIsNotItsOwn(t *testing.T) {
 				{clinic, "the clinic records in its own visit", w["record as"], r.atA, roleA, clinicA, true},
 				{patientA, "the patient edits the entry a clinic confirmed", w["edit"], r.own, roleA, clinicA, false},
 				{patientA, "the patient edits it and clears the confirmation", w["edit unconfirmed"], r.own, roleA, clinicA, true},
+				{patientA, "the patient removes a clinic's entry (last: a removal is final)", w["remove"], r.atA, roleA, clinicA, true},
 			} {
 				var changed int64
 				err := asApp(t, app, tt.scope, func(ctx context.Context, db postgres.Querier) error {
@@ -685,5 +684,84 @@ func TestProfileEntries_NoScopeWritesWhatIsNotItsOwn(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A confirmation vouches for what it confirmed, in either table: a change of status but to entered-in-error is an
+// edit too; the recording clinic may correct its own entry by clearing another clinic's confirmation; a removed
+// (entered-in-error) entry stays removed, also against a confirmation.
+func TestProfileEntries_AConfirmationNeverOutlivesWhatItConfirmed(t *testing.T) {
+	t.Parallel()
+	for table, insert := range entryTables {
+		t.Run(table, func(t *testing.T) {
+			t.Parallel()
+			owner, app := pgtest.NewAppDatabase(t)
+			h := seedHistory(t, owner)
+			r := seedEntries(t, owner, h, insert)
+			roleA := h.r.roles[clinicA]
+			state, current := "status", "stopped"
+			if table == "allergy_intolerance" {
+				state, current = "clinical_status", "resolved"
+			}
+			removedState := "status"
+			if table == "allergy_intolerance" {
+				removedState = "verification_status"
+			}
+			confirmByA := `UPDATE ` + table + ` SET confirmed_at = now(), confirmed_by_role_id = $2, confirmed_organization_id = $3 WHERE id = $1`
+			if table == "allergy_intolerance" {
+				confirmByA = `UPDATE ` + table + ` SET verification_status = 'confirmed', confirmed_at = now(), confirmed_by_role_id = $2, confirmed_organization_id = $3 WHERE id = $1`
+			}
+			ownerExec(t, owner, confirmByA, r.own, roleA, clinicA)
+			ownerExec(t, owner, confirmByA, r.atB, roleA, clinicA) // clinic B's entry, confirmed by A
+			clear := `, confirmed_at = NULL, confirmed_by_role_id = NULL, confirmed_organization_id = NULL`
+			if table == "allergy_intolerance" {
+				clear += `, verification_status = 'unconfirmed'`
+			}
+			patientA := map[string]string{"app.patient_id": h.patients[0].patient}
+			clinicBScope := map[string]string{"app.organization_id": clinicB}
+			for _, tt := range []struct {
+				scope      map[string]string
+				name, stmt string
+				ok         bool
+			}{
+				{patientA, "the patient changes the status of a confirmed entry", `UPDATE ` + table + ` SET ` + state + ` = '` + current + `' WHERE id = $1`, false},
+				{patientA, "the patient changes it and clears the confirmation", `UPDATE ` + table + ` SET ` + state + ` = '` + current + `'` + clear + ` WHERE id = $1`, true},
+				{clinicBScope, "the recording clinic edits its entry keeping another clinic's confirmation", `UPDATE ` + table + ` SET ` + state + ` = '` + current + `' WHERE id = $1`, false},
+				{clinicBScope, "the recording clinic edits its entry clearing it", `UPDATE ` + table + ` SET ` + state + ` = '` + current + `'` + clear + ` WHERE id = $1`, true},
+			} {
+				id := r.own
+				if tt.scope["app.organization_id"] == clinicB {
+					id = r.atB
+				}
+				var changed int64
+				err := asApp(t, app, tt.scope, func(ctx context.Context, db postgres.Querier) error {
+					tag, err := db.Exec(ctx, tt.stmt, id)
+					changed = tag.RowsAffected()
+					return err
+				})
+				if got := err == nil && changed == 1; got != tt.ok {
+					t.Errorf("%s: err %v, %d rows; want ok %v", tt.name, err, changed, tt.ok)
+				}
+			}
+			// Removed by the patient, the entry stays removed: no clinic confirms it back.
+			ownerExec(t, owner, `UPDATE `+table+` SET `+removedState+` = 'entered-in-error' WHERE id = $1`, r.atA)
+			ownerExec(t, owner, `UPDATE `+table+` SET in_profile = true WHERE id = $1`, r.atA)
+			var changed int64
+			err := asApp(t, app, map[string]string{"app.organization_id": clinicA}, func(ctx context.Context, db postgres.Querier) error {
+				tag, err := db.Exec(ctx, confirmByA, r.atA, roleA, clinicA)
+				changed = tag.RowsAffected()
+				return err
+			})
+			if err == nil && changed != 0 {
+				t.Errorf("a clinic confirmed a removed entry back (%d rows)", changed)
+			}
+		})
+	}
+	// An allergy is never half confirmed.
+	owner, _ := pgtest.NewAppDatabase(t)
+	h := seedHistory(t, owner)
+	if _, err := owner.Exec(t.Context(), `INSERT INTO allergy_intolerance (patient_id, code_text, verification_status, recorded_date, confirmed_at, confirmed_by_role_id, confirmed_organization_id)
+		VALUES ($1, 'x', 'unconfirmed', now(), now(), $2, $3)`, h.patients[0].patient, h.r.roles[clinicA], clinicA); err == nil {
+		t.Error("an unconfirmed allergy with a confirmation: accepted")
 	}
 }
