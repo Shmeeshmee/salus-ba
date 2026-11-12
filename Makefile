@@ -20,7 +20,7 @@ TEST_SERVICES := postgres redis mailpit mailpit-starttls mailpit-tls livekit obj
 GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...
 GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-suggest bench-drafting turn-check livekit-turn-cert mailpit-tls-cert lint i18n-check archcheck arch-gate e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-chat bench-suggest bench-drafting turn-check livekit-turn-cert mailpit-tls-cert lint i18n-check archcheck arch-gate e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	terminology-fetch terminology-import terminology-export document-templates-seed \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down \
@@ -103,6 +103,10 @@ bench-drafting: tools-image
 
 ## bench-consult-stream: the WebSocket gateway's XADD-to-frame latency and a reconnect's replay through api.New, and
 ## one stream-discovery sweep over 100,000 keys (docs/plans/consult-intelligence.PROGRESS.md, SAL-6). Not part of make test.
+## bench-chat: the chat's load test (SAL-27): latest page and delivery p95 with millions of messages (CHAT_LOAD_MESSAGES)
+bench-chat: tools-image
+	$(GO) sh -c "go test -tags loadtest -count=1 -timeout 60m -v -run TestChatLoad ./internal/api/"
+
 bench-consult-stream: tools-image
 	$(GO) sh -c "go test -tags loadtest -count=1 -v -run TestTranscriptStreamLatency ./internal/api/ && \
 		go test -tags loadtest -count=1 -v -run TestGroupDiscoveryCost ./pkg/redis/"

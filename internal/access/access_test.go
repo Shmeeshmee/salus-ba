@@ -429,3 +429,35 @@ func checkCopy(t *testing.T, name string, patient bool, got func(v access.Viewer
 		}
 	}
 }
+
+// The chat's rules (docs/plans/chat.md "Who opens a conversation", "Who reads and writes"), over every
+// combination: opening needs the active consent and an appointment of the patient with the conversation's
+// practitioner; reading and writing need the active consent for staff, who must take part; the patient reads their
+// own whatever the consent and writes with it. Nobody else, never an admin.
+func TestChat_OverEveryRoleConsentAppointmentClinicAndParticipation(t *testing.T) {
+	each(func(key string, v access.Viewer, f access.Facts) {
+		parts := strings.Split(key, "/")
+		viewer, consent, visit, clinic := parts[0], parts[1], parts[2], parts[3]
+		withRole := visit == "past" || visit == "future"
+		staff := viewer == "practitioner" && clinic == "match"
+		active := consent == "active"
+
+		wantOpen := active && withRole && (viewer == "patient" || staff)
+		if got := access.OpensChat(v, f, roleA1); got != wantOpen {
+			t.Errorf("OpensChat %s = %v, want %v", key, got, wantOpen)
+		}
+		if access.OpensChat(v, f, roleA2) && viewer == "practitioner" {
+			t.Errorf("OpensChat %s for another practitioner's role: true, want false", key)
+		}
+		for _, participant := range []bool{true, false} {
+			wantRead := viewer == "patient" || (staff && participant && active)
+			if got := access.ReadsChat(v, f, participant); got != wantRead {
+				t.Errorf("ReadsChat %s participant=%v = %v, want %v", key, participant, got, wantRead)
+			}
+			wantWrite := wantRead && active
+			if got := access.WritesChat(v, f, participant); got != wantWrite {
+				t.Errorf("WritesChat %s participant=%v = %v, want %v", key, participant, got, wantWrite)
+			}
+		}
+	})
+}

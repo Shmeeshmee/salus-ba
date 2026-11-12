@@ -2793,8 +2793,336 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /conversations:
+    post:
+      operationId: openConversation
+      summary: Open the conversation with a patient or a practitioner, or return the one there is
+      description: >-
+        Staff name the patient and open it with their own role; a patient names the clinic and the practitioner role.
+        Allowed with the patient's active care consent with the clinic and an appointment of the patient with that
+        role, of any time or status (docs/plans/chat.md). One conversation per patient, role and encounter (none
+        counts as one): opening it again answers 200 with it. Audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/OpenConversationRequest"}
+      responses:
+        "200":
+          description: The existing conversation.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Conversation"}
+        "201":
+          description: The new conversation.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Conversation"}
+        "400":
+          $ref: "#/components/responses/ChatInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`consent_required`: no active care consent; `forbidden`: an admin, or a patient without an appointment with the role."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: staff without an appointment with the patient, or an encounter that is not the patient's in the clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+    get:
+      operationId: listConversations
+      summary: The caller's conversations, newest activity first, with their unread counts
+      description: >-
+        The conversations the caller takes part in, 50 a page; a practitioner's only while the patient's care consent
+        is active. Audited as one search.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - name: before
+          in: query
+          required: false
+          description: The `next` of the previous page.
+          schema: {type: string}
+      responses:
+        "200":
+          description: A page of conversations.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ConversationList"}
+        "400":
+          $ref: "#/components/responses/ChatInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+  /conversations/{id}:
+    get:
+      operationId: getConversation
+      summary: One conversation with its active participants
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+      responses:
+        "200":
+          description: The conversation.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Conversation"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+  /conversations/{id}/messages:
+    get:
+      operationId: listMessages
+      summary: A page of the conversation's messages, newest first
+      description: >-
+        Before the `before` cursor, or the newest; `next` is the cursor of the older page and absent at the start. A
+        practitioner added later reads from their `history_from_seq`. Audited as one read of the rows returned.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - name: before
+          in: query
+          required: false
+          description: A message's `cursor`, or a page's `next`.
+          schema: {type: string}
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      responses:
+        "200":
+          description: A page of messages.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MessagePage"}
+        "400":
+          $ref: "#/components/responses/ChatInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+    post:
+      operationId: sendMessage
+      summary: Send a text message
+      description: >-
+        Idempotent by `client_message_id` per sender: a repeat answers 200 with the first message, which is not sent
+        again. The patient writes while their care consent is active; a practitioner while they take part and the
+        consent is active. Audited; the message goes to every open socket of the conversation.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SendMessageRequest"}
+      responses:
+        "200":
+          $ref: "#/components/responses/ChatMessage"
+        "201":
+          $ref: "#/components/responses/ChatMessage"
+        "400":
+          $ref: "#/components/responses/ChatInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+  /conversations/{id}/messages/{message_id}:
+    patch:
+      operationId: editMessage
+      summary: Edit the body of one's own text message
+      description: >-
+        `If-Match` is the message's version (its ETag). The earlier body is kept (`.../revisions`); the edit goes to
+        every open socket as `message_edited`. Audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/MessageID"
+        - $ref: "#/components/parameters/CSRF"
+        - name: If-Match
+          in: header
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EditMessageRequest"}
+      responses:
+        "200":
+          $ref: "#/components/responses/ChatMessage"
+        "400":
+          $ref: "#/components/responses/ChatInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: someone else's message, a system message, or a caller who may not write; `consent_required`: the patient after their revocation."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+        "412":
+          description: "`version_conflict`: the message changed since it was read."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "428":
+          description: "`if_match_required`: no or an unreadable If-Match."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /conversations/{id}/messages/{message_id}/revisions:
+    get:
+      operationId: listMessageRevisions
+      summary: The earlier bodies of an edited message, oldest first
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/MessageID"
+      responses:
+        "200":
+          description: The revisions; empty for a message never edited.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MessageRevisions"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+  /conversations/{id}/read:
+    put:
+      operationId: markConversationRead
+      summary: Move the caller's read position
+      description: The caller has read the messages up to `seq`; the position never goes back. Not audited.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReadPosition"}
+      responses:
+        "204":
+          description: Moved, or left where it was ahead.
+        "400":
+          $ref: "#/components/responses/ChatInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+  /conversations/{id}/events:
+    get:
+      operationId: followConversation
+      summary: The conversation's messages, live, over a WebSocket
+      description: >-
+        A WebSocket (RFC 6455) upgrade (ADR 0012). Every message after `after` is replayed from the record, in order,
+        then the live ones follow as `message` frames, and edits as `message_edited` (`ChatFrame`); a client drops a
+        message whose `seq` it has. Without `after`, only messages sent from now on. The handshake must come from the
+        API's own origin, or carry no Origin (the mobile app, with its bearer token). Access is checked again at least
+        every 5 seconds: when it ends the socket closes with 4403 `consent_required` or `forbidden`, or 4404
+        `not_found` (staff after the patient's revocation); 1011 on a server error. The subscription is audited. The
+        client may send `send` frames (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of
+        the JSON API.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - name: after
+          in: query
+          required: false
+          description: The `cursor` of the last message the client has.
+          schema: {type: string}
+      responses:
+        "101":
+          description: "Switching protocols: the WebSocket, carrying `ChatFrame` text frames."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ChatFrame"}
+        "400":
+          description: "`websocket_required`: no WebSocket handshake; `invalid_cursor`: an `after` the API did not give."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`origin`: another origin; `forbidden` or `consent_required` as for the page."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
 components:
   parameters:
+    ConversationID:
+      name: id
+      in: path
+      required: true
+      description: The conversation's id.
+      schema:
+        type: string
+        format: uuid
+    MessageID:
+      name: message_id
+      in: path
+      required: true
+      description: The message's id (FHIR Communication.id).
+      schema:
+        type: string
+        format: uuid
     CSRF:
       name: X-Salus-CSRF
       in: header
@@ -2866,6 +3194,29 @@ components:
         type: string
         format: uuid
   responses:
+    ChatMessage:
+      description: The message; its ETag is its version.
+      headers:
+        ETag: {schema: {type: string}}
+        Cache-Control: {schema: {type: string, const: no-store}}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ChatMessage"}
+    ChatInvalidRequest:
+      description: "`invalid_request`: a body that is not the request, an id that is no UUID, a body of 0 or over 4000 characters, a limit out of range, a `seq` past the last message; `invalid_cursor`: a cursor the API did not give."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    ChatForbidden:
+      description: "`forbidden`: an admin, or a practitioner who does not take part; `consent_required`: a patient's write after their revocation."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    ChatNotFound:
+      description: "`not_found`: no such conversation or message for the caller, also for staff after the patient's revocation."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
     DocumentTemplate:
       description: The template; its ETag is its version.
       headers:
@@ -4155,6 +4506,10 @@ components:
             - note_required
             - internal error
             - timeout
+            - invalid_cursor
+            - if_match_required
+            - websocket_required
+            - origin
         linkIds:
           type: array
           items: {type: string}
@@ -4645,3 +5000,162 @@ components:
         keys:
           type: array
           items: {type: string}
+    OpenConversationRequest:
+      type: object
+      description: Staff send `patient_id`; a patient sends `organization_id` and `practitioner_role_id`.
+      properties:
+        patient_id: {type: string, format: uuid}
+        organization_id: {type: string, format: uuid}
+        practitioner_role_id: {type: string, format: uuid}
+        encounter_id: {type: string, format: uuid, description: The consultation the conversation is about.}
+    Conversation:
+      type: object
+      required: [id, organization_id, patient_id, practitioner_role_id, created_at, last_seq, unread, staff_only]
+      properties:
+        id: {type: string, format: uuid}
+        organization_id: {type: string, format: uuid}
+        patient_id: {type: string, format: uuid}
+        practitioner_role_id: {type: string, format: uuid, description: The treating practitioner.}
+        encounter_id: {type: string, format: uuid}
+        parent_id: {type: string, format: uuid, description: A doctor-only side thread's conversation (SAL-28).}
+        created_at: {type: string, format: date-time}
+        last_sent_at: {type: string, format: date-time, description: Absent before the first message.}
+        last_seq: {type: integer, format: int64, description: The number of the latest message; 0 before the first.}
+        unread: {type: integer, format: int64, description: The caller's messages after their read position.}
+        staff_only: {type: boolean, description: A doctor-only side thread (SAL-28); never shown to the patient.}
+        participants:
+          type: array
+          description: The active participants, the patient first; absent in a list.
+          items: {$ref: "#/components/schemas/ConversationParticipant"}
+    ConversationParticipant:
+      type: object
+      required: [id, role, added_at, history_from_seq, read_seq]
+      properties:
+        id: {type: string, format: uuid}
+        role: {type: string, enum: [patient, practitioner]}
+        patient_id: {type: string, format: uuid}
+        practitioner_role_id: {type: string, format: uuid}
+        added_at: {type: string, format: date-time}
+        history_from_seq: {type: integer, format: int64, description: The participant reads the messages after this number; 0 for all.}
+        read_seq: {type: integer, format: int64}
+    ConversationList:
+      type: object
+      required: [conversations]
+      properties:
+        conversations:
+          type: array
+          items: {$ref: "#/components/schemas/Conversation"}
+        next: {type: string, description: The cursor of the next page; absent at the end.}
+    ChatMessage:
+      type: object
+      description: A message (FHIR Communication), a participant's text (`body`) or a system message (`system`).
+      required: [id, conversation_id, seq, cursor, sender_role, kind, client_message_id, sent_at, version_id]
+      properties:
+        id: {type: string, format: uuid}
+        conversation_id: {type: string, format: uuid}
+        seq: {type: integer, format: int64, description: The message's number in the conversation, 1, 2, 3 and on.}
+        cursor: {type: string, description: "Opaque: the `before` of a page, the `after` of the socket."}
+        sender_participant_id: {type: string, format: uuid, description: Absent for a system message.}
+        sender_role: {type: string, enum: [patient, practitioner, system]}
+        kind: {type: string, enum: [text, system]}
+        body: {type: string, description: "A text's body, 1 to 4000 characters."}
+        system: {$ref: "#/components/schemas/SystemMessage"}
+        client_message_id: {type: string, format: uuid}
+        sent_at: {type: string, format: date-time}
+        edited_at: {type: string, format: date-time, description: Absent for a message never edited.}
+        version_id: {type: integer, format: int32}
+    SystemMessage:
+      type: object
+      description: The code the apps render from their catalogs, and its opaque ids.
+      required: [code]
+      properties:
+        code: {type: string, pattern: "^[a-z_]{1,64}$"}
+        args:
+          type: object
+          additionalProperties: {type: string}
+    MessagePage:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items: {$ref: "#/components/schemas/ChatMessage"}
+        next: {type: string, description: The cursor of the older page; absent at the start of the conversation.}
+    SendMessageRequest:
+      type: object
+      required: [client_message_id, body]
+      properties:
+        client_message_id: {type: string, format: uuid, description: The client's id of the message; a retry repeats it.}
+        body: {type: string, minLength: 1, maxLength: 4000}
+    EditMessageRequest:
+      type: object
+      required: [body]
+      properties:
+        body: {type: string, minLength: 1, maxLength: 4000}
+    MessageRevision:
+      type: object
+      required: [edited_at, body, version_id]
+      properties:
+        edited_at: {type: string, format: date-time, description: When this body was written.}
+        body: {type: string}
+        version_id: {type: integer, format: int32}
+    MessageRevisions:
+      type: object
+      required: [revisions]
+      properties:
+        revisions:
+          type: array
+          items: {$ref: "#/components/schemas/MessageRevision"}
+    ReadPosition:
+      type: object
+      required: [seq]
+      properties:
+        seq: {type: integer, format: int64, minimum: 0}
+    ChatMessageFrame:
+      type: object
+      required: [type, version, payload]
+      properties:
+        type: {type: string, enum: [message, message_edited]}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/ChatMessage"}
+    SendAck:
+      type: object
+      required: [client_message_id, message]
+      properties:
+        client_message_id: {type: string, format: uuid}
+        message: {$ref: "#/components/schemas/ChatMessage"}
+    SendAckFrame:
+      type: object
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: send_ack}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/SendAck"}
+    ChatCommandError:
+      type: object
+      required: [command, error]
+      properties:
+        command: {type: string, description: The type of the client's frame; empty when it was no envelope.}
+        id: {type: string, description: The client message id the frame named.}
+        error: {type: string}
+    ChatCommandErrorFrame:
+      type: object
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: command_error}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/ChatCommandError"}
+    ChatFrame:
+      description: A frame the conversation's socket sends.
+      oneOf:
+        - $ref: "#/components/schemas/ChatMessageFrame"
+        - $ref: "#/components/schemas/SendAckFrame"
+        - $ref: "#/components/schemas/ChatCommandErrorFrame"
+    ChatCommand:
+      type: object
+      description: A frame the client sends on the conversation's socket.
+      required: [type, version, payload]
+      properties:
+        type: {type: string, const: send}
+        version: {type: integer, const: 1}
+        payload: {$ref: "#/components/schemas/SendMessageRequest"}

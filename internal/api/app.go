@@ -52,6 +52,7 @@ type App struct {
 	Handler http.Handler
 	pool    *pgxpool.Pool
 	redis   *goredis.Client
+	chat    *redis.Hub
 }
 
 // minRateLimitKey is the shortest RATE_LIMIT_KEY accepted: as long as the HMAC-SHA256 output.
@@ -117,6 +118,8 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
 		kek:   kek,
 	}, fhirBase, log)
+	chatAPI, chatStream, chatHub := newChat(chatPorts{db: pool, rdb: rdb, audit: audit, tx: tx, consents: consents,
+		visits: appointment.NewFacts(appointmentRepo), roles: roles, encounters: encounters, caller: appointmentCaller(accounts, patients)}, log)
 
 	h := router.New(router.Config{
 		Logger:  log,
@@ -139,11 +142,11 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...)...),
-		Streams: append(streams, consultStream),
+		}, append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI)...),
+		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout,
 	})
-	return &App{Handler: h, pool: pool, redis: rdb}, nil
+	return &App{Handler: h, pool: pool, redis: rdb, chat: chatHub}, nil
 }
 
 // readiness are the dependencies /readyz pings.
@@ -536,6 +539,7 @@ func uiLanguage(accounts *auth.Service) func(ctx context.Context, accountID stri
 
 // Close releases the dependencies.
 func (a *App) Close() {
+	_ = a.chat.Close()
 	_ = a.redis.Close()
 	a.pool.Close()
 }

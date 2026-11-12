@@ -85,6 +85,15 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**register**](doc//AuthApi.md#register) | **POST** /auth/register | Register a patient account
 *AuthApi* | [**updateMe**](doc//AuthApi.md#updateme) | **PATCH** /auth/me | Choose the account's language
 *AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
+*ChatApi* | [**editMessage**](doc//ChatApi.md#editmessage) | **PATCH** /conversations/{id}/messages/{message_id} | Edit the body of one's own text message
+*ChatApi* | [**followConversation**](doc//ChatApi.md#followconversation) | **GET** /conversations/{id}/events | The conversation's messages, live, over a WebSocket
+*ChatApi* | [**getConversation**](doc//ChatApi.md#getconversation) | **GET** /conversations/{id} | One conversation with its active participants
+*ChatApi* | [**listConversations**](doc//ChatApi.md#listconversations) | **GET** /conversations | The caller's conversations, newest activity first, with their unread counts
+*ChatApi* | [**listMessageRevisions**](doc//ChatApi.md#listmessagerevisions) | **GET** /conversations/{id}/messages/{message_id}/revisions | The earlier bodies of an edited message, oldest first
+*ChatApi* | [**listMessages**](doc//ChatApi.md#listmessages) | **GET** /conversations/{id}/messages | A page of the conversation's messages, newest first
+*ChatApi* | [**markConversationRead**](doc//ChatApi.md#markconversationread) | **PUT** /conversations/{id}/read | Move the caller's read position
+*ChatApi* | [**openConversation**](doc//ChatApi.md#openconversation) | **POST** /conversations | Open the conversation with a patient or a practitioner, or return the one there is
+*ChatApi* | [**sendMessage**](doc//ChatApi.md#sendmessage) | **POST** /conversations/{id}/messages | Send a text message
 *ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic, or to transcription
 *ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
 *ConsentsApi* | [**revokeConsent**](doc//ConsentsApi.md#revokeconsent) | **POST** /consents/{id}/revoke | Revoke a consent
@@ -149,6 +158,12 @@ Class | Method | HTTP request | Description
  - [AvailabilityRule](doc//AvailabilityRule.md)
  - [Binary](doc//Binary.md)
  - [BookAppointmentRequest](doc//BookAppointmentRequest.md)
+ - [ChatCommand](doc//ChatCommand.md)
+ - [ChatCommandError](doc//ChatCommandError.md)
+ - [ChatCommandErrorFrame](doc//ChatCommandErrorFrame.md)
+ - [ChatFrame](doc//ChatFrame.md)
+ - [ChatMessage](doc//ChatMessage.md)
+ - [ChatMessageFrame](doc//ChatMessageFrame.md)
  - [CommandError](doc//CommandError.md)
  - [CommandErrorMessage](doc//CommandErrorMessage.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)
@@ -160,6 +175,9 @@ Class | Method | HTTP request | Description
  - [ConsultMessage](doc//ConsultMessage.md)
  - [ConsultationJoin](doc//ConsultationJoin.md)
  - [ConsultationStatus](doc//ConsultationStatus.md)
+ - [Conversation](doc//Conversation.md)
+ - [ConversationList](doc//ConversationList.md)
+ - [ConversationParticipant](doc//ConversationParticipant.md)
  - [Cursor](doc//Cursor.md)
  - [CursorMessage](doc//CursorMessage.md)
  - [DocumentFieldTexts](doc//DocumentFieldTexts.md)
@@ -174,6 +192,7 @@ Class | Method | HTTP request | Description
  - [DraftMessage](doc//DraftMessage.md)
  - [DraftValue](doc//DraftValue.md)
  - [Drafts](doc//Drafts.md)
+ - [EditMessageRequest](doc//EditMessageRequest.md)
  - [EnrolRequest](doc//EnrolRequest.md)
  - [Enrolment](doc//Enrolment.md)
  - [Error](doc//Error.md)
@@ -189,6 +208,10 @@ Class | Method | HTTP request | Description
  - [LiveKitWebhookEvent](doc//LiveKitWebhookEvent.md)
  - [LoginRequest](doc//LoginRequest.md)
  - [LoginResponse](doc//LoginResponse.md)
+ - [MessagePage](doc//MessagePage.md)
+ - [MessageRevision](doc//MessageRevision.md)
+ - [MessageRevisions](doc//MessageRevisions.md)
+ - [OpenConversationRequest](doc//OpenConversationRequest.md)
  - [Patient](doc//Patient.md)
  - [Questionnaire](doc//Questionnaire.md)
  - [QuestionnaireDefault](doc//QuestionnaireDefault.md)
@@ -198,6 +221,7 @@ Class | Method | HTTP request | Description
  - [QuestionnaireItemTranslation](doc//QuestionnaireItemTranslation.md)
  - [QuestionnaireResponse](doc//QuestionnaireResponse.md)
  - [QuestionnaireTranslation](doc//QuestionnaireTranslation.md)
+ - [ReadPosition](doc//ReadPosition.md)
  - [RegisterRequest](doc//RegisterRequest.md)
  - [RequestQuestionnaireRequest](doc//RequestQuestionnaireRequest.md)
  - [Review](doc//Review.md)
@@ -209,6 +233,9 @@ Class | Method | HTTP request | Description
  - [SaveDocumentTemplateRequest](doc//SaveDocumentTemplateRequest.md)
  - [SavePatientRequest](doc//SavePatientRequest.md)
  - [SaveQuestionnaireRequest](doc//SaveQuestionnaireRequest.md)
+ - [SendAck](doc//SendAck.md)
+ - [SendAckFrame](doc//SendAckFrame.md)
+ - [SendMessageRequest](doc//SendMessageRequest.md)
  - [SetAppointmentStatusRequest](doc//SetAppointmentStatusRequest.md)
  - [SetRoleQuestionnaireRequest](doc//SetRoleQuestionnaireRequest.md)
  - [SetSpecialtyRequest](doc//SetSpecialtyRequest.md)
@@ -221,6 +248,7 @@ Class | Method | HTTP request | Description
  - [SuggestionMessage](doc//SuggestionMessage.md)
  - [SuggestionStatus](doc//SuggestionStatus.md)
  - [SuggestionStatusMessage](doc//SuggestionStatusMessage.md)
+ - [SystemMessage](doc//SystemMessage.md)
  - [Term](doc//Term.md)
  - [TermCategory](doc//TermCategory.md)
  - [TermCodes](doc//TermCodes.md)

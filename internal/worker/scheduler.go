@@ -9,6 +9,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
+	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
@@ -45,6 +46,10 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 			// is idempotent.
 			river.NewPeriodicJob(river.PeriodicInterval(slotsInterval), func() (river.JobArgs, *river.InsertOpts) {
 				return schedule.SlotsGenerateArgs{}, nil
+			}, &river.PeriodicJobOpts{RunOnStart: true}),
+			// Also when it starts leading: a deploy near a month's end must not wait for the next day.
+			river.NewPeriodicJob(dailyAt{hour: chatPartitionsHour}, func() (river.JobArgs, *river.InsertOpts) {
+				return communication.PartitionsArgs{}, nil
 			}, &river.PeriodicJobOpts{RunOnStart: true}),
 		},
 		ReindexerIndexNames: []string{}, // as in workConfig: salus_app owns nothing
