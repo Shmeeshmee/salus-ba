@@ -103,7 +103,7 @@ func newFixtureOn(t *testing.T, repo communication.Repository, tx communication.
 		Repo: repo, Publisher: f.pub, Consents: fakeConsents{f}, Visits: fakeVisits{f}, Roles: fakeRoles{},
 		Encounters: fakeEncounters{}, ChatConsents: fakeChatConsents{f}, Directory: fakeDirectory{}, Audit: f.audit, Tx: tx, Clock: f.clock,
 		Jobs: f.jobs,
-		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Log:  slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	return f
 }

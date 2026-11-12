@@ -103,7 +103,7 @@ func pgRaceFixture(t *testing.T) (*fixture, *pgxpool.Pool, *racingRepo) {
 	f := newFixtureOn(t, repo, tx)
 	f.svc = communication.NewService(communication.Ports{
 		Repo: repo, Publisher: f.pub, Consents: fakeConsents{f}, Visits: fakeVisits{f}, Roles: fakeRoles{}, Encounters: fakeEncounters{},
-		ChatConsents: scopedChatConsents{app}, Directory: fakeDirectory{}, Audit: f.audit, Tx: tx, Clock: f.clock,
+		ChatConsents: scopedChatConsents{app}, Directory: fakeDirectory{}, Audit: f.audit, Tx: tx, Clock: f.clock, Jobs: f.jobs,
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	return f, owner, repo
