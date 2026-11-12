@@ -3,9 +3,7 @@
 // models. test/fake_chat.dart implements it in memory, and lib/chat_client.dart on the API. Nothing here logs, and
 // no message text leaves the app but to the API.
 //
-// SAL-28's invitations and SAL-30's attachments are the generated models; SAL-29's chat hours are not in
-// api/openapi.yaml yet: their type is written here by hand, field names as the contract has them on the wire, and
-// moves to the generated one once SAL-29 is merged.
+// SAL-28's invitations, SAL-29's chat hours and SAL-30's attachments are the generated models.
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -44,35 +42,6 @@ class ConversationsPage {
   final String? next;
 }
 
-/// One weekday's chat hours in the clinic's zone (SAL-29): [weekday] ISO (Monday 1), [start] and [end] `HH:MM`.
-class ChatHoursDay {
-  const ChatHoursDay(this.weekday, this.start, this.end);
-
-  final int weekday;
-  final String start;
-  final String end;
-}
-
-/// The clinic's chat hours, its expected response time and whether it is within its hours now (SAL-29,
-/// `GET /organizations/{id}/chat-hours`). The contract names `hours` per weekday with `start` and `end`; the shape
-/// `[{weekday, start, end}]` is assumed until SAL-29 is merged.
-class ChatHours {
-  const ChatHours({required this.hours, required this.responseTimeHours, required this.openNow});
-
-  final List<ChatHoursDay> hours;
-  final int responseTimeHours;
-  final bool openNow;
-
-  static ChatHours fromJson(Map<String, dynamic> json) => ChatHours(
-    hours: [
-      for (final d in (json['hours'] as List? ?? const []).cast<Map<String, dynamic>>())
-        ChatHoursDay(d['weekday'] as int, d['start'] as String, d['end'] as String),
-    ],
-    responseTimeHours: json['response_time_hours'] as int,
-    openNow: json['open_now'] as bool,
-  );
-}
-
 abstract interface class Chats {
   /// A page of the caller's conversations, newest activity first.
   Future<ConversationsPage> list({String? before});
@@ -108,7 +77,8 @@ abstract interface class Chats {
   /// Revokes a granted invitation: the doctor loses access at once.
   Future<void> revoke(String invitationId);
 
-  /// The chat hours of the clinic [organizationId].
+  /// The clinic's chat hours, its stated response time and whether it is within its hours now (SAL-29): the screens
+  /// show the out-of-hours notice from it.
   Future<ChatHours> chatHours(String organizationId);
 
   /// Uploads [file] to the conversation; answered `scanning` until the scan has run.

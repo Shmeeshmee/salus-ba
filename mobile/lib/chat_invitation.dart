@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
 
-import 'package:salus_api/api.dart' show ChatInvitation;
+import 'package:salus_api/api.dart' show ChatHourDayEnum, ChatHours, ChatInvitation;
 
 import 'booking.dart' show Places;
-import 'chat.dart';
 import 'messages.dart';
 import 'ui.dart' as ui;
 
@@ -97,8 +96,9 @@ Future<bool> confirmRevoke(BuildContext context) async {
 /// as zones.dart writes them in dates.
 const _ijekavian = {'ponedeljak': 'ponedjeljak', 'sreda': 'srijeda', 'nedelja': 'nedjelja', 'понедељак': 'понедјељак', 'среда': 'сриједа', 'недеља': 'недјеља'};
 
-/// The name of ISO weekday [weekday] (Monday 1) in gen-l10n's locale [locale].
-String weekdayName(int weekday, String locale) {
+/// The name of the chat hours' [day] in gen-l10n's locale [locale].
+String weekdayName(ChatHourDayEnum day, String locale) {
+  final weekday = ChatHourDayEnum.values.indexOf(day) + 1; // mon is ISO weekday 1
   final name = DateFormat.EEEE(locale == 'sr_Cyrl' ? 'sr' : locale).format(DateTime.utc(2026, 11, 8 + weekday));
   return _ijekavian[name] ?? name;
 }
@@ -115,7 +115,7 @@ Future<void> showChatHours(BuildContext context, ChatHours hours) {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (hours.hours.isEmpty) Text(t.chatHoursNone),
-          for (final d in hours.hours) Text(t.chatHoursDay(weekdayName(d.weekday, t.localeName), d.start, d.end)),
+          for (final d in hours.hours) Text(t.chatHoursDay(weekdayName(d.day, t.localeName), d.start, d.end)),
           const SizedBox(height: 12),
           Text(t.chatResponseTime(hours.responseTimeHours)),
         ],

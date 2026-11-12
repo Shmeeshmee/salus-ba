@@ -2,7 +2,9 @@ package organization
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -93,6 +95,49 @@ func toOrganization(row organizationdb.OrganizationByIDRow) Organization {
 		Listed: row.Listed, DefaultLanguage: string(row.DefaultLanguage), LastUpdated: row.UpdatedAt.Time,
 		PatientTranscriptCopy: row.PatientTranscriptCopy,
 	}
+}
+
+// NewPostgresChatRepository returns the ChatRepository on db, as salus_app: row-level security shows only the
+// clinic set by SetOrganization.
+func NewPostgresChatRepository(db postgres.Querier) ChatRepository {
+	return &postgresRepository{db: db}
+}
+
+func (r *postgresRepository) ChatSettings(ctx context.Context, org string) (ChatSettings, bool, error) {
+	var u pgtype.UUID
+	if u.Scan(org) != nil {
+		return ChatSettings{}, false, nil
+	}
+	row, err := r.q(ctx).ChatSettings(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return ChatSettings{}, false, nil
+	case err != nil:
+		return ChatSettings{}, false, err
+	}
+	s := ChatSettings{ResponseTimeHours: int(row.ResponseTimeHours), EmailAfterMinutes: int(row.EmailAfterMinutes)}
+	if err := json.Unmarshal(row.Hours, &s.Hours); err != nil {
+		return ChatSettings{}, false, fmt.Errorf("the stored chat hours: %w", err)
+	}
+	return s, true, nil
+}
+
+func (r *postgresRepository) PutChatSettings(ctx context.Context, org string, s ChatSettings, at time.Time) error {
+	var u pgtype.UUID
+	if u.Scan(org) != nil {
+		return ErrNotFound
+	}
+	if s.Hours == nil {
+		s.Hours = []ChatHour{}
+	}
+	hours, err := json.Marshal(s.Hours)
+	if err != nil {
+		return err
+	}
+	return r.q(ctx).PutChatSettings(ctx, organizationdb.PutChatSettingsParams{
+		OrganizationID: u, Hours: hours, ResponseTimeHours: int32(s.ResponseTimeHours), EmailAfterMinutes: int32(s.EmailAfterMinutes),
+		UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
+	})
 }
 
 type postgresStatsRepository struct {

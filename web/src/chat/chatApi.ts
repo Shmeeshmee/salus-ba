@@ -15,6 +15,7 @@ export type MessagePage = Schemas['MessagePage']
 export type ChatMessageFrame = Schemas['ChatMessageFrame']
 export type MessageRevision = Schemas['MessageRevision']
 export type OpenConversationRequest = Schemas['OpenConversationRequest']
+export type ChatHours = Schemas['ChatHours']
 export type ErrorCode = Schemas['Error']['error']
 export type Summary = Schemas['SummaryResponse']
 export type SummaryLanguage = NonNullable<Schemas['SummaryRequest']['lang']>
@@ -72,4 +73,7 @@ export interface ChatApi {
   openThread(id: string): Promise<Conversation>
   // upload sends a file through the scan pipeline (SAL-30); it comes back scanning.
   upload(id: string, file: File): Promise<ChatAttachment>
+  // chatHours is the clinic's chat hours, its stated response time and whether it is within its hours now (SAL-29):
+  // the screens show the out-of-hours notice from it.
+  chatHours(organizationId: string): Promise<ChatHours>
 }

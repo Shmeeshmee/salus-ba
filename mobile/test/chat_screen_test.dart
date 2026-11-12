@@ -12,7 +12,7 @@ import 'package:salus/file_prep.dart' show Prepared;
 import 'package:salus/l10n/app_localizations.dart';
 import 'package:salus/l10n/language.dart';
 import 'package:salus_api/api.dart'
-    show ChatAttachment, ChatAttachmentContentTypeEnum, ChatAttachmentStatusEnum, ChatInvitation, ChatInvitationReasonEnum, ChatMessage, Conversation;
+    show ChatAttachment, ChatAttachmentContentTypeEnum, ChatHour, ChatHourDayEnum, ChatHours, ChatAttachmentStatusEnum, ChatInvitation, ChatInvitationReasonEnum, ChatMessage, Conversation;
 
 import 'fake_call.dart';
 import 'fake_chat.dart';
@@ -326,15 +326,21 @@ void main() {
   });
 
   testWidgets('outside the chat hours a notice gives the response time; the hours are a tap away', (tester) async {
-    final chat = FakeChat()
-      ..openNow = false
-      ..responseTimeHours = 4;
+    final chat = FakeChat(
+      hours: ChatHours(
+        timeZone: 'Europe/Sarajevo',
+        hours: [for (final day in [ChatHourDayEnum.mon, ChatHourDayEnum.tue]) ChatHour(day: day, start: '08:00', end: '16:00')],
+        responseTimeHours: 4,
+        openNow: false,
+      ),
+    );
     await Rig(chat).open(tester);
     expect(find.text(t.chatOutOfHours(4)), findsOneWidget);
 
     await tester.tap(find.byTooltip(t.chatHours));
     await tester.pumpAndSettle();
     expect(find.text(t.chatHoursDay('Monday', '08:00', '16:00')), findsOneWidget);
+    expect(find.text(t.chatHoursDay('Tuesday', '08:00', '16:00')), findsOneWidget);
     expect(find.text(t.chatResponseTime(4)), findsOneWidget);
   });
 

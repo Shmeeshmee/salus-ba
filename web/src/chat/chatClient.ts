@@ -65,6 +65,7 @@ export function chatClient({ api, open = (url) => new WebSocket(url) }: Options)
     async markRead(id, seq) {
       await call(api.PUT('/conversations/{id}/read', { ...at(id), body: { seq } }))
     },
+    chatHours: (organizationId) => call(api.GET('/organizations/{id}/chat-hours', at(organizationId))),
     summarize: (id, lang) => call(api.POST('/conversations/{id}/summary', { ...at(id), body: { lang } })),
     addParticipant: (id, req) => call(api.POST('/conversations/{id}/participants', { ...at(id), body: req })),
     async removeParticipant(id, participantId) {

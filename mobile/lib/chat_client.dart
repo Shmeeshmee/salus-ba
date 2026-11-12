@@ -11,9 +11,8 @@ import 'chat.dart';
 import 'file_prep.dart' show Prepared;
 
 // The patient's chat (Chats) on the API: the routes of SAL-27, SAL-28 and SAL-30 through the generated ChatApi and
-// models, except where the generated client cannot stream (an upload's bytes, a file's bytes): those are plain
-// requests on the same client and bearer token, read into the generated models. SAL-29's chat hours are a plain
-// request until SAL-29 is merged and generated. The socket carries the bearer token and no Origin. Nothing here
+// models, SAL-29's chat hours too, except where the generated client cannot stream (an upload's bytes, a file's
+// bytes): those are plain requests on the same client and bearer token, read into the generated models. The socket carries the bearer token and no Origin. Nothing here
 // logs.
 
 /// A conversation's open socket, as [ChatClient] reads it; tests fake it.
@@ -149,10 +148,8 @@ class ChatClient implements Chats {
   Future<void> revoke(String invitationId) => _call(() => _api.revokeChatInvitation(invitationId));
 
   @override
-  Future<ChatHours> chatHours(String organizationId) async {
-    final r = await _plain('GET', '/organizations/${_seg(organizationId)}/chat-hours');
-    return ChatHours.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
-  }
+  Future<ChatHours> chatHours(String organizationId) async =>
+      _present(await _call<ChatHours?>(() => _api.getChatHours(organizationId)));
 
   /// The bytes streamed as the body with their length and the name in `Content-Disposition`, as the questionnaire's
   /// uploads are (Booking.upload).

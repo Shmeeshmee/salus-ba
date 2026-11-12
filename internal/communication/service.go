@@ -76,6 +76,7 @@ type Ports struct {
 	Directory    Directory
 	Audit        Auditor
 	Tx           Transactor
+	Jobs         Jobs // a send enqueues its notifications (SAL-29)
 	Clock        clock.Clock
 	// Summarizer writes the AI summary of a long conversation (SAL-31): the fake, config.LoadChatSummary.
 	Summarizer llm.Summarizer

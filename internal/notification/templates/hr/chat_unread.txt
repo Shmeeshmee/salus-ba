@@ -1,0 +1,6 @@
+Nova poruka od vaše ustanove
+
+Imate novu poruku od vaše ustanove.
+
+Za čitanje otvorite aplikaciju Salus:
+{{.Link}}

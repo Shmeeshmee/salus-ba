@@ -21,9 +21,11 @@ final syntheticThumbnail = base64Decode(
 /// read position never going back, each frame once. The caller is the conversation's patient. It also has SAL-28's
 /// invitations of doctors from other clinics (each a pending participant of the conversation until granted) with
 /// their system messages, SAL-30's attachments whose scan a test moves on (at most 10 unsent), and the clinic's chat
-/// hours as the plan's contract shapes them for SAL-29.
+/// hours (SAL-29).
 class FakeChat implements Chats {
-  FakeChat({int history = 0, DateTime? start}) : _clock = start ?? DateTime.utc(2026, 11, 12, 8) {
+  FakeChat({int history = 0, DateTime? start, ChatHours? hours})
+      : _clock = start ?? DateTime.utc(2026, 11, 12, 8),
+        _hours = hours ?? ChatHours(timeZone: 'Europe/Sarajevo', responseTimeHours: 24, openNow: true) {
     final at = _clock;
     conversation = Conversation(
       id: _uuid(1, 'c'),
@@ -49,6 +51,7 @@ class FakeChat implements Chats {
   static final _doctor = _uuid(2, 'd');
 
   late final Conversation conversation;
+  final ChatHours _hours;
   final _messages = <ChatMessage>[];
   final _revisions = <String, List<MessageRevision>>{};
   final _clientIds = <String, ChatMessage>{};
@@ -57,9 +60,6 @@ class FakeChat implements Chats {
   DateTime _clock;
   int _ids = 0;
 
-  /// The clinic's chat hours: Monday to Friday, 08:00 to 16:00, an answer within a day; a test sets [openNow].
-  var openNow = true;
-  var responseTimeHours = 24;
   final _invitations = <ChatInvitation>[];
   final _granted = <ChatInvitation>[];
 
@@ -266,6 +266,12 @@ class FakeChat implements Chats {
   }
 
   @override
+  Future<ChatHours> chatHours(String organizationId) async {
+    if (organizationId != conversation.organizationId) throw const ChatException('not_found');
+    return _hours;
+  }
+
+  @override
   Future<void> markRead(String id, int seq) async {
     _known(id);
     if (seq < 0 || seq > conversation.lastSeq) throw const ChatException('invalid_request');
@@ -326,16 +332,6 @@ class FakeChat implements Chats {
     revoked.add(i.id);
     conversation.participants.removeWhere((p) => p.id == i.id);
     system('participant_removed', {'practitioner_role_id': i.practitionerRoleId});
-  }
-
-  @override
-  Future<ChatHours> chatHours(String organizationId) async {
-    if (organizationId != conversation.organizationId) throw const ChatException('not_found');
-    return ChatHours(
-      hours: [for (var d = 1; d <= 5; d++) ChatHoursDay(d, '08:00', '16:00')],
-      responseTimeHours: responseTimeHours,
-      openNow: openNow,
-    );
   }
 
   @override

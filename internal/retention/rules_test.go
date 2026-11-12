@@ -251,6 +251,30 @@ func TestRules_KeepTheReviewerPermissionWhileGranted(t *testing.T) {
 	t.Error("no rule for term_reviewer")
 }
 
+// The chat's notifications (SAL-29): a device token is kept while the app is registered (deleted on unregister,
+// when the platform says it is gone, and with the account), a webhook endpoint while the clinic keeps it, and a
+// dead letter 30 days.
+func TestRules_KeepDevicesAndWebhooksWhileRegisteredAndDeadLettersThirtyDays(t *testing.T) {
+	want := map[string]retention.Rule{
+		"push_device":         {Then: retention.ThenKeep},
+		"webhook_endpoint":    {Then: retention.ThenKeep},
+		"webhook_dead_letter": {Then: retention.ThenDelete, Keep: 30 * 24 * time.Hour},
+	}
+	for _, r := range retention.Rules() {
+		w, ok := want[r.Table]
+		if !ok {
+			continue
+		}
+		if r.Then != w.Then || r.Keep != w.Keep {
+			t.Errorf("%s: then %q after %v, want %q after %v", r.Table, r.Then, r.Keep, w.Then, w.Keep)
+		}
+		delete(want, r.Table)
+	}
+	for table := range want {
+		t.Errorf("no rule for %s", table)
+	}
+}
+
 func TestRules_KeepChatConsentsWithTheClinicalRecord(t *testing.T) {
 	for _, r := range retention.Rules() {
 		if r.Table == "chat_consent" {

@@ -1763,6 +1763,50 @@ read, typing after one second.
 attachments is deferred until it is chosen); the retention of chat files with the clinical record (legal decision,
 with the messages').
 
+### SAL-29: notifications, chat hours and webhooks
+
+**Processing added.** Three tables with personal data: `push_device` (the push token of a patient's app, by account
+and platform), `webhook_endpoint` (a clinic's webhook: its URL, the events, whether it includes clinical content, the
+sealed secret, and the admin's account that created it) and `webhook_dead_letter` (the ids of a delivery that failed
+its last attempt). `organization_chat_settings` holds the clinic's chat hours, stated response time and e-mail delay:
+no personal data. A new message enqueues a job with opaque ids only; the notifier fans it out to a push per device of
+the patient's account, an e-mail check per other participant after the clinic's delay, and a delivery per clinic
+webhook. The e-mail check reads the participant's stored read position.
+
+**Purpose and lawful basis.** Telling a participant that a message waits for them: for the patient the contract
+with them (Art. 6(1)(b)), for staff their employment and the contract with the clinic; the content stays in the app.
+The webhooks are the clinic's own integration: the endpoint is the clinic's system and the clinic is the controller
+of what it receives (the platform processes on its behalf); with clinical content turned on, the message's text goes
+to the clinic's system under the same care basis and consent that let the clinic read the chat, and only while that
+consent is active.
+
+**Necessity and minimisation.** A push says "New message from your clinic" and nothing else: no text, sender, name,
+clinic or id (no data payload). The unread e-mail says the same with the link to the app (a patient) or the web app
+(a practitioner). A webhook carries the event's type, its stable id, the clinic's and the conversation's and the
+message's ids; the message (text, time, sender role, patient id) only when the clinic's admin turns clinical content
+on. Job arguments, error texts and log lines hold ids, codes and statuses only, proven by a test that sends a
+recognisable synthetic text through the chat, the notifier and the worker and finds it nowhere outside the record.
+
+**Retention.** `push_device`: kept while the app is registered; deleted on unregister (sign-out), when FCM or APNs
+says the token is gone, and with the account. `webhook_endpoint`: kept while the clinic keeps it; deleted by its
+admin, with its dead letters. `webhook_dead_letter`: 30 days.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A notification discloses the conversation to whoever sees the phone's lock screen or the inbox | Fixed text with no content, sender or clinic, in the recipient's language; no id in the push |
+| Google or Apple (outside the EU/EEA) learn about the patient | They receive the device token and the fixed text only. They are processors pending their DPA and transfer basis (docs/privacy/processors.md); the adapters are off and the fake is the default until then |
+| A device signed into another account receives the first account's notifications | A token is one row: registering it moves it to the account signed in last; sign-out deletes it |
+| A webhook URL reaches the platform's own network (SSRF) | https only, a host name with a dot or a public address at creation; the delivery's dialer refuses loopback, private, link-local, unique-local, multicast, unspecified and carrier-grade NAT addresses at connect time, on the resolved address, so a name rebound later is refused too; no redirect is followed; no proxy (tests) |
+| A forged or replayed delivery is believed by the clinic's system | HMAC-SHA256 over the timestamp and the exact body with the endpoint's own secret; the timestamp is in the signature; the event id is stable for deduplication |
+| The webhook secret leaks | Shown once at creation; stored sealed with `WEBHOOK_KEY` (AES-256-GCM bound to the endpoint), a key of its own in the root-only key file (ADR 0011); never listed, logged or audited |
+| Clinical content leaves the platform after a revocation | A delivery with clinical content reads the message in the clinic's scope, which shows nothing after the revocation: the delivery is cancelled |
+| The admin's changes go unrecorded | Every change of the chat settings and every list, creation and deletion of a webhook is audited, refusals too |
+
+**Open before production.** The DPAs and transfer basis of Google (FCM) and Apple (APNs) before either is switched
+on (docs/deploy/push.md).
+
 ### SAL-31: the chat's screens and the AI summary
 
 **Processing added.** No new table or stored field. The web app (doctors) and the patient app show the conversations

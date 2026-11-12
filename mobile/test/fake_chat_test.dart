@@ -106,18 +106,6 @@ void main() {
     expect((await chat.get(chat.conversation.id)).participants.where((p) => p.id == invitation.id), isEmpty);
   });
 
-  test("the clinic's chat hours say whether it is open now", () async {
-    final chat = FakeChat();
-    final org = chat.conversation.organizationId;
-    expect((await chat.chatHours(org)).openNow, isTrue);
-    chat.openNow = false;
-    final hours = await chat.chatHours(org);
-    expect(hours.openNow, isFalse);
-    expect(hours.responseTimeHours, 24);
-    expect(hours.hours.first.weekday, 1);
-    expect(() => chat.chatHours('other'), throwsA(isA<ChatException>()));
-  });
-
   test('an attachment is scanning until the test moves it, and its bytes are read once clean', () async {
     final chat = FakeChat();
     final id = chat.conversation.id;
@@ -151,5 +139,18 @@ void main() {
     final m = chat.deliverFile('synthetic-report.pdf', ChatAttachmentContentTypeEnum.applicationSlashPdf, ChatAttachmentStatusEnum.clean);
     expect(m.attachments.single.filename, 'synthetic-report.pdf');
     expect(m.attachments.single.thumbnail, isFalse);
+  });
+
+  test("gives the clinic's chat hours, and not_found for another clinic", () async {
+    final closed = ChatHours(
+      timeZone: 'Europe/Sarajevo',
+      hours: [ChatHour(day: ChatHourDayEnum.mon, start: '08:00', end: '16:00')],
+      responseTimeHours: 8,
+      openNow: false,
+    );
+    final chat = FakeChat(hours: closed);
+    expect((await chat.chatHours(chat.conversation.organizationId)).openNow, isFalse);
+    expect((await FakeChat().chatHours(chat.conversation.organizationId)).openNow, isTrue);
+    expect(() => chat.chatHours('00000000-0000-4000-8000-000000000000'), throwsA(isA<ChatException>()));
   });
 }

@@ -111,6 +111,15 @@ describe('chatClient: the JSON API', () => {
     expectCsrfOnWrites(requests)
   })
 
+  it("reads the clinic's chat hours (SAL-29)", async () => {
+    const org = conversation.organization_id
+    const hours = { time_zone: 'Europe/Sarajevo', hours: [{ day: 'mon', start: '08:00', end: '16:00' }], response_time_hours: 4, open_now: false }
+    const { chat, requests } = setup({ [`GET /organizations/${org}/chat-hours`]: () => Response.json(hours) })
+
+    expect(await chat.chatHours(org)).toEqual(hours)
+    expect(paths(requests)).toEqual([`GET /organizations/${org}/chat-hours`])
+  })
+
   it("streams a file's bytes to the attachments with its name in Content-Disposition (SAL-30)", async () => {
     const attachment = { id: 'ab000001-0000-4000-8000-000000000000', content_type: 'image/png', size: 15, filename: 'placeholder scan.png', status: 'scanning', thumbnail: false }
     const { chat, requests } = setup({ [`POST ${path}/attachments`]: () => Response.json(attachment, { status: 201 }) })

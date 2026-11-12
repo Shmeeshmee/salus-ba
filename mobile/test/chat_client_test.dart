@@ -275,14 +275,19 @@ void main() {
   test("the clinic's chat hours", () async {
     final s = setup();
     s.api.answer('GET /organizations/$orgId/chat-hours', 200, {
+      'time_zone': 'Europe/Sarajevo',
       'hours': [
-        {'weekday': 1, 'start': '08:00', 'end': '16:00'},
+        {'day': 'mon', 'start': '08:00', 'end': '16:00'},
       ],
       'response_time_hours': 4,
       'open_now': false,
     });
     final h = await s.chats.chatHours(orgId);
-    expect((h.openNow, h.responseTimeHours, h.hours.single.weekday, h.hours.single.end), (false, 4, 1, '16:00'));
+    expect(s.api.last('GET /organizations/$orgId/chat-hours').headers['Authorization'], 'Bearer $token');
+    expect(
+      (h.openNow, h.responseTimeHours, h.timeZone, h.hours.single.day, h.hours.single.end),
+      (false, 4, 'Europe/Sarajevo', ChatHourDayEnum.mon, '16:00'),
+    );
   });
 
   test('uploads the bytes streamed with their length and name, and reads a clean file back', () async {
