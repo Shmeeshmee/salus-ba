@@ -114,17 +114,6 @@ CREATE POLICY chat_consent_guest ON chat_consent FOR SELECT TO salus_app
 GRANT SELECT, INSERT ON chat_consent TO salus_app;
 GRANT UPDATE (status, revoked_at, updated_at, version_id) ON chat_consent TO salus_app;
 
--- The guest reads the patient's care consents with a clinic while a chat consent of theirs there is active (the
--- care consent rules every doctor's access to the chat).
-CREATE POLICY consent_chat_guest ON consent FOR SELECT TO salus_app
-    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
-           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
-           AND EXISTS (SELECT 1 FROM chat_consent g
-                       WHERE g.patient_id = consent.patient_id
-                         AND g.organization_id = consent.organization_id
-                         AND g.practitioner_role_id = NULLIF(current_setting('app.practitioner_role_id', true), '')::uuid
-                         AND g.status = 'active'));
-
 -- The owner of the guest's lookup: NOLOGIN, not a superuser, no BYPASSRLS. Cluster-wide like salus_app, so the same
 -- DO block (test packages migrate in parallel).
 -- +goose StatementBegin
@@ -142,8 +131,9 @@ $$;
 
 GRANT SELECT (id, organization_id, patient_id) ON conversation TO salus_chat_guest;
 GRANT SELECT (conversation_id, practitioner_role_id, organization_id, status, removed_at) ON conversation_participant TO salus_chat_guest;
-GRANT SELECT (conversation_id, practitioner_role_id, patient_id, organization_id, status) ON chat_consent TO salus_chat_guest;
-GRANT SELECT (patient_id, organization_id, status) ON consent TO salus_chat_guest;
+GRANT SELECT (conversation_id, practitioner_role_id, practitioner_organization_id, patient_id, organization_id, status)
+    ON chat_consent TO salus_chat_guest;
+GRANT SELECT (id, patient_id, organization_id, status) ON consent TO salus_chat_guest;
 CREATE POLICY conversation_guest_lookup ON conversation FOR SELECT TO salus_chat_guest USING (true);
 CREATE POLICY conversation_participant_guest_lookup ON conversation_participant FOR SELECT TO salus_chat_guest USING (true);
 CREATE POLICY chat_consent_guest_lookup ON chat_consent FOR SELECT TO salus_chat_guest USING (true);
@@ -182,6 +172,37 @@ $$;
 ALTER FUNCTION chat_guest_conversations(uuid, uuid) OWNER TO salus_chat_guest;
 REVOKE EXECUTE ON FUNCTION chat_guest_conversations(uuid, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION chat_guest_conversations(uuid, uuid) TO salus_app;
+
+-- The care consents the guest reads: the patient's with a clinic while a chat consent there for the role of that
+-- clinic is active (the care consent rules every doctor's access to the chat). A function, not an EXISTS over
+-- chat_consent in the policy: appointment's and encounter's policies read consent in many places, and each EXISTS
+-- added to all of them lifted a directory read's plan over jit_optimize_above_cost (the listed schedules' read
+-- took 80 s instead of 25 ms; test TestChatGroup_ThePoliciesKeepADirectoryReadUnderJITsOptimizeCost). Planned once
+-- per query: the argument is the scope only.
+CREATE FUNCTION chat_guest_care_consents(role_id uuid, organization_id uuid) RETURNS uuid[]
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = pg_catalog, public
+AS $$
+    SELECT coalesce(array_agg(k.id), '{}')
+    FROM public.chat_consent AS g
+    JOIN public.consent AS k ON k.patient_id = g.patient_id AND k.organization_id = g.organization_id
+    WHERE g.practitioner_role_id = chat_guest_care_consents.role_id
+      AND g.practitioner_organization_id = chat_guest_care_consents.organization_id
+      AND g.status = 'active'
+$$;
+
+ALTER FUNCTION chat_guest_care_consents(uuid, uuid) OWNER TO salus_chat_guest;
+REVOKE EXECUTE ON FUNCTION chat_guest_care_consents(uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION chat_guest_care_consents(uuid, uuid) TO salus_app;
+
+CREATE POLICY consent_chat_guest ON consent FOR SELECT TO salus_app
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND id = ANY ((SELECT chat_guest_care_consents(
+                   NULLIF(current_setting('app.practitioner_role_id', true), '')::uuid,
+                   NULLIF(current_setting('app.organization_id', true), '')::uuid))::uuid[]));
 
 -- The guest's conversations and their side threads: read, locked and counted by a send, and a side thread opened.
 -- Planned once per query: the function's argument is the scope only.

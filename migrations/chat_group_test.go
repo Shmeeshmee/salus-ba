@@ -11,7 +11,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-// chatGuestLookupRole owns chat_guest_conversations (migration 00044).
+// chatGuestLookupRole owns chat_guest_conversations and chat_guest_care_consents (migration 00044).
 const chatGuestLookupRole = "salus_chat_guest"
 
 // The states of a doctor of clinic B invited into patient A's conversation inA with clinic A (docs/plans/chat.md,
@@ -320,15 +320,21 @@ func TestChatGroup_TheLookupFunctionIsOwnedByAnUnprivilegedRoleWithAFixedSearchP
 	t.Parallel()
 	owner := pgtest.NewDatabase(t)
 	ctx := t.Context()
-	var fnOwner string
-	var definer bool
-	var config []string
-	if err := owner.QueryRow(ctx, `SELECT pg_get_userbyid(proowner), prosecdef, coalesce(proconfig, '{}')
-		FROM pg_proc WHERE proname = 'chat_guest_conversations'`).Scan(&fnOwner, &definer, &config); err != nil {
-		t.Fatal(err)
-	}
-	if fnOwner != chatGuestLookupRole || !definer || !slices.Contains(config, "search_path=pg_catalog, public") {
-		t.Errorf("chat_guest_conversations: owner %q, SECURITY DEFINER %v, config %v", fnOwner, definer, config)
+	for _, fn := range []string{"chat_guest_conversations(uuid, uuid)", "chat_guest_care_consents(uuid, uuid)"} {
+		var fnOwner string
+		var definer, publicExec, appExec bool
+		var config []string
+		if err := owner.QueryRow(ctx, `SELECT pg_get_userbyid(proowner), prosecdef, coalesce(proconfig, '{}')
+			FROM pg_proc WHERE oid = $1::regprocedure`, fn).Scan(&fnOwner, &definer, &config); err != nil {
+			t.Fatal(err)
+		}
+		if fnOwner != chatGuestLookupRole || !definer || !slices.Contains(config, "search_path=pg_catalog, public") {
+			t.Errorf("%s: owner %q, SECURITY DEFINER %v, config %v", fn, fnOwner, definer, config)
+		}
+		if err := owner.QueryRow(ctx, `SELECT has_function_privilege('public', $1, 'EXECUTE'), has_function_privilege($2, $1, 'EXECUTE')`,
+			fn, pgtest.AppRole).Scan(&publicExec, &appExec); err != nil || publicExec || !appExec {
+			t.Errorf("%s: EXECUTE for PUBLIC %v, for %s %v (%v); want false and true", fn, publicExec, pgtest.AppRole, appExec, err)
+		}
 	}
 	var super, bypass, login, createRole, createDB bool
 	if err := owner.QueryRow(ctx, `SELECT rolsuper, rolbypassrls, rolcanlogin, rolcreaterole, rolcreatedb FROM pg_roles WHERE rolname = $1`,
@@ -336,18 +342,13 @@ func TestChatGroup_TheLookupFunctionIsOwnedByAnUnprivilegedRoleWithAFixedSearchP
 		t.Errorf("%s: superuser %v, BYPASSRLS %v, LOGIN %v, CREATEROLE %v, CREATEDB %v (%v); want all false",
 			chatGuestLookupRole, super, bypass, login, createRole, createDB, err)
 	}
-	var publicExec, appExec bool
-	if err := owner.QueryRow(ctx, `SELECT has_function_privilege('public', 'chat_guest_conversations(uuid, uuid)', 'EXECUTE'),
-		has_function_privilege($1, 'chat_guest_conversations(uuid, uuid)', 'EXECUTE')`, pgtest.AppRole).Scan(&publicExec, &appExec); err != nil || publicExec || !appExec {
-		t.Errorf("EXECUTE for PUBLIC %v, for %s %v (%v); want false and true", publicExec, pgtest.AppRole, appExec, err)
-	}
 	var cols []string
 	if err := owner.QueryRow(ctx, `SELECT coalesce(array_agg(table_name || '.' || column_name ORDER BY table_name, column_name), '{}')
 		FROM information_schema.column_privileges WHERE grantee = $1`, chatGuestLookupRole).Scan(&cols); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"chat_consent.conversation_id", "chat_consent.organization_id", "chat_consent.patient_id", "chat_consent.practitioner_role_id",
-		"chat_consent.status", "consent.organization_id", "consent.patient_id", "consent.status", "conversation.id", "conversation.organization_id",
+	want := []string{"chat_consent.conversation_id", "chat_consent.organization_id", "chat_consent.patient_id", "chat_consent.practitioner_organization_id",
+		"chat_consent.practitioner_role_id", "chat_consent.status", "consent.id", "consent.organization_id", "consent.patient_id", "consent.status", "conversation.id", "conversation.organization_id",
 		"conversation.patient_id", "conversation_participant.conversation_id", "conversation_participant.organization_id",
 		"conversation_participant.practitioner_role_id", "conversation_participant.removed_at", "conversation_participant.status"}
 	if !slices.Equal(cols, want) {
@@ -384,3 +385,29 @@ func TestChatGroup_ThePoliciesDoNotRecurseThroughTheAppointments(t *testing.T) {
 	}
 }
 
+// The policies a directory read expands stay under jit_optimize_above_cost: above it Postgres inlines and optimises
+// the whole policy tree with LLVM, and the hourly slot generation's read of the listed schedules took 80 s instead of
+// 25 ms once consent_chat_guest read chat_consent at every place an appointment's or encounter's policy reads a
+// consent (SAL-28 after main's 00043: 538 000 against main's 337 000).
+func TestChatGroup_ThePoliciesKeepADirectoryReadUnderJITsOptimizeCost(t *testing.T) {
+	t.Parallel()
+	_, app := pgtest.NewAppDatabase(t)
+	for _, query := range []string{"SELECT id FROM schedule ORDER BY created_at, id", "SELECT id FROM slot"} {
+		var cost, limit float64
+		err := asApp(t, app, map[string]string{"app.directory": "public"}, func(ctx context.Context, db postgres.Querier) error {
+			var plan []struct {
+				Plan struct {
+					TotalCost float64 `json:"Total Cost"`
+				}
+			}
+			if err := db.QueryRow(ctx, "EXPLAIN (FORMAT JSON) "+query).Scan(&plan); err != nil {
+				return err
+			}
+			cost = plan[0].Plan.TotalCost
+			return db.QueryRow(ctx, "SELECT current_setting('jit_optimize_above_cost')::float8").Scan(&limit)
+		})
+		if err != nil || cost >= limit {
+			t.Errorf("%s in the directory scope: cost %.0f (%v), want under jit_optimize_above_cost %.0f", query, cost, err, limit)
+		}
+	}
+}
