@@ -119,3 +119,5 @@ before the same with it, on other conversations.
 - The patient app's token registration (Firebase SDK, APNs entitlement, the call to `PUT /me/devices`): with the
   credentials (owner's instruction), docs/deploy/push.md.
 - FCM and APNs in production: their DPAs and transfer basis (docs/privacy/processors.md), then the credentials.
+
+- **Review (fresh subagent, 2026-11-12):** fixed: the webhook SSRF denylist (NAT64, 6to4, Teredo, IPv4-compatible, documentation, discard-only, 240/4, broadcast), a dead letter for any three-digit status (00043's CHECK 1–999), a re-check for a later message still unread after a partial read, a queued push only while the device is still the account's, the ten-endpoint cap under an advisory lock, a consent check on every webhook attempt and an unopenable secret dead-lettered at once; declined (owner's decision, a retention change): an age-based deletion of stale `push_device` rows.
