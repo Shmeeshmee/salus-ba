@@ -618,3 +618,140 @@ func TestRevoke_TheCareConsentRevokesTheTranscriptionConsentToo(t *testing.T) {
 		t.Errorf("State() = %+v, want neither active", st)
 	}
 }
+
+// The chat consents (SAL-28) of the fake: patient A's conversation with clinic A, and clinic B's role.
+const (
+	chatConversation = "e1000000-0000-4000-8000-0000000000e1"
+	chatRole         = "b2000000-0000-4000-8000-0000000000b2"
+)
+
+var chatGrant = consent.ChatGrant{ConversationID: chatConversation, OrganizationID: clinicA, PractitionerRoleID: chatRole}
+
+func (r *fakeRepository) GrantChat(ctx context.Context, patientID string, g consent.ChatGrant, at time.Time) (consent.Consent, error) {
+	r.seen(ctx, "GrantChat")
+	if r.err != nil {
+		return consent.Consent{}, r.err
+	}
+	for _, c := range r.consents {
+		if c.Kind == consent.KindChat && c.ConversationID == g.ConversationID && c.PractitionerRoleID == g.PractitionerRoleID && c.Status == consent.StatusActive {
+			return consent.Consent{}, errors.New("unique violation")
+		}
+	}
+	c := consent.Consent{ID: fmt.Sprintf("f%07d-0000-4000-8000-000000000000", len(r.consents)), PatientID: patientID, OrganizationID: g.OrganizationID,
+		ConversationID: g.ConversationID, PractitionerRoleID: g.PractitionerRoleID, Kind: consent.KindChat, Status: consent.StatusActive,
+		DateTime: at, LastUpdated: at, VersionID: 1}
+	r.consents = append(r.consents, c)
+	return c, nil
+}
+
+func (r *fakeRepository) RevokeChat(ctx context.Context, conversationID, roleID string, at time.Time) (consent.Consent, error) {
+	r.seen(ctx, "RevokeChat")
+	return r.revoke(func(c consent.Consent) bool {
+		return c.Kind == consent.KindChat && c.ConversationID == conversationID && c.PractitionerRoleID == roleID
+	}, at)
+}
+
+func (r *fakeRepository) ChatGranted(ctx context.Context, conversationID, roleID string) (bool, error) {
+	r.seen(ctx, "ChatGranted")
+	for _, c := range r.consents {
+		if c.Kind == consent.KindChat && c.ConversationID == conversationID && c.PractitionerRoleID == roleID && c.Status == consent.StatusActive {
+			return true, r.err
+		}
+	}
+	return false, r.err
+}
+
+func TestGrantChat_StoresThePatientsConsentForTheConversationAndRoleAndAuditsIt(t *testing.T) {
+	f := newFixture()
+	got, err := f.svc.GrantChat(t.Context(), me, chatGrant)
+	if err != nil || got.Kind != consent.KindChat || got.PatientID != patientA || got.ConversationID != chatConversation ||
+		got.PractitionerRoleID != chatRole || got.OrganizationID != clinicA || got.Status != consent.StatusActive || !got.DateTime.Equal(now) {
+		t.Fatalf("GrantChat() = %+v, %v", got, err)
+	}
+	if want := []string{"SetPatient", "RevokeChat", "GrantChat"}; !slices.Equal(f.repo.calls, want) || f.repo.patient != patientA {
+		t.Errorf("calls %v with patient %q, want %v with patient A", f.repo.calls, f.repo.patient, want)
+	}
+	checkEvents(t, "GrantChat", f.audit, event(me, auditevent.CodeCreate, got.ID, auditevent.OutcomeSuccess))
+	if ok, err := f.svc.ChatGranted(t.Context(), chatConversation, chatRole); err != nil || !ok {
+		t.Errorf("ChatGranted() = %v, %v; want true", ok, err)
+	}
+	if len(f.audit.events) != 1 {
+		t.Errorf("ChatGranted was audited: %+v", f.audit.events)
+	}
+}
+
+// An invitation granted again, after the doctor was removed and invited anew, ends the earlier consent first: at
+// most one is active, and both are audited.
+func TestGrantChat_EndsAnEarlierActiveConsentForTheConversationAndRole(t *testing.T) {
+	f := newFixture()
+	first, err := f.svc.GrantChat(t.Context(), me, chatGrant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := f.svc.GrantChat(t.Context(), me, chatGrant)
+	if err != nil || second.ID == first.ID {
+		t.Fatalf("GrantChat() again = %+v, %v", second, err)
+	}
+	var active int
+	for _, c := range f.repo.consents {
+		if c.Kind == consent.KindChat && c.Status == consent.StatusActive {
+			active++
+		}
+	}
+	if active != 1 {
+		t.Errorf("%d active chat consents, want 1", active)
+	}
+	checkEvents(t, "GrantChat twice", f.audit, event(me, auditevent.CodeCreate, first.ID, auditevent.OutcomeSuccess),
+		event(me, auditevent.CodeUpdate, first.ID, auditevent.OutcomeSuccess), event(me, auditevent.CodeCreate, second.ID, auditevent.OutcomeSuccess))
+}
+
+func TestGrantChatAndRevokeChat_RefuseStaffAndAPatientWithoutAProfile(t *testing.T) {
+	for _, tt := range []struct {
+		want   error
+		caller consent.Caller
+		name   string
+	}{
+		{name: "staff", caller: staff, want: consent.ErrForbidden},
+		{name: "a patient without a profile", caller: noProf, want: consent.ErrProfileRequired},
+	} {
+		f := newFixture()
+		if _, err := f.svc.GrantChat(t.Context(), tt.caller, chatGrant); !errors.Is(err, tt.want) {
+			t.Errorf("%s: GrantChat() = %v, want %v", tt.name, err, tt.want)
+		}
+		if _, err := f.svc.RevokeChat(t.Context(), tt.caller, chatConversation, chatRole); !errors.Is(err, consent.ErrForbidden) && !errors.Is(err, consent.ErrInactive) {
+			t.Errorf("%s: RevokeChat() = %v", tt.name, err)
+		}
+		for _, e := range f.audit.events {
+			if e.Outcome != auditevent.OutcomeMinorFailure {
+				t.Errorf("%s: audited %+v, want refusals only", tt.name, e)
+			}
+		}
+		if len(f.audit.events) != 2 {
+			t.Errorf("%s: %d events, want both refusals audited", tt.name, len(f.audit.events))
+		}
+	}
+}
+
+func TestRevokeChat_EndsTheActiveConsentAndAuditsIt(t *testing.T) {
+	f := newFixture()
+	granted, err := f.svc.GrantChat(t.Context(), me, chatGrant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.svc.RevokeChat(t.Context(), me, chatConversation, chatRole)
+	if err != nil || got.ID != granted.ID || got.Status != consent.StatusInactive || !got.RevokedAt.Equal(now) {
+		t.Fatalf("RevokeChat() = %+v, %v", got, err)
+	}
+	if e := f.audit.events[len(f.audit.events)-1]; e != event(me, auditevent.CodeUpdate, got.ID, auditevent.OutcomeSuccess) {
+		t.Errorf("audit = %+v", e)
+	}
+	if _, err := f.svc.RevokeChat(t.Context(), me, chatConversation, chatRole); !errors.Is(err, consent.ErrInactive) {
+		t.Errorf("a second RevokeChat() = %v, want ErrInactive", err)
+	}
+	if e := f.audit.events[len(f.audit.events)-1]; e.Outcome != auditevent.OutcomeMinorFailure {
+		t.Errorf("the refused revocation's audit = %+v", e)
+	}
+	if ok, _ := f.svc.ChatGranted(t.Context(), chatConversation, chatRole); ok {
+		t.Error("ChatGranted() after the revocation: true")
+	}
+}

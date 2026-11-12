@@ -27,9 +27,13 @@ const (
 	// KindTranscription lets the clinic's consultations with the patient be transcribed and translated, with AI
 	// assistance for the practitioner (suggestions, document drafts). It is used only with an active care consent.
 	KindTranscription Kind = "transcription"
+	// KindChat lets a practitioner role of another clinic, invited into one of the patient's conversations with a
+	// clinic, read and write in that conversation (SAL-28, docs/plans/chat.md): one conversation and one role. It is
+	// granted and revoked through GrantChat and RevokeChat only, and is not in Mine or the FHIR reads.
+	KindChat Kind = "chat"
 )
 
-// Valid reports whether k is one of the kinds.
+// Valid reports whether k is one of the kinds Grant takes (care and transcription).
 func (k Kind) Valid() bool { return k == KindCare || k == KindTranscription }
 
 // Consent is one patient's consent of one kind with one clinic.
@@ -40,9 +44,21 @@ type Consent struct {
 	ID             string
 	PatientID      string // Consent.patient and performer
 	OrganizationID string // Consent.organization and provision.actor (IRCP)
-	Kind           Kind
-	Status         Status
-	VersionID      int32 // meta.versionId
+	// ConversationID and PractitionerRoleID are a chat consent's provision.data and provision.actor; empty for the
+	// other kinds.
+	ConversationID     string
+	PractitionerRoleID string
+	Kind               Kind
+	Status             Status
+	VersionID          int32 // meta.versionId
+}
+
+// ChatGrant is what a chat consent is for: the patient's conversation with the clinic OrganizationID, and the
+// practitioner role of another clinic invited into it.
+type ChatGrant struct {
+	ConversationID     string
+	OrganizationID     string
+	PractitionerRoleID string
 }
 
 // Caller is who asks: the signed-in account and, for staff, its clinic; for a patient, their profile's id,

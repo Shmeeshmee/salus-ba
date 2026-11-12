@@ -437,3 +437,114 @@ func TestSetPatientAndSetClinic_NeedATransaction(t *testing.T) {
 		t.Errorf("SetClinic() outside a transaction = %v, want ErrNoTx", err)
 	}
 }
+
+// Synthetic ids of the chat (SAL-28): patient A's conversation with clinic A and clinic B's practitioner role.
+const (
+	conversationA = "e1000000-0000-4000-8000-0000000000e1"
+	roleA         = "a2000000-0000-4000-8000-0000000000a2"
+	roleB         = "b2000000-0000-4000-8000-0000000000b2"
+)
+
+// seedChat is seed with a role in each clinic and patient A's conversation with clinic A's role.
+func seedChat(t *testing.T, owner *pgxpool.Pool) {
+	t.Helper()
+	seed(t, owner)
+	for _, s := range []struct {
+		sql  string
+		args []any
+	}{
+		{`WITH p AS (INSERT INTO practitioner (organization_id, given_name, family_name) VALUES ($1, 'Cy', 'Example') RETURNING id)
+			INSERT INTO practitioner_role (id, organization_id, practitioner_id) SELECT $2, $1, id FROM p`, []any{clinicA, roleA}},
+		{`WITH p AS (INSERT INTO practitioner (organization_id, given_name, family_name) VALUES ($1, 'Di', 'Example') RETURNING id)
+			INSERT INTO practitioner_role (id, organization_id, practitioner_id) SELECT $2, $1, id FROM p`, []any{clinicB, roleB}},
+		{`INSERT INTO conversation (id, organization_id, patient_id, practitioner_role_id, created_by) VALUES ($1, $2, $3, $4, $5)`,
+			[]any{conversationA, clinicA, patientA, roleA, accountA}},
+	} {
+		if _, err := owner.Exec(t.Context(), s.sql, s.args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// A chat consent (SAL-28) is the patient's, for one conversation and one role: granted and revoked in the patient's
+// scope, at most one active, read by the conversation's clinic and by the guest (their role in their clinic), and by
+// no one else.
+func TestChat_GrantsRevokesAndShowsTheConsentForTheConversationAndRole(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seedChat(t, owner)
+	repo := consent.NewPostgresRepository(app)
+	at := granted.Add(48 * time.Hour)
+	asA := func(ctx context.Context) error { return repo.SetPatient(ctx, patientA) }
+	g := consent.ChatGrant{ConversationID: conversationA, OrganizationID: clinicA, PractitionerRoleID: roleB}
+
+	var got consent.Consent
+	err := in(t, app, asA, func(ctx context.Context) error {
+		var err error
+		got, err = repo.GrantChat(ctx, patientA, g, at)
+		return err
+	})
+	want := consent.Consent{ID: got.ID, PatientID: patientA, OrganizationID: clinicA, ConversationID: conversationA, PractitionerRoleID: roleB,
+		Kind: consent.KindChat, Status: consent.StatusActive, DateTime: at, LastUpdated: at, VersionID: 1}
+	if err != nil || got.ID == "" || !same(got, want) || got.ConversationID != conversationA || got.PractitionerRoleID != roleB {
+		t.Fatalf("GrantChat() = %+v, %v;\nwant %+v", got, err, want)
+	}
+	err = in(t, app, asA, func(ctx context.Context) error { _, err := repo.GrantChat(ctx, patientA, g, at); return err })
+	if err == nil {
+		t.Error("a second active chat consent for the conversation and role: accepted")
+	}
+
+	granted := func(name string, set func(ctx context.Context) error, role string, want bool) {
+		t.Helper()
+		var ok bool
+		err := in(t, app, set, func(ctx context.Context) error {
+			var err error
+			ok, err = repo.ChatGranted(ctx, conversationA, role)
+			return err
+		})
+		if err != nil || ok != want {
+			t.Errorf("%s: ChatGranted() = %v, %v; want %v", name, ok, err, want)
+		}
+	}
+	guest := func(org, role string) func(ctx context.Context) error {
+		return func(ctx context.Context) error {
+			if err := repo.SetClinic(ctx, org); err != nil {
+				return err
+			}
+			return postgres.SetLocal(ctx, "app.practitioner_role_id", role)
+		}
+	}
+	granted("the patient", asA, roleB, true)
+	granted("the patient, another role", asA, roleA, false)
+	granted("clinic A", func(ctx context.Context) error { return repo.SetClinic(ctx, clinicA) }, roleB, true)
+	granted("the guest", guest(clinicB, roleB), roleB, true)
+	granted("the guest's role with another clinic set", guest("f0000000-0000-4000-8000-00000000000f", roleB), roleB, false)
+	granted("clinic B without the role", func(ctx context.Context) error { return repo.SetClinic(ctx, clinicB) }, roleB, false)
+	granted("patient B", func(ctx context.Context) error { return repo.SetPatient(ctx, patientB) }, roleB, false)
+
+	later := at.Add(time.Hour)
+	var revokedChat consent.Consent
+	err = in(t, app, asA, func(ctx context.Context) error {
+		var err error
+		revokedChat, err = repo.RevokeChat(ctx, conversationA, roleB, later)
+		return err
+	})
+	if err != nil || revokedChat.ID != got.ID || revokedChat.Status != consent.StatusInactive || !revokedChat.RevokedAt.Equal(later) || revokedChat.VersionID != 2 {
+		t.Errorf("RevokeChat() = %+v, %v; want the consent inactive, revoked later, version 2", revokedChat, err)
+	}
+	granted("the guest after the revocation", guest(clinicB, roleB), roleB, false)
+	err = in(t, app, asA, func(ctx context.Context) error {
+		_, err := repo.RevokeChat(ctx, conversationA, roleB, later)
+		return err
+	})
+	if !errors.Is(err, consent.ErrInactive) {
+		t.Errorf("a second RevokeChat() = %v, want ErrInactive", err)
+	}
+	err = in(t, app, func(ctx context.Context) error { return repo.SetPatient(ctx, patientB) }, func(ctx context.Context) error {
+		_, err := repo.GrantChat(ctx, patientB, g, at)
+		return err
+	})
+	if err == nil {
+		t.Error("patient B grants for patient A's conversation: accepted")
+	}
+}
