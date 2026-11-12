@@ -119,6 +119,124 @@ service_open,query}.go|sql`, `fakes_test.go`, `communicationdb`, every `*db/mode
 `web/src/chat/fakeChat.ts`, `mobile/test/fake_chat.dart`, `migrations/chat_test.go` (one case gives its practitioner a
 clinic, so it still fails for the reason it names), `ownership.yaml`, `retention/rules.go`, `docs/privacy/dpia.md`.
 
+## SAL-30: attachments, read receipts, typing, search and terms
+
+Built on SAL-27 and SAL-28 (migration 00045; `internal/binary`, `internal/communication`, `internal/worker`, `internal/api`).
+Routes: `POST /conversations/{id}/attachments`, `GET /conversations/{id}/attachments/{attachment_id}/content` and
+`…/thumbnail`, `GET /conversations/{id}/search?q=`, `GET /conversations/search?q=`; `attachment_ids` on a send;
+`ChatMessage.attachments` and `terms`; the socket's `read`, `typing` and `receipt` frames.
+
+As built (agent decisions, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| A file's second parent | A `binary` row has a questionnaire answer or a conversation (`conversation_id`, the uploading `conversation_participant_id`, then `communication_id` with its `sent_at` once sent), exactly one (a check). `communication` calls `binary`'s chat methods (`UploadChat`, `AttachChat`, `ChatFiles`, `ChatFile`, `OpenChat`); the chat decides who uploads, attaches and reads, and audits, in the transactions `binary` joins; `binary` keeps the file's rules (type from the bytes, size, encryption, scan, thumbnail). Not a second `Holder` as docs/attachments/SPEC.md section 7 foresaw: a chat holder would make `binary` and `communication` need each other at construction. The questionnaire files' policies, checks and tests are unchanged (`binary_own` and `binary_own_delete` now name their kind of parent) |
+| What a chat takes | Photos (JPEG, PNG) and PDFs, 20 MB each, at most 10 per message; no video. An upload is the participant's alone until sent; one never sent is deleted after 24 h. A participant has at most 10 uploads waiting (neither sent nor rejected, `binary.MaxPendingChat`): the next is refused `too_many_files` (409), audited; their uploads count and insert under an advisory lock (review, finding 3). No rate limit: none exists in the repo to reuse for uploads |
+| Who reads a file | Whoever reads its message (enter; after their `history_from_seq`, the message then read to check it), once clean (409 `scanning` before, 404 when rejected); before it is sent, its uploader only. Row-level security mirrors the messages' (the patient never in a doctor-only thread, a clinic only with the consent active and the conversation set, the scan job its conversation only), tested over every scope |
+| Infected or unscannable | clamd `FOUND`: rejected, key cleared, object deleted (as questionnaire files). A chat file past clamd's stream limit is rejected at once; any other scan failure retries, and the chat file's job gives up after 8 attempts (about 80 minutes of River's backoff), when the worker rejects it (`Unscannable`): never `scanning` for ever. A questionnaire file's job keeps its 25 attempts and stays quarantined, as before |
+| A rejected file in its message | Listed with `status: rejected` (the contract's enum), never opened, no thumbnail; its row goes 24 h after the scan, then the message lists it no more |
+| Retention of `binary` | Rule stays `delete`, 24 h, with the purger; the basis now says: a chat file attached to a message is part of the clinical record and kept with it (a trigger refuses deleting an attached file that is not rejected, for every role, the owner included), a chat upload never attached goes 24 h after its upload, and a thumbnail's object goes with its file's row |
+| Thumbnails | Images only, made by the scan job from the clean bytes (decoded in the worker, at most 40 megapixels and at most 192 MiB of decode as `decodeCost` reckons it from the header by format, else none; one decode at a time per worker; review, finding 1), a JPEG of at most 320 px a side (quality 80), sealed under its own id and data key like a file; none for a PDF. The image's orientation tag is not applied (the apps send photos upright, docs/attachments/SPEC.md section 2). A thumbnail that fails (the store) leaves the file clean without one, logged as `thumbnail_error` (review, finding 5) |
+| Cheaper storage for older attachments | Deferred, not built: the production object store is not chosen (ADR 0010, docs/attachments/SPEC.md section 8) and Garage has no storage classes; the partitions by month and the files' rows by message make moving old months' objects a later job once the store is chosen |
+| Receipts | The reader's own position stays stored (`read_seq`). A position that moves (`PUT …/read` or the `read` frame) goes to the conversation's channel as `receipt {participant_id, seq}` and into Redis `chat:<id>:receipt:<participant>` (never lower, 7 days after that participant's last read, each key its own TTL), so a socket opening later sends the kept receipts of the conversation's current participants once it has replayed (a removed participant's never; review, finding 4). Never in Postgres |
+| Typing | The `typing` frame, at most once a second per participant (`SET NX` of `chat:<id>:typing:<participant>`, 1 s TTL; the socket drops faster frames before Redis), to the channel as `typing {participant_id}`; the apps show it 5 s after the last frame. The socket's own participant, no database call: its access is checked every 5 s as before. `read` counts against the send limit; `typing` frames are no longer `unknown_command` (the SAL-27 socket test that sent one now sends an unknown type) |
+| Search configuration | `chat_search`: Postgres's `simple` parser and dictionary after `unaccent`, for every app language at once (they mix in a conversation): no stemming (Postgres has none for Bosnian, Croatian or Serbian, and one language's stemmer mangles another's words), case and diacritics aside so `mucnina` finds `mučnina`. Every word of the query must start a word of the body (prefix, all words). Latin and Cyrillic Serbian do not find each other (no transliteration) |
+| Search index | A GIN index on `to_tsvector('chat_search', body)` on `communication`, so on every partition, those created later included (migration test) |
+| Search through the index | Row-level security cannot use the text index: the match operator `@@` is not leakproof, so the policies run first over every message the scope sees (one search across a doctor's 50 010 conversations took over 24 s in `make bench-chat`, a rare word in a 100 000-message conversation 450 ms at p50). So `communication_search(q, conversation, lim)`, owned by the schema owner and `SECURITY DEFINER` like `communication_add_partitions`, finds the keys through the index and decides itself what the scope may read, as the policies do (migration test over every scope); the app then reads the rows by those keys through the policies, and the service checks each result's conversation too: three layers that agree. It plans each search for its own values (`EXECUTE`) |
+| Search across a doctor's conversations | A read-only scope `app.chat_practitioner_role_id`, set by the search only, beside the clinic's and SAL-28's `app.practitioner_role_id` (the same role; the policies and `communication_search` require both): its policies show the messages, and their files, of the conversations the role takes part in as an active participant of the scope's clinic (never a `pending_consent` invitation, never removed), after its `history_from_seq`, in the conversations the scope sees at all (the participant's policy reads the conversation's: the clinic's own while the care consent is active; a granted guest's conversation and only the side threads they take part in, SAL-28). `communication_search` decides the same itself: the clinic's own conversations under the care consent, or, for a doctor of another clinic, a conversation (or its side thread) whose chat consent for the role is active, with the role still an active participant of it, under the care consent with the treating clinic (finding 7, after SAL-28's merge). Not unified with `app.practitioner_role_id`: every practitioner transaction sets that one, so its policies would show a practitioner's messages across all their conversations in every transaction, where 00041 and SAL-28 show them one conversation at a time (`TestChatGroup_AGuestSeesTheConversationOnlyWhileGranted` asserts no message without a conversation set). The service also checks each result's conversation as `enter` does (participant, `access.ReadsChat`, history): the database and the service decide alike (the end-to-end test, on the owner's connection, caught a revoked conversation found by the role scope alone before this check). A patient's search uses their own scope; at most 50 results, newest first; audited once per patient whose messages it returns (one event naming nobody when it returns none; review, finding 2); the query is never logged. The service's check can only drop a result the search function already excluded (a revocation between the two), so a page may be short: search has no paging, so nothing is skipped |
+| Terms | Tagged on read with `terminology`'s matching (SAL-13, as transcript lines): the body in the reader's UI language (their account's chosen language, else the one its client last matched, `account.detected_language`, as `uiLanguage` in internal/api reads it), then English for spans that overlap none; never stored, the body unchanged. On the JSON API's pages, searches and a send's or edit's answer; not in socket frames, which are the same bytes for every reader whatever their language. The reader's language is read through `auth.Service.Me`, which audits an account read per page |
+| Message without text | `body` may be empty with files; the row's `body` is then null and `attachment_count` above 0 (a check); the JSON has no `body`. Such a message has no text to edit (`forbidden`) |
+| Socket frames | Message frames (live and replay) carry `attachments` as at send time. Nothing tells a socket when a scan ends: the apps read the page again (see "Needs a contract change") |
+
+Needs a contract change (reported, not made):
+
+- An `attachment_scanned` frame (or a `message_edited` with the new statuses) when a file's scan ends, so the apps need not
+  read the page again to see a thumbnail or a rejection. Today the scan job (`binary`, the worker) does not publish on
+  the chat's channel.
+- A `DELETE /conversations/{id}/attachments/{attachment_id}` for an upload removed before it is sent. The contract of
+  wave 1 has none; today such an upload stays the uploader's alone, is never shown to anyone, and is deleted 24 h after
+  its upload by `binary`'s retention.
+
+Copy waiting for the owner: none. The backend adds no user-facing string; the new error codes (`scanning`,
+`unsupported_type`, `too_large`, `length_required`, `too_many_files` on the chat's routes) are binary's, rendered by the
+apps (SAL-31).
+
+Review (fresh subagent, 2026-11-12): fixed 1 (decode budget by format, one decode at a time, `GOMEMLIMIT`), 2 (search
+audit per patient), 3 (10 uploads waiting per participant), 4 (receipt per participant with its own TTL, current
+participants only), 5 (a failed thumbnail leaves the file clean), 6 (role scope's file policy after
+`history_from_seq`, unsent files to their uploader only); 8 not a bug (search has no paging; "else detected" is
+`account.detected_language`, wording made explicit); 7 done at the merge of main after SAL-28 (migration renumbered 00045; the search and the search scope's policies follow SAL-28's participant status and guest scope: migration, service and Postgres tests over the guest pending, declined, granted, chat consent revoked, care consent revoked and removed, and a side thread without them); left 9 (the owner's decision).
+
+### Measured (SAL-30, 2026-11-12)
+
+`make bench-chat` on SAL-27's table (3 000 021 messages, 50 010 conversations, 24 monthly partitions), its bodies now
+carrying one word of a synthetic vocabulary of 5 000 (`w0` to `w4999`: a word in about one message in 5 000, a prefix
+such as `w12` in more) besides `placeholder`, in every message. Through the service: the role's scope, the service's
+own check of every result, the audit. One practitioner takes part in all 50 010 conversations: the worst case (a
+doctor has hundreds). The shared host ran at a load average of 30 to 95 from other sessions throughout.
+
+| Measure | p50 | p95 | p99 |
+| --- | --- | --- | --- |
+| Search a 100 000-message conversation, a rare word | 28 ms | 59 ms | 110 ms |
+| Search a 100 000-message conversation, a word in every message | 23 ms | 178 ms | 453 ms |
+| Search a small conversation, a rare word | 35 ms | 83 ms | 433 ms |
+| Search across 50 010 conversations, a rare word | 121 ms | 295 ms | 414 ms |
+| Search across 50 010 conversations, a word in every message | 124 ms | 462 ms | 1.07 s |
+| A 12-megapixel JPEG's thumbnail (decode, scale, encode; `BenchmarkThumbnail`) | 353 ms, 49 MB allocated | | |
+
+What the standard library's decoders allocate for crafted 40-megapixel images (`BenchmarkDecodeCrafted`, review,
+finding 1; `runtime.MemStats.TotalAlloc` over one decode, whose coefficients and pixels all live until it returns, so
+the decode's peak):
+
+| Crafted file (40 MP) | File | Decode | Bytes a pixel |
+| --- | --- | --- | --- |
+| Progressive JPEG, gray | 78 KB | 190.8 MiB | 5.0 |
+| Progressive JPEG, YCbCr 4:4:4 | 235 KB | 572.2 MiB | 15.0 |
+| Progressive JPEG, CMYK | 313 KB | 915.6 MiB | 24.0 |
+| PNG, RGB 16-bit | 237 KB | 305.3 MiB | 8.0 |
+| PNG, RGB 16-bit, interlaced | 237 KB | 610.7 MiB | 16.0 |
+
+The old bound (40 MP, "4 bytes a pixel") let each through, in a worker of 768 MB running two scans. Now `decodeCost`
+reckons a decode from the header (JPEG: a byte a component, 4 more for a CMYK or RGB conversion, 4 a component when
+progressive; PNG: its image's bytes a pixel, twice when interlaced; plus 1 MiB), checked above what the decoder
+allocates for each kind (`TestDecodeCost_BoundsWhatTheDecoderAllocates`), and refuses past 192 MiB: every file above
+is refused from its header with under 1 MiB allocated (`TestDecodeImage_RefusesACraftedImagePastTheMemoryBudgetFromItsHeader`),
+while a 12-megapixel progressive photo (about 172 MiB) still gets its thumbnail. Decodes run one at a time per
+worker, and the worker's `GOMEMLIMIT` is 640 MiB (`SALUS_WORKER_GOMEMLIMIT`, under its 768m limit).
+
+- Before `communication_search` the same searches ran under row-level security alone: a rare word in a long
+  conversation 451 ms at p50 (1.27 s p95), one search across the 50 010 conversations over 24 s (the run was stopped).
+  The match operator is not leakproof, so the policies ran first over every message the scope sees. Before its
+  windows (7 days, 90, all) a word in every message across them took 4.3 s at p50 (14.8 s p95).
+- The SAL-27 measures in the same runs: latest page 9.3 to 11.8 ms p50, 25 ms p95 (target met); page 22 7 to 12 ms
+  p50 (met); a send alone 11 to 19 ms p50. Delivery at 200 messages a second missed its target in both runs (p95 17 to
+  21 s, the commits waiting on `LWLock:WALWrite` and `IO:WalSync`), and as much without the new GIN index (an A/B run
+  with `communication_search` dropped after the seed: commit p95 24 s, delivery 4.8 s, load average 48): the host's
+  load, not SAL-30's index. To be measured again on a quiet host before the merge; SAL-27's run had 86 ms p95 at a load
+  average of 10 to 14.
+
+#### Before the merge (after main's SAL-28, migration 00045, 2026-11-12)
+
+One `make bench-chat` run on a quiet host (load average 2.0 at the start, 2.7 to 6.1 during, 3.2 at the end), same
+seed (3 000 021 messages, 50 010 conversations, 24 partitions), with finding 7's search (participant status, guest
+scope). Every target met:
+
+| Measure | p50 | p95 | p99 | Target |
+| --- | --- | --- | --- | --- |
+| Delivery at 200 messages a second | 9.6 ms | 13.2 ms | 16.1 ms | p95 < 300 ms: met |
+| Send's commit at 200 a second | 9.5 ms | 13.1 ms | 15.1 ms | |
+| Latest page (service, audited, 50 messages) | 6.5 ms | 11.1 ms | 13.8 ms | p95 < 200 ms: met |
+| Page 22 of a long conversation | 5.9 ms | 10.3 ms | 11.9 ms | p95 < 200 ms: met |
+| A send with nothing else running | 5.6 ms | 9.2 ms | 14.4 ms | p95 < 300 ms: met |
+| Search a 100 000-message conversation, a rare word | 19 ms | 31 ms | 40 ms | none (capacity) |
+| Search a 100 000-message conversation, a word in every message | 15 ms | 20 ms | 25 ms | none |
+| Search a small conversation, a rare word | 16 ms | 19 ms | 24 ms | none |
+| Search across 50 010 conversations, a rare word | 258 ms | 288 ms | 314 ms | none |
+| Search across 50 010 conversations, a word in every message | 286 ms | 306 ms | 319 ms | none |
+
+Capacity: delivery at 400 a second 13.0 ms p95, at 1000 a second 207 ms p95. The earlier misses of delivery at 200 a
+second (p95 17 to 21 s) were the host's load, as the A/B run suggested.
+
 ## SAL-29: push notifications, the e-mail fallback, chat hours and webhooks
 
 Built: `pkg/push` (the `Sender` port, `ByPlatform`), its fake `pkg/push/pushtest` (the default), and the adapters

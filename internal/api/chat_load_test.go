@@ -50,6 +50,9 @@ const (
 	loadSmall   = 50_000
 	loadLong    = 10
 	loadSamples = 1000
+	// loadWords is the size of the synthetic vocabulary the bodies draw one word from ("w0" to "w4999", SAL-30's
+	// search): a word is in about one message in 5000, "placeholder" in every one.
+	loadWords = 5000
 
 	loadClinic       = "a0000000-0000-4000-8000-00000000000a"
 	loadRole         = "a1000000-0000-4000-8000-0000000000a1"
@@ -129,7 +132,7 @@ func seedLoad(t *testing.T, owner *pgxpool.Pool, total int) {
 			CASE WHEN s % 2 = 0 THEN n.patient_part ELSE n.doctor_part END,
 			CASE WHEN s % 2 = 0 THEN ('10000000-0000-4000-8000-' || lpad(to_hex(n.i), 12, '0'))::uuid ELSE '` + loadPractAccount + `'::uuid END,
 			CASE WHEN s % 2 = 0 THEN 'patient' ELSE 'practitioner' END, gen_random_uuid(), 'text',
-			'Synthetic placeholder message ' || s
+			'Synthetic placeholder message ' || s || ' w' || ((s * 7919 + n.i * 104729) % ` + strconv.Itoa(loadWords) + `)
 		FROM n, generate_series(1, n.n) s`,
 		`UPDATE conversation cv SET last_seq = m.seq, last_sent_at = m.sent_at
 			FROM (SELECT DISTINCT ON (conversation_id) conversation_id, seq, sent_at FROM communication ORDER BY conversation_id, seq DESC) m
@@ -299,6 +302,9 @@ func TestChatLoad(t *testing.T) {
 		delivery(t, withoutJob, h, loadLong+1+3*200, 1)
 		stop()
 	})
+	searches(t, owner, svc, long, small)
+	// The targets hold at 200 messages a second (720 000 an hour, far above the clinics' load); 400 and 1000 a second
+	// are measured as the capacity of durable commits on the test's pool of 8 (docs/plans/chat.PROGRESS.md).
 	for k, rate := range []int{1, 2, 5} { // messages a second per conversation, 200 conversations
 		t.Run(fmt.Sprintf("delivery at %d a second", 200*rate), func(t *testing.T) {
 			stop := sampleWaits(t, owner)

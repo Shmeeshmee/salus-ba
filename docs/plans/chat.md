@@ -230,6 +230,11 @@ PROGRESS when merged.
 | `read_seq` | Unread counts and the e-mail fallback (owner, 2026-11-12) |
 | `client_message_id` | Idempotent send; an opaque UUID the client makes |
 | `encounter_id` | The optional link to the consultation the conversation is about |
+| `binary.conversation_id`, `conversation_participant_id`, `communication_id`, `communication_sent_at` (SAL-30) | A chat file's conversation, who uploaded it and the message it was sent with: who may read it, and it is kept with its message |
+| `binary.title`, `content_type`, `size`, `sha1` of a chat file (SAL-30) | The file's name so the reader can tell files apart, and what a viewer needs; as for questionnaire files (docs/attachments/SPEC.md section 5) |
+| `binary.thumbnail_id`, `thumbnail_size`, `thumbnail_wrapped_key` and the thumbnail's object (SAL-30) | A clean image's preview in the message, made by the server, encrypted like the file |
+| `communication.attachment_count` (SAL-30) | How many files a message carries: a message of files alone has no text |
+| Redis `chat:<conversation>:receipt:<participant>` (number; 7 days after the participant's last read) and `chat:<conversation>:typing:<participant>` (1 s) (SAL-30) | What the others see of a participant's reading and typing, ephemeral (owner, 2026-11-12) |
 | `conversation_participant.organization_id` | A practitioner's clinic: who is a doctor of another clinic, whose access needs the patient's consent (SAL-28) |
 | `conversation_participant.status`, `reason` | Whether an invited doctor waits for the patient's consent, and why the treating practitioner added them (a code): shown to the patient with the invitation (SAL-28) |
 | `chat_consent` (`patient_id`, `organization_id`, `conversation_id`, `practitioner_role_id`, `date_time`, `revoked_at`) | Proof of the patient's consent that a doctor of another clinic reads and writes in that conversation, and of its revocation (GDPR Art. 7(1); SAL-28) |

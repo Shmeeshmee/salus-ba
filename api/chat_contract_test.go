@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/communication"
+	"github.com/Shmeeshmee/salus/internal/terminology"
 )
 
 // keys are the JSON keys v encodes to.
@@ -33,8 +34,10 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 	s := schemas(t)
 	at := time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC)
 	id := "00000000-0000-4000-8000-000000000001"
+	attachment := communication.Attachment{ID: id, ContentType: "image/png", Filename: "x.png", Status: communication.AttachmentClean, Size: 1, Thumbnail: true}
 	full := communication.Message{SentAt: at, EditedAt: at, ID: id, ConversationID: id, SenderParticipantID: id, ClientMessageID: id,
-		Body: "x", SenderRole: communication.RolePatient, Kind: communication.KindText, Seq: 1, VersionID: 2}
+		Body: "x", SenderRole: communication.RolePatient, Kind: communication.KindText, Seq: 1, VersionID: 2,
+		Attachments: []communication.Attachment{attachment}, Terms: []terminology.Span{{TermID: id, Start: 0, End: 1}}}
 	system := communication.Message{SentAt: at, ID: id, ConversationID: id, ClientMessageID: id, SenderRole: communication.RoleSystem,
 		Kind: communication.KindSystem, SystemCode: "participant_added", SystemArgs: map[string]string{"practitioner_role_id": id}, Seq: 2, VersionID: 1}
 	part := communication.Participant{AddedAt: at, ID: id, PatientID: id, PractitionerRoleID: id, OrganizationID: id, Role: communication.RolePatient,
@@ -48,13 +51,18 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 		also          []string // keys of the other variant (a system message's `system`)
 	}{
 		{"ChatMessage", full, communication.Message{}, []string{"system"}},
-		{"ChatMessage", system, communication.Message{}, []string{"body", "edited_at", "sender_participant_id"}},
+		{"ChatMessage", system, communication.Message{}, []string{"attachments", "body", "edited_at", "sender_participant_id", "terms"}},
 		{"Conversation", conv, communication.Conversation{}, nil},
 		{"ConversationParticipant", part, communication.Participant{}, nil},
 		{"MessageRevision", communication.Revision{}, communication.Revision{}, nil},
 		{"SendAck", communication.SendAck{}, communication.SendAck{}, nil},
-		{"SendMessageRequest", communication.SendCommand{}, communication.SendCommand{}, nil},
+		{"SendMessageRequest", communication.SendCommand{AttachmentIDs: []string{id}}, communication.SendCommand{}, nil},
 		{"ChatCommandError", communication.CommandError{ID: "x"}, communication.CommandError{}, nil},
+		{"ChatAttachment", attachment, communication.Attachment{}, nil},
+		{"ChatReceipt", communication.Receipt{ParticipantID: id, Seq: 1}, communication.Receipt{}, nil},
+		{"ChatTyping", communication.Typing{ParticipantID: id}, communication.Typing{}, nil},
+		{"ReadPosition", communication.ReadCommand{Seq: 1}, communication.ReadCommand{}, nil},
+		{"ChatSearchResult", communication.SearchResult{ConversationID: id, Message: full}, communication.SearchResult{}, nil},
 		{"AddParticipantRequest", communication.AddParticipant{FromSeq: &from}, communication.AddParticipant{}, nil},
 		{"ChatInvitation", communication.Invitation{Status: communication.StatusActive}, communication.Invitation{}, nil},
 	} {
@@ -76,6 +84,12 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 			t.Errorf("%s: required %v, Go always encodes %v", tt.name, required, minimal)
 		}
 	}
+	checkChatEnums(t, s)
+}
+
+// checkChatEnums checks the chat's enums and frame types against the Go constants.
+func checkChatEnums(t *testing.T, s map[string]schema) {
+	t.Helper()
 	if got := s["ChatMessage"].Properties["sender_role"].Enum; !slices.Equal(got, []string{"patient", "practitioner", "system"}) {
 		t.Errorf("sender_role enum = %v", got)
 	}
@@ -86,13 +100,18 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 		"ConversationParticipant.reason": reasons, "AddParticipantRequest.reason": reasons, "ChatInvitation.reason": reasons,
 		"AddParticipantRequest.history":   {communication.HistoryFull, communication.HistoryFrom},
 		"ChatInvitationDecision.decision": {string(communication.DecisionGrant), string(communication.DecisionDecline)},
+		"ChatAttachment.status":           {string(communication.AttachmentScanning), string(communication.AttachmentClean), string(communication.AttachmentRejected)},
 	} {
 		schema, prop, _ := strings.Cut(name, ".")
 		if got := s[schema].Properties[prop].Enum; !slices.Equal(got, want) {
 			t.Errorf("%s enum = %v, want %v", name, got, want)
 		}
 	}
-	for frame, typ := range map[string]string{"SendAckFrame": communication.SendAckType, "ChatCommandErrorFrame": communication.CommandErrorType, "ChatCommand": communication.SendType} {
+	for frame, typ := range map[string]string{
+		"SendAckFrame": communication.SendAckType, "ChatCommandErrorFrame": communication.CommandErrorType, "ChatCommand": communication.SendType,
+		"ChatReadCommand": communication.ReadType, "ChatTypingCommand": communication.TypingType, "ChatReceiptFrame": communication.ReceiptType,
+		"ChatTypingFrame": communication.TypingType,
+	} {
 		if got := s[frame].Properties["type"].Const; got != typ {
 			t.Errorf("%s type = %v, want %s", frame, got, typ)
 		}

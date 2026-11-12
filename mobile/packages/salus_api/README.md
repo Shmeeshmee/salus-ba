@@ -91,6 +91,8 @@ Class | Method | HTTP request | Description
 *ChatApi* | [**deleteWebhook**](doc//ChatApi.md#deletewebhook) | **DELETE** /clinic/webhooks/{id} | Delete a webhook endpoint and its dead letters
 *ChatApi* | [**editMessage**](doc//ChatApi.md#editmessage) | **PATCH** /conversations/{id}/messages/{message_id} | Edit the body of one's own text message
 *ChatApi* | [**followConversation**](doc//ChatApi.md#followconversation) | **GET** /conversations/{id}/events | The conversation's messages, live, over a WebSocket
+*ChatApi* | [**getChatAttachmentContent**](doc//ChatApi.md#getchatattachmentcontent) | **GET** /conversations/{id}/attachments/{attachment_id}/content | Download a message's file
+*ChatApi* | [**getChatAttachmentThumbnail**](doc//ChatApi.md#getchatattachmentthumbnail) | **GET** /conversations/{id}/attachments/{attachment_id}/thumbnail | Download a message's image thumbnail
 *ChatApi* | [**getChatHours**](doc//ChatApi.md#getchathours) | **GET** /organizations/{id}/chat-hours | The clinic's chat hours, its response time, and whether it is within its hours now
 *ChatApi* | [**getChatSettings**](doc//ChatApi.md#getchatsettings) | **GET** /clinic/chat-settings | The admin's clinic's chat settings
 *ChatApi* | [**getConversation**](doc//ChatApi.md#getconversation) | **GET** /conversations/{id} | One conversation with its active participants
@@ -106,9 +108,12 @@ Class | Method | HTTP request | Description
 *ChatApi* | [**registerDevice**](doc//ChatApi.md#registerdevice) | **PUT** /me/devices | Register the patient app's push token
 *ChatApi* | [**removeConversationParticipant**](doc//ChatApi.md#removeconversationparticipant) | **DELETE** /conversations/{id}/participants/{participant_id} | Remove a practitioner, or withdraw an invitation (SAL-28)
 *ChatApi* | [**revokeChatInvitation**](doc//ChatApi.md#revokechatinvitation) | **POST** /me/chat-invitations/{id}/revoke | Revoke a granted invitation (SAL-28)
+*ChatApi* | [**searchConversation**](doc//ChatApi.md#searchconversation) | **GET** /conversations/{id}/search | Search a conversation's messages
+*ChatApi* | [**searchConversations**](doc//ChatApi.md#searchconversations) | **GET** /conversations/search | Search the caller's conversations
 *ChatApi* | [**sendMessage**](doc//ChatApi.md#sendmessage) | **POST** /conversations/{id}/messages | Send a text message
 *ChatApi* | [**setChatSettings**](doc//ChatApi.md#setchatsettings) | **PUT** /clinic/chat-settings | Replace the admin's clinic's chat settings
 *ChatApi* | [**unregisterDevice**](doc//ChatApi.md#unregisterdevice) | **DELETE** /me/devices | Unregister the app's push token (on sign-out)
+*ChatApi* | [**uploadChatAttachment**](doc//ChatApi.md#uploadchatattachment) | **POST** /conversations/{id}/attachments | Upload a file to send in the conversation
 *ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic, or to transcription
 *ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
 *ConsentsApi* | [**revokeConsent**](doc//ConsentsApi.md#revokeconsent) | **POST** /consents/{id}/revoke | Revoke a consent
@@ -202,6 +207,7 @@ Class | Method | HTTP request | Description
  - [AvailabilityRule](doc//AvailabilityRule.md)
  - [Binary](doc//Binary.md)
  - [BookAppointmentRequest](doc//BookAppointmentRequest.md)
+ - [ChatAttachment](doc//ChatAttachment.md)
  - [ChatCommand](doc//ChatCommand.md)
  - [ChatCommandError](doc//ChatCommandError.md)
  - [ChatCommandErrorFrame](doc//ChatCommandErrorFrame.md)
@@ -213,7 +219,15 @@ Class | Method | HTTP request | Description
  - [ChatInvitationList](doc//ChatInvitationList.md)
  - [ChatMessage](doc//ChatMessage.md)
  - [ChatMessageFrame](doc//ChatMessageFrame.md)
+ - [ChatReadCommand](doc//ChatReadCommand.md)
+ - [ChatReceipt](doc//ChatReceipt.md)
+ - [ChatReceiptFrame](doc//ChatReceiptFrame.md)
+ - [ChatSearchResult](doc//ChatSearchResult.md)
+ - [ChatSearchResults](doc//ChatSearchResults.md)
  - [ChatSettings](doc//ChatSettings.md)
+ - [ChatTyping](doc//ChatTyping.md)
+ - [ChatTypingCommand](doc//ChatTypingCommand.md)
+ - [ChatTypingFrame](doc//ChatTypingFrame.md)
  - [CommandError](doc//CommandError.md)
  - [CommandErrorMessage](doc//CommandErrorMessage.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)

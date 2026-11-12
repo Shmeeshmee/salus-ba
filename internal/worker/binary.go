@@ -51,9 +51,9 @@ func newFiles(pool *pgxpool.Pool, files Files, responses *questionnaireresponse.
 	})
 }
 
-// binaryScanWorker scans an uploaded file (binary_scan, enqueued with the upload on the scan queue). It logs
-// the file's id, the result, for a rejected file the signature, and the time taken: never the title, and no
-// patient id beside the signature.
+// binaryScanWorker scans an uploaded file, a questionnaire's or a chat's (binary_scan, enqueued with the upload on
+// the scan queue). It logs the file's id, the result, for a rejected file the signature, and the time taken: never
+// the title, and no patient id beside the signature.
 type binaryScanWorker struct {
 	river.WorkerDefaults[binary.ScanArgs]
 	files *binary.Service
@@ -63,9 +63,18 @@ type binaryScanWorker struct {
 
 func (w *binaryScanWorker) Timeout(*river.Job[binary.ScanArgs]) time.Duration { return scanTimeout }
 
+// Work scans the file. A chat file's last attempt that fails rejects it as unscannable (binary.Service.Unscannable),
+// so its message never shows it as scanning for ever; a questionnaire file's stays quarantined.
 func (w *binaryScanWorker) Work(ctx context.Context, job *river.Job[binary.ScanArgs]) error {
 	start := w.clock.Now()
 	res, err := w.files.Scan(ctx, job.Args)
+	if err != nil && job.Attempt >= job.MaxAttempts {
+		if rejected, rerr := w.files.Unscannable(ctx, job.Args); rerr == nil && rejected {
+			w.log.InfoContext(ctx, "binary scan done", "binary_id", job.Args.BinaryID, "result", "unscannable",
+				"duration_ms", w.clock.Now().Sub(start).Milliseconds())
+			return nil
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -75,6 +84,9 @@ func (w *binaryScanWorker) Work(ctx context.Context, job *river.Job[binary.ScanA
 		attrs[3] = "none"
 	case binary.StatusRejected:
 		attrs = append(attrs, "signature", res.Signature)
+	}
+	if res.ThumbnailErr != nil { // the file is clean without its preview
+		attrs = append(attrs, "thumbnail_error", res.ThumbnailErr.Error())
 	}
 	attrs = append(attrs, "duration_ms", w.clock.Now().Sub(start).Milliseconds())
 	w.log.InfoContext(ctx, "binary scan done", attrs...)

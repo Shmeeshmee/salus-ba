@@ -211,7 +211,7 @@ under load yet (docs/consultation/SPEC.md §8).
 | --- | --- |
 | clamd | 2048 MB (the signatures in memory, about 1.5 GB; `ConcurrentDatabaseReload no` keeps a reload from doubling it). The scans' temporary files are not in it: clamd spools each stream and what it unpacks to `SALUS_DATA_DIR/clamd` on the encrypted volume, not a tmpfs, because the worker runs two scans at once, each up to 250 MB streamed plus 250 MB unpacked: a tmpfs for that (1 GB) would count towards this limit and take the budget to about 7.7 GB of 8. The cost is disk I/O on the volume during a scan |
 | postgres | 1024 MB |
-| worker | 768 MB (a scan reads an upload of up to 200 MB) |
+| worker | 768 MB (a scan reads an upload of up to 200 MB; a chat image decodes in at most 192 MiB, one at a time), with `GOMEMLIMIT` at 640 MiB (`SALUS_WORKER_GOMEMLIMIT`) so the collector works harder before the kernel kills it |
 | livekit | 768 MB |
 | api | 512 MB |
 | agent | 384 MB |
