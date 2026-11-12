@@ -172,6 +172,16 @@ func (q *Queries) DevicesOfAccount(ctx context.Context, accountID pgtype.UUID) (
 	return items, nil
 }
 
+const lockWebhookEndpoints = `-- name: LockWebhookEndpoints :exec
+SELECT pg_advisory_xact_lock(hashtextextended('webhook_endpoint:' || $1::text, 0))
+`
+
+// A clinic's endpoint creations count and insert one after the other, until the transaction ends.
+func (q *Queries) LockWebhookEndpoints(ctx context.Context, organizationID string) error {
+	_, err := q.db.Exec(ctx, lockWebhookEndpoints, organizationID)
+	return err
+}
+
 const registerDevice = `-- name: RegisterDevice :exec
 
 INSERT INTO push_device (account_id, platform, token, updated_at)

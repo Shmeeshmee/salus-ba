@@ -81,6 +81,10 @@ func (s *Chat) CreateWebhook(ctx context.Context, c Caller, in NewEndpoint) (End
 		if err := s.Repo.SetClinic(ctx, c.OrganizationID); err != nil {
 			return err
 		}
+		// Under the clinic's lock, so two creations at once cannot both count nine and pass the tenth.
+		if err := s.Repo.LockEndpoints(ctx, c.OrganizationID); err != nil {
+			return err
+		}
 		existing, err := s.Repo.Endpoints(ctx, c.OrganizationID)
 		switch {
 		case err != nil:

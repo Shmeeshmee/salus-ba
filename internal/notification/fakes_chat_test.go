@@ -53,6 +53,7 @@ type fakeChatRepo struct {
 	endpoints map[string]notification.Endpoint
 	dead      []notification.DeadLetter
 	clinic    string
+	calls     []string // the endpoint calls, in order: "lock <clinic>", "endpoints", "create"
 	registers []time.Time
 	mu        sync.Mutex
 }
@@ -126,7 +127,13 @@ func (r *fakeChatRepo) SetClinic(_ context.Context, id string) error {
 	return nil
 }
 
+func (r *fakeChatRepo) LockEndpoints(_ context.Context, org string) error {
+	r.calls = append(r.calls, "lock "+org)
+	return r.err
+}
+
 func (r *fakeChatRepo) CreateEndpoint(_ context.Context, e notification.Endpoint) (notification.Endpoint, error) {
+	r.calls = append(r.calls, "create")
 	if r.err != nil {
 		return notification.Endpoint{}, r.err
 	}
@@ -139,6 +146,7 @@ func (r *fakeChatRepo) CreateEndpoint(_ context.Context, e notification.Endpoint
 }
 
 func (r *fakeChatRepo) Endpoints(_ context.Context, org string) ([]notification.Endpoint, error) {
+	r.calls = append(r.calls, "endpoints")
 	var out []notification.Endpoint
 	for _, e := range r.endpoints {
 		if e.OrganizationID == org && org == r.clinic {

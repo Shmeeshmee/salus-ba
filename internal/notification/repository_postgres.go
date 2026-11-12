@@ -97,6 +97,10 @@ func (r *postgresRepository) SetClinic(ctx context.Context, id string) error {
 	return postgres.SetLocal(ctx, "app.organization_id", id)
 }
 
+func (r *postgresRepository) LockEndpoints(ctx context.Context, org string) error {
+	return r.q(ctx).LockWebhookEndpoints(ctx, org)
+}
+
 func (r *postgresRepository) CreateEndpoint(ctx context.Context, e Endpoint) (Endpoint, error) {
 	id, err := uid(e.ID)
 	if err != nil {

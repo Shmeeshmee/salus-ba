@@ -21,6 +21,10 @@ SELECT id, account_id, platform, token FROM push_device WHERE id = @id;
 -- The platform said the token is gone: only if it still is this one (a re-registration keeps the row).
 DELETE FROM push_device WHERE id = @id AND token = @token;
 
+-- name: LockWebhookEndpoints :exec
+-- A clinic's endpoint creations count and insert one after the other, until the transaction ends.
+SELECT pg_advisory_xact_lock(hashtextextended('webhook_endpoint:' || @organization_id::text, 0));
+
 -- name: CreateWebhookEndpoint :one
 INSERT INTO webhook_endpoint (id, organization_id, created_by, include_clinical, url, events, secret_sealed)
 VALUES (@id, @organization_id, @created_by, @include_clinical, @url, @events, @secret_sealed)

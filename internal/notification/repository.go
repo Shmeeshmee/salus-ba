@@ -27,6 +27,9 @@ type Repository interface {
 
 	// SetClinic scopes the rest of the transaction to the clinic id (app.organization_id).
 	SetClinic(ctx context.Context, id string) error
+	// LockEndpoints holds the clinic's endpoints for the rest of the transaction (an advisory lock): another
+	// transaction that locks them waits until this one ends.
+	LockEndpoints(ctx context.Context, org string) error
 	// CreateEndpoint stores e (with its id) and returns it with its creation time.
 	CreateEndpoint(ctx context.Context, e Endpoint) (Endpoint, error)
 	// Endpoints returns the clinic's endpoints, oldest first.

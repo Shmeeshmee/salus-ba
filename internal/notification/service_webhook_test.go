@@ -106,6 +106,17 @@ func TestWebhooks_RefuseAnyoneButTheAdminAndInvalidEndpoints(t *testing.T) {
 	}
 }
 
+// A creation counts the clinic's endpoints under the clinic's lock, so two at once cannot both pass the tenth.
+func TestCreateWebhook_CountsUnderTheClinicsLock(t *testing.T) {
+	f := newChatFixture(t)
+	if _, _, err := f.svc.CreateWebhook(t.Context(), clinicAdminCaller, notification.NewEndpoint{URL: "https://hooks.example.test", Events: []string{notification.EventMessageCreated}}); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"lock " + clinicID, "endpoints", "create"}; fmt.Sprint(f.repo.calls) != fmt.Sprint(want) {
+		t.Errorf("calls %v, want %v", f.repo.calls, want)
+	}
+}
+
 // endpoint stores a webhook of the clinic with the secret, sealed.
 func (f *chatFixture) endpoint(t *testing.T, id, secret string, clinical bool) {
 	t.Helper()

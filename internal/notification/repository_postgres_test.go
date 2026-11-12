@@ -213,3 +213,43 @@ func TestAddDeadLetter_RecordsAnyThreeDigitStatus(t *testing.T) {
 		t.Errorf("last_status %d (%v), want 999", status, err)
 	}
 }
+
+// The lock on a clinic's endpoints holds a second transaction of the clinic until the first ends (its count and
+// insert then see each other's), and holds no other clinic's.
+func TestLockEndpoints_SerialisesOneClinicsTransactions(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seedAccounts(t, owner)
+	repo := notification.NewPostgresRepository(app)
+	tx := postgres.NewTransactor(app)
+	locked, release, first := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	go func() {
+		first <- tx.WithTx(t.Context(), func(ctx context.Context) error {
+			if err := repo.LockEndpoints(ctx, clinicID); err != nil {
+				close(locked)
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		})
+	}()
+	<-locked
+	second := make(chan error, 1)
+	go func() {
+		second <- tx.WithTx(t.Context(), func(ctx context.Context) error { return repo.LockEndpoints(ctx, clinicID) })
+	}()
+	select {
+	case err := <-second:
+		t.Fatalf("the second transaction took the clinic's lock while the first held it (%v)", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	inTx(t, app, func(ctx context.Context) error { return repo.LockEndpoints(ctx, clinicB) })
+	close(release)
+	if err := <-first; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-second; err != nil {
+		t.Errorf("the second transaction after the first: %v", err)
+	}
+}
