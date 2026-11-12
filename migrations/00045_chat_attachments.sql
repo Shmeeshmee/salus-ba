@@ -1,0 +1,264 @@
+-- +goose Up
+-- Chat attachments and search (docs/plans/chat.md, SAL-30).
+--
+-- Attachments are "binary" rows (ADR 0010, docs/attachments) with a second kind of parent: a conversation, uploaded by
+-- one of its participants before the message is sent, then attached to that message once (communication_id with its
+-- sent_at, the message's key). A questionnaire file keeps its parent, its policies and its checks; a chat file has
+-- neither response, appointment nor item. An attached file is part of the medical record, like its message: no role
+-- deletes it, the owner included, but a rejected one (its bytes were never readable). Images get a thumbnail made by
+-- the scan job from the clean file, stored and encrypted like the file under its own id (thumbnail_id, the object's
+-- key) and data key.
+--
+-- Row-level security of the chat files, as the messages' (00041):
+--   - the patient (app.patient_id) sees the files of their conversations' messages, never of a doctor-only one, and
+--     of the files not sent yet only their own;
+--   - a scope with app.conversation_id set sees, inserts and attaches that conversation's files when it sees the
+--     conversation (the clinic's needs the active care consent); an insert names one of its active participants and
+--     the conversation's clinic and patient;
+--   - the search's scope (app.chat_practitioner_role_id with app.organization_id, no account, for the search across a
+--     doctor's conversations, and with 00044's app.practitioner_role_id set to the same role) reads the
+--     messages of the conversations the role takes part in as an active participant of the scope's clinic (never a
+--     pending invitation, SAL-28), those after its history_from_seq only, and their files, with its own uploads not
+--     sent yet; which conversations the scope sees at all is their policies' (00041 and 00044): the clinic's own while
+--     the care consent is active, a doctor of another clinic's those granted to them and their side threads;
+--   - the scan job's scope (app.binary_conversation_id with app.organization_id) reads and updates the files of that
+--     one conversation, whatever the consent.
+-- The questionnaire files' policies binary_own and binary_own_delete now name their kind of parent, so a patient sees
+-- and deletes their questionnaire files exactly as before and a chat file only through the policies above.
+--
+-- Search: one text search configuration, chat_search, for every language of the app (they mix in one conversation):
+-- the simple parser and dictionary, without stemming (Postgres has none for Bosnian, Croatian or Serbian, and one
+-- language's stemmer would mangle the others' words), after unaccent, so a word typed without its diacritics finds
+-- it. A GIN index on the body's vector, created on every partition, those made later included.
+-- NULLIF: an unset setting reads as '' on a pooled connection and must match nothing.
+
+ALTER TABLE "binary"
+    ALTER COLUMN appointment_id DROP NOT NULL,
+    ALTER COLUMN questionnaire_response_id DROP NOT NULL,
+    ALTER COLUMN link_id DROP NOT NULL,
+    ADD COLUMN conversation_id uuid REFERENCES conversation (id),
+    -- The participant who uploaded it: only they attach it to a message.
+    ADD COLUMN conversation_participant_id uuid REFERENCES conversation_participant (id),
+    ADD COLUMN communication_id uuid,
+    ADD COLUMN communication_sent_at timestamptz,
+    ADD COLUMN thumbnail_id uuid UNIQUE,
+    ADD COLUMN thumbnail_size bigint CHECK (thumbnail_size > 0),
+    ADD COLUMN thumbnail_wrapped_key bytea,
+    ADD CONSTRAINT binary_parent CHECK (
+        (questionnaire_response_id IS NOT NULL AND appointment_id IS NOT NULL AND link_id IS NOT NULL
+            AND conversation_id IS NULL AND conversation_participant_id IS NULL AND communication_id IS NULL)
+        OR (questionnaire_response_id IS NULL AND appointment_id IS NULL AND link_id IS NULL
+            AND conversation_id IS NOT NULL AND conversation_participant_id IS NOT NULL)),
+    ADD CONSTRAINT binary_chat_type CHECK (conversation_id IS NULL OR content_type IN ('application/pdf', 'image/jpeg', 'image/png')),
+    ADD CONSTRAINT binary_message CHECK ((communication_id IS NULL) = (communication_sent_at IS NULL)),
+    ADD CONSTRAINT binary_message_fkey FOREIGN KEY (communication_id, communication_sent_at) REFERENCES communication (id, sent_at),
+    ADD CONSTRAINT binary_thumbnail CHECK (
+        (thumbnail_id IS NULL AND thumbnail_size IS NULL AND thumbnail_wrapped_key IS NULL)
+        OR (thumbnail_id IS NOT NULL AND thumbnail_size IS NOT NULL AND thumbnail_wrapped_key IS NOT NULL AND status = 'clean'));
+
+-- A page's files, by its messages; the purger's uploads never attached.
+CREATE INDEX binary_conversation_message ON "binary" (conversation_id, communication_id) WHERE conversation_id IS NOT NULL;
+CREATE INDEX binary_unattached ON "binary" (created_at) WHERE conversation_id IS NOT NULL AND communication_id IS NULL;
+
+ALTER POLICY binary_own ON "binary"
+    USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid AND questionnaire_response_id IS NOT NULL);
+ALTER POLICY binary_own_delete ON "binary"
+    USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid AND questionnaire_response_id IS NOT NULL);
+
+CREATE POLICY binary_chat_own ON "binary" FOR SELECT
+    USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid
+           AND conversation_id IS NOT NULL
+           AND EXISTS (SELECT 1 FROM conversation c WHERE c.id = "binary".conversation_id)
+           AND (communication_id IS NOT NULL
+                OR EXISTS (SELECT 1 FROM conversation_participant p
+                           WHERE p.id = "binary".conversation_participant_id AND p.role = 'patient')));
+CREATE POLICY binary_chat ON "binary" FOR SELECT
+    USING (conversation_id = NULLIF(current_setting('app.conversation_id', true), '')::uuid
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND EXISTS (SELECT 1 FROM conversation c WHERE c.id = NULLIF(current_setting('app.conversation_id', true), '')::uuid));
+CREATE POLICY binary_chat_insert ON "binary" FOR INSERT
+    WITH CHECK (conversation_id = NULLIF(current_setting('app.conversation_id', true), '')::uuid
+                AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+                AND communication_id IS NULL
+                AND EXISTS (SELECT 1 FROM conversation c
+                            WHERE c.id = "binary".conversation_id
+                              AND c.organization_id = "binary".organization_id
+                              AND c.patient_id = "binary".patient_id)
+                AND EXISTS (SELECT 1 FROM conversation_participant p
+                            WHERE p.id = "binary".conversation_participant_id
+                              AND p.conversation_id = "binary".conversation_id
+                              AND p.removed_at IS NULL));
+CREATE POLICY binary_chat_update ON "binary" FOR UPDATE
+    USING (conversation_id = NULLIF(current_setting('app.conversation_id', true), '')::uuid
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND EXISTS (SELECT 1 FROM conversation c WHERE c.id = NULLIF(current_setting('app.conversation_id', true), '')::uuid));
+CREATE POLICY binary_chat_practitioner ON "binary" FOR SELECT
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND conversation_id IS NOT NULL
+           AND EXISTS (SELECT 1 FROM conversation_participant p
+                       WHERE p.conversation_id = "binary".conversation_id
+                         AND p.practitioner_role_id = NULLIF(current_setting('app.chat_practitioner_role_id', true), '')::uuid
+                         AND p.practitioner_role_id = NULLIF(current_setting('app.practitioner_role_id', true), '')::uuid
+                         AND p.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                         AND p.status = 'active'
+                         AND p.removed_at IS NULL
+                         AND CASE WHEN "binary".communication_id IS NULL THEN "binary".conversation_participant_id = p.id
+                             ELSE EXISTS (SELECT 1 FROM communication m
+                                          WHERE m.id = "binary".communication_id AND m.sent_at = "binary".communication_sent_at
+                                            AND m.seq > p.history_from_seq) END));
+CREATE POLICY binary_chat_job ON "binary" FOR SELECT
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND conversation_id = NULLIF(current_setting('app.binary_conversation_id', true), '')::uuid
+           AND organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
+CREATE POLICY binary_chat_job_update ON "binary" FOR UPDATE
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND conversation_id = NULLIF(current_setting('app.binary_conversation_id', true), '')::uuid
+           AND organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
+
+-- The send attaches a file to its message; the scan job stores the thumbnail.
+GRANT UPDATE (communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key) ON "binary" TO salus_app;
+
+-- An attached file is part of the record (as its message, 00041): attached once, never deleted unless rejected.
+-- +goose StatementBegin
+CREATE FUNCTION binary_keep_attached() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog
+AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        IF OLD.communication_id IS NOT NULL AND OLD.status <> 'rejected' THEN
+            RAISE EXCEPTION 'binary: a file attached to a message is part of the medical record: DELETE is not allowed';
+        END IF;
+        RETURN OLD;
+    END IF;
+    IF OLD.communication_id IS NOT NULL AND (NEW.communication_id IS DISTINCT FROM OLD.communication_id
+                                             OR NEW.communication_sent_at IS DISTINCT FROM OLD.communication_sent_at) THEN
+        RAISE EXCEPTION 'binary: a file is attached to one message, once';
+    END IF;
+    RETURN NEW;
+END
+$$;
+-- +goose StatementEnd
+
+CREATE TRIGGER binary_keep_attached BEFORE UPDATE OR DELETE ON "binary"
+    FOR EACH ROW EXECUTE FUNCTION binary_keep_attached();
+
+-- A text may go without a body when it carries files; a system message carries none.
+ALTER TABLE communication
+    ADD COLUMN attachment_count smallint DEFAULT 0 NOT NULL CHECK (attachment_count BETWEEN 0 AND 10),
+    ADD CONSTRAINT communication_system_attachments CHECK (kind = 'text' OR attachment_count = 0),
+    DROP CONSTRAINT communication_text,
+    ADD CONSTRAINT communication_text CHECK (kind <> 'text' OR (sender_account_id IS NOT NULL AND sender_participant_id IS NOT NULL
+        AND sender_role <> 'system' AND system_code IS NULL
+        AND ((body IS NOT NULL AND char_length(body) BETWEEN 1 AND 4000) OR (body IS NULL AND attachment_count > 0))));
+
+-- The search's scope, for the search across a doctor's conversations: read only; an active participant of the scope's
+-- clinic, in a conversation its policies show (the participants follow the conversation, 00041).
+CREATE POLICY communication_practitioner ON communication FOR SELECT
+    USING (NULLIF(current_setting('app.patient_id', true), '') IS NULL
+           AND NULLIF(current_setting('app.account_id', true), '') IS NULL
+           AND EXISTS (SELECT 1 FROM conversation_participant p
+                       WHERE p.conversation_id = communication.conversation_id
+                         AND p.practitioner_role_id = NULLIF(current_setting('app.chat_practitioner_role_id', true), '')::uuid
+                         AND p.practitioner_role_id = NULLIF(current_setting('app.practitioner_role_id', true), '')::uuid
+                         AND p.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+                         AND p.status = 'active'
+                         AND p.removed_at IS NULL
+                         AND communication.seq > p.history_from_seq));
+
+CREATE TEXT SEARCH CONFIGURATION public.chat_search (COPY = pg_catalog.simple);
+ALTER TEXT SEARCH CONFIGURATION public.chat_search
+    ALTER MAPPING FOR asciiword, word, numword, asciihword, hword, numhword, hword_asciipart, hword_part, hword_numpart
+    WITH public.unaccent, pg_catalog.simple;
+
+CREATE INDEX communication_search ON communication USING gin (to_tsvector('public.chat_search'::regconfig, body));
+
+-- communication_search finds the messages a scope may read whose body matches q, newest first, at most lim, in one
+-- conversation or across the scope's (only_conversation null): their keys only. Row-level security cannot use the
+-- text index (the match operator is not leakproof, so the policies run first over every message the scope sees:
+-- 24 s for a doctor in 50 000 conversations, make bench-chat), so this function, owned by the schema owner and
+-- SECURITY DEFINER, decides itself what the scope may read, as the policies do: the patient (app.patient_id) their
+-- conversations but no doctor-only one; the practitioner role (app.chat_practitioner_role_id with app.organization_id,
+-- no patient or account) the conversations it takes part in as an active participant of that clinic (never a pending
+-- invitation), after its history_from_seq, while the care consent with the conversation's clinic is active: the
+-- clinic's own conversations and side threads, and for a doctor of another clinic (SAL-28) those of a conversation
+-- whose chat consent for the role is active and which the role still takes part in, as chat_guest_conversations and
+-- chat_guest_in_thread decide (only the side threads the role is a participant of); nothing else. The app then reads the rows by these keys through the policies. EXECUTE plans each query for its own
+-- values (a generic plan cannot see a conversation of 100 000 messages).
+-- +goose StatementBegin
+CREATE FUNCTION communication_search(q tsquery, only_conversation uuid, lim integer)
+    RETURNS TABLE (id uuid, sent_at timestamptz)
+    LANGUAGE plpgsql
+    STABLE
+    ROWS 50
+    SECURITY DEFINER
+    SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    patient uuid := NULLIF(current_setting('app.patient_id', true), '')::uuid;
+    org uuid := NULLIF(current_setting('app.organization_id', true), '')::uuid;
+    -- The search's role, only when it is the scope's role too (00044's, which the policies of a guest read).
+    role uuid := CASE WHEN current_setting('app.chat_practitioner_role_id', true) = current_setting('app.practitioner_role_id', true)
+                      THEN NULLIF(current_setting('app.chat_practitioner_role_id', true), '')::uuid END;
+    account text := NULLIF(current_setting('app.account_id', true), '');
+    newest timestamptz;
+    -- The conversations the role reads, with its history_from_seq: $1 the role, $2 its clinic, $4 one conversation.
+    readable constant text :=
+        'SELECT p.conversation_id, p.history_from_seq, c.last_sent_at FROM public.conversation_participant p
+         JOIN public.conversation c ON c.id = p.conversation_id
+         WHERE p.practitioner_role_id = $1 AND p.organization_id = $2 AND p.status = ''active'' AND p.removed_at IS NULL
+           AND ($4::uuid IS NULL OR c.id = $4)
+           AND EXISTS (SELECT 1 FROM public.consent k
+                       WHERE k.patient_id = c.patient_id AND k.organization_id = c.organization_id AND k.status = ''active'')
+           AND (c.organization_id = $2
+                OR EXISTS (SELECT 1 FROM public.chat_consent g
+                           JOIN public.conversation_participant q
+                             ON q.conversation_id = g.conversation_id AND q.practitioner_role_id = g.practitioner_role_id
+                           WHERE g.conversation_id = coalesce(c.parent_id, c.id) AND g.practitioner_role_id = $1
+                             AND g.practitioner_organization_id = $2 AND g.status = ''active''
+                             AND q.organization_id = $2 AND q.status = ''active'' AND q.removed_at IS NULL))';
+    span interval;
+    ids uuid[];
+    ats timestamptz[];
+BEGIN
+    IF lim IS NULL OR lim < 1 OR lim > 100 THEN
+        RAISE EXCEPTION 'communication_search: lim must be 1 to 100';
+    END IF;
+    IF patient IS NOT NULL THEN
+        RETURN QUERY EXECUTE
+            'SELECT m.id, m.sent_at FROM public.communication m
+             WHERE m.patient_id = $1 AND NOT m.staff_only
+               AND ($3::uuid IS NULL OR m.conversation_id = $3)
+               AND to_tsvector(''public.chat_search''::regconfig, m.body) @@ $2
+             ORDER BY m.sent_at DESC, m.seq DESC LIMIT $4'
+            USING patient, q, only_conversation, lim;
+    ELSIF account IS NULL AND org IS NOT NULL AND role IS NOT NULL THEN
+        -- Newest first across many conversations: the last 7 days of the newest readable message, then 90, then all,
+        -- until lim are found, so a word in many messages reads one window's, not the whole history's.
+        EXECUTE 'SELECT max(r.last_sent_at) FROM (' || readable || ') r'
+            INTO newest USING role, org, q, only_conversation;
+        FOREACH span IN ARRAY ARRAY[interval '7 days', interval '90 days', NULL] LOOP
+            EXECUTE
+                'WITH readable AS (' || readable || '),
+                 found AS (
+                     SELECT m.id, m.sent_at, m.seq FROM public.communication m
+                     JOIN readable r ON r.conversation_id = m.conversation_id AND m.seq > r.history_from_seq
+                     WHERE ($4::uuid IS NULL OR m.conversation_id = $4) AND ($6::timestamptz IS NULL OR m.sent_at >= $6)
+                       AND to_tsvector(''public.chat_search''::regconfig, m.body) @@ $3
+                     ORDER BY m.sent_at DESC, m.seq DESC LIMIT $5)
+                 SELECT coalesce(array_agg(id ORDER BY sent_at DESC, seq DESC), ''{}''), coalesce(array_agg(sent_at ORDER BY sent_at DESC, seq DESC), ''{}'')
+                 FROM found'
+                INTO ids, ats USING role, org, q, only_conversation, lim, newest - span;
+            EXIT WHEN cardinality(ids) >= lim OR span IS NULL OR newest IS NULL;
+        END LOOP;
+        RETURN QUERY SELECT * FROM unnest(ids, ats);
+    END IF;
+END
+$$;
+-- +goose StatementEnd
+
+REVOKE ALL ON FUNCTION communication_search(tsquery, uuid, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION communication_search(tsquery, uuid, integer) TO salus_app;

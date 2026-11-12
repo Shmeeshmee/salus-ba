@@ -65,6 +65,25 @@ SELECT coalesce(bool_or(status = 'active'), false)::boolean AS active, max(revok
 FROM consent
 WHERE patient_id = @patient_id AND organization_id = @organization_id;
 
+-- chat_consent (migration 00044, SAL-28): the patient's consent for one conversation and one invited role.
+-- name: GrantChatConsent :one
+INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id, practitioner_organization_id, status,
+    date_time, updated_at)
+VALUES (@patient_id, @organization_id, @conversation_id, @practitioner_role_id, @practitioner_organization_id, 'active', @date_time, @date_time)
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id,
+    practitioner_organization_id, version_id, status;
+
+-- name: RevokeChatConsent :one
+UPDATE chat_consent
+SET status = 'inactive', revoked_at = @revoked_at, updated_at = @revoked_at, version_id = version_id + 1
+WHERE conversation_id = @conversation_id AND practitioner_role_id = @practitioner_role_id AND status = 'active'
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id,
+    practitioner_organization_id, version_id, status;
+
+-- name: ChatConsentGranted :one
+SELECT EXISTS (SELECT 1 FROM chat_consent
+               WHERE conversation_id = @conversation_id AND practitioner_role_id = @practitioner_role_id AND status = 'active')::boolean;
+
 -- The visits the patient's active history consent with the clinic lists now (migration 00043), oldest selection
 -- first.
 -- name: HistoryShared :many

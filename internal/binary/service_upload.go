@@ -154,24 +154,30 @@ func (s *Service) room(ctx context.Context, in Upload, t Target, b *Binary) (err
 // seal is steps 2 and 3: the type from the first bytes, then the file encrypted into the store under a new
 // id; it returns the file's row, not yet stored.
 func (s *Service) seal(ctx context.Context, in Upload, t Target) (Binary, error) {
-	body := filetype.LimitReader(in.Body, in.Size)
-	head := make([]byte, min(headSize, in.Size))
+	return s.sealFile(ctx, in.Body, in.Size, t.Accept, Binary{
+		OrganizationID: t.OrganizationID, PatientID: t.PatientID, AppointmentID: t.AppointmentID, ResponseID: in.ResponseID,
+		LinkID: in.LinkID, Title: in.Title,
+	})
+}
+
+// sealFile reads exactly size bytes of src: its type from the first bytes, one of accept and within its kind's
+// limit, then the whole file encrypted into the store under a new id; it returns b, its parent and title set by the
+// caller, with the file's id, type, size, SHA-1 and wrapped key, not yet stored.
+func (s *Service) sealFile(ctx context.Context, src io.Reader, size int64, accept []Kind, b Binary) (Binary, error) {
+	body := filetype.LimitReader(src, size)
+	head := make([]byte, min(headSize, size))
 	if _, err := io.ReadFull(body, head); err != nil {
 		return Binary{}, bodyError(err)
 	}
 	typ, err := filetype.Detect(head)
 	kind := kindOf(string(typ))
 	switch {
-	case err != nil, !slices.Contains(t.Accept, kind):
+	case err != nil, !slices.Contains(accept, kind):
 		return Binary{}, ErrUnsupportedType
-	case in.Size > kind.Limit():
+	case size > kind.Limit():
 		return Binary{}, ErrTooLarge
 	}
-	b := Binary{
-		ID: newID(), OrganizationID: t.OrganizationID, PatientID: t.PatientID, AppointmentID: t.AppointmentID,
-		ResponseID: in.ResponseID, LinkID: in.LinkID, ContentType: string(typ), Title: in.Title, KEKID: s.KEK.ID(),
-		Size: in.Size, SegmentSize: envelope.SegmentSize,
-	}
+	b.ID, b.ContentType, b.KEKID, b.Size, b.SegmentSize = newID(), string(typ), s.KEK.ID(), size, envelope.SegmentSize
 	dek, err := envelope.NewDataKey()
 	if err != nil {
 		return Binary{}, err

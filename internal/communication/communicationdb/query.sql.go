@@ -11,6 +11,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const activateParticipant = `-- name: ActivateParticipant :execrows
+UPDATE conversation_participant SET status = 'active' WHERE id = $1 AND status = 'pending_consent' AND removed_at IS NULL
+`
+
+// No row when the participant is no longer pending or no longer there.
+func (q *Queries) ActivateParticipant(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, activateParticipant, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const addPartitions = `-- name: AddPartitions :exec
 SELECT communication_add_partitions($1::date, $2::integer)
 `
@@ -127,7 +140,7 @@ const conversationsOfParticipant = `-- name: ConversationsOfParticipant :many
 SELECT c.id, c.created_at, c.last_sent_at, c.organization_id, c.patient_id, c.practitioner_role_id, c.encounter_id, c.parent_id,
        c.created_by, c.last_seq, c.staff_only, p.read_seq
 FROM conversation c
-JOIN conversation_participant p ON p.conversation_id = c.id AND p.removed_at IS NULL
+JOIN conversation_participant p ON p.conversation_id = c.id AND p.removed_at IS NULL AND p.status = 'active'
 WHERE (p.patient_id = $1 OR p.practitioner_role_id = $2)
   AND ($3::timestamptz IS NULL
        OR (coalesce(c.last_sent_at, c.created_at), c.id) < ($3::timestamptz, $4::uuid))
@@ -247,9 +260,9 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 
 const insertMessage = `-- name: InsertMessage :one
 INSERT INTO communication (sent_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-    client_message_id, seq, staff_only, sender_role, kind, body, system_code, system_args)
+    client_message_id, seq, staff_only, sender_role, kind, body, system_code, system_args, attachment_count)
 VALUES ($1, $2, $3, $4, $5, $6,
-    $7, $8, $9, $10, $11, $12, $13, $14)
+    $7, $8, $9, $10, $11, $12, $13, $14, $15)
 RETURNING id
 `
 
@@ -268,6 +281,7 @@ type InsertMessageParams struct {
 	Body                pgtype.Text
 	SystemCode          pgtype.Text
 	SystemArgs          []byte
+	AttachmentCount     int16
 }
 
 func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (pgtype.UUID, error) {
@@ -286,6 +300,7 @@ func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (p
 		arg.Body,
 		arg.SystemCode,
 		arg.SystemArgs,
+		arg.AttachmentCount,
 	)
 	var id pgtype.UUID
 	err := row.Scan(&id)
@@ -293,32 +308,57 @@ func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (p
 }
 
 const insertParticipant = `-- name: InsertParticipant :one
-INSERT INTO conversation_participant (conversation_id, patient_id, practitioner_role_id, role, history_from_seq, added_by, added_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, added_at, removed_at, conversation_id, patient_id, practitioner_role_id, added_by, history_from_seq, read_seq, role
+INSERT INTO conversation_participant (conversation_id, patient_id, practitioner_role_id, organization_id, role, status, reason,
+    history_from_seq, read_seq, added_by, added_at)
+VALUES ($1, $2, $3, $4, $5, $6,
+    $7, $8, $8, $9, $10)
+RETURNING id, added_at, removed_at, conversation_id, patient_id, practitioner_role_id, organization_id, added_by, history_from_seq, read_seq,
+    role, status, reason
 `
 
 type InsertParticipantParams struct {
 	ConversationID     pgtype.UUID
 	PatientID          pgtype.UUID
 	PractitionerRoleID pgtype.UUID
+	OrganizationID     pgtype.UUID
 	Role               string
+	Status             string
+	Reason             pgtype.Text
 	HistoryFromSeq     int64
 	AddedBy            pgtype.UUID
 	AddedAt            pgtype.Timestamptz
 }
 
-func (q *Queries) InsertParticipant(ctx context.Context, arg InsertParticipantParams) (ConversationParticipant, error) {
+type InsertParticipantRow struct {
+	ID                 pgtype.UUID
+	AddedAt            pgtype.Timestamptz
+	RemovedAt          pgtype.Timestamptz
+	ConversationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	OrganizationID     pgtype.UUID
+	AddedBy            pgtype.UUID
+	HistoryFromSeq     int64
+	ReadSeq            int64
+	Role               string
+	Status             string
+	Reason             pgtype.Text
+}
+
+func (q *Queries) InsertParticipant(ctx context.Context, arg InsertParticipantParams) (InsertParticipantRow, error) {
 	row := q.db.QueryRow(ctx, insertParticipant,
 		arg.ConversationID,
 		arg.PatientID,
 		arg.PractitionerRoleID,
+		arg.OrganizationID,
 		arg.Role,
+		arg.Status,
+		arg.Reason,
 		arg.HistoryFromSeq,
 		arg.AddedBy,
 		arg.AddedAt,
 	)
-	var i ConversationParticipant
+	var i InsertParticipantRow
 	err := row.Scan(
 		&i.ID,
 		&i.AddedAt,
@@ -326,17 +366,117 @@ func (q *Queries) InsertParticipant(ctx context.Context, arg InsertParticipantPa
 		&i.ConversationID,
 		&i.PatientID,
 		&i.PractitionerRoleID,
+		&i.OrganizationID,
 		&i.AddedBy,
 		&i.HistoryFromSeq,
 		&i.ReadSeq,
 		&i.Role,
+		&i.Status,
+		&i.Reason,
 	)
 	return i, err
 }
 
+const insertThread = `-- name: InsertThread :one
+INSERT INTO conversation (organization_id, patient_id, practitioner_role_id, encounter_id, parent_id, staff_only, created_by, created_at)
+VALUES ($1, $2, $3, $4, $5, true, $6, $7)
+RETURNING id, created_at, last_sent_at, organization_id, patient_id, practitioner_role_id, encounter_id, parent_id, created_by, last_seq, staff_only
+`
+
+type InsertThreadParams struct {
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	EncounterID        pgtype.UUID
+	ParentID           pgtype.UUID
+	CreatedBy          pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+}
+
+func (q *Queries) InsertThread(ctx context.Context, arg InsertThreadParams) (Conversation, error) {
+	row := q.db.QueryRow(ctx, insertThread,
+		arg.OrganizationID,
+		arg.PatientID,
+		arg.PractitionerRoleID,
+		arg.EncounterID,
+		arg.ParentID,
+		arg.CreatedBy,
+		arg.CreatedAt,
+	)
+	var i Conversation
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.LastSentAt,
+		&i.OrganizationID,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.EncounterID,
+		&i.ParentID,
+		&i.CreatedBy,
+		&i.LastSeq,
+		&i.StaffOnly,
+	)
+	return i, err
+}
+
+const invitations = `-- name: Invitations :many
+SELECT p.id, p.added_at, p.conversation_id, p.organization_id, p.practitioner_role_id, p.reason, p.status
+FROM conversation_participant p
+JOIN conversation c ON c.id = p.conversation_id
+WHERE c.patient_id = $1 AND NOT c.staff_only AND p.status = $2 AND p.removed_at IS NULL
+  AND p.role = 'practitioner' AND p.organization_id <> c.organization_id
+ORDER BY p.added_at, p.id
+`
+
+type InvitationsParams struct {
+	PatientID pgtype.UUID
+	Status    string
+}
+
+type InvitationsRow struct {
+	ID                 pgtype.UUID
+	AddedAt            pgtype.Timestamptz
+	ConversationID     pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Reason             pgtype.Text
+	Status             string
+}
+
+// The patient's invitations of doctors from other clinics of the status, pending or granted, oldest first (index
+// conversation_participant_pending for the pending).
+func (q *Queries) Invitations(ctx context.Context, arg InvitationsParams) ([]InvitationsRow, error) {
+	rows, err := q.db.Query(ctx, invitations, arg.PatientID, arg.Status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InvitationsRow
+	for rows.Next() {
+		var i InvitationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AddedAt,
+			&i.ConversationID,
+			&i.OrganizationID,
+			&i.PractitionerRoleID,
+			&i.Reason,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const latestMessages = `-- name: LatestMessages :many
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = $1 AND seq > $2
 ORDER BY sent_at DESC, seq DESC
@@ -377,6 +517,7 @@ func (q *Queries) LatestMessages(ctx context.Context, arg LatestMessagesParams) 
 			&i.Body,
 			&i.SystemCode,
 			&i.SystemArgs,
+			&i.AttachmentCount,
 		); err != nil {
 			return nil, err
 		}
@@ -404,7 +545,7 @@ func (q *Queries) MarkRead(ctx context.Context, arg MarkReadParams) error {
 
 const message = `-- name: Message :one
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = $1 AND id = $2
 `
@@ -435,13 +576,14 @@ func (q *Queries) Message(ctx context.Context, arg MessageParams) (Communication
 		&i.Body,
 		&i.SystemCode,
 		&i.SystemArgs,
+		&i.AttachmentCount,
 	)
 	return i, err
 }
 
 const messageByClientID = `-- name: MessageByClientID :one
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = $1 AND client_message_id = $2 AND sender_participant_id = $3
   AND sent_at >= $4::timestamptz
@@ -481,13 +623,14 @@ func (q *Queries) MessageByClientID(ctx context.Context, arg MessageByClientIDPa
 		&i.Body,
 		&i.SystemCode,
 		&i.SystemArgs,
+		&i.AttachmentCount,
 	)
 	return i, err
 }
 
 const messagesAfter = `-- name: MessagesAfter :many
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = $1 AND seq > $2 AND (sent_at, seq) > ($3::timestamptz, $4::bigint)
 ORDER BY sent_at, seq
@@ -535,6 +678,7 @@ func (q *Queries) MessagesAfter(ctx context.Context, arg MessagesAfterParams) ([
 			&i.Body,
 			&i.SystemCode,
 			&i.SystemArgs,
+			&i.AttachmentCount,
 		); err != nil {
 			return nil, err
 		}
@@ -548,7 +692,7 @@ func (q *Queries) MessagesAfter(ctx context.Context, arg MessagesAfterParams) ([
 
 const messagesBefore = `-- name: MessagesBefore :many
 SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
-       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
 FROM communication
 WHERE conversation_id = $1 AND seq > $2 AND (sent_at, seq) < ($3::timestamptz, $4::bigint)
 ORDER BY sent_at DESC, seq DESC
@@ -596,6 +740,7 @@ func (q *Queries) MessagesBefore(ctx context.Context, arg MessagesBeforeParams) 
 			&i.Body,
 			&i.SystemCode,
 			&i.SystemArgs,
+			&i.AttachmentCount,
 		); err != nil {
 			return nil, err
 		}
@@ -607,23 +752,87 @@ func (q *Queries) MessagesBefore(ctx context.Context, arg MessagesBeforeParams) 
 	return items, nil
 }
 
+const participantByID = `-- name: ParticipantByID :one
+
+SELECT id, added_at, removed_at, conversation_id, patient_id, practitioner_role_id, organization_id, added_by, history_from_seq, read_seq,
+       role, status, reason
+FROM conversation_participant
+WHERE id = $1 AND removed_at IS NULL
+`
+
+type ParticipantByIDRow struct {
+	ID                 pgtype.UUID
+	AddedAt            pgtype.Timestamptz
+	RemovedAt          pgtype.Timestamptz
+	ConversationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	OrganizationID     pgtype.UUID
+	AddedBy            pgtype.UUID
+	HistoryFromSeq     int64
+	ReadSeq            int64
+	Role               string
+	Status             string
+	Reason             pgtype.Text
+}
+
+// Group consults (migration 00044, SAL-28).
+// A participant, pending or active, where the scope sees their conversation.
+func (q *Queries) ParticipantByID(ctx context.Context, id pgtype.UUID) (ParticipantByIDRow, error) {
+	row := q.db.QueryRow(ctx, participantByID, id)
+	var i ParticipantByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.AddedAt,
+		&i.RemovedAt,
+		&i.ConversationID,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.OrganizationID,
+		&i.AddedBy,
+		&i.HistoryFromSeq,
+		&i.ReadSeq,
+		&i.Role,
+		&i.Status,
+		&i.Reason,
+	)
+	return i, err
+}
+
 const participants = `-- name: Participants :many
-SELECT id, added_at, removed_at, conversation_id, patient_id, practitioner_role_id, added_by, history_from_seq, read_seq, role
+SELECT id, added_at, removed_at, conversation_id, patient_id, practitioner_role_id, organization_id, added_by, history_from_seq, read_seq,
+       role, status, reason
 FROM conversation_participant
 WHERE conversation_id = $1 AND removed_at IS NULL
 ORDER BY role = 'patient' DESC, added_at, id
 `
 
+type ParticipantsRow struct {
+	ID                 pgtype.UUID
+	AddedAt            pgtype.Timestamptz
+	RemovedAt          pgtype.Timestamptz
+	ConversationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	OrganizationID     pgtype.UUID
+	AddedBy            pgtype.UUID
+	HistoryFromSeq     int64
+	ReadSeq            int64
+	Role               string
+	Status             string
+	Reason             pgtype.Text
+}
+
 // The conversation's active participants, the patient first, then in the order they were added.
-func (q *Queries) Participants(ctx context.Context, conversationID pgtype.UUID) ([]ConversationParticipant, error) {
+func (q *Queries) Participants(ctx context.Context, conversationID pgtype.UUID) ([]ParticipantsRow, error) {
 	rows, err := q.db.Query(ctx, participants, conversationID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ConversationParticipant
+	var items []ParticipantsRow
 	for rows.Next() {
-		var i ConversationParticipant
+		var i ParticipantsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AddedAt,
@@ -631,10 +840,13 @@ func (q *Queries) Participants(ctx context.Context, conversationID pgtype.UUID) 
 			&i.ConversationID,
 			&i.PatientID,
 			&i.PractitionerRoleID,
+			&i.OrganizationID,
 			&i.AddedBy,
 			&i.HistoryFromSeq,
 			&i.ReadSeq,
 			&i.Role,
+			&i.Status,
+			&i.Reason,
 		); err != nil {
 			return nil, err
 		}
@@ -644,6 +856,25 @@ func (q *Queries) Participants(ctx context.Context, conversationID pgtype.UUID) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const removeParticipant = `-- name: RemoveParticipant :execrows
+UPDATE conversation_participant SET removed_at = $1 WHERE id = $2 AND removed_at IS NULL
+`
+
+type RemoveParticipantParams struct {
+	RemovedAt pgtype.Timestamptz
+	ID        pgtype.UUID
+}
+
+// No row when the participant was removed already.
+// The trigger of 00044 removes the role from the conversation's side threads in the same statement.
+func (q *Queries) RemoveParticipant(ctx context.Context, arg RemoveParticipantParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeParticipant, arg.RemovedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const revisions = `-- name: Revisions :many
@@ -674,6 +905,188 @@ func (q *Queries) Revisions(ctx context.Context, arg RevisionsParams) ([]Revisio
 	for rows.Next() {
 		var i RevisionsRow
 		if err := rows.Scan(&i.EditedAt, &i.Body, &i.VersionID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchConversation = `-- name: SearchConversation :many
+SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
+FROM communication
+WHERE (id, sent_at) IN (SELECT s.id, s.sent_at FROM communication_search(to_tsquery('public.chat_search'::regconfig, $1), $2::uuid, $3::integer) s)
+  AND conversation_id = $2 AND seq > $4
+ORDER BY sent_at DESC, seq DESC
+`
+
+type SearchConversationParams struct {
+	Query          string
+	ConversationID pgtype.UUID
+	Lim            int32
+	FromSeq        int64
+}
+
+// A conversation's messages whose body matches the query (chat_search, migration 00045), newest first, of numbers
+// above from_seq: found by communication_search (the text index, which row-level security cannot use), read by
+// their keys through the policies.
+func (q *Queries) SearchConversation(ctx context.Context, arg SearchConversationParams) ([]Communication, error) {
+	rows, err := q.db.Query(ctx, searchConversation,
+		arg.Query,
+		arg.ConversationID,
+		arg.Lim,
+		arg.FromSeq,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Communication
+	for rows.Next() {
+		var i Communication
+		if err := rows.Scan(
+			&i.ID,
+			&i.SentAt,
+			&i.EditedAt,
+			&i.ConversationID,
+			&i.OrganizationID,
+			&i.PatientID,
+			&i.SenderParticipantID,
+			&i.SenderAccountID,
+			&i.ClientMessageID,
+			&i.Seq,
+			&i.VersionID,
+			&i.StaffOnly,
+			&i.SenderRole,
+			&i.Kind,
+			&i.Body,
+			&i.SystemCode,
+			&i.SystemArgs,
+			&i.AttachmentCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchMessages = `-- name: SearchMessages :many
+SELECT id, sent_at, edited_at, conversation_id, organization_id, patient_id, sender_participant_id, sender_account_id,
+       client_message_id, seq, version_id, staff_only, sender_role, kind, body, system_code, system_args, attachment_count
+FROM communication
+WHERE (id, sent_at) IN (SELECT s.id, s.sent_at FROM communication_search(to_tsquery('public.chat_search'::regconfig, $1), NULL, $2::integer) s)
+ORDER BY sent_at DESC, seq DESC
+`
+
+type SearchMessagesParams struct {
+	Query string
+	Lim   int32
+}
+
+// The messages the scope may read whose body matches the query, newest first: the patient's own conversations, or
+// those of the practitioner role's scope after its history_from_seq; found by communication_search, read through the
+// policies.
+func (q *Queries) SearchMessages(ctx context.Context, arg SearchMessagesParams) ([]Communication, error) {
+	rows, err := q.db.Query(ctx, searchMessages, arg.Query, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Communication
+	for rows.Next() {
+		var i Communication
+		if err := rows.Scan(
+			&i.ID,
+			&i.SentAt,
+			&i.EditedAt,
+			&i.ConversationID,
+			&i.OrganizationID,
+			&i.PatientID,
+			&i.SenderParticipantID,
+			&i.SenderAccountID,
+			&i.ClientMessageID,
+			&i.Seq,
+			&i.VersionID,
+			&i.StaffOnly,
+			&i.SenderRole,
+			&i.Kind,
+			&i.Body,
+			&i.SystemCode,
+			&i.SystemArgs,
+			&i.AttachmentCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const threadsOfParticipant = `-- name: ThreadsOfParticipant :many
+SELECT c.id, c.created_at, c.last_sent_at, c.organization_id, c.patient_id, c.practitioner_role_id, c.encounter_id, c.parent_id,
+       c.created_by, c.last_seq, c.staff_only, p.read_seq
+FROM conversation c
+JOIN conversation_participant p ON p.conversation_id = c.id AND p.removed_at IS NULL AND p.status = 'active'
+WHERE c.parent_id = $1 AND p.practitioner_role_id = $2
+ORDER BY coalesce(c.last_sent_at, c.created_at) DESC, c.id DESC
+`
+
+type ThreadsOfParticipantParams struct {
+	ParentID           pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+}
+
+type ThreadsOfParticipantRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	LastSentAt         pgtype.Timestamptz
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	EncounterID        pgtype.UUID
+	ParentID           pgtype.UUID
+	CreatedBy          pgtype.UUID
+	LastSeq            int64
+	StaffOnly          bool
+	ReadSeq            int64
+}
+
+// The side threads of the conversation the practitioner role takes part in, newest activity first, with that
+// participant's read position.
+func (q *Queries) ThreadsOfParticipant(ctx context.Context, arg ThreadsOfParticipantParams) ([]ThreadsOfParticipantRow, error) {
+	rows, err := q.db.Query(ctx, threadsOfParticipant, arg.ParentID, arg.PractitionerRoleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ThreadsOfParticipantRow
+	for rows.Next() {
+		var i ThreadsOfParticipantRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.LastSentAt,
+			&i.OrganizationID,
+			&i.PatientID,
+			&i.PractitionerRoleID,
+			&i.EncounterID,
+			&i.ParentID,
+			&i.CreatedBy,
+			&i.LastSeq,
+			&i.StaffOnly,
+			&i.ReadSeq,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
