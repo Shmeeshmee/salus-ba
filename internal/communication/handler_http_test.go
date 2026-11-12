@@ -25,13 +25,13 @@ type stubChats struct {
 	next         *communication.ListCursor
 	sub          communication.Subscription
 	page         communication.Page
-	revs         []communication.Revision
 	list         []communication.Conversation
+	revs         []communication.Revision
 	after        [][]communication.Message // successive answers of After; then afterErr, then nothing
 	asked        []string
 	sent         communication.Message
-	conv         communication.Conversation
 	summary      communication.Summary
+	conv         communication.Conversation
 	mu           sync.Mutex
 	sessionEnded bool
 	created      bool
