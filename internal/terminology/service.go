@@ -34,13 +34,14 @@ func NewService(repo Repository, language func(ctx context.Context, accountID st
 }
 
 // Search returns at most q.Limit terms that match q.Text, best first, each with its labels in q.Languages, in
-// that order (docs/terminology/SPEC.md §3 "API and UI"). Staff only: a patient gets ErrForbidden. A text that
+// that order (docs/terminology/SPEC.md §3 "API and UI"). Staff search every category; a patient only the drugs (the
+// substances and medications of their profile, SAL-41) and gets ErrForbidden for anything else. A text that
 // is blank or longer than 100 characters, a limit outside 1 to 25, or an unknown or repeated language or
 // category gives ErrInvalidSearch. Without languages, the labels are Latin, the caller's UI language and
 // English. Within a match type, labels in Latin and the UI language rank first, then English, then the others.
 // Not audited: the terms are reference data, no patient data is read.
 func (s *Service) Search(ctx context.Context, c Caller, q Search) ([]Match, error) {
-	if !c.Staff {
+	if !c.Staff && q.Category != "drug" {
 		return nil, ErrForbidden
 	}
 	q.Text = strings.TrimSpace(q.Text)
@@ -127,4 +128,18 @@ func match(t Term, langs []string) Match {
 	t.Labels = nil
 	m.Term = t
 	return m
+}
+
+// DrugCodes returns the ATC code ("" for none) of each drug term among ids, by id; an id that is no drug term is
+// absent. For the allergies and medications, which check a picked term and show its code. Reference data: not
+// audited.
+func (s *Service) DrugCodes(ctx context.Context, ids []string) (map[string]string, error) {
+	if len(ids) == 0 {
+		return map[string]string{}, nil
+	}
+	codes, err := s.repo.DrugCodes(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("terminology: drug codes: %w", err)
+	}
+	return codes, nil
 }

@@ -25,19 +25,23 @@ class AppLocalizationsTr extends AppLocalizations {
   String get somethingWrong => 'Bir sorun oluştu. Tekrar deneyin.';
 
   @override
-  String get unreachable => 'Salus\'a ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
+  String get unreachable =>
+      'Salus\'a ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
 
   @override
   String get wrongCredentials => 'E-posta adresi veya şifre yanlış.';
 
   @override
-  String get wrongCode => 'Kod yanlış. Cihazınızdaki saati kontrol edip tekrar deneyin.';
+  String get wrongCode =>
+      'Kod yanlış. Cihazınızdaki saati kontrol edip tekrar deneyin.';
 
   @override
-  String get challengeEnded => 'Oturum açma işleminin süresi doldu. E-posta adresinizi ve şifrenizi yeniden girin.';
+  String get challengeEnded =>
+      'Oturum açma işleminin süresi doldu. E-posta adresinizi ve şifrenizi yeniden girin.';
 
   @override
-  String get emailTaken => 'Bu e-posta adresiyle zaten bir hesap var. Bunun yerine oturum açın.';
+  String get emailTaken =>
+      'Bu e-posta adresiyle zaten bir hesap var. Bunun yerine oturum açın.';
 
   @override
   String get invalidEmail => 'Geçerli bir e-posta adresi girin.';
@@ -52,16 +56,19 @@ class AppLocalizationsTr extends AppLocalizations {
   String get invalidCode => 'Kod 6 hanelidir.';
 
   @override
-  String get staffOnly => 'Bu uygulama hastalar içindir. Klinik personeli Salus web uygulamasını kullanır.';
+  String get staffOnly =>
+      'Bu uygulama hastalar içindir. Klinik personeli Salus web uygulamasını kullanır.';
 
   @override
   String get accountReady => 'Hesabınız hazır. Devam etmek için oturum açın.';
 
   @override
-  String get signOutFailed => 'Oturum kapatılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
+  String get signOutFailed =>
+      'Oturum kapatılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
 
   @override
-  String get tooManyAttemptsLater => 'Çok fazla deneme yapıldı. Daha sonra tekrar deneyin.';
+  String get tooManyAttemptsLater =>
+      'Çok fazla deneme yapıldı. Daha sonra tekrar deneyin.';
 
   @override
   String tooManyAttempts(int minutes) {
@@ -90,7 +97,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get createAnAccount => 'Hesap oluştur';
 
   @override
-  String get codePrompt => 'Kimlik doğrulama uygulamanızdaki 6 haneli kodu girin.';
+  String get codePrompt =>
+      'Kimlik doğrulama uygulamanızdaki 6 haneli kodu girin.';
 
   @override
   String get code => 'Kod';
@@ -116,7 +124,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get completeProfile => 'Profilinizi tamamlayın';
 
   @override
-  String get completeProfileFirst => 'Randevu almadan önce profilinizi tamamlayın.';
+  String get completeProfileFirst =>
+      'Randevu almadan önce profilinizi tamamlayın.';
 
   @override
   String get bookAppointment => 'Randevu al';
@@ -170,13 +179,15 @@ class AppLocalizationsTr extends AppLocalizations {
   String get invalidFamilyName => 'Soyadınızı girin (en fazla 100 karakter).';
 
   @override
-  String get invalidName => 'Adınızı ve soyadınızı girin (her biri en fazla 100 karakter).';
+  String get invalidName =>
+      'Adınızı ve soyadınızı girin (her biri en fazla 100 karakter).';
 
   @override
   String get birthDateFormat => 'Doğum tarihinizi YYYY-AA-GG biçiminde girin.';
 
   @override
-  String get birthDateRange => '1900 ile bugün arasında bir doğum tarihi girin.';
+  String get birthDateRange =>
+      '1900 ile bugün arasında bir doğum tarihi girin.';
 
   @override
   String invalidPhone(String example) {
@@ -184,7 +195,8 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
-  String get profileChanged => 'Profiliniz bu arada değiştirildi. Kontrol edip yeniden kaydedin.';
+  String get profileChanged =>
+      'Profiliniz bu arada değiştirildi. Kontrol edip yeniden kaydedin.';
 
   @override
   String get chooseClinic => 'Klinik seçin';
@@ -193,7 +205,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get noClinics => 'Henüz listelenmiş bir klinik yok.';
 
   @override
-  String get noPractitioners => 'Bu klinikte henüz listelenmiş bir sağlık uzmanı yok.';
+  String get noPractitioners =>
+      'Bu klinikte henüz listelenmiş bir sağlık uzmanı yok.';
 
   @override
   String get choosePractitioner => 'Bir sağlık uzmanı seçin.';
@@ -233,7 +246,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get slotTaken => 'Bu saat artık uygun değil. Başka bir saat seçin.';
 
   @override
-  String get consentNeeded => 'Bu klinikten randevu almak için onayınız gerekiyor.';
+  String get consentNeeded =>
+      'Bu klinikten randevu almak için onayınız gerekiyor.';
 
   @override
   String get appointmentBooked => 'Randevunuz alındı.';
@@ -280,7 +294,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get appointmentCancelled => 'Randevunuz iptal edildi.';
 
   @override
-  String get cancelWindowHint => 'Başlangıçtan 24 saat öncesine kadar uygulamadan iptal edilebilir.';
+  String get cancelWindowHint =>
+      'Başlangıçtan 24 saat öncesine kadar uygulamadan iptal edilebilir.';
 
   @override
   String get cancelWindowClosed =>
@@ -396,10 +411,12 @@ class AppLocalizationsTr extends AppLocalizations {
   String get checkTitle => 'Kameranızı ve mikrofonunuzu kontrol edin';
 
   @override
-  String get checkIntro => 'Katıldığınızda sağlık uzmanı sizi görüp duyabilecek.';
+  String get checkIntro =>
+      'Katıldığınızda sağlık uzmanı sizi görüp duyabilecek.';
 
   @override
-  String get noSound => 'Ses algılanmadı. Mikrofonunuzun açık olduğunu ve sesinin kapatılmadığını kontrol edin.';
+  String get noSound =>
+      'Ses algılanmadı. Mikrofonunuzun açık olduğunu ve sesinin kapatılmadığını kontrol edin.';
 
   @override
   String get joinCameraOff => 'Kamera kapalı katıl';
@@ -494,10 +511,12 @@ class AppLocalizationsTr extends AppLocalizations {
       'Bu görüşmeye katılma süresi geçti. Klinik, katıldığınızı görebilir. Klinik sizinle iletişime geçebilir ya da yeni bir randevu alabilirsiniz.';
 
   @override
-  String get withdrewConsent => 'Bu klinik için onayınızı geri aldığınızdan görüşmeden ayrıldınız.';
+  String get withdrewConsent =>
+      'Bu klinik için onayınızı geri aldığınızdan görüşmeden ayrıldınız.';
 
   @override
-  String get appointmentWasCancelled => 'Bu randevu iptal edildiği için görüşme sona erdi.';
+  String get appointmentWasCancelled =>
+      'Bu randevu iptal edildiği için görüşme sona erdi.';
 
   @override
   String get windowNotOpen => 'Bu görüşme, başlangıçtan 10 dakika önce açılır.';
@@ -506,13 +525,15 @@ class AppLocalizationsTr extends AppLocalizations {
   String get consultationEnded => 'Bu görüşme sona erdi.';
 
   @override
-  String get joinNeedsConsent => 'Görüşmeye katılmak için bu kliniğe onay vermeniz gerekiyor.';
+  String get joinNeedsConsent =>
+      'Görüşmeye katılmak için bu kliniğe onay vermeniz gerekiyor.';
 
   @override
   String get consultationNotAvailable => 'Bu görüşmeye erişilemiyor.';
 
   @override
-  String get cannotConnect => 'Görüntülü bağlantı başlatılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
+  String get cannotConnect =>
+      'Görüntülü bağlantı başlatılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
 
   @override
   String get whyCameraAndMicrophone =>
@@ -601,7 +622,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get submitBeforeStart => 'Lütfen randevunuz başlamadan önce gönderin.';
 
   @override
-  String get questionnaireClosed => 'Randevu başladığı için bu soru formu artık doldurulamaz.';
+  String get questionnaireClosed =>
+      'Randevu başladığı için bu soru formu artık doldurulamaz.';
 
   @override
   String savedAsYouGo(String clinic) {
@@ -615,7 +637,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get saving => 'Kaydediliyor…';
 
   @override
-  String get notSaved => 'Kaydedilmedi. İnternet bağlantınızı kontrol edin. Kaydetme yeniden denenecek.';
+  String get notSaved =>
+      'Kaydedilmedi. İnternet bağlantınızı kontrol edin. Kaydetme yeniden denenecek.';
 
   @override
   String get requiredQuestion => 'Zorunlu';
@@ -702,25 +725,30 @@ class AppLocalizationsTr extends AppLocalizations {
   String get notAnswered => 'Yanıtlanmadı';
 
   @override
-  String get leaveUnsaved => 'Son yanıtınız henüz kaydedilmedi. Yine de ayrılmak istiyor musunuz?';
+  String get leaveUnsaved =>
+      'Son yanıtınız henüz kaydedilmedi. Yine de ayrılmak istiyor musunuz?';
 
   @override
   String get stay => 'Kal';
 
   @override
-  String get fillingNeedsConsent => 'Bu soru formunu doldurmak için bu kliniğe onay vermeniz gerekiyor.';
+  String get fillingNeedsConsent =>
+      'Bu soru formunu doldurmak için bu kliniğe onay vermeniz gerekiyor.';
 
   @override
-  String get pastDue => 'Randevu başladığı için bu soru formu artık değiştirilemez.';
+  String get pastDue =>
+      'Randevu başladığı için bu soru formu artık değiştirilemez.';
 
   @override
-  String get withdrawnByClinic => 'Klinik bu soru formunu geri çekti. Doldurmanız gerekmiyor.';
+  String get withdrawnByClinic =>
+      'Klinik bu soru formunu geri çekti. Doldurmanız gerekmiyor.';
 
   @override
   String get alreadySubmitted => 'Bu soru formunu zaten gönderdiniz.';
 
   @override
-  String get changedElsewhere => 'Bu yanıtlar başka bir cihazda değiştirildi. En güncel yanıtlar gösteriliyor.';
+  String get changedElsewhere =>
+      'Bu yanıtlar başka bir cihazda değiştirildi. En güncel yanıtlar gösteriliyor.';
 
   @override
   String get questionnaireNotAvailable => 'Bu soru formuna erişilemiyor.';
@@ -796,7 +824,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get removeFileBody => 'Dosya yanıtlarınızdan silinir.';
 
   @override
-  String get fileRejected => 'Bu dosya güvenlik kontrolünden geçemedi ve silindi. Başka bir dosya seçin.';
+  String get fileRejected =>
+      'Bu dosya güvenlik kontrolünden geçemedi ve silindi. Başka bir dosya seçin.';
 
   @override
   String fileTooLarge(int max) {
@@ -825,17 +854,25 @@ class AppLocalizationsTr extends AppLocalizations {
   String get fileNotUploaded => 'Dosya yüklenemedi. Tekrar deneyin.';
 
   @override
-  String get cannotPrepareFile => 'Bu dosya yüklemeye hazırlanamadı. Başka bir dosya seçin.';
+  String get cannotPrepareFile =>
+      'Bu dosya yüklemeye hazırlanamadı. Başka bir dosya seçin.';
 
   @override
-  String get filesBeingChecked => 'Bazı dosyalar hâlâ kontrol ediliyor. Hazır olduklarında gönderebilirsiniz.';
+  String get filesBeingChecked =>
+      'Bazı dosyalar hâlâ kontrol ediliyor. Hazır olduklarında gönderebilirsiniz.';
 
   @override
-  String get leaveUploading => 'Bir dosya hâlâ yükleniyor. Yine de ayrılmak istiyor musunuz? Yükleme durur.';
+  String get leaveUploading =>
+      'Bir dosya hâlâ yükleniyor. Yine de ayrılmak istiyor musunuz? Yükleme durur.';
 
   @override
   String fileCount(int n) {
-    String _temp0 = intl.Intl.pluralLogic(n, locale: localeName, other: '$n dosya', one: '$n dosya');
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n dosya',
+      one: '$n dosya',
+    );
     return '$_temp0';
   }
 
@@ -888,7 +925,8 @@ class AppLocalizationsTr extends AppLocalizations {
       'Salus\'un kameranıza erişimi yok. Cihaz ayarlarınızdan izin verebilir veya bunun yerine bir dosya seçebilirsiniz.';
 
   @override
-  String get photosDenied => 'Salus\'un fotoğraflarınıza erişimi yok. Cihaz ayarlarınızdan izin verebilirsiniz.';
+  String get photosDenied =>
+      'Salus\'un fotoğraflarınıza erişimi yok. Cihaz ayarlarınızdan izin verebilirsiniz.';
 
   @override
   String cameraPhotoTitle(String date, String time) {
@@ -952,7 +990,8 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
-  String get languageUnavailable => 'Bu dil artık bu soru formu için mevcut değil. Başka bir dil seçin.';
+  String get languageUnavailable =>
+      'Bu dil artık bu soru formu için mevcut değil. Başka bir dil seçin.';
 
   @override
   String specialtyAtClinic(String specialty, String clinic) {
@@ -983,7 +1022,8 @@ class AppLocalizationsTr extends AppLocalizations {
   String get transcript => 'Görüşme dökümü';
 
   @override
-  String get transcriptNote => 'Görüşmenin otomatik olarak yazıya dökülmüş ve çevrilmiş hâli. Hatalar içerebilir.';
+  String get transcriptNote =>
+      'Görüşmenin otomatik olarak yazıya dökülmüş ve çevrilmiş hâli. Hatalar içerebilir.';
 
   @override
   String get transcriptEmpty => 'Bu görüşmede yazıya dökülen bir şey yok.';
@@ -1010,4 +1050,389 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get termClose => 'Kapat';
+
+  @override
+  String get allergies => 'Alerjiler';
+
+  @override
+  String get currentMedications => 'Kullandığım ilaçlar';
+
+  @override
+  String get allergiesIntro =>
+      'Onay verdiğiniz klinikler, onlarla randevunuz olduğunda profilinizdeki alerjileri görür.';
+
+  @override
+  String get medicationsIntro =>
+      'Onay verdiğiniz klinikler, onlarla randevunuz olduğunda profilinizdeki ilaçları görür.';
+
+  @override
+  String get noAllergies => 'Henüz bir alerji eklemediniz.';
+
+  @override
+  String get noMedications => 'Henüz bir ilaç eklemediniz.';
+
+  @override
+  String get addAllergy => 'Alerji ekle';
+
+  @override
+  String get addMedication => 'İlaç ekle';
+
+  @override
+  String get changeAllergy => 'Alerjiyi değiştir';
+
+  @override
+  String get changeMedication => 'İlacı değiştir';
+
+  @override
+  String get change => 'Değiştir';
+
+  @override
+  String get allergySubstance => 'Madde veya besin';
+
+  @override
+  String get medicationName => 'İlaç';
+
+  @override
+  String get termSearchHint =>
+      'Aramak için yazın veya kendi kelimelerinizle girin.';
+
+  @override
+  String get allergyCategory => 'Tür (isteğe bağlı)';
+
+  @override
+  String get notSpecified => 'Belirtilmedi';
+
+  @override
+  String get categoryFood => 'Besin';
+
+  @override
+  String get categoryMedication => 'İlaç';
+
+  @override
+  String get categoryEnvironment => 'Çevre';
+
+  @override
+  String get categoryBiologic => 'Biyolojik ürün';
+
+  @override
+  String get reactionOptional => 'Reaksiyon (isteğe bağlı)';
+
+  @override
+  String get severity => 'Şiddet';
+
+  @override
+  String get severityMild => 'Hafif';
+
+  @override
+  String get severityModerate => 'Orta';
+
+  @override
+  String get severitySevere => 'Şiddetli';
+
+  @override
+  String get entryStatus => 'Durum';
+
+  @override
+  String get allergyActive => 'Etkin';
+
+  @override
+  String get allergyInactive => 'Etkin değil';
+
+  @override
+  String get allergyResolved => 'Geçti';
+
+  @override
+  String reactionLine(String reaction) {
+    return 'Reaksiyon: $reaction';
+  }
+
+  @override
+  String reactionWithSeverity(String reaction, String severity) {
+    return 'Reaksiyon: $reaction ($severity)';
+  }
+
+  @override
+  String get confirmedByClinician => 'Bir hekim tarafından doğrulandı';
+
+  @override
+  String get recordedByClinic =>
+      'Ziyaretlerinizden birinde bir klinik tarafından kaydedildi';
+
+  @override
+  String get confirmedChangeNote =>
+      'Bu kaydı değiştirirseniz artık hekim tarafından doğrulanmış olmaz.';
+
+  @override
+  String get nameRequired => 'En fazla 200 karakterlik bir ad girin.';
+
+  @override
+  String get addToProfile => 'Profilime ekle';
+
+  @override
+  String get addToProfileTitle => 'Profilinize eklensin mi?';
+
+  @override
+  String get addToProfileBody =>
+      'Bu durumda onay verdiğiniz her klinik bunu, kaydeden kliniğin adı olmadan görür.';
+
+  @override
+  String get addedToProfile => 'Artık profilinizde.';
+
+  @override
+  String get removeEntryTitle => 'Bu kayıt kaldırılsın mı?';
+
+  @override
+  String get removeEntryBody =>
+      'Artık size veya herhangi bir kliniğe gösterilmez. Bir klinik kaydettiyse veya doğruladıysa, kaldırıldı olarak işaretlenip tıbbi kaydınızda kalır.';
+
+  @override
+  String get entryRemoved => 'Kayıt kaldırıldı.';
+
+  @override
+  String get entrySaved => 'Profilinize kaydedildi.';
+
+  @override
+  String get entryChanged =>
+      'Bu kayıt bu arada değiştirildi. En güncel hâli gösteriliyor.';
+
+  @override
+  String get entryInvalid =>
+      'Bazı bilgiler geçerli değil. Kontrol edip yeniden deneyin.';
+
+  @override
+  String get entryNotAllowed => 'Bu kaydı değiştiremezsiniz.';
+
+  @override
+  String get entryNotFound => 'Bu kayda artık erişilemiyor.';
+
+  @override
+  String get doseHeading => 'Doz (isteğe bağlı)';
+
+  @override
+  String get doseAmount => 'Miktar';
+
+  @override
+  String get doseUnit => 'Birim';
+
+  @override
+  String get unitMg => 'miligram (mg)';
+
+  @override
+  String get unitG => 'gram (g)';
+
+  @override
+  String get unitUg => 'mikrogram (µg)';
+
+  @override
+  String get unitMl => 'mililitre (ml)';
+
+  @override
+  String get unitIu => 'uluslararası birim (IU)';
+
+  @override
+  String get unitTablet => 'tablet';
+
+  @override
+  String get unitCapsule => 'kapsül';
+
+  @override
+  String get unitDrop => 'damla';
+
+  @override
+  String get unitPuff => 'püskürtme (inhaler)';
+
+  @override
+  String get unitPatch => 'bant';
+
+  @override
+  String get doseBoth =>
+      'Miktarı ve birimi birlikte girin ya da ikisini de boş bırakın.';
+
+  @override
+  String get numberAboveZero => '0\'dan büyük bir sayı girin.';
+
+  @override
+  String get howOftenHeading => 'Ne sıklıkla (isteğe bağlı)';
+
+  @override
+  String get timesLabel => 'Kez';
+
+  @override
+  String get everyLabel => 'Her';
+
+  @override
+  String get periodUnitLabel => 'Zaman birimi';
+
+  @override
+  String get periodHours => 'saat';
+
+  @override
+  String get periodDays => 'gün';
+
+  @override
+  String get periodWeeks => 'hafta';
+
+  @override
+  String get periodMonths => 'ay';
+
+  @override
+  String get howOftenAll => 'Üç alanın hepsini doldurun ya da boş bırakın.';
+
+  @override
+  String get asNeeded => 'Gerektiğinde';
+
+  @override
+  String get medicationActive => 'Şu anda kullanıyorum';
+
+  @override
+  String get medicationStopped => 'Bıraktım';
+
+  @override
+  String doseMg(String value) {
+    return '$value mg';
+  }
+
+  @override
+  String doseG(String value) {
+    return '$value g';
+  }
+
+  @override
+  String doseUg(String value) {
+    return '$value µg';
+  }
+
+  @override
+  String doseMl(String value) {
+    return '$value ml';
+  }
+
+  @override
+  String doseIu(String value) {
+    return '$value IU';
+  }
+
+  @override
+  String doseTablet(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value tablet',
+      one: '$value tablet',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseCapsule(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value kapsül',
+      one: '$value kapsül',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseDrop(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value damla',
+      one: '$value damla',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePuff(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value püskürtme',
+      one: '$value püskürtme',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePatch(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value bant',
+      one: '$value bant',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseLine(String dose) {
+    return 'Doz: $dose';
+  }
+
+  @override
+  String howOftenPerHour(int frequency) {
+    return 'Saatte $frequency kez';
+  }
+
+  @override
+  String howOftenPerDay(int frequency) {
+    return 'Günde $frequency kez';
+  }
+
+  @override
+  String howOftenPerWeek(int frequency) {
+    return 'Haftada $frequency kez';
+  }
+
+  @override
+  String howOftenPerMonth(int frequency) {
+    return 'Ayda $frequency kez';
+  }
+
+  @override
+  String howOftenEveryHours(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: 'Her $every saatte $frequency kez',
+      one: 'Her $every saatte $frequency kez',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryDays(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: 'Her $every günde $frequency kez',
+      one: 'Her $every günde $frequency kez',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryWeeks(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: 'Her $every haftada $frequency kez',
+      one: 'Her $every haftada $frequency kez',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryMonths(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: 'Her $every ayda $frequency kez',
+      one: 'Her $every ayda $frequency kez',
+    );
+    return '$_temp0';
+  }
 }

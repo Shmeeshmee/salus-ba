@@ -983,7 +983,7 @@ class TerminologyApi {
 
   /// Search the medical terminology
   ///
-  /// The cheatsheet's search (docs/terminology/SPEC.md §3 \"API and UI\"). Matches q against every label of every term in every language, case and accents aside: an exact label first, then a label that starts with q, then a word within trigram distance (later words of a label, misspellings), then the more common term. Each match carries its labels in the requested languages. Staff only (practitioners and admins). Not audited: it reads no patient data. The search text is never logged or stored, and no error repeats it.
+  /// The cheatsheet's search (docs/terminology/SPEC.md §3 \"API and UI\"). Matches q against every label of every term in every language, case and accents aside: an exact label first, then a label that starts with q, then a word within trigram distance (later words of a label, misspellings), then the more common term. Each match carries its labels in the requested languages. Staff (practitioners and admins) search every category; a patient only `category=drug`, for the substances and medications of their profile (SAL-41). Not audited: it reads no patient data. The search text is never logged or stored, and no error repeats it.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -1044,7 +1044,7 @@ class TerminologyApi {
 
   /// Search the medical terminology
   ///
-  /// The cheatsheet's search (docs/terminology/SPEC.md §3 \"API and UI\"). Matches q against every label of every term in every language, case and accents aside: an exact label first, then a label that starts with q, then a word within trigram distance (later words of a label, misspellings), then the more common term. Each match carries its labels in the requested languages. Staff only (practitioners and admins). Not audited: it reads no patient data. The search text is never logged or stored, and no error repeats it.
+  /// The cheatsheet's search (docs/terminology/SPEC.md §3 \"API and UI\"). Matches q against every label of every term in every language, case and accents aside: an exact label first, then a label that starts with q, then a word within trigram distance (later words of a label, misspellings), then the more common term. Each match carries its labels in the requested languages. Staff (practitioners and admins) search every category; a patient only `category=drug`, for the substances and medications of their profile (SAL-41). Not audited: it reads no patient data. The search text is never logged or stored, and no error repeats it.
   ///
   /// Parameters:
   ///

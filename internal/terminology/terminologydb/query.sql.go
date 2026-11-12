@@ -98,6 +98,37 @@ func (q *Queries) DeleteLabelsIn(ctx context.Context, arg DeleteLabelsInParams) 
 	return err
 }
 
+const drugCodes = `-- name: DrugCodes :many
+SELECT id, atc FROM term WHERE id = ANY($1::uuid[]) AND category = 'drug'
+`
+
+type DrugCodesRow struct {
+	ID  pgtype.UUID
+	Atc pgtype.Text
+}
+
+// The drug terms among the ids with their ATC code (null for none): the substances and medications of the patient's
+// allergies and medications (SAL-41).
+func (q *Queries) DrugCodes(ctx context.Context, ids []pgtype.UUID) ([]DrugCodesRow, error) {
+	rows, err := q.db.Query(ctx, drugCodes, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DrugCodesRow
+	for rows.Next() {
+		var i DrugCodesRow
+		if err := rows.Scan(&i.ID, &i.Atc); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const explanationsIn = `-- name: ExplanationsIn :many
 SELECT DISTINCT ON (e.term_id) e.term_id, e.language::text AS language, e.updated_at, e.reviewed_at, e.reviewed_by,
        e.version_id, e.review_status, e.note, e.text

@@ -186,3 +186,22 @@ func TestSearch_ReturnsTheTermWithItsLabelsInTheRequestedLanguages(t *testing.T)
 		t.Errorf("Search(ulcus) = %+v", got)
 	}
 }
+
+// DrugCodes gives the drug terms among the ids with their ATC code, "" for none; another category is left out.
+func TestDrugCodes_TheDrugTermsAmongTheIDs(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	insertTerms(t, owner)
+	const amoxicillin, placebo = "00000000-0000-4000-8000-0000000000d1", "00000000-0000-4000-8000-0000000000d2"
+	if _, err := owner.Exec(t.Context(), `INSERT INTO term (id, category, atc) VALUES ($1, 'drug', 'J01CA04'), ($2, 'drug', NULL)`,
+		amoxicillin, placebo); err != nil {
+		t.Fatal(err)
+	}
+	got, err := terminology.NewPostgresRepository(app).DrugCodes(t.Context(), []string{amoxicillin, placebo, liver, "not-an-id"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[amoxicillin] != "J01CA04" || got[placebo] != "" {
+		t.Errorf("DrugCodes = %v, want the two drugs", got)
+	}
+}

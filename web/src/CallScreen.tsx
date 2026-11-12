@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { AllergyWarning, EntriesPanel } from './AllergiesPanel'
 import type { ApiClient } from './api/client'
+import type { FhirClient } from './api/fhir'
+import { usePatientEntries } from './entries'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
 import { liveKit, type CallEvent, type Media, type Peer, type Room, type Settings } from './call'
@@ -35,7 +38,9 @@ const nobody: Peer = { present: false, camera: false, microphone: false }
 // and the drafting backend (SAL-8) are wired in, the call page shows no live panels at all.
 type Consult = { live: LiveSource; actions: ConsultActions }
 
-type Props = { api: ApiClient; id: string; media?: Media; consult?: Consult }
+// fhir reads the patient's allergies and medications (SAL-41): the warning of the active allergies on every state of
+// the page and the panel beside the video. Without it neither is shown.
+type Props = { api: ApiClient; fhir?: Pick<FhirClient, 'get'>; id: string; media?: Media; consult?: Consult }
 
 // The practitioner's own time zone, for the times of the transcript's lines.
 const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -44,7 +49,7 @@ const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
 // waiting for the patient, the call, reconnecting, and the end. The token comes from our API on every join and
 // rejoin; the server decides whether one is issued. Events of a room this screen has left are ignored
 // (generation), so a late event of an old connection changes nothing.
-export function CallScreen({ api, id, media = liveKit, consult }: Props) {
+export function CallScreen({ api, fhir, id, media = liveKit, consult }: Props) {
   const t = useT()
   const [phase, setPhase] = useState<Phase>({ name: 'check' })
   const [room, setRoom] = useState<Room>()
@@ -64,6 +69,15 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
   const present = useRef(false)
   const params = { params: { path: { id } } }
   const [live, dispatch, ended] = useConsult(consult?.live, id, phase.name === 'call' || phase.name === 'reconnecting')
+  const entries = usePatientEntries(fhir, id)
+  const allergies = entries.entries?.allergies ?? []
+  // warned is a state of the page with the allergy warning on top.
+  const warned = (page: ReactNode) => (
+    <>
+      <AllergyWarning allergies={allergies} />
+      {page}
+    </>
+  )
 
   useEffect(() => () => void room?.leave(), [room])
   // Unmounting makes every connection still in flight late, so a room that connects afterwards is left.
@@ -210,9 +224,9 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
   switch (phase.name) {
     case 'check':
     case 'joining':
-      return <DeviceCheck media={media} busy={phase.name === 'joining'} error={phase.name === 'check' ? phase.error : undefined} onJoin={join} />
+      return warned(<DeviceCheck media={media} busy={phase.name === 'joining'} error={phase.name === 'check' ? phase.error : undefined} onJoin={join} />)
     case 'left':
-      return (
+      return warned(
         <Message text={t(phase.otherTab ? 'consultation.otherTab' : 'consultation.left')}>
           <button
             type="button"
@@ -225,10 +239,10 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
           >
             {t('consultation.joinAgain')}
           </button>
-        </Message>
+        </Message>,
       )
     case 'lost':
-      return (
+      return warned(
         <Message text={t('consultation.notRestored')}>
           <button
             type="button"
@@ -240,10 +254,10 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
           >
             {t('consultation.tryAgain')}
           </button>
-        </Message>
+        </Message>,
       )
     case 'ended':
-      return <Ended status={phase.status} />
+      return warned(<Ended status={phase.status} />)
   }
 
   const call = (
@@ -289,11 +303,21 @@ export function CallScreen({ api, id, media = liveKit, consult }: Props) {
           <EndConsultation patientJoined={patientJoined} onEnd={end} />
         </div>
       </div>
-      {consult && <ConsultSide appointmentId={id} state={live} dispatch={dispatch} actions={consult.actions} zone={zone} end={ended} />}
+      {consult && (
+        <ConsultSide
+          appointmentId={id}
+          state={live}
+          dispatch={dispatch}
+          actions={consult.actions}
+          zone={zone}
+          end={ended}
+          entries={fhir && { allergies, panel: <EntriesPanel api={api} fhir={fhir} appointmentId={id} entries={entries} /> }}
+        />
+      )}
     </section>
   )
   // The live panels' explained terms (SAL-13): the explanations are read once the call page has them.
-  return consult ? <ExplanationsProvider api={api}>{call}</ExplanationsProvider> : call
+  return warned(consult ? <ExplanationsProvider api={api}>{call}</ExplanationsProvider> : call)
 }
 
 type StageProps = {

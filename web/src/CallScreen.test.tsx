@@ -4,8 +4,10 @@ import { renderInLanguage } from './i18n/renderInLanguage'
 import type { Language } from './i18n/languages'
 import { CallScreen } from './CallScreen'
 import { newApiClient } from './api/client'
+import { newFhirClient } from './api/fhir'
 import type { Opened } from './call'
-import { apiError, expectCsrfOnWrites, fakeFetch, paths, type Route } from './test/fakeFetch'
+import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, paths, type Route } from './test/fakeFetch'
+import { allergyBundle, clinicAllergy, medicationBundle, ownAllergy, ownMedication, patientID } from './test/entries'
 import { fakeMedia } from './test/fakeCall'
 import { fakeActions, fakeLive, segment, suggestion } from './test/fakeConsult'
 
@@ -678,5 +680,64 @@ describe('CallScreen: unmounting', () => {
     release?.()
 
     await vi.waitFor(() => expect(rooms[0]?.left).toBe(true))
+  })
+})
+
+describe('CallScreen: allergies and medications (SAL-41)', () => {
+  const appointment = {
+    resourceType: 'Appointment',
+    id,
+    meta: { versionId: '1', lastUpdated: '2026-11-09T08:00:00Z' },
+    status: 'booked',
+    start: '2026-11-09T08:00:00Z',
+    end: '2026-11-09T08:30:00Z',
+    participant: [{ status: 'accepted', actor: { reference: `Patient/${patientID}`, display: 'Ada Example' } }],
+  }
+
+  function renderWithEntries(allergies = allergyBundle(ownAllergy(), clinicAllergy())) {
+    const fake = fakeFetch({
+      [joinPost]: () => Response.json(joined),
+      [statusGet]: () => Response.json(open),
+      [`GET /fhir/R4/Appointment/${id}`]: () => fhirJSON(appointment),
+      'GET /fhir/R4/AllergyIntolerance': () => fhirJSON(allergies),
+      'GET /fhir/R4/MedicationStatement': () => fhirJSON(medicationBundle(ownMedication())),
+      'GET /terminology/explanations': () => Response.json({ explanations: [] }),
+    })
+    const media = fakeMedia()
+    const consult = { live: fakeLive().live, actions: fakeActions().actions }
+    renderInLanguage(<CallScreen api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id={id} media={media.media} consult={consult} />, 'en')
+    return fake
+  }
+
+  const warning = () => screen.findByRole('region', { name: 'Active allergies' })
+
+  it("warns of the patient's active allergies from the device check on, and in the call", async () => {
+    renderWithEntries()
+    expect((await warning()).textContent).toContain('Placeholder substance A')
+    expect(screen.getByRole('heading', { name: 'Check your camera and microphone' })).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    await screen.findByRole('button', { name: 'Leave' })
+    const shown = screen.getAllByRole('region', { name: 'Active allergies' })
+    expect(shown).toHaveLength(1) // the Documents tab is hidden
+    expect(within(shown[0]).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Placeholder substance APlaceholder reaction (moderate)', 'Placeholder substance B'])
+  })
+
+  it('shows no warning when the patient has no active allergy', async () => {
+    const fake = renderWithEntries(allergyBundle())
+    await vi.waitFor(() => expect(paths(fake.requests)).toContain('GET /fhir/R4/AllergyIntolerance'))
+    await screen.findByRole('button', { name: 'Join' })
+    expect(screen.queryByRole('region', { name: 'Active allergies' })).toBeNull()
+  })
+
+  it('lists the allergies and medications beside the video, and shows the warning above the drafting editor', async () => {
+    renderWithEntries()
+    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Allergies and medications' }))
+    expect(within(await screen.findByRole('list', { name: 'Medications' })).getByText('Placeholder medication A')).toBeTruthy()
+    expect(within(screen.getByRole('list', { name: 'Allergies' })).getAllByRole('listitem')).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Documents' }))
+    const panel = screen.getByRole('tabpanel', { name: 'Documents' })
+    expect(within(panel).getByRole('region', { name: 'Active allergies' }).textContent).toContain('Placeholder substance A')
   })
 })
