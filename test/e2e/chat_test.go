@@ -115,7 +115,7 @@ func TestChat_TheDoctorAddsAColleagueAndThePatientSeesIt(t *testing.T) {
 		t.Fatalf("the patient's invitations = %+v, want the one of this conversation", invitations.Invitations)
 	}
 	inv := invitations.Invitations[0]
-	p.must(http.StatusOK, http.MethodPost, "/me/chat-invitations/"+inv.ID+"/decision", map[string]string{"decision": "grant"}, nil)
+	p.must(http.StatusNoContent, http.MethodPost, "/me/chat-invitations/"+inv.ID+"/decision", map[string]string{"decision": "grant"}, nil)
 
 	var page chatPage
 	p.must(http.StatusOK, http.MethodGet, "/conversations/"+id+"/messages", nil, &page)
@@ -131,6 +131,17 @@ func TestChat_TheDoctorAddsAColleagueAndThePatientSeesIt(t *testing.T) {
 	other.practitioner.must(http.StatusOK, http.MethodGet, "/conversations/"+id+"/messages", nil, &page)
 	if !strings.Contains(fmt.Sprint(page.Messages), "Synthetic placeholder question") {
 		t.Errorf("the colleague reads %d messages without the patient's question", len(page.Messages))
+	}
+
+	// The patient finds the granted doctor again (the app lists them for revocation) and revokes: access ends at once.
+	invitations.Invitations = nil
+	p.must(http.StatusOK, http.MethodGet, "/me/chat-invitations?status=active", nil, &invitations)
+	if len(invitations.Invitations) != 1 || invitations.Invitations[0].ID != inv.ID {
+		t.Fatalf("the patient's granted invitations = %+v, want the one granted", invitations.Invitations)
+	}
+	p.must(http.StatusNoContent, http.MethodPost, "/me/chat-invitations/"+inv.ID+"/revoke", nil, nil)
+	if got := other.practitioner.do(http.MethodGet, "/conversations/"+id+"/messages", nil, nil); got != http.StatusNotFound && got != http.StatusForbidden {
+		t.Errorf("the colleague reads after the revocation: %d", got)
 	}
 }
 
