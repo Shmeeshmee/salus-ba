@@ -66,3 +66,31 @@ func languageOf(a Account) string {
 	}
 	return a.DetectedLanguage
 }
+
+// PractitionerAccount returns the account of the practitioner practitionerID of the clinic org, with its e-mail and
+// language, for a message the job agent sends to them (the chat's notifications, SAL-29). The read is audited with
+// the job as agent, also when there is no such account in the clinic (ErrNotFound). Errors carry no address.
+func (s *Service) PractitionerAccount(ctx context.Context, agent, org, practitionerID string) (id, email, language string, err error) {
+	var a Account
+	var missing bool
+	err = s.tx.WithTx(ctx, func(ctx context.Context) error {
+		var err error
+		a, err = s.repo.ByPractitioner(ctx, practitionerID)
+		if missing = errors.Is(err, ErrNotFound) || (err == nil && a.OrganizationID != org); err != nil && !missing {
+			return err
+		}
+		e := event(restCoding, interaction(auditevent.CodeRead), auditevent.ActionRead, a, auditevent.OutcomeSuccess)
+		if missing {
+			e = event(restCoding, interaction(auditevent.CodeRead), auditevent.ActionRead, Account{OrganizationID: org}, auditevent.OutcomeMinorFailure)
+		}
+		e.AgentAccountID, e.AgentName = "", agent
+		return s.audit.Record(ctx, e)
+	})
+	switch {
+	case err != nil:
+		return "", "", "", fmt.Errorf("auth: practitioner account: %w", err)
+	case missing:
+		return "", "", "", ErrNotFound
+	}
+	return a.ID, a.Email, languageOf(a), nil
+}
