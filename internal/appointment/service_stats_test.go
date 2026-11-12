@@ -11,7 +11,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-// fakeStatsRepo answers Booked with its rows.
+// fakeStatsRepo answers Booked with its rows, and Fulfilled with its fulfilled ones.
 type fakeStatsRepo struct {
 	err  error
 	rows []appointment.Booked
@@ -19,6 +19,16 @@ type fakeStatsRepo struct {
 
 func (f fakeStatsRepo) Booked(context.Context, string, time.Time, time.Time) ([]appointment.Booked, error) {
 	return f.rows, f.err
+}
+
+func (f fakeStatsRepo) Fulfilled(context.Context, string, time.Time, time.Time) ([]appointment.Booked, error) {
+	var out []appointment.Booked
+	for _, b := range f.rows {
+		if b.Status == appointment.StatusFulfilled {
+			out = append(out, b)
+		}
+	}
+	return out, f.err
 }
 
 // The aggregate builds get every appointment of a clinic with its patient as a pseudonym under the build's key, or
@@ -52,6 +62,28 @@ func TestStatsStarts_PseudonymisesThePatient(t *testing.T) {
 	}
 }
 
+// The platform heatmap reads only the fulfilled appointments (docs/plans/analytics.md §5), pseudonymised the same way.
+func TestStatsFulfilled_OnlyTheFulfilledPseudonymised(t *testing.T) {
+	at := time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
+	key := []byte("synthetic build key, 32 bytes ok")
+	stats := appointment.NewStats(fakeStatsRepo{rows: []appointment.Booked{
+		{Start: at, PatientID: "p1", PractitionerRoleID: "r", Status: appointment.StatusFulfilled},
+		{Start: at, PatientID: "p2", PractitionerRoleID: "r", Status: appointment.StatusCancelled},
+	}})
+	got, err := stats.Fulfilled(context.Background(), "org", at, at, key)
+	all, _ := stats.Starts(context.Background(), "org", at, at, key)
+	if err != nil || len(got) != 1 || got[0].Patient != all[0].Patient || got[0].Status != appointment.StatusFulfilled {
+		t.Errorf("Fulfilled = %+v, %v", got, err)
+	}
+	if _, err := stats.Fulfilled(context.Background(), "org", at, at, []byte{1}); !errors.Is(err, appointment.ErrShortKey) {
+		t.Errorf("a short key: %v, want ErrShortKey", err)
+	}
+	boom := errors.New("boom")
+	if _, err := appointment.NewStats(fakeStatsRepo{err: boom}).Fulfilled(context.Background(), "org", at, at, key); !errors.Is(err, boom) {
+		t.Errorf("Fulfilled = %v", err)
+	}
+}
+
 // salus_stats reads a clinic's appointments starting in the range, every status, oldest first; only that clinic's.
 func TestStatsRepository_ReadsTheClinicsAppointmentsInTheRange(t *testing.T) {
 	t.Parallel()
@@ -81,6 +113,10 @@ func TestStatsRepository_ReadsTheClinicsAppointmentsInTheRange(t *testing.T) {
 	if len(got) != 3 || got[0].Status != "fulfilled" || got[2].Status != "noshow" || got[0].PatientID != s.patientA ||
 		got[0].PractitionerRoleID != s.roleA1 || !got[0].Start.Equal(at) {
 		t.Errorf("Booked = %+v", got)
+	}
+	fulfilled, err := appointment.NewPostgresStatsRepository(pool).Fulfilled(t.Context(), clinicA, at, at.Add(24*time.Hour))
+	if err != nil || len(fulfilled) != 1 || fulfilled[0].Status != "fulfilled" || !fulfilled[0].Start.Equal(at) {
+		t.Errorf("Fulfilled = %+v, %v; want the one fulfilled in the range", fulfilled, err)
 	}
 	other, err := appointment.NewPostgresStatsRepository(pool).Booked(t.Context(), "00000000-0000-4000-8000-0000000000ff", at, at.Add(24*time.Hour))
 	if err != nil || len(other) != 0 {

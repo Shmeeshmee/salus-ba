@@ -45,11 +45,11 @@ func (f *fakeSources) Recorded(_ context.Context, org string, from, to time.Time
 	return out, nil
 }
 
-func (f *fakeSources) Starts(_ context.Context, org string, from, to time.Time, key []byte) ([]appointment.Start, error) {
+func (f *fakeSources) Fulfilled(_ context.Context, org string, from, to time.Time, key []byte) ([]appointment.Start, error) {
 	f.asked = append(f.asked, org)
 	var out []appointment.Start
 	for _, s := range f.starts[org] {
-		if !s.Start.Before(from) && s.Start.Before(to) {
+		if s.Status == appointment.StatusFulfilled && !s.Start.Before(from) && s.Start.Before(to) {
 			s.Patient = pseudo(key, s.Patient)
 			out = append(out, s)
 		}
@@ -336,7 +336,8 @@ func TestBuild_WritesNothingWithoutItsAudit(t *testing.T) {
 	}
 }
 
-// The quarter's heatmap counts the fulfilled appointments' patients by the clinic's local weekday and hour.
+// The quarter's heatmap counts the fulfilled appointments' patients by the clinic's local weekday and hour, and
+// reads no other appointment (the DPIA: only fulfilled ones).
 func TestBuild_AQuarterHeatmap(t *testing.T) {
 	src := fourClinics()
 	src.starts = map[string][]appointment.Start{}
@@ -349,9 +350,12 @@ func TestBuild_AQuarterHeatmap(t *testing.T) {
 				appointment.Start{Start: monday9, Patient: patientID(5000 + i*100 + p), Status: appointment.StatusCancelled})
 		}
 	}
-	repo := newMemRepo()
-	if _, err := newBuild(src, repo, &fakeAudit{}, time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)).Build(t.Context(), "2026-Q3"); err != nil {
+	repo, audit := newMemRepo(), &fakeAudit{}
+	if _, err := newBuild(src, repo, audit, time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC)).Build(t.Context(), "2026-Q3"); err != nil {
 		t.Fatal(err)
+	}
+	if len(audit.events) != 1 || audit.events[0].EntityCount != 48 {
+		t.Errorf("audit %+v, want one read of the 48 fulfilled appointments only", audit.events)
 	}
 	found := false
 	for _, r := range repo.cells["2026-Q3"] {

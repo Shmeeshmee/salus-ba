@@ -129,7 +129,7 @@ func (p program) holds(r []float64) bool {
 // The simplex's limits.
 const (
 	simplexEps   = 1e-9
-	checkSlack   = 1e-6 // how far the solver's point may lie outside a row, in patients
+	checkSlack   = 1e-6  // how far the solver's point may lie outside a row, in patients
 	simplexPivot = 20000 // pivots before the solver gives up (and the audit fails closed)
 )
 

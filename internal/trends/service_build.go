@@ -21,9 +21,9 @@ type Diagnoses interface {
 	Recorded(ctx context.Context, orgID string, from, to time.Time, key []byte) ([]condition.Recorded, error)
 }
 
-// Appointments are a clinic's appointments, each patient as the build's pseudonym (appointment.Stats).
+// Appointments are a clinic's fulfilled appointments, each patient as the build's pseudonym (appointment.Stats).
 type Appointments interface {
-	Starts(ctx context.Context, orgID string, from, to time.Time, key []byte) ([]appointment.Start, error)
+	Fulfilled(ctx context.Context, orgID string, from, to time.Time, key []byte) ([]appointment.Start, error)
 }
 
 // Specialties are a clinic's roles with their specialty (practitionerrole.Stats).

@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/Shmeeshmee/salus/internal/appointment"
 )
 
 // month builds a calendar month's G×D, G×S and S×D tables (§5) over the confirmed Conditions of the clinics that
@@ -85,16 +83,13 @@ func (b *Builder) quarter(ctx context.Context, p span, src sources, key []byte) 
 		if !counts(loc, p.start(z), src.entity) {
 			continue
 		}
-		starts, err := b.p.Appointments.Starts(ctx, loc.ID, p.start(z), p.end(z), key)
+		starts, err := b.p.Appointments.Fulfilled(ctx, loc.ID, p.start(z), p.end(z), key)
 		if err != nil {
 			return Summary{}, err
 		}
 		read += len(starts)
 		geo := parents.geo("", loc.Region, src.entity[loc.Region])
 		for _, s := range starts {
-			if s.Status != appointment.StatusFulfilled {
-				continue
-			}
 			t := s.Start.In(z)
 			day, hour := strconv.Itoa((int(t.Weekday())+6)%7+1), strconv.Itoa(t.Hour())
 			parents[DimWeekday][day], parents[DimHour][hour] = []string{""}, []string{""}
