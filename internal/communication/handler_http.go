@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 	"github.com/Shmeeshmee/salus/pkg/httpx"
@@ -26,12 +27,20 @@ type Chats interface {
 	List(ctx context.Context, c Caller, before *ListCursor) ([]Conversation, *ListCursor, error)
 	Get(ctx context.Context, c Caller, id string) (Conversation, error)
 	Messages(ctx context.Context, c Caller, id string, before *Cursor, limit int) (Page, error)
-	Send(ctx context.Context, c Caller, id, clientMessageID, body string) (Message, bool, error)
+	Send(ctx context.Context, c Caller, id, clientMessageID, body string, attachmentIDs ...string) (Message, bool, error)
 	Edit(ctx context.Context, c Caller, id, messageID, body string, version int32) (Message, error)
 	Revisions(ctx context.Context, c Caller, id, messageID string) ([]Revision, error)
 	MarkRead(ctx context.Context, c Caller, id string, seq int64) error
 	Subscribe(ctx context.Context, c Caller, id, after string) (Subscription, error)
 	After(ctx context.Context, c Caller, id string, after Cursor) ([]Message, error)
+	// SAL-30: files, search, receipts and typing.
+	Upload(ctx context.Context, c Caller, id string, in Upload) (Attachment, error)
+	Attachment(ctx context.Context, c Caller, id, attachmentID string, thumbnail bool) (binary.File, error)
+	Content(ctx context.Context, f binary.File, from, to int64) (io.ReadCloser, error)
+	Search(ctx context.Context, c Caller, id, q string) ([]SearchResult, error)
+	SearchAll(ctx context.Context, c Caller, q string) ([]SearchResult, error)
+	Typing(ctx context.Context, conversationID, participantID string) error
+	Receipts(ctx context.Context, c Caller, conversationID string) ([]Receipt, error)
 }
 
 // Subscriber gives a channel's live frames in this process (pkg/redis.Hub).
@@ -71,16 +80,21 @@ func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /conversations", h.list)
 	mux.HandleFunc("GET /conversations/{id}", h.get)
 	mux.HandleFunc("GET /conversations/{id}/messages", h.messages)
-	mux.HandleFunc("POST /conversations/{id}/messages", h.send)
+	mux.HandleFunc("POST /conversations/{id}/messages", h.post)
 	mux.HandleFunc("PATCH /conversations/{id}/messages/{message_id}", h.edit)
 	mux.HandleFunc("GET /conversations/{id}/messages/{message_id}/revisions", h.revisions)
 	mux.HandleFunc("PUT /conversations/{id}/read", h.read)
+	mux.HandleFunc("GET /conversations/{id}/search", h.search)
+	mux.HandleFunc("GET /conversations/search", h.searchAll)
 }
 
 // StreamRoutes declares the conversation's socket on mux: it lives as long as the socket, so it is served without
 // the request timeout (router.Config.Streams).
 func (h *HTTPHandler) StreamRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /conversations/{id}/events", h.events)
+	mux.HandleFunc("POST /conversations/{id}/attachments", h.upload)
+	mux.HandleFunc("GET /conversations/{id}/attachments/{attachment_id}/content", h.content)
+	mux.HandleFunc("GET /conversations/{id}/attachments/{attachment_id}/thumbnail", h.thumbnail)
 }
 
 func (h *HTTPHandler) open(w http.ResponseWriter, r *http.Request) {
@@ -202,7 +216,7 @@ func (h *HTTPHandler) messages(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, out)
 }
 
-func (h *HTTPHandler) send(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPHandler) post(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.signedIn(w, r)
 	if !ok {
 		return
@@ -212,7 +226,7 @@ func (h *HTTPHandler) send(w http.ResponseWriter, r *http.Request) {
 		writeCode(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	m, created, err := h.svc.Send(r.Context(), c, r.PathValue("id"), in.ClientMessageID, in.Body)
+	m, created, err := h.svc.Send(r.Context(), c, r.PathValue("id"), in.ClientMessageID, in.Body, in.AttachmentIDs...)
 	if err != nil {
 		h.writeError(w, r, err)
 		return
@@ -350,7 +364,7 @@ var errorCodes = []struct {
 }
 
 func (h *HTTPHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {
-	for _, e := range errorCodes {
+	for _, e := range allErrorCodes {
 		if errors.Is(err, e.err) {
 			writeCode(w, e.status, e.code)
 			return

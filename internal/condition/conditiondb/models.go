@@ -281,23 +281,45 @@ type AuditEvent struct {
 }
 
 type Binary struct {
-	ID                      pgtype.UUID
-	CreatedAt               pgtype.Timestamptz
-	UpdatedAt               pgtype.Timestamptz
-	ScannedAt               pgtype.Timestamptz
-	OrganizationID          pgtype.UUID
-	PatientID               pgtype.UUID
-	AppointmentID           pgtype.UUID
-	QuestionnaireResponseID pgtype.UUID
-	Size                    int64
-	SegmentSize             int32
-	LinkID                  string
-	ContentType             string
-	Title                   string
-	Status                  string
-	KekID                   string
-	Sha1                    []byte
-	WrappedKey              []byte
+	ID                        pgtype.UUID
+	CreatedAt                 pgtype.Timestamptz
+	UpdatedAt                 pgtype.Timestamptz
+	ScannedAt                 pgtype.Timestamptz
+	OrganizationID            pgtype.UUID
+	PatientID                 pgtype.UUID
+	AppointmentID             pgtype.UUID
+	QuestionnaireResponseID   pgtype.UUID
+	Size                      int64
+	SegmentSize               int32
+	LinkID                    pgtype.Text
+	ContentType               string
+	Title                     string
+	Status                    string
+	KekID                     string
+	Sha1                      []byte
+	WrappedKey                []byte
+	ConversationID            pgtype.UUID
+	ConversationParticipantID pgtype.UUID
+	CommunicationID           pgtype.UUID
+	CommunicationSentAt       pgtype.Timestamptz
+	ThumbnailID               pgtype.UUID
+	ThumbnailSize             pgtype.Int8
+	ThumbnailWrappedKey       []byte
+}
+
+type ChatConsent struct {
+	ID                         pgtype.UUID
+	CreatedAt                  pgtype.Timestamptz
+	UpdatedAt                  pgtype.Timestamptz
+	DateTime                   pgtype.Timestamptz
+	RevokedAt                  pgtype.Timestamptz
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	VersionID                  int32
+	Status                     string
 }
 
 type Communication struct {
@@ -318,6 +340,7 @@ type Communication struct {
 	Body                pgtype.Text
 	SystemCode          pgtype.Text
 	SystemArgs          []byte
+	AttachmentCount     int16
 }
 
 type CommunicationRevision struct {
@@ -386,6 +409,9 @@ type ConversationParticipant struct {
 	HistoryFromSeq     int64
 	ReadSeq            int64
 	Role               string
+	OrganizationID     pgtype.UUID
+	Status             string
+	Reason             pgtype.Text
 }
 
 type DiagnosisGroup struct {
@@ -540,6 +566,15 @@ type Organization struct {
 	PatientTranscriptCopy bool
 }
 
+type OrganizationChatSetting struct {
+	OrganizationID    pgtype.UUID
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+	ResponseTimeHours int32
+	EmailAfterMinutes int32
+	Hours             []byte
+}
+
 type Patient struct {
 	ID         pgtype.UUID
 	CreatedAt  pgtype.Timestamptz
@@ -580,6 +615,15 @@ type PractitionerRole struct {
 	VersionID      int32
 	Active         bool
 	SpecialtyCode  pgtype.Text
+}
+
+type PushDevice struct {
+	ID        pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	AccountID pgtype.UUID
+	Platform  string
+	Token     string
 }
 
 type Questionnaire struct {
@@ -819,4 +863,28 @@ type VideoSession struct {
 	PractitionerIdentity string
 	EndReason            pgtype.Text
 	RemovalReason        pgtype.Text
+}
+
+type WebhookDeadLetter struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	EndpointID     pgtype.UUID
+	OrganizationID pgtype.UUID
+	EventID        pgtype.UUID
+	ConversationID pgtype.UUID
+	MessageID      pgtype.UUID
+	Attempts       int32
+	LastStatus     pgtype.Int4
+	EventType      string
+}
+
+type WebhookEndpoint struct {
+	ID              pgtype.UUID
+	CreatedAt       pgtype.Timestamptz
+	OrganizationID  pgtype.UUID
+	CreatedBy       pgtype.UUID
+	IncludeClinical bool
+	Url             string
+	Events          []string
+	SecretSealed    []byte
 }

@@ -57,6 +57,15 @@ func (r *postgresRepository) ByID(ctx context.Context, id string) (Account, erro
 	return toAccount(authdb.AccountByEmailRow(row), err)
 }
 
+func (r *postgresRepository) ByPractitioner(ctx context.Context, practitionerID string) (Account, error) {
+	u, err := uuidOf(practitionerID)
+	if err != nil {
+		return Account{}, err
+	}
+	row, err := r.q(ctx).AccountByPractitioner(ctx, u)
+	return toAccount(authdb.AccountByEmailRow(row), err)
+}
+
 func (r *postgresRepository) SetPasswordHash(ctx context.Context, id, hash string) error {
 	u, err := uuidOf(id)
 	if err != nil {

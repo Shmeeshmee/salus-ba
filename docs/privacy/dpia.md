@@ -1695,6 +1695,118 @@ and comes with the subject-rights feature (export through `Patient/$everything` 
 
 **Open before production.** The retention period of the chat with the clinical record (legal decision).
 
+### SAL-28: group consults
+
+**Processing added.** The treating practitioner adds a doctor of their clinic to a conversation, or invites a doctor of
+another clinic (listed in the public directory), with a reason code and how much of the history they read; doctors
+open doctor-only side threads of a conversation. New: `conversation_participant.organization_id`, `status` and
+`reason`, and the table `chat_consent` (consent domain): the patient's consent for one conversation and one invited
+practitioner role, with its grant and revocation times. System messages in the conversation say who joined, left,
+was invited, granted or declined, as codes and opaque ids. No new processor: the other clinic is a controller of its
+own for the care it gives, and receives the conversation only on the patient's consent.
+
+**Purpose and lawful basis.** Care between visits within the treating clinic (Art. 9(2)(h)), as SAL-27. Sharing with
+another clinic rests on the patient's explicit, granular consent (Art. 9(2)(a), Art. 7): that conversation and that
+doctor, revocable at any time, with effect at once. The care consent with the treating clinic still rules: its
+revocation ends every doctor's access, the invited ones' too.
+
+**Necessity and minimisation.** Before the patient consents, the invited doctor sees nothing: not the conversation,
+its participants, its messages or side threads, nor that the invitation exists. A doctor added from a chosen point
+reads only what follows it. A side thread keeps the doctors it was opened with; a doctor added later is not in it.
+The system messages carry no name.
+
+**Retention.** `chat_consent` is kept with the clinical record (`ThenKeep`) as proof of the decision, like `consent`;
+the participant columns with the conversation. Needs a legal decision before production.
+
+### SAL-30: attachments, read receipts, typing, search and terms
+
+**Processing added.** Files a participant sends in a conversation (photos and PDFs, lab results among them) go through
+the questionnaire attachments' pipeline (`binary`, ADR 0010): the type from the bytes, encrypted with a key per file
+in the self-hosted object store, scanned by the self-hosted ClamAV before anyone opens them. A `binary` row now has
+one of two parents, a questionnaire answer or a conversation (`conversation_id`, the uploading participant, the
+message once sent). A clean image gets a thumbnail (a JPEG of at most 320 pixels a side), made on our worker from the
+clean file and stored encrypted like it. The message counts its files (`communication.attachment_count`). Read
+receipts (how far each participant has read) and typing go through the Redis pub/sub channel of the conversation; the
+receipts are also kept in Redis for 7 days after each participant's last read, each under its own key, so a socket
+opening later shows those of the conversation's current participants (a removed participant's is never sent), and
+typing leaves a key of one second (its rate). Neither is stored in Postgres. Search is Postgres full-text search over the message texts, with an
+index per partition; the query is never logged or stored. Terms are tagged on read against the reference term list
+(SAL-13) and never stored. No new processor: the object store, ClamAV and Redis are self-hosted.
+
+**Purpose and lawful basis.** Care between visits (Art. 9(2)(h)) under the care consent, as the messages. Thumbnails
+are a preview of the file for the same care, made by us, never by a third party. The questionnaire SPEC's "no
+thumbnails without a separate basis and SPEC" (docs/attachments/SPEC.md section 4) concerns questionnaire files; the
+chat's thumbnails are asked for by the chat's plan (SAL-30), not made for questionnaire files.
+
+**Necessity and minimisation.** A file keeps its name (so the reader can tell files apart; never logged), its type,
+size and SHA-1; nothing else of the file is read but by the scan and the thumbnail. Receipts carry a participant id
+and a number, typing a participant id; both opaque. A search returns only messages the caller may read, at most 50,
+and is audited once for each patient whose messages it returns.
+
+**Retention.** A file attached to a message is part of the record with it: kept with the clinical record, never
+deleted while attached (a trigger refuses it for every role, the owner included, unless the file was rejected). A
+file never sent is deleted 24 hours after its upload, a rejected one 24 hours after its scan, an object without a row
+(a file's or a thumbnail's) 24 hours after it was written. A participant's receipt expires 7 days after their last
+read, typing after one second.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Malware reaches a doctor's or a patient's device | Nobody opens a file before the scan says it is clean (409 `scanning`); an infected file is rejected, its key cleared and its object deleted (worker test with the EICAR string); a file that cannot be scanned is rejected after the last attempt, never left opening later |
+| A file is read by someone who may not read its message | Row-level security on chat files mirrors the messages' (migration tests over every scope: the patient never in a doctor-only thread, a clinic only with the consent active and the conversation set, the scan job only its conversation); the service opens a file only for whoever reads its message, after their `history_from_seq`, or before it is sent for its uploader only (service and app tests) |
+| A search shows another patient's or a revoked conversation's messages | The index search (`communication_search`, `SECURITY DEFINER` because row-level security cannot use the text index) returns keys only, for what the scope may read by the same rules as the policies (migration test over every scope); the rows are then read through the policies, in a read-only role scope that checks active participation (never a pending invitation), `history_from_seq` and the consent, and for a doctor of another clinic the patient's chat consent for them and only the side threads they take part in (SAL-28); the service checks every result's conversation as it checks a page; tests on Postgres and through the API (after a revocation the practitioner finds nothing) |
+| Receipts become a stored record of who read what | Only the reader's own position is stored (owner, 2026-11-12); receipts and typing live in Redis with a TTL and on the socket |
+| A file name, a query or a message leaks into logs | No log line holds a file name, a search query or a message (app and worker tests check the logs); job arguments carry opaque ids only |
+
+**Open before production.** The production object store and its storage classes (the "cheaper storage" for older
+attachments is deferred until it is chosen); the retention of chat files with the clinical record (legal decision,
+with the messages').
+
+### SAL-29: notifications, chat hours and webhooks
+
+**Processing added.** Three tables with personal data: `push_device` (the push token of a patient's app, by account
+and platform), `webhook_endpoint` (a clinic's webhook: its URL, the events, whether it includes clinical content, the
+sealed secret, and the admin's account that created it) and `webhook_dead_letter` (the ids of a delivery that failed
+its last attempt). `organization_chat_settings` holds the clinic's chat hours, stated response time and e-mail delay:
+no personal data. A new message enqueues a job with opaque ids only; the notifier fans it out to a push per device of
+the patient's account, an e-mail check per other participant after the clinic's delay, and a delivery per clinic
+webhook. The e-mail check reads the participant's stored read position.
+
+**Purpose and lawful basis.** Telling a participant that a message waits for them: for the patient the contract
+with them (Art. 6(1)(b)), for staff their employment and the contract with the clinic; the content stays in the app.
+The webhooks are the clinic's own integration: the endpoint is the clinic's system and the clinic is the controller
+of what it receives (the platform processes on its behalf); with clinical content turned on, the message's text goes
+to the clinic's system under the same care basis and consent that let the clinic read the chat, and only while that
+consent is active.
+
+**Necessity and minimisation.** A push says "New message from your clinic" and nothing else: no text, sender, name,
+clinic or id (no data payload). The unread e-mail says the same with the link to the app (a patient) or the web app
+(a practitioner). A webhook carries the event's type, its stable id, the clinic's and the conversation's and the
+message's ids; the message (text, time, sender role, patient id) only when the clinic's admin turns clinical content
+on. Job arguments, error texts and log lines hold ids, codes and statuses only, proven by a test that sends a
+recognisable synthetic text through the chat, the notifier and the worker and finds it nowhere outside the record.
+
+**Retention.** `push_device`: kept while the app is registered; deleted on unregister (sign-out), when FCM or APNs
+says the token is gone, and with the account. `webhook_endpoint`: kept while the clinic keeps it; deleted by its
+admin, with its dead letters. `webhook_dead_letter`: 30 days.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A notification discloses the conversation to whoever sees the phone's lock screen or the inbox | Fixed text with no content, sender or clinic, in the recipient's language; no id in the push |
+| Google or Apple (outside the EU/EEA) learn about the patient | They receive the device token and the fixed text only. They are processors pending their DPA and transfer basis (docs/privacy/processors.md); the adapters are off and the fake is the default until then |
+| A device signed into another account receives the first account's notifications | A token is one row: registering it moves it to the account signed in last; sign-out deletes it |
+| A webhook URL reaches the platform's own network (SSRF) | https only, a host name with a dot or a public address at creation; the delivery's dialer refuses loopback, private, link-local, unique-local, multicast, unspecified and carrier-grade NAT addresses at connect time, on the resolved address, so a name rebound later is refused too; no redirect is followed; no proxy (tests) |
+| A forged or replayed delivery is believed by the clinic's system | HMAC-SHA256 over the timestamp and the exact body with the endpoint's own secret; the timestamp is in the signature; the event id is stable for deduplication |
+| The webhook secret leaks | Shown once at creation; stored sealed with `WEBHOOK_KEY` (AES-256-GCM bound to the endpoint), a key of its own in the root-only key file (ADR 0011); never listed, logged or audited |
+| Clinical content leaves the platform after a revocation | A delivery with clinical content reads the message in the clinic's scope, which shows nothing after the revocation: the delivery is cancelled |
+| The admin's changes go unrecorded | Every change of the chat settings and every list, creation and deletion of a webhook is audited, refusals too |
+
+**Open before production.** The DPAs and transfer basis of Google (FCM) and Apple (APNs) before either is switched
+on (docs/deploy/push.md).
+
 ## Analytics (`docs/plans/analytics.md`, ADR 0013)
 
 ### SAL-19: coded diagnoses and diagnosis groups
@@ -1730,6 +1842,15 @@ as the other clinical tables).
 
 | Risk | Measure |
 | --- | --- |
+| An invited doctor reads the conversation before the patient consents, or after a revocation, a decline or a removal | Row-level security: a doctor of another clinic (their clinic and role set) sees a conversation, and those of its side threads they take part in, only while they are an active participant, the patient's chat consent for them is active and the care consent with the treating clinic is active (never another doctor's pending invitation); one `SECURITY DEFINER` function, owned by a role that reads only the columns it needs, decides it (migration tests over every state and scope). The service checks `access.GuestChat` as well (service tests on fakes and on Postgres, app test). An open socket checks again every 5 s |
+| The patient sees a doctor-only side thread | The patient's policies exclude every `staff_only` conversation and its messages; the service refuses the side threads' list and their creation to the patient (service tests on every path, app test) |
+| A doctor removed from a conversation keeps its side threads | A trigger removes them from the conversation's side threads in the same statement, whoever removes them (migration test) |
+| A doctor is added who should not be | Only the treating practitioner adds and removes (`access.ManagesChat`); a doctor of the clinic must be an active role of it, one of another clinic in the public directory |
+| No proof of what the patient decided | Every invitation, add, removal, grant, decline and revocation is audited in its transaction, naming the participant by its opaque id; a refused revocation too; a grant is a stored Consent with its time, a revocation keeps the row |
+| A consent left granted to a doctor who was removed, which the patient can no longer see or withdraw | A removal by the treating practitioner ends the patient's chat consent for that doctor in the same transaction, as the clinic, audited (the clinic may end a chat consent, never grant one: migration test); the patient lists their granted invitations (`GET /me/chat-invitations?status=active`) and revokes each (Art. 7(3)) |
+
+**Open before production.** The retention of `chat_consent` with the clinical record (legal decision).
+
 | A model-suggested code recorded as a diagnosis nobody made | The practitioner confirms each code before the signature (tested in the service, the API and the browser journey); the backfilled codes are unconfirmed and not counted |
 | Another clinic's diagnoses | Row-level security by clinic (tested) |
 | The aggregate builds reading identities | `salus_stats` has column grants on the source columns only (tested); patients are pseudonymised per build |

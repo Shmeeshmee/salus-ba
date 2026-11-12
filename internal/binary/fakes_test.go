@@ -66,7 +66,7 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	events, files, attached, jobs := len(f.audit.events), maps.Clone(f.repo.files), slices.Clone(f.holder.attached), len(f.jobs.scans)
-	f.repo.patient, f.repo.clinic, f.repo.job = "", "", ""
+	f.repo.patient, f.repo.clinic, f.repo.job, f.repo.conversation, f.repo.chatJob = "", "", "", "", ""
 	f.txs++
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
@@ -109,15 +109,26 @@ func (a *fakeAudit) Record(ctx context.Context, e auditevent.AuditEvent) error {
 // fakeRepository holds the rows and shows them as row-level security does, roughly: the patient's own, or
 // the clinic's. The service must not rest on it alone.
 type fakeRepository struct {
-	err     error
-	files   map[string]binary.Binary
-	patient string
-	clinic  string
-	job     string // the job scope's response; clinic is its clinic
-	locked  []string
+	err          error
+	files        map[string]binary.Binary
+	patient      string
+	clinic       string
+	job          string // the job scope's response; clinic is its clinic
+	conversation string // app.conversation_id, as communication sets it for a chat file
+	chatJob      string // the chat job scope's conversation; clinic is its clinic
+	locked       []string
 }
 
 func (r *fakeRepository) visible(b binary.Binary) bool {
+	if b.ConversationID != "" {
+		switch {
+		case r.chatJob != "":
+			return b.ConversationID == r.chatJob && b.OrganizationID == r.clinic
+		case r.patient != "":
+			return b.PatientID == r.patient
+		}
+		return r.clinic != "" && r.conversation == b.ConversationID
+	}
 	switch {
 	case r.patient != "":
 		return b.PatientID == r.patient
@@ -154,7 +165,10 @@ func (r *fakeRepository) Insert(ctx context.Context, b binary.Binary, at time.Ti
 	if r.err != nil {
 		return binary.Binary{}, r.err
 	}
-	if r.patient == "" || b.PatientID != r.patient {
+	switch {
+	case b.ConversationID != "" && r.conversation != b.ConversationID:
+		return binary.Binary{}, errors.New("row-level security: a chat file goes into the conversation set")
+	case b.ConversationID == "" && (r.patient == "" || b.PatientID != r.patient):
 		return binary.Binary{}, errors.New("row-level security: the patient inserts only for themselves")
 	}
 	b.Status, b.CreatedAt, b.UpdatedAt = binary.StatusQuarantined, at, at
@@ -233,7 +247,7 @@ func (r *fakeRepository) MarkScanned(ctx context.Context, id string, status bina
 		return false, r.err
 	}
 	b, ok := r.files[id]
-	if !ok || r.job == "" || !r.visible(b) || b.Status != binary.StatusQuarantined {
+	if !ok || (r.job == "" && r.chatJob == "") || !r.visible(b) || b.Status != binary.StatusQuarantined {
 		return false, nil
 	}
 	b.Status, b.ScannedAt, b.UpdatedAt = status, at, at
@@ -259,6 +273,77 @@ func (r *fakeRepository) OfResponse(ctx context.Context, responseID string) ([]b
 	}
 	slices.SortFunc(out, func(a, b binary.Binary) int { return a.CreatedAt.Compare(b.CreatedAt) })
 	return out, nil
+}
+
+func (r *fakeRepository) SetChatJob(ctx context.Context, conversationID, org string) error {
+	r.chatJob, r.clinic = conversationID, org
+	return inTx(ctx)
+}
+
+func (r *fakeRepository) AttachToMessage(ctx context.Context, m binary.MessageFiles, at time.Time) ([]binary.Binary, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []binary.Binary
+	for _, id := range m.IDs {
+		b, ok := r.files[id]
+		if !ok || !r.visible(b) || b.ConversationID != m.ConversationID || b.ParticipantID != m.ParticipantID || b.MessageID != "" ||
+			b.Status == binary.StatusRejected {
+			continue
+		}
+		b.MessageID, b.MessageSentAt, b.UpdatedAt = m.MessageID, m.SentAt, at
+		r.files[id] = b
+		out = append(out, b)
+	}
+	return out, nil
+}
+
+func (r *fakeRepository) OfMessages(ctx context.Context, conversationIDs, messageIDs []string) ([]binary.Binary, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	var out []binary.Binary
+	for _, b := range r.files {
+		if r.visible(b) && slices.Contains(conversationIDs, b.ConversationID) && slices.Contains(messageIDs, b.MessageID) {
+			out = append(out, b)
+		}
+	}
+	slices.SortFunc(out, func(a, b binary.Binary) int { return a.CreatedAt.Compare(b.CreatedAt) })
+	return out, r.err
+}
+
+func (r *fakeRepository) PendingChat(ctx context.Context, conversationID, participantID string) (int64, error) {
+	if err := inTx(ctx); err != nil {
+		return 0, err
+	}
+	var n int64
+	for _, b := range r.files {
+		if r.conversation == conversationID && b.ConversationID == conversationID && b.ParticipantID == participantID && b.MessageID == "" &&
+			b.Status != binary.StatusRejected {
+			n++
+		}
+	}
+	return n, r.err
+}
+
+func (r *fakeRepository) SetThumbnail(ctx context.Context, id string, t binary.Thumbnail, at time.Time) (bool, error) {
+	if err := inTx(ctx); err != nil {
+		return false, err
+	}
+	b, ok := r.files[id]
+	if !ok || r.chatJob == "" || !r.visible(b) || b.Status != binary.StatusClean || b.Thumbnail.ID != "" {
+		return false, nil
+	}
+	b.Thumbnail, b.UpdatedAt = t, at
+	r.files[id] = b
+	return true, nil
+}
+
+func (r *fakeRepository) DeleteUnattachedBefore(context.Context, time.Time) (int64, error) {
+	return 0, errors.New("the purger is tested on the real database")
 }
 
 func (r *fakeRepository) DeleteRejectedBefore(context.Context, time.Time) (int64, error) {

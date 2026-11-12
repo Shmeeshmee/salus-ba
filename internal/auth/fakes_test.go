@@ -111,6 +111,19 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (auth.Account, err
 	return a, nil
 }
 
+func (r *fakeRepository) ByPractitioner(ctx context.Context, practitionerID string) (auth.Account, error) {
+	r.seen(ctx, "ByPractitioner")
+	if r.err != nil {
+		return auth.Account{}, r.err
+	}
+	for _, a := range r.accounts {
+		if a.PractitionerID != "" && a.PractitionerID == practitionerID {
+			return a, nil
+		}
+	}
+	return auth.Account{}, auth.ErrNotFound
+}
+
 func (r *fakeRepository) SetPasswordHash(ctx context.Context, id, hash string) error {
 	r.seen(ctx, "SetPasswordHash")
 	r.rehashed[id] = hash

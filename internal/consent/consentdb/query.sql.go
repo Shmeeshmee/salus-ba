@@ -11,6 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const chatConsentGranted = `-- name: ChatConsentGranted :one
+SELECT EXISTS (SELECT 1 FROM chat_consent
+               WHERE conversation_id = $1 AND practitioner_role_id = $2 AND status = 'active')::boolean
+`
+
+type ChatConsentGrantedParams struct {
+	ConversationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+}
+
+func (q *Queries) ChatConsentGranted(ctx context.Context, arg ChatConsentGrantedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, chatConsentGranted, arg.ConversationID, arg.PractitionerRoleID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const consentByID = `-- name: ConsentByID :one
 SELECT 'care'::text AS kind, c.id, c.updated_at, c.date_time, c.revoked_at, c.patient_id, c.organization_id, c.version_id, c.status
 FROM consent c
@@ -136,6 +153,64 @@ func (q *Queries) ConsentsByPatient(ctx context.Context, patientID pgtype.UUID) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const grantChatConsent = `-- name: GrantChatConsent :one
+INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id, practitioner_organization_id, status,
+    date_time, updated_at)
+VALUES ($1, $2, $3, $4, $5, 'active', $6, $6)
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id,
+    practitioner_organization_id, version_id, status
+`
+
+type GrantChatConsentParams struct {
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	DateTime                   pgtype.Timestamptz
+}
+
+type GrantChatConsentRow struct {
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	DateTime                   pgtype.Timestamptz
+	RevokedAt                  pgtype.Timestamptz
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	VersionID                  int32
+	Status                     string
+}
+
+// chat_consent (migration 00044, SAL-28): the patient's consent for one conversation and one invited role.
+func (q *Queries) GrantChatConsent(ctx context.Context, arg GrantChatConsentParams) (GrantChatConsentRow, error) {
+	row := q.db.QueryRow(ctx, grantChatConsent,
+		arg.PatientID,
+		arg.OrganizationID,
+		arg.ConversationID,
+		arg.PractitionerRoleID,
+		arg.PractitionerOrganizationID,
+		arg.DateTime,
+	)
+	var i GrantChatConsentRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.DateTime,
+		&i.RevokedAt,
+		&i.PatientID,
+		&i.OrganizationID,
+		&i.ConversationID,
+		&i.PractitionerRoleID,
+		&i.PractitionerOrganizationID,
+		&i.VersionID,
+		&i.Status,
+	)
+	return i, err
 }
 
 const grantConsent = `-- name: GrantConsent :one
@@ -294,6 +369,53 @@ func (q *Queries) RevokeActiveTranscriptionConsent(ctx context.Context, arg Revo
 		&i.RevokedAt,
 		&i.PatientID,
 		&i.OrganizationID,
+		&i.VersionID,
+		&i.Status,
+	)
+	return i, err
+}
+
+const revokeChatConsent = `-- name: RevokeChatConsent :one
+UPDATE chat_consent
+SET status = 'inactive', revoked_at = $1, updated_at = $1, version_id = version_id + 1
+WHERE conversation_id = $2 AND practitioner_role_id = $3 AND status = 'active'
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id,
+    practitioner_organization_id, version_id, status
+`
+
+type RevokeChatConsentParams struct {
+	RevokedAt          pgtype.Timestamptz
+	ConversationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+}
+
+type RevokeChatConsentRow struct {
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	DateTime                   pgtype.Timestamptz
+	RevokedAt                  pgtype.Timestamptz
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	VersionID                  int32
+	Status                     string
+}
+
+func (q *Queries) RevokeChatConsent(ctx context.Context, arg RevokeChatConsentParams) (RevokeChatConsentRow, error) {
+	row := q.db.QueryRow(ctx, revokeChatConsent, arg.RevokedAt, arg.ConversationID, arg.PractitionerRoleID)
+	var i RevokeChatConsentRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.DateTime,
+		&i.RevokedAt,
+		&i.PatientID,
+		&i.OrganizationID,
+		&i.ConversationID,
+		&i.PractitionerRoleID,
+		&i.PractitionerOrganizationID,
 		&i.VersionID,
 		&i.Status,
 	)

@@ -88,7 +88,7 @@ func run(ctx context.Context, logOut io.Writer) error {
 		return err
 	}
 	defer retentionPool.Close()
-	client, err := worker.New(pool, retentionPool, videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret), files, log)
+	client, err := worker.New(pool, retentionPool, videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret), files, cfg.WebhookKey, log)
 	if err != nil {
 		return err
 	}
