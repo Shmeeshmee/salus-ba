@@ -35,7 +35,7 @@ Settled by this plan, within those decisions:
 | A patient's change to a confirmed entry | Makes it unconfirmed again (a change of status too): the service clears the confirmation in the same update, and the database refuses an edit that keeps another's confirmation |
 | Who a confirmation vouches for | The confirming clinic: a colleague at that clinic may correct the entry and keep it confirmed; the recording clinic corrects its own entry by clearing another clinic's confirmation. A removed entry stays removed |
 | Coding | A substance or medication picked from the terminology carries its ATC code (`http://www.whocc.no/atc`) and its label as text; one typed by hand is text only (no free-text code). Units and periods are UCUM |
-| Diagnoses in the doctor's view (SAL-40) | Shown from the signed documents' coded fields. The analytics epic is adding a `condition` domain (docs/plans/analytics.md, SAL-19): once it is on main, SAL-40 reads diagnoses through `condition.Service` instead, without touching its code |
+| Diagnoses in the doctor's view (SAL-40) | The practitioner's own visits: through `condition.Service` (SAL-19, on main since 2026-11-12), without changing its code. A shared visit's: from its signed documents' coded fields, since `condition_clinic` (00042) shows a clinic only its own rows and this epic does not widen it |
 | AI | No part of the history is sent to the language model (ADR 0014 "No AI"). The suggestions and the drafting keep reading only the consultation's transcript; SAL-42 adds a test that a shared or unshared visit's content never reaches their input |
 
 ## Contract (step 0, this PR, migration 00043)
