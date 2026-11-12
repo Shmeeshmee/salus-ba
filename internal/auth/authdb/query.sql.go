@@ -105,6 +105,44 @@ func (q *Queries) AccountByID(ctx context.Context, id pgtype.UUID) (AccountByIDR
 	return i, err
 }
 
+const accountByPractitioner = `-- name: AccountByPractitioner :one
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language,
+       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer
+FROM account
+WHERE practitioner_id = $1
+`
+
+type AccountByPractitionerRow struct {
+	ID               pgtype.UUID
+	MfaEnrolledAt    pgtype.Timestamptz
+	OrganizationID   pgtype.UUID
+	PractitionerID   pgtype.UUID
+	Role             string
+	Email            string
+	PasswordHash     string
+	Language         NullLanguage
+	DetectedLanguage NullLanguage
+	TermReviewer     bool
+}
+
+func (q *Queries) AccountByPractitioner(ctx context.Context, practitionerID pgtype.UUID) (AccountByPractitionerRow, error) {
+	row := q.db.QueryRow(ctx, accountByPractitioner, practitionerID)
+	var i AccountByPractitionerRow
+	err := row.Scan(
+		&i.ID,
+		&i.MfaEnrolledAt,
+		&i.OrganizationID,
+		&i.PractitionerID,
+		&i.Role,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Language,
+		&i.DetectedLanguage,
+		&i.TermReviewer,
+	)
+	return i, err
+}
+
 const confirmMFA = `-- name: ConfirmMFA :execrows
 UPDATE account SET mfa_enrolled_at = $1, totp_last_step = $2::bigint
 WHERE id = $3 AND mfa_enrolled_at IS NULL

@@ -1,0 +1,6 @@
+Nuovo messaggio dalla sua struttura
+
+Ha un nuovo messaggio dalla sua struttura.
+
+Per leggerlo, apra l'app Salus:
+{{.Link}}

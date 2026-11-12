@@ -2030,6 +2030,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Register the patient app's push token
+         * @description The patient app registers its FCM (Android) or APNs (iOS) token at every start (docs/plans/chat.md, SAL-29). A token is one device: registered by another account, it moves to this one. A push says only that there is a new message from the clinic; it carries no text, name or id. Staff get 403: the app is the patients'. Audited.
+         */
+        put: operations["registerDevice"];
+        post?: never;
+        /**
+         * Unregister the app's push token (on sign-out)
+         * @description Deletes the account's device of the token; nothing for a token it does not have. Audited.
+         */
+        delete: operations["unregisterDevice"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organizations/{id}/chat-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's chat hours, its response time, and whether it is within its hours now
+         * @description For the clinic's staff and for a patient with an active care consent with it; anyone else gets 404. `hours` are in the clinic's `time_zone`; `open_now` is computed there (true when the clinic states no hours). The app shows its out-of-hours notice from it.
+         */
+        get: operations["getChatHours"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/chat-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The admin's clinic's chat settings
+         * @description The defaults (no hours, 24 hours, 60 minutes) until the admin sets them.
+         */
+        get: operations["getChatSettings"];
+        /**
+         * Replace the admin's clinic's chat settings
+         * @description Every field required. `hours`: up to 21 stretches, each within one weekday, `start` before `end` (`24:00` for midnight), none overlapping. `response_time_hours` 1 to 168. `email_after_minutes` 5 to 10080: how long a message stays unread before its reader gets an e-mail. Audited, also when refused.
+         */
+        put: operations["setChatSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/webhooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The admin's clinic's webhook endpoints, without their secrets */
+        get: operations["listWebhooks"];
+        put?: never;
+        /**
+         * Add a webhook endpoint; its secret is shown in this answer only
+         * @description The clinic's own system receives each event as a `WebhookEvent`, POSTed as JSON with the headers `Salus-Event-Id` (the event's id, the same on every attempt: deduplicate on it) and `Salus-Signature`: `t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<body>" with the secret>` (check it, and refuse an old `t`). A status other than 2xx, or no answer within 10 seconds, is retried with backoff, 8 attempts in about an hour and a half, then recorded as a dead letter. `url` is https to a public host; addresses that are not public are refused at every connection. `include_clinical` (off by default) adds the message's text: the clinic is the controller of what it receives. At most 10 endpoints. Audited.
+         */
+        post: operations["createWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/webhooks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a webhook endpoint and its dead letters */
+        delete: operations["deleteWebhook"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3553,6 +3659,107 @@ export interface components {
         ChatSearchResults: {
             results: components["schemas"]["ChatSearchResult"][];
         };
+        PushDevice: {
+            /** @enum {string} */
+            platform: "android" | "ios";
+            /** @description The FCM registration token or the APNs device token. */
+            token: string;
+        };
+        ChatHour: {
+            /**
+             * @description FHIR days-of-week.
+             * @enum {string}
+             */
+            day: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+            /** @description HH:MM in the clinic's time zone. */
+            start: string;
+            /** @description HH:MM, after start; 24:00 for midnight. */
+            end: string;
+        };
+        ChatHours: {
+            /** @description The clinic's IANA time zone, which the hours are in. */
+            time_zone: string;
+            hours: components["schemas"]["ChatHour"][];
+            /** @description The response time the clinic states. */
+            response_time_hours: number;
+            /** @description Within the hours now, in the clinic's zone; true when it states none. */
+            open_now: boolean;
+        };
+        ChatSettings: {
+            hours: components["schemas"]["ChatHour"][];
+            response_time_hours: number;
+            /** @description How long a message stays unread before its reader gets an e-mail. */
+            email_after_minutes: number;
+        };
+        Webhook: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: uri */
+            url: string;
+            events: components["schemas"]["WebhookEventType"][];
+            include_clinical: boolean;
+        };
+        WebhookList: {
+            webhooks: components["schemas"]["Webhook"][];
+        };
+        NewWebhook: {
+            /**
+             * Format: uri
+             * @description https, to a public host.
+             */
+            url: string;
+            events: components["schemas"]["WebhookEventType"][];
+            /**
+             * @description Adds the message's text to each event.
+             * @default false
+             */
+            include_clinical: boolean;
+        };
+        CreatedWebhook: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: uri */
+            url: string;
+            /** @description whsec_ and 43 characters: the HMAC key of the signatures. Shown only here. */
+            secret: string;
+            events: components["schemas"]["WebhookEventType"][];
+            include_clinical: boolean;
+        };
+        /** @enum {string} */
+        WebhookEventType: "message.created";
+        /** @description What a clinic's endpoint receives (not served by this API): the event's type and ids; the message only with include_clinical. */
+        WebhookEvent: {
+            /**
+             * Format: uuid
+             * @description The event's id, the same on every attempt.
+             */
+            id: string;
+            type: components["schemas"]["WebhookEventType"];
+            /** Format: uuid */
+            organization_id: string;
+            data: {
+                /** Format: uuid */
+                conversation_id: string;
+                /** Format: uuid */
+                message_id: string;
+                /** @description Only with include_clinical. */
+                message?: {
+                    /** Format: date-time */
+                    sent_at: string;
+                    /** Format: uuid */
+                    patient_id: string;
+                    /** @enum {string} */
+                    sender_role: "patient" | "practitioner";
+                    body: string;
+                    /** Format: int64 */
+                    seq: number;
+                };
+            };
+        };
     };
     responses: {
         /** @description `csrf`: the session cookie without the CSRF header. */
@@ -3743,6 +3950,33 @@ export interface components {
         };
         /** @description `version_conflict`: the name changed since it was read. */
         GroupNameConflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `invalid_request`: a body that is not the request, a platform other than android or ios, a token that is not 1 to 4096 visible ASCII characters, a webhook URL that is not https to a public host, no or an unknown event, or an eleventh webhook. */
+        NotificationInvalidRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `forbidden`: staff of the clinic who are not its admin. */
+        ClinicAdminOnly: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `not_found`: not staff of a clinic (a patient). */
+        ClinicNotFound: {
             headers: {
                 [name: string]: unknown;
             };
@@ -8854,6 +9088,266 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["ChatForbidden"];
             /** @description `not_found`: no granted invitation of the patient with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    registerDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushDevice"];
+            };
+        };
+        responses: {
+            /** @description Registered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["NotificationInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    unregisterDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushDevice"];
+            };
+        };
+        responses: {
+            /** @description Unregistered, or there was nothing to unregister. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["NotificationInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getChatHours: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The clinic's id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The chat hours. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatHours"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: not the caller's clinic, or no active care consent with it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getChatSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatSettings"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+        };
+    };
+    setChatSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatSettings"];
+            };
+        };
+        responses: {
+            /** @description The settings stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatSettings"];
+                };
+            };
+            /** @description `invalid_request`: a body that is not the settings, or a value out of its range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+        };
+    };
+    listWebhooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The endpoints, oldest first. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+        };
+    };
+    createWebhook: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewWebhook"];
+            };
+        };
+        responses: {
+            /** @description The endpoint, with its secret. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedWebhook"];
+                };
+            };
+            400: components["responses"]["NotificationInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+        };
+    };
+    deleteWebhook: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The endpoint's id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such endpoint of the clinic, or not staff of a clinic. */
             404: {
                 headers: {
                     [name: string]: unknown;

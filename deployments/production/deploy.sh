@@ -18,7 +18,7 @@
 # Every compose command names the project salus; no other project, image or volume on the server is touched.
 #
 # Before anything is pulled, migrated or switched (a deploy, and a rollback too), the release's env file and the
-# encrypted volume are checked (check_release): the env file must not hold BINARY_KEK or TOTP_KEY, which live only
+# encrypted volume are checked (check_release): the env file must not hold BINARY_KEK, TOTP_KEY or WEBHOOK_KEY, which live only
 # in the key files on the volume (ADR 0011), and SALUS_DATA_DIR (default /mnt/salus-data) must be the mount point
 # of a dm-crypt (LUKS) device holding both key files. A locked volume after a reboot refuses the deploy; the owner
 # unlocks it first (salus-volume unlock, docs/deploy/README.md).
@@ -58,14 +58,14 @@ env_value() { sed -n "s/^$2=//p" "$1" 2>/dev/null | tail -1 | sed -E "s/^\"(.*)\
 # The app image's nonroot uid (build/package/Dockerfile): the owner of the key files.
 readonly KEY_UID=65532
 
-has_keys() { grep -Eq '^[[:space:]]*(export[[:space:]]+)?(BINARY_KEK|TOTP_KEY)[[:space:]]*=' "$1"; }
+has_keys() { grep -Eq '^[[:space:]]*(export[[:space:]]+)?(BINARY_KEK|TOTP_KEY|WEBHOOK_KEY)[[:space:]]*=' "$1"; }
 
 # check_release ENV_FILE: returns 1, saying why, when the env file holds a key or the encrypted volume is not
-# mounted with both key files. Reads only names, owners and modes, never a key.
+# mounted with every key file. Reads only names, owners and modes, never a key.
 check_release() {
 	local env=$1 dir src type key file
 	if has_keys "$env"; then
-		log "the env file sets BINARY_KEK or TOTP_KEY: they live only in the key files on the encrypted volume (ADR 0011); remove them from SALUS_ENV_FILE and from Bitwarden's env note"
+		log "the env file sets BINARY_KEK, TOTP_KEY or WEBHOOK_KEY: they live only in the key files on the encrypted volume (ADR 0011); remove them from SALUS_ENV_FILE and from Bitwarden's env note"
 		return 1
 	fi
 	dir=$(env_value "$env" SALUS_DATA_DIR)
@@ -80,7 +80,7 @@ check_release() {
 		log "$dir is mounted from $src, which is not a dm-crypt (LUKS) device: refusing to put data on it"
 		return 1
 	fi
-	for key in binary_kek totp_key; do
+	for key in binary_kek totp_key webhook_key; do
 		file=$dir/keys/$key
 		if [[ ! -f $file ]]; then
 			log "the key file $file is missing (as root: salus-volume keys, from Bitwarden)"

@@ -1,0 +1,6 @@
+Nouveau message de votre établissement
+
+Vous avez un nouveau message de votre établissement.
+
+Pour le lire, ouvrez l'application Salus :
+{{.Link}}
