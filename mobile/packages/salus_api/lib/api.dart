@@ -143,6 +143,8 @@ part 'model/suggestion_event.dart';
 part 'model/suggestion_message.dart';
 part 'model/suggestion_status.dart';
 part 'model/suggestion_status_message.dart';
+part 'model/summary_request.dart';
+part 'model/summary_response.dart';
 part 'model/system_message.dart';
 part 'model/term.dart';
 part 'model/term_category.dart';

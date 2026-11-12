@@ -17,6 +17,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/wire"
 )
 
@@ -72,6 +73,7 @@ type fixture struct {
 	repo    *fakeRepo
 	audit   *fakeAudit
 	pub     *fakePublisher
+	sum     *llmtest.Summarizer
 	clock   *testClock
 	consent map[string]access.Consent // by patient+clinic
 	visits  map[string][]access.Visit
@@ -88,7 +90,7 @@ func newFixture(t *testing.T) *fixture {
 func newFixtureOn(t *testing.T, repo communication.Repository, tx communication.Transactor) *fixture {
 	t.Helper()
 	f := &fixture{
-		repo: newFakeRepo(), audit: &fakeAudit{}, pub: &fakePublisher{}, clock: &testClock{t: start},
+		repo: newFakeRepo(), audit: &fakeAudit{}, pub: &fakePublisher{}, sum: &llmtest.Summarizer{}, clock: &testClock{t: start},
 		consent: map[string]access.Consent{patientA + clinicA: {Active: true}},
 		visits:  map[string][]access.Visit{patientA + clinicA: {{PractitionerRole: roleA1, Start: start.Add(-48 * time.Hour)}}},
 	}
@@ -97,7 +99,7 @@ func newFixtureOn(t *testing.T, repo communication.Repository, tx communication.
 	}
 	f.svc = communication.NewService(communication.Ports{
 		Repo: repo, Publisher: f.pub, Consents: fakeConsents{f}, Visits: fakeVisits{f}, Roles: fakeRoles{},
-		Encounters: fakeEncounters{}, Audit: f.audit, Tx: tx, Clock: f.clock,
+		Encounters: fakeEncounters{}, Audit: f.audit, Tx: tx, Clock: f.clock, Summarizer: f.sum,
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 	return f

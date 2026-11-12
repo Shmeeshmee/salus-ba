@@ -12,6 +12,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/llm"
 	"github.com/Shmeeshmee/salus/pkg/wire"
 )
 
@@ -56,6 +57,8 @@ type Ports struct {
 	Audit      Auditor
 	Tx         Transactor
 	Clock      clock.Clock
+	// Summarizer writes the AI summary of a long conversation (SAL-31): the fake, config.LoadChatSummary.
+	Summarizer llm.Summarizer
 	Log        *slog.Logger
 }
 

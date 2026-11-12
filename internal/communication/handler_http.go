@@ -32,6 +32,7 @@ type Chats interface {
 	MarkRead(ctx context.Context, c Caller, id string, seq int64) error
 	Subscribe(ctx context.Context, c Caller, id, after string) (Subscription, error)
 	After(ctx context.Context, c Caller, id string, after Cursor) ([]Message, error)
+	Summarize(ctx context.Context, c Caller, id, lang string) (Summary, error)
 }
 
 // Subscriber gives a channel's live frames in this process (pkg/redis.Hub).
@@ -75,6 +76,7 @@ func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /conversations/{id}/messages/{message_id}", h.edit)
 	mux.HandleFunc("GET /conversations/{id}/messages/{message_id}/revisions", h.revisions)
 	mux.HandleFunc("PUT /conversations/{id}/read", h.read)
+	mux.HandleFunc("POST /conversations/{id}/summary", h.summary)
 }
 
 // StreamRoutes declares the conversation's socket on mux: it lives as long as the socket, so it is served without
@@ -286,6 +288,28 @@ func (h *HTTPHandler) read(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// summary answers the AI summary of a long conversation (SAL-31); the body, {"lang"}, is optional.
+func (h *HTTPHandler) summary(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.signedIn(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Lang string `json:"lang"`
+	}
+	if r.ContentLength != 0 && !decode(w, r, &in) {
+		writeCode(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	sum, err := h.svc.Summarize(r.Context(), c, r.PathValue("id"), in.Lang)
+	if err != nil {
+		h.writeError(w, r, err)
+		return
+	}
+	noStore(w)
+	httpx.JSON(w, http.StatusOK, sum)
 }
 
 func writeMessage(w http.ResponseWriter, status int, m Message) {

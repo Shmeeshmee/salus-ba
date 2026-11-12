@@ -755,4 +755,94 @@ class ChatApi {
     }
     return null;
   }
+
+  /// An AI summary of a long conversation, for its practitioner
+  ///
+  /// SAL-31. For a practitioner who may read the conversation (never the patient), when they read at least 50 of its messages: a summary of the latest 500 they read, written by a language model (the fake, until the owner decides the basis for a real one). It is not stored, never replaces a message, and is always labelled AI generated (`ai_generated`); it states what was written, not a diagnosis. The read of the rows summarised is audited. `lang` is a staff language, `bs` when absent; the body may be empty.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  ///
+  /// * [SummaryRequest] summaryRequest:
+  Future<Response> summarizeConversationWithHttpInfo(
+    String id, {
+    String? xSalusCSRF,
+    SummaryRequest? summaryRequest,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/conversations/{id}/summary'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody = summaryRequest;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// An AI summary of a long conversation, for its practitioner
+  ///
+  /// SAL-31. For a practitioner who may read the conversation (never the patient), when they read at least 50 of its messages: a summary of the latest 500 they read, written by a language model (the fake, until the owner decides the basis for a real one). It is not stored, never replaces a message, and is always labelled AI generated (`ai_generated`); it states what was written, not a diagnosis. The read of the rows summarised is audited. `lang` is a staff language, `bs` when absent; the body may be empty.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///   The conversation's id.
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  ///
+  /// * [SummaryRequest] summaryRequest:
+  Future<SummaryResponse?> summarizeConversation(
+    String id, {
+    String? xSalusCSRF,
+    SummaryRequest? summaryRequest,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await summarizeConversationWithHttpInfo(
+      id,
+      xSalusCSRF: xSalusCSRF,
+      summaryRequest: summaryRequest,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'SummaryResponse',
+      ) as SummaryResponse;
+    }
+    return null;
+  }
 }

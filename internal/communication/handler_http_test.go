@@ -31,6 +31,7 @@ type stubChats struct {
 	asked        []string
 	sent         communication.Message
 	conv         communication.Conversation
+	summary      communication.Summary
 	mu           sync.Mutex
 	sessionEnded bool
 	created      bool
@@ -105,6 +106,11 @@ func (s *stubChats) After(context.Context, communication.Caller, string, communi
 		return next, nil
 	}
 	return nil, s.afterErr
+}
+
+func (s *stubChats) Summarize(_ context.Context, _ communication.Caller, _, lang string) (communication.Summary, error) {
+	s.ask("summary " + lang)
+	return s.summary, s.err
 }
 
 // sessionOpen is the socket's session check: open until the test ends it.

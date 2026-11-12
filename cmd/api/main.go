@@ -64,7 +64,11 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if err != nil {
 		return err
 	}
-	app, err := api.New(ctx, cfg, lk, files, drafter, log)
+	// The chat's AI summary: the fake only, until the owner decides the basis for a real model (SAL-31).
+	if _, err := config.LoadChatSummary(); err != nil {
+		return err
+	}
+	app, err := api.New(ctx, cfg, lk, files, drafter, &llmtest.Summarizer{DiscardCalls: true}, log)
 	if err != nil {
 		return err
 	}

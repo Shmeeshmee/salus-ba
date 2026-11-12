@@ -52,6 +52,7 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 		{"SendAck", communication.SendAck{}, communication.SendAck{}, nil},
 		{"SendMessageRequest", communication.SendCommand{}, communication.SendCommand{}, nil},
 		{"ChatCommandError", communication.CommandError{ID: "x"}, communication.CommandError{}, nil},
+		{"SummaryResponse", communication.Summary{}, communication.Summary{}, nil},
 	} {
 		sc, ok := s[tt.name]
 		if !ok {

@@ -94,6 +94,7 @@ Class | Method | HTTP request | Description
 *ChatApi* | [**markConversationRead**](doc//ChatApi.md#markconversationread) | **PUT** /conversations/{id}/read | Move the caller's read position
 *ChatApi* | [**openConversation**](doc//ChatApi.md#openconversation) | **POST** /conversations | Open the conversation with a patient or a practitioner, or return the one there is
 *ChatApi* | [**sendMessage**](doc//ChatApi.md#sendmessage) | **POST** /conversations/{id}/messages | Send a text message
+*ChatApi* | [**summarizeConversation**](doc//ChatApi.md#summarizeconversation) | **POST** /conversations/{id}/summary | An AI summary of a long conversation, for its practitioner
 *ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic, or to transcription
 *ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
 *ConsentsApi* | [**revokeConsent**](doc//ConsentsApi.md#revokeconsent) | **POST** /consents/{id}/revoke | Revoke a consent
@@ -248,6 +249,8 @@ Class | Method | HTTP request | Description
  - [SuggestionMessage](doc//SuggestionMessage.md)
  - [SuggestionStatus](doc//SuggestionStatus.md)
  - [SuggestionStatusMessage](doc//SuggestionStatusMessage.md)
+ - [SummaryRequest](doc//SummaryRequest.md)
+ - [SummaryResponse](doc//SummaryResponse.md)
  - [SystemMessage](doc//SystemMessage.md)
  - [Term](doc//Term.md)
  - [TermCategory](doc//TermCategory.md)

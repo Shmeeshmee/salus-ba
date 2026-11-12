@@ -3061,6 +3061,42 @@ paths:
           $ref: "#/components/responses/ChatForbidden"
         "404":
           $ref: "#/components/responses/ChatNotFound"
+  /conversations/{id}/summary:
+    post:
+      operationId: summarizeConversation
+      summary: An AI summary of a long conversation, for its practitioner
+      description: >-
+        SAL-31. For a practitioner who may read the conversation (never the patient), when they read at least 50 of
+        its messages: a summary of the latest 500 they read, written by a language model (the fake, until the owner
+        decides the basis for a real one). It is not stored, never replaces a message, and is always labelled AI
+        generated (`ai_generated`); it states what was written, not a diagnosis. The read of the rows summarised is
+        audited. `lang` is a staff language, `bs` when absent; the body may be empty.
+      tags: [chat]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationID"
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SummaryRequest"}
+      responses:
+        "200":
+          description: The summary, not cached.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SummaryResponse"}
+        "400":
+          $ref: "#/components/responses/ChatInvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ChatForbidden"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
   /conversations/{id}/events:
     get:
       operationId: followConversation
@@ -5111,6 +5147,18 @@ components:
         revisions:
           type: array
           items: {$ref: "#/components/schemas/MessageRevision"}
+    SummaryRequest:
+      type: object
+      properties:
+        lang: {type: string, enum: [bs, hr, sr-Latn, sr-Cyrl, en], description: The language to write the summary in.}
+    SummaryResponse:
+      type: object
+      required: [summary, generated_at, up_to_seq, ai_generated]
+      properties:
+        summary: {type: string, description: The summary's text; never a diagnosis.}
+        generated_at: {type: string, format: date-time}
+        up_to_seq: {type: integer, format: int64, description: The number of the latest message it covers.}
+        ai_generated: {type: boolean, const: true, description: Always true; every client labels the summary AI generated.}
     ReadPosition:
       type: object
       required: [seq]
