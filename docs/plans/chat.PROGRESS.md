@@ -214,3 +214,25 @@ worker, and the worker's `GOMEMLIMIT` is 640 MiB (`SALUS_WORKER_GOMEMLIMIT`, und
   with `communication_search` dropped after the seed: commit p95 24 s, delivery 4.8 s, load average 48): the host's
   load, not SAL-30's index. To be measured again on a quiet host before the merge; SAL-27's run had 86 ms p95 at a load
   average of 10 to 14.
+
+#### Before the merge (after main's SAL-28, migration 00045, 2026-11-12)
+
+One `make bench-chat` run on a quiet host (load average 2.0 at the start, 2.7 to 6.1 during, 3.2 at the end), same
+seed (3 000 021 messages, 50 010 conversations, 24 partitions), with finding 7's search (participant status, guest
+scope). Every target met:
+
+| Measure | p50 | p95 | p99 | Target |
+| --- | --- | --- | --- | --- |
+| Delivery at 200 messages a second | 9.6 ms | 13.2 ms | 16.1 ms | p95 < 300 ms: met |
+| Send's commit at 200 a second | 9.5 ms | 13.1 ms | 15.1 ms | |
+| Latest page (service, audited, 50 messages) | 6.5 ms | 11.1 ms | 13.8 ms | p95 < 200 ms: met |
+| Page 22 of a long conversation | 5.9 ms | 10.3 ms | 11.9 ms | p95 < 200 ms: met |
+| A send with nothing else running | 5.6 ms | 9.2 ms | 14.4 ms | p95 < 300 ms: met |
+| Search a 100 000-message conversation, a rare word | 19 ms | 31 ms | 40 ms | none (capacity) |
+| Search a 100 000-message conversation, a word in every message | 15 ms | 20 ms | 25 ms | none |
+| Search a small conversation, a rare word | 16 ms | 19 ms | 24 ms | none |
+| Search across 50 010 conversations, a rare word | 258 ms | 288 ms | 314 ms | none |
+| Search across 50 010 conversations, a word in every message | 286 ms | 306 ms | 319 ms | none |
+
+Capacity: delivery at 400 a second 13.0 ms p95, at 1000 a second 207 ms p95. The earlier misses of delivery at 200 a
+second (p95 17 to 21 s) were the host's load, as the A/B run suggested.
