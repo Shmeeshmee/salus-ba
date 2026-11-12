@@ -1,7 +1,8 @@
 # 12. ICD-10 codes as identifiers, our own diagnosis groups, pre-computed aggregates, suppressed platform figures
 
-Status: proposed, 2026-11-12 (docs/plans/analytics.md, epic SAL-18). Waits for the owner's approval. The points
-under "Open legal questions" in the plan are for a lawyer before real patient data reaches the platform view.
+Status: accepted, 2026-11-12 (docs/plans/analytics.md, epic SAL-18). The platform view and its builds are behind
+`ANALYTICS_PLATFORM_ENABLED`, off by default, until the owner confirms the answers to the plan's legal questions
+L1 to L8; a clinic may opt out of the platform figures and then loses the platform view.
 
 ## Context
 

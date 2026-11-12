@@ -1,7 +1,7 @@
 # Analytics: clinic statistics and platform-wide trends
 
-Epic SAL-18 (SAL-19 to SAL-22). Status: planned, 2026-11-12, **waiting for the owner's approval**; no code is
-written before it. Decision record: docs/adr/0012-icd10-diagnosis-groups-and-anonymized-analytics.md. Revised the
+Epic SAL-18 (SAL-19 to SAL-22). Status: approved by the owner, 2026-11-12, with the answers in section 10; the
+platform view is built behind a feature flag that stays off until the legal questions are answered (section 2a). Decision record: docs/adr/0012-icd10-diagnosis-groups-and-anonymized-analytics.md. Revised the
 same day after a subagent review of PR #71 (suppression fixed over the whole month instead of per query,
 distinct patients, frozen months, the clinic rules, features that do not exist yet taken out).
 
@@ -18,7 +18,7 @@ distinct patients, frozen months, the clinic rules, features that do not exist y
 Data sources: `Condition` (from signed documents) and `Appointment`. Never transcripts, suggestions, free-text
 fields or questionnaire answers.
 
-## 2. Decisions (proposed, for the owner to approve)
+## 2. Decisions (approved 2026-11-12)
 
 | Topic | Decision | Why |
 | --- | --- | --- |
@@ -35,7 +35,21 @@ fields or questionnaire answers.
 | Unusual rises | Weekly EARS C2 adaptation per region and group on closed weeks; a flag has no count (section 6) | Explainable, needs 10 weeks of history, publishes no weekly number |
 | Charts | Hand-written SVG components in `web/src/analytics/` (line, bars, heatmap); regions as bars, no map in v1 | A chart library is a large dependency for four chart types; a map needs boundary data with its own licence and weight |
 | Domains | `condition` (context `clinical`); `clinicstats` and `trends` (new context `analytics`); groups and places in `terminology` (`reference`) | CLAUDE.md "Go architecture" |
-| Who sees what | My clinic: admins see all of their clinic; a practitioner sees the clinic's appointment figures and the diagnoses of their own role only. All of Salus: every staff account | SAL-20 "admins and doctors per permission"; a practitioner learns nothing about diagnoses of patients outside their care |
+| Who sees what | My clinic: admins see all of their clinic, the clinic's full diagnosis totals included; a practitioner sees the clinic's appointment figures and the diagnoses of their own role only. All of Salus: every staff account of a clinic that contributes (O6) | SAL-20 "admins and doctors per permission"; a practitioner learns nothing about diagnoses of patients outside their care |
+| Clinic opt-out | A clinic admin may opt the clinic out of the platform figures (`organization.analytics_contributes`, default true, in Clinic settings). An opted-out clinic's rows are left out of every build from the next one on (frozen months stay as built) and its staff lose the All of Salus view (`403`, code `analytics_not_contributing`) | Owner, O6: no view without contributing |
+
+## 2a. Feature flag: the platform view is off until the legal answers (owner, 2026-11-12)
+
+Questions L1 to L8 are with the owner's lawyer. Everything is built and tested, but `ANALYTICS_PLATFORM_ENABLED`
+(`internal/config`, default `false`, read once at start) gates the platform view:
+
+- Off: the scheduler registers none of the `trends` builds (month, quarter, week), `salusctl trends build`
+  refuses, every `/analytics/platform/*` path answers `404` (the routes are not mounted), and the web app hides
+  the All of Salus tab (it learns the flag from `GET /auth/me`'s `features`, a list of codes). No platform cell
+  or rise is ever computed, so no data is processed for that purpose.
+- On: only after the owner confirms the legal answers, as a change of the production `.env` recorded in this
+  plan's PROGRESS file. Tests run both ways; the e2e suite turns it on for its own stack.
+- My clinic (SAL-20) is not behind the flag: it is the clinic's own processing on its behalf.
 
 CLAUDE.md also lists the bounded contexts. The owner has an uncommitted edit to CLAUDE.md, so no PR of this
 epic touches it: `docs/architecture/archcheck/config.yaml` (the authority) gets the new context, and the owner
@@ -246,7 +260,7 @@ order; generated clients are regenerated after the merge, never hand-merged.
 
 ### ANA-1 SAL-19 diagnoses (branch `analytics-diagnoses`)
 
-- Migration: `diagnosis_group*` with appendix A seeded (names `pending`), `place*` seeded, `condition` with RLS
+- Migration: `diagnosis_group*` with appendix A seeded (names `unreviewed`), `place*` seeded, `condition` with RLS
   and the backfill, the `salus_stats` role (as 00014, `STATS_DATABASE_PASSWORD` set by `cmd/migrate`) and its
   column grants on `condition`, `appointment`, `practitioner_role` and `organization`.
 - `internal/condition`: model, repository, service (`Record` in the caller's transaction, `Recorded`, `Get`),
@@ -271,7 +285,9 @@ retention entries.
 Clinic location: `organization` region and city (migration, FHIR `Organization.address.state` and `.city`, the
 admin's Clinic settings field, `Locations` filled). Then sections 5 and 6: `internal/trends`, the month,
 quarter and week builds, `Suppress`, the rises, handlers and openapi paths, `ANALYTICS_MIN_COUNT` in
-`internal/config`, `salusctl trends build <month>` for a missed build, the DPIA section with L1 and L2 open.
+`internal/config`, `salusctl trends build <month>` for a missed build, the opt-out (`analytics_contributes`,
+Clinic settings, left out of builds, the view refused), `ANALYTICS_PLATFORM_ENABLED` (section 2a) and its tests
+both ways, the DPIA section with L1 and L2 open.
 
 ### ANA-4 SAL-22 charts (branch `analytics-charts`)
 
@@ -279,28 +295,27 @@ quarter and week builds, `Suppress`, the rises, handlers and openapi paths, `ANA
 with tooltips, keyboard focus and `prefers-reduced-motion`; filters (group with drill-down, range, region,
 specialty, practitioner on My clinic only; on All of Salus, only the table combinations of section 5, so the UI
 never offers a filter the API refuses); dates and numbers through `Intl` in the UI language, five staff
-languages; a suppressed platform cell reads "Fewer than {min_count}" with `min_count` from the API. Built against
+languages; the All of Salus tab shown only when `features` has `analytics_platform` and the clinic contributes;
+a suppressed platform cell reads "Fewer than {min_count}" with `min_count` from the API. Built against
 typed fixtures of section 8 first; after ANA-2 and ANA-3 are merged, the generated client replaces the fixtures
 and an e2e test switches views and filters. Component tests in Vitest; a render benchmark on 3 years of monthly
 data with every group.
 
 ## 10. Open questions
 
-### For the owner
+### Answered by the owner (2026-11-12)
 
-- **O1 Geography.** Clinic location (proposed) or the patient's municipality of residence (better for spotting
-  regional rises in telemedicine, but a new personal-data field in the mobile app and the profile)?
-- **O2 Clinics outside BiH.** Places are seeded for BiH only; another country is a later migration. Fine?
-- **O3 Practitioners in My clinic.** Their own diagnoses plus the clinic's appointment figures (proposed), or the
-  clinic's diagnosis totals too (which tells them about patients outside their care)?
-- **O4 Rounding.** Round platform counts to the nearest 5 (proposed), or show exact counts from 10 up?
-- **O5 Who sees All of Salus.** Every staff account (proposed), or admins only?
-- **O6 Clinic opt-out.** May a clinic decline to contribute to the platform figures (a contract question too)?
-- **O7 Group list.** Appendix A's groups and names; a doctor should review the names before they leave `pending`.
-- **O8 Months, not weeks.** The platform tables are monthly and appear seven days after the month; only rise
-  flags are weekly, without numbers. Acceptable?
+- **O1 Geography:** the clinic's location.
+- **O2 Countries:** BiH only.
+- **O3 Practitioners in My clinic:** their own diagnoses plus the clinic's appointment figures; clinic admins also
+  see the clinic's full diagnosis totals.
+- **O4 Rounding:** to the nearest 5.
+- **O5 All of Salus:** all staff of a contributing clinic.
+- **O6 Opt-out:** yes; an opted-out clinic loses the All of Salus view (section 2).
+- **O7 Group names:** seeded `unreviewed`; the doctor partner reviews appendix A in the review panel.
+- **O8 Months:** acceptable.
 
-### For a lawyer (before real patient data reaches the platform view)
+### For the owner's lawyer (the platform view stays off until they are answered, section 2a)
 
 - **L1 Role.** Salus processes clinics' data as their processor. Building platform-wide figures is Salus's own
   purpose: does the anonymisation step need the clinics' instruction in the DPA (Art. 28(3)(a)), or does Salus
@@ -321,7 +336,7 @@ data with every group.
   official use of our documents in BiH (sick leave, referrals) require the national MKB-10 edition?
 - **L8 DPIA.** Whether this feature needs consultation of the supervisory authority (Art. 36) after the DPIA.
 
-## Appendix A. Diagnosis groups (draft names, `pending` review)
+## Appendix A. Diagnosis groups (draft names, `unreviewed` until the doctor partner approves them in the review panel)
 
 Ranges are inclusive and compared on the code's first characters (`J00` matches `J00` and `J00.0`). A subgroup
 (indented key) lies inside its group. U07.1 and U07.2 are COVID-19, U08 to U10 its history and after-effects (WHO emergency codes); U07.0 (vaping) and a bare U07 fall to `other`. V01–Y98 (external causes) and
