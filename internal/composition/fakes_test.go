@@ -248,6 +248,18 @@ func (r *fakeRepository) Signed(ctx context.Context, encounterID string) ([]comp
 	return slices.DeleteFunc(all, func(d composition.Draft) bool { return d.Status != composition.StatusFinal }), err
 }
 
+func (r *fakeRepository) SignedOfVisits(ctx context.Context, encounterIDs []string) ([]composition.Draft, error) {
+	var out []composition.Draft
+	for _, id := range encounterIDs {
+		ds, err := r.Signed(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ds...)
+	}
+	return out, nil
+}
+
 // SignedOf gives the final drafts of the encounters the scope shows after the page's position, newest first by
 // signature.
 func (r *fakeRepository) SignedOf(ctx context.Context, encounterIDs []string, p keyset.Page) ([]composition.Draft, error) {
@@ -298,6 +310,7 @@ type fakeEncounters struct {
 	f           *fixture
 	attendances map[string][]appointment.Attendance
 	calls       map[string]int
+	shared      map[string]encounter.Encounter // another clinic's visits shared with the caller, by account + encounter id
 	enc         encounter.Encounter
 }
 
@@ -319,6 +332,19 @@ func (e *fakeEncounters) Access(ctx context.Context, c appointment.Caller, id st
 		e.f.repo.scope = patientScope + c.PatientID
 	}
 	return e.enc, all[min(n, len(all)-1)], nil
+}
+
+// Shared gives the visits shared with the caller, scoping the transaction to the caller's clinic as encounter does.
+func (e *fakeEncounters) Shared(ctx context.Context, c appointment.Caller, id string) (encounter.Encounter, error) {
+	if err := inTx(ctx); err != nil {
+		return encounter.Encounter{}, err
+	}
+	got, ok := e.shared[c.AccountID+id]
+	if !ok {
+		return encounter.Encounter{}, encounter.ErrNotFound
+	}
+	e.f.repo.scope = c.OrganizationID
+	return got, nil
 }
 
 // Own gives the encounter to its patient, at its clinic or every clinic, as the encounter's service does.

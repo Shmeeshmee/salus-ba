@@ -165,3 +165,77 @@ and fixed differently (below).
 | mean per source: visits, documents, responses, attachments | 13.6, 60.6, 26.7, 27.2 ms | 1.0, 6.4, 1.9, 2.2 ms |
 
 The first page is under the plan's 50 ms at p95.
+
+## SAL-40: the practitioner's view and the pre-visit summary (2026-11-12)
+
+Branch `sal-40-doctor-history`. `history.Service.ForPractitioner` and `Summary` (`service_practitioner.go`), on
+`encounter.Service.History` (the visits `access.HistoryVisit` lets the practitioner see, gated on `access.Profile` at
+Full) and one read per owning domain for those visits (`composition.Service.History`,
+`questionnaireresponse.Service.History`), each domain auditing the items a page shows (`Disclosed`) and the history
+auditing the view itself (`Patient/<id>`, TREAT). A shared visit's signed documents, completed responses, their files
+and the questions they answer open for that practitioner through `encounter.Service.Shared`/`SharedAppointment`; the
+questions through migration 00051's `history_questionnaire` (`SECURITY DEFINER`, owned by `salus_history_lookup`),
+not a chained policy. `migrations/language_test.go` runs in its usual time with it (about 17 s per test, parallel,
+as before). Diagnoses: the ICD-10 codes of the signed documents' coded fields (`HistoryItem.diagnoses`, added to
+the schema and the Go type), for own and shared visits alike: `condition.Service` has no read of a visit's
+Conditions and the plan says not to change its code. `GET /patients/{id}/history`, `.../history/summary`. Web: the
+history panel on the appointment detail (its own practitioner) and as a tab of the call page's live panels, read only
+once opened. Allergies and medications through the ports, stood in by `noAllergies`/`noMedications` in
+`internal/api/history.go` until SAL-41's services are wired at the merge.
+
+Readings (`make bench-history-practitioner`, compose Postgres on the shared dev machine, other stacks running): a patient with
+300 visits with the practitioner and 100 shared from another clinic, each with a signed document, and 500 more
+visits there not shared (read by the clinic's scope through `history_shared`, left out by the rule).
+
+| Read | p50 | p95 | p99 |
+| --- | --- | --- | --- |
+| First page of 30, documents and responses read per visit (first cut) | 63.7 ms | 116.6 ms | 170.6 ms |
+| First page of 30, one query for every visit's documents, one search per patient for the responses | 19.8 ms | 55.8 ms | 93.9 ms |
+| Pre-visit summary | 16.7 ms | 46.9 ms | 94.8 ms |
+| First page of 30, after merging main (00046's once-per-query lookups), 2026-11-13 | 16.2 ms | 63.6 ms | 101.7 ms |
+| Pre-visit summary, after merging main, 2026-11-13 | 13.2 ms | 22.1 ms | 24.9 ms |
+| First page of 30, after the review fixes and SAL-41's wiring, load average 4.3, 2026-11-13 | 11.4 ms | 18.1 ms | 21.6 ms |
+| Pre-visit summary, same run (now with SAL-41's real reads) | 18.1 ms | 21.9 ms | 25.5 ms |
+
+Every page of 100 to the last (9 pages, 804 items): the last 28 ms, the slowest 43 ms. After the merge: the last 12.9 ms, the slowest 29.8 ms (the first page's p95 and p99 moved with
+the load of the other stacks on the machine; p50 did not). The cost was the per-visit
+queries, not `history_shared`: the partial index on `history_consent_encounter (encounter_id)` is enough for these
+reads; nothing more was added.
+
+Review (fresh subagent, 2026-11-13): eight findings. Fixed: the summary's allergies and medications are marked
+unavailable on a failed read instead of empty, read after the summary's own transaction so a failure loses neither
+the rest nor its audit, the empty text says "shown to you", and the SAL-41 stand-ins fail closed
+(`TestHistory_TheProfileStandInsGoOnceSAL41IsHere` fails once SAL-41's services are on the branch); a diagnosis
+carries its field's label and its Condition's confirmation, through `condition.Reads.Confirmed` for the clinic's own
+and 00051's `history_confirmed_conditions` for a shared visit (a deviation from the plan's "without changing
+condition's code", asked by the review: a read was added, nothing else changed); the history on the appointment
+opens on request; the summary reads only the open responses; a file is audited as its Binary; the titles are one read
+per page (`questionnaire.Service.Titles`); the shared-version read needs a practitioner with an appointment with the
+patient (00051's lookups take the practitioner); a response opens with its questions; a shared visit without a clinic
+name still says it is shared. Not done: ICD-10 names, no lookup by code exists; a visit has nothing to open
+beyond the items listed with it. Audit rows are one INSERT each (about 30 per page): `auditevent` has no batch insert
+on main, so none was added. The bench was rerun after SAL-41's wiring on a quieter host (load average 4.3 to 4.7):
+every page of 100 to the last, 9 pages and 804 items, the last 9.0 ms, the slowest 21.3 ms.
+
+Open for the owner: any appointment of the practitioner's with the patient at the clinic, of any status (cancelled,
+years old), opens the history (`access.Profile`, as the plan says), and the summary accepts a cancelled appointment;
+CLAUDE.md says "a care relationship or an active appointment". The rule is unchanged until the owner decides.
+
+SAL-41 wired (2026-11-13, after #83): main merged, the stand-ins deleted, the summary reads
+`allergyintolerance.Service.Seen` and `medicationstatement.Service.Seen` (their `Caller` is `appointment.Caller`, no
+adapter); `TestHistory_ReadsTheProfileThroughSAL41sServices` keeps the stand-ins gone and the API test reads an
+allergy the patient added. A failed read stays "unavailable"; "No allergies shown to you" follows only a read that
+returned none. The medication's dosage is shown with SAL-41's strings (`allergies.dose.*`, `allergies.timing.*`,
+`allergies.asNeeded`), no new copy. The call page has both tabs, SAL-41's allergies and medications and the history.
+
+Second review (focused, 2026-11-13), after merging main (SAL-20): the empty texts say what is left out ("…
+Entries recorded in visits you cannot see are not included; ask the patient.", and the same for the medications and
+the last visit); the call page's summary is read again each time its tab is shown and when SAL-41's entries change,
+and a failed summary or history read has "Try again"; `expectHTTP` fails on every missing string (`missing`, tested);
+the dosage keeps only SAL-41's known units; a diagnosis is confirmed only by a Condition of that field and that code
+(00051's `history_confirmed_conditions` returns the code). Accepted: `Seen` audits every entry it returns, inactive
+allergies and stopped medications included, which the summary does not show: over-audit, the safe direction; an
+active-only read would change SAL-41's services, so it was not added. Not adopted: deriving the practitioner in
+00051's lookups from `app.practitioner_role_id` (as 00044 does): only the chat's repository sets that setting, the
+questionnaire's and the condition's scopes set the clinic only, and the caller carries the practitioner, not a role
+(a practitioner has one per clinic). The argument comes from the session's caller in the service, never the request.

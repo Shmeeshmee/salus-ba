@@ -40,7 +40,8 @@ type Consult = { live: LiveSource; actions: ConsultActions }
 
 // fhir reads the patient's allergies and medications (SAL-41): the warning of the active allergies on every state of
 // the page and the panel beside the video. Without it neither is shown.
-type Props = { api: ApiClient; fhir?: Pick<FhirClient, 'get'>; id: string; media?: Media; consult?: Consult }
+// history is the patient's history for a tab of the live panels (SAL-40).
+type Props = { api: ApiClient; fhir?: Pick<FhirClient, 'get'>; id: string; media?: Media; consult?: Consult; history?: (refresh: string) => ReactNode }
 
 // The practitioner's own time zone, for the times of the transcript's lines.
 const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -49,7 +50,7 @@ const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
 // waiting for the patient, the call, reconnecting, and the end. The token comes from our API on every join and
 // rejoin; the server decides whether one is issued. Events of a room this screen has left are ignored
 // (generation), so a late event of an old connection changes nothing.
-export function CallScreen({ api, fhir, id, media = liveKit, consult }: Props) {
+export function CallScreen({ api, fhir, id, media = liveKit, consult, history }: Props) {
   const t = useT()
   const [phase, setPhase] = useState<Phase>({ name: 'check' })
   const [room, setRoom] = useState<Room>()
@@ -310,6 +311,7 @@ export function CallScreen({ api, fhir, id, media = liveKit, consult }: Props) {
           actions={consult.actions}
           zone={zone}
           end={ended}
+          history={history}
           entries={fhir && { state: entries, panel: <EntriesPanel api={api} fhir={fhir} appointmentId={id} entries={entries} /> }}
         />
       )}

@@ -622,6 +622,75 @@ func (q *Queries) SignedOf(ctx context.Context, arg SignedOfParams) ([]SignedOfR
 	return items, nil
 }
 
+const signedOfEncounters = `-- name: SignedOfEncounters :many
+SELECT id, encounter_id, template_id, status, language, title, type_code, fields, version_id, updated_at,
+       signed_at, signer_role_id, document_reference_id, provenance_id, pdf_size, pdf_kek_id, pdf_sha1, pdf_wrapped_key
+FROM document_draft
+WHERE encounter_id = ANY($1::uuid[]) AND status = 'final'
+ORDER BY encounter_id, signed_at, id
+`
+
+type SignedOfEncountersRow struct {
+	ID                  pgtype.UUID
+	EncounterID         pgtype.UUID
+	TemplateID          pgtype.UUID
+	Status              string
+	Language            Language
+	Title               string
+	TypeCode            string
+	Fields              []byte
+	VersionID           int32
+	UpdatedAt           pgtype.Timestamptz
+	SignedAt            pgtype.Timestamptz
+	SignerRoleID        pgtype.UUID
+	DocumentReferenceID pgtype.UUID
+	ProvenanceID        pgtype.UUID
+	PdfSize             pgtype.Int8
+	PdfKekID            pgtype.Text
+	PdfSha1             []byte
+	PdfWrappedKey       []byte
+}
+
+// The signed documents of the encounters, by encounter, in the order they were signed (the history, SAL-40).
+func (q *Queries) SignedOfEncounters(ctx context.Context, encounterIds []pgtype.UUID) ([]SignedOfEncountersRow, error) {
+	rows, err := q.db.Query(ctx, signedOfEncounters, encounterIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SignedOfEncountersRow
+	for rows.Next() {
+		var i SignedOfEncountersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EncounterID,
+			&i.TemplateID,
+			&i.Status,
+			&i.Language,
+			&i.Title,
+			&i.TypeCode,
+			&i.Fields,
+			&i.VersionID,
+			&i.UpdatedAt,
+			&i.SignedAt,
+			&i.SignerRoleID,
+			&i.DocumentReferenceID,
+			&i.ProvenanceID,
+			&i.PdfSize,
+			&i.PdfKekID,
+			&i.PdfSha1,
+			&i.PdfWrappedKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const template = `-- name: Template :one
 SELECT id, organization_id, title, language, status, type_code, fields, version_id, updated_at
 FROM document_template

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -170,5 +171,39 @@ func TestReadRepository_ReadsInTheScope(t *testing.T) {
 		return r.SetClinic(ctx, "00000000-0000-4000-8000-0000000000ff")
 	}); !errors.Is(err, condition.ErrNotFound) {
 		t.Errorf("another clinic: %v, want ErrNotFound", err)
+	}
+}
+
+// Confirmed reads, in the clinic's scope, the confirmed coded fields of the documents: never an unconfirmed one, nor
+// another clinic's (migrations/history_questionnaire_test.go covers a shared visit's lookup).
+func TestReadRepository_ReadsTheConfirmedFields(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seedSigned(t, owner)
+	at := time.Date(2026, 11, 2, 9, 30, 0, 0, time.UTC)
+	if err := inClinic(t, app, s.clinic, func(ctx context.Context) error {
+		return condition.NewPostgresRepository(app).Insert(ctx, []condition.Condition{
+			s.condition("a", "J06.9", condition.VerificationConfirmed, at), s.condition("b", "K21.0", condition.VerificationUnconfirmed, at),
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	read := func(clinic string) map[string][]condition.FieldCode {
+		t.Helper()
+		var got map[string][]condition.FieldCode
+		if err := inClinic(t, app, clinic, func(ctx context.Context) error {
+			var err error
+			got, err = condition.NewPostgresReadRepository(app).Confirmed(ctx, clinic, "00000000-0000-4000-8000-0000000000f1", []string{s.document, "nope"})
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	if got := read(s.clinic); len(got) != 1 || !slices.Equal(got[s.document], []condition.FieldCode{{Key: "a", Code: "J06.9"}}) {
+		t.Errorf("the clinic: %v, want field a of the document", got)
+	}
+	if got := read("00000000-0000-4000-8000-0000000000ff"); len(got) != 0 {
+		t.Errorf("another clinic: %v, want none", got)
 	}
 }

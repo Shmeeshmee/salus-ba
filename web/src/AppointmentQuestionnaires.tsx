@@ -128,7 +128,7 @@ function RequestRow({ api, request, status, own, admin, onChanged }: RowProps) {
 
 // Answers is a submitted response's answers. Answered in a translation, the questions are shown as the patient
 // read them, with a switch to the original (B9); free-text answers are shown as written.
-function Answers({ api, request }: { api: ApiClient; request: Request }) {
+export function Answers({ api, request }: { api: ApiClient; request: Request }) {
   const t = useT()
   const id = useId()
   const { language } = useLanguage()

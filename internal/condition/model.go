@@ -49,3 +49,9 @@ type Recorded struct {
 	Code               string
 	Patient            [32]byte
 }
+
+// FieldCode is a coded field of a signed document by its key, with the code its Condition holds.
+type FieldCode struct {
+	Key  string
+	Code string
+}

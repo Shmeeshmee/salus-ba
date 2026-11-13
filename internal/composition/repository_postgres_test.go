@@ -327,6 +327,15 @@ func TestSigned_ThePatientSeesOnlyTheirOwnSignedDocuments(t *testing.T) {
 	if err != nil || len(clinicList) != 1 || clinicList[0].ID != signed.ID {
 		t.Errorf("the clinic's Signed() = %+v, %v; want the signed one only", clinicList, err)
 	}
+	var batch []composition.Draft
+	err = inClinic(t, app, s.clinic, func(ctx context.Context, r composition.Repository) error {
+		var err error
+		batch, err = r.SignedOfVisits(ctx, []string{s.encounter, "not-a-uuid", "00000000-0000-4000-8000-000000000000"})
+		return err
+	})
+	if err != nil || len(batch) != 1 || batch[0].ID != signed.ID || batch[0].EncounterID != s.encounter {
+		t.Errorf("the clinic's SignedOfVisits() = %+v, %v; want the signed one only", batch, err)
+	}
 	for name, read := range map[string]func(context.Context, composition.Repository) error{
 		"draft": func(ctx context.Context, r composition.Repository) error {
 			_, err := r.Draft(ctx, signed.ID, false)

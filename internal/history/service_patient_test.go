@@ -87,7 +87,7 @@ var (
 func TestTimeline_MergesEverySourceNewestFirst(t *testing.T) {
 	f := newPatientFixture()
 	got, err := f.svc.Timeline(t.Context(), me, history.Filter{}, history.Cursor{}, 10)
-	if err != nil || got.Next != "" || !slices.Equal(got.Items, wantAll) {
+	if err != nil || got.Next != "" || !reflect.DeepEqual(got.Items, wantAll) {
 		t.Fatalf("Timeline() = %+v, %v;\nwant %+v and no next page", got, err, wantAll)
 	}
 	want := asked{caller: me, page: keyset.Page{Limit: 11}}
@@ -124,7 +124,7 @@ func TestTimeline_PagesByTheCursor(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if !slices.Equal(all, wantAll) {
+	if !reflect.DeepEqual(all, wantAll) {
 		t.Errorf("pages gave %+v,\nwant %+v", all, wantAll)
 	}
 	last := f.visits.asked[len(f.visits.asked)-1].page

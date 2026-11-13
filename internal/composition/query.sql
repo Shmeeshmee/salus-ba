@@ -92,6 +92,14 @@ FROM document_draft
 WHERE encounter_id = @encounter_id AND status = 'final'
 ORDER BY signed_at, id;
 
+-- name: SignedOfEncounters :many
+-- The signed documents of the encounters, by encounter, in the order they were signed (the history, SAL-40).
+SELECT id, encounter_id, template_id, status, language, title, type_code, fields, version_id, updated_at,
+       signed_at, signer_role_id, document_reference_id, provenance_id, pdf_size, pdf_kek_id, pdf_sha1, pdf_wrapped_key
+FROM document_draft
+WHERE encounter_id = ANY(@encounter_ids::uuid[]) AND status = 'final'
+ORDER BY encounter_id, signed_at, id;
+
 -- name: Sign :one
 -- The draft's fields as signed, final, with its signature; only from the version read.
 UPDATE document_draft
