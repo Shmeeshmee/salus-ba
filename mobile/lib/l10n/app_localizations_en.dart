@@ -362,7 +362,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String revokeBody(String clinic) {
-    return '$clinic will no longer see your profile. It keeps your name and the details of appointments that have already taken place, as part of its care records. Your future appointments with $clinic will be cancelled.';
+    return '$clinic will no longer see your profile. It keeps your name and the details of appointments that have already taken place, as part of its care records. Your future appointments with $clinic will be cancelled. Any sharing of your history from other clinics with $clinic ends too; consenting again does not restore it.';
   }
 
   @override
@@ -1701,4 +1701,81 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get historyOpenFailed => 'This item could not be opened. Try again.';
+
+  @override
+  String get sharingToggle =>
+      'Share my history from other clinics with this clinic';
+
+  @override
+  String sharingIntro(String clinic) {
+    return 'Tick the previous visits $clinic may see. For each visit you tick, the doctors at $clinic you have an appointment with see what is shown here, with the visit\'s documents, questionnaire answers and files, the allergies and medications recorded in it, and anything added to it later. Visits you do not tick stay hidden from $clinic.';
+  }
+
+  @override
+  String get sharingChangeLater =>
+      'You can add or remove visits, or stop sharing, at any time under Shared history. Each change takes effect at once.';
+
+  @override
+  String get sharingNoVisits =>
+      'You have no previous visits at other clinics to share.';
+
+  @override
+  String get sharingSelectAll => 'Select all';
+
+  @override
+  String get sharingSelectNone => 'Select none';
+
+  @override
+  String get sharedHistory => 'Shared history';
+
+  @override
+  String get sharedHistoryIntro =>
+      'The clinics you have consented to, and how many of your visits from other clinics each one sees.';
+
+  @override
+  String get sharedHistoryNone => 'You have not consented to any clinic yet.';
+
+  @override
+  String sharedVisits(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count visits shared',
+      one: '$count visit shared',
+      zero: 'Nothing shared',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sharingSaved => 'Your choice is saved and takes effect at once.';
+
+  @override
+  String get sharingStop => 'Stop sharing';
+
+  @override
+  String get sharingStopTitle => 'Stop sharing your history?';
+
+  @override
+  String sharingStopBody(String clinic) {
+    return '$clinic will no longer see any of the visits from other clinics you shared with it. This takes effect at once.';
+  }
+
+  @override
+  String get sharingKeep => 'Keep sharing';
+
+  @override
+  String get sharingStopped =>
+      'You no longer share your history with this clinic.';
+
+  @override
+  String get sharingChanged =>
+      'Your shared visits changed in the meantime. Check them and save again.';
+
+  @override
+  String get bookedNotShared =>
+      'Your appointment is booked, but your history could not be shared. You can share it under Shared history.';
+
+  @override
+  String get consentForHistory => 'Visits shared from other clinics';
 }

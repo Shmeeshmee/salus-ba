@@ -128,7 +128,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			practitionerrole.NewHTTPHandler(roles, roleAdminCaller(accounts), log).Routes,
 			patient.NewHandler(patients, patientCaller, log).Routes,
 			patient.NewFHIRHandler(patients, patientReadCaller(accounts, roles), log).Routes,
-			consent.NewHandler(consents, consentCaller(patients), log).Routes,
+			consent.NewHandler(newSharing(consents, encounters, documents, roles, clinics), consentCaller(patients), log).Routes,
 			consent.NewFHIRHandler(consents, consentCaller(patients), log).Routes,
 			schedule.NewHTTPHandler(schedules, scheduleCaller(accounts), log).Routes,
 			schedule.NewHandler(schedules, fhirBase, log).Routes,
@@ -142,6 +142,14 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		Timeout: RequestTimeout, Provenances: append(entries.provenances, signatures), // the signatures' last: they audit any id
 	})
 	return &App{Handler: h, pool: pool, redis: rdb, chat: chatHub}, nil
+}
+
+// newSharing is the consents with the history's sharing (SAL-42), whose preview reads the patient's visits through
+// the services built after the consents.
+func newSharing(consents *consent.Service, encounters *encounter.Service, documents *composition.Service, roles *practitionerrole.Service,
+	clinics *organization.Service,
+) *consent.Service {
+	return consents.WithVisits(history.NewSharing(history.SharingPorts{Encounters: encounters, Documents: documents, Roles: roles, Clinics: clinics}))
 }
 
 // connect opens the database, Redis and the job inserter (invites and bookings enqueue their e-mail in their

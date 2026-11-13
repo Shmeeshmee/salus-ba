@@ -6,6 +6,7 @@ import 'fhir.dart';
 import 'loading.dart';
 import 'messages.dart';
 import 'session.dart';
+import 'sharing.dart';
 import 'ui.dart' as ui;
 import 'zones.dart';
 
@@ -36,21 +37,31 @@ class _ConsentsScreenState extends LoadingState<ConsentsScreen, _Consents> {
 
   Future<void> _revoke(Consent consent, String clinic) async {
     final t = context.t;
-    final transcription = consent.kind == ConsentKind.transcription;
+    final (title, body, keep, revoke, done) = switch (consent.kind) {
+      ConsentKind.transcription => (
+        t.stopTranscriptionTitle,
+        t.stopTranscriptionBody(clinic),
+        t.keepTranscription,
+        t.stopTranscription,
+        t.transcriptionStopped,
+      ),
+      ConsentKind.history => (
+        t.sharingStopTitle,
+        t.sharingStopBody(clinic),
+        t.sharingKeep,
+        t.sharingStop,
+        t.sharingStopped,
+      ),
+      ConsentKind.care => (t.revokeTitle, t.revokeBody(clinic), t.keepConsent, t.revokeConsent, t.consentRevoked),
+    };
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(transcription ? t.stopTranscriptionTitle : t.revokeTitle),
-        content: Text(transcription ? t.stopTranscriptionBody(clinic) : t.revokeBody(clinic)),
+        title: Text(title),
+        content: Text(body),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(transcription ? t.keepTranscription : t.keepConsent),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(transcription ? t.stopTranscription : t.revokeConsent),
-          ),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(keep)),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: Text(revoke)),
         ],
       ),
     );
@@ -62,7 +73,7 @@ class _ConsentsScreenState extends LoadingState<ConsentsScreen, _Consents> {
     try {
       await widget.booking.revoke(consent.id);
       if (!mounted) return;
-      setState(() => _message = transcription ? context.t.transcriptionStopped : context.t.consentRevoked);
+      setState(() => _message = done);
       await reload();
     } on ApiFailure catch (failure) {
       if (mounted) setState(() => _error = bookingMessage(context.t, failure));
@@ -78,6 +89,13 @@ class _ConsentsScreenState extends LoadingState<ConsentsScreen, _Consents> {
       ...body(
         (data) => [
           Text(data.all.isEmpty ? context.t.noConsents : context.t.consentsIntro),
+          if (data.all.isNotEmpty)
+            OutlinedButton(
+              onPressed: () =>
+                  Navigator.of(context)
+                      .push(MaterialPageRoute<void>(builder: (_) => SharedHistoryScreen(booking: widget.booking))),
+              child: Text(context.t.sharedHistory),
+            ),
           for (final consent in data.all) _card(consent, data.clinics[consent.organizationId]),
         ],
       ),
@@ -97,7 +115,11 @@ class _ConsentsScreenState extends LoadingState<ConsentsScreen, _Consents> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ui.Heading(name),
-            Text(consent.kind == ConsentKind.transcription ? t.consentForTranscription : t.consentForCare),
+            Text(switch (consent.kind) {
+              ConsentKind.transcription => t.consentForTranscription,
+              ConsentKind.history => t.consentForHistory,
+              ConsentKind.care => t.consentForCare,
+            }),
             Text(t.givenOn(zone.date(consent.dateTime, t.localeName))),
             Text(active || revokedAt == null ? t.consentActive : t.revokedOn(zone.date(revokedAt, t.localeName))),
             if (active) ...[

@@ -366,7 +366,7 @@ class AppLocalizationsSr extends AppLocalizations {
 
   @override
   String revokeBody(String clinic) {
-    return 'Клиника $clinic више неће видјети ваш профил. Ваше име и податке о терминима који су већ одржани задржава као дио своје медицинске документације. Ваши будући термини код клинике $clinic биће отказани.';
+    return 'Клиника $clinic више неће видјети ваш профил. Ваше име и податке о терминима који су већ одржани задржава као дио своје медицинске документације. Ваши будући термини код клинике $clinic биће отказани. Престаје и дијељење ваше историје из других клиника са клиником $clinic; поновни пристанак га не враћа.';
   }
 
   @override
@@ -1725,6 +1725,84 @@ class AppLocalizationsSr extends AppLocalizations {
   @override
   String get historyOpenFailed =>
       'Ова ставка се није могла отворити. Покушајте поново.';
+
+  @override
+  String get sharingToggle =>
+      'Подијели моју историју из других клиника са овом клиником';
+
+  @override
+  String sharingIntro(String clinic) {
+    return 'Означите раније посјете које $clinic смије да види. За сваку означену посјету љекари клинике $clinic код којих имате термин виде оно што је овдје приказано, са документима посјете, одговорима на упитнике и датотекама, алергијама и лијековима евидентираним у њој, као и свиме што се посјети касније дода. Посјете које не означите остају скривене од $clinic.';
+  }
+
+  @override
+  String get sharingChangeLater =>
+      'Посјете можете да додате или уклоните, или да престанете да дијелите, у било ком тренутку у дијелу Подијељена историја. Свака промјена важи одмах.';
+
+  @override
+  String get sharingNoVisits =>
+      'Немате ранијих посјета у другим клиникама које бисте могли да подијелите.';
+
+  @override
+  String get sharingSelectAll => 'Означите све';
+
+  @override
+  String get sharingSelectNone => 'Поништите све';
+
+  @override
+  String get sharedHistory => 'Подијељена историја';
+
+  @override
+  String get sharedHistoryIntro =>
+      'Клинике којима сте дали сагласност и колико ваших посјета из других клиника свака од њих види.';
+
+  @override
+  String get sharedHistoryNone => 'Још нисте дали сагласност ниједној клиници.';
+
+  @override
+  String sharedVisits(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count подијељених посјета',
+      few: '$count подијељене посјете',
+      one: '$count подијељена посјета',
+      zero: 'Ништа није подијељено',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sharingSaved => 'Ваш избор је сачуван и важи одмах.';
+
+  @override
+  String get sharingStop => 'Престаните да дијелите';
+
+  @override
+  String get sharingStopTitle => 'Престати са дијељењем ваше историје?';
+
+  @override
+  String sharingStopBody(String clinic) {
+    return '$clinic више неће видјети ниједну посјету из других клиника коју сте са њом подијелили. Ово важи одмах.';
+  }
+
+  @override
+  String get sharingKeep => 'Наставите да дијелите';
+
+  @override
+  String get sharingStopped =>
+      'Више не дијелите своју историју са овом клиником.';
+
+  @override
+  String get sharingChanged =>
+      'Ваше подијељене посјете су се у међувремену промијениле. Провјерите их и поново сачувајте.';
+
+  @override
+  String get bookedNotShared =>
+      'Ваш термин је заказан, али ваша историја није могла да буде подијељена. Можете да је подијелите у дијелу Подијељена историја.';
+
+  @override
+  String get consentForHistory => 'Посјете подијељене из других клиника';
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -2088,7 +2166,7 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
 
   @override
   String revokeBody(String clinic) {
-    return 'Клиника $clinic више неће видјети ваш профил. Ваше име и податке о терминима који су већ одржани задржава као дио своје медицинске документације. Ваши будући термини код клинике $clinic биће отказани.';
+    return 'Клиника $clinic више неће видјети ваш профил. Ваше име и податке о терминима који су већ одржани задржава као дио своје медицинске документације. Ваши будући термини код клинике $clinic биће отказани. Престаје и дијељење ваше историје из других клиника са клиником $clinic; поновни пристанак га не враћа.';
   }
 
   @override
@@ -3447,6 +3525,84 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   @override
   String get historyOpenFailed =>
       'Ова ставка се није могла отворити. Покушајте поново.';
+
+  @override
+  String get sharingToggle =>
+      'Подијели моју историју из других клиника са овом клиником';
+
+  @override
+  String sharingIntro(String clinic) {
+    return 'Означите раније посјете које $clinic смије да види. За сваку означену посјету љекари клинике $clinic код којих имате термин виде оно што је овдје приказано, са документима посјете, одговорима на упитнике и датотекама, алергијама и лијековима евидентираним у њој, као и свиме што се посјети касније дода. Посјете које не означите остају скривене од $clinic.';
+  }
+
+  @override
+  String get sharingChangeLater =>
+      'Посјете можете да додате или уклоните, или да престанете да дијелите, у било ком тренутку у дијелу Подијељена историја. Свака промјена важи одмах.';
+
+  @override
+  String get sharingNoVisits =>
+      'Немате ранијих посјета у другим клиникама које бисте могли да подијелите.';
+
+  @override
+  String get sharingSelectAll => 'Означите све';
+
+  @override
+  String get sharingSelectNone => 'Поништите све';
+
+  @override
+  String get sharedHistory => 'Подијељена историја';
+
+  @override
+  String get sharedHistoryIntro =>
+      'Клинике којима сте дали сагласност и колико ваших посјета из других клиника свака од њих види.';
+
+  @override
+  String get sharedHistoryNone => 'Још нисте дали сагласност ниједној клиници.';
+
+  @override
+  String sharedVisits(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count подијељених посјета',
+      few: '$count подијељене посјете',
+      one: '$count подијељена посјета',
+      zero: 'Ништа није подијељено',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sharingSaved => 'Ваш избор је сачуван и важи одмах.';
+
+  @override
+  String get sharingStop => 'Престаните да дијелите';
+
+  @override
+  String get sharingStopTitle => 'Престати са дијељењем ваше историје?';
+
+  @override
+  String sharingStopBody(String clinic) {
+    return '$clinic више неће видјети ниједну посјету из других клиника коју сте са њом подијелили. Ово важи одмах.';
+  }
+
+  @override
+  String get sharingKeep => 'Наставите да дијелите';
+
+  @override
+  String get sharingStopped =>
+      'Више не дијелите своју историју са овом клиником.';
+
+  @override
+  String get sharingChanged =>
+      'Ваше подијељене посјете су се у међувремену промијениле. Провјерите их и поново сачувајте.';
+
+  @override
+  String get bookedNotShared =>
+      'Ваш термин је заказан, али ваша историја није могла да буде подијељена. Можете да је подијелите у дијелу Подијељена историја.';
+
+  @override
+  String get consentForHistory => 'Посјете подијељене из других клиника';
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -3810,7 +3966,7 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String revokeBody(String clinic) {
-    return 'Klinika $clinic više neće vidjeti vaš profil. Vaše ime i podatke o terminima koji su već održani zadržava kao dio svoje medicinske dokumentacije. Vaši budući termini kod klinike $clinic biće otkazani.';
+    return 'Klinika $clinic više neće vidjeti vaš profil. Vaše ime i podatke o terminima koji su već održani zadržava kao dio svoje medicinske dokumentacije. Vaši budući termini kod klinike $clinic biće otkazani. Prestaje i dijeljenje vaše istorije iz drugih klinika sa klinikom $clinic; ponovni pristanak ga ne vraća.';
   }
 
   @override
@@ -5170,4 +5326,82 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   @override
   String get historyOpenFailed =>
       'Ova stavka se nije mogla otvoriti. Pokušajte ponovo.';
+
+  @override
+  String get sharingToggle =>
+      'Podijeli moju istoriju iz drugih klinika sa ovom klinikom';
+
+  @override
+  String sharingIntro(String clinic) {
+    return 'Označite ranije posjete koje $clinic smije da vidi. Za svaku označenu posjetu ljekari klinike $clinic kod kojih imate termin vide ono što je ovdje prikazano, sa dokumentima posjete, odgovorima na upitnike i datotekama, alergijama i lijekovima evidentiranim u njoj, kao i svime što se posjeti kasnije doda. Posjete koje ne označite ostaju skrivene od $clinic.';
+  }
+
+  @override
+  String get sharingChangeLater =>
+      'Posjete možete da dodate ili uklonite, ili da prestanete da dijelite, u bilo kom trenutku u dijelu Podijeljena istorija. Svaka promjena važi odmah.';
+
+  @override
+  String get sharingNoVisits =>
+      'Nemate ranijih posjeta u drugim klinikama koje biste mogli da podijelite.';
+
+  @override
+  String get sharingSelectAll => 'Označite sve';
+
+  @override
+  String get sharingSelectNone => 'Poništite sve';
+
+  @override
+  String get sharedHistory => 'Podijeljena istorija';
+
+  @override
+  String get sharedHistoryIntro =>
+      'Klinike kojima ste dali saglasnost i koliko vaših posjeta iz drugih klinika svaka od njih vidi.';
+
+  @override
+  String get sharedHistoryNone => 'Još niste dali saglasnost nijednoj klinici.';
+
+  @override
+  String sharedVisits(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count podijeljenih posjeta',
+      few: '$count podijeljene posjete',
+      one: '$count podijeljena posjeta',
+      zero: 'Ništa nije podijeljeno',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sharingSaved => 'Vaš izbor je sačuvan i važi odmah.';
+
+  @override
+  String get sharingStop => 'Prestanite da dijelite';
+
+  @override
+  String get sharingStopTitle => 'Prestati sa dijeljenjem vaše istorije?';
+
+  @override
+  String sharingStopBody(String clinic) {
+    return '$clinic više neće vidjeti nijednu posjetu iz drugih klinika koju ste sa njom podijelili. Ovo važi odmah.';
+  }
+
+  @override
+  String get sharingKeep => 'Nastavite da dijelite';
+
+  @override
+  String get sharingStopped =>
+      'Više ne dijelite svoju istoriju sa ovom klinikom.';
+
+  @override
+  String get sharingChanged =>
+      'Vaše podijeljene posjete su se u međuvremenu promijenile. Provjerite ih i ponovo sačuvajte.';
+
+  @override
+  String get bookedNotShared =>
+      'Vaš termin je zakazan, ali vaša istorija nije mogla da bude podijeljena. Možete da je podijelite u dijelu Podijeljena istorija.';
+
+  @override
+  String get consentForHistory => 'Posjete podijeljene iz drugih klinika';
 }

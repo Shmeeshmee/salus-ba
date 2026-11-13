@@ -10,10 +10,11 @@
 
 part of salus_api;
 
-/// What the consent is for: `care`, sharing the profile and appointments with the clinic; `transcription`, transcription and translation of the consultations with the clinic, with AI assistance for the practitioner (suggestions, document drafts), used only with an active care consent (SAL-12).
+/// What the consent is for: `care`, sharing the profile and appointments with the clinic; `transcription`, transcription and translation of the consultations with the clinic, with AI assistance for the practitioner (suggestions, document drafts), used only with an active care consent (SAL-12); `history`, sharing chosen visits at other clinics with the clinic (SAL-42), granted and changed only through `PUT /history-sharing/{organizationId}` (a grant of it here is `invalid_request`), listed and revoked here like the others.
 enum ConsentKind {
   care._(r'care'),
   transcription._(r'transcription'),
+  history._(r'history'),
   ;
 
   /// Instantiate a new enum with the provided value.
@@ -82,6 +83,8 @@ class ConsentKindTypeTransformer {
           return ConsentKind.care;
         case r'transcription':
           return ConsentKind.transcription;
+        case r'history':
+          return ConsentKind.history;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

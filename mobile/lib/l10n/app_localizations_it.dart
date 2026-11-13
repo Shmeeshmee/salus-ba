@@ -367,7 +367,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String revokeBody(String clinic) {
-    return '$clinic non vedrà più il Suo profilo. Conserverà il Suo nome e i dati degli appuntamenti già avvenuti, come parte della propria documentazione sanitaria. I Suoi appuntamenti futuri presso $clinic saranno annullati.';
+    return '$clinic non vedrà più il Suo profilo. Conserverà il Suo nome e i dati degli appuntamenti già avvenuti, come parte della propria documentazione sanitaria. I Suoi appuntamenti futuri presso $clinic saranno annullati. Termina anche la condivisione della Sua storia clinica di altre cliniche con $clinic; un nuovo consenso non la ripristina.';
   }
 
   @override
@@ -1716,4 +1716,83 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get historyOpenFailed =>
       'Non è stato possibile aprire questo elemento. Riprovi.';
+
+  @override
+  String get sharingToggle =>
+      'Condividi la mia storia clinica di altre cliniche con questa clinica';
+
+  @override
+  String sharingIntro(String clinic) {
+    return 'Selezioni le visite precedenti che $clinic può vedere. Per ogni visita selezionata, i medici di $clinic con cui ha un appuntamento vedono ciò che è mostrato qui, con i documenti della visita, le risposte ai questionari e i file, le allergie e i farmaci registrati durante la visita e tutto ciò che vi verrà aggiunto in seguito. Le visite che non seleziona restano nascoste a $clinic.';
+  }
+
+  @override
+  String get sharingChangeLater =>
+      'Può aggiungere o togliere visite, o interrompere la condivisione, in qualsiasi momento nella sezione «Storia condivisa». Ogni modifica vale subito.';
+
+  @override
+  String get sharingNoVisits =>
+      'Non ha visite precedenti presso altre cliniche da condividere.';
+
+  @override
+  String get sharingSelectAll => 'Seleziona tutte';
+
+  @override
+  String get sharingSelectNone => 'Deseleziona tutte';
+
+  @override
+  String get sharedHistory => 'Storia condivisa';
+
+  @override
+  String get sharedHistoryIntro =>
+      'Le cliniche a cui ha dato il consenso e quante delle Sue visite presso altre cliniche vede ciascuna.';
+
+  @override
+  String get sharedHistoryNone =>
+      'Non ha ancora dato il consenso a nessuna clinica.';
+
+  @override
+  String sharedVisits(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count visite condivise',
+      one: '$count visita condivisa',
+      zero: 'Nulla di condiviso',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sharingSaved => 'La Sua scelta è salvata e vale subito.';
+
+  @override
+  String get sharingStop => 'Interrompi la condivisione';
+
+  @override
+  String get sharingStopTitle =>
+      'Interrompere la condivisione della Sua storia clinica?';
+
+  @override
+  String sharingStopBody(String clinic) {
+    return '$clinic non vedrà più nessuna delle visite presso altre cliniche che ha condiviso con essa. Vale subito.';
+  }
+
+  @override
+  String get sharingKeep => 'Continua a condividere';
+
+  @override
+  String get sharingStopped =>
+      'Non condivide più la Sua storia clinica con questa clinica.';
+
+  @override
+  String get sharingChanged =>
+      'Le Sue visite condivise sono cambiate nel frattempo. Le controlli e salvi di nuovo.';
+
+  @override
+  String get bookedNotShared =>
+      'L\'appuntamento è prenotato, ma non è stato possibile condividere la Sua storia clinica. Può condividerla nella sezione «Storia condivisa».';
+
+  @override
+  String get consentForHistory => 'Visite condivise da altre cliniche';
 }

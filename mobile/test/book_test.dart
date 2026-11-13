@@ -39,8 +39,11 @@ Future<Harness> atSlots(WidgetTester tester, {DateTime? now}) async {
 }
 
 /// Thursday's 09:00, on the screen that books it.
-Future<Harness> atBook(WidgetTester tester) async {
+/// The booking screen of the 09:00 slot; [sharing] answers its preview of the history sharing (SAL-42), unanswered
+/// when null.
+Future<Harness> atBook(WidgetTester tester, {Map<String, Object?>? sharing}) async {
   final h = await atSlots(tester);
+  if (sharing != null) h.api.answer('GET /history-sharing/$clinicId', 200, sharing);
   await tapLink(tester, 'Next day');
   await tapOutlined(tester, '09:00');
   return h;
