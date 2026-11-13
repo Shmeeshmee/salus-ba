@@ -89,8 +89,8 @@ func checkSweptCancelledPurged(t *testing.T, owner, app *pgxpool.Pool, a appoint
 	}
 	err := inScope(t, app, asPatient(a.PatientID), func(ctx context.Context, _ appointment.Repository) error {
 		n, err := reminders.CancelReminders(ctx, a.ID)
-		if n != 1 {
-			t.Errorf("cancelled %d, want the one still scheduled", n)
+		if n != 2 {
+			t.Errorf("cancelled %d, want both: the scheduled one and the dispatched one, whose sends may be held", n)
 		}
 		if err := reminders.SetReminderState(ctx, r60.ID, appointment.ReminderSkipped, now); !errors.Is(err, appointment.ErrReminderGone) {
 			t.Errorf("a dispatched reminder skipped: %v, want ErrReminderGone", err)

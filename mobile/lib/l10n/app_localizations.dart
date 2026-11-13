@@ -2925,7 +2925,7 @@ abstract class AppLocalizations {
   /// SAL-33: notification settings, under the quiet hours switch: push and SMS wait, e-mail is not held. Draft, waiting for the owner.
   ///
   /// In en, this message translates to:
-  /// **'Push notifications and SMS wait until quiet hours end. E-mails are not held.'**
+  /// **'Push notifications and SMS wait until quiet hours end. If they would then arrive less than 30 minutes before the appointment, they are skipped. E-mails are not held.'**
   String get quietHoursHint;
 
   /// SAL-33: notification settings, the start of the quiet hours (a 24-hour time beside it). Draft, waiting for the owner.

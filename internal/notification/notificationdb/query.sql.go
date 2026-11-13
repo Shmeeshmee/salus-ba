@@ -60,6 +60,17 @@ func (q *Queries) AddSMSUsage(ctx context.Context, arg AddSMSUsageParams) error 
 	return err
 }
 
+const clinicScope = `-- name: ClinicScope :one
+SELECT coalesce(current_setting('app.organization_id', true), '')::text AS organization_id
+`
+
+func (q *Queries) ClinicScope(ctx context.Context) (string, error) {
+	row := q.db.QueryRow(ctx, clinicScope)
+	var organization_id string
+	err := row.Scan(&organization_id)
+	return organization_id, err
+}
+
 const createWebhookEndpoint = `-- name: CreateWebhookEndpoint :one
 INSERT INTO webhook_endpoint (id, organization_id, created_by, include_clinical, url, events, secret_sealed)
 VALUES ($1, $2, $3, $4, $5, $6, $7)

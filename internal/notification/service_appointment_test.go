@@ -135,6 +135,10 @@ func TestAppointmentEmails_HoldTheClinicTheLocalTimeAndTheLinkAndNothingElse(t *
 			return s.SendAppointmentCancelled(ctx, apptID, clinicID)
 		},
 			appointment.StatusCancelled, "appointment_cancelled_email", "Your appointment is cancelled", "cancelled.txt"},
+		{func(s *notification.Service, ctx context.Context) error {
+			return s.SendAppointmentReminder(ctx, apptID, clinicID)
+		},
+			appointment.StatusBooked, "appointment_reminder_email", "Reminder of your appointment", "reminder.txt"},
 	}
 	for _, tt := range tests {
 		appts, accounts, sender := &fakeAppointments{status: tt.status}, &fakeAccounts{language: "en"}, &fakeSender{}
@@ -163,15 +167,18 @@ func TestAppointmentEmails_HoldTheClinicTheLocalTimeAndTheLinkAndNothingElse(t *
 	}
 }
 
-// An e-mail that no longer applies is not sent: a confirmation of an appointment that is not
+// An e-mail that no longer applies is not sent: a confirmation or reminder of an appointment that is not
 // booked, a cancellation of one that is not cancelled.
 func TestAppointmentEmails_SendNothingThatNoLongerApplies(t *testing.T) {
 	for name, tt := range map[string]struct {
 		send   func(s *notification.Service, ctx context.Context) error
 		status appointment.Status
 	}{
-		"a confirmation of a fulfilled appointment": {func(s *notification.Service, ctx context.Context) error {
-			return s.SendAppointmentBooked(ctx, apptID, clinicID)
+		"a reminder of a cancelled appointment": {func(s *notification.Service, ctx context.Context) error {
+			return s.SendAppointmentReminder(ctx, apptID, clinicID)
+		}, appointment.StatusCancelled},
+		"a reminder of a fulfilled appointment": {func(s *notification.Service, ctx context.Context) error {
+			return s.SendAppointmentReminder(ctx, apptID, clinicID)
 		}, appointment.StatusFulfilled},
 		"a confirmation of a cancelled one": {func(s *notification.Service, ctx context.Context) error {
 			return s.SendAppointmentBooked(ctx, apptID, clinicID)
@@ -211,7 +218,7 @@ func TestAppointmentEmails_StopAtTheFirstFailureWithoutLeakingTheMessage(t *test
 			t.Errorf("%s failing: an e-mail was sent", name)
 		}
 	}
-	err := newMail(&fakeAppointments{err: appointment.ErrNotFound}, &fakeAccounts{language: "en"}, zonedClinics{}, &fakeSender{}).SendAppointmentBooked(t.Context(), apptID, clinicID)
+	err := newMail(&fakeAppointments{err: appointment.ErrNotFound}, &fakeAccounts{language: "en"}, zonedClinics{}, &fakeSender{}).SendAppointmentReminder(t.Context(), apptID, clinicID)
 	if !errors.Is(err, appointment.ErrNotFound) {
 		t.Errorf("an unknown appointment = %v, want appointment.ErrNotFound for the job to cancel", err)
 	}
@@ -231,6 +238,9 @@ func TestAppointmentEmails_MentionAnOutstandingQuestionnaireAfterTheFirstParagra
 		{func(s *notification.Service, ctx context.Context) error {
 			return s.SendAppointmentBooked(ctx, apptID, clinicID)
 		}, "appointment_booked_email", "booked"},
+		{func(s *notification.Service, ctx context.Context) error {
+			return s.SendAppointmentReminder(ctx, apptID, clinicID)
+		}, "appointment_reminder_email", "reminder"},
 	}
 	for _, tt := range tests {
 		for _, outstanding := range []bool{true, false} {
@@ -278,7 +288,7 @@ func TestAppointmentEmails_SendNothingWhenTheQuestionnaireCheckFails(t *testing.
 	}
 	q = &fakeQuestionnaires{outstanding: true}
 	if err := newMailAsking(&fakeAppointments{status: appointment.StatusCancelled}, &fakeAccounts{language: "en"}, zonedClinics{}, &fakeSender{}, q).
-		SendAppointmentBooked(t.Context(), apptID, clinicID); err != nil || q.asked != nil {
-		t.Errorf("a confirmation of a cancelled appointment: error = %v, asked %v; want nil and no check", err, q.asked)
+		SendAppointmentReminder(t.Context(), apptID, clinicID); err != nil || q.asked != nil {
+		t.Errorf("a reminder of a cancelled appointment: error = %v, asked %v; want nil and no check", err, q.asked)
 	}
 }

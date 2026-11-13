@@ -206,19 +206,19 @@ func TestSendDelivery_TheReminderSMSCountsInTheClinicsUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	sent := f.sms.Sent()
-	want := "Podsjetnik: Synthetic clinic, 25.10.2026. u 09:00. Potvrdite ili otkazite: " + fakeLink(1)
+	want := "Podsjetnik: Synthetic clinic, 25.10.2026. u 09:00 (Europe/Sarajevo), 25.10. 12:00 (Asia/Dubai). Potvrdite ili otkazite: " + fakeLink(1)
 	if len(sent) != 1 || sent[0].To != remindPhone || sent[0].Body != want || sent[0].Reference != d.ID {
 		t.Fatalf("sent %+v, want %q to the phone", sent, want)
 	}
-	if n := sms.Segments(sent[0].Body); n != 1 {
-		t.Errorf("the SMS takes %d parts, want 1", n)
+	if n := sms.Segments(sent[0].Body); n != 2 {
+		t.Errorf("the SMS takes %d parts, want 2 (both times)", n)
 	}
 	if f.reminders.links[0].Channel != appointment.ChannelSMS {
 		t.Errorf("link %+v, want one for the SMS", f.reminders.links[0])
 	}
 	u := f.deliveries.usage[remindClin+"2026-10"]
-	if u.Messages != 1 || u.Segments != 1 || !slices.Equal(f.deliveries.usageScope, []string{remindClin}) {
-		t.Errorf("usage %+v in %v, want one message of one part in the clinic's scope", u, f.deliveries.usageScope)
+	if u.Messages != 1 || u.Segments != 2 || !slices.Equal(f.deliveries.usageScope, []string{remindClin}) {
+		t.Errorf("usage %+v in %v, want one message of two parts in the clinic's scope", u, f.deliveries.usageScope)
 	}
 }
 
@@ -269,7 +269,8 @@ func sendReminderEmail(t *testing.T, language string, sender *fakeSender, outsta
 	f.svc = notification.NewService(notification.Ports{
 		Accounts: &fakeChatAccounts{language: map[string]string{patientAccount: language}}, Clinics: sarajevo{}, Questionnaires: f.q, Sender: sender,
 		PatientAppURL: "https://patient.example.test", Deliveries: f.deliveries, DeliveryJobs: f.jobs, Devices: f.repo, Reminders: f.reminders,
-		Rules: fakeRules{}, Languages: &fakeChatAccounts{}, Audit: f.audit, Tx: fakeChatTx{}, Clock: clockAt(start.Add(-24 * time.Hour)),
+		Rules: fakeRules{}, Languages: &fakeChatAccounts{}, Phones: fakePhones{}, Pusher: f.pusher, SMS: f.sms, Audit: f.audit, Tx: fakeChatTx{},
+		Clock: clockAt(start.Add(-24 * time.Hour)),
 	})
 	if err := f.svc.DispatchReminder(t.Context(), appointment.ReminderArgs{ReminderID: reminderID, OrganizationID: remindClin}); err != nil {
 		t.Fatal(err)
@@ -279,27 +280,141 @@ func sendReminderEmail(t *testing.T, language string, sender *fakeSender, outsta
 	}
 }
 
-// The SMS in every language fits one part with a clinic name of plain letters (the Latin-script languages drop their
-// diacritics; Cyrillic and Arabic cannot), and is its golden file.
+// The SMS in every language, at home (one time, with the clinic's zone) and abroad (both times), is its golden file
+// and stays within sms.MaxSegments; with a clinic name of plain letters the Latin-script languages (written without
+// diacritics, GSM-7) fit two parts at home, Cyrillic and Arabic (UCS-2) three. The counts are logged for the plan.
 func TestReminderSMS_IsWrittenInEveryLanguage(t *testing.T) {
 	for _, lang := range languages {
-		f := dispatched(t, afterChange.Add(-time.Hour))
-		f.svc = notification.NewService(notification.Ports{
-			Accounts: &fakeChatAccounts{}, Clinics: sarajevo{}, Questionnaires: f.q, Sender: f.sender, Deliveries: f.deliveries,
-			DeliveryJobs: f.jobs, Devices: f.repo, Reminders: f.reminders, Rules: fakeRules{sms: true},
-			Languages: &fakeChatAccounts{language: map[string]string{patientAccount: lang}}, Phones: fakePhones{phone: remindPhone},
-			SMS: f.sms, Audit: f.audit, Tx: fakeChatTx{}, Clock: clockAt(afterChange.Add(-time.Hour)),
-		})
-		if err := f.svc.SendDelivery(t.Context(), deliveryOf(t, f, notification.ChannelSMS).ID, false); err != nil {
-			t.Fatalf("%s: %v", lang, err)
-		}
-		body := f.sms.Sent()[0].Body
-		golden(t, lang+"/reminder_sms.txt", body+"\n")
-		if n := sms.Segments(body); n != 1 && lang != "sr-Cyrl" && lang != "ar" {
-			t.Errorf("%s: %d parts, want 1:\n%s", lang, n, body)
-		}
-		if n := sms.Segments(body); n > 2 {
-			t.Errorf("%s: %d parts, want at most 2", lang, n)
+		for _, zone := range []string{"", "Asia/Dubai"} {
+			f := dispatched(t, afterChange.Add(-time.Hour))
+			p := f.deliveries.prefs[patientAccount]
+			p.TimeZone = zone
+			f.deliveries.prefs[patientAccount] = p
+			f.svc = notification.NewService(notification.Ports{
+				Accounts: &fakeChatAccounts{}, Clinics: sarajevo{}, Questionnaires: f.q, Sender: f.sender, Deliveries: f.deliveries,
+				DeliveryJobs: f.jobs, Devices: f.repo, Reminders: f.reminders, Rules: fakeRules{sms: true},
+				Languages: &fakeChatAccounts{language: map[string]string{patientAccount: lang}}, Phones: fakePhones{phone: remindPhone},
+				SMS: f.sms, Pusher: f.pusher, Audit: f.audit, Tx: fakeChatTx{}, Clock: clockAt(afterChange.Add(-time.Hour)),
+			})
+			if err := f.svc.SendDelivery(t.Context(), deliveryOf(t, f, notification.ChannelSMS).ID, false); err != nil {
+				t.Fatalf("%s: %v", lang, err)
+			}
+			body := f.sms.Sent()[0].Body
+			name, home := "reminder_sms_abroad", zone == ""
+			if home {
+				name = "reminder_sms"
+			}
+			golden(t, lang+"/"+name+".txt", body+"\n")
+			n := sms.Segments(body)
+			t.Logf("%s %s: %d characters, %d parts", lang, name, len([]rune(body)), n)
+			latin := lang != "sr-Cyrl" && lang != "ar"
+			if n > sms.MaxSegments || home && latin && n > 2 {
+				t.Errorf("%s %s: %d parts:\n%s", lang, name, n, body)
+			}
 		}
 	}
+}
+
+// A send held by the quiet hours checks its channel again when it runs: the patient turned push, e-mail or SMS off
+// meanwhile, or the clinic its SMS option, and it is cancelled, nothing sent.
+func TestSendDelivery_CancelsASendWhoseChannelWasTurnedOffMeanwhile(t *testing.T) {
+	for _, tt := range []struct {
+		turnOff func(f *reminderFixture, off *bool)
+		name    string
+		channel notification.Channel
+	}{
+		{name: "push", channel: notification.ChannelPush, turnOff: func(f *reminderFixture, _ *bool) {
+			p := f.deliveries.prefs[patientAccount]
+			p.Channels.Push = false
+			f.deliveries.prefs[patientAccount] = p
+		}},
+		{name: "e-mail", channel: notification.ChannelEmail, turnOff: func(f *reminderFixture, _ *bool) {
+			p := f.deliveries.prefs[patientAccount]
+			p.Channels.Email = false
+			f.deliveries.prefs[patientAccount] = p
+		}},
+		{name: "SMS", channel: notification.ChannelSMS, turnOff: func(f *reminderFixture, _ *bool) {
+			p := f.deliveries.prefs[patientAccount]
+			p.Channels.SMS = false
+			f.deliveries.prefs[patientAccount] = p
+		}},
+		{name: "the clinic's SMS option", channel: notification.ChannelSMS, turnOff: func(_ *reminderFixture, off *bool) { *off = true }},
+	} {
+		off := false
+		f := newReminderFixture(afterChange.Add(-time.Hour), afterChange, fakeRules{sms: true, off: &off})
+		f.deliveries.prefs[patientAccount] = notification.Preferences{Channels: notification.Channels{Push: true, Email: true, SMS: true}}
+		if err := f.svc.DispatchReminder(t.Context(), appointment.ReminderArgs{ReminderID: reminderID, OrganizationID: remindClin}); err != nil {
+			t.Fatal(err)
+		}
+		tt.turnOff(f, &off)
+		if err := f.svc.SendDelivery(t.Context(), deliveryOf(t, f, tt.channel).ID, false); err != nil {
+			t.Fatalf("%s: %v", tt.name, err)
+		}
+		if got := deliveryOf(t, f, tt.channel).State; got != notification.DeliveryCancelled {
+			t.Errorf("%s turned off: the delivery is %s, want cancelled", tt.name, got)
+		}
+		if len(f.sender.sent)+len(f.pusher.Sent())+len(f.sms.Sent()) != 0 || len(f.reminders.links) != 0 {
+			t.Errorf("%s turned off: sent %d, %d, %d and issued %d links, want nothing", tt.name, len(f.sender.sent), len(f.pusher.Sent()), len(f.sms.Sent()), len(f.reminders.links))
+		}
+	}
+}
+
+// A delivery of a kind no composer writes yet (a waitlist offer before SAL-35) fails for good instead of retrying.
+func TestSendDelivery_FailsAKindWithoutAComposer(t *testing.T) {
+	f := newReminderFixture(afterChange.Add(-time.Hour), afterChange, fakeRules{})
+	if err := f.svc.Deliver(t.Context(), notification.KindWaitlistOffer, reminderID, remindClin, patientAccount, notification.Content{Deadline: afterChange}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.SendDelivery(t.Context(), deliveryOf(t, f, notification.ChannelEmail).ID, false); err != nil {
+		t.Fatalf("SendDelivery() = %v, want nil: no retry", err)
+	}
+	if got := deliveryOf(t, f, notification.ChannelEmail).State; got != notification.DeliveryFailed {
+		t.Errorf("the delivery is %s, want failed", got)
+	}
+	if len(f.audit.events) == 0 || f.audit.events[0].AgentName != "waitlist_offer_delivery" {
+		t.Errorf("audit %+v, want the kind's agent", f.audit.events)
+	}
+}
+
+// Deliver reads the clinic's settings in its scope and sets the caller's scope back: another clinic's, or none.
+func TestDeliver_SetsTheCallersClinicScopeBack(t *testing.T) {
+	for _, before := range []string{"", clinicID} {
+		f := newReminderFixture(afterChange.Add(-time.Hour), afterChange, fakeRules{})
+		f.repo.clinic = before
+		if err := f.svc.Deliver(t.Context(), notification.KindReminder, reminderID, remindClin, patientAccount, notification.Content{Deadline: afterChange}); err != nil {
+			t.Fatal(err)
+		}
+		if f.repo.clinic != before {
+			t.Errorf("the scope after Deliver is %q, want %q as before", f.repo.clinic, before)
+		}
+	}
+}
+
+// A Service built without the deliveries' ports (the api's, for the settings) refuses to deliver or send.
+func TestDeliver_RefusesWithoutItsPorts(t *testing.T) {
+	svc := notification.NewService(notification.Ports{Audit: &fakeChatAudit{}, Tx: fakeChatTx{}, Clock: clockAt(afterChange)})
+	if err := svc.Deliver(t.Context(), notification.KindReminder, reminderID, remindClin, patientAccount, notification.Content{}); err == nil {
+		t.Error("Deliver() without its ports = nil")
+	}
+	if err := svc.SendDelivery(t.Context(), reminderID, false); err == nil {
+		t.Error("SendDelivery() without its ports = nil")
+	}
+	if err := svc.DispatchReminder(t.Context(), appointment.ReminderArgs{ReminderID: reminderID, OrganizationID: remindClin}); err == nil {
+		t.Error("DispatchReminder() without its ports = nil")
+	}
+}
+
+// The SMS of a patient abroad gives the time in the clinic's zone with its name, then in theirs.
+func TestSendDelivery_TheReminderSMSOfAPatientAbroadHoldsBothTimes(t *testing.T) {
+	f := dispatched(t, afterChange.Add(-time.Hour)) // the patient is in Asia/Dubai
+	if err := f.svc.SendDelivery(t.Context(), deliveryOf(t, f, notification.ChannelSMS).ID, false); err != nil {
+		t.Fatal(err)
+	}
+	body := f.sms.Sent()[0].Body
+	for _, want := range []string{"25.10.2026. u 09:00 (Europe/Sarajevo)", "25.10. 12:00 (Asia/Dubai)", fakeLink(1)} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the SMS lacks %q:\n%s", want, body)
+		}
+	}
+	t.Logf("abroad, bs: %d parts", sms.Segments(body))
 }

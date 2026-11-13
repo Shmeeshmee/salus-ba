@@ -37,7 +37,8 @@ func (r *fakeReminders) AddReminder(ctx context.Context, x appointment.Reminder)
 		return appointment.Reminder{}, false, r.err
 	}
 	for _, y := range r.reminders {
-		if y.AppointmentID == x.AppointmentID && y.OffsetMinutes == x.OffsetMinutes && y.StartAt.Equal(x.StartAt) {
+		live := y.State == appointment.ReminderScheduled || y.State == appointment.ReminderDispatched
+		if live && y.AppointmentID == x.AppointmentID && y.OffsetMinutes == x.OffsetMinutes && y.StartAt.Equal(x.StartAt) {
 			return appointment.Reminder{}, false, nil
 		}
 	}
@@ -55,7 +56,8 @@ func (r *fakeReminders) CancelReminders(ctx context.Context, id string) (int64, 
 	}
 	var n int64
 	for i, x := range r.reminders {
-		if x.AppointmentID == id && x.State == appointment.ReminderScheduled && r.visible(x) {
+		live := x.State == appointment.ReminderScheduled || x.State == appointment.ReminderDispatched
+		if x.AppointmentID == id && live && r.visible(x) {
 			r.reminders[i].State = appointment.ReminderCancelled
 			n++
 		}

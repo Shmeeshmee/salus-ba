@@ -2,12 +2,8 @@ Rappel de votre rendez-vous
 
 Nous vous rappelons votre rendez-vous chez {{.Clinic}}.
 Date et heure : {{.When}}
-{{if .WhenLocal}}Dans votre fuseau horaire : {{.WhenLocal}}
-{{end}}
+
 {{if .Questionnaire}}Un questionnaire est à remplir avant votre rendez-vous. Vous le trouverez dans l'application Salus.
 
-{{end}}Pour confirmer ou annuler votre rendez-vous, ouvrez ce lien :
-{{.ActionLink}}
-
-Pour consulter votre rendez-vous, ouvrez l'application Salus :
+{{end}}Pour consulter votre rendez-vous, ouvrez l'application Salus :
 {{.Link}}

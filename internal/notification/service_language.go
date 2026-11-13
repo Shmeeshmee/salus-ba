@@ -44,6 +44,13 @@ type letter struct {
 	Time       string
 	Day        string // two digits
 	Month      string // two digits
+	// Zone is the clinic's zone's name, and ZoneLocal, DayLocal, MonthLocal and TimeLocal the start in the patient's zone
+	// when it differs ("" when not), for an SMS.
+	Zone       string
+	ZoneLocal  string
+	DayLocal   string
+	MonthLocal string
+	TimeLocal  string
 	Year       int
 	// Questionnaire adds COPY E1 (docs/questionnaire/COPY.md), never which questionnaire.
 	Questionnaire bool

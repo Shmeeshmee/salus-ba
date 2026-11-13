@@ -2372,7 +2372,7 @@
   "@quietHours": {
     "description": "SAL-33: notification settings, the quiet hours switch. Draft, waiting for the owner."
   },
-  "quietHoursHint": "Push notifications and SMS wait until quiet hours end. E-mails are not held.",
+  "quietHoursHint": "Push notifications and SMS wait until quiet hours end. If they would then arrive less than 30 minutes before the appointment, they are skipped. E-mails are not held.",
   "@quietHoursHint": {
     "description": "SAL-33: notification settings, under the quiet hours switch: push and SMS wait, e-mail is not held. Draft, waiting for the owner."
   },

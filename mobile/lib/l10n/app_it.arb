@@ -468,7 +468,7 @@
   "remindersSms": "SMS",
   "remindersSmsHint": "Promemoria e offerte dalla lista d'attesa via SMS al numero di telefono del tuo profilo, solo presso le cliniche che offrono gli SMS. Mai per pubblicità.",
   "quietHours": "Ore di silenzio",
-  "quietHoursHint": "Le notifiche push e gli SMS attendono la fine delle ore di silenzio. Le e-mail non vengono trattenute.",
+  "quietHoursHint": "Le notifiche push e gli SMS attendono la fine delle ore di silenzio. Se arriverebbero meno di 30 minuti prima dell'appuntamento, non vengono inviati. Le e-mail non vengono trattenute.",
   "quietHoursFrom": "Dalle",
   "quietHoursUntil": "Alle",
   "remindersSaved": "Le tue scelte sono salvate.",

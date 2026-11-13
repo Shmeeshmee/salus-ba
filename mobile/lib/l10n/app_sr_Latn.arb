@@ -468,7 +468,7 @@
   "remindersSms": "SMS",
   "remindersSmsHint": "Podsjetnici i ponude sa liste čekanja SMS-om na broj telefona iz vašeg profila, samo u klinikama koje nude SMS. Nikada za oglašavanje.",
   "quietHours": "Tihi sati",
-  "quietHoursHint": "Push obavještenja i SMS čekaju do kraja tihih sati. E-pošta se ne zadržava.",
+  "quietHoursHint": "Push obavještenja i SMS čekaju do kraja tihih sati. Ako bi tada stigli manje od 30 minuta prije termina, ne šalju se. E-pošta se ne zadržava.",
   "quietHoursFrom": "Od",
   "quietHoursUntil": "Do",
   "remindersSaved": "Vaš izbor je sačuvan.",

@@ -1829,7 +1829,7 @@ class AppLocalizationsSr extends AppLocalizations {
 
   @override
   String get quietHoursHint =>
-      'Пуш обавјештења и СМС чекају до краја тихих сати. Е-пошта се не задржава.';
+      'Пуш обавјештења и СМС чекају до краја тихих сати. Ако би тада стигли мање од 30 минута прије термина, не шаљу се. Е-пошта се не задржава.';
 
   @override
   String get quietHoursFrom => 'Од';
@@ -3673,7 +3673,7 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
 
   @override
   String get quietHoursHint =>
-      'Пуш обавјештења и СМС чекају до краја тихих сати. Е-пошта се не задржава.';
+      'Пуш обавјештења и СМС чекају до краја тихих сати. Ако би тада стигли мање од 30 минута прије термина, не шаљу се. Е-пошта се не задржава.';
 
   @override
   String get quietHoursFrom => 'Од';
@@ -5518,7 +5518,7 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String get quietHoursHint =>
-      'Push obavještenja i SMS čekaju do kraja tihih sati. E-pošta se ne zadržava.';
+      'Push obavještenja i SMS čekaju do kraja tihih sati. Ako bi tada stigli manje od 30 minuta prije termina, ne šalju se. E-pošta se ne zadržava.';
 
   @override
   String get quietHoursFrom => 'Od';

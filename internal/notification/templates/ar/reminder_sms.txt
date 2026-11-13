@@ -1,1 +1,1 @@
-موعد {{.Clinic}}، {{.Day}}/{{.Month}}/{{.Year}} الساعة {{.Time}}. تأكيد/إلغاء: {{.ActionLink}}
+موعد {{.Clinic}}، {{.Day}}/{{.Month}}/{{.Year}} الساعة {{.Time}} ({{.Zone}}){{if .ZoneLocal}}، {{.DayLocal}}/{{.MonthLocal}} {{.TimeLocal}} ({{.ZoneLocal}}){{end}}. تأكيد/إلغاء: {{.ActionLink}}

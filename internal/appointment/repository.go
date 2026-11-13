@@ -61,10 +61,10 @@ type StatsRepository interface {
 // ReminderRepository stores the reminders of appointments (appointment_reminder, SAL-33), in the scope Repository's
 // SetPatient or SetClinic set on the same transaction: the patient's own, or their clinic's.
 type ReminderRepository interface {
-	// AddReminder stores r, scheduled, and returns it with its id; ok is false when the appointment already has a
-	// reminder of that offset for that start (nothing is stored).
+	// AddReminder stores r, scheduled, and returns it with its id; ok is false when the appointment already has a live
+	// reminder (scheduled or dispatched) of that offset for that start (nothing is stored).
 	AddReminder(ctx context.Context, r Reminder) (out Reminder, ok bool, err error)
-	// CancelReminders cancels the scheduled reminders of the appointment id and counts them.
+	// CancelReminders cancels the live reminders (scheduled or dispatched) of the appointment id and counts them.
 	CancelReminders(ctx context.Context, appointmentID string) (int64, error)
 	// LockReminder returns the reminder id, locked against a change until the transaction ends, or ErrNotFound.
 	LockReminder(ctx context.Context, id string) (Reminder, error)

@@ -1821,7 +1821,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get quietHoursHint =>
-      'Le notifiche push e gli SMS attendono la fine delle ore di silenzio. Le e-mail non vengono trattenute.';
+      'Le notifiche push e gli SMS attendono la fine delle ore di silenzio. Se arriverebbero meno di 30 minuti prima dell\'appuntamento, non vengono inviati. Le e-mail non vengono trattenute.';
 
   @override
   String get quietHoursFrom => 'Dalle';

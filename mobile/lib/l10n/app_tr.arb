@@ -468,7 +468,7 @@
   "remindersSms": "SMS",
   "remindersSmsHint": "Hatırlatmalar ve bekleme listesi teklifleri, yalnızca SMS sunan kliniklerde, profilinizdeki telefon numarasına SMS ile gönderilir. Asla reklam için kullanılmaz.",
   "quietHours": "Sessiz saatler",
-  "quietHoursHint": "Anlık bildirimler ve SMS'ler sessiz saatler bitene kadar bekler. E-postalar bekletilmez.",
+  "quietHoursHint": "Anlık bildirimler ve SMS'ler sessiz saatler bitene kadar bekler. O zaman randevuya 30 dakikadan az kalacaksa gönderilmez. E-postalar bekletilmez.",
   "quietHoursFrom": "Başlangıç",
   "quietHoursUntil": "Bitiş",
   "remindersSaved": "Seçimleriniz kaydedildi.",

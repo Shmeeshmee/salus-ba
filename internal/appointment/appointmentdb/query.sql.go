@@ -196,9 +196,10 @@ func (q *Queries) CancelAppointment(ctx context.Context, arg CancelAppointmentPa
 
 const cancelReminders = `-- name: CancelReminders :execrows
 UPDATE appointment_reminder SET state = 'cancelled'
-WHERE appointment_id = $1 AND state = 'scheduled'
+WHERE appointment_id = $1 AND state IN ('scheduled', 'dispatched')
 `
 
+// The scheduled ones, and the dispatched ones whose sends may still be held: all of them are dead with the change.
 func (q *Queries) CancelReminders(ctx context.Context, appointmentID pgtype.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, cancelReminders, appointmentID)
 	if err != nil {
@@ -409,7 +410,7 @@ const insertReminder = `-- name: InsertReminder :one
 
 INSERT INTO appointment_reminder (appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at)
 VALUES ($1, $2, $3, $4, $5, $6)
-ON CONFLICT ON CONSTRAINT appointment_reminder_once DO NOTHING
+ON CONFLICT (appointment_id, offset_minutes, start_at) WHERE state IN ('scheduled', 'dispatched') DO NOTHING
 RETURNING id, created_at
 `
 

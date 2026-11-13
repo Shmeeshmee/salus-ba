@@ -37,6 +37,9 @@ var (
 	cancelledEmail = appointmentEmail{
 		agent: appointment.CancelledEmailArgs{}.Kind(), applies: appointment.StatusCancelled, template: "cancelled",
 	}
+	reminderEmail = appointmentEmail{
+		agent: appointment.ReminderEmailArgs{}.Kind(), applies: appointment.StatusBooked, template: "reminder", asksQuestionnaire: true,
+	}
 	// signedEmail applies in every status: a document is signed during the consultation or after it.
 	signedEmail = appointmentEmail{agent: composition.SignedEmailArgs{}.Kind(), template: "signed"}
 )
@@ -69,10 +72,16 @@ func (s *Service) SendDocumentSigned(ctx context.Context, id, org string) error 
 	return s.sendAppointment(ctx, signedEmail, id, org)
 }
 
+// SendAppointmentReminder sends the reminder of the appointment id of the clinic org to its patient, 24 hours
+// before the start (the appointment_reminder_email job), while it is booked.
+func (s *Service) SendAppointmentReminder(ctx context.Context, id, org string) error {
+	return s.sendAppointment(ctx, reminderEmail, id, org)
+}
+
 // sendAppointment sends e about the appointment id of the clinic org to its patient's account e-mail, in the
 // account's language, else Bosnian (docs/i18n/SPEC.md §3 "The account's language fields"): the clinic's name, the start in the clinic's time zone with the zone's name, and the link to the app's
 // appointments; nothing about the practitioner, the specialty or the visit (docs/booking/SPEC.md "E-mail"),
-// and for the confirmation E1 when a questionnaire is outstanding, never which one
+// and for the confirmation and the reminder E1 when a questionnaire is outstanding, never which one
 // (docs/questionnaire/SPEC.md §2 "Notifications").
 // An appointment no longer in the status e applies to sends nothing. Errors carry no address or text;
 // appointment.ErrNotFound passes through, for the job to cancel.

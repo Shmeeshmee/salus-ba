@@ -152,13 +152,11 @@ func TestNotifier_SendsTheAppointmentEmailsToThePatient(t *testing.T) {
 	owner, app := pgtest.NewAppDatabase(t)
 	b := seedBooking(t, owner)
 
-	// The legacy reminder e-mail enqueued before SAL-33 completes without sending (its reminders are the
-	// appointment_reminder rows now): the booking's e-mail below is the only one.
-	if state := runEmailJob(t, app, appointment.ReminderEmailArgs{AppointmentID: b.future, OrganizationID: clinicID}); state != rivertype.JobStateCompleted {
-		t.Fatalf("the legacy reminder: job state %s, want completed", state)
-	}
+	// The legacy reminder e-mail (appointment_reminder_email) of an appointment booked before SAL-33 still goes: no
+	// longer enqueued, its jobs drain (the plan's "Legacy reminder").
 	for _, args := range []river.JobArgs{
 		appointment.BookedEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},
+		appointment.ReminderEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},
 	} {
 		if state := runEmailJob(t, app, args); state != rivertype.JobStateCompleted {
 			t.Fatalf("%s: job state %s, want completed", args.Kind(), state)
@@ -175,13 +173,13 @@ func TestNotifier_SendsTheAppointmentEmailsToThePatient(t *testing.T) {
 	}
 	var n int
 	if err := owner.QueryRow(t.Context(), `SELECT count(*) FROM audit_event WHERE agent_name IN ('appointment_booked_email', 'appointment_reminder_email')
-		AND purpose_code = 'HOPERAT' AND subtype_code = 'read'`).Scan(&n); err != nil || n != 4 {
-		t.Errorf("%d audit events of the jobs' reads (%v), want 4: the appointment, the patient, the account and the "+
-			"role's default (the questionnaire check, docs/questionnaire package 7)", n, err)
+		AND purpose_code = 'HOPERAT' AND subtype_code = 'read'`).Scan(&n); err != nil || n != 8 {
+		t.Errorf("%d audit events of the jobs' reads (%v), want 8: the appointment, the patient, the account and the "+
+			"role's default (the questionnaire check, docs/questionnaire package 7), twice", n, err)
 	}
 	if err := owner.QueryRow(t.Context(), `SELECT count(*) FROM audit_event WHERE agent_name IN ('appointment_booked_email', 'appointment_reminder_email')
-		AND subtype_code = 'read' AND entity_reference LIKE 'PractitionerRole/%'`).Scan(&n); err != nil || n != 1 {
-		t.Errorf("%d audit events of the role's default read by the job (%v), want 1", n, err)
+		AND subtype_code = 'read' AND entity_reference LIKE 'PractitionerRole/%'`).Scan(&n); err != nil || n != 2 {
+		t.Errorf("%d audit events of the role's default read by the jobs (%v), want 2", n, err)
 	}
 }
 

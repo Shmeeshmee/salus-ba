@@ -1,1 +1,1 @@
-Promemoria: {{.Clinic}}, {{.Day}}/{{.Month}}/{{.Year}} alle {{.Time}}. Confermi o annulli: {{.ActionLink}}
+Promemoria: {{.Clinic}}, {{.Day}}/{{.Month}}/{{.Year}} alle {{.Time}} ({{.Zone}}){{if .ZoneLocal}}, {{.DayLocal}}/{{.MonthLocal}} {{.TimeLocal}} ({{.ZoneLocal}}){{end}}. Confermi o annulli: {{.ActionLink}}

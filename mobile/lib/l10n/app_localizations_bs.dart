@@ -1830,7 +1830,7 @@ class AppLocalizationsBs extends AppLocalizations {
 
   @override
   String get quietHoursHint =>
-      'Push obavještenja i SMS čekaju do kraja tihih sati. E-mailovi se ne zadržavaju.';
+      'Push obavještenja i SMS čekaju do kraja tihih sati. Ako bi tada stigli manje od 30 minuta prije termina, ne šalju se. E-mailovi se ne zadržavaju.';
 
   @override
   String get quietHoursFrom => 'Od';

@@ -4,14 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/organization"
-	"github.com/Shmeeshmee/salus/pkg/push"
-	"github.com/Shmeeshmee/salus/pkg/sms"
 )
 
 // Reminders gives the notifier its reminders (appointment.Service): the dispatch takes a scheduled one and marks it
@@ -57,6 +54,9 @@ var (
 // dispatched; a restart before the commit redoes all of it, after it none. A reminder no longer to be sent (dispatched
 // already, cancelled, its appointment changed) does nothing and its skip is kept; one not of the clinic is ErrNotFound.
 func (s *Service) DispatchReminder(ctx context.Context, a appointment.ReminderArgs) error {
+	if err := s.delivers(false); err != nil || s.p.Reminders == nil {
+		return errors.Join(err, errors.New("notification: dispatch reminder: no reminders"))
+	}
 	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
 		n, err := s.p.Reminders.TakeReminder(ctx, agentDispatch, a.OrganizationID, a.ReminderID)
 		if errors.Is(err, appointment.ErrReminderGone) {
@@ -84,15 +84,19 @@ func (s *Service) DispatchReminder(ctx context.Context, a appointment.ReminderAr
 // a push per device of the account and an SMS (when the patient opted in and the clinic offers SMS) now, or when the
 // patient's quiet hours end if that is at least 30 minutes before c.Deadline, else none. Quiet hours are in the
 // patient's zone, else the clinic's. A source delivered before on a channel (and device) gets nothing more there. The
-// reads of the account's settings and devices are audited with the kind's job as agent.
+// reads of the account's settings and devices are audited with the kind's agent (agentOf). The clinic's settings are
+// read in its scope; the caller's clinic scope is set back after (as it was, or none).
 func (s *Service) Deliver(ctx context.Context, kind Kind, sourceID, org, accountID string, c Content) error {
+	if err := s.delivers(false); err != nil {
+		return err
+	}
 	agent := agentOf(kind)
 	return s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
 		prefs, err := s.preferencesOf(ctx, agent, org, accountID)
 		if err != nil {
 			return err
 		}
-		rules, err := s.p.Rules.For(ctx, org)
+		rules, err := s.rulesKeepingScope(ctx, org)
 		if err != nil {
 			return err
 		}
@@ -122,12 +126,21 @@ func (s *Service) Deliver(ctx context.Context, kind Kind, sourceID, org, account
 	})
 }
 
-// agentOf is the job agent of a kind's dispatch.
-func agentOf(kind Kind) string {
-	if kind == KindWaitlistOffer {
-		return "waitlist_offer_notify"
+// agentOf is the audit agent of a kind's deliveries: "<kind>_delivery" (reminder_delivery, waitlist_offer_delivery).
+func agentOf(kind Kind) string { return string(kind) + "_delivery" }
+
+// rulesKeepingScope reads the clinic org's settings (organization.Appointments.For sets app.organization_id) and sets
+// the transaction's clinic scope back to what it was before.
+func (s *Service) rulesKeepingScope(ctx context.Context, org string) (organization.AppointmentSettings, error) {
+	before, err := s.p.Deliveries.ClinicScope(ctx)
+	if err != nil {
+		return organization.AppointmentSettings{}, err
 	}
-	return agentDispatch
+	rules, err := s.p.Rules.For(ctx, org)
+	if err != nil {
+		return organization.AppointmentSettings{}, err
+	}
+	return rules, s.p.Devices.SetClinic(ctx, before)
 }
 
 // addPushes stores a push of d per device of its account, released at at.
@@ -249,255 +262,4 @@ func accountRead(agent, org, account, entity string, n int) auditevent.AuditEven
 		EntityName:      entity,
 		EntityCount:     int64(n),
 	}
-}
-
-// errGone marks a delivery that no longer applies: it is cancelled, nothing sent.
-var errGone = errors.New("notification: the delivery no longer applies")
-
-// outgoing is one composed message of a delivery.
-type outgoing struct {
-	mail  Message
-	push  push.Message
-	sms   sms.Message
-	parts int
-	ready bool
-}
-
-// SendDelivery sends the delivery id (the reminder_email, reminder_push and reminder_sms jobs): locked and checked in a
-// transaction, the reminder and its appointment read again and the message composed (with a new one-time link for an
-// e-mail or SMS); sent after that commits, then marked sent, an SMS counted in its clinic's usage in the same
-// transaction. A delivery no longer pending sends nothing; one whose reminder, appointment, device or phone is gone is
-// cancelled; a refusal no retry can change (an address, number or token the provider will not take) fails it, as
-// does the last attempt (last). Errors carry no address, number, token or text.
-func (s *Service) SendDelivery(ctx context.Context, id string, last bool) error {
-	var d Delivery
-	var out outgoing
-	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
-		var err error
-		if d, err = s.p.Deliveries.LockDelivery(ctx, id); err != nil {
-			return err
-		}
-		if d.State != DeliveryPending {
-			return ErrDeliveryDone
-		}
-		out, err = s.compose(ctx, d)
-		if errors.Is(err, errGone) {
-			return s.p.Deliveries.SetDeliveryState(ctx, id, DeliveryCancelled, s.p.Clock.Now(), 0)
-		}
-		return err
-	})
-	switch {
-	case errors.Is(err, ErrNotFound), errors.Is(err, ErrDeliveryDone):
-		return nil
-	case err != nil:
-		return fmt.Errorf("notification: send %s: %w", d.Channel, err)
-	case !out.ready:
-		return nil
-	}
-	if err := s.send(ctx, d, out); err != nil {
-		if permanent(err) || last {
-			if ferr := s.finish(ctx, d, DeliveryFailed, 0); ferr != nil {
-				return errors.Join(err, ferr)
-			}
-			if permanent(err) {
-				return nil
-			}
-		}
-		return fmt.Errorf("notification: send %s: %w", d.Channel, err)
-	}
-	if err := s.finish(ctx, d, DeliverySent, out.parts); err != nil {
-		return fmt.Errorf("notification: send %s: %w", d.Channel, err)
-	}
-	return nil
-}
-
-// permanent tells whether err is a refusal no retry changes.
-func permanent(err error) bool {
-	return errors.Is(err, ErrRecipientNotASCII) || errors.Is(err, sms.ErrRejected) || errors.Is(err, sms.ErrInvalidMessage) ||
-		errors.Is(err, push.ErrTokenGone)
-}
-
-// send hands out to its channel's sender; a push token the platform says is gone is forgotten.
-func (s *Service) send(ctx context.Context, d Delivery, out outgoing) error {
-	switch d.Channel {
-	case ChannelEmail:
-		return s.sender.Send(ctx, out.mail)
-	case ChannelSMS:
-		_, err := s.p.SMS.Send(ctx, out.sms)
-		return err
-	}
-	err := s.p.Pusher.Send(ctx, out.push)
-	if errors.Is(err, push.ErrTokenGone) {
-		if ferr := s.p.Devices.DeleteDevice(ctx, d.DeviceID, out.push.Token); ferr != nil {
-			return errors.Join(err, ferr)
-		}
-	}
-	return err
-}
-
-// finish moves d from pending to state now, counting a sent SMS in its clinic's month, in one transaction.
-func (s *Service) finish(ctx context.Context, d Delivery, state DeliveryState, parts int) error {
-	return s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
-		now := s.p.Clock.Now()
-		if err := s.p.Deliveries.SetDeliveryState(ctx, d.ID, state, now, parts); err != nil {
-			return err
-		}
-		if state != DeliverySent || d.Channel != ChannelSMS {
-			return nil
-		}
-		if err := s.p.Devices.SetClinic(ctx, d.OrganizationID); err != nil {
-			return err
-		}
-		u := now.UTC()
-		return s.p.Deliveries.AddSMSUsage(ctx, d.OrganizationID, time.Date(u.Year(), u.Month(), 1, 0, 0, 0, 0, time.UTC), parts)
-	})
-}
-
-// compose writes d's message, or errGone when it no longer applies. Only reminders are composed here; a waitlist
-// offer's composition comes with SAL-35.
-func (s *Service) compose(ctx context.Context, d Delivery) (outgoing, error) {
-	if d.Kind != KindReminder {
-		return outgoing{}, fmt.Errorf("notification: no composer for %s", d.Kind)
-	}
-	agent := agentSend[d.Channel]
-	n, err := s.p.Reminders.ReminderNotice(ctx, agent, d.OrganizationID, d.SourceID)
-	if errors.Is(err, appointment.ErrReminderGone) || errors.Is(err, appointment.ErrNotFound) || err == nil && n.AccountID != d.AccountID {
-		return outgoing{}, errGone
-	}
-	if err != nil {
-		return outgoing{}, err
-	}
-	switch d.Channel {
-	case ChannelPush:
-		return s.composePush(ctx, agent, d)
-	case ChannelEmail:
-		return s.composeEmail(ctx, agent, d, n)
-	}
-	return s.composeSMS(ctx, agent, d, n)
-}
-
-// composePush is the generic reminder push to d's device, in its account's language: no clinic, time or payload.
-func (s *Service) composePush(ctx context.Context, agent string, d Delivery) (outgoing, error) {
-	dev, err := s.p.Devices.Device(ctx, d.DeviceID)
-	switch {
-	case errors.Is(err, ErrNotFound), err == nil && dev.AccountID != d.AccountID:
-		return outgoing{}, errGone // unregistered, or the token moved to another account
-	case err != nil:
-		return outgoing{}, err
-	}
-	if err := s.p.Audit.Record(ctx, accountRead(agent, d.OrganizationID, d.AccountID, "push_device", 1)); err != nil {
-		return outgoing{}, err
-	}
-	language, err := s.p.Languages.AccountLanguage(ctx, agent, d.AccountID)
-	if err != nil {
-		return outgoing{}, err
-	}
-	alert, err := s.in(language).message("", "reminder_push", letter{})
-	if err != nil {
-		return outgoing{}, err
-	}
-	return outgoing{push: push.Message{Token: dev.Token, Platform: dev.Platform, Title: alert.Subject, Body: strings.TrimSuffix(alert.Body, "\n")}, ready: true}, nil
-}
-
-// reminderTimes is the start in the clinic's zone with its name, and in the patient's zone when it differs ("" when
-// not), written in l.
-func (s *Service) reminderTimes(ctx context.Context, agent string, l letters, d Delivery, n appointment.ReminderNotice) (clinic organization.Organization, when, whenLocal string, local time.Time, err error) {
-	clinic, err = s.clinics.Read(ctx, organization.Caller{OrganizationID: d.OrganizationID}, d.OrganizationID)
-	if err != nil {
-		return clinic, "", "", time.Time{}, err
-	}
-	loc, err := time.LoadLocation(clinic.TimeZone)
-	if err != nil {
-		return clinic, "", "", time.Time{}, fmt.Errorf("the clinic's time zone: %w", err)
-	}
-	local = n.Start.In(loc)
-	if when, err = l.when(local, clinic.TimeZone); err != nil {
-		return clinic, "", "", time.Time{}, err
-	}
-	p, err := s.preferencesOf(ctx, agent, d.OrganizationID, d.AccountID)
-	if err != nil || p.TimeZone == "" || p.TimeZone == clinic.TimeZone {
-		return clinic, when, "", local, err
-	}
-	theirs, lerr := time.LoadLocation(p.TimeZone)
-	// A zone that no longer loads, or the same wall time: one time only.
-	if lerr != nil || n.Start.In(theirs).Format(time.DateTime) == local.Format(time.DateTime) {
-		return clinic, when, "", local, nil
-	}
-	whenLocal, err = l.when(n.Start.In(theirs), p.TimeZone)
-	return clinic, when, whenLocal, local, err
-}
-
-// composeEmail is the reminder e-mail: the clinic's name, the time (twice when the patient's zone differs), whether a
-// questionnaire is outstanding, a one-time link to confirm or cancel, and the link to the app's appointments.
-func (s *Service) composeEmail(ctx context.Context, agent string, d Delivery, n appointment.ReminderNotice) (outgoing, error) {
-	to, language, err := s.accounts.AccountEmail(ctx, agent, d.AccountID)
-	if err != nil {
-		return outgoing{}, err
-	}
-	l := s.in(language)
-	clinic, when, whenLocal, _, err := s.reminderTimes(ctx, agent, l, d, n)
-	if err != nil {
-		return outgoing{}, err
-	}
-	outstanding, err := s.questionnaires.Outstanding(ctx, agent, d.OrganizationID, n.AppointmentID)
-	if err != nil {
-		return outgoing{}, err
-	}
-	link, err := s.issue(ctx, agent, n, language, appointment.ChannelEmail)
-	if err != nil {
-		return outgoing{}, err
-	}
-	msg, err := l.message(to, "reminder", letter{
-		Clinic: clinic.Name, When: when, WhenLocal: whenLocal, Link: s.patientAppURL + "/appointments", ActionLink: link, Questionnaire: outstanding,
-	})
-	return outgoing{mail: msg, ready: true}, err
-}
-
-// composeSMS is the reminder SMS to the patient's phone: the clinic's name, the date and time in its zone and the
-// one-time link. No phone any more cancels it.
-func (s *Service) composeSMS(ctx context.Context, agent string, d Delivery, n appointment.ReminderNotice) (outgoing, error) {
-	phone, err := s.p.Phones.NoticePhone(ctx, agent, d.OrganizationID, n.PatientID)
-	if err != nil || phone == "" {
-		return outgoing{}, errors.Join(err, errGone)
-	}
-	language, err := s.p.Languages.AccountLanguage(ctx, agent, d.AccountID)
-	if err != nil {
-		return outgoing{}, err
-	}
-	l := s.in(language)
-	clinic, _, _, local, err := s.reminderTimes(ctx, agent, l, d, n)
-	if err != nil {
-		return outgoing{}, err
-	}
-	link, err := s.issue(ctx, agent, n, language, appointment.ChannelSMS)
-	if err != nil {
-		return outgoing{}, err
-	}
-	body, err := l.text("reminder_sms", letter{
-		Clinic: clinic.Name, ActionLink: link, Day: local.Format("02"), Month: local.Format("01"), Year: local.Year(), Time: local.Format("15:04"),
-	})
-	if err != nil {
-		return outgoing{}, err
-	}
-	return outgoing{sms: sms.Message{To: phone, Body: body, Reference: d.ID}, parts: sms.Segments(body), ready: true}, nil
-}
-
-// issue issues n's one-time link for channel, in the language of the message; a reminder whose appointment closed
-// meanwhile is gone.
-func (s *Service) issue(ctx context.Context, agent string, n appointment.ReminderNotice, language string, channel appointment.Channel) (string, error) {
-	link, err := s.p.Reminders.IssueLink(ctx, agent, appointment.Link{
-		AppointmentID: n.AppointmentID, OrganizationID: n.OrganizationID, ReminderID: n.ReminderID, Language: s.writtenIn(language), Channel: channel,
-	})
-	if errors.Is(err, appointment.ErrClosed) || errors.Is(err, appointment.ErrNotFound) {
-		return "", errGone
-	}
-	return link, err
-}
-
-// writtenIn is the language a message is written in: language when there are templates in it, else the fallback.
-func (s *Service) writtenIn(language string) string {
-	if _, ok := s.letters[language]; ok {
-		return language
-	}
-	return fallbackLanguage
 }

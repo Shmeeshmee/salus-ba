@@ -232,3 +232,36 @@ func TestNotificationPreference_QuietHoursBothOrNeitherDeletedWithTheAccount(t *
 		t.Errorf("the preferences are not deleted with the account: %v", err)
 	}
 }
+
+// A reschedule from A to B and back to A schedules A's reminders again: only a live reminder (scheduled or
+// dispatched) holds its offset and start. A dispatched reminder can still be retired (cancelled, once) with its
+// appointment's move, so the earlier generation's held sends stay dead; nothing else leaves a final state.
+func TestAppointmentReminder_ALiveOneHoldsItsOffsetAndStartADispatchedOneIsRetiredOnce(t *testing.T) {
+	t.Parallel()
+	owner, _ := pgtest.NewAppDatabase(t)
+	_, _, a := seedAppointments(t, owner)
+	ctx := t.Context()
+	first := insertReminder(t, owner, a.aFuture, 60)
+	if _, err := owner.Exec(ctx, `UPDATE appointment_reminder SET state = 'dispatched', dispatched_at = now() WHERE id = $1`, first); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(ctx, `INSERT INTO appointment_reminder (appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at)
+		SELECT appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at FROM appointment_reminder WHERE id = $1`, first); err == nil {
+		t.Error("a second live reminder of the same offset and start was stored")
+	}
+	if _, err := owner.Exec(ctx, `UPDATE appointment_reminder SET state = 'cancelled' WHERE id = $1`, first); err != nil {
+		t.Fatalf("a dispatched reminder retired with its appointment's move: %v", err)
+	}
+	again := insertReminder(t, owner, a.aFuture, 60) // back to A
+	if again == first {
+		t.Fatal("the same row")
+	}
+	for _, q := range []string{
+		`UPDATE appointment_reminder SET state = 'dispatched' WHERE id = '` + first + `'`,
+		`UPDATE appointment_reminder SET state = 'scheduled', dispatched_at = NULL WHERE id = '` + first + `'`,
+	} {
+		if _, err := owner.Exec(ctx, q); err == nil {
+			t.Errorf("a cancelled reminder changed: %s", q)
+		}
+	}
+}

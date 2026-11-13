@@ -90,6 +90,8 @@ type DeliveryRepository interface {
 
 	// AddSMSUsage counts one message of segments parts in the clinic's month (its first day, UTC).
 	AddSMSUsage(ctx context.Context, org string, month time.Time, segments int) error
+	// ClinicScope returns the transaction's clinic scope (app.organization_id), "" for none.
+	ClinicScope(ctx context.Context) (string, error)
 	// SMSUsage returns the clinic's months from from to to (first days, UTC), those with usage, oldest first.
 	SMSUsage(ctx context.Context, org string, from, to time.Time) ([]UsageMonth, error)
 }

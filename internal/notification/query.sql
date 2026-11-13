@@ -99,3 +99,6 @@ SELECT month, messages, segments
 FROM sms_usage
 WHERE organization_id = @organization_id AND month >= @from_month::date AND month <= @to_month::date
 ORDER BY month;
+
+-- name: ClinicScope :one
+SELECT coalesce(current_setting('app.organization_id', true), '')::text AS organization_id;

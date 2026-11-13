@@ -26,24 +26,14 @@ const (
 	sweepPage              = 1000
 )
 
-// addReminderWorkers registers the notifier's reminder jobs; the scheduler registers them with a nil mail. The
-// appointment_reminder_email job of the one reminder before SAL-33 is completed without sending: its reminders came
-// with SAL-33's rows only for appointments booked after it (the plan's "Legacy reminder"); it goes in a later release.
+// addReminderWorkers registers the notifier's reminder jobs; the scheduler registers them with a nil mail. (The
+// appointment_reminder_email job of before SAL-33 is no longer enqueued, and still sends until its jobs drain:
+// addEmailWorkers.)
 func addReminderWorkers(workers *river.Workers, mail *notification.Service) {
-	river.AddWorker(workers, &legacyReminderWorker{})
 	river.AddWorker(workers, &reminderDispatchWorker{mail: mail})
 	river.AddWorker(workers, &deliveryWorker[notification.EmailDeliveryArgs]{mail: mail})
 	river.AddWorker(workers, &deliveryWorker[notification.PushDeliveryArgs]{mail: mail})
 	river.AddWorker(workers, &deliveryWorker[notification.SMSDeliveryArgs]{mail: mail})
-}
-
-// legacyReminderWorker completes an appointment_reminder_email enqueued before SAL-33's deploy without sending it.
-type legacyReminderWorker struct {
-	river.WorkerDefaults[appointment.ReminderEmailArgs]
-}
-
-func (w *legacyReminderWorker) Work(context.Context, *river.Job[appointment.ReminderEmailArgs]) error {
-	return nil
 }
 
 // reminderDispatchWorker dispatches a reminder; one not of its clinic cancels the job, as a retry would fail the same.

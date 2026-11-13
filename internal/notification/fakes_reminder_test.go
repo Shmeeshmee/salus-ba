@@ -101,6 +101,8 @@ func (f *fakeDeliveries) AddSMSUsage(_ context.Context, org string, month time.T
 	return f.err
 }
 
+func (f *fakeDeliveries) ClinicScope(context.Context) (string, error) { return f.repo.clinic, f.err }
+
 func (f *fakeDeliveries) SMSUsage(_ context.Context, org string, from, to time.Time) ([]notification.UsageMonth, error) {
 	var out []notification.UsageMonth
 	for m := from; !m.After(to); m = m.AddDate(0, 1, 0) {
@@ -164,12 +166,20 @@ func fakeLink(n int) string { return fmt.Sprintf("https://api.salus.invalid/a/%0
 
 func clockAt(t time.Time) clock.Clock { return clock.Fixed{T: t} }
 
-// fakeRules gives the clinic's SMS option.
-type fakeRules struct{ sms bool }
+// fakeRules gives the clinic's SMS option (off when off is set) and, as organization.Appointments.For does, sets the
+// clinic's scope on repo.
+type fakeRules struct {
+	repo *fakeChatRepo
+	off  *bool
+	sms  bool
+}
 
-func (r fakeRules) For(context.Context, string) (organization.AppointmentSettings, error) {
+func (r fakeRules) For(_ context.Context, org string) (organization.AppointmentSettings, error) {
+	if r.repo != nil {
+		r.repo.clinic = org
+	}
 	s := organization.DefaultAppointmentSettings()
-	s.SMSReminders = r.sms
+	s.SMSReminders = r.sms && (r.off == nil || !*r.off)
 	return s, nil
 }
 
@@ -215,6 +225,7 @@ func newReminderFixture(now, start time.Time, rules fakeRules) *reminderFixture 
 		sender: &fakeSender{}, pusher: &pushtest.Sender{}, sms: &smstest.Sender{}, q: &fakeQuestionnaires{},
 	}
 	f.deliveries = newFakeDeliveries(f.repo)
+	rules.repo = f.repo
 	f.repo.devices["c3000000-0000-4000-8000-0000000000c3"] = notification.Device{ID: "c3000000-0000-4000-8000-0000000000c3", AccountID: patientAccount, Token: "synthetic-token-r", Platform: push.Android}
 	f.svc = notification.NewService(notification.Ports{
 		Accounts: &fakeChatAccounts{language: map[string]string{patientAccount: "en"}}, Clinics: sarajevo{}, Questionnaires: f.q, Sender: f.sender, PatientAppURL: "https://app.salus.invalid",

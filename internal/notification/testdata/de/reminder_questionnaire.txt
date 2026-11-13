@@ -5,8 +5,5 @@ Datum und Uhrzeit: Montag, 7. Januar 2030, 10:00 Uhr (Europe/Sarajevo)
 
 Vor Ihrem Termin ist ein Fragebogen auszufüllen. Sie finden ihn in der Salus-App.
 
-Um den Termin zu bestätigen oder abzusagen, öffnen Sie diesen Link:
-https://api.salus.invalid/a/0000000000000000000000000000000000000000001
-
 Um den Termin anzusehen, öffnen Sie die Salus-App:
 https://patient.example.test/appointments

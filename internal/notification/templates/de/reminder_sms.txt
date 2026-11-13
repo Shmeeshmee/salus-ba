@@ -1,1 +1,1 @@
-Erinnerung: {{.Clinic}}, {{.Day}}.{{.Month}}.{{.Year}} um {{.Time}}. Bestätigen oder absagen: {{.ActionLink}}
+Erinnerung: {{.Clinic}}, {{.Day}}.{{.Month}}.{{.Year}} um {{.Time}} ({{.Zone}}){{if .ZoneLocal}}, {{.DayLocal}}.{{.MonthLocal}}. {{.TimeLocal}} ({{.ZoneLocal}}){{end}}. Bestätigen oder absagen: {{.ActionLink}}

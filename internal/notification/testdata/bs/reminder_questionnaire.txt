@@ -5,8 +5,5 @@ Datum i vrijeme: ponedjeljak, 7. januar 2030. u 10:00 (Europe/Sarajevo)
 
 Prije termina trebate popuniti upitnik. Naći ćete ga u aplikaciji Salus.
 
-Da potvrdite ili otkažete termin, otvorite ovaj link:
-https://api.salus.invalid/a/0000000000000000000000000000000000000000001
-
 Da biste vidjeli termin, otvorite aplikaciju Salus:
 https://patient.example.test/appointments

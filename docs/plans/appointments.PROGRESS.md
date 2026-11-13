@@ -61,8 +61,8 @@ channels, quiet hours, the delivery rows and their jobs), `DispatchReminder`, `S
 (`GET`, `PUT /me/notification-settings`) and the admin's SMS usage (`GET /clinic/sms-usage`), the delivery purger.
 `patient.NoticePhone` (audited, job as agent). `APPOINTMENT_LINK_URL` in `internal/config`, the notifier and both
 composes; the notifier loads `config.LoadSMS` (the fake). `appointment_reminders_sweep` hourly from the scheduler,
-worked by the worker. The legacy `appointment_reminder_email` is no longer enqueued; its worker completes old jobs
-without sending. Web: `ClinicSettingsReminders.tsx` (offsets, the SMS option with `[PRICE]`, 12 months of usage) in the
+worked by the worker. The legacy `appointment_reminder_email` is no longer enqueued; its worker still sends the jobs
+enqueued before (an appointment booked before keeps its one 24-hour e-mail; ADR 0015 amended to match). Web: `ClinicSettingsReminders.tsx` (offsets, the SMS option with `[PRICE]`, 12 months of usage) in the
 clinic settings; the Vite proxy and the Caddyfile route `/clinic/` to the api (`/clinic` itself stays the screen).
 Mobile: `notification_settings_screen.dart` from the home screen. e2e: `TestReminders_TheReminderEmailArrivesAtItsTimeWithAOneTimeLink`.
 
@@ -94,10 +94,15 @@ As built (agent decisions, for the owner to review):
 | Topic | Decision |
 | --- | --- |
 | `Deliver`'s `content` | `notification.Content{Deadline}`: the instant a held push or SMS must still be 30 minutes before (a reminder's start, an offer's expiry). The text is composed by the send job from the delivery's kind, so a send re-reads what still holds; SAL-35 adds the `waitlist_offer` composer in `compose` |
-| Sends outside the transaction | A send locks and checks its delivery, composes (issuing a new one-time link for an e-mail or SMS) and commits; then sends; then marks it sent (an SMS counted in its clinic's month in that transaction). A retry after a failed send issues a new link; the older unused one expires at the start |
+| Sends outside the transaction | A send locks and checks its delivery, composes (issuing a new one-time link for an e-mail or SMS) and commits; then sends; then marks it sent (an SMS counted in its clinic's month in that transaction). "Sent once" holds per dispatch: a crash between the provider's acceptance and the mark (the window ADR 0015 accepts) resends the e-mail, push or SMS, and an e-mail or SMS resent carries a second valid link (both single use, both expiring at the start). The first link cannot be reused: only its hash is stored |
+| A send's channel | Checked at dispatch and again at the send: a send held by quiet hours whose channel the patient turned off meanwhile, or whose clinic turned SMS off, is cancelled |
+| A reminder's generations | A cancellation or reschedule cancels the appointment's live reminders, the dispatched ones too (a dispatched reminder may be retired once, by the trigger), so their held sends are cancelled when they run; a live reminder (scheduled or dispatched) is unique per appointment, offset and start (a partial index), so a move from A to B and back to A schedules A's again |
+| SMS text and length | The clinic's time with its zone's name, then the patient's day and time with theirs when it differs. With a 16-letter clinic name and a 71-character link: en 1 part at home, 2 abroad; bs, hr, sr-Latn, de, tr, it, fr 2 at home and abroad (GSM-7); sr-Cyrl and ar 3 at home and abroad (UCS-2). Longer clinic names add parts (at most `sms.MaxSegments`, 3) |
+| Deliver's audit agent and scope | The agent is the kind's, `<kind>_delivery` (`reminder_delivery`, `waitlist_offer_delivery`); Deliver reads the clinic's SMS option in the clinic's scope and sets the caller's clinic scope back after. A kind without a composer (a waitlist offer before SAL-35) fails its delivery at the send instead of retrying |
+| A Service without the delivery ports | The api builds `notification.Service` for the settings only; `Deliver`, `DispatchReminder` and `SendDelivery` return an error when their ports are missing, never a nil dereference |
 | Sweep's cross-clinic read | A view with its owner's rights (`appointment_reminder_scheduled`, ids and times only) instead of a `SECURITY DEFINER` function: sqlc cannot read a function's `RETURNS TABLE`. The sweep takes reminders due and not started, in pages of 1 000 |
 | Patient's zone from the app | The app sends `DateTime.now().timeZoneName` only when it is an IANA name; most phones report an abbreviation, so the zone is rarely sent and the clinic's is used. A real zone needs the `flutter_timezone` package: the owner's call |
-| SMS text | Latin-script languages without diacritics (GSM-7: one 160-character part with a short clinic name); Cyrillic and Arabic shortened to fit two UCS-2 parts. The owner's call (plan's "Copy waiting") |
+| SMS text | Latin-script languages without diacritics (GSM-7); Cyrillic and Arabic shortened. The owner's call (plan's "Copy waiting") |
 | `repository_sms.go` | Not created: archcheck lets only `repository_postgres.go` import the sqlc package, so the SMS usage's queries are there, beside the deliveries' |
 | `NewNotifier` | Takes a `worker.Notifier` struct (sender, pusher, SMS, the three URLs) instead of positional arguments |
 | SMS usage route | 403 for anyone but the clinic's admin, patients included |

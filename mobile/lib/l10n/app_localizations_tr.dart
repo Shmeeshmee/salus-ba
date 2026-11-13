@@ -1807,7 +1807,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get quietHoursHint =>
-      'Anlık bildirimler ve SMS\'ler sessiz saatler bitene kadar bekler. E-postalar bekletilmez.';
+      'Anlık bildirimler ve SMS\'ler sessiz saatler bitene kadar bekler. O zaman randevuya 30 dakikadan az kalacaksa gönderilmez. E-postalar bekletilmez.';
 
   @override
   String get quietHoursFrom => 'Başlangıç';

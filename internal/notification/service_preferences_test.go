@@ -79,7 +79,7 @@ func TestSMSUsage_IsTheAdminsByMonth(t *testing.T) {
 	}
 	admin := notification.Caller{AccountID: clinicAdmin, OrganizationID: remindClin, Admin: true}
 	got, err := f.svc.SMSUsage(t.Context(), admin, "2026-01", "2026-12")
-	if err != nil || len(got) != 1 || got[0] != (notification.UsageMonth{Month: "2026-10", Messages: 1, Segments: 1}) {
+	if err != nil || len(got) != 1 || got[0] != (notification.UsageMonth{Month: "2026-10", Messages: 1, Segments: 2}) {
 		t.Fatalf("SMSUsage() = %+v, %v", got, err)
 	}
 	if f.repo.clinic != remindClin {

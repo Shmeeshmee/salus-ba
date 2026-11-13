@@ -1830,7 +1830,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get quietHoursHint =>
-      'Les notifications push et les SMS attendent la fin des heures calmes. Les e-mails ne sont pas retenus.';
+      'Les notifications push et les SMS attendent la fin des heures calmes. S\'ils devaient alors arriver moins de 30 minutes avant le rendez-vous, ils ne sont pas envoyés. Les e-mails ne sont pas retenus.';
 
   @override
   String get quietHoursFrom => 'De';

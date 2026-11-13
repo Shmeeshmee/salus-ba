@@ -343,3 +343,7 @@ func (r *postgresRepository) SMSUsage(ctx context.Context, org string, from, to 
 	}
 	return out, nil
 }
+
+func (r *postgresRepository) ClinicScope(ctx context.Context) (string, error) {
+	return r.q(ctx).ClinicScope(ctx)
+}

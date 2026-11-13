@@ -1804,7 +1804,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get quietHoursHint =>
-      'Push notifications and SMS wait until quiet hours end. E-mails are not held.';
+      'Push notifications and SMS wait until quiet hours end. If they would then arrive less than 30 minutes before the appointment, they are skipped. E-mails are not held.';
 
   @override
   String get quietHoursFrom => 'From';

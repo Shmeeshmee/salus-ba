@@ -1833,7 +1833,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get quietHoursHint =>
-      'Push-Benachrichtigungen und SMS warten bis zum Ende der Ruhezeiten. E-Mails werden nicht zurückgehalten.';
+      'Push-Benachrichtigungen und SMS warten bis zum Ende der Ruhezeiten. Kämen sie dann weniger als 30 Minuten vor dem Termin an, entfallen sie. E-Mails werden nicht zurückgehalten.';
 
   @override
   String get quietHoursFrom => 'Von';

@@ -114,12 +114,13 @@ ORDER BY lower(period);
 -- A scheduled reminder; none when the appointment has one of that offset for that start already.
 INSERT INTO appointment_reminder (appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at)
 VALUES (@appointment_id, @organization_id, @patient_id, @offset_minutes, @start_at, @due_at)
-ON CONFLICT ON CONSTRAINT appointment_reminder_once DO NOTHING
+ON CONFLICT (appointment_id, offset_minutes, start_at) WHERE state IN ('scheduled', 'dispatched') DO NOTHING
 RETURNING id, created_at;
 
 -- name: CancelReminders :execrows
+-- The scheduled ones, and the dispatched ones whose sends may still be held: all of them are dead with the change.
 UPDATE appointment_reminder SET state = 'cancelled'
-WHERE appointment_id = @appointment_id AND state = 'scheduled';
+WHERE appointment_id = @appointment_id AND state IN ('scheduled', 'dispatched');
 
 -- name: LockReminder :one
 SELECT id, appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at, state, dispatched_at

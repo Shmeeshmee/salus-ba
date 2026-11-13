@@ -104,6 +104,11 @@ func addEmailWorkers(workers *river.Workers, mail *notification.Service) {
 	river.AddWorker(workers, &appointmentEmailWorker[appointment.CancelledEmailArgs]{send: func(ctx context.Context, a appointment.CancelledEmailArgs) error {
 		return mail.SendAppointmentCancelled(ctx, a.AppointmentID, a.OrganizationID)
 	}})
+	// No longer enqueued (SAL-33's reminders replace it): sent for the appointments booked before, until its jobs drain
+	// (the plan's "Legacy reminder"); it goes in a later release.
+	river.AddWorker(workers, &appointmentEmailWorker[appointment.ReminderEmailArgs]{send: func(ctx context.Context, a appointment.ReminderEmailArgs) error {
+		return mail.SendAppointmentReminder(ctx, a.AppointmentID, a.OrganizationID)
+	}})
 	river.AddWorker(workers, &appointmentEmailWorker[composition.SignedEmailArgs]{send: func(ctx context.Context, a composition.SignedEmailArgs) error {
 		return mail.SendDocumentSigned(ctx, a.AppointmentID, a.OrganizationID)
 	}})

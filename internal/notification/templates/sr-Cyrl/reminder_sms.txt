@@ -1,1 +1,1 @@
-Термин {{.Clinic}}, {{.Day}}.{{.Month}}.{{.Year}}. у {{.Time}}. Потврда/отказ: {{.ActionLink}}
+Термин {{.Clinic}}, {{.Day}}.{{.Month}}.{{.Year}}. у {{.Time}} ({{.Zone}}){{if .ZoneLocal}}, {{.DayLocal}}.{{.MonthLocal}}. {{.TimeLocal}} ({{.ZoneLocal}}){{end}}. Потврда/отказ: {{.ActionLink}}

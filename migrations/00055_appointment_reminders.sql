@@ -23,10 +23,16 @@ CREATE TABLE appointment_reminder (
     state text DEFAULT 'scheduled' NOT NULL CHECK (state IN ('scheduled', 'dispatched', 'cancelled', 'skipped')),
     CONSTRAINT appointment_reminder_appointment_fkey FOREIGN KEY (appointment_id, organization_id, patient_id)
         REFERENCES appointment (id, organization_id, patient_id),
-    CONSTRAINT appointment_reminder_once UNIQUE (appointment_id, offset_minutes, start_at),
     CONSTRAINT appointment_reminder_due CHECK (due_at = start_at - make_interval(mins => offset_minutes)),
-    CONSTRAINT appointment_reminder_dispatched CHECK ((state = 'dispatched') = (dispatched_at IS NOT NULL))
+    -- Dispatched has its time; a dispatched reminder retired with its appointment's move keeps it.
+    CONSTRAINT appointment_reminder_dispatched CHECK ((state = 'dispatched') <= (dispatched_at IS NOT NULL)
+                                                      AND (state IN ('dispatched', 'cancelled') OR dispatched_at IS NULL))
 );
+
+-- One live reminder (scheduled or dispatched) per appointment, offset and start: a reschedule from A to B and back to
+-- A schedules A's again, as the earlier generation was cancelled with the first move.
+CREATE UNIQUE INDEX appointment_reminder_once ON appointment_reminder (appointment_id, offset_minutes, start_at)
+    WHERE state IN ('scheduled', 'dispatched');
 
 -- The sweep's scan (appointment_reminder_scheduled) and the retention's.
 CREATE INDEX appointment_reminder_scheduled_due ON appointment_reminder (due_at, id) WHERE state = 'scheduled';
@@ -48,14 +54,16 @@ GRANT UPDATE (state, dispatched_at) ON appointment_reminder TO salus_app;
 -- Retention: deleted 90 days after its due time.
 GRANT SELECT, DELETE ON appointment_reminder TO salus_retention;
 
--- Sent once in the database: a reminder leaves scheduled once and never changes after, for every role.
+-- Sent once in the database: a reminder leaves scheduled once, for every role; a dispatched one may still be retired
+-- (cancelled) once with its appointment's cancellation or move, so the sends it still holds find it gone.
 -- +goose StatementBegin
 CREATE FUNCTION appointment_reminder_once() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = pg_catalog
 AS $$
 BEGIN
-    IF OLD.state <> 'scheduled' THEN
+    IF OLD.state <> 'scheduled' AND NOT (OLD.state = 'dispatched' AND NEW.state = 'cancelled'
+                                         AND NEW.dispatched_at IS NOT DISTINCT FROM OLD.dispatched_at) THEN
         RAISE EXCEPTION 'appointment_reminder: a reminder leaves scheduled once' USING ERRCODE = 'check_violation';
     END IF;
     RETURN NEW;

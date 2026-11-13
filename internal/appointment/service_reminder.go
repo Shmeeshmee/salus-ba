@@ -51,9 +51,10 @@ func (s *Service) scheduleReminders(ctx context.Context, a Appointment, now time
 	return s.Jobs.EnqueueReminders(ctx, due)
 }
 
-// cancelReminders cancels the scheduled reminders of the appointment id in the transaction in ctx (every
-// cancellation, and SAL-34's reschedule before it schedules the new start's). A reminder already dispatched is left:
-// its sends re-check the appointment and send nothing once it no longer holds.
+// cancelReminders cancels the live reminders of the appointment id in the transaction in ctx (every cancellation, and
+// SAL-34's reschedule before it schedules the new start's): the scheduled ones, and the dispatched ones, whose sends
+// held by quiet hours then find them gone, so a move back to the earlier start schedules that start's anew and
+// never revives the earlier generation's.
 func (s *Service) cancelReminders(ctx context.Context, id string) error {
 	if s.Reminders == nil {
 		return errors.New("appointment: cancel reminders: no reminder store")

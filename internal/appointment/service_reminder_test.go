@@ -226,3 +226,33 @@ func TestSweepReminders_EnqueuesTheLostReminders(t *testing.T) {
 		t.Errorf("enqueued %v,\nwant %v", f.jobs.enqueued, want)
 	}
 }
+
+// A move from A to B and back to A (SAL-34's reschedule cancels the reminders, then schedules the new start's): A's
+// reminders are scheduled again, and the first generation's, dispatched before the first move, stays dead.
+func TestScheduleReminders_AMoveBackSchedulesTheStartAgainAndLeavesTheOldGenerationDead(t *testing.T) {
+	f := scheduledFixture(t)
+	if _, err := f.svc.TakeReminder(t.Context(), "appointment_reminder", clinicA, reminderID(1)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.ReminderDispatched(t.Context(), clinicA, reminderID(1)); err != nil {
+		t.Fatal(err)
+	}
+	// The move to B: the patient cancels (the reminders are cancelled as a reschedule cancels them), then books A again.
+	if _, err := f.svc.Cancel(t.Context(), me, newID); err != nil {
+		t.Fatal(err)
+	}
+	if got := states(f); !slices.Equal(got, []appointment.ReminderState{appointment.ReminderCancelled, appointment.ReminderCancelled}) {
+		t.Fatalf("after the move: %v, want both cancelled, the dispatched one too", got)
+	}
+	if _, err := f.svc.ReminderNotice(t.Context(), "reminder_email", clinicA, reminderID(1)); !errors.Is(err, appointment.ErrReminderGone) {
+		t.Errorf("a send of the first generation: %v, want ErrReminderGone", err)
+	}
+	f.repo.appts = nil
+	f.slots.held = nil
+	if _, err := f.svc.Book(t.Context(), me, slotFree); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(f.reminders.reminders); n != 4 || f.reminders.reminders[2].State != appointment.ReminderScheduled || f.reminders.reminders[3].State != appointment.ReminderScheduled {
+		t.Errorf("reminders %+v, want the start's two scheduled anew", f.reminders.reminders)
+	}
+}
