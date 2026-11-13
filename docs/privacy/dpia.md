@@ -1962,7 +1962,7 @@ than k.
 
 **Access.** Staff (admins and practitioners) of a contributing clinic only (O5); a patient gets 403. salus_app only
 reads the figures; salus_stats writes each period once; nobody but the owner changes or deletes them (migration
-00051, tested).
+00052, tested).
 
 **Audit.** Every read of the view, refused ones too, is an AuditEvent (entity `trends_cell` or `trends_rise`,
 purpose HRESCH). Every build is audited before it writes: its agent (`trends_build` or `salusctl`) and the number
