@@ -98,8 +98,10 @@ class Booking {
 
   /// The visits the patient may share with the clinic (SAL-42), newest first, each as the clinic would see it, marked
   /// when shared now.
-  Future<List<api.SharingCandidate>> sharingCandidates(String clinicId) async =>
-      (await apiCall(() => _history.previewHistorySharing(clinicId)))?.candidates ?? const [];
+  Future<api.SharingCandidateList> sharingPreview(String clinicId) async {
+    final preview = await apiCall(() => _history.previewHistorySharing(clinicId));
+    return preview ?? api.SharingCandidateList();
+  }
 
   /// What the patient shares with each clinic now.
   Future<List<api.HistorySharing>> mySharing() async =>

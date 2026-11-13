@@ -362,7 +362,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String revokeBody(String clinic) {
-    return '$clinic will no longer see your profile. It keeps your name and the details of appointments that have already taken place, as part of its care records. Your future appointments with $clinic will be cancelled.';
+    return '$clinic will no longer see your profile. It keeps your name and the details of appointments that have already taken place, as part of its care records. Your future appointments with $clinic will be cancelled. Any sharing of your history from other clinics with $clinic ends too; consenting again does not restore it.';
   }
 
   @override
@@ -1657,7 +1657,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String sharingIntro(String clinic) {
-    return 'Tick the previous visits $clinic may see. For each visit you tick, $clinic sees what is shown here, with its documents, questionnaire answers and files. Visits you do not tick stay hidden from $clinic.';
+    return 'Tick the previous visits $clinic may see. For each visit you tick, the doctors at $clinic you have an appointment with see what is shown here, with the visit\'s documents, questionnaire answers and files, the allergies and medications recorded in it, and anything added to it later. Visits you do not tick stay hidden from $clinic.';
   }
 
   @override

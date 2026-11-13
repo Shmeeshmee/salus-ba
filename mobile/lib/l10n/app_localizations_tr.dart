@@ -365,7 +365,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String revokeBody(String clinic) {
-    return '$clinic artık profilinizi göremeyecek. Klinik, sağlık kayıtlarının bir parçası olarak adınızı ve gerçekleşmiş randevularınızın bilgilerini saklar. $clinic ile olan gelecek randevularınız iptal edilecek.';
+    return '$clinic artık profilinizi göremeyecek. Klinik, sağlık kayıtlarının bir parçası olarak adınızı ve gerçekleşmiş randevularınızın bilgilerini saklar. $clinic ile olan gelecek randevularınız iptal edilecek. Diğer kliniklerdeki geçmişinizin $clinic ile paylaşımı da sona erer; yeniden onay vermeniz bu paylaşımı geri getirmez.';
   }
 
   @override
@@ -1660,7 +1660,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String sharingIntro(String clinic) {
-    return '$clinic kliniğinin görebileceği önceki ziyaretleri işaretleyin. İşaretlediğiniz her ziyaret için $clinic, burada gösterileni belgeleri, anket yanıtları ve dosyalarıyla birlikte görür. İşaretlemediğiniz ziyaretler $clinic kliniğinden gizli kalır.';
+    return '$clinic kliniğinin görebileceği önceki ziyaretleri işaretleyin. İşaretlediğiniz her ziyaret için $clinic kliniğinde randevunuz olan doktorlar, burada gösterileni ziyaretin belgeleri, anket yanıtları ve dosyaları, ziyarette kaydedilen alerjiler ve ilaçlar ve ziyarete sonradan eklenen her şeyle birlikte görür. İşaretlemediğiniz ziyaretler $clinic kliniğinden gizli kalır.';
   }
 
   @override

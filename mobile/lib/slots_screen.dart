@@ -162,10 +162,35 @@ class _BookScreenState extends State<BookScreen> {
   bool _taken = false;
   bool _busy = false;
 
-  /// Sharing the history from other clinics (SAL-42): off until the patient turns it on, which loads the preview.
+  /// Sharing the history from other clinics (SAL-42): off unless the patient shares with the clinic already (the
+  /// preview, read when the screen opens, says so), then on with what is shared ticked.
   bool _share = false;
   SharingChoice? _choice;
   Set<String> _selected = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSharing();
+  }
+
+  /// Reads what is shared with the clinic now; nothing changes on the screen when it fails or nothing is.
+  Future<void> _loadSharing() async {
+    try {
+      final choice = await sharingChoice(widget.booking, widget.clinic.id);
+      if (!mounted || _choice != null) return;
+      setState(() {
+        _choice = choice;
+        _selected = {
+          for (final c in choice.candidates)
+            if (c.selected) c.encounterId,
+        };
+        _share = choice.version != null;
+      });
+    } on ApiFailure {
+      // The toggle loads the preview again when turned on.
+    }
+  }
 
   Future<void> _toggleSharing(bool on) async {
     setState(() {
@@ -188,14 +213,16 @@ class _BookScreenState extends State<BookScreen> {
     }
   }
 
-  /// Shares the visits ticked once the appointment is booked (the care consent is there then); false when it failed.
+  /// Shares the visits ticked once the appointment is booked (the care consent is there then), and stops a sharing
+  /// turned off; false when it failed.
   Future<bool> _shareTicked() async {
     final choice = _choice;
-    if (!_share || choice == null || (_selected.isEmpty && choice.version == null)) return true;
+    final selected = _share ? _selected : const <String>{};
+    if (choice == null || (selected.isEmpty && choice.version == null)) return true;
     try {
       await widget.booking.setSharing(widget.clinic.id, [
         for (final c in choice.candidates)
-          if (_selected.contains(c.encounterId)) c.encounterId,
+          if (selected.contains(c.encounterId)) c.encounterId,
       ], choice.version);
       return true;
     } on ApiFailure {
@@ -299,7 +326,6 @@ class _BookScreenState extends State<BookScreen> {
         if (_share && _choice != null)
           SharingPicker(
             clinicName: widget.clinic.name,
-            zone: _zone,
             candidates: _choice!.candidates,
             selected: _selected,
             onChanged: (s) => setState(() => _selected = s),

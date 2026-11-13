@@ -17,18 +17,26 @@ const historyId = 'f4000000-0000-4000-8000-0000000000f4';
 
 const toggle = 'Share my history from other clinics with this clinic';
 
-Map<String, Object?> candidate(String id, String date, {String? title, bool selected = false}) => {
+Map<String, Object?> candidate(
+  String id,
+  String date, {
+  String? title,
+  bool selected = false,
+  String timeZone = 'Europe/Sarajevo',
+}) => {
   'date': date,
   'encounterId': id,
   'organizationId': otherClinic,
   'organizationName': 'Synthetic clinic Mostar',
+  'timeZone': timeZone,
   'specialty': '394579002',
   'title': ?title,
   'selected': selected,
 };
 
-/// The three previous visits at another clinic, newest first, visit 1 shared when [shared].
-Map<String, Object?> candidates({bool shared = false}) => {
+/// The three previous visits at another clinic, newest first, visit 1 shared (at [version]) when [shared].
+Map<String, Object?> candidates({bool shared = false, String version = '$historyId.2'}) => {
+  'versionId': ?(shared ? version : null),
   'candidates': [
     candidate(visit3, '2026-10-22T08:00:00Z', title: 'Placeholder findings'),
     candidate(visit2, '2026-10-21T08:00:00Z'),
@@ -36,7 +44,7 @@ Map<String, Object?> candidates({bool shared = false}) => {
   ],
 };
 
-Map<String, Object?> sharing(List<String> shared, {String version = '2'}) => {
+Map<String, Object?> sharing(List<String> shared, {String version = '$historyId.2'}) => {
   'organizationId': clinicId,
   'consentId': historyId,
   'versionId': version,
@@ -57,21 +65,63 @@ bool ticked(WidgetTester tester, String date) =>
     tester.widget<CheckboxListTile>(find.widgetWithText(CheckboxListTile, date)).value ?? false;
 
 void main() {
-  testWidgets('sharing is off by default at booking and asks nothing of the history', (tester) async {
-    final h = await atBook(tester);
+  testWidgets('sharing is off by default at booking when nothing is shared, and shares nothing', (tester) async {
+    final h = await atBook(tester, sharing: candidates());
     answerBooking(h.api);
 
     expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, toggle)).value, isFalse);
     expect(find.byType(CheckboxListTile), findsNothing);
     await tapButton(tester, 'Book');
 
-    expect(h.api.calls.where((c) => c.contains('history-sharing')), isEmpty);
+    expect(h.api.calls.where((c) => c.contains('history-sharing')).toList(), ['GET /history-sharing/$clinicId']);
     expect(find.text('Your appointment is booked.'), findsOneWidget);
   });
 
+  testWidgets('an active sharing shows the toggle on with its visits ticked', (tester) async {
+    final h = await atBook(tester, sharing: candidates(shared: true));
+    h.api.answer('PUT /history-sharing/$clinicId', 200, sharing([visit1], version: '$historyId.2'));
+    answerBooking(h.api);
+
+    expect(tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, toggle)).value, isTrue);
+    expect(ticked(tester, 'Tuesday 20 October 2026'), isTrue);
+    expect(ticked(tester, 'Wednesday 21 October 2026'), isFalse);
+    await tick(tester, 'Wednesday 21 October 2026');
+    await tapButton(tester, 'Book');
+
+    final put = h.api.last('PUT /history-sharing/$clinicId');
+    expect(jsonDecode(put.body), {
+      'encounterIds': [visit2, visit1],
+    });
+    expect(put.headers['If-Match'], 'W/"$historyId.2"');
+  });
+
+  testWidgets('an active sharing turned off at booking is stopped', (tester) async {
+    final h = await atBook(tester, sharing: candidates(shared: true));
+    h.api.answer('PUT /history-sharing/$clinicId', 200, {'organizationId': clinicId, 'shared': <String>[]});
+    answerBooking(h.api);
+    await tapFound(tester, find.widgetWithText(SwitchListTile, toggle));
+    await tapButton(tester, 'Book');
+
+    final put = h.api.last('PUT /history-sharing/$clinicId');
+    expect(jsonDecode(put.body), {'encounterIds': <String>[]});
+    expect(put.headers['If-Match'], 'W/"$historyId.2"');
+  });
+
+  testWidgets('each visit is dated in its own clinic\'s time zone', (tester) async {
+    final h = await atBook(
+      tester,
+      sharing: {
+        'candidates': [candidate(visit1, '2026-10-21T02:00:00Z', timeZone: 'America/New_York')],
+      },
+    );
+    await tapFound(tester, find.widgetWithText(SwitchListTile, toggle));
+
+    expect(h.api.calls.where((c) => c.contains('history-sharing')).length, 1);
+    expect(find.widgetWithText(CheckboxListTile, 'Tuesday 20 October 2026'), findsOneWidget);
+  });
+
   testWidgets('turned on, it previews each visit as the clinic will see it, none ticked', (tester) async {
-    final h = await atBook(tester);
-    h.api.answer('GET /history-sharing/$clinicId', 200, candidates());
+    final h = await atBook(tester, sharing: candidates());
     h.api.answer('GET /me/history-sharing', 200, {'sharing': <Object>[]});
     await tapFound(tester, find.widgetWithText(SwitchListTile, toggle));
 
@@ -84,9 +134,10 @@ void main() {
     expect(inVisits('Placeholder findings'), findsOneWidget);
     expect(
       find.text(
-        'Tick the previous visits $clinicName may see. For each visit you tick, $clinicName sees what is shown '
-        'here, with its documents, questionnaire answers and files. Visits you do not tick stay hidden from '
-        '$clinicName.',
+        'Tick the previous visits $clinicName may see. For each visit you tick, the doctors at $clinicName you have '
+        'an appointment with see what is shown here, with the visit\'s documents, questionnaire answers and files, '
+        'the allergies and medications recorded in it, and anything added to it later. Visits you do not tick stay '
+        'hidden from $clinicName.',
       ),
       findsOneWidget,
     );
@@ -98,8 +149,7 @@ void main() {
   });
 
   testWidgets('booking shares exactly the visits ticked, after the booking', (tester) async {
-    final h = await atBook(tester);
-    h.api.answer('GET /history-sharing/$clinicId', 200, candidates());
+    final h = await atBook(tester, sharing: candidates());
     h.api.answer('GET /me/history-sharing', 200, {'sharing': <Object>[]});
     h.api.answer('PUT /history-sharing/$clinicId', 200, sharing([visit3, visit1], version: '1'));
     answerBooking(h.api);
@@ -122,8 +172,7 @@ void main() {
   });
 
   testWidgets('a sharing that fails after the booking says the appointment is booked', (tester) async {
-    final h = await atBook(tester);
-    h.api.answer('GET /history-sharing/$clinicId', 200, candidates());
+    final h = await atBook(tester, sharing: candidates());
     h.api.answer('GET /me/history-sharing', 200, {'sharing': <Object>[]});
     h.api.answer('PUT /history-sharing/$clinicId', 400, error('invalid_visit'));
     answerBooking(h.api);
@@ -140,8 +189,7 @@ void main() {
   });
 
   testWidgets('without previous visits elsewhere there is nothing to tick', (tester) async {
-    final h = await atBook(tester);
-    h.api.answer('GET /history-sharing/$clinicId', 200, {'candidates': <Object>[]});
+    final h = await atBook(tester, sharing: {'candidates': <Object>[]});
     h.api.answer('GET /me/history-sharing', 200, {'sharing': <Object>[]});
     await tapFound(tester, find.widgetWithText(SwitchListTile, toggle));
 
@@ -159,7 +207,7 @@ void main() {
       });
       h.api.answer('GET /me/history-sharing', 200, {
         'sharing': [
-          sharing([visit1]),
+          sharing([visit1], version: '$historyId.1'), // the list read earlier: an older version than the preview's
         ],
       });
       h.api.answer('GET /history-sharing/$clinicId', 200, candidates(shared: true));
@@ -178,7 +226,7 @@ void main() {
 
     testWidgets('changes the visits at the version read', (tester) async {
       final h = await atSharedHistory(tester);
-      h.api.answer('PUT /history-sharing/$clinicId', 200, sharing([visit2], version: '3'));
+      h.api.answer('PUT /history-sharing/$clinicId', 200, sharing([visit2], version: '$historyId.3'));
       await tapText(tester, clinicName);
 
       expect(ticked(tester, 'Tuesday 20 October 2026'), isTrue);
@@ -191,7 +239,7 @@ void main() {
       expect(jsonDecode(put.body), {
         'encounterIds': [visit2],
       });
-      expect(put.headers['If-Match'], 'W/"2"');
+      expect(put.headers['If-Match'], 'W/"$historyId.2"', reason: 'the version read with the preview');
       expect(find.text('Your choice is saved and takes effect at once.'), findsOneWidget);
     });
 

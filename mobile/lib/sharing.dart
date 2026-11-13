@@ -17,14 +17,12 @@ class SharingPicker extends StatelessWidget {
   const SharingPicker({
     super.key,
     required this.clinicName,
-    required this.zone,
     required this.candidates,
     required this.selected,
     required this.onChanged,
   });
 
   final String clinicName;
-  final Zone zone;
   final List<api.SharingCandidate> candidates;
   final Set<String> selected;
   final ValueChanged<Set<String>> onChanged;
@@ -59,7 +57,7 @@ class SharingPicker extends StatelessWidget {
     return CheckboxListTile(
       value: selected.contains(c.encounterId),
       onChanged: (on) => onChanged(on == true ? {...selected, c.encounterId} : ({...selected}..remove(c.encounterId))),
-      title: Text(zone.date(c.date, t.localeName)),
+      title: Text(Zone(c.timeZone).date(c.date, t.localeName)), // the visit's own clinic's day
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -108,7 +106,6 @@ class _SharedHistoryScreenState extends LoadingState<SharedHistoryScreen, _Clini
           booking: widget.booking,
           clinicId: clinicId,
           clinicName: clinic?.name ?? context.t.unlistedClinic,
-          zone: Zone(clinic?.timeZone ?? 'UTC'),
         ),
       ),
     );
@@ -145,13 +142,11 @@ class SharingScreen extends StatefulWidget {
     required this.booking,
     required this.clinicId,
     required this.clinicName,
-    required this.zone,
   });
 
   final Booking booking;
   final String clinicId;
   final String clinicName;
-  final Zone zone;
 
   @override
   State<SharingScreen> createState() => _SharingScreenState();
@@ -233,7 +228,6 @@ class _SharingScreenState extends LoadingState<SharingScreen, SharingChoice> {
           (data) => [
             SharingPicker(
               clinicName: widget.clinicName,
-              zone: widget.zone,
               candidates: data.candidates,
               selected: _selected,
               onChanged: (s) => setState(() => _selected = s),
@@ -247,9 +241,9 @@ class _SharingScreenState extends LoadingState<SharingScreen, SharingChoice> {
   }
 }
 
-/// The [SharingChoice] of the clinic.
+/// The [SharingChoice] of the clinic: the candidates and the version of the sharing, read together, so the version
+/// is the one the ticks show.
 Future<SharingChoice> sharingChoice(Booking booking, String clinicId) async {
-  final candidates = await booking.sharingCandidates(clinicId);
-  final current = (await booking.mySharing()).where((s) => s.organizationId == clinicId).firstOrNull;
-  return (candidates: candidates, version: current?.versionId);
+  final preview = await booking.sharingPreview(clinicId);
+  return (candidates: preview.candidates, version: preview.versionId);
 }

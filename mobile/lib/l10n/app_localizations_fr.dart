@@ -373,7 +373,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String revokeBody(String clinic) {
-    return '$clinic ne verra plus votre profil. La clinique conserve votre nom et les détails des rendez-vous qui ont déjà eu lieu, dans ses dossiers de soins. Vos rendez-vous à venir avec $clinic seront annulés.';
+    return '$clinic ne verra plus votre profil. La clinique conserve votre nom et les détails des rendez-vous qui ont déjà eu lieu, dans ses dossiers de soins. Vos rendez-vous à venir avec $clinic seront annulés. Le partage de votre historique d’autres cliniques avec $clinic prend fin lui aussi ; un nouveau consentement ne le rétablit pas.';
   }
 
   @override
@@ -1678,7 +1678,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String sharingIntro(String clinic) {
-    return 'Cochez les visites précédentes que $clinic peut voir. Pour chaque visite cochée, $clinic voit ce qui est affiché ici, avec ses documents, ses réponses aux questionnaires et ses fichiers. Les visites que vous ne cochez pas restent cachées à $clinic.';
+    return 'Cochez les visites précédentes que $clinic peut voir. Pour chaque visite cochée, les médecins de $clinic avec qui vous avez un rendez-vous voient ce qui est affiché ici, avec les documents de la visite, les réponses aux questionnaires et les fichiers, les allergies et les médicaments qui y sont enregistrés, ainsi que tout ce qui lui sera ajouté plus tard. Les visites que vous ne cochez pas restent cachées à $clinic.';
   }
 
   @override

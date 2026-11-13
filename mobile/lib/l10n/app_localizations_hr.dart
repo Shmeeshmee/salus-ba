@@ -367,7 +367,7 @@ class AppLocalizationsHr extends AppLocalizations {
 
   @override
   String revokeBody(String clinic) {
-    return '$clinic više neće vidjeti vaš profil. Vaše ime i podatke o terminima koji su već održani zadržat će kao dio svoje medicinske dokumentacije. Vaši budući termini u klinici $clinic bit će otkazani.';
+    return '$clinic više neće vidjeti vaš profil. Vaše ime i podatke o terminima koji su već održani zadržat će kao dio svoje medicinske dokumentacije. Vaši budući termini u klinici $clinic bit će otkazani. Prestaje i dijeljenje vaše povijesti iz drugih klinika s klinikom $clinic; ponovni pristanak ga ne vraća.';
   }
 
   @override
@@ -1682,7 +1682,7 @@ class AppLocalizationsHr extends AppLocalizations {
 
   @override
   String sharingIntro(String clinic) {
-    return 'Označite ranije posjete koje $clinic smije vidjeti. Za svaku označenu posjetu $clinic vidi ono što je ovdje prikazano, s njezinim dokumentima, odgovorima na upitnike i datotekama. Posjete koje ne označite ostaju skrivene od $clinic.';
+    return 'Označite ranije posjete koje $clinic smije vidjeti. Za svaku označenu posjetu liječnici klinike $clinic kod kojih imate termin vide ono što je ovdje prikazano, s dokumentima posjete, odgovorima na upitnike i datotekama, alergijama i lijekovima zabilježenima u njoj te svime što se posjeti naknadno doda. Posjete koje ne označite ostaju skrivene od $clinic.';
   }
 
   @override

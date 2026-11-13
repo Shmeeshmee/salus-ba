@@ -374,7 +374,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String revokeBody(String clinic) {
-    return '$clinic sieht Ihr Profil dann nicht mehr. Ihren Namen und die Angaben zu bereits stattgefundenen Terminen behält die Klinik als Teil ihrer Behandlungsunterlagen. Ihre künftigen Termine bei $clinic werden storniert.';
+    return '$clinic sieht Ihr Profil dann nicht mehr. Ihren Namen und die Angaben zu bereits stattgefundenen Terminen behält die Klinik als Teil ihrer Behandlungsunterlagen. Ihre künftigen Termine bei $clinic werden storniert. Auch das Teilen Ihrer Vorgeschichte aus anderen Kliniken mit $clinic endet; eine erneute Einwilligung stellt es nicht wieder her.';
   }
 
   @override
@@ -1682,7 +1682,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String sharingIntro(String clinic) {
-    return 'Wählen Sie die früheren Besuche aus, die $clinic sehen darf. Für jeden ausgewählten Besuch sieht $clinic, was hier angezeigt wird, mit seinen Dokumenten, Fragebogenantworten und Dateien. Besuche, die Sie nicht auswählen, bleiben vor $clinic verborgen.';
+    return 'Wählen Sie die früheren Besuche aus, die $clinic sehen darf. Für jeden ausgewählten Besuch sehen die Ärztinnen und Ärzte von $clinic, bei denen Sie einen Termin haben, was hier angezeigt wird, mit den Dokumenten, Fragebogenantworten und Dateien des Besuchs, den darin erfassten Allergien und Medikamenten sowie allem, was dem Besuch später hinzugefügt wird. Besuche, die Sie nicht auswählen, bleiben vor $clinic verborgen.';
   }
 
   @override

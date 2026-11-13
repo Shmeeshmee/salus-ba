@@ -366,7 +366,7 @@ class AppLocalizationsSr extends AppLocalizations {
 
   @override
   String revokeBody(String clinic) {
-    return 'Клиника $clinic више неће видјети ваш профил. Ваше име и податке о терминима који су већ одржани задржава као дио своје медицинске документације. Ваши будући термини код клинике $clinic биће отказани.';
+    return 'Клиника $clinic више неће видјети ваш профил. Ваше име и податке о терминима који су већ одржани задржава као дио своје медицинске документације. Ваши будући термини код клинике $clinic биће отказани. Престаје и дијељење ваше историје из других клиника са клиником $clinic; поновни пристанак га не враћа.';
   }
 
   @override
@@ -1674,11 +1674,11 @@ class AppLocalizationsSr extends AppLocalizations {
 
   @override
   String get sharingToggle =>
-      'Подијелите моју историју из других клиника са овом клиником';
+      'Подијели моју историју из других клиника са овом клиником';
 
   @override
   String sharingIntro(String clinic) {
-    return 'Означите раније посјете које $clinic смије да види. За сваку означену посјету $clinic види оно што је овдје приказано, са њеним документима, одговорима на упитнике и датотекама. Посјете које не означите остају скривене од $clinic.';
+    return 'Означите раније посјете које $clinic смије да види. За сваку означену посјету љекари клинике $clinic код којих имате термин виде оно што је овдје приказано, са документима посјете, одговорима на упитнике и датотекама, алергијама и лијековима евидентираним у њој, као и свиме што се посјети касније дода. Посјете које не означите остају скривене од $clinic.';
   }
 
   @override
@@ -2112,7 +2112,7 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
 
   @override
   String revokeBody(String clinic) {
-    return 'Клиника $clinic више неће видјети ваш профил. Ваше име и податке о терминима који су већ одржани задржава као дио своје медицинске документације. Ваши будући термини код клинике $clinic биће отказани.';
+    return 'Клиника $clinic више неће видјети ваш профил. Ваше име и податке о терминима који су већ одржани задржава као дио своје медицинске документације. Ваши будући термини код клинике $clinic биће отказани. Престаје и дијељење ваше историје из других клиника са клиником $clinic; поновни пристанак га не враћа.';
   }
 
   @override
@@ -3420,11 +3420,11 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
 
   @override
   String get sharingToggle =>
-      'Подијелите моју историју из других клиника са овом клиником';
+      'Подијели моју историју из других клиника са овом клиником';
 
   @override
   String sharingIntro(String clinic) {
-    return 'Означите раније посјете које $clinic смије да види. За сваку означену посјету $clinic види оно што је овдје приказано, са њеним документима, одговорима на упитнике и датотекама. Посјете које не означите остају скривене од $clinic.';
+    return 'Означите раније посјете које $clinic смије да види. За сваку означену посјету љекари клинике $clinic код којих имате термин виде оно што је овдје приказано, са документима посјете, одговорима на упитнике и датотекама, алергијама и лијековима евидентираним у њој, као и свиме што се посјети касније дода. Посјете које не означите остају скривене од $clinic.';
   }
 
   @override
@@ -3858,7 +3858,7 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String revokeBody(String clinic) {
-    return 'Klinika $clinic više neće vidjeti vaš profil. Vaše ime i podatke o terminima koji su već održani zadržava kao dio svoje medicinske dokumentacije. Vaši budući termini kod klinike $clinic biće otkazani.';
+    return 'Klinika $clinic više neće vidjeti vaš profil. Vaše ime i podatke o terminima koji su već održani zadržava kao dio svoje medicinske dokumentacije. Vaši budući termini kod klinike $clinic biće otkazani. Prestaje i dijeljenje vaše istorije iz drugih klinika sa klinikom $clinic; ponovni pristanak ga ne vraća.';
   }
 
   @override
@@ -5167,11 +5167,11 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String get sharingToggle =>
-      'Podijelite moju istoriju iz drugih klinika sa ovom klinikom';
+      'Podijeli moju istoriju iz drugih klinika sa ovom klinikom';
 
   @override
   String sharingIntro(String clinic) {
-    return 'Označite ranije posjete koje $clinic smije da vidi. Za svaku označenu posjetu $clinic vidi ono što je ovdje prikazano, sa njenim dokumentima, odgovorima na upitnike i datotekama. Posjete koje ne označite ostaju skrivene od $clinic.';
+    return 'Označite ranije posjete koje $clinic smije da vidi. Za svaku označenu posjetu ljekari klinike $clinic kod kojih imate termin vide ono što je ovdje prikazano, sa dokumentima posjete, odgovorima na upitnike i datotekama, alergijama i lijekovima evidentiranim u njoj, kao i svime što se posjeti kasnije doda. Posjete koje ne označite ostaju skrivene od $clinic.';
   }
 
   @override

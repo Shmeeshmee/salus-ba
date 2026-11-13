@@ -94,3 +94,5 @@ unfinished one and another patient's), handlers, the drafting and the suggestion
 content. Mobile: the booking toggle with the preview, Shared history per clinic, My consents' history label; ten
 languages, `legal` where the plan says. E2E: two of three visits shared, read by the clinic's practitioner as the
 history consent; the read through SAL-40's view is added once SAL-40 is on main.
+
+Review (fresh subagent, 2026-11-13): fixed the care consent locked while sharing (`LockCare`, FOR SHARE) and a care consent granted again ending an earlier history consent, the sharing's version naming its consent (`<consent id>.<n>`), the preview carrying that version and each visit's own time zone, `care_consent_required` 409, the booking toggle starting from what is shared, and the legal copy (`sharingIntro`: who sees it, the recorded entries, anything added later, owner 2026-11-13; `revokeBody`: sharing ends and is not restored; Serbian toggle); the e2e's read through SAL-40's view waits for SAL-40.

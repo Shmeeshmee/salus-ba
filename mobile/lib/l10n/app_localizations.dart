@@ -726,10 +726,10 @@ abstract class AppLocalizations {
   /// **'Revoke your consent?'**
   String get revokeTitle;
 
-  /// [legal] Dialog text: the effect of revoking.
+  /// [legal] Dialog text: the effect of revoking, including the end of history sharing with the clinic (SAL-42).
   ///
   /// In en, this message translates to:
-  /// **'{clinic} will no longer see your profile. It keeps your name and the details of appointments that have already taken place, as part of its care records. Your future appointments with {clinic} will be cancelled.'**
+  /// **'{clinic} will no longer see your profile. It keeps your name and the details of appointments that have already taken place, as part of its care records. Your future appointments with {clinic} will be cancelled. Any sharing of your history from other clinics with {clinic} ends too; consenting again does not restore it.'**
   String revokeBody(String clinic);
 
   /// Dialog button.
@@ -2676,10 +2676,10 @@ abstract class AppLocalizations {
   /// **'Share my history from other clinics with this clinic'**
   String get sharingToggle;
 
-  /// [legal] SAL-42: above the visits to tick, at booking and in Shared history; exactly what the clinic will see. Draft, waiting for the owner.
+  /// [legal] SAL-42: above the visits to tick, at booking and in Shared history: exactly what the clinic will see, who sees it, and that a shared visit stays shared as it grows (owner, 2026-11-13). Draft, waiting for the owner.
   ///
   /// In en, this message translates to:
-  /// **'Tick the previous visits {clinic} may see. For each visit you tick, {clinic} sees what is shown here, with its documents, questionnaire answers and files. Visits you do not tick stay hidden from {clinic}.'**
+  /// **'Tick the previous visits {clinic} may see. For each visit you tick, the doctors at {clinic} you have an appointment with see what is shown here, with the visit\'s documents, questionnaire answers and files, the allergies and medications recorded in it, and anything added to it later. Visits you do not tick stay hidden from {clinic}.'**
   String sharingIntro(String clinic);
 
   /// [legal] SAL-42: under the sharing intro: how to change or stop it, and that it takes effect at once. Draft, waiting for the owner.
