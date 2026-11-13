@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
@@ -38,11 +39,12 @@ var errNoProfile = errors.New("consent: no profile")
 // read the consent's state; the job it enqueues cancels what was booked ahead. The package knows nothing of
 // appointments.
 type Service struct {
-	repo  Repository
-	audit Auditor
-	tx    Transactor
-	clock clock.Clock
-	jobs  Jobs
+	repo   Repository
+	audit  Auditor
+	tx     Transactor
+	clock  clock.Clock
+	jobs   Jobs
+	visits Visits
 }
 
 // NewService returns a Service on its ports. jobs may be nil where Revoke is never called (the worker, which
@@ -51,14 +53,24 @@ func NewService(repo Repository, audit Auditor, tx Transactor, clk clock.Clock, 
 	return &Service{repo: repo, audit: audit, tx: tx, clock: clk, jobs: jobs}
 }
 
+// WithVisits returns a copy of s that shares history (Candidates, SetSharing) with the visits of v: the history is
+// built from services that are built after the consents, which they read.
+func (s *Service) WithVisits(v Visits) *Service {
+	out := *s
+	out.visits = v
+	return &out
+}
+
 // Grant gives the clinic organizationID the calling patient's consent of the kind and returns it. ErrActive when
 // one of the kind is active already, ErrProfileRequired without a profile, ErrClinicNotFound for an unknown
-// clinic, ErrKind for an unknown kind, ErrForbidden to staff.
+// clinic, ErrKind for an unknown kind and for a history consent (granted with its visits by SetSharing: an active
+// one lists at least one), ErrForbidden to staff. A care consent ends a history consent with the clinic still active
+// (consenting again never restores an earlier sharing).
 func (s *Service) Grant(ctx context.Context, c Caller, organizationID string, kind Kind) (Consent, error) {
 	switch {
 	case !c.patient():
 		return Consent{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrForbidden)
-	case !kind.Valid():
+	case !kind.Valid(), kind == KindHistory:
 		return Consent{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrKind)
 	}
 	var out Consent
@@ -79,6 +91,11 @@ func (s *Service) Grant(ctx context.Context, c Caller, organizationID string, ki
 		}
 		if err != nil {
 			return err
+		}
+		if kind == KindCare {
+			if err := s.endHistory(ctx, c, patientID, organizationID); err != nil {
+				return err
+			}
 		}
 		return s.record(ctx, c, auditevent.CodeCreate, out.ID, auditevent.OutcomeSuccess)
 	})
@@ -131,23 +148,43 @@ func (s *Service) Revoke(ctx context.Context, c Caller, id string) (Consent, err
 }
 
 // revoked does what follows the revocation of consent x, in the transaction in ctx: for a transcription
-// consent, its job; for a care consent, the end of the transcription consent with the clinic (audited) and its
-// job.
+// consent, its job; for a history consent nothing (the clinic's access ends at the commit); for a care consent,
+// the end of the transcription and history consents with the clinic (each audited) and its job.
 func (s *Service) revoked(ctx context.Context, c Caller, x Consent) error {
-	if x.Kind == KindTranscription {
+	switch x.Kind {
+	case KindTranscription:
 		return s.jobs.EnqueueTranscriptionRevoked(ctx, x.PatientID, x.OrganizationID)
+	case KindHistory:
+		return nil
 	}
-	t, err := s.repo.RevokeTranscription(ctx, x.PatientID, x.OrganizationID, s.clock.Now())
-	switch {
-	case errors.Is(err, ErrInactive):
-	case err != nil:
-		return err
-	default:
-		if err := s.record(ctx, c, auditevent.CodeUpdate, t.ID, auditevent.OutcomeSuccess); err != nil {
+	for _, revoke := range []func(ctx context.Context, patientID, organizationID string, at time.Time) (Consent, error){
+		s.repo.RevokeTranscription, s.repo.RevokeHistory,
+	} {
+		t, err := revoke(ctx, x.PatientID, x.OrganizationID, s.clock.Now())
+		switch {
+		case errors.Is(err, ErrInactive):
+		case err != nil:
 			return err
+		default:
+			if err := s.record(ctx, c, auditevent.CodeUpdate, t.ID, auditevent.OutcomeSuccess); err != nil {
+				return err
+			}
 		}
 	}
 	return s.jobs.EnqueueConsentRevoked(ctx, x.PatientID, x.OrganizationID)
+}
+
+// endHistory ends the patient's history consent with the clinic left active under a care consent granted anew, in
+// the transaction in ctx, audited: consenting to care again never restores an earlier sharing.
+func (s *Service) endHistory(ctx context.Context, c Caller, patientID, organizationID string) error {
+	h, err := s.repo.RevokeHistory(ctx, patientID, organizationID, s.clock.Now())
+	switch {
+	case errors.Is(err, ErrInactive):
+		return nil
+	case err != nil:
+		return err
+	}
+	return s.record(ctx, c, auditevent.CodeUpdate, h.ID, auditevent.OutcomeSuccess)
 }
 
 // revoke revokes the calling patient's consent id in the transaction in ctx, or gives the refusal.

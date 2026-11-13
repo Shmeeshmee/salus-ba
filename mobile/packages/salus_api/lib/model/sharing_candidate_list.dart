@@ -13,8 +13,18 @@ part of salus_api;
 class SharingCandidateList {
   /// Returns a new [SharingCandidateList] instance.
   SharingCandidateList({
+    this.versionId,
     this.candidates = const [],
   });
+
+  /// The version of what the patient shares with the clinic now, read with the candidates (HistorySharing `versionId`); absent when nothing is shared. Send it as If-Match to change the selection.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? versionId;
 
   List<SharingCandidate> candidates;
 
@@ -22,18 +32,25 @@ class SharingCandidateList {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is SharingCandidateList &&
+          other.versionId == versionId &&
           _deepEquality.equals(other.candidates, candidates);
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (candidates.hashCode);
+      (versionId == null ? 0 : versionId!.hashCode) + (candidates.hashCode);
 
   @override
-  String toString() => 'SharingCandidateList[candidates=$candidates]';
+  String toString() =>
+      'SharingCandidateList[versionId=$versionId, candidates=$candidates]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
+    if (this.versionId != null) {
+      json[r'versionId'] = this.versionId;
+    } else {
+      json[r'versionId'] = null;
+    }
     json[r'candidates'] = this.candidates;
     return json;
   }
@@ -57,6 +74,7 @@ class SharingCandidateList {
       }());
 
       return SharingCandidateList(
+        versionId: mapValueOfType<String>(json, r'versionId'),
         candidates: SharingCandidate.listFromJson(json[r'candidates']),
       );
     }

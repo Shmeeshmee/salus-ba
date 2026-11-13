@@ -2667,11 +2667,11 @@ export interface components {
             kind?: components["schemas"]["ConsentKind"];
         };
         /**
-         * @description What the consent is for: `care`, sharing the profile and appointments with the clinic; `transcription`, transcription and translation of the consultations with the clinic, with AI assistance for the practitioner (suggestions, document drafts), used only with an active care consent (SAL-12).
+         * @description What the consent is for: `care`, sharing the profile and appointments with the clinic; `transcription`, transcription and translation of the consultations with the clinic, with AI assistance for the practitioner (suggestions, document drafts), used only with an active care consent (SAL-12); `history`, sharing chosen visits at other clinics with the clinic (SAL-42), granted and changed only through `PUT /history-sharing/{organizationId}` (a grant of it here is `invalid_request`), listed and revoked here like the others.
          * @default care
          * @enum {string}
          */
-        ConsentKind: "care" | "transcription";
+        ConsentKind: "care" | "transcription" | "history";
         /** @description A patient's consent with a clinic (FHIR Consent): to share their profile and appointments with it for care, or to transcription. Health data: it shows whom the patient consults. */
         Consent: {
             /** Format: uuid */
@@ -3477,6 +3477,8 @@ export interface components {
             /** Format: uuid */
             organizationId: string;
             organizationName: string;
+            /** @description The visit's clinic's time zone (IANA), to show its date in. */
+            timeZone: string;
             /** @description SNOMED CT code (`/specialties`). */
             specialty?: string;
             /** @description The title of the visit's first signed document. */
@@ -3485,6 +3487,8 @@ export interface components {
             selected: boolean;
         };
         SharingCandidateList: {
+            /** @description The version of what the patient shares with the clinic now, read with the candidates (HistorySharing `versionId`); absent when nothing is shared. Send it as If-Match to change the selection. */
+            versionId?: string;
             candidates: components["schemas"]["SharingCandidate"][];
         };
         SetHistorySharingRequest: {
@@ -3499,6 +3503,7 @@ export interface components {
              * @description The history consent (FHIR Consent); absent when nothing is shared.
              */
             consentId?: string;
+            /** @description Opaque: names the history consent and its version, so a version read of one consent never matches another granted after it. Send it as If-Match, `W/"<versionId>"`. */
             versionId?: string;
             /** @description The encounters shared. */
             shared: string[];
@@ -8609,7 +8614,7 @@ export interface operations {
                     "application/json": components["schemas"]["HistorySharing"];
                 };
             };
-            /** @description `invalid_request`: not the request; `invalid_visit`: a visit that is not a finished one of the patient's at another clinic; `care_consent_required`: no active care consent with the clinic. */
+            /** @description `invalid_request`: not the request; `invalid_visit`: a visit that is not a finished one of the patient's at another clinic. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8630,6 +8635,15 @@ export interface operations {
             };
             /** @description `not_found`: no such clinic. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `care_consent_required`: no active care consent with the clinic. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

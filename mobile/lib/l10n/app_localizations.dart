@@ -726,10 +726,10 @@ abstract class AppLocalizations {
   /// **'Revoke your consent?'**
   String get revokeTitle;
 
-  /// [legal] Dialog text: the effect of revoking.
+  /// [legal] Dialog text: the effect of revoking, including the end of history sharing with the clinic (SAL-42).
   ///
   /// In en, this message translates to:
-  /// **'{clinic} will no longer see your profile. It keeps your name and the details of appointments that have already taken place, as part of its care records. Your future appointments with {clinic} will be cancelled.'**
+  /// **'{clinic} will no longer see your profile. It keeps your name and the details of appointments that have already taken place, as part of its care records. Your future appointments with {clinic} will be cancelled. Any sharing of your history from other clinics with {clinic} ends too; consenting again does not restore it.'**
   String revokeBody(String clinic);
 
   /// Dialog button.
@@ -2765,6 +2765,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This item could not be opened. Try again.'**
   String get historyOpenFailed;
+
+  /// [legal] SAL-42: booking, the switch that shares visits from other clinics with this clinic; off by default. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Share my history from other clinics with this clinic'**
+  String get sharingToggle;
+
+  /// [legal] SAL-42: above the visits to tick, at booking and in Shared history: exactly what the clinic will see, who sees it, and that a shared visit stays shared as it grows (owner, 2026-11-13). Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Tick the previous visits {clinic} may see. For each visit you tick, the doctors at {clinic} you have an appointment with see what is shown here, with the visit\'s documents, questionnaire answers and files, the allergies and medications recorded in it, and anything added to it later. Visits you do not tick stay hidden from {clinic}.'**
+  String sharingIntro(String clinic);
+
+  /// [legal] SAL-42: under the sharing intro: how to change or stop it, and that it takes effect at once. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You can add or remove visits, or stop sharing, at any time under Shared history. Each change takes effect at once.'**
+  String get sharingChangeLater;
+
+  /// SAL-42: the preview when the patient has no finished visit at another clinic. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You have no previous visits at other clinics to share.'**
+  String get sharingNoVisits;
+
+  /// SAL-42: button: tick every visit. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get sharingSelectAll;
+
+  /// SAL-42: button: untick every visit. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Select none'**
+  String get sharingSelectNone;
+
+  /// SAL-42: button on My consents and the title of the screen that manages sharing per clinic. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared history'**
+  String get sharedHistory;
+
+  /// SAL-42: Shared history, above the list of clinics. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'The clinics you have consented to, and how many of your visits from other clinics each one sees.'**
+  String get sharedHistoryIntro;
+
+  /// SAL-42: Shared history without an active care consent. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You have not consented to any clinic yet.'**
+  String get sharedHistoryNone;
+
+  /// SAL-42: Shared history, under a clinic: how many visits are shared with it. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{Nothing shared} one{{count} visit shared} other{{count} visits shared}}'**
+  String sharedVisits(int count);
+
+  /// [legal] SAL-42: after saving the visits shared with a clinic. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your choice is saved and takes effect at once.'**
+  String get sharingSaved;
+
+  /// SAL-42: button: stop sharing history with the clinic (also the dialog's confirm button). Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop sharing'**
+  String get sharingStop;
+
+  /// [legal] SAL-42: dialog title before stopping the sharing. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop sharing your history?'**
+  String get sharingStopTitle;
+
+  /// [legal] SAL-42: dialog text: the effect of stopping the sharing. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{clinic} will no longer see any of the visits from other clinics you shared with it. This takes effect at once.'**
+  String sharingStopBody(String clinic);
+
+  /// SAL-42: dialog button: keep the sharing. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep sharing'**
+  String get sharingKeep;
+
+  /// [legal] SAL-42: after the sharing is stopped. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You no longer share your history with this clinic.'**
+  String get sharingStopped;
+
+  /// SAL-42: the sharing changed on another device since it was read; it is shown again. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your shared visits changed in the meantime. Check them and save again.'**
+  String get sharingChanged;
+
+  /// SAL-42: after a booking whose sharing failed. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your appointment is booked, but your history could not be shared. You can share it under Shared history.'**
+  String get bookedNotShared;
+
+  /// SAL-42: My consents, the label of a history consent. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Visits shared from other clinics'**
+  String get consentForHistory;
 }
 
 class _AppLocalizationsDelegate

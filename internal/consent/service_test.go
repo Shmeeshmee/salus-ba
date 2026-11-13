@@ -82,6 +82,10 @@ type fakeRepository struct {
 	patient  string   // set by SetPatient
 	clinic   string   // set by SetClinic
 	calls    []string // the calls, "outside:" prefixed when made outside a transaction
+	changes  []string // the history consents' changes, "ChangeHistory <id> v<version> +[<added>] -[<removed>]"
+	// race makes GrantHistory and ChangeHistory lose to a concurrent change; refuseVisits makes GrantHistory meet
+	// row-level security's refusal of a visit.
+	race, refuseVisits bool
 }
 
 func newFakeRepository() *fakeRepository {
@@ -195,6 +199,10 @@ func (r *fakeRepository) State(ctx context.Context, patientID, organizationID st
 	for _, c := range r.consents {
 		if c.PatientID == patientID && c.OrganizationID == organizationID && c.Kind == consent.KindTranscription {
 			s.Transcription = s.Transcription || c.Status == consent.StatusActive
+		} else if c.PatientID == patientID && c.OrganizationID == organizationID && c.Kind == consent.KindHistory {
+			if c.Status == consent.StatusActive {
+				s.History, s.Shared = true, shared(c)
+			}
 		} else if c.PatientID == patientID && c.OrganizationID == organizationID {
 			s.Active = s.Active || c.Status == consent.StatusActive
 			if c.RevokedAt.After(s.RevokedAt) {
@@ -219,15 +227,16 @@ func (a *fakeAuditor) Record(_ context.Context, e auditevent.AuditEvent) error {
 }
 
 type fixture struct {
-	repo  *fakeRepository
-	audit *fakeAuditor
-	jobs  *fakeJobs
-	svc   *consent.Service
+	repo   *fakeRepository
+	audit  *fakeAuditor
+	jobs   *fakeJobs
+	visits *fakeVisits
+	svc    *consent.Service
 }
 
 func newFixture() fixture {
-	f := fixture{repo: newFakeRepository(), audit: &fakeAuditor{}, jobs: &fakeJobs{}}
-	f.svc = consent.NewService(f.repo, f.audit, fakeTransactor{audit: f.audit, jobs: f.jobs}, clock.Fixed{T: now}, f.jobs)
+	f := fixture{repo: newFakeRepository(), audit: &fakeAuditor{}, jobs: &fakeJobs{}, visits: &fakeVisits{}}
+	f.svc = consent.NewService(f.repo, f.audit, fakeTransactor{audit: f.audit, jobs: f.jobs}, clock.Fixed{T: now}, f.jobs).WithVisits(f.visits)
 	return f
 }
 
@@ -270,7 +279,8 @@ func TestGrant_StoresAnActiveConsentOfTheCallingPatientAndAuditsIt(t *testing.T)
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("Grant() = %+v, %v;\nwant %+v", got, err, want)
 	}
-	if want := []string{"SetPatient", "Grant"}; !slices.Equal(f.repo.calls, want) || f.repo.patient != patientB {
+	// A care consent ends a history consent left active with the clinic (none here).
+	if want := []string{"SetPatient", "Grant", "RevokeHistory"}; !slices.Equal(f.repo.calls, want) || f.repo.patient != patientB {
 		t.Errorf("calls %v with patient %q, want %v inside the transaction with patient B", f.repo.calls, f.repo.patient, want)
 	}
 	checkEvents(t, "Grant", f.audit, event(other, auditevent.CodeCreate, newID, auditevent.OutcomeSuccess))
@@ -316,7 +326,7 @@ func TestRevoke_EndsTheCallingPatientsActiveConsentAndAuditsIt(t *testing.T) {
 	if err != nil || got.ID != consentAA || got.Status != consent.StatusInactive || !got.RevokedAt.Equal(now) || got.VersionID != 2 {
 		t.Fatalf("Revoke() = %+v, %v; want consent A-A inactive, revoked now, version 2", got, err)
 	}
-	if want := []string{"SetPatient", "ByID", "Revoke care", "RevokeTranscription"}; !slices.Equal(f.repo.calls, want) || f.repo.patient != patientA {
+	if want := []string{"SetPatient", "ByID", "Revoke care", "RevokeTranscription", "RevokeHistory"}; !slices.Equal(f.repo.calls, want) || f.repo.patient != patientA {
 		t.Errorf("calls %v with patient %q, want %v inside the transaction with patient A", f.repo.calls, f.repo.patient, want)
 	}
 	checkEvents(t, "Revoke", f.audit, event(me, auditevent.CodeUpdate, consentAA, auditevent.OutcomeSuccess))
@@ -519,6 +529,13 @@ func TestService_FailsOnARepositoryOrAuditError(t *testing.T) {
 			_, err := s.Grant(t.Context(), other, "x", consent.KindCare)
 			return err
 		},
+		"Candidates": func(s *consent.Service) error { _, err := s.Candidates(t.Context(), me, clinicA); return err },
+		"SetSharing": func(s *consent.Service) error {
+			_, err := s.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{visit1}}, "")
+			return err
+		},
+		"StopSharing": func(s *consent.Service) error { return s.StopSharing(t.Context(), me, clinicA) },
+		"MySharing":   func(s *consent.Service) error { _, err := s.MySharing(t.Context(), me); return err },
 	}
 	boom := errors.New("connection reset")
 	for name, call := range calls {
