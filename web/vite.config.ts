@@ -37,7 +37,7 @@ export default defineConfig({
       '/analytics/clinic': apiUrl, // the clinic's figures (SAL-20); the screen is /analytics itself
       '/analytics/platform': apiUrl, // the All of Salus figures (SAL-21); no screen is under it
       '/patients': apiUrl, // a patient's history and pre-visit summary (SAL-40); no screen is under it
-      '/clinic/': apiUrl, // the admin's clinic settings and SMS usage (SAL-32, SAL-33); /clinic itself is a screen
+      '/clinic/': apiUrl, // the admin's clinic settings, SMS usage and no-show flags (SAL-32, SAL-33, SAL-36); /clinic itself is a screen
       '^/waitlist/.+$': apiUrl, // removing an entry of the waitlist (SAL-35); /waitlist itself is a screen of the app
     },
   },

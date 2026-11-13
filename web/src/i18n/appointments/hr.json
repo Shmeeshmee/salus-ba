@@ -11,6 +11,8 @@
   "change.status.cancelled": "Otkazan",
   "change.status.fulfilled": "Označen kao obavljen",
   "change.status.noshow": "Označen kao nedolazak",
+  "change.corrected.fulfilled": "Ispravljen u obavljen",
+  "change.corrected.noshow": "Ispravljen u nedolazak",
   "via.app": "U aplikaciji",
   "via.link": "Putem poveznice iz podsjetnika",
   "via.staff": "Od strane klinike",

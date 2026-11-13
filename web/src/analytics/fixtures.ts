@@ -183,7 +183,7 @@ export function fixtureStats(reference: Reference, { admin = true, role, contrib
         const booked = Math.round((90 + 40 * unit('booked', period)) * scale)
         const noshow = Math.round(booked * 0.05)
         const cancelled = Math.round(booked * (0.08 + 0.06 * unit('cancelled', period)))
-        return { period, booked, fulfilled: booked - noshow - cancelled, noshow, cancelled }
+        return { period, booked, fulfilled: booked - noshow - cancelled, noshow, cancelled, refilled: Math.round(booked * 0.03 * unit('refilled', period)) }
       })
       const heatmap: ClinicAppointments['heatmap'] = []
       for (let weekday = 1; weekday <= 6; weekday++) {
@@ -191,8 +191,21 @@ export function fixtureStats(reference: Reference, { admin = true, role, contrib
         for (let hour = open; hour < close; hour++) heatmap.push({ weekday, hour, count: Math.round((4 + 20 * unit('h', weekday, hour)) * scale * series.length) })
       }
       const staff = await reference.staff()
-      const practitioners = admin ? staff.map((m) => ({ practitionerRole: m.roleId, fulfilled: Math.round(40 * series.length * unit(m.roleId)) })) : undefined
-      return { series, heatmap, practitioners }
+      const practitioners = admin
+        ? staff.map((m) => {
+            const fulfilled = Math.round(40 * series.length * unit(m.roleId))
+            const noshow = Math.round(fulfilled * 0.06 * unit('noshow', m.roleId))
+            return { practitionerRole: m.roleId, fulfilled, noshow, booked: fulfilled + noshow }
+          })
+        : undefined
+      const specialties = admin
+        ? (await reference.specialties()).map((s) => {
+            const booked = Math.round(60 * series.length * unit(s.code))
+            const noshow = Math.round(booked * 0.05)
+            return { specialty: s.code, booked, fulfilled: booked - noshow, noshow, cancelled: 0 }
+          })
+        : undefined
+      return { series, heatmap, practitioners, specialties }
     },
 
     async clinicDiagnoses(q) {

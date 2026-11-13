@@ -48,7 +48,7 @@ func (s *Stats) Fulfilled(ctx context.Context, orgID string, from, to time.Time,
 func starts(rows []Booked, key []byte) []Start {
 	out := make([]Start, len(rows))
 	for i, b := range rows {
-		out[i] = Start{Start: b.Start, PractitionerRoleID: b.PractitionerRoleID, Status: b.Status}
+		out[i] = Start{Start: b.Start, PractitionerRoleID: b.PractitionerRoleID, Status: b.Status, BookedVia: b.BookedVia}
 		if key != nil {
 			out[i].Patient = pseudonym.Of(key, b.PatientID)
 		}

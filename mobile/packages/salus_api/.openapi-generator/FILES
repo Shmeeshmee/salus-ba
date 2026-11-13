@@ -75,6 +75,7 @@ lib/model/clinic_appointments.dart
 lib/model/clinic_appointments_heatmap_inner.dart
 lib/model/clinic_appointments_practitioners_inner.dart
 lib/model/clinic_appointments_series_inner.dart
+lib/model/clinic_appointments_specialties_inner.dart
 lib/model/clinic_diagnoses.dart
 lib/model/clinic_diagnoses_rows_inner.dart
 lib/model/clinic_waitlist.dart

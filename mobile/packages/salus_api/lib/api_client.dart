@@ -296,6 +296,8 @@ class ApiClient {
           return ClinicAppointmentsPractitionersInner.fromJson(value);
         case 'ClinicAppointmentsSeriesInner':
           return ClinicAppointmentsSeriesInner.fromJson(value);
+        case 'ClinicAppointmentsSpecialtiesInner':
+          return ClinicAppointmentsSpecialtiesInner.fromJson(value);
         case 'ClinicDiagnoses':
           return ClinicDiagnoses.fromJson(value);
         case 'ClinicDiagnosesRowsInner':

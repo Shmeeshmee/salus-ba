@@ -275,12 +275,13 @@ type ReminderEmailArgs struct {
 func (ReminderEmailArgs) Kind() string { return "appointment_reminder_email" }
 
 // Booked is an appointment as the aggregate builds read it from the store (salus_stats): when it starts, whose,
-// with whom, and its status. No slot, no cancellation details.
+// with whom, its status and how it was booked. No slot, no cancellation details.
 type Booked struct {
 	Start              time.Time
 	PatientID          string
 	PractitionerRoleID string
 	Status             Status
+	BookedVia          BookedVia
 }
 
 // Start is an appointment as a build gets it: the patient only as a pseudonym under the build's key
@@ -289,6 +290,7 @@ type Start struct {
 	Start              time.Time
 	PractitionerRoleID string
 	Status             Status
+	BookedVia          BookedVia // how it was booked (SAL-36: the slots refilled from the waitlist)
 	Patient            [32]byte
 }
 
@@ -564,3 +566,12 @@ type OfferExpireArgs struct {
 
 // Kind names the job in river_job.
 func (OfferExpireArgs) Kind() string { return "waitlist_offer_expire" }
+
+// NoShowFlag is the repeat no-show flag beside an appointment, for staff only (SAL-36, Q7): its patient missed
+// NoShows appointments at the clinic in the last WindowDays days. Computed on read, never stored, never shown to
+// the patient and never a reason to refuse a booking.
+type NoShowFlag struct {
+	AppointmentID string
+	NoShows       int
+	WindowDays    int
+}

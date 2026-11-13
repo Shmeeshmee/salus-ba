@@ -62,8 +62,24 @@ describe('AppointmentChanges', () => {
     expect(await screen.findByRole('alert')).toBeTruthy()
   })
 
+  it('describes a correction of the outcome by the clinic (SAL-36)', async () => {
+    renderChanges(() =>
+      Response.json({
+        changes: [
+          { at: '2026-11-04T11:00:00Z', kind: 'status_set', via: 'system', from_status: 'booked', to_status: 'noshow' },
+          { at: '2026-11-05T08:00:00Z', kind: 'status_corrected', via: 'staff', from_status: 'noshow', to_status: 'fulfilled' },
+          { at: '2026-11-06T08:00:00Z', kind: 'status_corrected', via: 'staff', from_status: 'fulfilled', to_status: 'noshow' },
+        ],
+      }),
+    )
+
+    const items = await screen.findAllByRole('listitem')
+    expect(items.map((li) => li.querySelector('span')!.textContent)).toEqual(['Marked no-show', 'Corrected to fulfilled', 'Corrected to no-show'])
+    expect(items[1].textContent).toContain('By the clinic')
+  })
+
   it('leaves out a kind it does not know rather than guess', async () => {
-    renderChanges(() => Response.json({ changes: [{ at: '2026-11-04T11:00:00Z', kind: 'status_corrected', via: 'staff', from_status: 'noshow', to_status: 'fulfilled' }] }))
+    renderChanges(() => Response.json({ changes: [{ at: '2026-11-04T11:00:00Z', kind: 'merged', via: 'staff' }] }))
 
     expect(await screen.findByText('No changes yet.')).toBeTruthy()
   })

@@ -48,7 +48,7 @@ export function AppointmentChanges({ api, id, zone }: { api: ApiClient; id: stri
   )
 }
 
-// describe is what the change c did, or nothing for a kind not described here (SAL-36 adds status_corrected).
+// describe is what the change c did, or nothing for a kind not described here.
 function describe(t: T, f: F, c: Change, zone: string): string | undefined {
   switch (c.kind) {
     case 'confirmed':
@@ -59,6 +59,9 @@ function describe(t: T, f: F, c: Change, zone: string): string | undefined {
     case 'status_set':
       if (c.to_status !== 'cancelled' && c.to_status !== 'fulfilled' && c.to_status !== 'noshow') return undefined
       return t(`appointments.change.status.${c.to_status}`)
+    case 'status_corrected':
+      if (c.to_status !== 'fulfilled' && c.to_status !== 'noshow') return undefined
+      return t(`appointments.change.corrected.${c.to_status}`)
     default:
       return undefined
   }

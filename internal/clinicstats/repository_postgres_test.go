@@ -188,7 +188,7 @@ func TestRepository_SumsTheClinicsCounts(t *testing.T) {
 			t.Errorf("Heatmap() = %v, %v; want %v", heat, err, wantHeat)
 		}
 		totals, err := repo.Practitioners(ctx, org, all)
-		wantTotals := []clinicstats.PractitionerTotal{{PractitionerRoleID: r[0], Fulfilled: 4}, {PractitionerRoleID: r[1], Fulfilled: 1}}
+		wantTotals := []clinicstats.PractitionerTotal{{PractitionerRoleID: r[0], Fulfilled: 4, Booked: 6}, {PractitionerRoleID: r[1], Fulfilled: 1, NoShow: 1, Booked: 5}}
 		if err != nil || !slices.Equal(totals, wantTotals) {
 			t.Errorf("Practitioners() = %v, %v; want %v", totals, err, wantTotals)
 		}

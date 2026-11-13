@@ -60,7 +60,7 @@ RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_rol
 
 -- name: ListBookedForStats :many
 -- A clinic's appointments starting in [from, to), oldest first: the columns salus_stats may read.
-SELECT lower(period)::timestamptz AS start_at, patient_id, practitioner_role_id, status
+SELECT lower(period)::timestamptz AS start_at, patient_id, practitioner_role_id, status, booked_via
 FROM appointment
 WHERE organization_id = @organization_id AND lower(period) >= @from_at::timestamptz AND lower(period) < @to_at::timestamptz
 ORDER BY lower(period), status;
@@ -357,3 +357,24 @@ WHERE closed_at < @before::timestamptz OR (status = 'active' AND ends_at < @befo
 DELETE FROM waitlist_offer o
 USING waitlist_entry e
 WHERE o.entry_id = e.id AND (e.closed_at < @before::timestamptz OR (e.status = 'active' AND e.ends_at < @before::timestamptz));
+
+-- SAL-36 (docs/plans/appointments.md): no-shows.
+
+-- name: CorrectAppointmentStatus :one
+-- A no-show corrected into an attendance or back: only from the status the correction names, and only between those
+-- two.
+UPDATE appointment
+SET status = @to_status::text, updated_at = @at, version_id = version_id + 1
+WHERE id = @id AND status = @from_status::text AND status IN ('fulfilled', 'noshow') AND @to_status::text IN ('fulfilled', 'noshow')
+RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+          lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;
+
+-- name: CountNoShowsSince :many
+-- Each patient's noshow appointments at the clinic that started in [since, until], in one query for a range's
+-- patients (the repeat no-show flag); a patient without any has no row.
+SELECT patient_id, count(*)::integer AS noshows
+FROM appointment
+WHERE organization_id = @organization_id AND patient_id = ANY (@patient_ids::uuid[]) AND status = 'noshow'
+  AND lower(period) >= @since::timestamptz AND lower(period) <= @until::timestamptz
+GROUP BY patient_id;

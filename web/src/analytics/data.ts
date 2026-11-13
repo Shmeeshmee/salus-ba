@@ -134,3 +134,11 @@ export function monthsBetween(from: Month, to: Month): Month[] {
     if (m > 12) [y, m] = [y + 1, 1]
   }
 }
+
+// noShowRate is the share of the closed appointments that were missed, in whole percent: no-shows over fulfilled
+// plus no-shows (booked ones are still ahead, cancelled ones were never due). None without any closed one: that is
+// not a perfect record.
+export function noShowRate(noshow: number, fulfilled: number): number | undefined {
+  const closed = noshow + fulfilled
+  return closed === 0 ? undefined : Math.round((100 * noshow) / closed)
+}

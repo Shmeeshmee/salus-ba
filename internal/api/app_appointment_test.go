@@ -158,7 +158,8 @@ func checkMarking(t *testing.T, d directory, owner *pgxpool.Pool) {
 		{d.patient, "the patient", `{"status":"fulfilled"}`, http.StatusForbidden},
 		{d.practitioner, "a status that is not theirs to set", `{"status":"cancelled"}`, http.StatusBadRequest},
 		{d.practitioner, "the practitioner", `{"status":"fulfilled"}`, http.StatusOK},
-		{d.practitioner, "the practitioner again", `{"status":"noshow"}`, http.StatusConflict},
+		// Marked once: the same status again is closed (a noshow would be a correction, SAL-36's Q6).
+		{d.practitioner, "the practitioner again", `{"status":"fulfilled"}`, http.StatusConflict},
 	} {
 		if rec := tt.c.do(http.MethodPost, path, tt.body); rec.Code != tt.status {
 			t.Errorf("POST %s as %s = %d %s, want %d", path, tt.name, rec.Code, rec.Body, tt.status)

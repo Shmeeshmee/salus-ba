@@ -2246,3 +2246,36 @@ as the patient's.
 | A waitlist that a patient forgot keeps their data | Entries end after their last day (at most 90 days ahead) and are deleted 30 days after they close or end, with their offers |
 | A held slot stays hidden after its offer ended | Every decline, withdrawal and expiry hands the slot on in a job that locks it; with nobody matching it is free again |
 | An offer disturbs a patient at night or by an unwanted channel | Offers go through SAL-33's deliveries: the patient's channels and the SMS opt-in apply, a push or SMS inside quiet hours is held or dropped, and a patient inside their quiet hours is passed over for an offer |
+
+### SAL-36: no-shows, their correction and the clinic's reports (migration 00057, renumbered at merge)
+
+**Processing added.** The practitioner marks a no-show (as before) or the system does at the consultation's end
+(the window closes after the practitioner joined and the patient never did); both are kept in `appointment_change`
+(`status_set`, `via` `staff` or `system`). The appointment's practitioner and the clinic's admin may correct a no-show
+into an attendance and back within 30 days of the start (owner, Q6), each correction a `status_corrected` row by
+staff, audited as an update. The repeat no-show flag (owner, Q7): with the clinic's threshold on (off by default),
+staff see "N no-shows in the last D days" beside a patient's appointments, counted on read from the patient's
+appointments at that clinic in the clinic's scope, never stored. `clinic_appointment_stat` gains `booked_via`
+(counts only), and the clinic's figures gain the slots refilled from the waitlist, the no-shows and bookings per
+practitioner role, and the figures per specialty. Lawful basis as for the appointment: the clinic's care record and
+the management of its services (Art. 9(2)(h)).
+
+**Personal data added.** None stored: the flag is computed on read; the history's columns are step 0's; the new
+statistics column is a count's dimension, with no patient identifier.
+
+**Who sees what.** The flag: the clinic's staff only, for the appointments they see in full (`access.Appointment`:
+a practitioner their own role's, the admin the clinic's with the patient's care consent active); a patient's request
+is refused (404) and audited. It never refuses or delays a booking and is not shown in the patient's app. Every appointment of the range the caller sees in full is audited, flagged or not (that one is not flagged also says
+something of its patient). The figures per practitioner and per specialty: the admin only (SAL-20's rule
+C2: a specialty with one practitioner is that colleague's figures).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A patient labelled unreliable and refused care | The flag is staff-only and advisory: no booking path reads it (Q7); it is off until the admin sets a threshold; prepayment or protection waits for SAL-23 and SAL-37 and their own DPIA |
+| A wrong no-show (a connection failure, a late practitioner) counting against a patient | The practitioner or the admin corrects it within 30 days, kept in the history; the system marks a no-show only when the practitioner joined and the patient never did (a practitioner who never joined leaves the appointment booked) |
+| A correction rewriting history | `appointment_change` is append-only; a correction is a new row with who made it; corrections only between `noshow` and `fulfilled`, refused after 30 days (service, and the SQL moves only from the status named) |
+| The flag revealing a patient's attendance at the clinic to staff outside their care | Only for appointments the caller sees in full; counted only from the patient's appointments at the caller's own clinic, in its row-level security scope (after a revocation the future appointments are not seen, so not flagged) |
+| No-show counts per practitioner as employee monitoring | Admins only, as SAL-20's per-practitioner figures; open question L5 stands |
+| Waitlist bookings singling out a patient in small counts | Counts only, inside the clinic that holds the records |

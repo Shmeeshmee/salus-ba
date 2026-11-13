@@ -56,8 +56,9 @@ describe('Analytics tabs', () => {
 describe('My clinic', () => {
   it('gives an admin the practitioner filter and breakdown', async () => {
     show(fixtureData({ admin: true }))
-    expect(await screen.findByRole('figure', { name: 'Attended appointments by practitioner' })).toBeTruthy()
-    expect(await screen.findByRole('img', { name: /^Cy Example: / })).toBeTruthy()
+    const attended = await screen.findByRole('figure', { name: 'Attended appointments by practitioner' })
+    expect(await within(attended).findByRole('img', { name: /^Cy Example: / })).toBeTruthy()
+    expect(await screen.findByRole('figure', { name: 'No-show rate by practitioner' })).toBeTruthy()
     expect(screen.getByLabelText('Practitioner')).toBeTruthy()
   })
 
@@ -67,6 +68,8 @@ describe('My clinic', () => {
     expect(screen.queryByLabelText('Practitioner')).toBeNull()
     expect(screen.queryByLabelText('Specialty')).toBeNull()
     expect(screen.queryByRole('figure', { name: 'Attended appointments by practitioner' })).toBeNull()
+    expect(screen.queryByRole('figure', { name: 'No-show rate by specialty' })).toBeNull()
+    expect(screen.getByRole('figure', { name: 'No-show rate per month' })).toBeTruthy()
     expect(screen.getByText('Only the diagnoses you recorded are shown.')).toBeTruthy()
   })
 
@@ -98,7 +101,7 @@ describe('My clinic', () => {
   })
 
   it('draws every month of the range, a month the API leaves out as 0', async () => {
-    const series = [{ period: '2026-11', booked: 3, fulfilled: 2, noshow: 0, cancelled: 1 }]
+    const series = [{ period: '2026-11', booked: 3, fulfilled: 2, noshow: 0, cancelled: 1, refilled: 0 }]
     show({ ...fixtureData(), clinicAppointments: async () => ({ series, heatmap: [] }) })
     const chart = await screen.findByRole('figure', { name: 'Appointments per month' })
     await waitFor(() => expect(within(chart).getAllByRole('img')).toHaveLength(12 * 4))

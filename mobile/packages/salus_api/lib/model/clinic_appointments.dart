@@ -16,6 +16,7 @@ class ClinicAppointments {
     this.series = const [],
     this.heatmap = const [],
     this.practitioners = const [],
+    this.specialties = const [],
   });
 
   List<ClinicAppointmentsSeriesInner> series;
@@ -25,28 +26,36 @@ class ClinicAppointments {
   /// For the clinic's admin only.
   List<ClinicAppointmentsPractitionersInner> practitioners;
 
+  /// For the clinic's admin only (SAL-36), most booked first.
+  List<ClinicAppointmentsSpecialtiesInner> specialties;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ClinicAppointments &&
           _deepEquality.equals(other.series, series) &&
           _deepEquality.equals(other.heatmap, heatmap) &&
-          _deepEquality.equals(other.practitioners, practitioners);
+          _deepEquality.equals(other.practitioners, practitioners) &&
+          _deepEquality.equals(other.specialties, specialties);
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (series.hashCode) + (heatmap.hashCode) + (practitioners.hashCode);
+      (series.hashCode) +
+      (heatmap.hashCode) +
+      (practitioners.hashCode) +
+      (specialties.hashCode);
 
   @override
   String toString() =>
-      'ClinicAppointments[series=$series, heatmap=$heatmap, practitioners=$practitioners]';
+      'ClinicAppointments[series=$series, heatmap=$heatmap, practitioners=$practitioners, specialties=$specialties]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'series'] = this.series;
     json[r'heatmap'] = this.heatmap;
     json[r'practitioners'] = this.practitioners;
+    json[r'specialties'] = this.specialties;
     return json;
   }
 
@@ -77,6 +86,8 @@ class ClinicAppointments {
         heatmap: ClinicAppointmentsHeatmapInner.listFromJson(json[r'heatmap']),
         practitioners: ClinicAppointmentsPractitionersInner.listFromJson(
             json[r'practitioners']),
+        specialties: ClinicAppointmentsSpecialtiesInner.listFromJson(
+            json[r'specialties']),
       );
     }
     return null;

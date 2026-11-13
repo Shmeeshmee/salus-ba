@@ -18,6 +18,7 @@ class ClinicAppointmentsSeriesInner {
     required this.fulfilled,
     required this.noshow,
     required this.cancelled,
+    required this.refilled,
   });
 
   /// The month, YYYY-MM.
@@ -32,6 +33,9 @@ class ClinicAppointmentsSeriesInner {
 
   int cancelled;
 
+  /// Booked through the waitlist (a freed slot refilled), whatever the status now (SAL-36).
+  int refilled;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -40,7 +44,8 @@ class ClinicAppointmentsSeriesInner {
           other.booked == booked &&
           other.fulfilled == fulfilled &&
           other.noshow == noshow &&
-          other.cancelled == cancelled;
+          other.cancelled == cancelled &&
+          other.refilled == refilled;
 
   @override
   int get hashCode =>
@@ -49,11 +54,12 @@ class ClinicAppointmentsSeriesInner {
       (booked.hashCode) +
       (fulfilled.hashCode) +
       (noshow.hashCode) +
-      (cancelled.hashCode);
+      (cancelled.hashCode) +
+      (refilled.hashCode);
 
   @override
   String toString() =>
-      'ClinicAppointmentsSeriesInner[period=$period, booked=$booked, fulfilled=$fulfilled, noshow=$noshow, cancelled=$cancelled]';
+      'ClinicAppointmentsSeriesInner[period=$period, booked=$booked, fulfilled=$fulfilled, noshow=$noshow, cancelled=$cancelled, refilled=$refilled]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -62,6 +68,7 @@ class ClinicAppointmentsSeriesInner {
     json[r'fulfilled'] = this.fulfilled;
     json[r'noshow'] = this.noshow;
     json[r'cancelled'] = this.cancelled;
+    json[r'refilled'] = this.refilled;
     return json;
   }
 
@@ -96,6 +103,10 @@ class ClinicAppointmentsSeriesInner {
             'Required key "ClinicAppointmentsSeriesInner[cancelled]" is missing from JSON.');
         assert(json[r'cancelled'] != null,
             'Required key "ClinicAppointmentsSeriesInner[cancelled]" has a null value in JSON.');
+        assert(json.containsKey(r'refilled'),
+            'Required key "ClinicAppointmentsSeriesInner[refilled]" is missing from JSON.');
+        assert(json[r'refilled'] != null,
+            'Required key "ClinicAppointmentsSeriesInner[refilled]" has a null value in JSON.');
         return true;
       }());
 
@@ -105,6 +116,7 @@ class ClinicAppointmentsSeriesInner {
         fulfilled: mapValueOfType<int>(json, r'fulfilled')!,
         noshow: mapValueOfType<int>(json, r'noshow')!,
         cancelled: mapValueOfType<int>(json, r'cancelled')!,
+        refilled: mapValueOfType<int>(json, r'refilled')!,
       );
     }
     return null;
@@ -166,5 +178,6 @@ class ClinicAppointmentsSeriesInner {
     'fulfilled',
     'noshow',
     'cancelled',
+    'refilled',
   };
 }

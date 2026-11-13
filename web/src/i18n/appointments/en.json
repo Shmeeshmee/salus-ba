@@ -11,6 +11,8 @@
   "change.status.cancelled": "Cancelled",
   "change.status.fulfilled": "Marked fulfilled",
   "change.status.noshow": "Marked no-show",
+  "change.corrected.fulfilled": "Corrected to fulfilled",
+  "change.corrected.noshow": "Corrected to no-show",
   "via.app": "In the app",
   "via.link": "Through the reminder link",
   "via.staff": "By the clinic",

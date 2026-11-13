@@ -402,6 +402,7 @@ type ClinicAppointmentStat struct {
 	Hour               int16
 	SpecialtyCode      string
 	Status             string
+	BookedVia          string
 }
 
 type ClinicDiagnosisStat struct {

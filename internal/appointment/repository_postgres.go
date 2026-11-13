@@ -207,7 +207,7 @@ func (r *postgresStatsRepository) Booked(ctx context.Context, orgID string, from
 	out := make([]Booked, len(rows))
 	for i, row := range rows {
 		out[i] = Booked{Start: row.StartAt.Time.UTC(), PatientID: row.PatientID.String(),
-			PractitionerRoleID: row.PractitionerRoleID.String(), Status: Status(row.Status)}
+			PractitionerRoleID: row.PractitionerRoleID.String(), Status: Status(row.Status), BookedVia: BookedVia(row.BookedVia)}
 	}
 	return out, nil
 }
@@ -806,4 +806,46 @@ func pgDate(t time.Time) pgtype.Date {
 // minute is v of t as a column, null for any time of day.
 func minute(t Times, v int) pgtype.Int2 {
 	return pgtype.Int2{Int16: int16(v), Valid: !t.Any()} //nolint:gosec // minutes of a day
+}
+
+// NewPostgresNoShowRepository returns the NoShowRepository on db (salus_app), in the transaction in the context when
+// there is one (SAL-36).
+func NewPostgresNoShowRepository(db postgres.Querier) NoShowRepository {
+	return &postgresRepository{db: db}
+}
+
+func (r *postgresRepository) CorrectStatus(ctx context.Context, id string, from, to Status, at time.Time) (Appointment, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Appointment{}, ErrClosed
+	}
+	row, err := r.q(ctx).CorrectAppointmentStatus(ctx, appointmentdb.CorrectAppointmentStatusParams{
+		ID: u, FromStatus: string(from), ToStatus: string(to), At: ts(at),
+	})
+	return changed(appointmentdb.AppointmentByIDRow(row), err)
+}
+
+func (r *postgresRepository) NoShowsSince(ctx context.Context, org string, patientIDs []string, since, until time.Time) (map[string]int, error) {
+	var o pgtype.UUID
+	if o.Scan(org) != nil {
+		return map[string]int{}, nil
+	}
+	ids := make([]pgtype.UUID, 0, len(patientIDs))
+	for _, p := range patientIDs {
+		var u pgtype.UUID
+		if u.Scan(p) == nil {
+			ids = append(ids, u)
+		}
+	}
+	rows, err := r.q(ctx).CountNoShowsSince(ctx, appointmentdb.CountNoShowsSinceParams{
+		OrganizationID: o, PatientIds: ids, Since: ts(since), Until: ts(until),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]int, len(rows))
+	for _, row := range rows {
+		out[row.PatientID.String()] = int(row.Noshows)
+	}
+	return out, nil
 }

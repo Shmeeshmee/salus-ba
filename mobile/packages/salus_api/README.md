@@ -89,7 +89,7 @@ Class | Method | HTTP request | Description
 *AppointmentsApi* | [**listNoShowFlags**](doc//AppointmentsApi.md#listnoshowflags) | **GET** /clinic/noshow-flags | Repeat no-show flags beside the calendar's appointments
 *AppointmentsApi* | [**rescheduleAppointment**](doc//AppointmentsApi.md#rescheduleappointment) | **POST** /appointments/{id}/reschedule | The patient moves their appointment to another free slot of the same practitioner role
 *AppointmentsApi* | [**setAppointmentSettings**](doc//AppointmentsApi.md#setappointmentsettings) | **PUT** /clinic/appointment-settings | Replace the admin's clinic's appointment settings
-*AppointmentsApi* | [**setAppointmentStatus**](doc//AppointmentsApi.md#setappointmentstatus) | **POST** /appointments/{id}/status | Mark an appointment fulfilled or no-show
+*AppointmentsApi* | [**setAppointmentStatus**](doc//AppointmentsApi.md#setappointmentstatus) | **POST** /appointments/{id}/status | Mark an appointment fulfilled or no-show, or correct it
 *AttachmentsApi* | [**deleteBinary**](doc//AttachmentsApi.md#deletebinary) | **DELETE** /binaries/{id} | Remove a file from an answer
 *AttachmentsApi* | [**getBinary**](doc//AttachmentsApi.md#getbinary) | **GET** /binaries/{id} | Read a file's status
 *AttachmentsApi* | [**getBinaryContent**](doc//AttachmentsApi.md#getbinarycontent) | **GET** /binaries/{id}/content | Download a file
@@ -266,6 +266,7 @@ Class | Method | HTTP request | Description
  - [ClinicAppointmentsHeatmapInner](doc//ClinicAppointmentsHeatmapInner.md)
  - [ClinicAppointmentsPractitionersInner](doc//ClinicAppointmentsPractitionersInner.md)
  - [ClinicAppointmentsSeriesInner](doc//ClinicAppointmentsSeriesInner.md)
+ - [ClinicAppointmentsSpecialtiesInner](doc//ClinicAppointmentsSpecialtiesInner.md)
  - [ClinicDiagnoses](doc//ClinicDiagnoses.md)
  - [ClinicDiagnosesRowsInner](doc//ClinicDiagnosesRowsInner.md)
  - [ClinicWaitlist](doc//ClinicWaitlist.md)

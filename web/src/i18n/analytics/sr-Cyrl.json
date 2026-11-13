@@ -73,5 +73,14 @@
   "weekday": "Дан",
   "fewer": "Мање",
   "more": "Више",
-  "openBar": "{name}. Отвори рашчлањавање"
+  "openBar": "{name}. Отвори рашчлањавање",
+  "noShowRate": "Стопа недолазака по мјесецима",
+  "noShowRatePercent": "Стопа недолазака (%)",
+  "refilled": "Термини попуњени са листе чекања",
+  "refilledSlots": "Попуњени термини",
+  "noShowRateByPractitioner": "Стопа недолазака по љекару",
+  "noShowRateBySpecialty": "Стопа недолазака по специјалности",
+  "percent": "Проценат обављених и пропуштених термина",
+  "noSpecialty": "Без специјалности",
+  "noClosedAppointments": "Нема затворених термина"
 }

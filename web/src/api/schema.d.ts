@@ -578,8 +578,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Mark an appointment fulfilled or no-show
-         * @description The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once, kept in its history (GET /appointments/{id}/changes). From SAL-36 the practitioner and the clinic's admin also correct a `noshow` to `fulfilled` and back within 30 days of the start (409 `correction_window_closed` after). Not cached. Audited, also when refused.
+         * Mark an appointment fulfilled or no-show, or correct it
+         * @description The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once, kept in its history (GET /appointments/{id}/changes). The practitioner and the clinic's admin also correct a `noshow` to `fulfilled` and back within 30 days of the start (SAL-36, docs/plans/appointments.md Q6), kept in its history as `status_corrected`; 409 `correction_window_closed` after. Not cached. Audited, also when refused.
          */
         post: operations["setAppointmentStatus"];
         delete?: never;
@@ -2245,7 +2245,7 @@ export interface paths {
         };
         /**
          * The clinic's appointments over time
-         * @description The caller's clinic's appointments (docs/plans/analytics.md §4, §8), from the pre-computed counts (refreshed within seconds of a change, and nightly): per month of the clinic's local days from `from` to `to`, `booked` counting every appointment and the others those with that status now; the heatmap of the ones not cancelled by ISO weekday (1 is Monday) and local hour, busy cells only; and, for the clinic's admin only, the fulfilled ones per practitioner role (absent for anyone else). A practitioner who is not an admin may narrow to their own role only, never to a specialty. Every read is audited on the clinic.
+         * @description The caller's clinic's appointments (docs/plans/analytics.md §4, §8), from the pre-computed counts (refreshed within seconds of a change, and nightly): per month of the clinic's local days from `from` to `to`, `booked` counting every appointment, the others those with that status now and `refilled` those booked through the waitlist (SAL-36); the heatmap of the ones not cancelled by ISO weekday (1 is Monday) and local hour, busy cells only; and, for the clinic's admin only, the figures per practitioner role and per specialty (absent for anyone else). The no-show rate is the client's: `noshow` over `fulfilled` plus `noshow` (the appointments that were due and closed). A practitioner who is not an admin may narrow to their own role only, never to a specialty. Every read is audited on the clinic.
          */
         get: operations["getClinicAppointmentStats"];
         put?: never;
@@ -2594,7 +2594,7 @@ export interface paths {
         };
         /**
          * Repeat no-show flags beside the calendar's appointments
-         * @description For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) the caller sees in full whose patient missed at least the threshold in the window; empty when the rule is off. Computed on read, never stored. Built in SAL-36 (404 until then).
+         * @description For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) (at most 62 days) the caller sees in full whose patient missed at least the threshold of appointments at the clinic in the last `window_days` days (`noshows` of them); empty when the rule is off. Computed on read, never stored, never shown to the patient and never a reason to refuse a booking (docs/plans/appointments.md Q7). Every appointment of the range seen in full is audited, flagged or not. Not cached.
          */
         get: operations["listNoShowFlags"];
         put?: never;
@@ -3358,7 +3358,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed";
             /** @description With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
@@ -4343,6 +4343,11 @@ export interface components {
                 noshow: number;
                 /** Format: int64 */
                 cancelled: number;
+                /**
+                 * Format: int64
+                 * @description Booked through the waitlist (a freed slot refilled), whatever the status now (SAL-36).
+                 */
+                refilled: number;
             }[];
             heatmap: {
                 /** @description ISO weekday, 1 is Monday. */
@@ -4358,6 +4363,26 @@ export interface components {
                 practitionerRole: string;
                 /** Format: int64 */
                 fulfilled: number;
+                /** Format: int64 */
+                noshow: number;
+                /**
+                 * Format: int64
+                 * @description Every appointment of the role (SAL-36).
+                 */
+                booked: number;
+            }[];
+            /** @description For the clinic's admin only (SAL-36), most booked first. */
+            specialties?: {
+                /** @description The role's SNOMED CT specialty code; empty for roles without one. */
+                specialty: string;
+                /** Format: int64 */
+                booked: number;
+                /** Format: int64 */
+                fulfilled: number;
+                /** Format: int64 */
+                noshow: number;
+                /** Format: int64 */
+                cancelled: number;
             }[];
         };
         ClinicDiagnoses: {
@@ -6684,7 +6709,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `forbidden`: a patient or an admin; the clinic sees the appointment at the name, times and status only; or `csrf`. */
+            /** @description `forbidden`: a patient; an admin marking a booked appointment, or correcting one they may not (another clinic's, an unknown id); the clinic sees the appointment at the name, times and status only; or `csrf`. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6702,7 +6727,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `appointment_not_started`: the start has not passed; `appointment_closed`: the appointment is no longer booked. */
+            /** @description `appointment_not_started`: the start has not passed; `appointment_closed`: the appointment is no longer booked (and the request is not a correction); `correction_window_closed`: a correction more than 30 days after the start. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11224,16 +11249,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The flags. */
+            /** @description The flags, by the appointments' start. */
             200: {
                 headers: {
+                    "Cache-Control"?: "no-store";
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["NoShowFlags"];
                 };
             };
-            /** @description `invalid_request`. */
+            /** @description `invalid_request`: `from` or `to` missing or not RFC 3339, reversed, or more than 62 days apart. */
             400: {
                 headers: {
                     [name: string]: unknown;

@@ -86,6 +86,24 @@ func TestWaitlist_AFreedSlotIsOfferedAndAcceptedThroughTheApp(t *testing.T) {
 	if len(list.Entries) != 1 || list.Entries[0].Entry.ID != entry.ID {
 		t.Errorf("the clinic's booked waitlist %+v, want the one entry", list.Entries)
 	}
+	refilledInReports(t, clinic.admin, start.In(loc))
+}
+
+// refilledInReports waits for the clinic's statistics (SAL-36) to count the acceptance's appointment, which starts at
+// start, as a slot refilled from the waitlist: the worker's refresh after the real acceptance writes booked_via.
+func refilledInReports(t *testing.T, admin *api, start time.Time) {
+	t.Helper()
+	day := start.Format(time.DateOnly)
+	eventually(t, "the clinic's statistics count the slot refilled from the waitlist", func() bool {
+		var figures struct {
+			Series []struct {
+				Period   string
+				Refilled int64
+			}
+		}
+		admin.must(http.StatusOK, http.MethodGet, "/analytics/clinic/appointments?from="+day+"&to="+day, nil, &figures)
+		return len(figures.Series) == 1 && figures.Series[0].Refilled == 1
+	})
 }
 
 // freeSlotAfter returns a free slot of the schedule that starts at least after from now (within the next three days), and

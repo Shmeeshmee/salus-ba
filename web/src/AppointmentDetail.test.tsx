@@ -42,6 +42,7 @@ function renderDetail(account: Account, routes: Record<string, Route>, now = aft
     ...clinicRoute,
     [statusGet]: () => apiError(404, 'not_found'),
     [questionnaireSearch]: () => fhirJSON({ resourceType: 'Bundle', type: 'searchset' }),
+    'GET /clinic/noshow-flags': () => Response.json({ flags: [] }),
     [`GET /patients/${patientId}/history`]: () => Response.json({ items: [] }),
     [`GET /patients/${patientId}/history/summary`]: () => Response.json({ allergies: [], medications: [], openItems: [] }),
     ...routes,
@@ -145,12 +146,18 @@ describe('AppointmentDetail', () => {
     expect(requests.filter((r) => r.method === 'POST')).toHaveLength(0)
   })
 
-  it('shows no actions on an appointment that is no longer booked', async () => {
-    renderDetail(practitioner, { [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }), [patientRead]: () => outcome(404, 'not-found') })
+  it('shows no actions on an appointment that is no longer booked, but the correction of its outcome', async () => {
+    renderDetail(practitioner, { [read]: () => fhirJSON({ ...booked, status: 'cancelled' }), [patientRead]: () => outcome(404, 'not-found') })
 
-    expect(await screen.findByText('Fulfilled')).toBeTruthy()
+    expect(await screen.findByText('Cancelled')).toBeTruthy()
     // Only the toggles of the history and the changes, which open a view, not an action on the appointment.
     expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history', 'Show changes'])
+    cleanup()
+
+    // A fulfilled one may be corrected within 30 days (SAL-36, docs/plans/appointments.md Q6), and nothing else.
+    renderDetail(practitioner, { [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }), [patientRead]: () => outcome(404, 'not-found') })
+    expect(await screen.findByText('Fulfilled')).toBeTruthy()
+    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history', 'Show changes', 'Correct to no-show'])
   })
 
   it.each([

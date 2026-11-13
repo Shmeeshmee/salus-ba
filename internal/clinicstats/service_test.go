@@ -19,6 +19,7 @@ type fakeRepo struct {
 	series   []clinicstats.Period
 	heatmap  []clinicstats.HeatCell
 	totals   []clinicstats.PractitionerTotal
+	special  []clinicstats.SpecialtyTotal
 	readOrgs []string
 }
 
@@ -42,6 +43,11 @@ func (f *fakeRepo) Practitioners(_ context.Context, org string, q clinicstats.Ap
 	return f.totals, nil
 }
 
+func (f *fakeRepo) Specialties(_ context.Context, org string, q clinicstats.AppointmentQuery) ([]clinicstats.SpecialtyTotal, error) {
+	f.readOrgs, f.asked = append(f.readOrgs, org), append(f.asked, q)
+	return f.special, nil
+}
+
 func (f *fakeRepo) Diagnoses(_ context.Context, org string, q clinicstats.DiagnosisQuery) ([]clinicstats.Count, error) {
 	f.readOrgs, f.asked = append(f.readOrgs, org), append(f.asked, q)
 	return f.rows, f.err
@@ -59,6 +65,7 @@ func newReadFixture() *readFixture {
 			series:  []clinicstats.Period{{Period: "2026-01", Booked: 3, Fulfilled: 2, Cancelled: 1}},
 			heatmap: []clinicstats.HeatCell{{Weekday: 1, Hour: 9, Count: 2}},
 			totals:  []clinicstats.PractitionerTotal{{PractitionerRoleID: roleA1, Fulfilled: 2}},
+			special: []clinicstats.SpecialtyTotal{{Specialty: "394814009", Booked: 3, Fulfilled: 2}},
 			rows:    []clinicstats.Count{{Key: "respiratory-infections", Count: 31}},
 		},
 		audit: &fakeAuditor{},

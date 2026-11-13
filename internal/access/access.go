@@ -140,6 +140,17 @@ func RecordsOutcome(v Viewer, f Facts, a Visit) bool {
 	return f.Consent.Active || past(f, a)
 }
 
+// CorrectsOutcome reports whether viewer may correct how appointment a went, noshow into fulfilled or back (SAL-36,
+// docs/plans/appointments.md Q6): whoever records it (RecordsOutcome), and the clinic's admin with an active consent
+// or, after a revocation, for a past appointment. That the correction is within 30 days of the start is the
+// service's check.
+func CorrectsOutcome(v Viewer, f Facts, a Visit) bool {
+	if v.Role == RoleAdmin && staffOf(v, f) {
+		return f.Consent.Active || past(f, a)
+	}
+	return RecordsOutcome(v, f, a)
+}
+
 // QuestionnaireResponse is what viewer may see of the patient's questionnaire response to appointment a
 // (docs/questionnaire/SPEC.md §2 "Access rule"), submitted or not: the patient everything; with an active
 // consent, the appointment's practitioner everything once submitted and the name (that it exists, its status)

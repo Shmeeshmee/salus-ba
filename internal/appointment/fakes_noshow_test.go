@@ -1,0 +1,81 @@
+package appointment_test
+
+import (
+	"context"
+	"slices"
+	"time"
+
+	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/organization"
+)
+
+// fakeNoShows corrects the appointments of the fixture's repository as the UPDATE policies let it: an appointment
+// the scope shows, in the status it is corrected from.
+type fakeNoShows struct{ r *fakeRepository }
+
+func (n fakeNoShows) CorrectStatus(ctx context.Context, id string, from, to appointment.Status, at time.Time) (appointment.Appointment, error) {
+	n.r.seen(ctx, "CorrectStatus:"+string(to))
+	if n.r.err != nil {
+		return appointment.Appointment{}, n.r.err
+	}
+	for i, a := range n.r.appts {
+		if a.ID == id && n.r.visible(a) && a.Status == from {
+			a.Status, a.LastUpdated = to, at
+			a.VersionID++
+			n.r.appts[i] = a
+			return a, nil
+		}
+	}
+	return appointment.Appointment{}, appointment.ErrClosed
+}
+
+// NoShowsSince counts, as the clinic's scope shows them, the noshow appointments of each patient at org that started
+// in [since, until].
+func (n fakeNoShows) NoShowsSince(ctx context.Context, org string, patients []string, since, until time.Time) (map[string]int, error) {
+	n.r.seen(ctx, "NoShowsSince")
+	if n.r.err != nil {
+		return nil, n.r.err
+	}
+	out := map[string]int{}
+	for _, a := range n.r.appts {
+		if n.r.visible(a) && a.OrganizationID == org && slices.Contains(patients, a.PatientID) && a.Status == appointment.StatusNoShow &&
+			!a.Start.Before(since) && !a.Start.After(until) {
+			out[a.PatientID]++
+		}
+	}
+	return out, nil
+}
+
+// noShowFixture is cancelFixture with the no-show ports, and clinic A's flag at threshold with a window of days.
+func noShowFixture(at time.Time, threshold, days int) (*fixture, *fakeRules) {
+	f := withNoShows(cancelFixture(at), threshold, days)
+	return f, f.rules
+}
+
+// racedNoShows is fakeNoShows after another correction committed first: the appointment is no longer in the status
+// it is corrected from.
+type racedNoShows struct{ fakeNoShows }
+
+func (n racedNoShows) CorrectStatus(ctx context.Context, id string, _, to appointment.Status, at time.Time) (appointment.Appointment, error) {
+	return n.fakeNoShows.CorrectStatus(ctx, id, to, to, at)
+}
+
+// withNoShows gives f's Service the no-show ports, and clinic A's flag at threshold with a window of days.
+func withNoShows(f *fixture, threshold, days int) *fixture {
+	set := organization.DefaultAppointmentSettings()
+	set.NoShowFlagThreshold, set.NoShowFlagWindowDays = threshold, days
+	if f.rules.settings == nil {
+		f.rules.settings = map[string]organization.AppointmentSettings{}
+	}
+	f.rules.settings[clinicA] = set
+	p := f.svc.Ports
+	p.NoShows = fakeNoShows{r: f.repo}
+	f.svc = appointment.NewService(p)
+	return f
+}
+
+// withStatus is a with status.
+func withStatus(a appointment.Appointment, status appointment.Status) appointment.Appointment {
+	a.Status = status
+	return a
+}

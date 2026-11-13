@@ -57,6 +57,11 @@ var (
 	// ErrReminderGone is returned for a reminder that is no longer to be sent: already dispatched, cancelled or skipped,
 	// or its appointment no longer booked at the start it was scheduled for, or started (SAL-33).
 	ErrReminderGone = errors.New("appointment: reminder no longer applies")
+	// ErrCorrectionWindowClosed is returned when a no-show or an attendance is corrected more than 30 days after the
+	// start (SAL-36, Q6).
+	ErrCorrectionWindowClosed = errors.New("appointment: correction window closed")
+	// ErrInvalidRange is returned for a range of the no-show flags that is missing, reversed or too long (SAL-36).
+	ErrInvalidRange = errors.New("appointment: invalid range")
 )
 
 // ErrShortKey is returned for a pseudonym key shorter than 32 bytes (nil asks for no pseudonyms at all).
