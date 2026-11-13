@@ -5,8 +5,10 @@ import { analyticsData } from './analytics/data'
 import { AppointmentDetail } from './AppointmentDetail'
 import { Availability } from './Availability'
 import { Builder } from './Builder'
+import { ChatRoutes } from './chat/ChatRoutes'
 import { Calendar } from './Calendar'
 import { CallScreen } from './CallScreen'
+import { CallHistory } from './History'
 import { consultSocket } from './live'
 import { ClinicSettings } from './ClinicSettings'
 import { Practitioners } from './Practitioners'
@@ -17,7 +19,7 @@ import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import { isStaffLanguage, type Language } from './i18n/languages'
 import { useLanguage, useT } from './i18n/useT'
-import { CalendarIcon, ChartIcon, ClinicIcon, ClockIcon, ListIcon, Logo, PeopleIcon, ReviewIcon, SignOutIcon } from './icons'
+import { CalendarIcon, ChartIcon, ChatIcon, ClinicIcon, ClockIcon, ListIcon, Logo, PeopleIcon, ReviewIcon, SignOutIcon } from './icons'
 import { LanguagePicker } from './LanguagePicker'
 import { navigate, usePath } from './route'
 import { Cheatsheet } from './terminology/Cheatsheet'
@@ -100,7 +102,7 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
     <>
       <header className="bar">
         <Logo />
-        {staff && <Navigation admin={account.role === 'admin'} reviewer={account.termReviewer === true} />}
+        {staff && <Navigation admin={account.role === 'admin'} practitioner={account.role === 'practitioner'} reviewer={account.termReviewer === true} />}
         {staff && <Cheatsheet api={api} />}
         {staff && <LanguagePicker value={staffChoice(account)} onChange={(language) => saveLanguage(account, language)} />}
         <button type="button" className="quiet" onClick={signOut}>
@@ -108,7 +110,7 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
           {t('shell.signOut')}
         </button>
       </header>
-      <main className={path === '/' || path === '/analytics' || callPath.test(path) || questionnairePath.test(path) ? 'page wide' : 'page'}>
+      <main className={path === '/' || path === '/analytics' || callPath.test(path) || questionnairePath.test(path) || chatPath.test(path) ? 'page wide' : 'page'}>
         <Alert message={signOutFailed ? t('shell.signOutFailed') : undefined} />
         <Alert message={languageSave === 'failed' ? t('common.somethingWrong') : undefined} />
         <Notice message={languageSave === 'saved' ? t('shell.languageSaved') : undefined} />
@@ -118,7 +120,8 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
   )
 }
 
-function Navigation({ admin, reviewer }: { admin: boolean; reviewer: boolean }) {
+// The chat is the doctors' who take part in it (SAL-27): an admin reads no conversation, so has no Messages.
+function Navigation({ admin, practitioner, reviewer }: { admin: boolean; practitioner: boolean; reviewer: boolean }) {
   const t = useT()
   return (
     <nav aria-label={t('shell.mainNav')}>
@@ -138,6 +141,12 @@ function Navigation({ admin, reviewer }: { admin: boolean; reviewer: boolean }) 
         <ListIcon />
         {t('shell.questionnaires')}
       </Link>
+      {practitioner && (
+        <Link to="/chats">
+          <ChatIcon />
+          {t('shell.messages')}
+        </Link>
+      )}
       <Link to="/analytics">
         <ChartIcon />
         {t('shell.analytics')}
@@ -161,11 +170,12 @@ function Navigation({ admin, reviewer }: { admin: boolean; reviewer: boolean }) 
 const appointmentPath = /^\/appointments\/([^/]+)$/
 const callPath = /^\/appointments\/([^/]+)\/call$/
 const questionnairePath = /^\/questionnaires\/([^/]+)$/
+const chatPath = /^\/chats\/[^/]+$/
 
 // Call is the call page with the consultation's live source and actions, built once for the page (live.ts).
 function Call({ api, fhir, id }: Clients & { id: string }) {
   const consult = useMemo(() => consultSocket({ api, fhir }), [api, fhir])
-  return <CallScreen api={api} id={id} consult={consult} />
+  return <CallScreen api={api} fhir={fhir} id={id} consult={consult} history={(refresh) => <CallHistory api={api} fhir={fhir} appointmentId={id} refresh={refresh} />} />
 }
 
 // AnalyticsPage is the analytics page with its data, built once for the page (analytics/data.ts).
@@ -189,10 +199,18 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   if (path === '/questionnaires') return <Questionnaires api={api} fhir={fhir} account={account} />
   const questionnaire = questionnairePath.exec(path)
   if (questionnaire) return <Builder key={questionnaire[1]} api={api} fhir={fhir} id={decodeURIComponent(questionnaire[1])} />
+  if ((path === '/chats' || chatPath.test(path)) && account.role === 'practitioner') return <ChatRoutes api={api} fhir={fhir} account={account} path={path} />
   if (path === '/analytics') return <AnalyticsPage api={api} fhir={fhir} account={account} />
   if (path === '/term-review') return <Review api={api} reviewer={account.termReviewer === true} />
   if (path === '/clinic' && account.role === 'admin') {
-    return <ClinicSettings fhir={fhir} organizationId={account.organizationId ?? ''} />
+    return (
+      <ClinicSettings
+        api={api}
+        fhir={fhir}
+        organizationId={account.organizationId ?? ''}
+        platform={account.features?.includes('analytics_platform') === true}
+      />
+    )
   }
   return <p className="panel">{t('shell.notFound')}</p>
 }

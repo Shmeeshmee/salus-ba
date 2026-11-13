@@ -4,8 +4,10 @@ import { renderInLanguage } from './i18n/renderInLanguage'
 import type { Language } from './i18n/languages'
 import { CallScreen } from './CallScreen'
 import { newApiClient } from './api/client'
+import { newFhirClient } from './api/fhir'
 import type { Opened } from './call'
-import { apiError, expectCsrfOnWrites, fakeFetch, paths, type Route } from './test/fakeFetch'
+import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, paths, type Route } from './test/fakeFetch'
+import { allergyBundle, clinicAllergy, medicationBundle, ownAllergy, ownMedication, patientID } from './test/entries'
 import { fakeMedia } from './test/fakeCall'
 import { fakeActions, fakeLive, segment, suggestion } from './test/fakeConsult'
 
@@ -41,11 +43,23 @@ function renderCall({ routes = {}, language = 'en', live, ...options }: Setup = 
 const button = (name: string) => screen.getByRole('button', { name })
 const peer = (present: boolean, camera = true, microphone = true) => ({ type: 'peer', peer: { present, camera, microphone } }) as const
 
-// inCall joins from the device check and waits for the room.
+// joinable waits until Join can be pressed. It renders disabled until the camera and the microphone have opened
+// or failed, which they do after the render, so a click on the button as soon as it is found can be ignored.
+async function joinable() {
+  await vi.waitFor(() => expect((button('Join') as HTMLButtonElement).disabled).toBe(false))
+  return button('Join')
+}
+
+// following waits until the screen has subscribed to the live source n times. It subscribes from an effect, which
+// React can run after the call's panels render, so a message emitted at once could reach no one.
+const following = (live: ReturnType<typeof fakeLive>, n = 1) => vi.waitFor(() => expect(live.opened).toEqual(Array(n).fill(id)))
+
+// inCall joins from the device check and waits for the room, and for the live source when there is one.
 async function inCall(setup: Setup = {}) {
   const call = renderCall(setup)
-  fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+  fireEvent.click(await joinable())
   await screen.findByRole('button', { name: 'Leave' })
+  if (setup.live) await following(setup.live)
   return call
 }
 
@@ -145,7 +159,7 @@ describe('CallScreen: the device check', () => {
     ).toBeTruthy()
     const off = screen.getByLabelText('Join with camera off') as HTMLInputElement
     expect(off.checked && off.disabled).toBe(true)
-    fireEvent.click(button('Join'))
+    fireEvent.click(await joinable())
 
     await screen.findByRole('button', { name: 'Leave' })
     expect(last().settings).toEqual({ camera: false, microphone: true, microphoneId: 'mic-1' })
@@ -161,7 +175,7 @@ describe('CallScreen: the device check', () => {
         'Your browser is not allowing the microphone. Allow it in the site settings, then reload the page. Without it, the patient cannot hear you.',
       ),
     ).toBeTruthy()
-    fireEvent.click(button('Join'))
+    fireEvent.click(await joinable())
 
     await screen.findByRole('button', { name: 'Leave' })
     expect(last().settings).toEqual({ camera: true, microphone: false, cameraId: 'cam-1' })
@@ -178,7 +192,7 @@ describe('CallScreen: the device check', () => {
     const { last } = renderCall()
 
     fireEvent.click(await screen.findByLabelText('Join with camera off'))
-    fireEvent.click(button('Join'))
+    fireEvent.click(await joinable())
 
     await screen.findByRole('button', { name: 'Leave' })
     expect(last().settings).toEqual({ camera: false, microphone: true, cameraId: 'cam-1', microphoneId: 'mic-1' })
@@ -191,7 +205,7 @@ describe('CallScreen: joining', () => {
     let answer: (r: Response) => void = () => {}
     const { requests, last } = renderCall({ routes: { [joinPost]: () => new Promise<Response>((r) => (answer = r)) } })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    fireEvent.click(await joinable())
 
     expect(((await screen.findByRole('button', { name: 'Joining…' })) as HTMLButtonElement).disabled).toBe(true)
     answer(Response.json(joined))
@@ -214,7 +228,7 @@ describe('CallScreen: joining', () => {
   ])('shows the message for a %i %s and connects nothing', async (status, code, message) => {
     const { rooms } = renderCall({ routes: { [joinPost]: () => apiError(status, code) } })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    fireEvent.click(await joinable())
 
     await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toBe(message))
     expect(rooms).toHaveLength(0)
@@ -224,7 +238,7 @@ describe('CallScreen: joining', () => {
   it('says when the video connection cannot be started', async () => {
     renderCall({ connectFails: true })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    fireEvent.click(await joinable())
 
     await vi.waitFor(() =>
       expect(screen.getByRole('alert').textContent).toBe('The video connection could not be started. Check your connection and try again.'),
@@ -491,9 +505,9 @@ describe('CallScreen: the live panels', () => {
     await screen.findByRole('button', { name: 'Join' })
     expect(live.opened).toEqual([])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Join' }))
+    fireEvent.click(await joinable())
     const side = await screen.findByRole('complementary', { name: 'Transcript, suggestions and documents' })
-    expect(live.opened).toEqual([id])
+    await following(live)
     act(() => live.emit(segment({ translation: 'Placeholder caption' })))
     expect(screen.queryByRole('group', { name: 'Captions' })).toBeNull() // the patient is not in the room
     act(() => media.last().emit(peer(true)))
@@ -563,7 +577,7 @@ describe('CallScreen: the live panels', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Join again' }))
     await screen.findByRole('button', { name: 'Leave' })
 
-    expect(live.opened).toEqual([id, id])
+    await following(live, 2)
     expect(screen.getAllByRole('tab')).toHaveLength(3)
     expect(screen.getByText('The transcript appears here as the conversation goes on.')).toBeTruthy()
   })
@@ -671,12 +685,91 @@ describe('CallScreen: unmounting', () => {
     let release: (() => void) | undefined
     const held = { ...media, connect: (...args: Parameters<typeof media.connect>) => new Promise<Awaited<ReturnType<typeof media.connect>>>((r) => (release = () => r(media.connect(...args)))) }
     const { unmount } = renderInLanguage(<CallScreen api={newApiClient(fake.fetch)} id={id} media={held} />, 'en')
-    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    fireEvent.click(await joinable())
     await vi.waitFor(() => expect(release).toBeDefined())
 
     unmount()
     release?.()
 
     await vi.waitFor(() => expect(rooms[0]?.left).toBe(true))
+  })
+})
+
+describe('CallScreen: allergies and medications (SAL-41)', () => {
+  const appointment = {
+    resourceType: 'Appointment',
+    id,
+    meta: { versionId: '1', lastUpdated: '2026-11-09T08:00:00Z' },
+    status: 'booked',
+    start: '2026-11-09T08:00:00Z',
+    end: '2026-11-09T08:30:00Z',
+    participant: [{ status: 'accepted', actor: { reference: `Patient/${patientID}`, display: 'Ada Example' } }],
+  }
+
+  function renderWithEntries(allergies: unknown = allergyBundle(ownAllergy(), clinicAllergy()), read: Route = () => fhirJSON(allergies)) {
+    const fake = fakeFetch({
+      [joinPost]: () => Response.json(joined),
+      [statusGet]: () => Response.json(open),
+      [`GET /fhir/R4/Appointment/${id}`]: () => fhirJSON(appointment),
+      'GET /fhir/R4/AllergyIntolerance': read,
+      'GET /fhir/R4/MedicationStatement': () => fhirJSON(medicationBundle(ownMedication())),
+      'GET /terminology/explanations': () => Response.json({ explanations: [] }),
+    })
+    const media = fakeMedia()
+    const consult = { live: fakeLive().live, actions: fakeActions().actions }
+    renderInLanguage(<CallScreen api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} id={id} media={media.media} consult={consult} />, 'en')
+    return fake
+  }
+
+  const warning = () => screen.findByRole('region', { name: 'Active allergies' })
+
+  it("warns of the patient's active allergies from the device check on, and in the call", async () => {
+    renderWithEntries()
+    expect((await warning()).textContent).toContain('Placeholder substance A')
+    expect(screen.getByRole('heading', { name: 'Check your camera and microphone' })).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    await screen.findByRole('button', { name: 'Leave' })
+    const shown = screen.getAllByRole('region', { name: 'Active allergies' })
+    expect(shown).toHaveLength(1) // the Documents tab is hidden
+    expect(within(shown[0]).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Placeholder substance APlaceholder reaction (moderate)', 'Placeholder substance B'])
+  })
+
+  it('shows no warning when the patient has no active allergy', async () => {
+    const fake = renderWithEntries(allergyBundle())
+    await vi.waitFor(() => expect(paths(fake.requests)).toContain('GET /fhir/R4/AllergyIntolerance'))
+    await screen.findByRole('button', { name: 'Join' })
+    expect(screen.queryByRole('region', { name: 'Active allergies' })).toBeNull()
+  })
+
+  it('says the allergies could not be loaded from the device check on, in the call and above the drafting editor', async () => {
+    renderWithEntries(undefined, () => Response.json({ resourceType: 'OperationOutcome', issue: [{ severity: 'error', code: 'exception' }] }, { status: 500 }))
+    const failed = 'Allergies could not be loaded. Do not assume the patient has none.'
+    await vi.waitFor(() => expect(screen.getAllByRole('alert').map((a) => a.textContent).join()).toContain(failed))
+    expect(screen.getByRole('heading', { name: 'Check your camera and microphone' })).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    await screen.findByRole('button', { name: 'Leave' })
+    expect(screen.getAllByRole('alert').filter((a) => a.textContent?.includes(failed))).toHaveLength(1) // the Documents tab is hidden
+    fireEvent.click(screen.getByRole('tab', { name: 'Documents' }))
+    const panel = screen.getByRole('tabpanel', { name: 'Documents' })
+    expect(within(panel).getByRole('alert').textContent).toContain(failed)
+    expect(screen.queryByRole('region', { name: 'Active allergies' })).toBeNull()
+  })
+
+  it('says the allergies are being loaded until they are, never that there are none', async () => {
+    renderWithEntries(undefined, () => new Promise<Response>(() => {}))
+    expect((await screen.findByText('Loading allergies…')).getAttribute('role')).toBe('status')
+    expect(screen.getByRole('heading', { name: 'Check your camera and microphone' })).toBeTruthy()
+  })
+
+  it('lists the allergies and medications beside the video, and shows the warning above the drafting editor', async () => {
+    renderWithEntries()
+    fireEvent.click(await screen.findByRole('button', { name: 'Join' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Allergies and medications' }))
+    expect(within(await screen.findByRole('list', { name: 'Medications' })).getByText('Placeholder medication A')).toBeTruthy()
+    expect(within(screen.getByRole('list', { name: 'Allergies' })).getAllByRole('listitem')).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Documents' }))
+    const panel = screen.getByRole('tabpanel', { name: 'Documents' })
+    expect(within(panel).getByRole('region', { name: 'Active allergies' }).textContent).toContain('Placeholder substance A')
   })
 })

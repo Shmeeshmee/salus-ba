@@ -179,7 +179,7 @@ cell's pseudonym set and its contribution per clinic.
 | A4 | Primary suppression. With `T` the cell's patients and `x1 ≥ x2` its two largest clinic contributions: published only if `T ≥ k`, at least 3 clinics contributed, and `T − x1 − x2 ≥ max(k, 0.1·x1)`, so that the two largest clinics together, knowing their own patients, still face at least `k` patients they cannot attribute. `k` is `ANALYTICS_MIN_COUNT`, default 10; config refuses below 10 |
 | A5 | Relations: every parent with its children along each dimension, in every table, and the cells shared between tables (a G×D cell with diagnosis = all is the G×S cell with specialty = all), are one set solved together for the period |
 | A6 | Secondary suppression: in every relation, the suppressed cells are none, or at least 2 whose distinct union of patients passes A4 (the union of pseudonym sets and of clinic contributions, not the sum). Otherwise the smallest published non-total cell of the relation is suppressed too, ties broken by key; when only the relation's total is left published, the total is suppressed. Repeated over all relations until nothing changes; it ends because suppression only grows over a finite set |
-| A7 | Audit, in the build, fail closed: for every suppressed cell, the interval of values consistent with the published cells (each read as `[v−2, v+2]` for the rounding), the inequality relations, and the two largest clinics' own contributions to every cell treated as known, must be at least `k` wide. Computed as an LP (gonum's `lp`), interval ends rounded inward. A failing cell's relation gets one more suppression and A6 and A7 run again; if the period still fails, its `code` level is dropped for that period, and if it still fails, the period is not published (logged by count only) |
+| A7 | Audit, in the build, fail closed: for every suppressed cell, the interval of values consistent with the published cells (each read as `[v−2, v+2]` for the rounding, and as having passed A4, a public rule: with the two known clinics holding `y1` and `y2` of its patients, `o` of them shared, at least `o + max(k, ⌈max(y1, y2)/10⌉)` patients outside them), the inequality relations, and the two largest clinics' own contributions to every cell treated as known, must be at least `k` wide. Computed as an LP (our own simplex, PROGRESS), interval ends rounded inward; any solver failure or non-finite answer counts as 0 wide. A failing cell's relation gets one more suppression and A6 and A7 run again; if the period still fails, its `code` level is dropped for that period, and if it still fails, the period is not published (logged by count only) |
 | A8 | Keys: a breakdown returns every key of its dimension, with `null` for 0 and for any suppressed count alike, so absence never tells 0 from 1. For `code`, the keys are the codes published at geography = all and specialty = all for that period; any other code is not a key anywhere in that period |
 | A9 | Totals over several periods are sums of published cells, labelled "patient-months" (a patient seen in two months counts twice), marked `partial` when any is suppressed; never a raw total. Rounding error adds up (±2 per month), said in the tooltip |
 | A10 | Published counts are rounded to the nearest 5 (O4); A4 to A7 use the raw counts |
@@ -237,6 +237,12 @@ Added to `docs/privacy/dpia.md` by each package (section "Analytics (`docs/plans
 Plain JSON in `api/openapi.yaml` (not FHIR). ANA-2 and ANA-3 add their paths; ANA-4 types its fixtures from
 these shapes and switches to the generated client once both are merged. A count is a number or `null`
 (suppressed); the API returns codes, never sentences.
+
+**As built (ANA-2, `api/openapi.yaml` wins):** the clinic endpoints are camelCase like the rest of the plain JSON
+API: the query parameter `practitionerRole` (not `practitioner_role`), the breakdown `by=practitionerRole`, and the
+field `practitioners[].practitionerRole`; `from` and `to` are required. A non-admin may narrow the appointments to
+their own role only, never to another role or a specialty (403 `forbidden`). ANA-4 types its fixtures from the
+generated client, not from the lines below.
 
 ```
 GET /analytics/clinic/appointments?from=2026-01-01&to=2026-12-31&practitioner_role=&specialty=

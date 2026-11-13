@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
@@ -43,6 +44,17 @@ func TestDailyAt_IsTheNextTimeOfDayInUTC(t *testing.T) {
 	}
 }
 
+// The clinic statistics' nightly pass runs at 02:30 UTC (docs/plans/analytics.md §4).
+func TestDailyAt_TakesTheMinute(t *testing.T) {
+	at := time.Date(2026, 11, 5, 2, 29, 0, 0, time.UTC)
+	if got, want := clinicStatsAt.Next(at), time.Date(2026, 11, 5, 2, 30, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("Next(02:29) = %v, want %v", got, want)
+	}
+	if got, want := clinicStatsAt.Next(at.Add(time.Minute)), time.Date(2026, 11, 6, 2, 30, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("Next(02:30) = %v, want %v", got, want)
+	}
+}
+
 // atFirstCall fires when River's periodic enqueuer first asks, which it does once its client becomes
 // leader, then never again. Each client has its own, so a second leader would fire a second job.
 type atFirstCall struct{ asked atomic.Bool }
@@ -60,7 +72,7 @@ func TestScheduler_EnqueuesThePeriodicJobOnceWithTwoClientsRunning(t *testing.T)
 	owner, app := pgtest.NewAppDatabase(t)
 	schedules := []*atFirstCall{{}, {}}
 	for _, schedule := range schedules {
-		client, err := newScheduler(app, slog.New(slog.DiscardHandler), schedule)
+		client, err := newScheduler(app, slog.New(slog.DiscardHandler), schedule, false)
 		if err != nil {
 			t.Fatalf("newScheduler() error = %v", err)
 		}
@@ -106,7 +118,7 @@ func TestScheduler_EnqueuesThePeriodicJobOnceWithTwoClientsRunning(t *testing.T)
 func TestScheduler_KnowsEveryKindTheWorkerTheNotifierAndTheAgentWork(t *testing.T) {
 	t.Parallel()
 	_, app := pgtest.NewAppDatabase(t)
-	client, err := NewScheduler(app, slog.New(slog.DiscardHandler))
+	client, err := NewScheduler(app, false, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("NewScheduler() error = %v", err)
 	}
@@ -116,6 +128,8 @@ func TestScheduler_KnowsEveryKindTheWorkerTheNotifierAndTheAgentWork(t *testing.
 		appointment.BookedEmailArgs{}, appointment.CancelledEmailArgs{}, appointment.ReminderEmailArgs{}, appointment.AccessEndArgs{},
 		videosession.WindowCloseArgs{}, appointment.QuestionnaireRequestArgs{}, appointment.QuestionnaireDiscardArgs{},
 		binary.ScanArgs{}, binary.DiscardArgs{}, videosession.AgentJoinArgs{}, composition.SignedEmailArgs{}, communication.PartitionsArgs{},
+		clinicstats.RefreshArgs{}, clinicstats.NightlyArgs{},
+		TrendsBuildArgs{Period: "2026-10"},
 	} {
 		var unknown *river.UnknownJobKindError
 		if _, err := client.Insert(t.Context(), args, nil); errors.As(err, &unknown) || err != nil {
@@ -128,7 +142,7 @@ func TestScheduler_KnowsEveryKindTheWorkerTheNotifierAndTheAgentWork(t *testing.
 func TestScheduler_EnqueuesTheHourlySlotGenerationWhenItStartsLeading(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
-	client, err := NewScheduler(app, slog.New(slog.DiscardHandler))
+	client, err := NewScheduler(app, false, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("NewScheduler() error = %v", err)
 	}
@@ -163,7 +177,7 @@ func TestScheduler_EnqueuesTheHourlySlotGenerationWhenItStartsLeading(t *testing
 func TestScheduler_EnqueuesTheChatPartitionsWhenItStartsLeading(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
-	client, err := NewScheduler(app, slog.New(slog.DiscardHandler))
+	client, err := NewScheduler(app, false, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("NewScheduler() error = %v", err)
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
+	"github.com/Shmeeshmee/salus/pkg/push"
 )
 
 // emailQueue is the only queue the notifier works (ADR 0007); cmd/worker keeps the default one.
@@ -32,15 +33,21 @@ func NewInserter(pool *pgxpool.Pool) (*river.Client[pgx.Tx], error) {
 
 // NewNotifier returns the River client cmd/notifier runs: it works the email queue with the invite_email and
 // appointment e-mail workers, which send through sender (the SMTP server of config.LoadSMTP) with links to
-// webBaseURL (WEB_BASE_URL, invites) and patientAppURL (PATIENT_APP_URL, appointments).
-func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, sender notification.Sender, webBaseURL, patientAppURL string) (*river.Client[pgx.Tx], error) {
-	if sender == nil || webBaseURL == "" || patientAppURL == "" {
-		return nil, errors.New("worker: the notifier needs an SMTP sender, WEB_BASE_URL and PATIENT_APP_URL")
+// webBaseURL (WEB_BASE_URL, invites) and patientAppURL (PATIENT_APP_URL, appointments), and the chat's
+// notifications (SAL-29): the push queue's fan-out and pushes through pusher (the fake, pkg/push/pushtest, until
+// the platforms' credentials are set: config.LoadPush), and the unread e-mails.
+func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, sender notification.Sender, pusher push.Sender, webBaseURL, patientAppURL string) (*river.Client[pgx.Tx], error) {
+	if sender == nil || pusher == nil || webBaseURL == "" || patientAppURL == "" {
+		return nil, errors.New("worker: the notifier needs an SMTP sender, a push sender, WEB_BASE_URL and PATIENT_APP_URL")
+	}
+	inserter, err := NewInserter(pool) // the fan-out enqueues the pushes, the unread e-mails and the webhooks in its transaction
+	if err != nil {
+		return nil, err
 	}
 	clk := clock.System{}
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
-	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk)
+	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk, nil)
 	// Issuing a token and reading an account's e-mail need only the repository, the audit, the transaction
 	// and the clock.
 	accounts := auth.NewService(auth.Ports{Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk})
@@ -54,9 +61,17 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, sender notification.Sende
 		Questionnaires: newQuestionnaireResponses(pool, clk), Sender: sender, WebBaseURL: webBaseURL, PatientAppURL: patientAppURL,
 	})
 
+	chat := newChatNotifier(chatNotifierPorts{
+		pool: pool, inserter: inserter, audit: audit, tx: tx, accounts: accounts, sender: sender, pusher: pusher,
+		webBaseURL: webBaseURL, patientAppURL: patientAppURL,
+	}, clk)
+
 	workers := river.NewWorkers()
 	addEmailWorkers(workers, mail)
-	return river.NewClient(riverpgxv5.New(pool), workConfig(log, emailQueue, workers))
+	addChatWorkers(workers, chat)
+	cfg := workConfig(log, emailQueue, workers)
+	cfg.Queues[pushQueue] = river.QueueConfig{MaxWorkers: maxWorkers}
+	return river.NewClient(riverpgxv5.New(pool), cfg)
 }
 
 // addEmailWorkers registers the email queue's jobs; the scheduler registers them with a nil mail, like

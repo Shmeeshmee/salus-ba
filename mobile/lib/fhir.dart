@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:salus_api/api.dart' show ApiClient, QueryParam;
 
 import 'documents.dart';
+import 'health_profile.dart';
 import 'questionnaire.dart';
 import 'session.dart';
 
@@ -140,6 +141,17 @@ class Fhir {
     );
   }
 
+  /// The version [canonical] (`<url>|<version>`) names, of those the patient's own responses answer; null for none.
+  Future<Version?> questionnaireVersion(String canonical) async {
+    final i = canonical.lastIndexOf('|');
+    if (i < 0) return null;
+    final found = await _search('Questionnaire', [
+      QueryParam('url', canonical.substring(0, i)),
+      QueryParam('version', canonical.substring(i + 1)),
+    ]);
+    return found.isEmpty ? null : Version.fromFhir(found.first);
+  }
+
   /// One questionnaire response, read again.
   Future<Response> questionnaireResponse(String id) async => Response.fromFhir(await _get('QuestionnaireResponse/$id'));
 
@@ -157,6 +169,18 @@ class Fhir {
 
   /// A signed document's Composition.
   Future<DocumentContent> composition(String id) async => DocumentContent.fromFhir(await _get('Composition/$id'));
+
+  /// The allergies of the patient's profile and of their visits, without the removed ones (SAL-41).
+  Future<List<Allergy>> allergies(String patientId) async => [
+    for (final r in await _search('AllergyIntolerance', [QueryParam('patient', 'Patient/$patientId')]))
+      ?Allergy.fromFhir(r),
+  ];
+
+  /// The medications of the patient's profile and of their visits, without the removed ones (SAL-41).
+  Future<List<Medication>> medications(String patientId) async => [
+    for (final r in await _search('MedicationStatement', [QueryParam('patient', 'Patient/$patientId')]))
+      ?Medication.fromFhir(r),
+  ];
 
   /// The resources of a searchset: the matches, and the included ones when [includes].
   Future<List<Map<String, dynamic>>> _search(String type, List<QueryParam> query, {bool includes = false}) async {

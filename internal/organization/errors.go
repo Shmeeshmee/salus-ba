@@ -18,4 +18,10 @@ var (
 	// ErrInvalidDefaultLanguage is returned for a default language that is not a staff language (bs, hr,
 	// sr-Latn, sr-Cyrl, en).
 	ErrInvalidDefaultLanguage = errors.New("organization: invalid default language")
+	// ErrInvalidLocation is returned for a location that is not a city of terminology's places under the leaf
+	// region given with it.
+	ErrInvalidLocation = errors.New("organization: invalid location")
+	// ErrInvalidChatSettings is returned for chat settings out of their ranges, or hours that are not valid
+	// stretches of a weekday.
+	ErrInvalidChatSettings = errors.New("organization: invalid chat settings")
 )

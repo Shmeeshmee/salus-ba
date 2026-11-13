@@ -4,6 +4,7 @@ import { FhirError, nameOf, participant, type Appointment, type AppointmentStatu
 import { attempt, type Outcome } from './api/result'
 import type { components } from './api/schema'
 import { AppointmentQuestionnaires } from './AppointmentQuestionnaires'
+import { PatientHistory } from './History'
 import { joinWindow, useNow } from './consultation'
 import { useFormat, useT } from './i18n/useT'
 import { ChevronIcon } from './icons'
@@ -23,7 +24,9 @@ type Detail = { zone: string; appt: Appointment; profile?: Patient; consultation
 // has the profile (SPEC "FHIR reads and searches"), so it is not asked for. The practitioner records the
 // outcome once the appointment has started; the practitioner and the admin can cancel it. The practitioner joins
 // the video consultation inside its window (an admin cannot join), and both see whether each side joined.
-// Both see the appointment's questionnaire requests; only the appointment's own practitioner changes them.
+// Both see the appointment's questionnaire requests; only the appointment's own practitioner changes them. Its own
+// practitioner also opens the patient's history and the pre-visit summary (SAL-40), read and audited only once asked
+// for.
 // Everything above the questionnaires is read in one load, so the page appears in one piece: a section that came
 // in on its own would push down what is already shown, under a click on its way.
 export function AppointmentDetail({ api, fhir, account, id, now = () => new Date() }: Props) {
@@ -102,6 +105,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
   const start = new Date(appt.start)
   const end = new Date(appt.end)
   const name = profile ? nameOf(profile.name?.[0]) : participant(appt, 'Patient')?.display
+  const patientId = participant(appt, 'Patient')?.id
   return (
     <>
       <h1>{name || t('calendar.appointment')}</h1>
@@ -120,6 +124,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
       {practitioner && join === 'before' && <p className="hint join">{t('calendar.joinFrom')}</p>}
       {consultation && <Consultation status={consultation} zone={zone} />}
       <AppointmentQuestionnaires api={api} fhir={fhir} appt={appt} zone={zone} own={own} admin={admin} now={at} />
+      {own && patientId && <HistoryToggle api={api} fhir={fhir} patientId={patientId} appointmentId={appt.id} zone={zone} />}
       {appt.status === 'booked' && <Actions api={api} id={appt.id} practitioner={practitioner} started={at >= start} onChanged={onChanged} />}
     </>
   )
@@ -240,4 +245,23 @@ function actionMessage(t: T, code?: string): string {
   if (code === 'forbidden') return t('calendar.forbidden')
   if (code === 'not_found') return t('calendar.notFound')
   return t('common.somethingWrong')
+}
+
+type HistoryProps = { api: ApiClient; fhir: FhirClient; patientId: string; appointmentId: string; zone: string }
+
+// HistoryToggle opens the patient's history on request, as the call page's tab does: opening a booking does not
+// read (and audit) the patient's history.
+function HistoryToggle(props: HistoryProps) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <div className="actions">
+        <button type="button" className="quiet" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {t(open ? 'history.hideHistory' : 'history.showHistory')}
+        </button>
+      </div>
+      {open && <PatientHistory {...props} />}
+    </>
+  )
 }

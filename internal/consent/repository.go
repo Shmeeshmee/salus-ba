@@ -18,7 +18,7 @@ type Repository interface {
 	// ErrActive when one of the kind is active already, ErrClinicNotFound when the clinic does not exist (which
 	// aborts the transaction).
 	Grant(ctx context.Context, kind Kind, patientID, organizationID string, at time.Time) (Consent, error)
-	// ByID returns the consent of either kind, or ErrNotFound (also for one outside the scope, or an id that is
+	// ByID returns the consent of any kind (an active history consent with the visits it lists now), or ErrNotFound (also for one outside the scope, or an id that is
 	// not a UUID).
 	ByID(ctx context.Context, id string) (Consent, error)
 	// Revoke makes the active consent id of the kind inactive, revoked at, and returns it with the next version;
@@ -27,9 +27,36 @@ type Repository interface {
 	// RevokeTranscription makes the patient's active transcription consent with the clinic inactive, revoked at,
 	// and returns it; ErrInactive when there is none.
 	RevokeTranscription(ctx context.Context, patientID, organizationID string, at time.Time) (Consent, error)
-	// ByPatient returns the patient's consents of both kinds, the latest granted first.
+	// RevokeHistory makes the patient's active history consent with the clinic inactive, revoked at, and returns it;
+	// ErrInactive when there is none.
+	RevokeHistory(ctx context.Context, patientID, organizationID string, at time.Time) (Consent, error)
+	// LockCare reports whether the patient's care consent with the clinic is active, and locks it (FOR SHARE) until
+	// the transaction ends: its revocation waits for the transaction, so what it grants is ended with it.
+	LockCare(ctx context.Context, patientID, organizationID string) (bool, error)
+	// ActiveHistory returns the patient's active history consent with the clinic with the visits it lists now, or
+	// ErrNotFound.
+	ActiveHistory(ctx context.Context, patientID, organizationID string) (Consent, error)
+	// GrantHistory stores an active history consent of the patient with the clinic, granted at, listing the
+	// encounters (added at), and returns it; ErrActive when one is active already; ErrClinicNotFound for an unknown
+	// clinic and ErrInvalidVisit when row-level security refuses an encounter (both abort the transaction).
+	GrantHistory(ctx context.Context, patientID, organizationID string, encounterIDs []string, at time.Time) (Consent, error)
+	// ChangeHistory adds the encounters add to the active history consent id at version and removes remove from it, at,
+	// and returns it at the next version with the visits it lists now; ErrVersionConflict when it is not active at
+	// that version, ErrInvalidVisit as GrantHistory.
+	ChangeHistory(ctx context.Context, id string, version int32, add, remove []string, at time.Time) (Consent, error)
+	// ByPatient returns the patient's consents of every kind, the latest granted first; an active history
+	// consent with the visits it lists now.
 	ByPatient(ctx context.Context, patientID string) ([]Consent, error)
 	// State returns whether the patient has an active care consent with the clinic, when the latest one was
 	// revoked, and whether their transcription consent there is active, as the transaction's scope shows them.
 	State(ctx context.Context, patientID, organizationID string) (access.Consent, error)
+
+	// GrantChat stores the patient's active chat consent for g, granted at, and returns it; an error when one for the
+	// conversation and role is active already (a unique violation, which aborts the transaction).
+	GrantChat(ctx context.Context, patientID string, g ChatGrant, at time.Time) (Consent, error)
+	// RevokeChat makes the active chat consent for the conversation and role inactive, revoked at, and returns it;
+	// ErrInactive when there is none in the scope.
+	RevokeChat(ctx context.Context, conversationID, roleID string, at time.Time) (Consent, error)
+	// ChatGranted reports whether the scope shows an active chat consent for the conversation and role.
+	ChatGranted(ctx context.Context, conversationID, roleID string) (bool, error)
 }

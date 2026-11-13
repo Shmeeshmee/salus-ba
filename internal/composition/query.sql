@@ -92,6 +92,14 @@ FROM document_draft
 WHERE encounter_id = @encounter_id AND status = 'final'
 ORDER BY signed_at, id;
 
+-- name: SignedOfEncounters :many
+-- The signed documents of the encounters, by encounter, in the order they were signed (the history, SAL-40).
+SELECT id, encounter_id, template_id, status, language, title, type_code, fields, version_id, updated_at,
+       signed_at, signer_role_id, document_reference_id, provenance_id, pdf_size, pdf_kek_id, pdf_sha1, pdf_wrapped_key
+FROM document_draft
+WHERE encounter_id = ANY(@encounter_ids::uuid[]) AND status = 'final'
+ORDER BY encounter_id, signed_at, id;
+
 -- name: Sign :one
 -- The draft's fields as signed, final, with its signature; only from the version read.
 UPDATE document_draft
@@ -101,3 +109,20 @@ SET status = 'final', fields = @fields, signed_at = @at, signer_role_id = @signe
     updated_at = @at, version_id = version_id + 1
 WHERE id = @id AND version_id = @version_id AND status = 'preliminary'
 RETURNING id;
+
+-- name: SignedOf :many
+-- The patient's timeline (SAL-39): the signed documents of their encounters after the page's position, newest
+-- first by signature, the reference ("Composition/<id>", compared byte by byte) breaking a tie; a null bound does
+-- not narrow.
+SELECT id, encounter_id, template_id, status, language, title, type_code, fields, version_id, updated_at,
+       signed_at, signer_role_id, document_reference_id, provenance_id, pdf_size, pdf_kek_id, pdf_sha1, pdf_wrapped_key
+FROM document_draft
+WHERE encounter_id = ANY(@encounter_ids::uuid[]) AND status = 'final'
+  AND (sqlc.narg(from_at)::timestamptz IS NULL OR signed_at >= sqlc.narg(from_at)::timestamptz)
+  AND (sqlc.narg(to_at)::timestamptz IS NULL OR signed_at < sqlc.narg(to_at)::timestamptz)
+  AND (sqlc.narg(after_at)::timestamptz IS NULL
+       OR signed_at < sqlc.narg(after_at)::timestamptz
+       OR (signed_at = sqlc.narg(after_at)::timestamptz
+           AND ('Composition/' || id::text) COLLATE "C" < sqlc.arg(after_ref)::text COLLATE "C"))
+ORDER BY signed_at DESC, id DESC
+LIMIT @lim;

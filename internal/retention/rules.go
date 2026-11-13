@@ -1,6 +1,9 @@
 package retention
 
-import "time"
+import (
+	"slices"
+	"time"
+)
 
 // day is a calendar day for retention periods; a period in days is rounded up so it is never short.
 const day = 24 * time.Hour
@@ -86,11 +89,26 @@ func Rules() []Rule {
 		},
 		{
 			Table: "binary",
-			Basis: "The patient's files attached to a questionnaire answer (GDPR Art. 9(2)(h), with the consent for sharing before care): each row lives exactly as long as its questionnaire response and is deleted with it (foreign key) or with its answer; a rejected row is deleted 24 h after its scan, and a stored object without a row (a deleted file's ciphertext, an upload that never reached its answer) 24 h after it was written; needs a legal decision before production (docs/attachments/SPEC.md sections 4 and 5)",
-			Keep:  day, // after scanned_at of a rejected row; after an object's last write
-			Then:  ThenDelete,
+			Basis: "The patient's files attached to a questionnaire answer (GDPR Art. 9(2)(h), with the consent for sharing before care): each row lives exactly as long as its questionnaire response and is deleted with it (foreign key) or with its answer. " +
+				"The files of a chat message (SAL-30; care between visits, Art. 9(2)(h), with the care consent for the clinic's access) are part of the clinical record with their message and kept with it, never deleted while attached (a trigger refuses it, as for the message); a chat upload never attached to a message is deleted 24 h after its upload. " +
+				"A rejected row is deleted 24 h after its scan, and a stored object without a row (a deleted file's ciphertext or thumbnail, an upload that never reached its answer or message) 24 h after it was written; needs a legal decision before production (docs/attachments/SPEC.md sections 4 and 5, docs/plans/chat.md)",
+			Keep: day, // after scanned_at of a rejected row; after created_at of a chat upload never attached; after an object's last write
+			Then: ThenDelete,
 		},
-	}, append(append(consultIntelligenceRules(), termReviewRules()...), chatRules()...)...)
+	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules())...)
+}
+
+// clinicStatsRules are the rules of the clinic's own statistics (docs/plans/analytics.md §4, §7): counts with no
+// patient identifier, but the practitioners' workload and diagnoses, recomputed from appointment and condition.
+func clinicStatsRules() []Rule {
+	basis := "The management of the clinic's health-care services, on its behalf (GDPR Art. 9(2)(h)): counts per day, hour, " +
+		"practitioner role and code with no patient identifier, recomputed from appointment and condition and kept as long " +
+		"as they are (with the clinical record); a refresh of a day replaces its rows; needs a legal decision before " +
+		"production (docs/plans/analytics.md §7, L5)"
+	return []Rule{
+		{Table: "clinic_appointment_stat", Basis: basis, Then: ThenKeep},
+		{Table: "clinic_diagnosis_stat", Basis: basis, Then: ThenKeep},
+	}
 }
 
 // chatRules are the rules of the chat between the patient and their clinic's doctors (docs/plans/chat.md, SAL-27):
@@ -105,6 +123,37 @@ func chatRules() []Rule {
 		{Table: "conversation_participant", Basis: basis, Then: ThenKeep},
 		{Table: "communication", Basis: basis, Then: ThenKeep},
 		{Table: "communication_revision", Basis: basis, Then: ThenKeep},
+		{
+			Table: "chat_consent",
+			Basis: "Proof of the patient's decision to let a doctor of another clinic into their conversation (GDPR Art. 7(1), Art. 9(2)(a)), kept with the clinical record like consent; needs a legal decision before production (docs/plans/chat.md, SAL-28)",
+			Then:  ThenKeep,
+		},
+	}
+}
+
+// chatNotificationRules are the rules of the chat's notifications (docs/plans/chat.md, SAL-29).
+func chatNotificationRules() []Rule {
+	return []Rule{
+		{
+			Table: "push_device",
+			Basis: "Telling the patient of a new message (GDPR Art. 6(1)(b), the contract with the patient) while the app is " +
+				"registered on the device: deleted when the app unregisters, when the platform says the token is gone, and " +
+				"with the account (foreign key; erasure comes with the subject-rights feature)",
+			Then: ThenKeep,
+		},
+		{
+			Table: "webhook_endpoint",
+			Basis: "The clinic's integration (GDPR Art. 6(1)(b), (f), the contract with the clinic): who created it, as an " +
+				"account id; kept while the clinic keeps the endpoint, deleted by its admin",
+			Then: ThenKeep,
+		},
+		{
+			Table: "webhook_dead_letter",
+			Basis: "Operating the clinic's integration (GDPR Art. 6(1)(f)): the ids of an event its endpoint did not take, " +
+				"for its admin and support to look into, for 30 days; deleted with the endpoint",
+			Keep: 30 * day, // after created_at, the last attempt
+			Then: ThenDelete,
+		},
 	}
 }
 
@@ -156,5 +205,45 @@ func consultIntelligenceRules() []Rule {
 			Basis: "The document the practitioner writes about the patient during the consultation (GDPR Art. 9(2)(h)); kept with the clinical record, a discarded one as entered-in-error; needs a legal decision before production (docs/plans/consult-intelligence.md, \"Personal data\")",
 			Then:  ThenKeep,
 		},
+	}
+}
+
+// historyRules are the rules of the patient history's tables (00043, docs/plans/patient-history.md, ADR 0014): the
+// allergies and medications are part of the clinical record, the history consent and its selections the proof of
+// what the patient shared with whom and when.
+func historyRules() []Rule {
+	return []Rule{
+		{
+			Table: "allergy_intolerance",
+			Basis: "The patient's allergies, safety-critical for their care (GDPR Art. 9(2)(h)); kept with the clinical record, a mistaken entry as entered-in-error, and the patient's own unconfirmed entry deleted when they remove it; needs a legal decision before production (docs/plans/patient-history.md, \"Personal data\")",
+			Then:  ThenKeep,
+		},
+		{
+			Table: "medication_statement",
+			Basis: "The patient's current medications, for their care (GDPR Art. 9(2)(h)); kept as allergy_intolerance is; needs a legal decision before production (docs/plans/patient-history.md, \"Personal data\")",
+			Then:  ThenKeep,
+		},
+		{
+			Table: "history_consent",
+			Basis: "Proof of the patient's decision to share visits from other clinics with a clinic (GDPR Art. 7(1)), kept with the clinical record like consent (Art. 9(2)(h)); needs a legal decision before production (docs/plans/patient-history.md)",
+			Then:  ThenKeep,
+		},
+		{
+			Table: "history_consent_encounter",
+			Basis: "Proof of which visits the patient shared with the clinic and when (GDPR Art. 7(1)), kept with its history consent; needs a legal decision before production (docs/plans/patient-history.md)",
+			Then:  ThenKeep,
+		},
+	}
+}
+
+// trendsRules are the rules of the platform figures (docs/plans/analytics.md §5 to §7, SAL-21): frozen counts and rise
+// flags with no identifier, kept five years after their build, then deleted.
+func trendsRules() []Rule {
+	basis := "Platform-wide figures built from the clinics' diagnoses and appointments under rules A1 to A12, with no " +
+		"clinic, practitioner or patient identifier; the lawful basis is open (docs/plans/analytics.md L1 to L3); kept " +
+		"five years after the build (§7), then deleted; needs a legal decision before production"
+	return []Rule{
+		{Table: "trends_cell", Basis: basis, Keep: 1827 * day, Then: ThenDelete}, // five years, leap days included
+		{Table: "trends_rise", Basis: basis, Keep: 1827 * day, Then: ThenDelete},
 	}
 }

@@ -10,6 +10,7 @@
 //	salusctl terminology export -o <terms.csv> [-status unreviewed|approved|needs_changes]   the term list for the curator
 //	salusctl document-templates seed -clinic <id> <template.json>...      the dev seed of placeholder templates
 //	salusctl conditions unconfirmed                               the backfilled diagnoses nobody confirmed (SAL-19)
+//	salusctl trends build <2026-10 | 2026-Q3 | 2026-W44>          a missed build of the platform figures (SAL-21)
 //
 // It prints opaque ids only, never an e-mail. The terminology commands are not audited: the terms are reference
 // data with no personal data (docs/terminology/SPEC.md §4).
@@ -32,12 +33,13 @@ import (
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/terminology"
+	"github.com/Shmeeshmee/salus/internal/trends"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
-const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | term-reviewer grant|revoke <account-id> | terminology import|export | document-templates seed | conditions unconfirmed"
+const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | term-reviewer grant|revoke <account-id> | terminology import|export | document-templates seed | conditions unconfirmed | trends build <period>"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -57,6 +59,7 @@ type services struct {
 	terms      *terminology.Curator
 	templates  *composition.Service
 	conditions *condition.Service
+	trends     *trends.Builder // nil while ANALYTICS_PLATFORM_ENABLED is off
 }
 
 func run(ctx context.Context, args []string, stdout io.Writer) error {
@@ -80,7 +83,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
 	s := services{
 		tx:      tx,
-		clinics: organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{}),
+		clinics: organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{}, nil),
 		accounts: auth.NewService(auth.Ports{
 			Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Jobs: auth.NewRiverJobs(jobs),
 		}),
@@ -88,6 +91,9 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		// Only SeedTemplate is asked of the documents: it needs the repository, the audit and the clock.
 		templates:  composition.NewService(composition.Ports{Repo: composition.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}}),
 		conditions: condition.NewService(condition.NewPostgresRepository(pool)),
+	}
+	if cfg.Analytics.PlatformEnabled {
+		s.trends = worker.NewTrendsBuilder(pool, pool, cfg.Analytics.MinCount, auditevent.AgentOperator)
 	}
 	switch args[0] {
 	case "create-clinic":
@@ -98,6 +104,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return s.templatesCommand(ctx, args[1:], stdout)
 	case "conditions":
 		return s.conditionsCommand(ctx, args[1:], stdout)
+	case "trends":
+		return s.trendsCommand(ctx, args[1:], stdout)
 	case "term-reviewer":
 		return s.termReviewer(ctx, args[1:], stdout)
 	case "reset-mfa":

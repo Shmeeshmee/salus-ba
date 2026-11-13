@@ -54,7 +54,7 @@ func newConsultationApp(t *testing.T) consultationApp {
 	t.Helper()
 	cfg := testConfig(t)
 	c := consultationApp{log: &syncBuffer{}, lk: composeLiveKitConfig(t), redisURL: cfg.RedisURL}
-	app, err := api.New(t.Context(), cfg, c.lk, testObjectStore(t), testDrafter(), slog.New(slog.NewJSONHandler(c.log, nil)))
+	app, err := api.New(t.Context(), cfg, c.lk, testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewJSONHandler(c.log, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -118,15 +118,21 @@ func (c consultationApp) joined(t *testing.T, appointmentID, role string, at tim
 func expectHTTP(t *testing.T, cl *client, method, path string, status int, want ...string) string {
 	t.Helper()
 	rec := cl.do(method, path, "")
-	for _, w := range want {
-		if !strings.Contains(rec.Body.String(), w) {
-			rec.Code = -rec.Code
-		}
-	}
-	if rec.Code != status {
-		t.Errorf("%s %s = %d %s; want %d with %q", method, path, rec.Code, rec.Body, status, want)
+	if gone := missing(rec.Body.String(), want); rec.Code != status || len(gone) > 0 {
+		t.Errorf("%s %s = %d %s; want %d with %q (missing %q)", method, path, rec.Code, rec.Body, status, want, gone)
 	}
 	return rec.Body.String()
+}
+
+// missing is the strings of want that body does not contain, in order.
+func missing(body string, want []string) []string {
+	var out []string
+	for _, w := range want {
+		if !strings.Contains(body, w) {
+			out = append(out, w)
+		}
+	}
+	return out
 }
 
 // The patient and the practitioner join; the status follows the session for both and the admin; only the

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fakeFetch, fhirJSON, outcome } from '../test/fakeFetch'
-import { defaultLanguageURL, FhirError, listedURL, newFhirClient, participant, settingsOf, timeZoneURL, transcriptCopyURL, withSettings, type Appointment, type Organization } from './fhir'
+import { contributesURL, defaultLanguageURL, FhirError, listedURL, cityURL, newFhirClient, participant, settingsOf, timeZoneURL, transcriptCopyURL, withSettings, type Appointment, type Organization } from './fhir'
 
 const org: Organization = {
   resourceType: 'Organization',
@@ -75,6 +75,10 @@ describe('clinic settings in the Organization', () => {
       timeZone: 'Europe/Berlin',
       defaultLanguage: 'hr',
       transcriptCopy: true,
+      region: '',
+      city: '',
+      cityName: '',
+      contributes: true,
     })
   })
 
@@ -85,6 +89,10 @@ describe('clinic settings in the Organization', () => {
       timeZone: 'Europe/Sarajevo',
       defaultLanguage: 'bs',
       transcriptCopy: false,
+      region: '',
+      city: '',
+      cityName: '',
+      contributes: true,
     })
   })
 
@@ -95,6 +103,10 @@ describe('clinic settings in the Organization', () => {
       timeZone: 'Europe/Sarajevo',
       defaultLanguage: 'en',
       transcriptCopy: false,
+      region: '',
+      city: '',
+      cityName: '',
+      contributes: true,
     })
 
     expect(out.name).toBe('Renamed')
@@ -104,6 +116,7 @@ describe('clinic settings in the Organization', () => {
       { url: timeZoneURL, valueCode: 'Europe/Sarajevo' },
       { url: defaultLanguageURL, valueCode: 'en' },
       { url: transcriptCopyURL, valueBoolean: false },
+      { url: contributesURL, valueBoolean: true },
     ])
   })
 })
@@ -126,5 +139,27 @@ describe('appointment participants', () => {
     expect(participant(appt, 'Patient')).toEqual({ id: 'aa000000-0000-4000-8000-0000000000aa', display: 'Ada Example' })
     expect(participant(appt, 'Practitioner')).toEqual({ id: 'a3000000-0000-4000-8000-0000000000a1', display: undefined })
     expect(participant(appt, 'PractitionerRole')).toBeUndefined()
+  })
+})
+
+describe("the clinic's location in the Organization", () => {
+  const base: Organization = {
+    resourceType: 'Organization',
+    id: 'a0000000-0000-4000-8000-00000000000a',
+    name: 'Synthetic clinic',
+    active: true,
+    meta: { versionId: '3', lastUpdated: '2026-11-04T09:30:00Z' },
+  }
+
+  it('reads the region, the city and the opt-out, and writes them back', () => {
+    const org: Organization = {
+      ...base,
+      extension: [{ url: contributesURL, valueBoolean: false }],
+      address: [{ state: 'BA-09', city: 'Centar', extension: [{ url: cityURL, valueCode: 'Q1270190' }] }],
+    }
+    const s = settingsOf(org)
+    expect([s.region, s.city, s.cityName, s.contributes]).toEqual(['BA-09', 'Q1270190', 'Centar', false])
+    expect(withSettings(base, s).address).toEqual(org.address)
+    expect(withSettings(base, { ...s, city: '' }).address).toBeUndefined()
   })
 })

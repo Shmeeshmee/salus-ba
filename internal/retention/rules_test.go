@@ -250,3 +250,93 @@ func TestRules_KeepTheReviewerPermissionWhileGranted(t *testing.T) {
 	}
 	t.Error("no rule for term_reviewer")
 }
+
+// The clinic's statistics are counts recomputed from appointment and condition, both kept with the clinical record:
+// they are kept as long (docs/plans/analytics.md §7).
+func TestRules_KeepTheClinicStatisticsWithTheirSources(t *testing.T) {
+	found := 0
+	for _, r := range retention.Rules() {
+		if r.Table == "clinic_appointment_stat" || r.Table == "clinic_diagnosis_stat" {
+			found++
+			if r.Then != retention.ThenKeep {
+				t.Errorf("%s then %q, want %q like its sources", r.Table, r.Then, retention.ThenKeep)
+			}
+		}
+	}
+	if found != 2 {
+		t.Errorf("%d rules for the clinic statistics, want 2", found)
+	}
+}
+
+// The chat's notifications (SAL-29): a device token is kept while the app is registered (deleted on unregister,
+// when the platform says it is gone, and with the account), a webhook endpoint while the clinic keeps it, and a
+// dead letter 30 days.
+func TestRules_KeepDevicesAndWebhooksWhileRegisteredAndDeadLettersThirtyDays(t *testing.T) {
+	want := map[string]retention.Rule{
+		"push_device":         {Then: retention.ThenKeep},
+		"webhook_endpoint":    {Then: retention.ThenKeep},
+		"webhook_dead_letter": {Then: retention.ThenDelete, Keep: 30 * 24 * time.Hour},
+	}
+	for _, r := range retention.Rules() {
+		w, ok := want[r.Table]
+		if !ok {
+			continue
+		}
+		if r.Then != w.Then || r.Keep != w.Keep {
+			t.Errorf("%s: then %q after %v, want %q after %v", r.Table, r.Then, r.Keep, w.Then, w.Keep)
+		}
+		delete(want, r.Table)
+	}
+	for table := range want {
+		t.Errorf("no rule for %s", table)
+	}
+}
+
+func TestRules_KeepChatConsentsWithTheClinicalRecord(t *testing.T) {
+	for _, r := range retention.Rules() {
+		if r.Table == "chat_consent" {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("chat_consent then %q, want %q", r.Then, retention.ThenKeep)
+			}
+			return
+		}
+	}
+	t.Fatal("no rule for chat_consent")
+}
+
+// The patient history's tables (00043, ADR 0014) are kept with the clinical record: allergies and medications as
+// part of it (a patient's own unconfirmed entry is deleted when they remove it, by the service, not by this rule),
+// the history consent and its selections as proof of what was shared when (Art. 7(1)).
+func TestRules_KeepThePatientHistoryWithTheClinicalRecord(t *testing.T) {
+	want := map[string]bool{"allergy_intolerance": true, "medication_statement": true, "history_consent": true, "history_consent_encounter": true}
+	for _, r := range retention.Rules() {
+		if !want[r.Table] {
+			continue
+		}
+		if r.Then != retention.ThenKeep {
+			t.Errorf("%s then %q, want %q", r.Table, r.Then, retention.ThenKeep)
+		}
+		delete(want, r.Table)
+	}
+	for table := range want {
+		t.Errorf("no rule for %s", table)
+	}
+}
+
+// The platform figures are kept five years after their build, then deleted (docs/plans/analytics.md §7).
+func TestRules_DeleteThePlatformFiguresFiveYearsAfterTheirBuild(t *testing.T) {
+	fiveYears := time.Date(2031, 1, 1, 0, 0, 0, 0, time.UTC).Sub(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	found := map[string]bool{}
+	for _, r := range retention.Rules() {
+		if r.Table != "trends_cell" && r.Table != "trends_rise" {
+			continue
+		}
+		found[r.Table] = true
+		if r.Then != retention.ThenDelete || r.Keep < fiveYears || r.Keep > fiveYears+2*24*time.Hour {
+			t.Errorf("%s: %q after %v, want deleted after five calendar years", r.Table, r.Then, r.Keep)
+		}
+	}
+	if !found["trends_cell"] || !found["trends_rise"] {
+		t.Errorf("rules for %v, want trends_cell and trends_rise", found)
+	}
+}

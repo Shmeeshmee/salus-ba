@@ -25,25 +25,30 @@ class AppLocalizationsAr extends AppLocalizations {
   String get somethingWrong => 'حدث خطأ ما. يُرجى المحاولة مرة أخرى.';
 
   @override
-  String get unreachable => 'تعذّر الاتصال بـ Salus. يُرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
+  String get unreachable =>
+      'تعذّر الاتصال بـ Salus. يُرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
 
   @override
   String get wrongCredentials => 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
 
   @override
-  String get wrongCode => 'الرمز غير صحيح. يُرجى التحقق من الوقت على جهازك والمحاولة مرة أخرى.';
+  String get wrongCode =>
+      'الرمز غير صحيح. يُرجى التحقق من الوقت على جهازك والمحاولة مرة أخرى.';
 
   @override
-  String get challengeEnded => 'انتهت مهلة تسجيل الدخول. يُرجى إدخال بريدك الإلكتروني وكلمة المرور مرة أخرى.';
+  String get challengeEnded =>
+      'انتهت مهلة تسجيل الدخول. يُرجى إدخال بريدك الإلكتروني وكلمة المرور مرة أخرى.';
 
   @override
-  String get emailTaken => 'يوجد حساب مسجّل بهذا البريد الإلكتروني. يُرجى تسجيل الدخول بدلًا من ذلك.';
+  String get emailTaken =>
+      'يوجد حساب مسجّل بهذا البريد الإلكتروني. يُرجى تسجيل الدخول بدلًا من ذلك.';
 
   @override
   String get invalidEmail => 'يُرجى إدخال عنوان بريد إلكتروني صحيح.';
 
   @override
-  String get invalidPassword => 'يجب أن تتكوّن كلمة المرور من 12 إلى 128 حرفًا.';
+  String get invalidPassword =>
+      'يجب أن تتكوّن كلمة المرور من 12 إلى 128 حرفًا.';
 
   @override
   String get missingPassword => 'يُرجى إدخال كلمة المرور.';
@@ -52,25 +57,31 @@ class AppLocalizationsAr extends AppLocalizations {
   String get invalidCode => 'يتكوّن الرمز من 6 أرقام.';
 
   @override
-  String get staffOnly => 'هذا التطبيق مخصّص للمرضى. يستخدم موظفو العيادات تطبيق الويب الخاص بـ Salus.';
+  String get staffOnly =>
+      'هذا التطبيق مخصّص للمرضى. يستخدم موظفو العيادات تطبيق الويب الخاص بـ Salus.';
 
   @override
   String get accountReady => 'حسابك جاهز. يُرجى تسجيل الدخول للمتابعة.';
 
   @override
-  String get signOutFailed => 'تعذّر تسجيل الخروج. يُرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
+  String get signOutFailed =>
+      'تعذّر تسجيل الخروج. يُرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
 
   @override
-  String get tooManyAttemptsLater => 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى لاحقًا.';
+  String get tooManyAttemptsLater =>
+      'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى لاحقًا.';
 
   @override
   String tooManyAttempts(int minutes) {
     String _temp0 = intl.Intl.pluralLogic(
       minutes,
       locale: localeName,
-      other: 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد $minutes دقيقة.',
-      many: 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد $minutes دقيقة.',
-      few: 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد $minutes دقائق.',
+      other:
+          'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد $minutes دقيقة.',
+      many:
+          'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد $minutes دقيقة.',
+      few:
+          'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد $minutes دقائق.',
       two: 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد دقيقتين.',
       one: 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد دقيقة واحدة.',
       zero: 'عدد كبير جدًا من المحاولات. يُرجى المحاولة مرة أخرى بعد قليل.',
@@ -94,7 +105,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get createAnAccount => 'إنشاء حساب';
 
   @override
-  String get codePrompt => 'يُرجى إدخال الرمز المكوّن من 6 أرقام من تطبيق المصادقة.';
+  String get codePrompt =>
+      'يُرجى إدخال الرمز المكوّن من 6 أرقام من تطبيق المصادقة.';
 
   @override
   String get code => 'الرمز';
@@ -174,13 +186,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get invalidFamilyName => 'يُرجى إدخال اسم عائلتك، بحد أقصى 100 حرف.';
 
   @override
-  String get invalidName => 'يُرجى إدخال اسمك الأول واسم عائلتك، بحد أقصى 100 حرف لكل منهما.';
+  String get invalidName =>
+      'يُرجى إدخال اسمك الأول واسم عائلتك، بحد أقصى 100 حرف لكل منهما.';
 
   @override
   String get birthDateFormat => 'يُرجى إدخال تاريخ ميلادك بالصيغة YYYY-MM-DD.';
 
   @override
-  String get birthDateRange => 'يُرجى إدخال تاريخ ميلاد في الماضي، من عام 1900 فما بعد.';
+  String get birthDateRange =>
+      'يُرجى إدخال تاريخ ميلاد في الماضي، من عام 1900 فما بعد.';
 
   @override
   String invalidPhone(String example) {
@@ -188,7 +202,8 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get profileChanged => 'تم تغيير ملفك الشخصي في هذه الأثناء. يُرجى مراجعته وحفظه مرة أخرى.';
+  String get profileChanged =>
+      'تم تغيير ملفك الشخصي في هذه الأثناء. يُرجى مراجعته وحفظه مرة أخرى.';
 
   @override
   String get chooseClinic => 'اختر عيادة';
@@ -284,10 +299,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get appointmentCancelled => 'تم إلغاء موعدك.';
 
   @override
-  String get cancelWindowHint => 'يمكن إلغاؤه عبر التطبيق حتى 24 ساعة قبل موعد البدء.';
+  String get cancelWindowHint =>
+      'يمكن إلغاؤه عبر التطبيق حتى 24 ساعة قبل موعد البدء.';
 
   @override
-  String get cancelWindowClosed => 'يبدأ هذا الموعد خلال أقل من 24 ساعة، ولم يعد من الممكن إلغاؤه عبر التطبيق.';
+  String get cancelWindowClosed =>
+      'يبدأ هذا الموعد خلال أقل من 24 ساعة، ولم يعد من الممكن إلغاؤه عبر التطبيق.';
 
   @override
   String get appointmentClosed => 'لم يعد هذا الموعد محجوزًا.';
@@ -321,7 +338,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get whatFor => 'لأي غرض';
 
   @override
-  String get whatForBody => 'لرعايتك في هذه العيادة فقط: للتحضير لمواعيدك وإجرائها.';
+  String get whatForBody =>
+      'لرعايتك في هذه العيادة فقط: للتحضير لمواعيدك وإجرائها.';
 
   @override
   String get whoIsResponsible => 'من المسؤول';
@@ -352,7 +370,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String revokeBody(String clinic) {
-    return 'لن تعود $clinic قادرة على الاطلاع على ملفك الشخصي. وتحتفظ باسمك وبتفاصيل المواعيد التي تمت بالفعل، بوصفها جزءًا من سجلات الرعاية لديها. وستُلغى مواعيدك القادمة لدى $clinic.';
+    return 'لن تعود $clinic قادرة على الاطلاع على ملفك الشخصي. وتحتفظ باسمك وبتفاصيل المواعيد التي تمت بالفعل، بوصفها جزءًا من سجلات الرعاية لديها. وستُلغى مواعيدك القادمة لدى $clinic. كما تتوقف مشاركة سجلّك من العيادات الأخرى مع $clinic، ولا تُعيدها الموافقة مجددًا.';
   }
 
   @override
@@ -365,7 +383,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get noConsents => 'لم تقدّم أي موافقات حتى الآن.';
 
   @override
-  String get consentsIntro => 'تشارك ملفك الشخصي ومواعيدك مع هذه العيادات لأغراض رعايتك.';
+  String get consentsIntro =>
+      'تشارك ملفك الشخصي ومواعيدك مع هذه العيادات لأغراض رعايتك.';
 
   @override
   String givenOn(String date) {
@@ -400,7 +419,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get checkIntro => 'سيراك الطبيب ويسمعك بمجرد انضمامك.';
 
   @override
-  String get noSound => 'لم يُكتشف أي صوت. يُرجى التحقق من أن الميكروفون يعمل وغير مكتوم.';
+  String get noSound =>
+      'لم يُكتشف أي صوت. يُرجى التحقق من أن الميكروفون يعمل وغير مكتوم.';
 
   @override
   String get joinCameraOff => 'الانضمام والكاميرا مطفأة';
@@ -495,10 +515,12 @@ class AppLocalizationsAr extends AppLocalizations {
       'انقضى وقت الانضمام إلى هذه الاستشارة. يمكن للعيادة أن ترى أنك انضممت. وقد تتواصل العيادة معك، أو يمكنك حجز موعد جديد.';
 
   @override
-  String get withdrewConsent => 'لقد سحبت موافقتك لهذه العيادة، ولذلك غادرت الاستشارة.';
+  String get withdrewConsent =>
+      'لقد سحبت موافقتك لهذه العيادة، ولذلك غادرت الاستشارة.';
 
   @override
-  String get appointmentWasCancelled => 'أُلغي هذا الموعد، ولذلك انتهت الاستشارة.';
+  String get appointmentWasCancelled =>
+      'أُلغي هذا الموعد، ولذلك انتهت الاستشارة.';
 
   @override
   String get windowNotOpen => 'تُفتح هذه الاستشارة قبل موعد البدء بـ 10 دقائق.';
@@ -513,7 +535,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get consultationNotAvailable => 'هذه الاستشارة غير متاحة.';
 
   @override
-  String get cannotConnect => 'تعذّر بدء اتصال الفيديو. يُرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
+  String get cannotConnect =>
+      'تعذّر بدء اتصال الفيديو. يُرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
 
   @override
   String get whyCameraAndMicrophone =>
@@ -568,7 +591,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get stopTranscription => 'إيقاف النسخ النصي';
 
   @override
-  String get transcriptionStopped => 'النسخ النصي متوقف. تجري استشاراتك مع هذه العيادة بدونه.';
+  String get transcriptionStopped =>
+      'النسخ النصي متوقف. تجري استشاراتك مع هذه العيادة بدونه.';
 
   @override
   String get consentForCare => 'المشاركة لأغراض الرعاية';
@@ -601,7 +625,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get submitBeforeStart => 'يُرجى إرساله قبل بدء موعدك.';
 
   @override
-  String get questionnaireClosed => 'بدأ الموعد، ولذلك لم يعد من الممكن تعبئة هذا الاستبيان.';
+  String get questionnaireClosed =>
+      'بدأ الموعد، ولذلك لم يعد من الممكن تعبئة هذا الاستبيان.';
 
   @override
   String savedAsYouGo(String clinic) {
@@ -615,7 +640,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get saving => 'جارٍ الحفظ…';
 
   @override
-  String get notSaved => 'لم يتم الحفظ. يُرجى التحقق من اتصالك بالإنترنت. ستُعاد محاولة الحفظ تلقائيًا.';
+  String get notSaved =>
+      'لم يتم الحفظ. يُرجى التحقق من اتصالك بالإنترنت. ستُعاد محاولة الحفظ تلقائيًا.';
 
   @override
   String get requiredQuestion => 'إلزامي';
@@ -682,7 +708,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get answersSubmitted => 'تم إرسال الإجابات';
 
   @override
-  String get answersSubmittedBody => 'يمكن لطبيبك الاطلاع عليها قبل موعدك. ويمكنك عرضها من قسم مواعيدي.';
+  String get answersSubmittedBody =>
+      'يمكن لطبيبك الاطلاع عليها قبل موعدك. ويمكنك عرضها من قسم مواعيدي.';
 
   @override
   String get yourAnswers => 'إجاباتك';
@@ -701,25 +728,30 @@ class AppLocalizationsAr extends AppLocalizations {
   String get notAnswered => 'لم تتم الإجابة';
 
   @override
-  String get leaveUnsaved => 'لم تُحفظ إجابتك الأخيرة بعد. هل تريد المغادرة على أي حال؟';
+  String get leaveUnsaved =>
+      'لم تُحفظ إجابتك الأخيرة بعد. هل تريد المغادرة على أي حال؟';
 
   @override
   String get stay => 'البقاء';
 
   @override
-  String get fillingNeedsConsent => 'تتطلّب تعبئة هذا الاستبيان موافقتك لهذه العيادة.';
+  String get fillingNeedsConsent =>
+      'تتطلّب تعبئة هذا الاستبيان موافقتك لهذه العيادة.';
 
   @override
-  String get pastDue => 'بدأ الموعد، ولذلك لم يعد من الممكن تغيير هذا الاستبيان.';
+  String get pastDue =>
+      'بدأ الموعد، ولذلك لم يعد من الممكن تغيير هذا الاستبيان.';
 
   @override
-  String get withdrawnByClinic => 'سحبت العيادة هذا الاستبيان. لست بحاجة إلى تعبئته.';
+  String get withdrawnByClinic =>
+      'سحبت العيادة هذا الاستبيان. لست بحاجة إلى تعبئته.';
 
   @override
   String get alreadySubmitted => 'لقد أرسلت هذا الاستبيان من قبل.';
 
   @override
-  String get changedElsewhere => 'تم تغيير هذه الإجابات على جهاز آخر. تُعرض أحدث الإجابات.';
+  String get changedElsewhere =>
+      'تم تغيير هذه الإجابات على جهاز آخر. تُعرض أحدث الإجابات.';
 
   @override
   String get questionnaireNotAvailable => 'هذا الاستبيان غير متاح.';
@@ -799,7 +831,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get removeFileBody => 'سيُحذف من إجاباتك.';
 
   @override
-  String get fileRejected => 'لم يجتز هذا الملف فحص الأمان وتم حذفه. يُرجى اختيار ملف آخر.';
+  String get fileRejected =>
+      'لم يجتز هذا الملف فحص الأمان وتم حذفه. يُرجى اختيار ملف آخر.';
 
   @override
   String fileTooLarge(int max) {
@@ -807,7 +840,8 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get fileTypeRefused => 'لا يمكن إضافة هذا النوع من الملفات إلى هذا السؤال.';
+  String get fileTypeRefused =>
+      'لا يمكن إضافة هذا النوع من الملفات إلى هذا السؤال.';
 
   @override
   String tooManyFiles(int n) {
@@ -825,19 +859,23 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get filesFull => 'بلغ حجم الملفات في هذا الاستبيان 500 MB. يُرجى إزالة ملف لإضافة ملف آخر.';
+  String get filesFull =>
+      'بلغ حجم الملفات في هذا الاستبيان 500 MB. يُرجى إزالة ملف لإضافة ملف آخر.';
 
   @override
   String get fileNotUploaded => 'تعذّر رفع الملف. يُرجى المحاولة مرة أخرى.';
 
   @override
-  String get cannotPrepareFile => 'تعذّر تحضير هذا الملف للرفع. يُرجى اختيار ملف آخر.';
+  String get cannotPrepareFile =>
+      'تعذّر تحضير هذا الملف للرفع. يُرجى اختيار ملف آخر.';
 
   @override
-  String get filesBeingChecked => 'لا يزال فحص بعض الملفات جاريًا. يمكنك الإرسال بمجرد أن تصبح جاهزة.';
+  String get filesBeingChecked =>
+      'لا يزال فحص بعض الملفات جاريًا. يمكنك الإرسال بمجرد أن تصبح جاهزة.';
 
   @override
-  String get leaveUploading => 'لا يزال رفع أحد الملفات جاريًا. هل تريد المغادرة على أي حال؟ سيتوقف الرفع.';
+  String get leaveUploading =>
+      'لا يزال رفع أحد الملفات جاريًا. هل تريد المغادرة على أي حال؟ سيتوقف الرفع.';
 
   @override
   String fileCount(int n) {
@@ -903,7 +941,8 @@ class AppLocalizationsAr extends AppLocalizations {
       'لا يملك Salus إذنًا بالوصول إلى الكاميرا. يمكنك السماح بذلك من إعدادات جهازك، أو اختيار ملف بدلًا من ذلك.';
 
   @override
-  String get photosDenied => 'لا يملك Salus إذنًا بالوصول إلى صورك. يمكنك السماح بذلك من إعدادات جهازك.';
+  String get photosDenied =>
+      'لا يملك Salus إذنًا بالوصول إلى صورك. يمكنك السماح بذلك من إعدادات جهازك.';
 
   @override
   String cameraPhotoTitle(String date, String time) {
@@ -967,7 +1006,8 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get languageUnavailable => 'لم تعد هذه اللغة متاحة لهذا الاستبيان. اختر لغة أخرى.';
+  String get languageUnavailable =>
+      'لم تعد هذه اللغة متاحة لهذا الاستبيان. اختر لغة أخرى.';
 
   @override
   String specialtyAtClinic(String specialty, String clinic) {
@@ -978,7 +1018,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get documents => 'المستندات';
 
   @override
-  String get noDocuments => 'لا توجد بعد مستندات موقعة لهذا الموعد. يظهر المستند هنا بعد أن يوقعه طبيبك.';
+  String get noDocuments =>
+      'لا توجد بعد مستندات موقعة لهذا الموعد. يظهر المستند هنا بعد أن يوقعه طبيبك.';
 
   @override
   String documentSignedOn(String date) {
@@ -997,7 +1038,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get transcript => 'النص المكتوب';
 
   @override
-  String get transcriptNote => 'الاستشارة كما تم تحويلها إلى نص وترجمتها تلقائيًا. قد تحتوي على أخطاء.';
+  String get transcriptNote =>
+      'الاستشارة كما تم تحويلها إلى نص وترجمتها تلقائيًا. قد تحتوي على أخطاء.';
 
   @override
   String get transcriptEmpty => 'لم يُحوَّل أي شيء إلى نص في هذه الاستشارة.';
@@ -1024,4 +1066,780 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get termClose => 'إغلاق';
+
+  @override
+  String get chatsTitle => 'الرسائل';
+
+  @override
+  String get chatsEmpty => 'ليست لديك محادثات بعد.';
+
+  @override
+  String chatUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count رسالة غير مقروءة',
+      many: '$count رسالة غير مقروءة',
+      few: '$count رسائل غير مقروءة',
+      two: 'رسالتان غير مقروءتين',
+      one: 'رسالة واحدة غير مقروءة',
+      zero: 'لا توجد رسائل غير مقروءة',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDoctorUnknown => 'طبيبك';
+
+  @override
+  String get chatMessageHint => 'اكتب رسالة';
+
+  @override
+  String get chatSend => 'إرسال';
+
+  @override
+  String get chatAttach => 'إضافة ملف';
+
+  @override
+  String get chatSendFailed =>
+      'لم تُرسَل الرسالة. تحقّق من اتصالك وحاول مرة أخرى.';
+
+  @override
+  String get chatFileRejected => 'لم يُقبَل هذا الملف.';
+
+  @override
+  String get chatFileRemove => 'إزالة الملف';
+
+  @override
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'لديك بالفعل $count ملف بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      many:
+          'لديك بالفعل $count ملفًا بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      few:
+          'لديك بالفعل $count ملفات بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      two: 'لديك بالفعل ملفان بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      one: 'لديك بالفعل ملف واحد بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+      zero: 'لا توجد لديك ملفات بانتظار الإرسال. تُزال الملفات غير المرسلة بعد 24 ساعة؛ حاول مرة أخرى لاحقًا.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatOpenFailed => 'تعذّر فتح الملف. حاول مرة أخرى.';
+
+  @override
+  String get chatEndedSession =>
+      'انتهت جلستك. سجّل الدخول مرة أخرى لرؤية الرسائل الجديدة.';
+
+  @override
+  String get chatEnded => 'لم يعد بالإمكان عرض رسائل جديدة في هذه المحادثة.';
+
+  @override
+  String get chatHours => 'مواعيد الرسائل';
+
+  @override
+  String chatHoursDay(String day, String start, String end) {
+    return '$day: $start–$end';
+  }
+
+  @override
+  String get chatHoursNone => 'لم تحدّد العيادة مواعيد للرسائل.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'الأوقات بتوقيت العيادة، $zone.';
+  }
+
+  @override
+  String chatResponseTime(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: 'تردّ العيادة عادةً خلال $hours ساعة.',
+      many: 'تردّ العيادة عادةً خلال $hours ساعة.',
+      few: 'تردّ العيادة عادةً خلال $hours ساعات.',
+      two: 'تردّ العيادة عادةً خلال ساعتين.',
+      one: 'تردّ العيادة عادةً خلال ساعة واحدة.',
+      zero: 'تردّ العيادة عادةً خلال $hours ساعة.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatOutOfHours(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other:
+          'العيادة خارج مواعيد الرسائل الآن. يمكنك الكتابة مع ذلك، وتردّ عادةً خلال $hours ساعة.',
+      many:
+          'العيادة خارج مواعيد الرسائل الآن. يمكنك الكتابة مع ذلك، وتردّ عادةً خلال $hours ساعة.',
+      few:
+          'العيادة خارج مواعيد الرسائل الآن. يمكنك الكتابة مع ذلك، وتردّ عادةً خلال $hours ساعات.',
+      two: 'العيادة خارج مواعيد الرسائل الآن. يمكنك الكتابة مع ذلك، وتردّ عادةً خلال ساعتين.',
+      one: 'العيادة خارج مواعيد الرسائل الآن. يمكنك الكتابة مع ذلك، وتردّ عادةً خلال ساعة واحدة.',
+      zero:
+          'العيادة خارج مواعيد الرسائل الآن. يمكنك الكتابة مع ذلك، وتردّ عادةً خلال $hours ساعة.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemInvited(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion':
+          'دُعي طبيب من عيادة أخرى إلى هذه المحادثة لإبداء رأي ثانٍ.',
+      'specialist_review':
+          'دُعي طبيب من عيادة أخرى إلى هذه المحادثة لتقييم تخصصي.',
+      'handover': 'دُعي طبيب من عيادة أخرى إلى هذه المحادثة لتولّي الرعاية.',
+      'other': 'دُعي طبيب من عيادة أخرى إلى هذه المحادثة.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemAdded(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'انضم طبيب إلى المحادثة لإبداء رأي ثانٍ.',
+      'specialist_review': 'انضم طبيب إلى المحادثة لتقييم تخصصي.',
+      'handover': 'انضم طبيب إلى المحادثة لتولّي الرعاية.',
+      'other': 'انضم طبيب إلى المحادثة.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatSystemRemoved => 'لم يعد أحد الأطباء مشاركًا في المحادثة.';
+
+  @override
+  String get chatSystemGranted =>
+      'سمحت لطبيب من عيادة أخرى بالانضمام إلى المحادثة.';
+
+  @override
+  String get chatSystemDeclined => 'رفضت طبيبًا من عيادة أخرى.';
+
+  @override
+  String get chatSystemOther => 'جرى تحديث المحادثة.';
+
+  @override
+  String get chatInviteTitle => 'طبيب من عيادة أخرى يطلب الانضمام';
+
+  @override
+  String chatInviteBody(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'تطلب عيادتك انضمام طبيب من عيادة أخرى إلى هذه المحادثة لإبداء رأي ثانٍ.',
+      'specialist_review': 'تطلب عيادتك انضمام طبيب من عيادة أخرى إلى هذه المحادثة لتقييم تخصصي.',
+      'handover': 'تطلب عيادتك انضمام طبيب من عيادة أخرى إلى هذه المحادثة لتولّي رعايتك.',
+      'other': 'تطلب عيادتك انضمام طبيب من عيادة أخرى إلى هذه المحادثة.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatInviteWho(String doctor, String clinic) {
+    return 'الطبيب: $doctor، $clinic';
+  }
+
+  @override
+  String get chatInviteUnresolved =>
+      'تعذّر تحميل اسم الطبيب المدعو وعيادته. يمكنك منح الوصول فقط بعد عرضهما.';
+
+  @override
+  String chatInviteSees(String history) {
+    String _temp0 = intl.Intl.selectLogic(history, {
+      'full': 'إذا وافقت، يرى الطبيب المحادثة كاملة، بما فيها الرسائل السابقة، ويمكنه الكتابة فيها.',
+      'from': 'إذا وافقت، يرى الطبيب المحادثة ابتداءً من رسالة اختارتها عيادتك، ويمكنه الكتابة فيها.',
+      'other': 'إذا وافقت، يرى الطبيب المحادثة ويمكنه الكتابة فيها.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatInviteChoice =>
+      'يمكنك الرفض. وإذا وافقت، يمكنك لاحقًا إلغاء وصول الطبيب من هذه المحادثة، وينتهي فورًا.';
+
+  @override
+  String get chatGrant => 'منح الوصول';
+
+  @override
+  String get chatDecline => 'رفض';
+
+  @override
+  String get chatGranted =>
+      'تم منح الوصول. يمكنك إلغاؤه من هذه المحادثة في أي وقت.';
+
+  @override
+  String get chatDeclined => 'تم الرفض. لن ينضم الطبيب إلى هذه المحادثة.';
+
+  @override
+  String get chatRevoke => 'إلغاء وصول الطبيب من العيادة الأخرى';
+
+  @override
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'تم منح الوصول: $doctor، $clinic.';
+  }
+
+  @override
+  String get chatGrantedToUnknown => 'تم منح الوصول لطبيب من عيادة أخرى.';
+
+  @override
+  String get chatRevokeBody =>
+      'يفقد الطبيب من العيادة الأخرى الوصول إلى هذه المحادثة فورًا. وتبقى الرسائل المكتوبة سابقًا فيها.';
+
+  @override
+  String get chatRevokeConfirm => 'إلغاء الوصول';
+
+  @override
+  String get chatRevoked => 'تم إلغاء الوصول.';
+
+  @override
+  String get allergies => 'الحساسية';
+
+  @override
+  String get currentMedications => 'الأدوية الحالية';
+
+  @override
+  String get allergiesIntro =>
+      'ترى العيادات التي منحتها موافقتك أنواع الحساسية المسجلة في ملفك الشخصي عندما يكون لديك موعد لديها.';
+
+  @override
+  String get medicationsIntro =>
+      'ترى العيادات التي منحتها موافقتك الأدوية المسجلة في ملفك الشخصي عندما يكون لديك موعد لديها.';
+
+  @override
+  String get noAllergies => 'لم تضف أي حساسية حتى الآن.';
+
+  @override
+  String get noMedications => 'لم تضف أي دواء حتى الآن.';
+
+  @override
+  String get addAllergy => 'إضافة حساسية';
+
+  @override
+  String get addMedication => 'إضافة دواء';
+
+  @override
+  String get changeAllergy => 'تعديل الحساسية';
+
+  @override
+  String get changeMedication => 'تعديل الدواء';
+
+  @override
+  String get change => 'تعديل';
+
+  @override
+  String get allergySubstance => 'المادة أو الطعام';
+
+  @override
+  String get medicationName => 'الدواء';
+
+  @override
+  String get termSearchHint => 'اكتب للبحث، أو اكتبه بكلماتك الخاصة.';
+
+  @override
+  String get allergyCategory => 'النوع (اختياري)';
+
+  @override
+  String get notSpecified => 'غير محدد';
+
+  @override
+  String get categoryFood => 'طعام';
+
+  @override
+  String get categoryMedication => 'دواء';
+
+  @override
+  String get categoryEnvironment => 'البيئة';
+
+  @override
+  String get categoryBiologic => 'منتج بيولوجي';
+
+  @override
+  String get reactionOptional => 'رد الفعل (اختياري)';
+
+  @override
+  String get severity => 'الشدة';
+
+  @override
+  String get severityMild => 'خفيفة';
+
+  @override
+  String get severityModerate => 'متوسطة';
+
+  @override
+  String get severitySevere => 'شديدة';
+
+  @override
+  String get entryStatus => 'الحالة';
+
+  @override
+  String get allergyActive => 'نشطة';
+
+  @override
+  String get allergyInactive => 'غير نشطة';
+
+  @override
+  String get allergyResolved => 'زالت';
+
+  @override
+  String reactionLine(String reaction) {
+    return 'رد الفعل: $reaction';
+  }
+
+  @override
+  String reactionWithSeverity(String reaction, String severity) {
+    return 'رد الفعل: $reaction ($severity)';
+  }
+
+  @override
+  String get confirmedByClinician => 'أكّده طبيب';
+
+  @override
+  String get recordedByClinic => 'سجّلته عيادة خلال إحدى زياراتك';
+
+  @override
+  String get confirmedChangeNote =>
+      'إذا عدّلت هذا الإدخال، فلن يعود مؤكدًا من طبيب.';
+
+  @override
+  String get nameRequired => 'يُرجى إدخال اسم، بحد أقصى 200 حرف.';
+
+  @override
+  String get addToProfile => 'إضافة إلى ملفي الشخصي';
+
+  @override
+  String get addToProfileTitle => 'هل تريد إضافته إلى ملفك الشخصي؟';
+
+  @override
+  String get addToProfileBody =>
+      'ستراه عندئذٍ كل عيادة منحتها موافقتك، دون اسم العيادة التي سجّلته.';
+
+  @override
+  String get addedToProfile => 'أصبح الآن في ملفك الشخصي.';
+
+  @override
+  String get removeEntryTitle => 'هل تريد إزالة هذا الإدخال؟';
+
+  @override
+  String get removeEntryBody =>
+      'لن يُعرض بعد الآن لك ولا لأي عيادة. إذا كانت عيادة قد سجّلته أو أكّدته، فإنه يبقى في سجلك الطبي مع وسمه بأنه أُزيل.';
+
+  @override
+  String get entryRemoved => 'تمت إزالة الإدخال.';
+
+  @override
+  String get entrySaved => 'تم الحفظ في ملفك الشخصي.';
+
+  @override
+  String get entryChanged =>
+      'تم تغيير هذا الإدخال في هذه الأثناء. تُعرض أحدث نسخة.';
+
+  @override
+  String get entryInvalid =>
+      'بعض البيانات غير صالحة. يُرجى مراجعتها والمحاولة مرة أخرى.';
+
+  @override
+  String get entryNotAllowed => 'لا يمكنك تعديل هذا الإدخال.';
+
+  @override
+  String get entryNotFound => 'هذا الإدخال لم يعد متاحًا.';
+
+  @override
+  String get doseHeading => 'الجرعة (اختياري)';
+
+  @override
+  String get doseAmount => 'الكمية';
+
+  @override
+  String get doseUnit => 'الوحدة';
+
+  @override
+  String get unitMg => 'مليغرام (ملغ)';
+
+  @override
+  String get unitG => 'غرام (غ)';
+
+  @override
+  String get unitUg => 'ميكروغرام (مكغ)';
+
+  @override
+  String get unitMl => 'مليلتر (مل)';
+
+  @override
+  String get unitIu => 'وحدات دولية';
+
+  @override
+  String get unitTablet => 'أقراص';
+
+  @override
+  String get unitCapsule => 'كبسولات';
+
+  @override
+  String get unitDrop => 'قطرات';
+
+  @override
+  String get unitPuff => 'بخات (بخاخ)';
+
+  @override
+  String get unitPatch => 'لصقات';
+
+  @override
+  String get doseBoth => 'يُرجى إدخال الكمية والوحدة معًا، أو ترك كليهما.';
+
+  @override
+  String get numberAboveZero => 'يُرجى إدخال رقم أكبر من 0.';
+
+  @override
+  String get howOftenHeading => 'كم مرة (اختياري)';
+
+  @override
+  String get timesLabel => 'عدد المرات';
+
+  @override
+  String get everyLabel => 'كل';
+
+  @override
+  String get periodUnitLabel => 'وحدة الوقت';
+
+  @override
+  String get periodHours => 'ساعات';
+
+  @override
+  String get periodDays => 'أيام';
+
+  @override
+  String get periodWeeks => 'أسابيع';
+
+  @override
+  String get periodMonths => 'أشهر';
+
+  @override
+  String get howOftenAll => 'يُرجى ملء الحقول الثلاثة كلها، أو تركها فارغة.';
+
+  @override
+  String get asNeeded => 'عند الحاجة';
+
+  @override
+  String get medicationActive => 'أتناوله حاليًا';
+
+  @override
+  String get medicationStopped => 'توقفت عن تناوله';
+
+  @override
+  String doseMg(String value) {
+    return '$value ملغ';
+  }
+
+  @override
+  String doseG(String value) {
+    return '$value غ';
+  }
+
+  @override
+  String doseUg(String value) {
+    return '$value مكغ';
+  }
+
+  @override
+  String doseMl(String value) {
+    return '$value مل';
+  }
+
+  @override
+  String doseIu(String value) {
+    return '$value وحدة دولية';
+  }
+
+  @override
+  String doseTablet(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value قرص',
+      many: '$value قرصًا',
+      few: '$value أقراص',
+      two: '$value قرص',
+      one: '$value قرص',
+      zero: '$value قرص',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseCapsule(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value كبسولة',
+      many: '$value كبسولة',
+      few: '$value كبسولات',
+      two: '$value كبسولة',
+      one: '$value كبسولة',
+      zero: '$value كبسولة',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseDrop(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value قطرة',
+      many: '$value قطرة',
+      few: '$value قطرات',
+      two: '$value قطرة',
+      one: '$value قطرة',
+      zero: '$value قطرة',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePuff(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value بخة',
+      many: '$value بخة',
+      few: '$value بخات',
+      two: '$value بخة',
+      one: '$value بخة',
+      zero: '$value بخة',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePatch(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value لصقة',
+      many: '$value لصقة',
+      few: '$value لصقات',
+      two: '$value لصقة',
+      one: '$value لصقة',
+      zero: '$value لصقة',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseLine(String dose) {
+    return 'الجرعة: $dose';
+  }
+
+  @override
+  String howOftenPerHour(int frequency) {
+    return '$frequency× في الساعة';
+  }
+
+  @override
+  String howOftenPerDay(int frequency) {
+    return '$frequency× في اليوم';
+  }
+
+  @override
+  String howOftenPerWeek(int frequency) {
+    return '$frequency× في الأسبوع';
+  }
+
+  @override
+  String howOftenPerMonth(int frequency) {
+    return '$frequency× في الشهر';
+  }
+
+  @override
+  String howOftenEveryHours(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× كل $every ساعة',
+      many: '$frequency× كل $every ساعة',
+      few: '$frequency× كل $every ساعات',
+      two: '$frequency× كل $every ساعة',
+      one: '$frequency× كل $every ساعة',
+      zero: '$frequency× كل $every ساعة',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryDays(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× كل $every يوم',
+      many: '$frequency× كل $every يومًا',
+      few: '$frequency× كل $every أيام',
+      two: '$frequency× كل $every يوم',
+      one: '$frequency× كل $every يوم',
+      zero: '$frequency× كل $every يوم',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryWeeks(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× كل $every أسبوع',
+      many: '$frequency× كل $every أسبوعًا',
+      few: '$frequency× كل $every أسابيع',
+      two: '$frequency× كل $every أسبوع',
+      one: '$frequency× كل $every أسبوع',
+      zero: '$frequency× كل $every أسبوع',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryMonths(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× كل $every شهر',
+      many: '$frequency× كل $every شهرًا',
+      few: '$frequency× كل $every أشهر',
+      two: '$frequency× كل $every شهر',
+      one: '$frequency× كل $every شهر',
+      zero: '$frequency× كل $every شهر',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get myHistory => 'سجلي';
+
+  @override
+  String get historyEmpty =>
+      'سجلك فارغ حتى الآن. تظهر هنا زياراتك ومستنداتك وإجاباتك.';
+
+  @override
+  String get historyNoMatch => 'لا يوجد في سجلك ما يطابق عوامل التصفية هذه.';
+
+  @override
+  String get historyClinic => 'العيادة';
+
+  @override
+  String get historyAllClinics => 'كل العيادات';
+
+  @override
+  String get historyVisits => 'الزيارات';
+
+  @override
+  String get historyVisit => 'زيارة';
+
+  @override
+  String get historyAnswers => 'إجابات الاستبيان';
+
+  @override
+  String get historyFiles => 'الملفات';
+
+  @override
+  String get historyFile => 'ملف';
+
+  @override
+  String get historyAnyDate => 'أي تاريخ';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return 'من $from إلى $to';
+  }
+
+  @override
+  String get historyClearDates => 'مسح التواريخ';
+
+  @override
+  String get historyShowMore => 'عرض المزيد';
+
+  @override
+  String get historyMoreFailed => 'تعذر تحميل المزيد من سجلك.';
+
+  @override
+  String get historyOpenFailed => 'تعذر فتح هذا العنصر. حاول مرة أخرى.';
+
+  @override
+  String get sharingToggle => 'مشاركة سجلّي من العيادات الأخرى مع هذه العيادة';
+
+  @override
+  String sharingIntro(String clinic) {
+    return 'حدّد الزيارات السابقة التي يُسمح لـ $clinic بالاطلاع عليها. لكل زيارة تحدّدها، يرى أطباء $clinic الذين لديك موعد معهم ما هو معروض هنا، مع مستندات الزيارة وإجابات الاستبيانات والملفات، والحساسيات والأدوية المسجّلة فيها، وكل ما يُضاف إلى الزيارة لاحقًا. أما الزيارات التي لا تحدّدها فتبقى مخفية عن $clinic.';
+  }
+
+  @override
+  String get sharingChangeLater =>
+      'يمكنك إضافة زيارات أو إزالتها، أو إيقاف المشاركة، في أي وقت من قسم السجل المشترك. يسري كل تغيير فورًا.';
+
+  @override
+  String get sharingNoVisits =>
+      'ليست لديك زيارات سابقة في عيادات أخرى يمكن مشاركتها.';
+
+  @override
+  String get sharingSelectAll => 'تحديد الكل';
+
+  @override
+  String get sharingSelectNone => 'إلغاء تحديد الكل';
+
+  @override
+  String get sharedHistory => 'السجل المشترك';
+
+  @override
+  String get sharedHistoryIntro =>
+      'العيادات التي منحتها موافقتك، وعدد زياراتك من العيادات الأخرى التي تطّلع عليها كل منها.';
+
+  @override
+  String get sharedHistoryNone => 'لم تمنح موافقتك لأي عيادة بعد.';
+
+  @override
+  String sharedVisits(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count زيارة مُشارَكة',
+      many: '$count زيارة مُشارَكة',
+      few: '$count زيارات مُشارَكة',
+      two: 'زيارتان مُشارَكتان',
+      one: 'زيارة واحدة مُشارَكة',
+      zero: 'لا شيء مُشارَك',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sharingSaved => 'تم حفظ اختيارك ويسري فورًا.';
+
+  @override
+  String get sharingStop => 'إيقاف المشاركة';
+
+  @override
+  String get sharingStopTitle => 'هل تريد إيقاف مشاركة سجلّك؟';
+
+  @override
+  String sharingStopBody(String clinic) {
+    return 'لن تعود $clinic قادرة على الاطلاع على أي من الزيارات من العيادات الأخرى التي شاركتها معها. يسري ذلك فورًا.';
+  }
+
+  @override
+  String get sharingKeep => 'متابعة المشاركة';
+
+  @override
+  String get sharingStopped => 'لم تعد تشارك سجلّك مع هذه العيادة.';
+
+  @override
+  String get sharingChanged =>
+      'تغيّرت زياراتك المُشارَكة في هذه الأثناء. راجعها واحفظها مرة أخرى.';
+
+  @override
+  String get bookedNotShared =>
+      'تم حجز موعدك، لكن تعذّرت مشاركة سجلّك. يمكنك مشاركته من قسم السجل المشترك.';
+
+  @override
+  String get consentForHistory => 'زيارات مُشارَكة من عيادات أخرى';
 }

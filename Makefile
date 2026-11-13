@@ -20,7 +20,7 @@ TEST_SERVICES := postgres redis mailpit mailpit-starttls mailpit-tls livekit obj
 GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...
 GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-chat bench-suggest bench-drafting turn-check livekit-turn-cert mailpit-tls-cert lint i18n-check archcheck arch-gate e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-chat bench-clinicstats bench-history bench-history-practitioner bench-suggest bench-drafting turn-check livekit-turn-cert mailpit-tls-cert lint i18n-check archcheck arch-gate e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	terminology-fetch terminology-import terminology-export document-templates-seed \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down \
@@ -95,6 +95,12 @@ bench-questionnaire-http: up tools-image
 bench-binary-http: tools-image
 	$(GO) go test -tags loadtest -count=1 -v -run TestBinaryHTTPReadings ./internal/api/
 
+## bench-history-practitioner: the practitioner's view of the patient's history and the pre-visit summary through
+## api.New, on a patient with 900 visits at two clinics, as p50/p95/p99 (docs/plans/patient-history.PROGRESS.md,
+## SAL-40). Not part of make test.
+bench-history-practitioner: tools-image
+	$(GO) go test -tags loadtest -count=1 -v -run TestHistoryReadings ./internal/api/
+
 ## bench-drafting: the drafting's and the signing's own time through api.New with the fake model, and the size of
 ## a 30-minute consultation's request to the model (docs/plans/consult-intelligence.PROGRESS.md, SAL-8). Not part of make test.
 bench-drafting: tools-image
@@ -106,6 +112,15 @@ bench-drafting: tools-image
 ## bench-chat: the chat's load test (SAL-27): latest page and delivery p95 with millions of messages (CHAT_LOAD_MESSAGES)
 bench-chat: tools-image
 	$(GO) sh -c "go test -tags loadtest -count=1 -timeout 60m -v -run TestChatLoad ./internal/api/"
+
+## bench-history: the patient's timeline (SAL-39): a page of a 2,000-item history, p95 (docs/plans/patient-history.PROGRESS.md)
+bench-history: tools-image
+	$(GO) sh -c "go test -tags loadtest -count=1 -timeout 30m -v -run TestHistoryLoad ./internal/api/"
+
+## bench-clinicstats: one clinic-day's refresh and a yearly overview on 3 years x 20 practitioners of synthetic data
+## (docs/plans/analytics.PROGRESS.md, ANA-2)
+bench-clinicstats: tools-image
+	$(GO) go test -run '^$$' -bench 'BenchmarkClinicStats' -benchtime=50x -count=3 -timeout 60m ./internal/worker
 
 bench-consult-stream: tools-image
 	$(GO) sh -c "go test -tags loadtest -count=1 -v -run TestTranscriptStreamLatency ./internal/api/ && \

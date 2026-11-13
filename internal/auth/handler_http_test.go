@@ -221,3 +221,19 @@ func TestHandlers_LogNoEmailPasswordOrHash(t *testing.T) {
 		}
 	}
 }
+
+// The features turned on for this deployment are a list of codes in GET /auth/me (docs/plans/analytics.md §2a);
+// none, no list.
+func TestMeHandler_ListsTheFeaturesTurnedOn(t *testing.T) {
+	a := patientAccount()
+	mux := http.NewServeMux()
+	auth.NewHandler(&stubService{account: a}, discard(), nil).WithFeatures([]string{"analytics_platform"}).Routes(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, meRequest(t, accountID))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"features":["analytics_platform"]`) {
+		t.Errorf("GET /auth/me = %d %s, want the feature listed", rec.Code, rec.Body)
+	}
+	if rec := serve(t, &stubService{account: a}, discard(), meRequest(t, accountID)); strings.Contains(rec.Body.String(), "features") {
+		t.Errorf("GET /auth/me without features = %s, want no list", rec.Body)
+	}
+}

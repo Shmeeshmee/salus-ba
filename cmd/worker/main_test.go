@@ -22,6 +22,7 @@ func TestRun_StartsRiverAndStopsCleanly(t *testing.T) {
 	dbURL := pgtest.NewDatabaseURL(t)
 	t.Setenv("DATABASE_URL", pgtest.AppURL(t, dbURL))
 	t.Setenv("RETENTION_DATABASE_URL", pgtest.RetentionURL(t, dbURL))
+	t.Setenv("STATS_DATABASE_URL", pgtest.StatsURL(t, dbURL))
 	t.Setenv("REDIS_URL", redistest.URL(t))
 	setLiveKit(t)
 	setFiles(t)
@@ -49,6 +50,8 @@ func TestRun_StartsWithTheConfiguredLanguageModel(t *testing.T) {
 		dbURL := pgtest.NewDatabaseURL(t)
 		t.Setenv("DATABASE_URL", pgtest.AppURL(t, dbURL))
 		t.Setenv("RETENTION_DATABASE_URL", pgtest.RetentionURL(t, dbURL))
+		t.Setenv("STATS_DATABASE_URL", pgtest.StatsURL(t, dbURL))
+		t.Setenv("STATS_DATABASE_URL", pgtest.StatsURL(t, dbURL))
 		t.Setenv("REDIS_URL", redistest.URL(t))
 		setLiveKit(t)
 		setFiles(t)
@@ -96,11 +99,28 @@ func TestRun_FailsWithoutTheRetentionDatabaseURL(t *testing.T) {
 	}
 }
 
+// The clinic statistics' builds need the stats role's login; without it the worker does not start.
+func TestRun_FailsWithoutTheStatsDatabaseURL(t *testing.T) {
+	dbURL := pgtest.NewDatabaseURL(t)
+	t.Setenv("DATABASE_URL", pgtest.AppURL(t, dbURL))
+	t.Setenv("RETENTION_DATABASE_URL", pgtest.RetentionURL(t, dbURL))
+	t.Setenv("STATS_DATABASE_URL", "")
+	setLiveKit(t)
+	setFiles(t)
+
+	err := run(t.Context(), &bytes.Buffer{})
+
+	if err == nil || !strings.Contains(err.Error(), "STATS_DATABASE_URL") {
+		t.Fatalf("run() error = %v, want one naming STATS_DATABASE_URL", err)
+	}
+}
+
 // The consultations' stream consumer reads Redis; without it the worker does not start.
 func TestRun_FailsWithoutTheRedisURL(t *testing.T) {
 	dbURL := pgtest.NewDatabaseURL(t)
 	t.Setenv("DATABASE_URL", pgtest.AppURL(t, dbURL))
 	t.Setenv("RETENTION_DATABASE_URL", pgtest.RetentionURL(t, dbURL))
+	t.Setenv("STATS_DATABASE_URL", pgtest.StatsURL(t, dbURL))
 	t.Setenv("REDIS_URL", "")
 	setLiveKit(t)
 	setFiles(t)
@@ -177,6 +197,7 @@ func setLiveKit(t *testing.T) {
 func TestRun_FailsWithoutTheLiveKitSettings(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://unused@localhost/unused")
 	t.Setenv("RETENTION_DATABASE_URL", "postgres://unused@localhost/unused")
+	t.Setenv("STATS_DATABASE_URL", "postgres://unused@localhost/unused")
 	setLiveKit(t)
 	t.Setenv("LIVEKIT_API_SECRET", "")
 
@@ -187,10 +208,11 @@ func TestRun_FailsWithoutTheLiveKitSettings(t *testing.T) {
 	}
 }
 
-// setFiles sets the object store's and clamd's settings the binary jobs require, synthetic as in compose
-// (nothing connects to either at start).
+// setFiles sets the object store's and clamd's settings the binary jobs require, and the webhook deliveries' key,
+// synthetic as in compose (nothing connects to either at start).
 func setFiles(t *testing.T) {
 	t.Helper()
+	t.Setenv("WEBHOOK_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtd2ViaG9vay1rZXk=") // the webhook deliveries' key (SAL-29), synthetic as in compose
 	for k, v := range map[string]string{
 		"S3_ENDPOINT": "http://objectstore:3900", "S3_REGION": "garage", "S3_BUCKET": "salus-binaries",
 		"S3_ACCESS_KEY_ID": "GK5a1a50000000000000000001", "S3_SECRET_ACCESS_KEY": "synthetic-secret",
@@ -208,6 +230,8 @@ func TestRun_FailsWithoutTheFilesSettings(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Setenv("DATABASE_URL", "postgres://unused@localhost/unused")
 			t.Setenv("RETENTION_DATABASE_URL", "postgres://unused@localhost/unused")
+			t.Setenv("STATS_DATABASE_URL", "postgres://unused@localhost/unused")
+			t.Setenv("STATS_DATABASE_URL", "postgres://unused@localhost/unused")
 			setLiveKit(t)
 			setFiles(t)
 			t.Setenv(name, "")

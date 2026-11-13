@@ -10,9 +10,11 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/slot"
+	"github.com/Shmeeshmee/salus/internal/trends"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
@@ -47,6 +49,7 @@ func (w *retentionWorker) Work(ctx context.Context, _ *river.Job[RetentionApplyA
 func newRetention(pool, retentionPool *pgxpool.Pool, store binary.Store) (*retention.Service, error) {
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), postgres.NewTransactor(pool), clock.System{})
 	accounts := auth.NewPostgresRepository(retentionPool)
+	figures := trends.NewPostgresRepository(retentionPool)
 	return retention.NewService(map[string]retention.Purger{
 		"session":                auth.NewSessionPurger(accounts),
 		"invite":                 auth.NewInvitePurger(accounts),
@@ -54,5 +57,8 @@ func newRetention(pool, retentionPool *pgxpool.Pool, store binary.Store) (*reten
 		"video_session":          videosession.NewPurger(videosession.NewPostgresRepository(retentionPool)),
 		"questionnaire_response": questionnaireresponse.NewPurger(questionnaireresponse.NewPostgresRepository(retentionPool)),
 		"binary":                 binary.NewPurger(binary.NewPostgresRepository(retentionPool), store),
+		"webhook_dead_letter":    notification.NewDeadLetterPurger(notification.NewPostgresRepository(retentionPool)),
+		"trends_cell":            trends.NewCellPurger(figures),
+		"trends_rise":            trends.NewFlagPurger(figures),
 	}, audit, clock.System{})
 }

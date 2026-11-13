@@ -10,9 +10,13 @@
 # in internal/retention/rules.go (archcheck), and its personal fields a line in the feature's SPEC.md.
 tables:
   account: {owner: auth, personal_data: true}
+  allergy_intolerance: {owner: allergyintolerance, personal_data: true} # 00043, SAL-41
   appointment: {owner: appointment, personal_data: true}
   audit_event: {owner: auditevent, personal_data: true}
   binary: {owner: binary, personal_data: true}
+  chat_consent: {owner: consent, personal_data: true}
+  clinic_appointment_stat: {owner: clinicstats, personal_data: true} # 00048, SAL-20
+  clinic_diagnosis_stat: {owner: clinicstats, personal_data: true} # 00048, SAL-20
   communication: {owner: communication, personal_data: true}
   communication_revision: {owner: communication, personal_data: true}
   condition: {owner: condition, personal_data: true}
@@ -26,11 +30,16 @@ tables:
   document_template: {owner: composition, personal_data: false}
   document_template_translation: {owner: composition, personal_data: false}
   encounter: {owner: encounter, personal_data: true}
+  history_consent: {owner: consent, personal_data: true} # 00043, SAL-42
+  history_consent_encounter: {owner: consent, personal_data: true} # 00043, SAL-42
   invite: {owner: auth, personal_data: true}
+  medication_statement: {owner: medicationstatement, personal_data: true} # 00043, SAL-41
   organization: {owner: organization, personal_data: false}
+  organization_chat_settings: {owner: organization, personal_data: false} # chat hours and delays (00047)
   patient: {owner: patient, personal_data: true}
   place: {owner: terminology, personal_data: false}
   practitioner: {owner: practitioner, personal_data: true}
+  push_device: {owner: notification, personal_data: true} # an account's device token (00047)
   practitioner_role: {owner: practitionerrole, personal_data: true}
   questionnaire: {owner: questionnaire, personal_data: false}
   questionnaire_default: {owner: questionnaire, personal_data: false}
@@ -47,7 +56,12 @@ tables:
   term_translation: {owner: terminology, personal_data: true} # reviewed_by
   transcript_segment: {owner: transcript, personal_data: true}
   transcription_consent: {owner: consent, personal_data: true}
+  trends_cell: {owner: trends, personal_data: true}
+  trends_period: {owner: trends, personal_data: false}
+  trends_rise: {owner: trends, personal_data: true}
   video_session: {owner: videosession, personal_data: true}
+  webhook_dead_letter: {owner: notification, personal_data: true} # ids of a patient's message (00047)
+  webhook_endpoint: {owner: notification, personal_data: true} # created_by (00047)
   river_job: {owner: river}
   river_leader: {owner: river}
   river_queue: {owner: river}

@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:salus_api/api.dart';
 
 import 'appointments_screen.dart';
 import 'booking.dart';
 import 'call.dart';
+import 'chat.dart';
+import 'chat_list_screen.dart';
 import 'files.dart';
+import 'history_screen.dart';
 import 'clinics_screen.dart';
 import 'consents_screen.dart';
 import 'language_picker.dart';
@@ -13,13 +18,14 @@ import 'profile_screen.dart';
 import 'session.dart';
 import 'ui.dart' as ui;
 
-/// The signed-in patient: the profile first when there is none, then booking, appointments, consents and
-/// sign-out.
+/// The signed-in patient: the profile first when there is none, then booking, appointments, their history,
+/// consents and sign-out.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     required this.session,
     required this.booking,
+    this.chats,
     required this.now,
     required this.media,
     required this.files,
@@ -29,6 +35,9 @@ class HomeScreen extends StatefulWidget {
 
   final Session session;
   final Booking booking;
+
+  /// The conversations; null leaves out the Messages entry.
+  final Chats? chats;
   final DateTime Function() now;
   final Media media;
   final Files files;
@@ -84,6 +93,13 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     }
+  }
+
+  /// A chat found the session ended: back to this screen, then the sign-out path to sign-in (a session the API
+  /// already ended counts as signed out).
+  void _sessionEnded() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    unawaited(_signOut());
   }
 
   /// Opens [screen]; a booking there may have completed the profile, so a missing one is read again after.
@@ -150,6 +166,25 @@ class _HomeScreenState extends State<HomeScreen> {
           onPressed: () =>
               _open(() => AppointmentsScreen(booking: booking, now: now, media: widget.media, files: widget.files)),
           child: Text(t.myAppointments),
+        ),
+        if (widget.chats case final chats?)
+          OutlinedButton(
+            onPressed: () => _open(
+              () => ChatListScreen(
+                chats: chats,
+                places: booking.places,
+                files: widget.files,
+                media: widget.media,
+                now: now,
+                onSessionEnded: _sessionEnded,
+              ),
+            ),
+            child: Text(t.chatsTitle),
+          ),
+        OutlinedButton(
+          onPressed: () =>
+              _open(() => HistoryScreen(booking: booking, media: widget.media, files: widget.files, now: now)),
+          child: Text(t.myHistory),
         ),
         OutlinedButton(
           onPressed: () => _open(() => ConsentsScreen(booking: booking)),

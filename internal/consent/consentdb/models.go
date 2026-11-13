@@ -220,6 +220,29 @@ type Account struct {
 	DetectedLanguage NullLanguage
 }
 
+type AllergyIntolerance struct {
+	ID                      pgtype.UUID
+	CreatedAt               pgtype.Timestamptz
+	UpdatedAt               pgtype.Timestamptz
+	RecordedDate            pgtype.Timestamptz
+	ConfirmedAt             pgtype.Timestamptz
+	PatientID               pgtype.UUID
+	OrganizationID          pgtype.UUID
+	EncounterID             pgtype.UUID
+	RecorderRoleID          pgtype.UUID
+	ConfirmedByRoleID       pgtype.UUID
+	ConfirmedOrganizationID pgtype.UUID
+	TermID                  pgtype.UUID
+	VersionID               int32
+	InProfile               bool
+	CodeText                string
+	Category                pgtype.Text
+	ReactionText            pgtype.Text
+	Severity                pgtype.Text
+	ClinicalStatus          string
+	VerificationStatus      string
+}
+
 type Appointment struct {
 	ID                   pgtype.UUID
 	CreatedAt            pgtype.Timestamptz
@@ -258,23 +281,67 @@ type AuditEvent struct {
 }
 
 type Binary struct {
-	ID                      pgtype.UUID
-	CreatedAt               pgtype.Timestamptz
-	UpdatedAt               pgtype.Timestamptz
-	ScannedAt               pgtype.Timestamptz
-	OrganizationID          pgtype.UUID
-	PatientID               pgtype.UUID
-	AppointmentID           pgtype.UUID
-	QuestionnaireResponseID pgtype.UUID
-	Size                    int64
-	SegmentSize             int32
-	LinkID                  string
-	ContentType             string
-	Title                   string
-	Status                  string
-	KekID                   string
-	Sha1                    []byte
-	WrappedKey              []byte
+	ID                        pgtype.UUID
+	CreatedAt                 pgtype.Timestamptz
+	UpdatedAt                 pgtype.Timestamptz
+	ScannedAt                 pgtype.Timestamptz
+	OrganizationID            pgtype.UUID
+	PatientID                 pgtype.UUID
+	AppointmentID             pgtype.UUID
+	QuestionnaireResponseID   pgtype.UUID
+	Size                      int64
+	SegmentSize               int32
+	LinkID                    pgtype.Text
+	ContentType               string
+	Title                     string
+	Status                    string
+	KekID                     string
+	Sha1                      []byte
+	WrappedKey                []byte
+	ConversationID            pgtype.UUID
+	ConversationParticipantID pgtype.UUID
+	CommunicationID           pgtype.UUID
+	CommunicationSentAt       pgtype.Timestamptz
+	ThumbnailID               pgtype.UUID
+	ThumbnailSize             pgtype.Int8
+	ThumbnailWrappedKey       []byte
+}
+
+type ChatConsent struct {
+	ID                         pgtype.UUID
+	CreatedAt                  pgtype.Timestamptz
+	UpdatedAt                  pgtype.Timestamptz
+	DateTime                   pgtype.Timestamptz
+	RevokedAt                  pgtype.Timestamptz
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	VersionID                  int32
+	Status                     string
+}
+
+type ClinicAppointmentStat struct {
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Day                pgtype.Date
+	Count              int32
+	Hour               int16
+	SpecialtyCode      string
+	Status             string
+}
+
+type ClinicDiagnosisStat struct {
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Day                pgtype.Date
+	Count              int32
+	Hour               int16
+	SpecialtyCode      string
+	GroupCode          string
+	SubgroupCode       pgtype.Text
+	Code               string
 }
 
 type Communication struct {
@@ -295,6 +362,7 @@ type Communication struct {
 	Body                pgtype.Text
 	SystemCode          pgtype.Text
 	SystemArgs          []byte
+	AttachmentCount     int16
 }
 
 type CommunicationRevision struct {
@@ -363,6 +431,9 @@ type ConversationParticipant struct {
 	HistoryFromSeq     int64
 	ReadSeq            int64
 	Role               string
+	OrganizationID     pgtype.UUID
+	Status             string
+	Reason             pgtype.Text
 }
 
 type DiagnosisGroup struct {
@@ -445,6 +516,26 @@ type Encounter struct {
 	Status             string
 }
 
+type HistoryConsent struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	DateTime       pgtype.Timestamptz
+	RevokedAt      pgtype.Timestamptz
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
+}
+
+type HistoryConsentEncounter struct {
+	ID          pgtype.UUID
+	AddedAt     pgtype.Timestamptz
+	RemovedAt   pgtype.Timestamptz
+	ConsentID   pgtype.UUID
+	EncounterID pgtype.UUID
+}
+
 type Invite struct {
 	ID             pgtype.UUID
 	CreatedAt      pgtype.Timestamptz
@@ -459,6 +550,31 @@ type Invite struct {
 	TokenHash      []byte
 }
 
+type MedicationStatement struct {
+	ID                      pgtype.UUID
+	CreatedAt               pgtype.Timestamptz
+	UpdatedAt               pgtype.Timestamptz
+	DateAsserted            pgtype.Timestamptz
+	ConfirmedAt             pgtype.Timestamptz
+	PatientID               pgtype.UUID
+	OrganizationID          pgtype.UUID
+	EncounterID             pgtype.UUID
+	RecorderRoleID          pgtype.UUID
+	ConfirmedByRoleID       pgtype.UUID
+	ConfirmedOrganizationID pgtype.UUID
+	TermID                  pgtype.UUID
+	DoseValue               pgtype.Numeric
+	Period                  pgtype.Numeric
+	VersionID               int32
+	Frequency               pgtype.Int4
+	InProfile               bool
+	AsNeeded                bool
+	MedicationText          string
+	DoseUnit                pgtype.Text
+	PeriodUnit              pgtype.Text
+	Status                  string
+}
+
 type Organization struct {
 	ID                    pgtype.UUID
 	CreatedAt             pgtype.Timestamptz
@@ -470,6 +586,21 @@ type Organization struct {
 	TimeZone              string
 	DefaultLanguage       Language
 	PatientTranscriptCopy bool
+	LocationSince         pgtype.Timestamptz
+	ContributesSince      pgtype.Timestamptz
+	AnalyticsContributes  bool
+	RegionID              pgtype.Text
+	CityID                pgtype.Text
+	RegionKind            pgtype.Text
+}
+
+type OrganizationChatSetting struct {
+	OrganizationID    pgtype.UUID
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+	ResponseTimeHours int32
+	EmailAfterMinutes int32
+	Hours             []byte
 }
 
 type Patient struct {
@@ -512,6 +643,15 @@ type PractitionerRole struct {
 	VersionID      int32
 	Active         bool
 	SpecialtyCode  pgtype.Text
+}
+
+type PushDevice struct {
+	ID        pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	AccountID pgtype.UUID
+	Platform  string
+	Token     string
 }
 
 type Questionnaire struct {
@@ -736,6 +876,41 @@ type TranscriptionConsent struct {
 	Status         string
 }
 
+type TrendsCell struct {
+	ID         pgtype.UUID
+	CreatedAt  pgtype.Timestamptz
+	Count      pgtype.Int4
+	Suppressed bool
+	Period     string
+	Tbl        string
+	Entity     string
+	Region     string
+	City       string
+	Grp        string
+	Subgroup   string
+	Code       string
+	Specialty  string
+	Weekday    string
+	Hour       string
+}
+
+type TrendsPeriod struct {
+	CreatedAt pgtype.Timestamptz
+	MinCount  int32
+	CodeLevel bool
+	Period    string
+	Kind      string
+	Status    string
+}
+
+type TrendsRise struct {
+	ID        pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+	Period    string
+	Region    string
+	Grp       string
+}
+
 type VideoSession struct {
 	ID                   pgtype.UUID
 	CreatedAt            pgtype.Timestamptz
@@ -751,4 +926,28 @@ type VideoSession struct {
 	PractitionerIdentity string
 	EndReason            pgtype.Text
 	RemovalReason        pgtype.Text
+}
+
+type WebhookDeadLetter struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	EndpointID     pgtype.UUID
+	OrganizationID pgtype.UUID
+	EventID        pgtype.UUID
+	ConversationID pgtype.UUID
+	MessageID      pgtype.UUID
+	Attempts       int32
+	LastStatus     pgtype.Int4
+	EventType      string
+}
+
+type WebhookEndpoint struct {
+	ID              pgtype.UUID
+	CreatedAt       pgtype.Timestamptz
+	OrganizationID  pgtype.UUID
+	CreatedBy       pgtype.UUID
+	IncludeClinical bool
+	Url             string
+	Events          []string
+	SecretSealed    []byte
 }

@@ -1026,7 +1026,7 @@ export interface paths {
         };
         /**
          * Search the medical terminology
-         * @description The cheatsheet's search (docs/terminology/SPEC.md §3 "API and UI"). Matches q against every label of every term in every language, case and accents aside: an exact label first, then a label that starts with q, then a word within trigram distance (later words of a label, misspellings), then the more common term. Each match carries its labels in the requested languages. Staff only (practitioners and admins). Not audited: it reads no patient data. The search text is never logged or stored, and no error repeats it.
+         * @description The cheatsheet's search (docs/terminology/SPEC.md §3 "API and UI"). Matches q against every label of every term in every language, case and accents aside: an exact label first, then a label that starts with q, then a word within trigram distance (later words of a label, misspellings), then the more common term. Each match carries its labels in the requested languages. Staff (practitioners and admins) search every category; a patient only `category=drug`, for the substances and medications of their profile (SAL-41). Not audited: it reads no patient data. The search text is never logged or stored, and no error repeats it.
          */
         get: operations["searchTerminology"];
         put?: never;
@@ -1089,6 +1089,86 @@ export interface paths {
          * @description Bosnia and Herzegovina's Federation, its ten cantons, Republika Srpska and Brcko District as regions, and 143 municipalities and cities (docs/plans/analytics.md §3): the entity first, then the regions, then the cities, each by parent and Latin name. Names are proper nouns in Latin and Cyrillic script. For staff. Reference data: nothing is audited, and the browser may cache it for five minutes.
          */
         get: operations["listPlaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/platform/months": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The published months and quarters of the All of Salus figures
+         * @description The calendar months and quarters built and published (docs/plans/analytics.md §5), oldest first, and k, the minimum count. Only while ANALYTICS_PLATFORM_ENABLED is on (otherwise every /analytics/platform path is a 404, §2a), for staff of a clinic that contributes (O5, O6). Audited.
+         */
+        get: operations["getPlatformMonths"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/platform/cells": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A breakdown of one All of Salus table
+         * @description One table of the published months (gd: geography × diagnosis, gs: geography × specialty, sd: specialty × diagnosis), some of its dimensions fixed, broken down by one of them or by month (§5, §8). Every key of the dimension is returned; a count is the sum of its published month cells, rounded to 5, and null when none is, for 0 and for suppressed alike (A8). `partial` is true when a count leaves out a month that is null for its key (A9: patient-months). A code is a key only in the months it is published at geography = all. Any other parameter, or a combination outside the table, is a 400. Audited.
+         */
+        get: operations["getPlatformCells"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/platform/heatmap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A published quarter's fulfilled appointments by weekday and hour
+         * @description The 7 × 24 cells (ISO weekday, 1 = Monday; the clinics' local hour) of a published quarter, of a region, an entity or all of Salus (§5): distinct patients rounded to 5, null for 0 and for suppressed alike. Audited.
+         */
+        get: operations["getPlatformHeatmap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/platform/rises": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unusual rises of a diagnosis group in a region
+         * @description The rise flags of the last built ISO weeks (§6): week, leaf region and diagnosis group, no count. A flag compares the week with the weeks before; it is not a public-health alert. Audited.
+         */
+        get: operations["getPlatformRises"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1295,6 +1375,355 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in patient's history across every clinic
+         * @description SAL-39. The patient's own visits, signed documents, completed questionnaire answers and their files, from every clinic, newest first, one page at a time. Never a draft, a response in progress or a file not yet scanned. Chats are not listed yet (item type `communication` is reserved for them). Patients only. Not cached. Each item returned is audited by its owning domain.
+         */
+        get: operations["listMyHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/patients/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The patient's id (FHIR Patient.id). */
+                id: components["parameters"]["PatientID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * A patient's history as the practitioner may see it
+         * @description SAL-40. For a practitioner of the caller's clinic with an appointment with the patient and the patient's active care consent (ADR 0014): the visits at this clinic the practitioner held themselves, and the visits at other clinics the patient shared with this clinic (`shared`, marked with their clinic), with what belongs to each, newest first. Nothing else exists for the caller: an unshared visit is not listed, counted or hinted at. 404 to anyone else, the clinic's admin included. Not cached. Every view is audited.
+         */
+        get: operations["listPatientHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/patients/{id}/history/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The patient's id (FHIR Patient.id). */
+                id: components["parameters"]["PatientID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The pre-visit summary of a patient
+         * @description SAL-40. The allergies and current medications the practitioner may see, the latest visit they may see, and what is open for the appointment (a questionnaire not completed, a document not signed). Same access as the history. Not cached. Audited.
+         */
+        get: operations["getPatientHistorySummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/allergies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add an allergy to the signed-in patient's profile
+         * @description SAL-41. Stored as an unconfirmed FHIR AllergyIntolerance in the patient's profile, seen by every clinic with the patient's active care consent and an appointment. Read it through the FHIR API (`GET /fhir/R4/AllergyIntolerance?patient=…`). Patients only. Audited.
+         */
+        post: operations["addMyAllergy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/encounters/{id}/allergies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The encounter's id (FHIR Encounter.id). */
+                id: components["parameters"]["EncounterID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record an allergy in a visit
+         * @description SAL-41. The visit's practitioner records a confirmed allergy in it. It belongs to the visit (ADR 0014): seen where the visit is seen, until the patient adds it to their profile. Audited.
+         */
+        post: operations["recordAllergy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/allergies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change an allergy
+         * @description SAL-41. The patient changes their own entries; a practitioner the entries recorded in their visits. Send If-Match with the version read. A patient's change to a confirmed entry makes it unconfirmed again. Audited.
+         */
+        put: operations["updateAllergy"];
+        post?: never;
+        /**
+         * Remove an allergy
+         * @description SAL-41. The patient removes an entry from what anyone sees: their own unconfirmed entry is deleted; a confirmed one or one a clinic recorded is kept with the record as entered-in-error. Send If-Match with the version read. Audited.
+         */
+        delete: operations["removeAllergy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/allergies/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm an allergy
+         * @description SAL-41. A practitioner who may see the entry confirms it during a visit. Other clinics see "confirmed by a clinician" without the clinic or the practitioner. Send If-Match. Audited.
+         */
+        post: operations["confirmAllergy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/allergies/{id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a clinic's allergy to the profile
+         * @description SAL-41. The patient adds an entry a clinic recorded in one of their visits to their profile, so every clinic with their care consent sees it (without the clinic that recorded it). Send If-Match. Audited.
+         */
+        post: operations["addAllergyToProfile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/medications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a medication to the signed-in patient's profile
+         * @description SAL-41. As `POST /me/allergies`, for a FHIR MedicationStatement (`GET /fhir/R4/MedicationStatement?patient=…`).
+         */
+        post: operations["addMyMedication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/encounters/{id}/medications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The encounter's id (FHIR Encounter.id). */
+                id: components["parameters"]["EncounterID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a medication in a visit
+         * @description SAL-41. As `POST /encounters/{id}/allergies`, for a medication.
+         */
+        post: operations["recordMedication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/medications/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a medication
+         * @description SAL-41. As `PUT /allergies/{id}`, for a medication.
+         */
+        put: operations["updateMedication"];
+        post?: never;
+        /**
+         * Remove a medication
+         * @description SAL-41. As `DELETE /allergies/{id}`, for a medication.
+         */
+        delete: operations["removeMedication"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/medications/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm a medication
+         * @description SAL-41. As `POST /allergies/{id}/confirm`, for a medication.
+         */
+        post: operations["confirmMedication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/medications/{id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a clinic's medication to the profile
+         * @description SAL-41. As `POST /allergies/{id}/profile`, for a medication.
+         */
+        post: operations["addMedicationToProfile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/history-sharing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinics the signed-in patient shares history with
+         * @description SAL-42. Every clinic with an active history consent of the patient's, with the visits it lists now. Patients only. Not cached. Audited.
+         */
+        get: operations["listMyHistorySharing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/history-sharing/{organizationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The receiving clinic (FHIR Organization.id). */
+                organizationId: components["parameters"]["SharingOrganizationID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The visits the patient may share with a clinic
+         * @description SAL-42. The preview at booking and in settings: every finished visit of the patient's at other clinics, each exactly as the clinic would see it marked (date, clinic, specialty, title), with whether it is shared now. Patients only. Not cached. Audited.
+         */
+        get: operations["previewHistorySharing"];
+        /**
+         * Share exactly these visits with a clinic
+         * @description SAL-42. Grants the history consent with the clinic, or changes the visits it lists, to exactly the ones sent: each a finished visit of the patient's at another clinic. An empty list revokes it. Takes effect when it commits. Needs the care consent with the clinic. To change an existing sharing send If-Match with its `versionId` (412 when it changed meanwhile, or when it is missing and a sharing exists); a first grant sends none. Every grant, change and revocation is audited.
+         */
+        put: operations["setHistorySharing"];
+        post?: never;
+        /**
+         * Stop sharing history with a clinic
+         * @description SAL-42. Revokes the history consent with the clinic; takes effect when it commits. Audited.
+         */
+        delete: operations["revokeHistorySharing"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhooks/livekit": {
         parameters: {
             query?: never;
@@ -1437,6 +1866,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/conversations/{id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a file to send in the conversation
+         * @description A participant who may write uploads one file (SAL-30), then names it in `attachment_ids` of their next message. The body is the file's bytes, streamed; `Content-Length` is required. The type is detected from the bytes, never from `Content-Type` or the name: a photo (JPEG, PNG) or a PDF (lab results among them), at most 20 MB. The file name is the `filename*` of `Content-Disposition` (RFC 6266), cut to 200 characters, the path removed; never put it in the query string. The file is encrypted, stored and `scanning` until the malware scan says it is `clean` (an image then gets a thumbnail) or `rejected`; only its uploader sees it before it is sent. A participant has at most 10 files waiting to be sent (scanning or clean, not yet in a message). A file never sent is deleted after 24 hours. Audited, also when refused.
+         */
+        post: operations["uploadChatAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/attachments/{attachment_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a message's file
+         * @description The file's bytes, decrypted, once the scan says it is `clean`, for whoever may read its message (a participant who joined later only from their starting point; staff never after the patient's revocation), or, before it is sent, for its uploader. One `Range` gives 206 with that part. Shown inline, never sniffed, never cached. Every request is audited.
+         */
+        get: operations["getChatAttachmentContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/attachments/{attachment_id}/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a message's image thumbnail
+         * @description A JPEG of at most 320 pixels a side, made by the server from the clean image (`thumbnail` true on the attachment); none for a PDF (404). Read as the file is, audited.
+         */
+        get: operations["getChatAttachmentThumbnail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search a conversation's messages
+         * @description The messages of the conversation whose text has every word of `q`, each as a word's beginning, case and accents aside, in any of the app's languages; newest first, at most 50; only those the caller reads. Audited as a search; `q` is never logged or stored.
+         */
+        get: operations["searchConversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search the caller's conversations
+         * @description As `searchConversation`, across the caller's conversations: a patient's own (never a doctor-only thread); a practitioner's, those they take part in, from their starting point, while the patient's care consent with the clinic is active. Audited as a search.
+         */
+        get: operations["searchConversations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * An AI summary of a long conversation, for its practitioner
+         * @description SAL-31. For a practitioner who may read the conversation (never the patient), when they read at least 50 of its messages: a summary of the latest 500 they read, written by a language model (the fake, until the owner decides the basis for a real one). It is not stored, never replaces a message, and is always labelled AI generated (`ai_generated`); it states what was written, not a diagnosis. The read of the rows summarised is audited. `lang` is a staff language, `bs` when absent; the body may be empty.
+         */
+        post: operations["summarizeConversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/conversations/{id}/events": {
         parameters: {
             query?: never;
@@ -1446,9 +1995,279 @@ export interface paths {
         };
         /**
          * The conversation's messages, live, over a WebSocket
-         * @description A WebSocket (RFC 6455) upgrade (ADR 0012). Every message after `after` is replayed from the record, in order, then the live ones follow as `message` frames, and edits as `message_edited` (`ChatFrame`); a client drops a message whose `seq` it has. Without `after`, only messages sent from now on. The handshake must come from the API's own origin, or carry no Origin (the mobile app, with its bearer token). Access is checked again at least every 5 seconds, the session too: when it ends the socket closes with 4401 `unauthenticated` (a logout, a revoked or expired session), 4403 `consent_required` or `forbidden`, or 4404 `not_found` (staff after the patient's revocation); 1011 on a server error. The subscription is audited. The client may send `send` frames (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of the JSON API, or `rate_limited` past five at once and one every 200 ms. Pass the conversation's or the last message's `cursor` as `after`.
+         * @description A WebSocket (RFC 6455) upgrade (ADR 0012). Every message after `after` is replayed from the record, in order, then the live ones follow as `message` frames, and edits as `message_edited` (`ChatFrame`); a client drops a message whose `seq` it has. Without `after`, only messages sent from now on. The handshake must come from the API's own origin, or carry no Origin (the mobile app, with its bearer token). Access is checked again at least every 5 seconds, the session too: when it ends the socket closes with 4401 `unauthenticated` (a logout, a revoked or expired session), 4403 `consent_required` or `forbidden`, or 4404 `not_found` (staff after the patient's revocation); 1011 on a server error. The subscription is audited. The client may send `send` frames (`ChatCommand`), answered with `send_ack`, or `command_error` with the code of the JSON API, or `rate_limited` past five at once and one every 200 ms. Pass the conversation's or the last message's `cursor` as `after`. Receipts and typing (SAL-30), ephemeral: once replayed, the socket sends a `receipt` frame per participant who has read (as kept for 7 days), then the others' `receipt` and `typing` frames as they come; a client drops its own. The client's `read` frame (`ChatReadCommand`) moves its read position as `markConversationRead` does and counts against the same limit as `send`; its `typing` frame (`ChatTypingCommand`) goes out at most once a second; neither is answered unless refused. An app shows a participant typing for 5 seconds after their last `typing` frame. Message frames carry their `attachments` but no `terms` (the JSON API's reads do).
          */
         get: operations["followConversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/participants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a practitioner of the clinic, or invite one of another clinic (SAL-28)
+         * @description The conversation's treating practitioner only, while they may write in it; never into a side thread. A role of the clinic, active, is added at once (`status` `active`); a role of another clinic in the public directory is invited (`pending_consent`) and sees nothing of the conversation, its participants, messages or side threads until the patient grants it (`POST /me/chat-invitations/{id}/decision`). `history` `full` gives the whole history, `from` the messages after `from_seq` (at most the conversation's `last_seq`). The conversation gets the system message `participant_added` or `participant_invited` (`practitioner_role_id`, `organization_id`, `reason`), on the socket like any message. Audited.
+         */
+        post: operations["addConversationParticipant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/participants/{participant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a practitioner, or withdraw an invitation (SAL-28)
+         * @description The treating practitioner only; never the patient or themselves. The practitioner leaves the conversation's side threads with it and sees nothing of it from then on. System message `participant_removed` (`practitioner_role_id`). Audited.
+         */
+        delete: operations["removeConversationParticipant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The side threads of the conversation the caller takes part in, newest first (SAL-28)
+         * @description For the practitioners of `POST`; never the patient (403). With the caller's unread counts. Audited as one search.
+         */
+        get: operations["listChatThreads"];
+        put?: never;
+        /**
+         * Open a doctor-only side thread of the conversation (SAL-28)
+         * @description For a practitioner who may write in the conversation, or a doctor of another clinic the patient granted. The side thread is a conversation (`staff_only`, `parent_id`) whose participants are the conversation's active practitioners now: a doctor added later is not in it, one removed from the conversation leaves it. Its messages, socket and read position are those of any conversation. The patient never sees it: 404 on every path of the side thread, 403 here. No body. Audited.
+         */
+        post: operations["openChatThread"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/chat-invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The patient's invitations of doctors from other clinics, pending or granted (SAL-28)
+         * @description Oldest first: the pending invitations (`status` `pending_consent`, the default), or the granted ones (`status` `active`), whose `id` `POST /me/chat-invitations/{id}/revoke` takes, so a consent is withdrawn as easily as it was given (GDPR Art. 7(3)). A doctor of the conversation's own clinic is never one. The patient only (403 to staff). Audited as one search.
+         */
+        get: operations["listChatInvitations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/chat-invitations/{id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant or decline an invitation (SAL-28)
+         * @description The patient's decision. `grant` records their FHIR Consent for that conversation and that practitioner role (revocable), needs their active care consent with the clinic (403 `consent_required` otherwise) and makes the doctor an active participant; `decline` ends the invitation. System message `consent_granted` or `consent_declined` (`practitioner_role_id`). Audited.
+         */
+        post: operations["decideChatInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/chat-invitations/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a granted invitation (SAL-28)
+         * @description The patient's chat consent for the doctor ends and the doctor leaves the conversation and its side threads: they see nothing of it from then on, and an open socket of theirs closes with 4404 at its next check (within 5 seconds). System message `participant_removed` (`practitioner_role_id`). Audited.
+         */
+        post: operations["revokeChatInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Register the patient app's push token
+         * @description The patient app registers its FCM (Android) or APNs (iOS) token at every start (docs/plans/chat.md, SAL-29). A token is one device: registered by another account, it moves to this one. A push says only that there is a new message from the clinic; it carries no text, name or id. Staff get 403: the app is the patients'. Audited.
+         */
+        put: operations["registerDevice"];
+        post?: never;
+        /**
+         * Unregister the app's push token (on sign-out)
+         * @description Deletes the account's device of the token; nothing for a token it does not have. Audited.
+         */
+        delete: operations["unregisterDevice"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organizations/{id}/chat-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's chat hours, its response time, and whether it is within its hours now
+         * @description For the clinic's staff and for a patient with an active care consent with it; anyone else gets 404. `hours` are in the clinic's `time_zone`; `open_now` is computed there (true when the clinic states no hours). The app shows its out-of-hours notice from it.
+         */
+        get: operations["getChatHours"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/chat-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The admin's clinic's chat settings
+         * @description The defaults (no hours, 24 hours, 60 minutes) until the admin sets them.
+         */
+        get: operations["getChatSettings"];
+        /**
+         * Replace the admin's clinic's chat settings
+         * @description Every field required. `hours`: up to 21 stretches, each within one weekday, `start` before `end` (`24:00` for midnight), none overlapping. `response_time_hours` 1 to 168. `email_after_minutes` 5 to 10080: how long a message stays unread before its reader gets an e-mail. Audited, also when refused.
+         */
+        put: operations["setChatSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/webhooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The admin's clinic's webhook endpoints, without their secrets */
+        get: operations["listWebhooks"];
+        put?: never;
+        /**
+         * Add a webhook endpoint; its secret is shown in this answer only
+         * @description The clinic's own system receives each event as a `WebhookEvent`, POSTed as JSON with the headers `Salus-Event-Id` (the event's id, the same on every attempt: deduplicate on it) and `Salus-Signature`: `t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<body>" with the secret>` (check it, and refuse an old `t`). A status other than 2xx, or no answer within 10 seconds, is retried with backoff, 8 attempts in about an hour and a half, then recorded as a dead letter. `url` is https to a public host; addresses that are not public are refused at every connection. `include_clinical` (off by default) adds the message's text: the clinic is the controller of what it receives. At most 10 endpoints. Audited.
+         */
+        post: operations["createWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/webhooks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a webhook endpoint and its dead letters */
+        delete: operations["deleteWebhook"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/clinic/appointments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's appointments over time
+         * @description The caller's clinic's appointments (docs/plans/analytics.md §4, §8), from the pre-computed counts (refreshed within seconds of a change, and nightly): per month of the clinic's local days from `from` to `to`, `booked` counting every appointment and the others those with that status now; the heatmap of the ones not cancelled by ISO weekday (1 is Monday) and local hour, busy cells only; and, for the clinic's admin only, the fulfilled ones per practitioner role (absent for anyone else). A practitioner who is not an admin may narrow to their own role only, never to a specialty. Every read is audited on the clinic.
+         */
+        get: operations["getClinicAppointmentStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/clinic/diagnoses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's diagnoses, counted by a breakdown
+         * @description The caller's clinic's confirmed diagnoses (the coded fields of signed documents, docs/plans/analytics.md §4, §8) recorded on the clinic's local days from `from` to `to`, counted by `by`, most first (months in their order); a key is a diagnosis group or subgroup code, an ICD-10 code, a practitioner role's id, a SNOMED CT specialty code or a month (YYYY-MM), empty for no subgroup or no specialty. Exact counts. An admin gets the clinic's; a practitioner who is not an admin their own role's only, whatever they ask for. Every read is audited on the clinic.
+         */
+        get: operations["getClinicDiagnosisStats"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1574,6 +2393,8 @@ export interface components {
             language?: components["schemas"]["Language"];
             /** @description True for a reviewer of the medical term list, a permission only the operator grants (salusctl term-reviewer); absent otherwise. */
             termReviewer?: boolean;
+            /** @description The codes of the features turned on for the deployment; absent when none is. analytics_platform: the All of Salus view (ANALYTICS_PLATFORM_ENABLED, docs/plans/analytics.md §2a). */
+            features?: "analytics_platform"[];
         };
         UpdateMeRequest: {
             /** @description The language chosen, or `null` to follow the browser's or the device's language again. */
@@ -1607,6 +2428,35 @@ export interface components {
             parent?: string;
             name: string;
             reviewStatus: components["schemas"]["ReviewStatus"];
+        };
+        PlatformMonths: {
+            months: string[];
+            quarters: string[];
+            /** @description k: no published cell holds fewer patients (A4). */
+            minCount: number;
+        };
+        PlatformBreakdown: {
+            rows: {
+                /** @description A place id, a group or subgroup code, an ICD-10 code, a SNOMED CT code or a month. */
+                key: string;
+                /** @description Distinct patients (summed over months: patient-months), rounded to 5; null for 0 and for suppressed alike. */
+                count: number | null;
+            }[];
+            partial: boolean;
+        };
+        PlatformHeatmap: {
+            cells: {
+                weekday: number;
+                hour: number;
+                count: number | null;
+            }[];
+        };
+        PlatformRises: {
+            rises: {
+                week: string;
+                region: string;
+                group: string;
+            }[];
         };
         PlaceList: {
             places: components["schemas"]["Place"][];
@@ -1817,11 +2667,11 @@ export interface components {
             kind?: components["schemas"]["ConsentKind"];
         };
         /**
-         * @description What the consent is for: `care`, sharing the profile and appointments with the clinic; `transcription`, transcription and translation of the consultations with the clinic, with AI assistance for the practitioner (suggestions, document drafts), used only with an active care consent (SAL-12).
+         * @description What the consent is for: `care`, sharing the profile and appointments with the clinic; `transcription`, transcription and translation of the consultations with the clinic, with AI assistance for the practitioner (suggestions, document drafts), used only with an active care consent (SAL-12); `history`, sharing chosen visits at other clinics with the clinic (SAL-42), granted and changed only through `PUT /history-sharing/{organizationId}` (a grant of it here is `invalid_request`), listed and revoked here like the others.
          * @default care
          * @enum {string}
          */
-        ConsentKind: "care" | "transcription";
+        ConsentKind: "care" | "transcription" | "history";
         /** @description A patient's consent with a clinic (FHIR Consent): to share their profile and appointments with it for care, or to transcription. Health data: it shows whom the patient consults. */
         Consent: {
             /** Format: uuid */
@@ -2479,6 +3329,188 @@ export interface components {
             error: string;
             keys: string[];
         };
+        /**
+         * @description What a history item is; its reference opens the FHIR resource. `communication` is reserved for chats (SAL-26) and not served yet.
+         * @enum {string}
+         */
+        HistoryItemType: "visit" | "document" | "questionnaire_response" | "attachment" | "communication";
+        HistoryClinic: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        /** @description One entry of a history. Health data. */
+        HistoryItem: {
+            /** Format: date-time */
+            date: string;
+            clinic: components["schemas"]["HistoryClinic"];
+            type: components["schemas"]["HistoryItemType"];
+            /**
+             * @description The FHIR resource to open, `Type/id`.
+             * @example Composition/a1000000-0000-4000-8000-0000000000a1
+             */
+            reference: string;
+            /**
+             * Format: uuid
+             * @description The visit it belongs to.
+             */
+            encounterId?: string;
+            /** @description The SNOMED CT code of the visit's practitioner role (`/specialties`). */
+            specialty?: string;
+            title?: string;
+            /**
+             * Format: uuid
+             * @description Of a questionnaire response, the Questionnaire version it answers, to read its questions.
+             */
+            questionnaire?: string;
+            /** @description A signed document's filled coded fields, in the template's order. */
+            diagnoses?: components["schemas"]["HistoryDiagnosis"][];
+            /** @description For a practitioner, a visit of another clinic the patient shared, and everything of it. */
+            shared?: boolean;
+        };
+        /** @description A filled coded field of a signed document. Shown as a diagnosis only when confirmed; one signed before coded diagnoses were confirmed (SAL-19) is not. Health data. */
+        HistoryDiagnosis: {
+            /**
+             * @description ICD-10 (http://hl7.org/fhir/sid/icd-10)
+             * @example J06.9
+             */
+            code: string;
+            /** @description The field's label in the document's template. */
+            label: string;
+            /** @description Whether its Condition is confirmed. */
+            confirmed: boolean;
+        };
+        HistoryPage: {
+            items: components["schemas"]["HistoryItem"][];
+            /** @description The cursor of the next page; absent on the last. */
+            next?: string;
+        };
+        /** @description The pre-visit summary. Health data. */
+        HistorySummary: {
+            lastVisit?: components["schemas"]["HistoryItem"];
+            allergies: components["schemas"]["SummaryAllergy"][];
+            medications: components["schemas"]["SummaryMedication"][];
+            openItems: components["schemas"]["OpenItem"][];
+            /** @description The allergies could not be read; the empty list means nothing is known, not none recorded. */
+            allergiesUnavailable?: boolean;
+            /** @description The medications could not be read; the empty list means nothing is known, not none recorded. */
+            medicationsUnavailable?: boolean;
+        };
+        SummaryAllergy: {
+            /** @description AllergyIntolerance/id */
+            reference: string;
+            text: string;
+            reaction?: string;
+            severity?: components["schemas"]["AllergySeverity"];
+            confirmed: boolean;
+        };
+        SummaryMedication: {
+            dosage: components["schemas"]["Dosage"];
+            /** @description MedicationStatement/id */
+            reference: string;
+            text: string;
+            confirmed: boolean;
+        };
+        OpenItem: {
+            /** @enum {string} */
+            type: "questionnaire_pending" | "draft_unsigned";
+            reference: string;
+        };
+        /** @enum {string} */
+        AllergyCategory: "food" | "medication" | "environment" | "biologic";
+        /** @enum {string} */
+        AllergySeverity: "mild" | "moderate" | "severe";
+        /** @enum {string} */
+        AllergyClinicalStatus: "active" | "inactive" | "resolved";
+        /** @description An allergy as the patient or a practitioner writes it. termId is a term of the terminology search (its label in the caller's language goes in text); without it text is what was typed. A severity needs a reaction. */
+        AllergyIntoleranceInput: {
+            /** Format: uuid */
+            termId?: string;
+            text: string;
+            category?: components["schemas"]["AllergyCategory"];
+            reaction?: string;
+            severity?: components["schemas"]["AllergySeverity"];
+            clinicalStatus: components["schemas"]["AllergyClinicalStatus"];
+        };
+        /**
+         * @description A UCUM code.
+         * @enum {string}
+         */
+        DoseUnit: "mg" | "g" | "ug" | "mL" | "[iU]" | "{tablet}" | "{capsule}" | "{drop}" | "{puff}" | "{patch}";
+        /**
+         * @description A UCUM code, as FHIR Timing.repeat.periodUnit.
+         * @enum {string}
+         */
+        PeriodUnit: "h" | "d" | "wk" | "mo";
+        /** @description How a medication is taken: a dose (doseValue and doseUnit, both or neither) and how often (frequency times per period periodUnit, all three or none), or as needed. */
+        Dosage: {
+            doseUnit?: components["schemas"]["DoseUnit"];
+            periodUnit?: components["schemas"]["PeriodUnit"];
+            doseValue?: number;
+            period?: number;
+            frequency?: number;
+            asNeeded?: boolean;
+        };
+        /**
+         * @description Whether it is a current medication. (entered-in-error is a removal, never written.)
+         * @enum {string}
+         */
+        MedicationStatus: "active" | "stopped";
+        MedicationStatementInput: {
+            /** Format: uuid */
+            termId?: string;
+            text: string;
+            status: components["schemas"]["MedicationStatus"];
+            dosage: components["schemas"]["Dosage"];
+        };
+        EntryWritten: {
+            /** Format: uuid */
+            id: string;
+            versionId: string;
+        };
+        /** @description A finished visit of the patient's at another clinic, exactly as the receiving clinic will see it marked. Health data. */
+        SharingCandidate: {
+            /** Format: date-time */
+            date: string;
+            /** Format: uuid */
+            encounterId: string;
+            /** Format: uuid */
+            organizationId: string;
+            organizationName: string;
+            /** @description The visit's clinic's time zone (IANA), to show its date in. */
+            timeZone: string;
+            /** @description SNOMED CT code (`/specialties`). */
+            specialty?: string;
+            /** @description The title of the visit's first signed document. */
+            title?: string;
+            /** @description Shared with the clinic now. */
+            selected: boolean;
+        };
+        SharingCandidateList: {
+            /** @description The version of what the patient shares with the clinic now, read with the candidates (HistorySharing `versionId`); absent when nothing is shared. Send it as If-Match to change the selection. */
+            versionId?: string;
+            candidates: components["schemas"]["SharingCandidate"][];
+        };
+        SetHistorySharingRequest: {
+            encounterIds: string[];
+        };
+        /** @description What the patient shares with one clinic now. Health data. */
+        HistorySharing: {
+            /** Format: uuid */
+            organizationId: string;
+            /**
+             * Format: uuid
+             * @description The history consent (FHIR Consent); absent when nothing is shared.
+             */
+            consentId?: string;
+            /** @description Opaque: names the history consent and its version, so a version read of one consent never matches another granted after it. Send it as If-Match, `W/"<versionId>"`. */
+            versionId?: string;
+            /** @description The encounters shared. */
+            shared: string[];
+        };
+        HistorySharingList: {
+            sharing: components["schemas"]["HistorySharing"][];
+        };
         /** @description Staff send `patient_id`; a patient sends `organization_id` and `practitioner_role_id`. */
         OpenConversationRequest: {
             /** Format: uuid */
@@ -2542,10 +3574,25 @@ export interface components {
             id: string;
             /** @enum {string} */
             role: "patient" | "practitioner";
+            /**
+             * @description `pending_consent`: a doctor of another clinic waiting for the patient's consent, who sees nothing until then (SAL-28).
+             * @enum {string}
+             */
+            status: "active" | "pending_consent";
             /** Format: uuid */
             patient_id?: string;
             /** Format: uuid */
             practitioner_role_id?: string;
+            /**
+             * Format: uuid
+             * @description A practitioner's clinic: another than the conversation's for an invited doctor (SAL-28).
+             */
+            organization_id?: string;
+            /**
+             * @description Why the practitioner was added; absent for the patient and the treating practitioner.
+             * @enum {string}
+             */
+            reason?: "second_opinion" | "specialist_review" | "handover";
             /** Format: date-time */
             added_at: string;
             /**
@@ -2553,6 +3600,60 @@ export interface components {
              * @description The participant reads the messages after this number; 0 for all.
              */
             history_from_seq: number;
+        };
+        AddParticipantRequest: {
+            /** Format: uuid */
+            practitioner_role_id: string;
+            /**
+             * Format: uuid
+             * @description The role's clinic: the conversation's to add, another to invite.
+             */
+            organization_id: string;
+            /** @enum {string} */
+            reason: "second_opinion" | "specialist_review" | "handover";
+            /**
+             * @description `full`: the whole history; `from`: the messages after `from_seq`.
+             * @enum {string}
+             */
+            history: "full" | "from";
+            /**
+             * Format: int64
+             * @description With `history` `from` only; at most the conversation's `last_seq`.
+             */
+            from_seq?: number;
+        };
+        /** @description A doctor of another clinic invited into the patient's conversation: waiting for their consent, or taking part since they granted it. */
+        ChatInvitation: {
+            /**
+             * Format: uuid
+             * @description The invitation's id (the invited participant's).
+             */
+            id: string;
+            /** Format: uuid */
+            conversation_id: string;
+            /**
+             * Format: uuid
+             * @description The invited doctor's clinic.
+             */
+            organization_id: string;
+            /** Format: uuid */
+            practitioner_role_id: string;
+            /** @enum {string} */
+            reason: "second_opinion" | "specialist_review" | "handover";
+            /** Format: date-time */
+            invited_at: string;
+            /**
+             * @description `pending_consent` until the patient decides, `active` once they granted it. Always sent.
+             * @enum {string}
+             */
+            status?: "pending_consent" | "active";
+        };
+        ChatInvitationList: {
+            invitations: components["schemas"]["ChatInvitation"][];
+        };
+        ChatInvitationDecision: {
+            /** @enum {string} */
+            decision: "grant" | "decline";
         };
         ConversationList: {
             conversations: components["schemas"]["Conversation"][];
@@ -2581,7 +3682,7 @@ export interface components {
             sender_role: "patient" | "practitioner" | "system";
             /** @enum {string} */
             kind: "text" | "system";
-            /** @description A text's body, 1 to 4000 characters. */
+            /** @description A text's body, 1 to 4000 characters; absent for a message of files alone. */
             body?: string;
             system?: components["schemas"]["SystemMessage"];
             /** Format: uuid */
@@ -2595,6 +3696,10 @@ export interface components {
             edited_at?: string;
             /** Format: int32 */
             version_id: number;
+            /** @description The message's files, oldest first; absent for none (SAL-30). */
+            attachments?: components["schemas"]["ChatAttachment"][];
+            /** @description The explained terms found in `body` (SAL-13), in the reader's language then English, as UTF-16 offsets; computed on read, never stored, the body unchanged; absent for none and in socket frames. */
+            terms?: components["schemas"]["TermSpan"][];
         };
         /** @description The code the apps render from their catalogs, and its opaque ids. */
         SystemMessage: {
@@ -2614,7 +3719,10 @@ export interface components {
              * @description The client's id of the message; a retry repeats it.
              */
             client_message_id: string;
+            /** @description 1 to 4000 characters after trimming; may be empty with `attachment_ids`. */
             body: string;
+            /** @description The sender's uploads to the conversation (`uploadChatAttachment`), scanning or clean, not yet sent; at most 10. */
+            attachment_ids?: string[];
         };
         EditMessageRequest: {
             body: string;
@@ -2631,6 +3739,26 @@ export interface components {
         };
         MessageRevisions: {
             revisions: components["schemas"]["MessageRevision"][];
+        };
+        SummaryRequest: {
+            /**
+             * @description The language to write the summary in.
+             * @enum {string}
+             */
+            lang?: "bs" | "hr" | "sr-Latn" | "sr-Cyrl" | "en";
+        };
+        SummaryResponse: {
+            /** @description The summary's text; never a diagnosis. */
+            summary: string;
+            /** Format: date-time */
+            generated_at: string;
+            /**
+             * Format: int64
+             * @description The number of the latest message it covers.
+             */
+            up_to_seq: number;
+            /** @description Always true; every client labels the summary AI generated. */
+            ai_generated: boolean;
         };
         ReadPosition: {
             /** Format: int64 */
@@ -2670,8 +3798,8 @@ export interface components {
             payload: components["schemas"]["ChatCommandError"];
         };
         /** @description A frame the conversation's socket sends. */
-        ChatFrame: components["schemas"]["ChatMessageFrame"] | components["schemas"]["SendAckFrame"] | components["schemas"]["ChatCommandErrorFrame"];
-        /** @description A frame the client sends on the conversation's socket. */
+        ChatFrame: components["schemas"]["ChatMessageFrame"] | components["schemas"]["SendAckFrame"] | components["schemas"]["ChatCommandErrorFrame"] | components["schemas"]["ChatReceiptFrame"] | components["schemas"]["ChatTypingFrame"];
+        /** @description A frame the client sends on the conversation's socket; also `ChatReadCommand` and `ChatTypingCommand`. */
         ChatCommand: {
             /** @constant */
             type: "send";
@@ -2679,8 +3807,273 @@ export interface components {
             version: 1;
             payload: components["schemas"]["SendMessageRequest"];
         };
+        /** @description A message's file (SAL-30): an image or a PDF, through the upload and malware scan pipeline. Its bytes (`getChatAttachmentContent`) and, for an image, its thumbnail open once `clean`; a `rejected` file never opens. */
+        ChatAttachment: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description Detected from the bytes.
+             * @enum {string}
+             */
+            content_type: "application/pdf" | "image/jpeg" | "image/png";
+            /**
+             * Format: int64
+             * @description Bytes.
+             */
+            size: number;
+            /** @description The name it was uploaded with. */
+            filename: string;
+            /** @enum {string} */
+            status: "scanning" | "clean" | "rejected";
+            /** @description An image's thumbnail is there to read (`getChatAttachmentThumbnail`). */
+            thumbnail: boolean;
+        };
+        /** @description The client has read the messages up to `seq` (as `markConversationRead`); the others get a `receipt`. */
+        ChatReadCommand: {
+            /** @constant */
+            type: "read";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["ReadPosition"];
+        };
+        /** @description The client's participant types; sent at most once a second, the others get a `typing` frame. */
+        ChatTypingCommand: {
+            /** @constant */
+            type: "typing";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["ChatTyping"];
+        };
+        /** @description How far a participant has read. Ephemeral, never stored as anyone's but the reader's own position. */
+        ChatReceipt: {
+            /** Format: uuid */
+            participant_id: string;
+            /** Format: int64 */
+            seq: number;
+        };
+        ChatReceiptFrame: {
+            /** @constant */
+            type: "receipt";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["ChatReceipt"];
+        };
+        /** @description The participant who types; the server's frame names them, the client's names none. */
+        ChatTyping: {
+            /** Format: uuid */
+            participant_id?: string;
+        };
+        ChatTypingFrame: {
+            /** @constant */
+            type: "typing";
+            /** @constant */
+            version: 1;
+            payload: components["schemas"]["ChatTyping"];
+        };
+        ChatSearchResult: {
+            /** Format: uuid */
+            conversation_id: string;
+            message: components["schemas"]["ChatMessage"];
+        };
+        ChatSearchResults: {
+            results: components["schemas"]["ChatSearchResult"][];
+        };
+        PushDevice: {
+            /** @enum {string} */
+            platform: "android" | "ios";
+            /** @description The FCM registration token or the APNs device token. */
+            token: string;
+        };
+        ChatHour: {
+            /**
+             * @description FHIR days-of-week.
+             * @enum {string}
+             */
+            day: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+            /** @description HH:MM in the clinic's time zone. */
+            start: string;
+            /** @description HH:MM, after start; 24:00 for midnight. */
+            end: string;
+        };
+        ChatHours: {
+            /** @description The clinic's IANA time zone, which the hours are in. */
+            time_zone: string;
+            hours: components["schemas"]["ChatHour"][];
+            /** @description The response time the clinic states. */
+            response_time_hours: number;
+            /** @description Within the hours now, in the clinic's zone; true when it states none. */
+            open_now: boolean;
+        };
+        ChatSettings: {
+            hours: components["schemas"]["ChatHour"][];
+            response_time_hours: number;
+            /** @description How long a message stays unread before its reader gets an e-mail. */
+            email_after_minutes: number;
+        };
+        Webhook: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: uri */
+            url: string;
+            events: components["schemas"]["WebhookEventType"][];
+            include_clinical: boolean;
+        };
+        WebhookList: {
+            webhooks: components["schemas"]["Webhook"][];
+        };
+        NewWebhook: {
+            /**
+             * Format: uri
+             * @description https, to a public host.
+             */
+            url: string;
+            events: components["schemas"]["WebhookEventType"][];
+            /**
+             * @description Adds the message's text to each event.
+             * @default false
+             */
+            include_clinical: boolean;
+        };
+        CreatedWebhook: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: uri */
+            url: string;
+            /** @description whsec_ and 43 characters: the HMAC key of the signatures. Shown only here. */
+            secret: string;
+            events: components["schemas"]["WebhookEventType"][];
+            include_clinical: boolean;
+        };
+        /** @enum {string} */
+        WebhookEventType: "message.created";
+        /** @description What a clinic's endpoint receives (not served by this API): the event's type and ids; the message only with include_clinical. */
+        WebhookEvent: {
+            /**
+             * Format: uuid
+             * @description The event's id, the same on every attempt.
+             */
+            id: string;
+            type: components["schemas"]["WebhookEventType"];
+            /** Format: uuid */
+            organization_id: string;
+            data: {
+                /** Format: uuid */
+                conversation_id: string;
+                /** Format: uuid */
+                message_id: string;
+                /** @description Only with include_clinical. */
+                message?: {
+                    /** Format: date-time */
+                    sent_at: string;
+                    /** Format: uuid */
+                    patient_id: string;
+                    /** @enum {string} */
+                    sender_role: "patient" | "practitioner";
+                    body: string;
+                    /** Format: int64 */
+                    seq: number;
+                };
+            };
+        };
+        ClinicAppointments: {
+            series: {
+                /** @description The month, YYYY-MM. */
+                period: string;
+                /**
+                 * Format: int64
+                 * @description Every appointment starting in the month.
+                 */
+                booked: number;
+                /** Format: int64 */
+                fulfilled: number;
+                /** Format: int64 */
+                noshow: number;
+                /** Format: int64 */
+                cancelled: number;
+            }[];
+            heatmap: {
+                /** @description ISO weekday, 1 is Monday. */
+                weekday: number;
+                /** @description The clinic's local hour. */
+                hour: number;
+                /** Format: int64 */
+                count: number;
+            }[];
+            /** @description For the clinic's admin only. */
+            practitioners?: {
+                /** Format: uuid */
+                practitionerRole: string;
+                /** Format: int64 */
+                fulfilled: number;
+            }[];
+        };
+        ClinicDiagnoses: {
+            rows: {
+                key: string;
+                /** Format: int64 */
+                count: number;
+            }[];
+        };
     };
     responses: {
+        /** @description `csrf`: the session cookie without the CSRF header. */
+        CSRFOnly: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The entry at its version; read it through the FHIR API. Its ETag is the version. */
+        EntryWritten: {
+            headers: {
+                /** @description W/"<versionId>". */
+                ETag?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["EntryWritten"];
+            };
+        };
+        /** @description `invalid_request`: not the request, an unreadable If-Match, or a value outside its set or length. */
+        EntryInvalid: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `forbidden`: the caller sees the entry but may not make this change; or `csrf`. */
+        EntryForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `not_found`: no such entry or visit for the caller. */
+        EntryNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `version_conflict`: the entry changed since it was read; read it again. */
+        EntryConflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content?: never;
+        };
         /** @description The message; its ETag is its version. */
         ChatMessage: {
             headers: {
@@ -2692,7 +4085,17 @@ export interface components {
                 "application/json": components["schemas"]["ChatMessage"];
             };
         };
-        /** @description `invalid_request`: a body that is not the request, an id that is no UUID, a body of 0 or over 4000 characters, a limit out of range, a `seq` past the last message; `invalid_cursor`: a cursor the API did not give. */
+        /** @description The messages found, newest first. */
+        ChatSearchResults: {
+            headers: {
+                "Cache-Control"?: "no-store";
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ChatSearchResults"];
+            };
+        };
+        /** @description `invalid_request`: a body that is not the request, an id that is no UUID, a body of 0 or over 4000 characters (0 only with files), a limit out of range, a `seq` past the last message, files that are not the sender's uploads to the conversation or more than 10, a search without a word; `invalid_cursor`: a cursor the API did not give. */
         ChatInvalidRequest: {
             headers: {
                 [name: string]: unknown;
@@ -2701,7 +4104,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description `forbidden`: an admin, or a practitioner who does not take part; `consent_required`: a patient's write after their revocation. */
+        /** @description `forbidden`: an admin, or a practitioner who does not take part; for a participant's add or removal, anyone but the treating practitioner; for a side thread, the patient; `consent_required`: a patient's write, or grant of an invitation, after their revocation. */
         ChatForbidden: {
             headers: {
                 [name: string]: unknown;
@@ -2805,6 +4208,33 @@ export interface components {
         };
         /** @description `version_conflict`: the name changed since it was read. */
         GroupNameConflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `invalid_request`: a body that is not the request, a platform other than android or ios, a token that is not 1 to 4096 visible ASCII characters, a webhook URL that is not https to a public host, no or an unknown event, or an eleventh webhook. */
+        NotificationInvalidRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `forbidden`: staff of the clinic who are not its admin. */
+        ClinicAdminOnly: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `not_found`: not staff of a clinic (a patient). */
+        ClinicNotFound: {
             headers: {
                 [name: string]: unknown;
             };
@@ -3023,10 +4453,73 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description `unauthenticated`: no valid session. */
+        PlatformUnauthenticated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `forbidden`: the caller is not staff of a clinic; `analytics_not_contributing`: the caller's clinic has opted out of the platform figures, so its staff do not see them (O6). */
+        PlatformForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `invalid_request`: a parameter that is not one of the query's, or a combination outside the tables. */
+        PlatformInvalid: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `invalid_request`: no range, a malformed date, a reversed or over ten-year range, or an unknown breakdown. */
+        StatsInvalid: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
     };
     parameters: {
+        /** @description The first local day of the clinic (YYYY-MM-DD). */
+        StatsFrom: string;
+        /** @description The last local day, included; at most ten years after `from`. */
+        StatsTo: string;
+        /** @description Only this practitioner role's figures. */
+        StatsPractitionerRole: string;
+        /** @description Only the roles of this SNOMED CT specialty code. */
+        StatsSpecialty: string;
+        ChatAttachmentID: string;
+        /** @description Words to find, 1 to 200 characters: runs of letters and digits, of two or more, the first eight count; anything else separates them. */
+        ChatSearchQuery: string;
+        /** @description The patient's id (FHIR Patient.id). */
+        PatientID: string;
+        /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+        EntryID: string;
+        /** @description The receiving clinic (FHIR Organization.id). */
+        SharingOrganizationID: string;
+        /** @description The `next` of the previous page; absent for the first. */
+        HistoryCursor: string;
+        /** @description Items per page. */
+        HistoryLimit: number;
+        /** @description Only items on or after this instant. */
+        HistoryFrom: string;
+        /** @description Only items before this instant. */
+        HistoryTo: string;
         /** @description The conversation's id. */
         ConversationID: string;
+        /** @description The invitation's id (the invited participant's). */
+        ChatInvitationID: string;
         /** @description The message's id (FHIR Communication.id). */
         MessageID: string;
         /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
@@ -5731,7 +7224,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `forbidden`: the caller is not staff of a clinic (a patient). */
+            /** @description `forbidden`: a patient's search without `category=drug`. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5874,6 +7367,126 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPlatformMonths: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The periods. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformMonths"];
+                };
+            };
+            401: components["responses"]["PlatformUnauthenticated"];
+            403: components["responses"]["PlatformForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPlatformCells: {
+        parameters: {
+            query: {
+                table: "gd" | "gs" | "sd";
+                /** @description The first month, 2026-01. */
+                from: string;
+                /** @description The last month; at most 60 months from the first. */
+                to: string;
+                by: "entity" | "region" | "city" | "group" | "subgroup" | "code" | "specialty" | "month";
+                entity?: string;
+                region?: string;
+                /** @description A city's Wikidata id. */
+                city?: string;
+                group?: string;
+                subgroup?: string;
+                /** @description An ICD-10 code. */
+                code?: string;
+                /** @description A SNOMED CT code. */
+                specialty?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The breakdown. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformBreakdown"];
+                };
+            };
+            400: components["responses"]["PlatformInvalid"];
+            401: components["responses"]["PlatformUnauthenticated"];
+            403: components["responses"]["PlatformForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPlatformHeatmap: {
+        parameters: {
+            query: {
+                quarter: string;
+                /** @description A leaf region or an entity; all of Salus when left out. */
+                region?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The cells. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformHeatmap"];
+                };
+            };
+            400: components["responses"]["PlatformInvalid"];
+            401: components["responses"]["PlatformUnauthenticated"];
+            403: components["responses"]["PlatformForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPlatformRises: {
+        parameters: {
+            query?: {
+                /** @description A leaf region; all when left out. */
+                region?: string;
+                weeks?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The flags. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformRises"];
+                };
+            };
+            400: components["responses"]["PlatformInvalid"];
+            401: components["responses"]["PlatformUnauthenticated"];
+            403: components["responses"]["PlatformForbidden"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -6390,6 +8003,701 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    listMyHistory: {
+        parameters: {
+            query?: {
+                /** @description The `next` of the previous page; absent for the first. */
+                cursor?: components["parameters"]["HistoryCursor"];
+                /** @description Items per page. */
+                limit?: components["parameters"]["HistoryLimit"];
+                /** @description Only this clinic's items. */
+                organization?: string;
+                /** @description Only items of these types (repeat the parameter for several). */
+                type?: components["schemas"]["HistoryItemType"][];
+                /** @description Only items on or after this instant. */
+                from?: components["parameters"]["HistoryFrom"];
+                /** @description Only items before this instant. */
+                to?: components["parameters"]["HistoryTo"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the history. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryPage"];
+                };
+            };
+            /** @description `invalid_request`: a cursor this API did not make, a limit out of range or an unknown type. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: a staff account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listPatientHistory: {
+        parameters: {
+            query?: {
+                /** @description The `next` of the previous page; absent for the first. */
+                cursor?: components["parameters"]["HistoryCursor"];
+                /** @description Items per page. */
+                limit?: components["parameters"]["HistoryLimit"];
+            };
+            header?: never;
+            path: {
+                /** @description The patient's id (FHIR Patient.id). */
+                id: components["parameters"]["PatientID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the history. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryPage"];
+                };
+            };
+            /** @description `invalid_request`: a cursor this API did not make or a limit out of range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such patient for the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPatientHistorySummary: {
+        parameters: {
+            query: {
+                /** @description The appointment the summary is for, one of the practitioner's with the patient. */
+                appointment: string;
+            };
+            header?: never;
+            path: {
+                /** @description The patient's id (FHIR Patient.id). */
+                id: components["parameters"]["PatientID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The summary. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistorySummary"];
+                };
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such patient or appointment for the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    addMyAllergy: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AllergyIntoleranceInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["EntryWritten"];
+            400: components["responses"]["EntryInvalid"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    recordAllergy: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The encounter's id (FHIR Encounter.id). */
+                id: components["parameters"]["EncounterID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AllergyIntoleranceInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["EntryWritten"];
+            400: components["responses"]["EntryInvalid"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["CSRFOnly"];
+            404: components["responses"]["EntryNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateAllergy: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AllergyIntoleranceInput"];
+            };
+        };
+        responses: {
+            200: components["responses"]["EntryWritten"];
+            400: components["responses"]["EntryInvalid"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["EntryForbidden"];
+            404: components["responses"]["EntryNotFound"];
+            412: components["responses"]["EntryConflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    removeAllergy: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["EntryForbidden"];
+            404: components["responses"]["EntryNotFound"];
+            412: components["responses"]["EntryConflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    confirmAllergy: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["EntryWritten"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["EntryForbidden"];
+            404: components["responses"]["EntryNotFound"];
+            412: components["responses"]["EntryConflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    addAllergyToProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["EntryWritten"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["EntryForbidden"];
+            404: components["responses"]["EntryNotFound"];
+            412: components["responses"]["EntryConflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    addMyMedication: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MedicationStatementInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["EntryWritten"];
+            400: components["responses"]["EntryInvalid"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    recordMedication: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The encounter's id (FHIR Encounter.id). */
+                id: components["parameters"]["EncounterID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MedicationStatementInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["EntryWritten"];
+            400: components["responses"]["EntryInvalid"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["CSRFOnly"];
+            404: components["responses"]["EntryNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateMedication: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MedicationStatementInput"];
+            };
+        };
+        responses: {
+            200: components["responses"]["EntryWritten"];
+            400: components["responses"]["EntryInvalid"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["EntryForbidden"];
+            404: components["responses"]["EntryNotFound"];
+            412: components["responses"]["EntryConflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    removeMedication: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["EntryForbidden"];
+            404: components["responses"]["EntryNotFound"];
+            412: components["responses"]["EntryConflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    confirmMedication: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["EntryWritten"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["EntryForbidden"];
+            404: components["responses"]["EntryNotFound"];
+            412: components["responses"]["EntryConflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    addMedicationToProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description The entry's id (FHIR AllergyIntolerance.id or MedicationStatement.id). */
+                id: components["parameters"]["EntryID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["EntryWritten"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["EntryForbidden"];
+            404: components["responses"]["EntryNotFound"];
+            412: components["responses"]["EntryConflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listMyHistorySharing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sharing per clinic. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistorySharingList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    previewHistorySharing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The receiving clinic (FHIR Organization.id). */
+                organizationId: components["parameters"]["SharingOrganizationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The candidates, newest first. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharingCandidateList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setHistorySharing: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The sharing's version read, as a weak ETag, `W/"<versionId>"`; absent for a first grant. */
+                "If-Match"?: string;
+            };
+            path: {
+                /** @description The receiving clinic (FHIR Organization.id). */
+                organizationId: components["parameters"]["SharingOrganizationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetHistorySharingRequest"];
+            };
+        };
+        responses: {
+            /** @description The sharing now; `shared` empty after a revocation. Its ETag is the version. */
+            200: {
+                headers: {
+                    /** @description W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistorySharing"];
+                };
+            };
+            /** @description `invalid_request`: not the request; `invalid_visit`: a visit that is not a finished one of the patient's at another clinic. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `care_consent_required`: no active care consent with the clinic. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the sharing changed since it was read, or exists and no If-Match was sent; read it again. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    revokeHistorySharing: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The receiving clinic (FHIR Organization.id). */
+                organizationId: components["parameters"]["SharingOrganizationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked, or nothing was shared. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
     receiveLiveKitWebhook: {
         parameters: {
             query?: never;
@@ -6717,6 +9025,257 @@ export interface operations {
             404: components["responses"]["ChatNotFound"];
         };
     };
+    uploadChatAttachment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The file's size in bytes. */
+                "Content-Length": number;
+                /** @description `attachment; filename*=UTF-8''<percent-encoded name>`, the file's name. */
+                "Content-Disposition"?: string;
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description The file, `scanning`. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatAttachment"];
+                };
+            };
+            /** @description `invalid_request`: the body ended before `Content-Length` bytes, or an id that is no UUID. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+            /** @description `too_many_files`: the caller already has 10 files waiting to be sent in the conversation. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `length_required`: no `Content-Length`. */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `too_large`: over 20 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `unsupported_type`: the bytes are no JPEG, PNG or PDF. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getChatAttachmentContent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description One byte range, `bytes=<first>-<last>`, `bytes=<first>-` or `bytes=-<suffix length>`. */
+                Range?: string;
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+                attachment_id: components["parameters"]["ChatAttachmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["BinaryContent"];
+            206: components["responses"]["BinaryContent"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            /** @description `not_found`: no such file of the conversation, a rejected one, or the caller may not read it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `scanning`: the file is still being checked; try again later. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `range_not_satisfiable`: the range starts past the end of the file. */
+            416: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getChatAttachmentThumbnail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+                attachment_id: components["parameters"]["ChatAttachmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The thumbnail. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            /** @description `not_found`: as for the content, or a file without a thumbnail. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `scanning`: the file is still being checked. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    searchConversation: {
+        parameters: {
+            query: {
+                /** @description Words to find, 1 to 200 characters: runs of letters and digits, of two or more, the first eight count; anything else separates them. */
+                q: components["parameters"]["ChatSearchQuery"];
+            };
+            header?: never;
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ChatSearchResults"];
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
+    searchConversations: {
+        parameters: {
+            query: {
+                /** @description Words to find, 1 to 200 characters: runs of letters and digits, of two or more, the first eight count; anything else separates them. */
+                q: components["parameters"]["ChatSearchQuery"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ChatSearchResults"];
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+        };
+    };
+    summarizeConversation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SummaryRequest"];
+            };
+        };
+        responses: {
+            /** @description The summary, not cached. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SummaryResponse"];
+                };
+            };
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
     followConversation: {
         parameters: {
             query?: {
@@ -6761,6 +9320,594 @@ export interface operations {
                 };
             };
             404: components["responses"]["ChatNotFound"];
+        };
+    };
+    addConversationParticipant: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddParticipantRequest"];
+            };
+        };
+        responses: {
+            /** @description The participant, active or pending the patient's consent. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationParticipant"];
+                };
+            };
+            /** @description `invalid_request`: a field the contract refuses, or a role that is no active role of the clinic or not in the public directory of the other. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+            /** @description `already_participant`: the role takes part, or is invited, already. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    removeConversationParticipant: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+                /** @description The participant's id. */
+                participant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
+    listChatThreads: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The side threads, without a `next`. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
+    openChatThread: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The conversation's id. */
+                id: components["parameters"]["ConversationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The side thread, with its participants. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Conversation"];
+                };
+            };
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            404: components["responses"]["ChatNotFound"];
+        };
+    };
+    listChatInvitations: {
+        parameters: {
+            query?: {
+                /** @description Which invitations; `pending_consent` when absent. */
+                status?: "pending_consent" | "active";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The invitations of that status. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatInvitationList"];
+                };
+            };
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+        };
+    };
+    decideChatInvitation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The invitation's id (the invited participant's). */
+                id: components["parameters"]["ChatInvitationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatInvitationDecision"];
+            };
+        };
+        responses: {
+            /** @description Decided. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ChatInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            /** @description `not_found`: no pending invitation of the patient with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    revokeChatInvitation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The invitation's id (the invited participant's). */
+                id: components["parameters"]["ChatInvitationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ChatForbidden"];
+            /** @description `not_found`: no granted invitation of the patient with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    registerDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushDevice"];
+            };
+        };
+        responses: {
+            /** @description Registered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["NotificationInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    unregisterDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushDevice"];
+            };
+        };
+        responses: {
+            /** @description Unregistered, or there was nothing to unregister. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["NotificationInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getChatHours: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The clinic's id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The chat hours. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatHours"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: not the caller's clinic, or no active care consent with it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getChatSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatSettings"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+        };
+    };
+    setChatSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatSettings"];
+            };
+        };
+        responses: {
+            /** @description The settings stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatSettings"];
+                };
+            };
+            /** @description `invalid_request`: a body that is not the settings, or a value out of its range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+        };
+    };
+    listWebhooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The endpoints, oldest first. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+        };
+    };
+    createWebhook: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewWebhook"];
+            };
+        };
+        responses: {
+            /** @description The endpoint, with its secret. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedWebhook"];
+                };
+            };
+            400: components["responses"]["NotificationInvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+        };
+    };
+    deleteWebhook: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                /** @description The endpoint's id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such endpoint of the clinic, or not staff of a clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getClinicAppointmentStats: {
+        parameters: {
+            query: {
+                /** @description The first local day of the clinic (YYYY-MM-DD). */
+                from: components["parameters"]["StatsFrom"];
+                /** @description The last local day, included; at most ten years after `from`. */
+                to: components["parameters"]["StatsTo"];
+                /** @description Only this practitioner role's figures. */
+                practitionerRole?: components["parameters"]["StatsPractitionerRole"];
+                /** @description Only the roles of this SNOMED CT specialty code. */
+                specialty?: components["parameters"]["StatsSpecialty"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The figures. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicAppointments"];
+                };
+            };
+            400: components["responses"]["StatsInvalid"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: the caller is neither the admin nor a practitioner of a clinic, or a practitioner who is not an admin asked for another role or for a specialty. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicDiagnosisStats: {
+        parameters: {
+            query: {
+                /** @description The first local day of the clinic (YYYY-MM-DD). */
+                from: components["parameters"]["StatsFrom"];
+                /** @description The last local day, included; at most ten years after `from`. */
+                to: components["parameters"]["StatsTo"];
+                by: "group" | "subgroup" | "code" | "practitionerRole" | "specialty" | "month";
+                /** @description Only this diagnosis group. */
+                group?: string;
+                /** @description Only this diagnosis subgroup. */
+                subgroup?: string;
+                /** @description Only this practitioner role's figures. */
+                practitionerRole?: components["parameters"]["StatsPractitionerRole"];
+                /** @description Only the roles of this SNOMED CT specialty code. */
+                specialty?: components["parameters"]["StatsSpecialty"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The counts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicDiagnoses"];
+                };
+            };
+            400: components["responses"]["StatsInvalid"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: the caller is neither the admin nor a practitioner of a clinic, or a practitioner who is not an admin has no role or asked for another role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
         };
     };
 }

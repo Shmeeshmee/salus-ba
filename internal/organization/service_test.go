@@ -36,6 +36,7 @@ type fakeRepository struct {
 	orgs      map[string]organization.Organization
 	clinic    string   // set by SetOrganization
 	calls     []string // the calls, "outside:" prefixed when made outside a transaction
+	shared    []string // other clinics the scope shows through organization_shared (the history)
 	directory bool     // the public directory scope is set
 }
 
@@ -65,7 +66,7 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (organization.Orga
 		return organization.Organization{}, r.err
 	}
 	o, ok := r.orgs[id]
-	if !ok || id != r.clinic {
+	if !ok || (id != r.clinic && !slices.Contains(r.shared, id)) {
 		return organization.Organization{}, organization.ErrNotFound
 	}
 	return o, nil
@@ -82,6 +83,8 @@ func (r *fakeRepository) Update(ctx context.Context, in organization.Organizatio
 	}
 	o.Name, o.Listed, o.TimeZone, o.DefaultLanguage, o.VersionID, o.LastUpdated = in.Name, in.Listed, in.TimeZone, in.DefaultLanguage, in.VersionID+1, at
 	o.PatientTranscriptCopy = in.PatientTranscriptCopy
+	o.Region, o.City, o.LocationSince = in.Region, in.City, in.LocationSince
+	o.AnalyticsContributes, o.ContributesSince = in.AnalyticsContributes, in.ContributesSince
 	r.orgs[in.ID] = o
 	return o, nil
 }
@@ -100,7 +103,7 @@ func (a *fakeAuditor) Record(_ context.Context, e auditevent.AuditEvent) error {
 }
 
 func newService(repo *fakeRepository, audit *fakeAuditor) *organization.Service {
-	return organization.NewService(repo, audit, fakeTransactor{}, clock.Fixed{T: now})
+	return organization.NewService(repo, audit, fakeTransactor{}, clock.Fixed{T: now}, nil)
 }
 
 var (

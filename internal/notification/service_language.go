@@ -11,9 +11,10 @@ import (
 )
 
 // templateFS holds the e-mails of every language, templates/<language>/ (docs/i18n/SPEC.md §3 "Catalogs"):
-// a template per kind (invite, booked, cancelled, reminder, signed) whose first line is the subject and whose body
-// follows a blank line; date.txt, the start's template; and names.txt, the weekdays from Sunday and then the
-// months, one per line, in the form the date uses.
+// a template per kind (invite, booked, cancelled, reminder, signed; the chat's chat_unread, chat_unread_staff and
+// chat_push, the push's title and body) whose first line is the subject and whose body follows a blank line;
+// date.txt, the start's template; and names.txt, the weekdays from Sunday and then the months, one per line, in
+// the form the date uses.
 //
 //go:embed templates
 var templateFS embed.FS
@@ -64,11 +65,14 @@ func loadLetters() map[string]letters {
 }
 
 // in returns the e-mails of language, or of fallbackLanguage when there are none in it.
-func (s *Service) in(language string) letters {
-	if l, ok := s.letters[language]; ok {
+func (s *Service) in(language string) letters { return pick(s.letters, language) }
+
+// pick returns all's e-mails of language, or of fallbackLanguage when there are none in it.
+func pick(all map[string]letters, language string) letters {
+	if l, ok := all[language]; ok {
 		return l
 	}
-	return s.letters[fallbackLanguage]
+	return all[fallbackLanguage]
 }
 
 // message fills the template kind with data, for to.

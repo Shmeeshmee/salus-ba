@@ -20,16 +20,18 @@ import (
 
 // stubChats answers every call with what the test set, and keeps what it was asked.
 type stubChats struct {
+	sal30        sal30Stub // the files, searches, receipts and typing (SAL-30)
 	err          error
 	afterErr     error
 	next         *communication.ListCursor
 	sub          communication.Subscription
 	page         communication.Page
-	revs         []communication.Revision
 	list         []communication.Conversation
+	revs         []communication.Revision
 	after        [][]communication.Message // successive answers of After; then afterErr, then nothing
 	asked        []string
 	sent         communication.Message
+	summary      communication.Summary
 	conv         communication.Conversation
 	mu           sync.Mutex
 	sessionEnded bool
@@ -68,8 +70,8 @@ func (s *stubChats) Messages(_ context.Context, _ communication.Caller, _ string
 	return s.page, s.err
 }
 
-func (s *stubChats) Send(_ context.Context, _ communication.Caller, _, client, body string) (communication.Message, bool, error) {
-	s.ask("send " + client + " " + body)
+func (s *stubChats) Send(_ context.Context, _ communication.Caller, _, client, body string, attachmentIDs ...string) (communication.Message, bool, error) {
+	s.ask(strings.TrimSpace("send " + client + " " + body + " " + strings.Join(attachmentIDs, ",")))
 	return s.sent, s.created, s.err
 }
 
@@ -105,6 +107,11 @@ func (s *stubChats) After(context.Context, communication.Caller, string, communi
 		return next, nil
 	}
 	return nil, s.afterErr
+}
+
+func (s *stubChats) Summarize(_ context.Context, _ communication.Caller, _, lang string) (communication.Summary, error) {
+	s.ask("summary " + lang)
+	return s.summary, s.err
 }
 
 // sessionOpen is the socket's session check: open until the test ends it.

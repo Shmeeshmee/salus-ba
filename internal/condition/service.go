@@ -16,7 +16,8 @@ var icd10 = regexp.MustCompile(`^[A-Z][0-9]{2}(\.[0-9A-Z]{1,4})?$`)
 
 // Service holds the Conditions' rules. It makes no access decision of its own: Record is called by composition
 // inside its signing transaction, after its access check, and composition audits each Condition with the
-// signature; Recorded serves the aggregate builds on salus_stats (they audit their build); Unconfirmed serves
+// signature; Recorded serves the aggregate builds on salus_stats (not audited: counts only, on behalf of no one,
+// docs/privacy/dpia.md, Analytics); Unconfirmed serves
 // salusctl on the owner's connection.
 type Service struct {
 	repo Repository

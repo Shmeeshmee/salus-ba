@@ -692,6 +692,25 @@ func TestLoadSTTAndLoadLLM_RefuseAScriptBesideARealEngineWithoutEchoingIt(t *tes
 	}
 }
 
+// The chat's summary runs on the fake only: no real model reads a patient's messages until the owner decides the
+// basis (docs/plans/chat.md "Notes for the wave-1 packages", SAL-31), whatever LLM_ENGINE says.
+func TestLoadChatSummary_IsTheFakeAndRefusesARealEngineWithoutEchoingIt(t *testing.T) {
+	t.Setenv("LLM_ENGINE", "anthropic")
+	t.Setenv("ANTHROPIC_API_KEY", "llm-key-marker")
+	for _, engine := range []string{"", "fake"} {
+		t.Setenv("CHAT_SUMMARY_ENGINE", engine)
+		if got, err := config.LoadChatSummary(); err != nil || got != (config.ChatSummary{Engine: config.LLMFake}) {
+			t.Errorf("CHAT_SUMMARY_ENGINE=%q: LoadChatSummary() = %+v, %v; want the fake", engine, got, err)
+		}
+	}
+	for _, engine := range []string{"anthropic", "engine-marker"} {
+		t.Setenv("CHAT_SUMMARY_ENGINE", engine)
+		_, err := config.LoadChatSummary()
+		if err == nil || !strings.Contains(err.Error(), "CHAT_SUMMARY_ENGINE") || strings.Contains(err.Error(), "marker") {
+			t.Errorf("CHAT_SUMMARY_ENGINE=%q: LoadChatSummary() = %v, want an error naming the variable and no value", engine, err)
+		}
+	}
+}
 func TestLoadStats_ReadsTheStatsRolesCredentials(t *testing.T) {
 	t.Setenv("STATS_DATABASE_URL", "postgres://salus_stats:synthetic@localhost/test")
 	t.Setenv("STATS_DATABASE_PASSWORD", "synthetic")
@@ -720,11 +739,11 @@ func TestLoad_NeverReadsTheStatsRolesCredentials(t *testing.T) {
 	}
 }
 
-// Only cmd/migrate (to set the role's password) calls LoadStats until the aggregate builds land in cmd/worker
-// (docs/plans/analytics.md, ANA-2 and ANA-3), and no other Go file reads the variables.
-func TestLoadStats_IsCalledOnlyByMigrate(t *testing.T) {
+// Only cmd/migrate (to set the role's password) and cmd/worker (the aggregate builds' pool) call LoadStats, and only
+// config.go names the variables (docs/plans/analytics.md, ADR 0013).
+func TestLoadStats_IsCalledOnlyByMigrateAndWorker(t *testing.T) {
 	callers, readers := goFilesContaining(t, "config.LoadStats(", `Getenv("STATS_DATABASE_`)
-	if want := []string{"cmd/migrate/main.go"}; !slices.Equal(callers, want) {
+	if want := []string{"cmd/migrate/main.go", "cmd/worker/main.go"}; !slices.Equal(callers, want) {
 		t.Errorf("LoadStats is called by %v, want %v", callers, want)
 	}
 	if want := []string{"internal/config/config.go"}; !slices.Equal(readers, want) {

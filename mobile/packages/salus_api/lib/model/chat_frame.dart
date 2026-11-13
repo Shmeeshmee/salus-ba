@@ -22,7 +22,7 @@ class ChatFrame {
 
   ChatFrameVersionEnum version;
 
-  ChatCommandError payload;
+  ChatTyping payload;
 
   @override
   bool operator ==(Object other) =>
@@ -78,7 +78,7 @@ class ChatFrame {
       return ChatFrame(
         type: ChatFrameTypeEnum.fromJson(json[r'type'])!,
         version: ChatFrameVersionEnum.fromJson(json[r'version'])!,
-        payload: ChatCommandError.fromJson(json[r'payload'])!,
+        payload: ChatTyping.fromJson(json[r'payload'])!,
       );
     }
     return null;
@@ -146,6 +146,8 @@ enum ChatFrameTypeEnum {
   messageEdited._(r'message_edited'),
   sendAck._(r'send_ack'),
   commandError._(r'command_error'),
+  receipt._(r'receipt'),
+  typing._(r'typing'),
   ;
 
   /// Instantiate a new enum with the provided value.
@@ -217,6 +219,10 @@ class ChatFrameTypeEnumTypeTransformer {
           return ChatFrameTypeEnum.sendAck;
         case r'command_error':
           return ChatFrameTypeEnum.commandError;
+        case r'receipt':
+          return ChatFrameTypeEnum.receipt;
+        case r'typing':
+          return ChatFrameTypeEnum.typing;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

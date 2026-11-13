@@ -51,15 +51,17 @@ import 'package:salus_api/api.dart';
 // String yourTokenGeneratorFunction() { ... }
 //defaultApiClient.getAuthentication<HttpBearerAuth>('bearerAuth').setAccessToken(yourTokenGeneratorFunction);
 
-final api_instance = AppointmentsApi();
-final bookAppointmentRequest = BookAppointmentRequest(); // BookAppointmentRequest | 
-final xSalusCSRF = xSalusCSRF_example; // String | Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+final api_instance = AnalyticsApi();
+final from = 2013-10-20; // DateTime | The first local day of the clinic (YYYY-MM-DD).
+final to = 2013-10-20; // DateTime | The last local day, included; at most ten years after `from`.
+final practitionerRole = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | Only this practitioner role's figures.
+final specialty = specialty_example; // String | Only the roles of this SNOMED CT specialty code.
 
 try {
-    final result = api_instance.bookAppointment(bookAppointmentRequest, xSalusCSRF);
+    final result = api_instance.getClinicAppointmentStats(from, to, practitionerRole, specialty);
     print(result);
 } catch (e) {
-    print('Exception when calling AppointmentsApi->bookAppointment: $e\n');
+    print('Exception when calling AnalyticsApi->getClinicAppointmentStats: $e\n');
 }
 
 ```
@@ -70,6 +72,12 @@ All URIs are relative to *http://localhost*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
+*AnalyticsApi* | [**getClinicAppointmentStats**](doc//AnalyticsApi.md#getclinicappointmentstats) | **GET** /analytics/clinic/appointments | The clinic's appointments over time
+*AnalyticsApi* | [**getClinicDiagnosisStats**](doc//AnalyticsApi.md#getclinicdiagnosisstats) | **GET** /analytics/clinic/diagnoses | The clinic's diagnoses, counted by a breakdown
+*AnalyticsApi* | [**getPlatformCells**](doc//AnalyticsApi.md#getplatformcells) | **GET** /analytics/platform/cells | A breakdown of one All of Salus table
+*AnalyticsApi* | [**getPlatformHeatmap**](doc//AnalyticsApi.md#getplatformheatmap) | **GET** /analytics/platform/heatmap | A published quarter's fulfilled appointments by weekday and hour
+*AnalyticsApi* | [**getPlatformMonths**](doc//AnalyticsApi.md#getplatformmonths) | **GET** /analytics/platform/months | The published months and quarters of the All of Salus figures
+*AnalyticsApi* | [**getPlatformRises**](doc//AnalyticsApi.md#getplatformrises) | **GET** /analytics/platform/rises | Unusual rises of a diagnosis group in a region
 *AppointmentsApi* | [**bookAppointment**](doc//AppointmentsApi.md#bookappointment) | **POST** /appointments | Book a free slot
 *AppointmentsApi* | [**cancelAppointment**](doc//AppointmentsApi.md#cancelappointment) | **POST** /appointments/{id}/cancel | Cancel an appointment
 *AppointmentsApi* | [**setAppointmentStatus**](doc//AppointmentsApi.md#setappointmentstatus) | **POST** /appointments/{id}/status | Mark an appointment fulfilled or no-show
@@ -85,15 +93,36 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**register**](doc//AuthApi.md#register) | **POST** /auth/register | Register a patient account
 *AuthApi* | [**updateMe**](doc//AuthApi.md#updateme) | **PATCH** /auth/me | Choose the account's language
 *AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
+*ChatApi* | [**addConversationParticipant**](doc//ChatApi.md#addconversationparticipant) | **POST** /conversations/{id}/participants | Add a practitioner of the clinic, or invite one of another clinic (SAL-28)
+*ChatApi* | [**createWebhook**](doc//ChatApi.md#createwebhook) | **POST** /clinic/webhooks | Add a webhook endpoint; its secret is shown in this answer only
+*ChatApi* | [**decideChatInvitation**](doc//ChatApi.md#decidechatinvitation) | **POST** /me/chat-invitations/{id}/decision | Grant or decline an invitation (SAL-28)
+*ChatApi* | [**deleteWebhook**](doc//ChatApi.md#deletewebhook) | **DELETE** /clinic/webhooks/{id} | Delete a webhook endpoint and its dead letters
 *ChatApi* | [**editMessage**](doc//ChatApi.md#editmessage) | **PATCH** /conversations/{id}/messages/{message_id} | Edit the body of one's own text message
 *ChatApi* | [**followConversation**](doc//ChatApi.md#followconversation) | **GET** /conversations/{id}/events | The conversation's messages, live, over a WebSocket
+*ChatApi* | [**getChatAttachmentContent**](doc//ChatApi.md#getchatattachmentcontent) | **GET** /conversations/{id}/attachments/{attachment_id}/content | Download a message's file
+*ChatApi* | [**getChatAttachmentThumbnail**](doc//ChatApi.md#getchatattachmentthumbnail) | **GET** /conversations/{id}/attachments/{attachment_id}/thumbnail | Download a message's image thumbnail
+*ChatApi* | [**getChatHours**](doc//ChatApi.md#getchathours) | **GET** /organizations/{id}/chat-hours | The clinic's chat hours, its response time, and whether it is within its hours now
+*ChatApi* | [**getChatSettings**](doc//ChatApi.md#getchatsettings) | **GET** /clinic/chat-settings | The admin's clinic's chat settings
 *ChatApi* | [**getConversation**](doc//ChatApi.md#getconversation) | **GET** /conversations/{id} | One conversation with its active participants
+*ChatApi* | [**listChatInvitations**](doc//ChatApi.md#listchatinvitations) | **GET** /me/chat-invitations | The patient's invitations of doctors from other clinics, pending or granted (SAL-28)
+*ChatApi* | [**listChatThreads**](doc//ChatApi.md#listchatthreads) | **GET** /conversations/{id}/threads | The side threads of the conversation the caller takes part in, newest first (SAL-28)
 *ChatApi* | [**listConversations**](doc//ChatApi.md#listconversations) | **GET** /conversations | The caller's conversations, newest activity first, with their unread counts
 *ChatApi* | [**listMessageRevisions**](doc//ChatApi.md#listmessagerevisions) | **GET** /conversations/{id}/messages/{message_id}/revisions | The earlier bodies of an edited message, oldest first
 *ChatApi* | [**listMessages**](doc//ChatApi.md#listmessages) | **GET** /conversations/{id}/messages | A page of the conversation's messages, newest first
+*ChatApi* | [**listWebhooks**](doc//ChatApi.md#listwebhooks) | **GET** /clinic/webhooks | The admin's clinic's webhook endpoints, without their secrets
 *ChatApi* | [**markConversationRead**](doc//ChatApi.md#markconversationread) | **PUT** /conversations/{id}/read | Move the caller's read position
+*ChatApi* | [**openChatThread**](doc//ChatApi.md#openchatthread) | **POST** /conversations/{id}/threads | Open a doctor-only side thread of the conversation (SAL-28)
 *ChatApi* | [**openConversation**](doc//ChatApi.md#openconversation) | **POST** /conversations | Open the conversation with a patient or a practitioner, or return the one there is
+*ChatApi* | [**registerDevice**](doc//ChatApi.md#registerdevice) | **PUT** /me/devices | Register the patient app's push token
+*ChatApi* | [**removeConversationParticipant**](doc//ChatApi.md#removeconversationparticipant) | **DELETE** /conversations/{id}/participants/{participant_id} | Remove a practitioner, or withdraw an invitation (SAL-28)
+*ChatApi* | [**revokeChatInvitation**](doc//ChatApi.md#revokechatinvitation) | **POST** /me/chat-invitations/{id}/revoke | Revoke a granted invitation (SAL-28)
+*ChatApi* | [**searchConversation**](doc//ChatApi.md#searchconversation) | **GET** /conversations/{id}/search | Search a conversation's messages
+*ChatApi* | [**searchConversations**](doc//ChatApi.md#searchconversations) | **GET** /conversations/search | Search the caller's conversations
 *ChatApi* | [**sendMessage**](doc//ChatApi.md#sendmessage) | **POST** /conversations/{id}/messages | Send a text message
+*ChatApi* | [**setChatSettings**](doc//ChatApi.md#setchatsettings) | **PUT** /clinic/chat-settings | Replace the admin's clinic's chat settings
+*ChatApi* | [**summarizeConversation**](doc//ChatApi.md#summarizeconversation) | **POST** /conversations/{id}/summary | An AI summary of a long conversation, for its practitioner
+*ChatApi* | [**unregisterDevice**](doc//ChatApi.md#unregisterdevice) | **DELETE** /me/devices | Unregister the app's push token (on sign-out)
+*ChatApi* | [**uploadChatAttachment**](doc//ChatApi.md#uploadchatattachment) | **POST** /conversations/{id}/attachments | Upload a file to send in the conversation
 *ConsentsApi* | [**grantConsent**](doc//ConsentsApi.md#grantconsent) | **POST** /consents | Consent to share the profile and appointments with a clinic, or to transcription
 *ConsentsApi* | [**listMyConsents**](doc//ConsentsApi.md#listmyconsents) | **GET** /me/consents | The signed-in patient's consents
 *ConsentsApi* | [**revokeConsent**](doc//ConsentsApi.md#revokeconsent) | **POST** /consents/{id}/revoke | Revoke a consent
@@ -115,6 +144,25 @@ Class | Method | HTTP request | Description
 *DocumentsApi* | [**updateDocumentTemplate**](doc//DocumentsApi.md#updatedocumenttemplate) | **PUT** /document-templates/{id} | Edit a document template
 *HealthApi* | [**getHealth**](doc//HealthApi.md#gethealth) | **GET** /healthz | Liveness
 *HealthApi* | [**getReadiness**](doc//HealthApi.md#getreadiness) | **GET** /readyz | Readiness
+*HistoryApi* | [**addAllergyToProfile**](doc//HistoryApi.md#addallergytoprofile) | **POST** /allergies/{id}/profile | Add a clinic's allergy to the profile
+*HistoryApi* | [**addMedicationToProfile**](doc//HistoryApi.md#addmedicationtoprofile) | **POST** /medications/{id}/profile | Add a clinic's medication to the profile
+*HistoryApi* | [**addMyAllergy**](doc//HistoryApi.md#addmyallergy) | **POST** /me/allergies | Add an allergy to the signed-in patient's profile
+*HistoryApi* | [**addMyMedication**](doc//HistoryApi.md#addmymedication) | **POST** /me/medications | Add a medication to the signed-in patient's profile
+*HistoryApi* | [**confirmAllergy**](doc//HistoryApi.md#confirmallergy) | **POST** /allergies/{id}/confirm | Confirm an allergy
+*HistoryApi* | [**confirmMedication**](doc//HistoryApi.md#confirmmedication) | **POST** /medications/{id}/confirm | Confirm a medication
+*HistoryApi* | [**getPatientHistorySummary**](doc//HistoryApi.md#getpatienthistorysummary) | **GET** /patients/{id}/history/summary | The pre-visit summary of a patient
+*HistoryApi* | [**listMyHistory**](doc//HistoryApi.md#listmyhistory) | **GET** /me/history | The signed-in patient's history across every clinic
+*HistoryApi* | [**listMyHistorySharing**](doc//HistoryApi.md#listmyhistorysharing) | **GET** /me/history-sharing | The clinics the signed-in patient shares history with
+*HistoryApi* | [**listPatientHistory**](doc//HistoryApi.md#listpatienthistory) | **GET** /patients/{id}/history | A patient's history as the practitioner may see it
+*HistoryApi* | [**previewHistorySharing**](doc//HistoryApi.md#previewhistorysharing) | **GET** /history-sharing/{organizationId} | The visits the patient may share with a clinic
+*HistoryApi* | [**recordAllergy**](doc//HistoryApi.md#recordallergy) | **POST** /encounters/{id}/allergies | Record an allergy in a visit
+*HistoryApi* | [**recordMedication**](doc//HistoryApi.md#recordmedication) | **POST** /encounters/{id}/medications | Record a medication in a visit
+*HistoryApi* | [**removeAllergy**](doc//HistoryApi.md#removeallergy) | **DELETE** /allergies/{id} | Remove an allergy
+*HistoryApi* | [**removeMedication**](doc//HistoryApi.md#removemedication) | **DELETE** /medications/{id} | Remove a medication
+*HistoryApi* | [**revokeHistorySharing**](doc//HistoryApi.md#revokehistorysharing) | **DELETE** /history-sharing/{organizationId} | Stop sharing history with a clinic
+*HistoryApi* | [**setHistorySharing**](doc//HistoryApi.md#sethistorysharing) | **PUT** /history-sharing/{organizationId} | Share exactly these visits with a clinic
+*HistoryApi* | [**updateAllergy**](doc//HistoryApi.md#updateallergy) | **PUT** /allergies/{id} | Change an allergy
+*HistoryApi* | [**updateMedication**](doc//HistoryApi.md#updatemedication) | **PUT** /medications/{id} | Change a medication
 *InvitesApi* | [**acceptInvite**](doc//InvitesApi.md#acceptinvite) | **POST** /invites/accept | Accept an invite
 *InvitesApi* | [**createInvite**](doc//InvitesApi.md#createinvite) | **POST** /invites | Invite a practitioner or an admin to the clinic
 *InvitesApi* | [**listInvites**](doc//InvitesApi.md#listinvites) | **GET** /invites | The clinic's open invites
@@ -156,6 +204,11 @@ Class | Method | HTTP request | Description
  - [AcceptInviteRequest](doc//AcceptInviteRequest.md)
  - [Acceptance](doc//Acceptance.md)
  - [Account](doc//Account.md)
+ - [AddParticipantRequest](doc//AddParticipantRequest.md)
+ - [AllergyCategory](doc//AllergyCategory.md)
+ - [AllergyClinicalStatus](doc//AllergyClinicalStatus.md)
+ - [AllergyIntoleranceInput](doc//AllergyIntoleranceInput.md)
+ - [AllergySeverity](doc//AllergySeverity.md)
  - [Answer](doc//Answer.md)
  - [AnswerValue](doc//AnswerValue.md)
  - [Appointment](doc//Appointment.md)
@@ -163,12 +216,33 @@ Class | Method | HTTP request | Description
  - [AvailabilityRule](doc//AvailabilityRule.md)
  - [Binary](doc//Binary.md)
  - [BookAppointmentRequest](doc//BookAppointmentRequest.md)
+ - [ChatAttachment](doc//ChatAttachment.md)
  - [ChatCommand](doc//ChatCommand.md)
  - [ChatCommandError](doc//ChatCommandError.md)
  - [ChatCommandErrorFrame](doc//ChatCommandErrorFrame.md)
  - [ChatFrame](doc//ChatFrame.md)
+ - [ChatHour](doc//ChatHour.md)
+ - [ChatHours](doc//ChatHours.md)
+ - [ChatInvitation](doc//ChatInvitation.md)
+ - [ChatInvitationDecision](doc//ChatInvitationDecision.md)
+ - [ChatInvitationList](doc//ChatInvitationList.md)
  - [ChatMessage](doc//ChatMessage.md)
  - [ChatMessageFrame](doc//ChatMessageFrame.md)
+ - [ChatReadCommand](doc//ChatReadCommand.md)
+ - [ChatReceipt](doc//ChatReceipt.md)
+ - [ChatReceiptFrame](doc//ChatReceiptFrame.md)
+ - [ChatSearchResult](doc//ChatSearchResult.md)
+ - [ChatSearchResults](doc//ChatSearchResults.md)
+ - [ChatSettings](doc//ChatSettings.md)
+ - [ChatTyping](doc//ChatTyping.md)
+ - [ChatTypingCommand](doc//ChatTypingCommand.md)
+ - [ChatTypingFrame](doc//ChatTypingFrame.md)
+ - [ClinicAppointments](doc//ClinicAppointments.md)
+ - [ClinicAppointmentsHeatmapInner](doc//ClinicAppointmentsHeatmapInner.md)
+ - [ClinicAppointmentsPractitionersInner](doc//ClinicAppointmentsPractitionersInner.md)
+ - [ClinicAppointmentsSeriesInner](doc//ClinicAppointmentsSeriesInner.md)
+ - [ClinicDiagnoses](doc//ClinicDiagnoses.md)
+ - [ClinicDiagnosesRowsInner](doc//ClinicDiagnosesRowsInner.md)
  - [CommandError](doc//CommandError.md)
  - [CommandErrorMessage](doc//CommandErrorMessage.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)
@@ -183,6 +257,7 @@ Class | Method | HTTP request | Description
  - [Conversation](doc//Conversation.md)
  - [ConversationList](doc//ConversationList.md)
  - [ConversationParticipant](doc//ConversationParticipant.md)
+ - [CreatedWebhook](doc//CreatedWebhook.md)
  - [Cursor](doc//Cursor.md)
  - [CursorMessage](doc//CursorMessage.md)
  - [DiagnosisGroup](doc//DiagnosisGroup.md)
@@ -196,6 +271,8 @@ Class | Method | HTTP request | Description
  - [DocumentTemplates](doc//DocumentTemplates.md)
  - [DocumentTerms](doc//DocumentTerms.md)
  - [DocumentTermsSection](doc//DocumentTermsSection.md)
+ - [Dosage](doc//Dosage.md)
+ - [DoseUnit](doc//DoseUnit.md)
  - [DraftEvent](doc//DraftEvent.md)
  - [DraftField](doc//DraftField.md)
  - [DraftMessage](doc//DraftMessage.md)
@@ -205,11 +282,20 @@ Class | Method | HTTP request | Description
  - [EditMessageRequest](doc//EditMessageRequest.md)
  - [EnrolRequest](doc//EnrolRequest.md)
  - [Enrolment](doc//Enrolment.md)
+ - [EntryWritten](doc//EntryWritten.md)
  - [Error](doc//Error.md)
  - [ExplainedTerm](doc//ExplainedTerm.md)
  - [ExplainedTermList](doc//ExplainedTermList.md)
  - [GenerateDraftRequest](doc//GenerateDraftRequest.md)
  - [GrantConsentRequest](doc//GrantConsentRequest.md)
+ - [HistoryClinic](doc//HistoryClinic.md)
+ - [HistoryDiagnosis](doc//HistoryDiagnosis.md)
+ - [HistoryItem](doc//HistoryItem.md)
+ - [HistoryItemType](doc//HistoryItemType.md)
+ - [HistoryPage](doc//HistoryPage.md)
+ - [HistorySharing](doc//HistorySharing.md)
+ - [HistorySharingList](doc//HistorySharingList.md)
+ - [HistorySummary](doc//HistorySummary.md)
  - [Invite](doc//Invite.md)
  - [InviteList](doc//InviteList.md)
  - [InviteRequest](doc//InviteRequest.md)
@@ -218,13 +304,26 @@ Class | Method | HTTP request | Description
  - [LiveKitWebhookEvent](doc//LiveKitWebhookEvent.md)
  - [LoginRequest](doc//LoginRequest.md)
  - [LoginResponse](doc//LoginResponse.md)
+ - [MedicationStatementInput](doc//MedicationStatementInput.md)
+ - [MedicationStatus](doc//MedicationStatus.md)
  - [MessagePage](doc//MessagePage.md)
  - [MessageRevision](doc//MessageRevision.md)
  - [MessageRevisions](doc//MessageRevisions.md)
+ - [NewWebhook](doc//NewWebhook.md)
  - [OpenConversationRequest](doc//OpenConversationRequest.md)
+ - [OpenItem](doc//OpenItem.md)
  - [Patient](doc//Patient.md)
+ - [PeriodUnit](doc//PeriodUnit.md)
  - [Place](doc//Place.md)
  - [PlaceList](doc//PlaceList.md)
+ - [PlatformBreakdown](doc//PlatformBreakdown.md)
+ - [PlatformBreakdownRowsInner](doc//PlatformBreakdownRowsInner.md)
+ - [PlatformHeatmap](doc//PlatformHeatmap.md)
+ - [PlatformHeatmapCellsInner](doc//PlatformHeatmapCellsInner.md)
+ - [PlatformMonths](doc//PlatformMonths.md)
+ - [PlatformRises](doc//PlatformRises.md)
+ - [PlatformRisesRisesInner](doc//PlatformRisesRisesInner.md)
+ - [PushDevice](doc//PushDevice.md)
  - [Questionnaire](doc//Questionnaire.md)
  - [QuestionnaireDefault](doc//QuestionnaireDefault.md)
  - [QuestionnaireItem](doc//QuestionnaireItem.md)
@@ -249,8 +348,11 @@ Class | Method | HTTP request | Description
  - [SendAckFrame](doc//SendAckFrame.md)
  - [SendMessageRequest](doc//SendMessageRequest.md)
  - [SetAppointmentStatusRequest](doc//SetAppointmentStatusRequest.md)
+ - [SetHistorySharingRequest](doc//SetHistorySharingRequest.md)
  - [SetRoleQuestionnaireRequest](doc//SetRoleQuestionnaireRequest.md)
  - [SetSpecialtyRequest](doc//SetSpecialtyRequest.md)
+ - [SharingCandidate](doc//SharingCandidate.md)
+ - [SharingCandidateList](doc//SharingCandidateList.md)
  - [SignDraftRequest](doc//SignDraftRequest.md)
  - [Specialty](doc//Specialty.md)
  - [SpecialtyList](doc//SpecialtyList.md)
@@ -260,6 +362,10 @@ Class | Method | HTTP request | Description
  - [SuggestionMessage](doc//SuggestionMessage.md)
  - [SuggestionStatus](doc//SuggestionStatus.md)
  - [SuggestionStatusMessage](doc//SuggestionStatusMessage.md)
+ - [SummaryAllergy](doc//SummaryAllergy.md)
+ - [SummaryMedication](doc//SummaryMedication.md)
+ - [SummaryRequest](doc//SummaryRequest.md)
+ - [SummaryResponse](doc//SummaryResponse.md)
  - [SystemMessage](doc//SystemMessage.md)
  - [Term](doc//Term.md)
  - [TermCategory](doc//TermCategory.md)
@@ -283,6 +389,12 @@ Class | Method | HTTP request | Description
  - [Unavailable](doc//Unavailable.md)
  - [UpdateMeRequest](doc//UpdateMeRequest.md)
  - [VerifyRequest](doc//VerifyRequest.md)
+ - [Webhook](doc//Webhook.md)
+ - [WebhookEvent](doc//WebhookEvent.md)
+ - [WebhookEventData](doc//WebhookEventData.md)
+ - [WebhookEventDataMessage](doc//WebhookEventDataMessage.md)
+ - [WebhookEventType](doc//WebhookEventType.md)
+ - [WebhookList](doc//WebhookList.md)
 
 
 ## Documentation For Authorization

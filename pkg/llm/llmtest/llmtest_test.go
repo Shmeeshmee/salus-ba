@@ -17,6 +17,7 @@ var (
 	_ llm.Translator = (*llmtest.Translator)(nil)
 	_ llm.Suggester  = (*llmtest.Suggester)(nil)
 	_ llm.Drafter    = (*llmtest.Drafter)(nil)
+	_ llm.Summarizer = (*llmtest.Summarizer)(nil)
 )
 
 var errDown = errors.New("model down")
@@ -203,5 +204,36 @@ func TestFieldTypes_AreTextListDateAndCoded(t *testing.T) {
 	got := []llm.FieldType{llm.FieldText, llm.FieldList, llm.FieldDate, llm.FieldCoded}
 	if !slices.Equal(got, []llm.FieldType{"text", "list", "date", "coded"}) {
 		t.Errorf("field types = %q", got)
+	}
+}
+
+// The fake's summary is a fixed placeholder naming how many messages it covers: no text of the messages appears.
+func TestSummarizer_AnswersAPlaceholderAndRecordsACopyOfTheCall(t *testing.T) {
+	t.Parallel()
+	s := &llmtest.Summarizer{}
+	msgs := transcript()
+	got, err := s.Summarize(t.Context(), llm.SummarizeRequest{Lang: "bs", Messages: msgs})
+	if err != nil || got != "[bs] Placeholder summary of 2 messages" {
+		t.Errorf("Summarize() = %q, %v", got, err)
+	}
+	msgs[0].Text = "changed by the caller"
+	if calls := s.Calls(); len(calls) != 1 || calls[0].Lang != "bs" || calls[0].Messages[0].Text != "placeholder complaint" {
+		t.Errorf("Calls() = %+v", calls)
+	}
+	s.Summary = "scripted"
+	if got, _ := s.Summarize(t.Context(), llm.SummarizeRequest{Lang: "en"}); got != "scripted" {
+		t.Errorf("Summarize() with a Summary = %q, want it", got)
+	}
+}
+
+func TestSummarizer_ReturnsItsErrorAndKeepsNoCallsWhenDiscarding(t *testing.T) {
+	t.Parallel()
+	if _, err := (&llmtest.Summarizer{Err: errDown}).Summarize(t.Context(), llm.SummarizeRequest{}); !errors.Is(err, errDown) {
+		t.Errorf("Summarize() = %v, want %v", err, errDown)
+	}
+	s := &llmtest.Summarizer{DiscardCalls: true}
+	_, _ = s.Summarize(t.Context(), llm.SummarizeRequest{Messages: transcript()})
+	if n := len(s.Calls()); n != 0 {
+		t.Errorf("%d calls kept, want none", n)
 	}
 }

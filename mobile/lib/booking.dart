@@ -8,6 +8,7 @@ import 'package:salus_api/api.dart' as api;
 
 import 'fhir.dart';
 import 'file_prep.dart' show Prepared;
+import 'health_profile.dart';
 import 'session.dart';
 
 /// How long an upload may go without sending a byte or hearing its answer before it is stopped (COPY M5).
@@ -27,19 +28,25 @@ class Booking {
   Booking(api.ApiClient client)
     : _client = client,
       fhir = Fhir(client),
+      health = HealthProfile(client),
       _patient = api.PatientApi(client),
       _consents = api.ConsentsApi(client),
       _appointments = api.AppointmentsApi(client),
       _consultation = api.ConsultationApi(client),
-      _questionnaires = api.QuestionnairesApi(client);
+      _questionnaires = api.QuestionnairesApi(client),
+      _history = api.HistoryApi(client);
 
   final api.ApiClient _client;
   final Fhir fhir;
+
+  /// The allergies and medications of the profile (SAL-41).
+  final HealthProfile health;
   final api.PatientApi _patient;
   final api.ConsentsApi _consents;
   final api.AppointmentsApi _appointments;
   final api.ConsultationApi _consultation;
   final api.QuestionnairesApi _questionnaires;
+  final api.HistoryApi _history;
 
   /// The signed-in patient's profile, or null before it is first saved.
   Future<api.Patient?> me() async {
@@ -89,6 +96,30 @@ class Booking {
 
   Future<void> revoke(String consentId) => apiCall(() => _consents.revokeConsent(consentId));
 
+  /// The visits the patient may share with the clinic (SAL-42), newest first, each as the clinic would see it, marked
+  /// when shared now.
+  Future<api.SharingCandidateList> sharingPreview(String clinicId) async {
+    final preview = await apiCall(() => _history.previewHistorySharing(clinicId));
+    return preview ?? api.SharingCandidateList();
+  }
+
+  /// What the patient shares with each clinic now.
+  Future<List<api.HistorySharing>> mySharing() async =>
+      (await apiCall(_history.listMyHistorySharing))?.sharing ?? const [];
+
+  /// Shares exactly [encounterIds] with the clinic, changing the sharing at [versionId] (null for a first grant);
+  /// none stops it. A change made meanwhile is `version_conflict`.
+  Future<void> setSharing(String clinicId, List<String> encounterIds, String? versionId) => apiCall(
+    () => _history.setHistorySharing(
+      clinicId,
+      api.SetHistorySharingRequest(encounterIds: encounterIds.toSet()),
+      ifMatch: versionId == null ? null : 'W/"$versionId"',
+    ),
+  );
+
+  /// Stops sharing history with the clinic; nothing when nothing is shared.
+  Future<void> stopSharing(String clinicId) => apiCall(() => _history.revokeHistorySharing(clinicId));
+
   Future<void> book(String slotId) =>
       apiCall(() => _appointments.bookAppointment(api.BookAppointmentRequest(slotId: slotId)));
 
@@ -124,6 +155,37 @@ class Booking {
     );
     if (response.statusCode >= HttpStatus.badRequest) throw ApiFailure.fromBody(response.statusCode, response.body);
     return response.bodyBytes;
+  }
+
+  /// One page of the patient's history across every clinic (SAL-39), newest first, after [cursor] (the `next` of the
+  /// page before; null for the first), narrowed to one clinic, some types and the instants in [from, to) when given.
+  Future<api.HistoryPage> history({
+    String? cursor,
+    String? clinicId,
+    List<api.HistoryItemType>? types,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final page = await apiCall(
+      () => _history.listMyHistory(
+        cursor: cursor,
+        organization: clinicId,
+        type: types == null || types.isEmpty ? null : types,
+        from: from?.toUtc(),
+        to: to?.toUtc(),
+      ),
+    );
+    if (page == null) throw const ApiFailure(status: HttpStatus.badGateway);
+    return page;
+  }
+
+  /// The bytes of the patient's clean file [binaryId] and its content type, to hand to the device (SAL-39).
+  Future<(Uint8List, String)> file(String binaryId) async {
+    final response = await apiCall(
+      () => _client.invokeAPI('/binaries/${Uri.encodeComponent(binaryId)}/content', 'GET', const [], null, {}, {}, null),
+    );
+    if (response.statusCode >= HttpStatus.badRequest) throw ApiFailure.fromBody(response.statusCode, response.body);
+    return (response.bodyBytes, response.headers['content-type'] ?? 'application/octet-stream');
   }
 
   /// The plain-language explanations of the medical terms in [language], else in English (SAL-13), by term id.

@@ -1,0 +1,56 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "organization-city",
+  "url": "https://salus.invalid/fhir/StructureDefinition/organization-city",
+  "version": "0.1.0",
+  "name": "OrganizationCity",
+  "title": "Organization city",
+  "status": "active",
+  "date": "2026-11-12",
+  "publisher": "Salus",
+  "description": "The city of the clinic's address as a Wikidata item id (a municipality or city of Bosnia and Herzegovina, CC0), under the leaf region given as the address's state (an ISO 3166-2:BA code). The clinic's location for the platform figures (docs/plans/analytics.md O1); the address's city carries its name.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Organization.address"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "The city as a Wikidata id",
+        "definition": "The Wikidata item of the city named in Address.city.",
+        "min": 0,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "https://salus.invalid/fhir/StructureDefinition/organization-city"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "code"
+          }
+        ]
+      }
+    ]
+  }
+}

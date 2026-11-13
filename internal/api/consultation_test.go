@@ -13,6 +13,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/organization"
@@ -70,7 +71,7 @@ func realService(tb testing.TB, app *pgxpool.Pool, at time.Time, p videosession.
 	clk := clock.Fixed{T: at}
 	tx := postgres.NewTransactor(app)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(app), tx, clk)
-	clinics := organization.NewService(organization.NewPostgresRepository(app), audit, tx, clk)
+	clinics := organization.NewService(organization.NewPostgresRepository(app), audit, tx, clk, nil)
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(app), audit, tx)
 	roles := practitionerrole.NewService(practitionerrole.Ports{
 		Repo: practitionerrole.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: clk, Clinics: clinics, People: practitioners,
@@ -78,16 +79,17 @@ func realService(tb testing.TB, app *pgxpool.Pool, at time.Time, p videosession.
 	consents := consent.NewService(consent.NewPostgresRepository(app), audit, tx, clk, nil)
 	appointmentRepo := appointment.NewPostgresRepository(app)
 	patients := patient.NewService(patient.NewPostgresRepository(app), audit, tx, clk, consents, appointment.NewFacts(appointmentRepo))
-	appointments := appointment.NewService(appointment.Ports{
-		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clk, Consents: consents, Patients: patients, Roles: roles,
-	})
-	encounters := encounter.NewService(encounter.Ports{
-		Repo: encounter.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: clk, Appointments: appointments,
-	})
 	jobs, err := worker.NewInserter(app)
 	if err != nil {
 		tb.Fatal(err)
 	}
+	appointments := appointment.NewService(appointment.Ports{
+		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clk, Consents: consents, Patients: patients, Roles: roles,
+		Stats: clinicstats.NewRiverQueue(jobs),
+	})
+	encounters := encounter.NewService(encounter.Ports{
+		Repo: encounter.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: clk, Appointments: appointments,
+	})
 	return videosession.NewService(videosession.Ports{
 		Repo: videosession.NewPostgresRepository(app), Provider: p, Audit: audit, Tx: tx, Clock: clk,
 		Appointments: appointments, Patients: patients, Practitioners: practitioners, PublicURL: "ws://localhost:7880",

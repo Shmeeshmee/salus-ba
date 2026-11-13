@@ -316,7 +316,8 @@ func (s *Service) DeleteDraft(ctx context.Context, c Caller, id string) error {
 }
 
 // Read returns the version id of c's clinic, or, to a patient, a version their own responses reference
-// (Referenced).
+// (Referenced); to a practitioner, also another clinic's version a completed response of a visit shared with their
+// clinic answers (the history, ADR 0014), without its translations.
 func (s *Service) Read(ctx context.Context, c Caller, id string) (Questionnaire, error) {
 	if patientCaller(c) {
 		return s.Referenced(ctx, c, c.PatientID, id)
@@ -325,6 +326,9 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (Questionnaire,
 	err := s.do(ctx, c, opRead, func(ctx context.Context) ([]string, error, error) {
 		var failed, err error
 		out, failed, err = s.version(ctx, c, id, false)
+		if errors.Is(failed, ErrNotFound) && historyViewer(c) {
+			return s.shared(ctx, c, id, &out)
+		}
 		if err != nil || failed != nil {
 			return nil, failed, err
 		}
@@ -332,6 +336,66 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (Questionnaire,
 	})
 	if err != nil {
 		return Questionnaire{}, err
+	}
+	return out, nil
+}
+
+// historyViewer reports whether c may read another clinic's version through the history: a practitioner of their
+// clinic, not its admin (the lookup itself requires their appointment with the response's patient).
+func historyViewer(c Caller) bool { return c.PractitionerID != "" && !c.Admin }
+
+// shared reads into out another clinic's version id that a completed response of a visit shared with the clinic
+// in scope answers, for the practitioner c with an appointment with its patient there (the history, ADR 0014),
+// without its translations: for them to read the answers. ErrNotFound as the refusal for any other.
+func (s *Service) shared(ctx context.Context, c Caller, id string, out *Questionnaire) ([]string, error, error) {
+	qs, err := s.Repo.Shared(ctx, c.PractitionerID, []string{id})
+	switch {
+	case err != nil:
+		return nil, nil, err
+	case len(qs) != 1 || qs[0].ID != id:
+		return nil, ErrNotFound, nil
+	}
+	*out = qs[0]
+	return []string{id}, nil, nil
+}
+
+// Titles returns the titles of the versions ids, by id, as the practitioner's view of a patient's history shows
+// them: c's clinic's own, and another clinic's that a completed response of a visit shared with it answers (shared);
+// in one read of each, each version given audited as a read. A version neither is left out; anyone but a
+// practitioner of a clinic gets none of another clinic's.
+func (s *Service) Titles(ctx context.Context, c Caller, ids []string) (map[string]string, error) {
+	out := map[string]string{}
+	err := s.do(ctx, c, opRead, func(ctx context.Context) ([]string, error, error) {
+		own, err := s.Repo.ByIDs(ctx, ids)
+		if err != nil {
+			return nil, nil, err
+		}
+		var given, rest []string
+		for _, q := range own {
+			if q.OrganizationID == c.OrganizationID { // not on row-level security alone
+				out[q.ID], given = q.Title, append(given, q.ID)
+			}
+		}
+		for _, id := range ids {
+			if _, ok := out[id]; !ok {
+				rest = append(rest, id)
+			}
+		}
+		if len(rest) > 0 && historyViewer(c) {
+			shared, err := s.Repo.Shared(ctx, c.PractitionerID, rest)
+			if err != nil {
+				return nil, nil, err
+			}
+			for _, q := range shared {
+				if slices.Contains(rest, q.ID) {
+					out[q.ID], given = q.Title, append(given, q.ID)
+				}
+			}
+		}
+		return given, nil, nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
 }

@@ -152,3 +152,21 @@ export function ReviewIcon() {
     </svg>
   )
 }
+
+// A speech bubble: the messages.
+export function ChatIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <path d="M4.5 4h11a2 2 0 0 1 2 2v6.5a2 2 0 0 1-2 2H9l-3.5 2.5v-2.5h-1a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+    </svg>
+  )
+}
+
+// A paper clip: attach a file.
+export function PaperclipIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <path d="M15.5 9.5l-5.8 5.8a3.5 3.5 0 0 1-5-5l6.3-6.3a2.3 2.3 0 0 1 3.3 3.3l-6.2 6.2a1.1 1.1 0 0 1-1.6-1.6l5.6-5.6" />
+    </svg>
+  )
+}

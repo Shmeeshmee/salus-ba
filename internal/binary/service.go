@@ -1,10 +1,12 @@
 package binary
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -59,7 +61,10 @@ type Ports struct {
 }
 
 // Service holds the files' rules (docs/attachments/SPEC.md §2).
-type Service struct{ Ports }
+type Service struct {
+	Ports
+	decoding sync.Mutex
+}
 
 // NewService returns a Service on its ports.
 func NewService(p Ports) *Service {
@@ -123,7 +128,8 @@ func (s *Service) read(ctx context.Context, c Caller, id string, check func(Bina
 		case err != nil:
 			return err
 		}
-		e := entry{c: c, org: b.OrganizationID, interaction: auditevent.CodeRead, purpose: g.Purpose, binaryID: b.ID, responseID: b.ResponseID}
+		// Under the staff reader's clinic, also for a file of another clinic's visit shared with it (ADR 0014).
+		e := entry{c: c, org: cmp.Or(c.OrganizationID, b.OrganizationID), interaction: auditevent.CodeRead, purpose: g.Purpose, binaryID: b.ID, responseID: b.ResponseID}
 		if refused = check(b); refused != nil {
 			e.outcome = auditevent.OutcomeMinorFailure
 			return s.record(ctx, e)
@@ -223,6 +229,16 @@ type entry struct {
 // record audits e: one event per entity (AuditEvent holds one), or one without an entity when none is
 // disclosed.
 func (s *Service) record(ctx context.Context, e entry) error {
+	for _, a := range e.events() {
+		if err := s.Audit.Record(ctx, a); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// events are the audit events of e, as record writes them.
+func (e entry) events() []auditevent.AuditEvent {
 	purpose := e.purpose
 	switch {
 	case purpose != "":
@@ -250,8 +266,9 @@ func (s *Service) record(ctx context.Context, e entry) error {
 	if len(entities) == 0 {
 		entities = []string{""}
 	}
-	for _, entity := range entities {
-		err := s.Audit.Record(ctx, auditevent.AuditEvent{
+	out := make([]auditevent.AuditEvent, len(entities))
+	for i, entity := range entities {
+		out[i] = auditevent.AuditEvent{
 			Type:            auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
 			Subtype:         auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: e.interaction},
 			Purpose:         auditevent.Coding{System: auditevent.SystemActReason, Code: purpose},
@@ -261,10 +278,7 @@ func (s *Service) record(ctx context.Context, e entry) error {
 			AgentName:       e.agent,
 			OrganizationID:  e.org,
 			EntityReference: entity,
-		})
-		if err != nil {
-			return err
 		}
 	}
-	return nil
+	return out
 }

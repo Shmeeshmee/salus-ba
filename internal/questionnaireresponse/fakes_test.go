@@ -10,9 +10,11 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/keyset"
 )
 
 // Synthetic ids.
@@ -84,7 +86,9 @@ func inTx(ctx context.Context) error {
 	return nil
 }
 
-type fakeAudit struct{ events []auditevent.AuditEvent }
+type fakeAudit struct {
+	events []auditevent.AuditEvent
+}
 
 func (a *fakeAudit) Record(ctx context.Context, e auditevent.AuditEvent) error {
 	if err := inTx(ctx); err != nil {
@@ -100,19 +104,22 @@ type fakeRepository struct {
 	err         error
 	consents    map[string]access.Consent      // by patient + clinic, the appointments' (the clinic's UPDATE policy)
 	attachments map[string][]binary.Attachment // the files of each response, by id
+	history     historyAsk
 	patient     string
 	clinic      string
 	notice      string // the appointment set by SetNotice
 	responses   []questionnaireresponse.Response
 	searched    []questionnaireresponse.Filter
 	locked      []string
+	shared      []string // another clinic's responses the clinic's scope shows once completed (questionnaire_response_shared)
 }
 
 func (r *fakeRepository) visible(x questionnaireresponse.Response) bool {
 	if r.patient != "" {
 		return x.PatientID == r.patient
 	}
-	return r.clinic != "" && x.OrganizationID == r.clinic
+	return r.clinic != "" && (x.OrganizationID == r.clinic ||
+		(x.Status == questionnaireresponse.StatusCompleted && slices.Contains(r.shared, x.ID)))
 }
 
 func (r *fakeRepository) SetPatient(ctx context.Context, id string) error {
@@ -272,6 +279,68 @@ func (r *fakeRepository) Search(ctx context.Context, f questionnaireresponse.Fil
 		}
 	}
 	return out, nil
+}
+
+// historyAsk is what CompletedOf or FilesOf was last asked.
+type historyAsk struct {
+	patient string
+	org     string
+	page    keyset.Page
+}
+
+// CompletedOf gives the patient's completed responses the scope shows, without their answers, after the page's
+// position, newest first by submission.
+func (r *fakeRepository) CompletedOf(ctx context.Context, patientID, org string, p keyset.Page) ([]questionnaireresponse.Response, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	r.history = historyAsk{page: p, patient: patientID, org: org}
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []questionnaireresponse.Response
+	for _, x := range r.responses {
+		if r.completedOf(x, patientID, org) && inPage(p, x.AuthoredAt, "QuestionnaireResponse/"+x.ID) {
+			x.Answers = nil
+			out = append(out, x)
+		}
+	}
+	slices.SortFunc(out, func(a, b questionnaireresponse.Response) int { return b.AuthoredAt.Compare(a.AuthoredAt) })
+	return out[:min(len(out), p.Limit)], nil
+}
+
+// FilesOf gives the files of the patient's completed responses that are not pending, as CompletedOf.
+func (r *fakeRepository) FilesOf(ctx context.Context, patientID, org string, p keyset.Page) ([]questionnaireresponse.Attached, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	r.history = historyAsk{page: p, patient: patientID, org: org}
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []questionnaireresponse.Attached
+	for _, x := range r.responses {
+		if !r.completedOf(x, patientID, org) {
+			continue
+		}
+		x.Answers = nil
+		for _, a := range r.attachments[x.ID] {
+			if !a.Pending && inPage(p, x.AuthoredAt, "Binary/"+a.BinaryID) {
+				out = append(out, questionnaireresponse.Attached{Response: x, File: a})
+			}
+		}
+	}
+	return out[:min(len(out), p.Limit)], nil
+}
+
+func (r *fakeRepository) completedOf(x questionnaireresponse.Response, patientID, org string) bool {
+	return r.visible(x) && x.PatientID == patientID && x.Status == questionnaireresponse.StatusCompleted && (org == "" || x.OrganizationID == org)
+}
+
+// inPage reports whether an item at at with the reference ref is in the page: after its position, in its range.
+func inPage(p keyset.Page, at time.Time, ref string) bool {
+	after := p.At.IsZero() || at.Before(p.At) || (at.Equal(p.At) && ref < p.Ref)
+	return after && (p.From.IsZero() || !at.Before(p.From)) && (p.To.IsZero() || at.Before(p.To))
 }
 
 func (r *fakeRepository) DeleteUnsubmittedBefore(context.Context, time.Time) (int64, error) {
@@ -443,10 +512,27 @@ type fixture struct {
 	jobs           *fakeJobs
 	appts          *fakeAppointments
 	questionnaires *fakeQuestionnaires
+	encounters     *fakeEncounters
+}
+
+// fakeEncounters gives another clinic's visit shared with the caller, by account + appointment id.
+type fakeEncounters struct {
+	shared map[string]encounter.Encounter
+}
+
+func (e *fakeEncounters) SharedAppointment(ctx context.Context, c appointment.Caller, appointmentID string) (encounter.Encounter, error) {
+	if err := inTx(ctx); err != nil {
+		return encounter.Encounter{}, err
+	}
+	got, ok := e.shared[c.AccountID+appointmentID]
+	if !ok {
+		return encounter.Encounter{}, encounter.ErrNotFound
+	}
+	return got, nil
 }
 
 func newFixture(at time.Time) *fixture {
-	f := &fixture{repo: &fakeRepository{}, audit: &fakeAudit{}, jobs: &fakeJobs{}}
+	f := &fixture{repo: &fakeRepository{}, audit: &fakeAudit{}, jobs: &fakeJobs{}, encounters: &fakeEncounters{}}
 	f.appts = &fakeAppointments{
 		appts: map[string]appointment.Appointment{
 			apptA: {ID: apptA, PatientID: patientA, PractitionerRoleID: roleA1, OrganizationID: clinicA, Status: appointment.StatusBooked,
@@ -471,7 +557,7 @@ func newFixture(at time.Time) *fixture {
 	}}
 	f.svc = questionnaireresponse.NewService(questionnaireresponse.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: at},
-		Appointments: f.appts, Questionnaires: f.questionnaires, Jobs: f.jobs,
+		Appointments: f.appts, Questionnaires: f.questionnaires, Jobs: f.jobs, Encounters: f.encounters,
 	})
 	return f
 }

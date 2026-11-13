@@ -1695,6 +1695,143 @@ and comes with the subject-rights feature (export through `Patient/$everything` 
 
 **Open before production.** The retention period of the chat with the clinical record (legal decision).
 
+### SAL-28: group consults
+
+**Processing added.** The treating practitioner adds a doctor of their clinic to a conversation, or invites a doctor of
+another clinic (listed in the public directory), with a reason code and how much of the history they read; doctors
+open doctor-only side threads of a conversation. New: `conversation_participant.organization_id`, `status` and
+`reason`, and the table `chat_consent` (consent domain): the patient's consent for one conversation and one invited
+practitioner role, with its grant and revocation times. System messages in the conversation say who joined, left,
+was invited, granted or declined, as codes and opaque ids. No new processor: the other clinic is a controller of its
+own for the care it gives, and receives the conversation only on the patient's consent.
+
+**Purpose and lawful basis.** Care between visits within the treating clinic (Art. 9(2)(h)), as SAL-27. Sharing with
+another clinic rests on the patient's explicit, granular consent (Art. 9(2)(a), Art. 7): that conversation and that
+doctor, revocable at any time, with effect at once. The care consent with the treating clinic still rules: its
+revocation ends every doctor's access, the invited ones' too.
+
+**Necessity and minimisation.** Before the patient consents, the invited doctor sees nothing: not the conversation,
+its participants, its messages or side threads, nor that the invitation exists. A doctor added from a chosen point
+reads only what follows it. A side thread keeps the doctors it was opened with; a doctor added later is not in it.
+The system messages carry no name.
+
+**Retention.** `chat_consent` is kept with the clinical record (`ThenKeep`) as proof of the decision, like `consent`;
+the participant columns with the conversation. Needs a legal decision before production.
+
+### SAL-30: attachments, read receipts, typing, search and terms
+
+**Processing added.** Files a participant sends in a conversation (photos and PDFs, lab results among them) go through
+the questionnaire attachments' pipeline (`binary`, ADR 0010): the type from the bytes, encrypted with a key per file
+in the self-hosted object store, scanned by the self-hosted ClamAV before anyone opens them. A `binary` row now has
+one of two parents, a questionnaire answer or a conversation (`conversation_id`, the uploading participant, the
+message once sent). A clean image gets a thumbnail (a JPEG of at most 320 pixels a side), made on our worker from the
+clean file and stored encrypted like it. The message counts its files (`communication.attachment_count`). Read
+receipts (how far each participant has read) and typing go through the Redis pub/sub channel of the conversation; the
+receipts are also kept in Redis for 7 days after each participant's last read, each under its own key, so a socket
+opening later shows those of the conversation's current participants (a removed participant's is never sent), and
+typing leaves a key of one second (its rate). Neither is stored in Postgres. Search is Postgres full-text search over the message texts, with an
+index per partition; the query is never logged or stored. Terms are tagged on read against the reference term list
+(SAL-13) and never stored. No new processor: the object store, ClamAV and Redis are self-hosted.
+
+**Purpose and lawful basis.** Care between visits (Art. 9(2)(h)) under the care consent, as the messages. Thumbnails
+are a preview of the file for the same care, made by us, never by a third party. The questionnaire SPEC's "no
+thumbnails without a separate basis and SPEC" (docs/attachments/SPEC.md section 4) concerns questionnaire files; the
+chat's thumbnails are asked for by the chat's plan (SAL-30), not made for questionnaire files.
+
+**Necessity and minimisation.** A file keeps its name (so the reader can tell files apart; never logged), its type,
+size and SHA-1; nothing else of the file is read but by the scan and the thumbnail. Receipts carry a participant id
+and a number, typing a participant id; both opaque. A search returns only messages the caller may read, at most 50,
+and is audited once for each patient whose messages it returns.
+
+**Retention.** A file attached to a message is part of the record with it: kept with the clinical record, never
+deleted while attached (a trigger refuses it for every role, the owner included, unless the file was rejected). A
+file never sent is deleted 24 hours after its upload, a rejected one 24 hours after its scan, an object without a row
+(a file's or a thumbnail's) 24 hours after it was written. A participant's receipt expires 7 days after their last
+read, typing after one second.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Malware reaches a doctor's or a patient's device | Nobody opens a file before the scan says it is clean (409 `scanning`); an infected file is rejected, its key cleared and its object deleted (worker test with the EICAR string); a file that cannot be scanned is rejected after the last attempt, never left opening later |
+| A file is read by someone who may not read its message | Row-level security on chat files mirrors the messages' (migration tests over every scope: the patient never in a doctor-only thread, a clinic only with the consent active and the conversation set, the scan job only its conversation); the service opens a file only for whoever reads its message, after their `history_from_seq`, or before it is sent for its uploader only (service and app tests) |
+| A search shows another patient's or a revoked conversation's messages | The index search (`communication_search`, `SECURITY DEFINER` because row-level security cannot use the text index) returns keys only, for what the scope may read by the same rules as the policies (migration test over every scope); the rows are then read through the policies, in a read-only role scope that checks active participation (never a pending invitation), `history_from_seq` and the consent, and for a doctor of another clinic the patient's chat consent for them and only the side threads they take part in (SAL-28); the service checks every result's conversation as it checks a page; tests on Postgres and through the API (after a revocation the practitioner finds nothing) |
+| Receipts become a stored record of who read what | Only the reader's own position is stored (owner, 2026-11-12); receipts and typing live in Redis with a TTL and on the socket |
+| A file name, a query or a message leaks into logs | No log line holds a file name, a search query or a message (app and worker tests check the logs); job arguments carry opaque ids only |
+
+**Open before production.** The production object store and its storage classes (the "cheaper storage" for older
+attachments is deferred until it is chosen); the retention of chat files with the clinical record (legal decision,
+with the messages').
+
+### SAL-29: notifications, chat hours and webhooks
+
+**Processing added.** Three tables with personal data: `push_device` (the push token of a patient's app, by account
+and platform), `webhook_endpoint` (a clinic's webhook: its URL, the events, whether it includes clinical content, the
+sealed secret, and the admin's account that created it) and `webhook_dead_letter` (the ids of a delivery that failed
+its last attempt). `organization_chat_settings` holds the clinic's chat hours, stated response time and e-mail delay:
+no personal data. A new message enqueues a job with opaque ids only; the notifier fans it out to a push per device of
+the patient's account, an e-mail check per other participant after the clinic's delay, and a delivery per clinic
+webhook. The e-mail check reads the participant's stored read position.
+
+**Purpose and lawful basis.** Telling a participant that a message waits for them: for the patient the contract
+with them (Art. 6(1)(b)), for staff their employment and the contract with the clinic; the content stays in the app.
+The webhooks are the clinic's own integration: the endpoint is the clinic's system and the clinic is the controller
+of what it receives (the platform processes on its behalf); with clinical content turned on, the message's text goes
+to the clinic's system under the same care basis and consent that let the clinic read the chat, and only while that
+consent is active.
+
+**Necessity and minimisation.** A push says "New message from your clinic" and nothing else: no text, sender, name,
+clinic or id (no data payload). The unread e-mail says the same with the link to the app (a patient) or the web app
+(a practitioner). A webhook carries the event's type, its stable id, the clinic's and the conversation's and the
+message's ids; the message (text, time, sender role, patient id) only when the clinic's admin turns clinical content
+on. Job arguments, error texts and log lines hold ids, codes and statuses only, proven by a test that sends a
+recognisable synthetic text through the chat, the notifier and the worker and finds it nowhere outside the record.
+
+**Retention.** `push_device`: kept while the app is registered; deleted on unregister (sign-out), when FCM or APNs
+says the token is gone, and with the account. `webhook_endpoint`: kept while the clinic keeps it; deleted by its
+admin, with its dead letters. `webhook_dead_letter`: 30 days.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A notification discloses the conversation to whoever sees the phone's lock screen or the inbox | Fixed text with no content, sender or clinic, in the recipient's language; no id in the push |
+| Google or Apple (outside the EU/EEA) learn about the patient | They receive the device token and the fixed text only. They are processors pending their DPA and transfer basis (docs/privacy/processors.md); the adapters are off and the fake is the default until then |
+| A device signed into another account receives the first account's notifications | A token is one row: registering it moves it to the account signed in last; sign-out deletes it |
+| A webhook URL reaches the platform's own network (SSRF) | https only, a host name with a dot or a public address at creation; the delivery's dialer refuses loopback, private, link-local, unique-local, multicast, unspecified and carrier-grade NAT addresses at connect time, on the resolved address, so a name rebound later is refused too; no redirect is followed; no proxy (tests) |
+| A forged or replayed delivery is believed by the clinic's system | HMAC-SHA256 over the timestamp and the exact body with the endpoint's own secret; the timestamp is in the signature; the event id is stable for deduplication |
+| The webhook secret leaks | Shown once at creation; stored sealed with `WEBHOOK_KEY` (AES-256-GCM bound to the endpoint), a key of its own in the root-only key file (ADR 0011); never listed, logged or audited |
+| Clinical content leaves the platform after a revocation | A delivery with clinical content reads the message in the clinic's scope, which shows nothing after the revocation: the delivery is cancelled |
+| The admin's changes go unrecorded | Every change of the chat settings and every list, creation and deletion of a webhook is audited, refusals too |
+
+**Open before production.** The DPAs and transfer basis of Google (FCM) and Apple (APNs) before either is switched
+on (docs/deploy/push.md).
+
+### SAL-31: the chat's screens and the AI summary
+
+**Processing added.** No new table or stored field. The web app (doctors) and the patient app show the conversations
+of SAL-27 to SAL-30; nothing of a message is kept on the device beyond the screen's memory (no local database, no
+browser storage of message text). `POST /conversations/{id}/summary` gives a practitioner who may read a long
+conversation (at least 50 messages they read) a summary of its latest 500 messages, generated on demand, never stored,
+labelled AI generated, shown above the messages, which stay as written; its read of the rows is audited as a read
+(`AuditEvent`, the patient, the number of rows).
+
+**Lawful basis.** The summary runs on the fake engine only (`llmtest.Summarizer`: a placeholder naming how many
+messages it covers; no text leaves the api process). `config.LoadChatSummary` refuses any other engine
+(`CHAT_SUMMARY_ENGINE`), whatever `LLM_ENGINE` says, because the patient's messages may reach a third-party model only
+under a basis the owner has not decided yet: SAL-12's transcription consent covers the consultation, not the chat.
+Waiting for the owner: the basis (a granular AI consent, or another), then the processor's DPA and an entry in
+`processors.md`, before a real engine is wired.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A patient's messages sent to a hosted model without a basis | The summary's engine is the fake and the config refuses another; the Summarizer port is the only path |
+| The summary taken for the record, or for a diagnosis | Not stored; always labelled AI generated; the messages stay below it unchanged; the copy states what was written, never a diagnosis |
+| The patient sees the doctors' summary or side threads | The summary is refused to the patient (403); the patient app has no summary or thread screen; side threads stay hidden by row-level security (SAL-28) |
+| A cross-clinic doctor joins without the patient knowing, or keeps access the patient cannot find to withdraw | The patient app's consent prompt (strings tagged `legal`) names the doctor and their clinic (grant stays disabled until they are shown), why, and what they would read; grant or decline; the chat view lists every granted doctor of the conversation from the API (`status=active`), so each can be revoked at any time, also after a restart (SAL-28's consent) |
+
 ## Analytics (`docs/plans/analytics.md`, ADR 0013)
 
 ### SAL-19: coded diagnoses and diagnosis groups
@@ -1730,10 +1867,129 @@ as the other clinical tables).
 
 | Risk | Measure |
 | --- | --- |
+| An invited doctor reads the conversation before the patient consents, or after a revocation, a decline or a removal | Row-level security: a doctor of another clinic (their clinic and role set) sees a conversation, and those of its side threads they take part in, only while they are an active participant, the patient's chat consent for them is active and the care consent with the treating clinic is active (never another doctor's pending invitation); one `SECURITY DEFINER` function, owned by a role that reads only the columns it needs, decides it (migration tests over every state and scope). The service checks `access.GuestChat` as well (service tests on fakes and on Postgres, app test). An open socket checks again every 5 s |
+| The patient sees a doctor-only side thread | The patient's policies exclude every `staff_only` conversation and its messages; the service refuses the side threads' list and their creation to the patient (service tests on every path, app test) |
+| A doctor removed from a conversation keeps its side threads | A trigger removes them from the conversation's side threads in the same statement, whoever removes them (migration test) |
+| A doctor is added who should not be | Only the treating practitioner adds and removes (`access.ManagesChat`); a doctor of the clinic must be an active role of it, one of another clinic in the public directory |
+| No proof of what the patient decided | Every invitation, add, removal, grant, decline and revocation is audited in its transaction, naming the participant by its opaque id; a refused revocation too; a grant is a stored Consent with its time, a revocation keeps the row |
+| A consent left granted to a doctor who was removed, which the patient can no longer see or withdraw | A removal by the treating practitioner ends the patient's chat consent for that doctor in the same transaction, as the clinic, audited (the clinic may end a chat consent, never grant one: migration test); the patient lists their granted invitations (`GET /me/chat-invitations?status=active`) and revokes each (Art. 7(3)) |
+
+**Open before production.** The retention of `chat_consent` with the clinical record (legal decision).
+
 | A model-suggested code recorded as a diagnosis nobody made | The practitioner confirms each code before the signature (tested in the service, the API and the browser journey); the backfilled codes are unconfirmed and not counted |
 | Another clinic's diagnoses | Row-level security by clinic (tested) |
 | The aggregate builds reading identities | `salus_stats` has column grants on the source columns only (tested); patients are pseudonymised per build |
 | WHO or national-edition text used without a licence | Codes only, as identifiers; group names are our own (ADR 0013) |
+
+### SAL-20: the clinic's own statistics
+
+**Processing added.** `clinic_appointment_stat` and `clinic_diagnosis_stat`: counts per clinic, local day and hour,
+practitioner role and its specialty, and appointment status or diagnosis group, subgroup and ICD-10 code. No patient
+identifier is stored or pseudonymised: the builds ask the sources without a key. The source queries
+(`ListBookedForStats`, condition's `ListDiagnoses`) are shared with SAL-21, which pseudonymises the patient with its
+key, so they do select `patient_id` as `salus_stats`; without a key the source services drop it in Go before the
+build sees a row, and it is never written, logged or counted. The counts are personal data
+of the practitioners (their workload and the diagnoses they recorded). Computed by the `clinicstats_refresh` job (a
+clinic-day, enqueued in the transaction of every appointment write and every signature with a diagnosis, with the
+clinic's id and an instant only) and the nightly `clinicstats_nightly` job, as `salus_stats`, which `cmd/worker` now
+logs in as (`STATS_DATABASE_URL`).
+
+**Purpose and lawful basis.** The management of the clinic's health-care services, on the clinic's behalf as
+controller, Salus as processor (Art. 9(2)(h)). Not used for the platform figures (those are built from the sources,
+SAL-21), for marketing, profiling or model training.
+
+**Necessity and minimisation.** Only counts; no age, sex, residence or free text. Only confirmed diagnoses count.
+
+**Access.** Only the clinic's staff, in the service (rules C1 to C3, plan §4): the admin sees everything of their
+clinic, the breakdown per practitioner included; a practitioner who is not an admin sees the clinic's appointment
+figures (or their own role's, never a specialty's, which can be one colleague's) and only their own role's diagnoses; anyone else is refused. Row-level security by
+clinic on both tables (one clinic's scope reads none of another's rows, tested); only `salus_stats` writes them
+(insert and delete; tested in migration 00048).
+
+**Audit.** Every read and every refusal writes an AuditEvent on `Organization/<clinic>`, purpose `HOPERAT`
+(v3-ActReason has no code for statistics), in the read's transaction. The builds are not audited: they read and write
+counts only, on behalf of no one.
+
+**Retention.** Kept as long as their sources (appointment and condition, with the clinical record) and recomputed
+from them; a refresh replaces its days. When erasure and restriction are built (`datarequest`), they enqueue the
+refresh of the affected days.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A practitioner learning about patients outside their care through the clinic's diagnosis totals | C2: their own role's diagnoses only, another role's refused (tested per role) |
+| Small counts singling out a patient within the clinic | The figures stay inside the clinic that holds the records; no count leaves it (the platform view is SAL-21's, with its own suppression) |
+| Per-practitioner workload as employee monitoring | Admins only; open question L5 for the owner's lawyer before production |
+| An admin learning one patient's diagnosis: a one-day range, one practitioner role and `by=code` (J45: 1) next to the calendar showing that practitioner saw one patient that day | **Open, for the owner** (review finding 2): the figures stay inside the clinic that already holds the record, and every read is audited on the clinic; options are a minimum range, or month granularity, when an admin combines a role with a code breakdown |
+| Stale or lost counts | The nightly pass recomputes the last 35 days of every clinic; the refresh is idempotent (tested) |
+
+### SAL-21: platform-wide anonymized trends
+
+**Processing added.** The clinic's location (a city and its leaf region, places of `terminology`) and whether it
+contributes to the platform figures, each with the time it last changed, on `organization`: no personal data. The
+builds (`internal/trends`, in `cmd/worker` as `salus_stats`, or `salusctl trends build`) read every contributing
+clinic's confirmed Conditions and fulfilled appointments of a closed month, quarter or week, with each patient only
+as HMAC-SHA256 under 32 random bytes made for the build and dropped with it; inside the build a patient and a clinic
+are an int32 that never leaves memory. They write `trends_cell` (distinct-patient counts per period and table cell,
+rounded to 5, or suppressed) and `trends_rise` (region, group and week of an unusual rise, no count): no clinic,
+practitioner or patient column (A1, a test walks every response's JSON against an allow-list).
+
+**Purpose and lawful basis.** Platform-wide figures of diagnoses and appointments by region, city, specialty and
+month, for the staff of the clinics that contribute. This is a new purpose for which Salus would act as controller
+of the anonymisation step: **L1 (role) and L2 (lawful basis) are open** with the owner's lawyer, so the whole view
+and its builds are behind `ANALYTICS_PLATFORM_ENABLED`, off by default (§2a): off, the scheduler enqueues no build,
+`salusctl trends build` refuses, the routes are not mounted (404) and no figure is computed. L3 (whether the output
+is anonymous, and may stay after an erasure) is open too. Not used for marketing, profiling or model training.
+
+**Necessity and minimisation.** Only confirmed diagnosis codes and fulfilled appointments' times, through the
+owning services; no age, sex, residence or free text. Geography is the clinic's location, never the patient's (A2).
+A clinic counts in a period only when its location and its contribution did not change during it; the rises only
+with the same location through all ten weeks (§5, §6). A clinic may opt out (O6): it is left out of every build from
+the next one on, and its staff lose the view (`403 analytics_not_contributing`).
+
+**Anonymisation (plan §5, rules A1 to A13, as built).** Each closed period is built once and frozen (A3). A cell is
+published only with at least k patients (`ANALYTICS_MIN_COUNT`, at least 10) from at least 3 clinics and at least
+max(k, 0.1·x1) left once its two largest clinics are taken out (A4); every relation of every table (parents and
+children along each dimension, cells shared between tables) has none or at least two suppressed cells whose distinct
+union passes A4 (A6); every suppressed cell is audited as an LP over its neighbourhood, with the published values as
+[v-2, v+2], the inequality relations of distinct counts and the two largest clinics' own patients known, failing
+closed (more suppression, then no code level, then the period refused, A7); a code is a key only when published at
+geography = all (A8); a breakdown returns every key with null for 0 and suppressed alike (A8); sums over months are
+patient-months marked partial (A9); counts are rounded to 5 (A10). An exact integer check over 60 random synthetic
+months (`internal/trends/exact_test.go`) confirms the LP never passes a month whose integer interval is narrower
+than k.
+
+**Access.** Staff (admins and practitioners) of a contributing clinic only (O5); a patient gets 403. salus_app only
+reads the figures; salus_stats writes each period once; nobody but the owner changes or deletes them (migration
+00052, tested).
+
+**Audit.** Every read of the view, refused ones too, is an AuditEvent (entity `trends_cell` or `trends_rise`,
+purpose HRESCH). Every build is audited before it writes: its agent (`trends_build` or `salusctl`) and the number
+of Conditions or appointments read. Build logs carry the period and counts of cells, suppressed cells and rises
+only (A13).
+
+**Retention.** `trends_cell` and `trends_rise`: deleted five years after their build (retention rule, purged by
+`salus_retention`); the period row stays, so a period is never built again, and is no longer listed once its cells
+are gone. `organization`'s new columns: with the clinic. While L3 is open, `trends_cell` and `trends_rise` are marked
+`personal_data: true` in `docs/architecture/archcheck/ownership.yaml`: the safe choice, so they keep a retention rule
+and count as personal data until the lawyer says the output is anonymous.
+
+**Pending L3.** The Clinic settings copy calls the figures "anonymized" (`admin.contributes`, `admin.contributesHint`,
+tagged `legal`): the wording waits for L3 and the owner's approval. Until the view is on, the opt-out and the
+location hint are not shown.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Re-identification through small counts | A4 with k >= 10, 3 clinics and the two-largest rule; rounding to 5 |
+| Differencing a parent and its other children, or two tables, or several queries | Suppression decided once per period over every relation of every table (A5, A6); frozen periods (A3); only the fixed table combinations are queryable |
+| Two large clinics recovering a small third | Their own patients treated as known in the A7 audit |
+| Telling 0 from 1 | Every key returned, null for 0 and suppressed alike (A8) |
+| A clinic moving or opting out | Left out of every period it changed during, and of the rises for ten weeks |
+| A rise flag read as an official alert | No count; copy "Unusual rise" with a tooltip that it is not a public-health alert (ANA-4); L6 open |
+| Processing before the legal answers | `ANALYTICS_PLATFORM_ENABLED` off by default; tests run both ways |
 
 ### SAL-22: the analytics charts (web)
 
@@ -1754,3 +2010,83 @@ practitioner filter and no practitioner breakdown, and is told the diagnoses are
 | A hidden cell read as a small number or as zero | It reads "Hidden" with a hatched mark and the tooltip that small or dominated groups are hidden; a sum over months is labelled patient-months and "Partial" when a cell is hidden |
 | A rise flag taken as an official alert | "Unusual rise", never "outbreak", with the tooltip that it compares with the previous weeks and is not a public-health alert (legal-tagged string) |
 | The platform view before the legal answers | The tab is shown only with the `analytics_platform` feature of `GET /auth/me` and for a contributing clinic |
+
+## Patient history (`docs/plans/patient-history.md`, ADR 0014)
+
+### Step 0: the contract (migration 00043)
+
+**Processing added.** The patient's allergies and current medications in their profile (FHIR AllergyIntolerance,
+MedicationStatement), and a third consent, the history consent, by which the patient shares chosen visits of theirs
+at other clinics with one clinic. Lawful basis: care (Art. 9(2)(h)) for the profile, as for the rest of the record;
+the patient's explicit consent for sharing across clinics, granular per visit, off by default, revocable at once. No
+processor is added; nothing of the history goes to a language model.
+
+**Personal data added.** The four tables of the plan's "Personal data" section, all health data, all kept with the
+clinical record (retention `keep`, needs a legal decision before production). A patient's own unconfirmed entry is
+deleted when they remove it; anything confirmed or recorded by a clinic is kept as entered-in-error.
+
+**Who sees what.** ADR 0014 "Access model": the patient their whole history; a practitioner only the visits they
+held themselves at their clinic and the visits the patient shared with that clinic; the profile where the care
+consent and an appointment allow it (as the profile today); a clinic's entry only where its visit is seen; which
+clinic recorded or confirmed an entry only to the patient and that clinic. Row-level security says the same in the
+clinic's scope (tested per scope and table); the service rule (`access.HistoryVisit`) narrows it to the
+practitioner. Every read, grant, change and revocation is audited.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A visit the patient did not tick reaches the doctor | It is never selected: `history_shared` and the `*_shared` policies open only listed visits, `access.HistoryVisit` refuses the rest before anything is listed, counted, searched or summarised (migration and access tests; service tests in SAL-40) |
+| A removal or revocation that does not take effect at once | Both end access when their transaction commits, in row-level security and in the rule, which read the current state (tests); revoking the care consent revokes the history consent too |
+| A doctor's entry in the profile tells another clinic where the patient was treated | Doctor entries belong to their visit (ADR 0014 decision 4); the patient adds one to the profile only on purpose, and then it shows no clinic, no practitioner and no visit (`access.Attributed`, FHIR golden files) |
+| The patient shares another patient's visit, or one of the receiving clinic's own, or one still in progress | Refused by the insert check of `history_consent_encounter` as well as the service |
+| A shared visit exposes more than its record | Only the encounter, signed documents, completed answers and their clean files, and the entries recorded in it; never the transcript, suggestions, drafts or appointment (policy tests) |
+| History reaches the language model | Not in this epic: suggestions and drafting read only the consultation's transcript (SAL-42 adds the test) |
+
+### SAL-39: the patient's timeline
+
+**Processing added.** The patient reads their own history across every clinic (`GET /me/history`, the mobile app's
+"My history"): their visits, signed documents, completed questionnaire answers and the clean files of those, newest
+first, one page at a time. Their own record (Art. 15); no new personal data is collected and no table is added.
+
+**Who sees what.** Only the patient, of their own data, in their own row-level security scope; staff are refused.
+Never a draft, a response in progress or withdrawn, or a file not yet found clean. Clinic names are read for the
+clinics of the patient's own items only (no personal data in a clinic). Chats are not listed yet.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A draft or another patient's item in the timeline | Each owning domain reads in the patient's scope, filters by the patient and applies its own rule (`access.HistoryVisit`, `access.SignedDocument`, `access.QuestionnaireResponse`, binary's own check); service and repository tests per domain, the e2e journey checks the open draft is absent |
+| A read that is not audited | Every item a source returns is audited by its owning domain in its transaction (an empty source is one event without an entity). Each source is asked for one item more than the page and the page is cut from their merge, so what a source returned past the cut is audited without being shown (the next page shows it, audited again): the record errs towards more, never less |
+| History details in logs or the cursor | The cursor is an opaque date and reference (no personal data beyond the patient's own resource id); the handler logs nothing of the query or the items |
+
+### SAL-40: the practitioner's view and the pre-visit summary (migration 00051)
+
+**Processing added.** No new personal data and no new table: the practitioner's view of the patient's history
+(`GET /patients/{id}/history`) and the pre-visit summary of one of their appointments (`.../history/summary`) read
+what the owning domains already hold, in the web app on the appointment (opened on request) and the call page.
+Migration 00051 adds two `SECURITY DEFINER` lookups. `history_questionnaire` lets a practitioner read the questions of a
+completed response that was shared with their clinic: it returns that questionnaire version only (clinic content, no
+personal data), never another of the other clinic's versions, and nothing of any response.
+`history_confirmed_conditions` says which coded fields of a shared signed document have a confirmed Condition (the
+document and field key only), so a code that was never confirmed (00042's backfill) is not shown as a diagnosis. Both
+answer only a practitioner with an appointment with the patient at the clinic.
+
+**Who sees what.** Only a practitioner of the clinic with an appointment with the patient under an active care
+consent has a view (`access.Profile` at Full, then `access.HistoryVisit` per visit, in `encounter.Service.History`);
+the clinic's admin, the patient and anyone else get 404. The view lists only those visits and what belongs to them;
+a visit that is not shared is in no item, count, summary or empty state. A shared visit's signed documents, completed
+answers, their questions and their clean files open for that practitioner through the same rule; never its drafts.
+
+**Audit.** Every view writes an AuditEvent of the view (the patient as entity, purpose TREAT) and one per item shown,
+by its owning domain, in the same transaction; reading another clinic's shared document or file is audited under the
+reader's clinic, so the visit's clinic is not told whom the patient shared it with.
+
+| Risk | Measure |
+| --- | --- |
+| A colleague's visit or an unshared visit shows in the view, its count or the summary | Filtered by `access.HistoryVisit` before anything is listed (service tests over every viewer; API test on the real database: the unshared visit's ids and diagnosis are nowhere in the answer) |
+| The view outlives a removal or a revocation | It is read anew on every page and every open (API test: after the removal the visit and its document are gone at once) |
+| The questions of another clinic leak beyond the shared response | `history_questionnaire` returns only a version a completed, shared response answers, and only to the receiving clinic's scope and a practitioner there with an appointment with the patient (migration test) |
+| An unconfirmed code reads as a diagnosis | Each coded field carries its label and its Condition's confirmation; an unconfirmed one is marked "Not confirmed" (service, API and migration tests) |
+| An unread allergy list reads as "no allergies" | A failed read marks the section unavailable, never empty; the empty text says "shown to you", since the visit-scoped rule may hide a colleague's entry (service, handler and web tests) |

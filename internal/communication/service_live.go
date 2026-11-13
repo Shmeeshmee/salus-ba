@@ -12,6 +12,7 @@ const ReplayPage = 100
 // Subscription is where a socket starts: after From, and never before the caller's history_from_seq.
 type Subscription struct {
 	From           Cursor
+	ParticipantID  string // the caller's participant: their typing and receipts (SAL-30)
 	HistoryFromSeq int64
 }
 
@@ -22,6 +23,7 @@ type Subscription struct {
 func (s *Service) Subscribe(ctx context.Context, c Caller, id, after string) (Subscription, error) {
 	var from Cursor
 	var history int64
+	var participant string
 	if after != "" {
 		var err error
 		if from, err = ParseCursor(after); err != nil {
@@ -36,13 +38,13 @@ func (s *Service) Subscribe(ctx context.Context, c Caller, id, after string) (Su
 		if after == "" {
 			from = Cursor{SentAt: e.conv.LastSentAt, Seq: e.conv.LastSeq}
 		}
-		history = e.fromSeq()
+		history, participant = e.fromSeq(), e.part.ID
 		return s.record(ctx, c, auditevent.ActionExecute, auditevent.CodeOperation, "Patient/"+e.conv.PatientID, entityConversation, 1)
 	})
 	if err != nil {
 		return Subscription{}, wrap("subscribe", s.refusal(ctx, c, id, err))
 	}
-	return Subscription{From: from, HistoryFromSeq: history}, nil
+	return Subscription{From: from, ParticipantID: participant, HistoryFromSeq: history}, nil
 }
 
 // After returns up to ReplayPage of the conversation's messages after the cursor, oldest first, checking the
@@ -59,6 +61,9 @@ func (s *Service) After(ctx context.Context, c Caller, id string, after Cursor) 
 			return nil // nothing new: the common case of the periodic check, one query fewer
 		}
 		if out, err = s.Repo.After(ctx, id, after, e.fromSeq(), ReplayPage); err != nil || len(out) == 0 {
+			return err
+		}
+		if err := s.withAttachments(ctx, out); err != nil {
 			return err
 		}
 		return s.record(ctx, c, auditevent.ActionRead, auditevent.CodeRead, "Patient/"+e.conv.PatientID, entityCommunication, int64(len(out)))
