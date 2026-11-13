@@ -219,3 +219,62 @@ As built, where it differs from the plan (agent decisions, for the owner to revi
   have a clinic over 10·k in a cell); a NaN or infinite solver answer counts as 0 wide (`TestWidth_ANaNFailsClosed`);
   the first attack case asserts its repair; §5 A7 describes the attacker's A4 knowledge. Re-measured: the month
   benchmark 37.2 s and 38.0 s, the exact check over 60 months 12.3 s.
+
+## ANA-4 SAL-22 charts (branch `analytics-charts`)
+
+Built: `web/src/analytics/`, an Analytics page (nav entry, `/analytics`) with My clinic and All of Salus tabs.
+Hand-written SVG: `LineChart` (months, one line per series, hidden months break the line), `BarChart` (largest first,
+hidden last, drill-down on click or Enter), `Heatmap` (ISO weekday × hour, one-hue ramp); one tab stop per chart, arrow
+keys between marks, a tooltip with the exact value on focus and hover, a legend for two or more series, a "Show as
+table" view, transitions only under `prefers-reduced-motion: no-preference`. Filters: month range, specialty,
+practitioner (admins only), diagnosis group → subgroup → code (also by clicking bars, with a breadcrumb back), and on
+All of Salus the table (gd, gs, sd) whose two dimensions are the only filters offered, region (entity or region, then
+city). Hidden cells read "Hidden" with the §5 tooltip; sums over months are "Patient-months" with a "Partial" tag;
+rises read "Unusual rise" with the §6 tooltip. Strings in the new `analytics` catalog area, five staff languages;
+months and weekdays through `Intl` (`formatMonth`, `formatWeekday` in `i18n/format.ts`).
+
+Data: `data.ts` is the one way to the figures: `analyticsData(api, fhir, account)` reads the groups, places,
+specialties and staff and, through `apiStats`, the generated client of `/analytics/clinic/*` (SAL-20) and
+`/analytics/platform/*` (SAL-21), its types the schemas of `api/openapi.yaml`. The screens speak in months; the
+clinic's endpoints take days, so a range is sent as the first day of the first month to the last day of the last.
+The platform's quarters are the API's (`PlatformMonths.quarters`), newest first in the picker.
+
+After the independent review: the clinic's months are counted in the clinic's time zone (the Organization's,
+the browser's when it cannot be read) and run to the next month, for the bookings ahead; a month the API leaves
+out of the appointments is drawn as 0 (exact counts); the platform's line has the published months of the range
+only; the heatmap and rises take a place only on a table with geography, the heatmap also an entity; the
+diagnoses outside every subgroup (key "") read "No subgroup" and do not open; a hidden mark is described
+(`aria-describedby`) by the privacy explanation; the heatmap legend names only the ends of its ramp. The e2e
+journey pins the page's clock to the middle of the booking's month. A practitioner who is
+not an admin is offered no specialty filter (the API answers 403 to it, as to another role). `fixtures.ts` stays,
+for the tests and the benchmark, in the API's shapes and with its refusals. The Vite proxy and Caddy route
+`/analytics/clinic` and `/analytics/platform` (`/analytics` itself is the screen). The e2e journey
+(`test/e2e/analytics_web_test.go`, `test/e2e/web/analytics.spec.ts`): a booking, found on the practitioner's appointments chart
+in the browser, no specialty or practitioner filter, and the All of Salus tab without an error.
+
+Measured (`render.bench.test.tsx`, jsdom in the node service, 30 renders after 3 warm-ups, 3 years of monthly data,
+every group: 27 groups + 7 subgroups):
+
+| Chart | Median | p95 |
+| --- | --- | --- |
+| Line, 34 series × 36 months (1,224 marks) | 65 ms | 79 ms |
+| Bars, 27 groups summed over 36 months | 5 ms | 9 ms |
+| Heatmap, 7 × 24 | 8 ms | 11 ms |
+
+`formatNumber` now keeps one `Intl.NumberFormat` per language and options: building one per call made the line chart
+131 ms (median). The separate hit circle of a line point (a target bigger than the mark) costs about 12 ms of the 65;
+kept. The UI never draws more than 4 series; the 34-series case is the stress case. The test asserts the marks drawn, not
+the time (inside the whole suite the workers share the machine: a run there took 240 ms a render); measure with the
+file alone.
+
+Agent decisions, for the owner to review:
+
+- **"The clinic contributes"** is learnt from `GET /analytics/platform/months`: `analytics_not_contributing` hides the
+  tab; with the feature off the call is never made.
+- **Vitest 5 has no bench mode**, so the benchmark is a test with a generous budget that logs its numbers.
+- **The clinic's range** is the 36 months up to the current month in the clinic's zone and the next month, default the
+  last 12 up to the current one; the platform's is the
+  published months, default the last 12. The platform heatmap offers the API's published quarters.
+- **Heatmap and rises** on All of Salus take the region (or the city's region); an entity or "All of BiH" asks for all.
+- **Labels of a bar** are cut to the label column; the full name is in the mark's accessible name, tooltip and table.
+- `vite.config.ts` reads `analytics.css` as text in tests too (the reduced-motion test).

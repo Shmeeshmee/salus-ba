@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AcceptInvite } from './AcceptInvite'
+import { Analytics } from './analytics/Analytics'
+import { analyticsData } from './analytics/data'
 import { AppointmentDetail } from './AppointmentDetail'
 import { Availability } from './Availability'
 import { Builder } from './Builder'
@@ -19,7 +21,7 @@ import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import { isStaffLanguage, type Language } from './i18n/languages'
 import { useLanguage, useT } from './i18n/useT'
-import { CalendarIcon, ChatIcon, ClinicIcon, ClockIcon, ListIcon, Logo, PeopleIcon, ReviewIcon, SignOutIcon, WaitlistIcon } from './icons'
+import { CalendarIcon, ChartIcon, ChatIcon, ClinicIcon, ClockIcon, ListIcon, Logo, PeopleIcon, ReviewIcon, SignOutIcon, WaitlistIcon } from './icons'
 import { LanguagePicker } from './LanguagePicker'
 import { navigate, usePath } from './route'
 import { Cheatsheet } from './terminology/Cheatsheet'
@@ -110,7 +112,7 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
           {t('shell.signOut')}
         </button>
       </header>
-      <main className={path === '/' || callPath.test(path) || questionnairePath.test(path) || chatPath.test(path) ? 'page wide' : 'page'}>
+      <main className={path === '/' || path === '/analytics' || callPath.test(path) || questionnairePath.test(path) || chatPath.test(path) ? 'page wide' : 'page'}>
         <Alert message={signOutFailed ? t('shell.signOutFailed') : undefined} />
         <Alert message={languageSave === 'failed' ? t('common.somethingWrong') : undefined} />
         <Notice message={languageSave === 'saved' ? t('shell.languageSaved') : undefined} />
@@ -151,6 +153,10 @@ function Navigation({ admin, practitioner, reviewer }: { admin: boolean; practit
           {t('shell.messages')}
         </Link>
       )}
+      <Link to="/analytics">
+        <ChartIcon />
+        {t('shell.analytics')}
+      </Link>
       {reviewer && (
         <Link to="/term-review">
           <ReviewIcon />
@@ -178,6 +184,12 @@ function Call({ api, fhir, id }: Clients & { id: string }) {
   return <CallScreen api={api} fhir={fhir} id={id} consult={consult} history={(refresh) => <CallHistory api={api} fhir={fhir} appointmentId={id} refresh={refresh} />} />
 }
 
+// AnalyticsPage is the analytics page with its data, built once for the page (analytics/data.ts).
+function AnalyticsPage({ api, fhir, account }: Clients & { account: Account }) {
+  const data = useMemo(() => analyticsData(api, fhir, account), [api, fhir, account])
+  return <Analytics data={data} account={account} />
+}
+
 function Screen({ api, fhir, path, account }: Clients & { path: string; account: Account }) {
   const t = useT()
   if (account.role === 'patient') {
@@ -195,6 +207,7 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   if (questionnaire) return <Builder key={questionnaire[1]} api={api} fhir={fhir} id={decodeURIComponent(questionnaire[1])} />
   if ((path === '/chats' || chatPath.test(path)) && account.role === 'practitioner') return <ChatRoutes api={api} fhir={fhir} account={account} path={path} />
   if (path === '/waitlist') return <Waitlist api={api} fhir={fhir} account={account} />
+  if (path === '/analytics') return <AnalyticsPage api={api} fhir={fhir} account={account} />
   if (path === '/term-review') return <Review api={api} reviewer={account.termReviewer === true} />
   if (path === '/clinic' && account.role === 'admin') {
     return (
