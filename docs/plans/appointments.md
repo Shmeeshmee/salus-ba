@@ -79,7 +79,7 @@ The answers to the open questions of phase A, each the recommended option.
 | Domain | Everything stays in the `scheduling` context's domains: `appointment` owns the reminders' schedule, the change history, the action tokens and the waitlist (FHIR's waitlist is an `Appointment` status); `slot` the tentative hold; `organization` the clinic's settings (beside its chat settings); `notification` the patient's channels, the deliveries and SMS usage. No new domain, so CLAUDE.md's lists do not change |
 | Statuses | ADR 0015's table: `booked`, `cancelled`, `fulfilled`, `noshow` as today; confirmation is the patient participant's status (Q3), reschedule a new version of the same `Appointment`, the waitlist a `waitlist_entry` (FHIR-shaped `Appointment` with `waitlist` and `requestedPeriod`, JSON API only), an offer the slot's `busy-tentative` |
 | Reschedule | The same Appointment with a new `period` and `slot_id`, same practitioner role only, by the patient only, within the clinic's notice and limit, never once the join window has opened; history in `appointment_change`. Not cancel and rebook: that tears down the questionnaire responses and the consultation's access and re-sends the cancellation (ADR 0015) |
-| Choosing the new time confirms it | A reschedule sets `confirmed_at` (`via` `app`) |
+| Choosing the new time confirms it | A reschedule of an unconfirmed appointment sets `confirmed_at` (`via` `app`); a confirmation, once set, never changes (the database refuses it), so a confirmed appointment stays confirmed with its first time and way |
 | Reminder schedule | `appointment_reminder` rows per appointment and offset, taken from the clinic's settings at booking, acceptance or reschedule; a River job per row at `due_at`, unique by the row; cancelled in the cancellation's and reschedule's transaction; an hourly sweep repairs lost jobs. A settings change applies to appointments booked after it |
 | Sent once | Dispatch and the per-channel deliveries in one transaction; each send re-checks the reminder and the appointment; at most a repeat on a crash between the provider's acceptance and the commit (ADR 0015) |
 | Time zones | `due_at` is absolute (start − offset). Times are shown in the clinic's zone with its name and, when the patient's zone differs, in theirs too. Quiet hours in the patient's zone, from their settings (the device's IANA zone, sent by the app), else the clinic's |
@@ -138,7 +138,11 @@ The answers to the open questions of phase A, each the recommended option.
 - A trigger on `appointment` (`appointment_guard_change`) says who changes what under every UPDATE policy: the period
   and the slot together, only in the patient's own scope, of a booked appointment that stays booked, with
   `reschedule_count` up by exactly one (never changed otherwise); the confirmation only in the patient's scope (their
-  app or the link) and never cleared.
+  app or the link), of a booked appointment, once (it never changes after). A job in the patient's scope (the
+  revocation's) counts as the patient's scope. Only the table owner's session is spared (migrations, the operator,
+  fixtures), by `session_user`, so an owner's `SECURITY DEFINER` function called by the app is guarded too.
+- The history's insert in the clinic's scope: `via` `staff` needs `by_account_id` to be an account of the row's clinic
+  (checked by the policy), or `via` `system`.
 - `Ports.Tokens` and `Ports.LinkURL` of `appointment.Service` for `IssueLink`; SAL-33 adds `APPOINTMENT_LINK_URL` (the
   link page's base, the api's public origin) to `internal/config` and wires both into the notifier, its only issuer.
 - New public routes (`/a/`, `/waitlist`, `/me/notification-settings` and the others) get their Vite proxy and
@@ -223,7 +227,10 @@ it needs is reported, not made. Their paths and schemas are in `api/openapi.yaml
   the dispatch rolled back once), a cancellation and a reschedule between scheduling and dispatch. Measure: the
   sweep over 100 000 scheduled reminders, and dispatch plus sends at 1 000 reminders due in the same minute; numbers
   in PROGRESS.
-- **SAL-34.** The page in `html/template`, its strings from `internal/appointment/templates/link/<language>.json` in the ten
+- **SAL-34.** The link's cancel passes `ViaLink` to the history: today `cancel` (`service_change.go`) writes `ViaApp`
+  for any patient caller, so the link path gives its own `via` (a field of the call, not a second cancel). A cancel
+  `POST` without `confirm_cancel=yes` is refused (`confirm_cancel_required`), and a `GET` never changes anything: test
+  both. The page in `html/template`, its strings from `internal/appointment/templates/link/<language>.json` in the ten
   patient languages, added to `scripts/i18n-check.sh`; the token's language picks it. Misuse tests: a `GET` by a
   prefetcher (any number) changes nothing; a second `POST` is refused; an expired, a revoked-consent, a cancelled and
   a rescheduled appointment's token; another appointment's id with a valid token; a `POST` without or with a foreign
@@ -232,6 +239,11 @@ it needs is reported, not made. Their paths and schemas are in `api/openapi.yaml
   refusal audited in its own transaction (as `Book`). e2e from a reminder in Mailpit: confirm through the page,
   cancel through the page, reschedule through the API as the app does after "open the app". Caddy's log for the
   api host must not carry the URI of `/a/`.
+- **SAL-23 (payments), from step 0's purchase step.** The direct booking's key `booking:<patient>:<slot>` replays the
+  first receipt on a later booking of the same slot by the same patient (after a cancellation and its refund, or an
+  earlier failed attempt), so such a booking could go unpaid once prices exist. SAL-23 replaces it with a per-attempt
+  request id (an `Idempotency-Key` from the app) or checks the replayed receipt's refund state before booking. No
+  change in step 0: no price exists (`Prices` is nil).
 - **SAL-35.** Concurrency tests on Postgres: an acceptance racing the expiry, two acceptances (two devices), an
   acceptance racing a direct booking (which never sees the slot), a cancellation racing an offer, two freed-slot jobs
   for one slot, and after every round the invariant that a slot is `busy` exactly when a non-cancelled appointment

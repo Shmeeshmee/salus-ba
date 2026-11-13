@@ -2312,7 +2312,7 @@ export interface paths {
         };
         /**
          * The page of a reminder's one-time link
-         * @description An HTML page without JavaScript, cookies or third-party requests (ADR 0015 "One-tap links"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). A used link shows its holder its own outcome ("You confirmed this appointment", "You cancelled this appointment", with the clinic, date and time only) and offers nothing more: a link is single use for one action. An unknown or expired link, or one issued for another start than the appointment's now, answers the same page saying it no longer works. No session. Built in SAL-34 (404 until then).
+         * @description An HTML page without JavaScript, cookies or third-party requests (ADR 0015 "One-tap links"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). A used link shows its holder its own outcome ("You confirmed this appointment", "You cancelled this appointment", with the clinic, date and time only) and offers nothing more: a link is single use for one action. An unknown or expired link, or one issued for another start than the appointment's now, answers the same page saying it no longer works. A GET never changes anything. No session. Built in SAL-34 (404 until then).
          */
         get: operations["getAppointmentLinkPage"];
         put?: never;
@@ -10504,7 +10504,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The page, saying the request was not understood. */
+            /** @description The page, saying the request was not understood: `invalid_request` (no or an unknown `action`), or `confirm_cancel_required` (a `cancel` without `confirm_cancel=yes`), which changes nothing. */
             400: {
                 headers: {
                     [name: string]: unknown;

@@ -2035,3 +2035,4 @@ only through a `SECURITY DEFINER` function by its hash; its row is read in the i
 | A link prefetcher or a forwarded message changes an appointment | A `GET` never changes anything (SAL-34's misuse tests); an action is single use, expires at the start, and touches only its appointment |
 | A history row is altered to hide a correction | `appointment_change` is append-only: no `UPDATE` or `DELETE` grant, triggers refuse both and `TRUNCATE` for every role |
 | A patient learns who at the clinic changed their appointment | The patient's view of the history carries no account or agent |
+| A history row claims a staff member or a patient's app it was not | The insert policy ties `via` to the scope: the patient's scope writes `app` or `link` by the patient's own account (or a job), the clinic's scope `staff` by an account of that clinic (or a job) |
