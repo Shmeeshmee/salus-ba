@@ -20,7 +20,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -271,38 +270,6 @@ func withDatabase(serverURL, name string) string {
 // lowercase letters, digits and underscores, so it needs no quoting.
 func uniqueName(prefix string) string {
 	return prefix + "_" + strings.ToLower(rand.Text())
-}
-
-// HoldRoleLock takes postgres.RoleLock on the server's database until release is called or the test ends, for
-// a test that sets a role's password on a database of its own (cmd/migrate's): SetPassword's lock orders only
-// the callers on one database, and every package's Main sets the roles' passwords on the server's, which then
-// waits for the test instead of failing with "tuple concurrently updated".
-func HoldRoleLock(t testing.TB) (release func()) {
-	t.Helper()
-	if server.admin == nil {
-		t.Fatal("pgtest: call pgtest.Main(m, migrations) from TestMain")
-	}
-	ctx := context.Background()
-	conn, err := server.admin.Acquire(ctx)
-	if err != nil {
-		t.Fatalf("pgtest: hold the role lock: %v", err)
-	}
-	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock(hashtext($1))", postgres.RoleLock); err != nil {
-		conn.Release()
-		t.Fatalf("pgtest: hold the role lock: %v", err)
-	}
-	var once sync.Once
-	release = func() {
-		once.Do(func() {
-			// Closing the session releases its advisory lock, so the pool never hands out a connection that holds it.
-			if err := conn.Conn().Close(ctx); err != nil {
-				t.Errorf("pgtest: release the role lock: %v", err)
-			}
-			conn.Release()
-		})
-	}
-	t.Cleanup(release)
-	return release
 }
 
 // WaitForLockWait returns once a session on db's database waits on a lock (a row another transaction holds),

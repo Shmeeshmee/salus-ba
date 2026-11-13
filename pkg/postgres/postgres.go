@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -97,26 +99,49 @@ func SetLocal(ctx context.Context, name, value string) error {
 }
 
 // RoleLock names the advisory lock SetPassword takes (its key is hashtext(RoleLock)). An advisory lock belongs
-// to one database while roles belong to the cluster, so it orders only the callers on the same database; a
-// caller on another database holds RoleLock on the shared one for as long as it sets passwords
-// (pgtest.HoldRoleLock).
+// to one database while roles belong to the cluster, so it orders only the callers on the same database.
 const RoleLock = "salus.postgres.SetPassword"
+
+// passwordAttempts bounds SetPassword's tries; before each retry it waits a random time up to passwordBackoff
+// times the try's number, so a deploy never hangs on it.
+const (
+	passwordAttempts = 20
+	passwordBackoff  = 10 * time.Millisecond
+)
 
 // SetPassword sets role's password. The statement is built by the server's format(), so the password is
 // quoted as a literal, never spliced. Roles are cluster-wide, and two ALTER ROLEs on one role at once fail with
-// "tuple concurrently updated" (every test package sets the app roles' passwords when it starts), so the
-// statement runs in one DO block behind a transaction-scoped advisory lock on RoleLock that every SetPassword
-// takes: callers on one database wait their turn instead of failing. Errors never carry the password.
+// "tuple concurrently updated" (every test package sets the app roles' passwords when it starts). The statement
+// runs in one DO block behind a transaction-scoped advisory lock on RoleLock, so callers on one database wait
+// their turn; callers on different databases are not ordered by it, so that failure is retried: the statement
+// is idempotent, and each failure means another caller's ALTER ROLE committed. db is a pool or a connection,
+// not a transaction, which the failure would abort. Errors never carry the password.
 func SetPassword(ctx context.Context, db Querier, role, password string) error {
 	var stmt string
 	err := db.QueryRow(ctx, `SELECT format('DO %L', format(
 		'BEGIN PERFORM pg_advisory_xact_lock(hashtext(%L)); ALTER ROLE %I PASSWORD %L; END',
 		$3::text, $1::text, $2::text))`, role, password, RoleLock).Scan(&stmt)
-	if err == nil {
+	for attempt := 1; err == nil; attempt++ {
 		_, err = db.Exec(ctx, stmt)
+		if !isConcurrentUpdate(err) || attempt == passwordAttempts {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+		case <-time.After(rand.N(time.Duration(attempt) * passwordBackoff)):
+			err = nil
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("postgres: set password of %s: %w", role, err)
 	}
 	return nil
+}
+
+// isConcurrentUpdate reports whether err is Postgres's "tuple concurrently updated": two catalog updates of one
+// row at once.
+func isConcurrentUpdate(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "XX000" && pgErr.Message == "tuple concurrently updated"
 }
