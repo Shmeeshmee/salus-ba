@@ -17,6 +17,14 @@ The task gives you:
 - **Tickets file**: the package's Jira tickets exported as Markdown (summary, status, description, comments).
   It may say Jira was unreachable; then work from the plan docs alone.
 - **Report path**: where to write your final report.
+- **Time budget**: minutes from a start time (default 60). `run-feature.sh` kills the session 10 minutes after it.
+
+## 0. Start
+
+Run `bash scripts/runner.sh start` first. It starts the clock, notes which compose services are already running,
+and gives this worktree its own `COMPOSE_PROJECT_NAME` and ports (`deployments/.env`; the main checkout keeps
+`salus`). At each phase boundary run `bash scripts/runner.sh phase <read|build|fast|full|record>`; when it exits
+3 the budget is spent: stop where you are and go to section 6.
 
 ## 1. Read
 
@@ -50,12 +58,50 @@ branch (`git log --oneline`). If one is missing, stop (section 6).
 
 ## 4. Verify
 
-- Run every check the package's definition of done and the plan's check sets require. Fix what the package
-  broke. Never commit with a failing check; a check that cannot run is named in the report with the reason.
+Checks run in two layers:
+
+- **Fast, while you build**: `bash scripts/runner.sh fast` after each change. It runs only what the package's
+  diff touches: `go vet` and `go test` of the changed Go packages and the packages that import them (every
+  package when `go.mod` or `migrations/` changed), gofmt of the changed files, oxlint and `vitest related` for
+  changed web and landing modules, `flutter analyze` and the matching tests for changed Dart files, and
+  `make i18n-check` when a catalog changed. A single test is run the same way (`make test TESTFLAGS=…` is the
+  whole suite; do not use it for this).
+- **Full, once, at the end**: `bash scripts/runner.sh full` (the Go set, plus the app sets the diff touched),
+  and any extra check the package's definition of done or the plan's check sets name, through
+  `bash scripts/runner.sh check <name> [min] -- <command>`. Do not rerun the full set after each small fix: fix
+  with the fast layer, then run the full set once more at most.
+
+- Fix what the package broke. Never commit with a failing check; a check that cannot run is named in the report
+  with the reason.
 - If the package has a screen, walk it in a real browser against the dev stack (`docker compose`) at
   desktop width and 390 px, as the plan describes.
 - Put the dev stack and dev database back the way you found them, apart from what the package is meant to
   add (migrations, seeds). Record what you left.
+
+## 4a. Time, waits and cleanup
+
+These hold for every session that runs a package, interactive or not, and for the session that opens its PR.
+
+- **Every wait has a hard timeout**: 10 minutes by default, 20 for CI. Start a long command with
+  `bash scripts/runner.sh bg <name> [min] -- <command>` and wait for it with `bash scripts/runner.sh wait <name>`:
+  the pidfile and the exit file are the markers. Never wait by matching text in `ps`, `pgrep -f` or a log (the
+  pattern matches your own command line); never write an `until`/`while … sleep` loop without a deadline. On
+  timeout, record it and move on; never retry a wait.
+- **No CI watching.** No `gh pr checks --watch`, `gh run watch`, or polling of a PR's checks or reviews. Whoever
+  opens the PR requests Copilot (`gh pr edit <pr> --add-reviewer @copilot`) and finishes. CI status is read in the
+  next session or in the report.
+- **Docker stack**: reuse what is running (`runner.sh start` notes it). Bring services up only when the check set
+  needs them (`make test` starts the test services itself). Never stop a service that was running before you.
+- **Review and fix loops**: at most 2 rounds (a round is: read the findings, fix, run the fast layer). What is left
+  after the second goes in DEFERRED.
+- **Retries**: a failing check gets one rerun on the same tree (`runner.sh check` allows exactly one). If it then
+  passes it is flaky: it goes in FLAKY, and the failure output in READINGS. No third run.
+- **Cleanup is part of done**: stop every background task you started (Claude Code's own background shells
+  included), then run `bash scripts/runner.sh cleanup`. It kills what the session started (by pidfile and by
+  the session id in the process environment), removes this worktree's one-off containers, and stops or
+  `docker compose down`s the services the session brought up. Its CLEANUP line goes in the report.
+- **Budget**: past the time budget you stop and report, done or not (section 6), instead of grinding on.
+  `bash scripts/runner.sh report` prints the TIMINGS, FLAKY and CLEANUP lines.
 
 ## 5. Record and commit
 
@@ -69,6 +115,7 @@ branch (`git log --oneline`). If one is missing, stop (section 6).
 
 ## 6. Stop instead of committing when
 
+- the time budget is spent (`runner.sh phase` exited 3) and the package is not committed;
 - a check fails that you cannot fix inside the package;
 - a change would reopen a decision listed in `SPEC.md` §1 (or the plan's decisions section);
 - the GDPR, consent, audit or encryption rules would be broken;
@@ -77,17 +124,19 @@ branch (`git log --oneline`). If one is missing, stop (section 6).
   with no default in the SPEC).
 
 When you stop: revert your uncommitted changes (`git checkout -- . && git clean -fd` limited to files you
-created), leave the branch at the last commit, and write the report with STATUS: stopped.
+created), leave the branch at the last commit, run the cleanup (section 4a), and write the report with
+STATUS: stopped.
 
 ## 7. Never
 
-Push, pull, merge, rebase, stash, switch or create branches, amend earlier commits, edit `.claude/settings*`
+Watch CI or wait on a review; push, pull, merge, rebase, stash, switch or create branches, amend earlier commits, edit `.claude/settings*`
 or hooks, add to `docs/architecture/archcheck/allowlist.yaml`, change another plan's docs, run anything
 against production, or delete data on the dev database that you did not create.
 
 ## 8. Report
 
-Write this to the report path and print it as your final message. Do not write Jira keys of other tickets
+Run the cleanup (section 4a) and `bash scripts/runner.sh report` first. Write this to the report path and print
+it as your final message. Do not write Jira keys of other tickets
 in it (our Jira automation closes every key it finds in a merged PR).
 
 ```
@@ -100,5 +149,8 @@ READINGS: <decisions you took and why>
 DEFERRED: <anything left for later>
 QUESTIONS FOR A PERSON: <clinical, privacy or owner questions, or none>
 DEV STACK: <what you left on the dev database or stack>
+TIMINGS: <from runner.sh report: minutes per phase, and the total>
+FLAKY: <checks that passed only on their rerun, or none>
+CLEANUP: <from runner.sh cleanup: what was killed, what was stopped or left>
 STOP REASON: <only if stopped>
 ```

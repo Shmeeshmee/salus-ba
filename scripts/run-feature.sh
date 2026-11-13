@@ -16,9 +16,12 @@
 # A row marked "hold" is not run, and the run stops there, unless --unhold is given.
 # Safe to re-run: packages whose "<prefix>(<package>):" commit is already on their branch are skipped.
 # Optional env: JIRA_EMAIL, JIRA_API_TOKEN (Atlassian API token), JIRA_BASE_URL (https://<site>.atlassian.net).
+# Time: each package session has RUNNER_BUDGET_MIN (default 60) and is killed 10 minutes after it; whatever it
+#   left running is killed after it ends (scripts/runner.sh cleanup, scripts/runner-reap.sh --session). The run
+#   never waits on CI or on a review: it opens the PRs, asks Copilot to review, and ends.
 set -euo pipefail
 
-usage() { sed -n '2,20p' "$0"; exit 2; }
+usage() { sed -n '2,23p' "$0"; exit 2; }
 die() { echo "$*" >&2; exit 1; }
 [ $# -ge 1 ] || usage
 plan="${1%/}"; shift
@@ -50,8 +53,11 @@ if [ -z "$stacked" ]; then
 fi
 runs=".claude/runs/$prefix"
 mkdir -p "$runs"
+budget=${RUNNER_BUDGET_MIN:-60}
+# A worktree gets its own compose project and ports (deployments/.env), so parallel runs don't collide.
+bash scripts/runner.sh env
 
-for cmd in git gh jq curl; do
+for cmd in git gh jq curl timeout setsid; do
   command -v "$cmd" >/dev/null || { echo "needs $cmd on PATH"; exit 2; }
 done
 [ "$restack" = 1 ] || command -v claude >/dev/null || { echo "needs claude on PATH"; exit 2; }
@@ -98,23 +104,42 @@ run_package() {
       printf '## %s\n(Jira was not reachable; work from the plan docs.)\n\n' "$key" >> "$ticketfile"
   done
   rm -f "$report"
-  echo "== $prefix $pkg: $name ($(date '+%H:%M'))"
-  local prompt="Read .claude/agents/package-runner.md and follow it exactly.
+  echo "== $prefix $pkg: $name ($(date '+%H:%M'), budget $budget min)"
+  # Every process the session starts inherits RUNNER_SESSION: that is how cleanup finds them afterwards.
+  local sid code=0
+  sid="$prefix-$pkg-$(date +%s)"
+  export RUNNER_SESSION="$sid" RUNNER_BUDGET_MIN="$budget"
+  bash scripts/runner.sh start
+  local prompt started
+  started=$(date '+%H:%M')
+  prompt="Read .claude/agents/package-runner.md and follow it exactly.
 Plan: $plan
 Package: $pkg ($name)
 Commit prefix: $prefix
 Tickets file: $ticketfile
-Report path: $report"
+Report path: $report
+Time budget: $budget minutes from $started; the session is killed at $((budget + 10)) minutes."
   if [ "$stacked" = 1 ]; then
     prompt="$prompt
 Jira keys allowed in the commit message: ${allowed:-none}"
   fi
-  if ! claude -p "$prompt" \
+  timeout --kill-after=60 "$(( (budget + 10) * 60 ))" claude -p "$prompt" \
       --permission-mode dontAsk \
       --allowedTools "Read,Edit,Write,Grep,Glob,Bash,Agent,WebFetch,WebSearch" \
-      --output-format json < /dev/null > "$runs/$pkg.session.json"; then
-    die "the session for $pkg ended with an error; see $runs/$pkg.session.json"
+      --output-format json < /dev/null > "$runs/$pkg.session.json" || code=$?
+  bash scripts/runner.sh cleanup || true
+  bash scripts/runner-reap.sh --session "$sid" --kill || true
+  unset RUNNER_SESSION
+  if [ "$code" = 124 ] || [ "$code" = 137 ]; then
+    [ -f "$report" ] || printf 'PACKAGE: %s %s\nSTATUS: stopped\nCOMMIT: none\nSTOP REASON: killed by run-feature.sh after %s minutes (budget %s)\n%s\n' \
+      "$pkg" "$name" "$((budget + 10))" "$budget" "$(cat .claude/runs/session/cleanup 2>/dev/null)" > "$report"
+    die "the session for $pkg ran past its budget and was killed; see $report"
   fi
+  [ "$code" = 0 ] || die "the session for $pkg ended with an error; see $runs/$pkg.session.json"
+  local line
+  for line in TIMINGS CLEANUP; do
+    grep -q "^$line:" "$report" 2>/dev/null || echo "   warning: $report has no $line line" >&2
+  done
 }
 
 check_committed() {

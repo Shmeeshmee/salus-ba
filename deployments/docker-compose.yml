@@ -496,14 +496,18 @@ configs:
       s3_region = "garage"
       api_bind_addr = "[::]:3900"
 
+# Data volumes belong to the compose project, so a worktree with its own COMPOSE_PROJECT_NAME
+# (scripts/runner.sh env) gets its own database and object store. The caches carry a fixed name and are shared by
+# every project, so a new worktree starts warm; a worktree's compose prints that they "already exist but were
+# created for project salus", which is expected.
 volumes:
   postgres:
   objectstore:
   clamav:
-  gomod:
-  gobuild:
-  golangci:
-  npm:
-  pub:
-  fhir:
+  gomod: {name: salus_gomod}
+  gobuild: {name: salus_gobuild}
+  golangci: {name: salus_golangci}
+  npm: {name: salus_npm}
+  pub: {name: salus_pub}
+  fhir: {name: salus_fhir}
   e2e:
