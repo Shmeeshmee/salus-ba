@@ -4,6 +4,7 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/condition"
@@ -46,6 +47,9 @@ func TestSign_RecordsAConfirmedConditionPerCodedField(t *testing.T) {
 	if got.Status != composition.StatusFinal {
 		t.Errorf("status %s", got.Status)
 	}
+	if want := []string{clinicA + " " + now.UTC().Format(time.RFC3339)}; !slices.Equal(f.jobs.refreshes, want) {
+		t.Errorf("refreshes %v, want the clinic's statistics of the signing's day %v", f.jobs.refreshes, want)
+	}
 }
 
 // A filled coded field the practitioner did not confirm refuses the signature, audited, naming the field: nothing
@@ -68,6 +72,9 @@ func TestSign_RefusesAnUnconfirmedDiagnosis(t *testing.T) {
 	if _, err := f.svc.Sign(t.Context(), pract, d.ID, values(), d.VersionID); err != nil || len(f.conditions.recorded) != 0 {
 		t.Errorf("an empty diagnosis: Sign() = %v with %d Conditions, want a signature and none", err, len(f.conditions.recorded))
 	}
+	if len(f.jobs.refreshes) != 0 {
+		t.Errorf("refreshes %v without a diagnosis, want none", f.jobs.refreshes)
+	}
 }
 
 // When the Conditions cannot be recorded the signature is rolled back and its PDF removed.
@@ -80,7 +87,7 @@ func TestSign_AFailingConditionSignsNothing(t *testing.T) {
 	if _, err := f.svc.Sign(t.Context(), pract, d.ID, withDiagnosis("J06.9", true), d.VersionID); err == nil {
 		t.Fatal("Sign() succeeded")
 	}
-	if len(f.store.objects) != 0 || f.repo.drafts[d.ID].Status != composition.StatusPreliminary || len(f.jobs.signed) != 0 {
-		t.Errorf("%d objects, status %s, %d jobs", len(f.store.objects), f.repo.drafts[d.ID].Status, len(f.jobs.signed))
+	if len(f.store.objects) != 0 || f.repo.drafts[d.ID].Status != composition.StatusPreliminary || len(f.jobs.signed)+len(f.jobs.refreshes) != 0 {
+		t.Errorf("%d objects, status %s, %d jobs, refreshes %v", len(f.store.objects), f.repo.drafts[d.ID].Status, len(f.jobs.signed), f.jobs.refreshes)
 	}
 }

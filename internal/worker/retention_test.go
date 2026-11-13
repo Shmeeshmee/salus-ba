@@ -44,9 +44,9 @@ func (b *syncBuffer) String() string {
 	return b.buf.String()
 }
 
-// logins are three pools on one test database: the owner, salus_app and salus_retention.
+// logins are four pools on one test database: the owner, salus_app, salus_retention and salus_stats.
 type logins struct {
-	owner, app, retention *pgxpool.Pool
+	owner, app, retention, stats *pgxpool.Pool
 }
 
 func newLogins(t *testing.T) logins {
@@ -60,7 +60,10 @@ func newLogins(t *testing.T) logins {
 		t.Cleanup(pool.Close)
 		return pool
 	}
-	return logins{owner: open(dbURL), app: open(pgtest.AppURL(t, dbURL)), retention: open(pgtest.RetentionURL(t, dbURL))}
+	return logins{
+		owner: open(dbURL), app: open(pgtest.AppURL(t, dbURL)), retention: open(pgtest.RetentionURL(t, dbURL)),
+		stats: open(pgtest.StatsURL(t, dbURL)),
+	}
 }
 
 // The synthetic personal data of seedRetention, which no log line may hold.
@@ -109,7 +112,7 @@ func runWorkerJobWith(t *testing.T, db logins, p videosession.Provider, args riv
 func runJobOn(t *testing.T, db logins, p videosession.Provider, files worker.Files, args river.JobArgs, opts *river.InsertOpts) (river.EventKind, string) {
 	t.Helper()
 	logs := &syncBuffer{}
-	client, err := worker.New(db.app, db.retention, p, files, webhookKey, slog.New(slog.NewJSONHandler(logs, nil)))
+	client, err := worker.New(db.app, db.retention, db.stats, p, files, webhookKey, slog.New(slog.NewJSONHandler(logs, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -232,14 +235,24 @@ func assertNoPersonalData(t *testing.T, logs string) {
 func TestNew_RefusesToStartWithoutTheRetentionPool(t *testing.T) {
 	_, app := pgtest.NewAppDatabase(t)
 
-	if _, err := worker.New(app, nil, liveKit(t), testFiles(t), webhookKey, slog.New(slog.DiscardHandler)); err == nil {
+	if _, err := worker.New(app, nil, app, liveKit(t), testFiles(t), webhookKey, slog.New(slog.DiscardHandler)); err == nil {
 		t.Fatal("New() error = nil without the retention pool")
 	}
 }
 
-// Only the worker service has the retention role's login in the compose file; the anchors before services
-// count as their own section, since every app service merges them.
-func TestCompose_OnlyTheWorkerHasTheRetentionDatabaseURL(t *testing.T) {
+// Only the worker service has the retention and the stats roles' logins in the compose file; the anchors before
+// services count as their own section, since every app service merges them.
+func TestCompose_OnlyTheWorkerHasTheRetentionAndStatsDatabaseURLs(t *testing.T) {
+	for _, name := range []string{"RETENTION_DATABASE_URL", "STATS_DATABASE_URL"} {
+		if holders := composeSectionsWith(t, name); !slices.Equal(holders, []string{"worker"}) {
+			t.Errorf("%s is set in %v, want only the worker service", name, holders)
+		}
+	}
+}
+
+// composeSectionsWith returns the compose file's services (or "(top level)") whose lines name variable.
+func composeSectionsWith(t *testing.T, variable string) []string {
+	t.Helper()
 	f, err := os.Open(filepath.Join("..", "..", "deployments", "docker-compose.yml"))
 	if err != nil {
 		t.Fatal(err)
@@ -258,18 +271,26 @@ func TestCompose_OnlyTheWorkerHasTheRetentionDatabaseURL(t *testing.T) {
 		case inServices && m != nil:
 			section = m[1]
 		}
-		if strings.Contains(line, "RETENTION_DATABASE_URL") && !slices.Contains(holders, section) {
+		if strings.Contains(line, variable) && !slices.Contains(holders, section) {
 			holders = append(holders, section)
 		}
 	}
-	if !slices.Equal(holders, []string{"worker"}) {
-		t.Errorf("RETENTION_DATABASE_URL is set in %v, want only the worker service", holders)
-	}
+	return holders
 }
 
 // The retention pool reaches one place: New hands it to newRetention, which builds the retention purgers'
 // repositories on it. Every other job, and River itself, runs on the salus_app pool.
 func TestNew_HandsTheRetentionPoolToTheRetentionPurgersOnly(t *testing.T) {
+	uses := poolUses(t, "retentionPool")
+	if want := []string{"auth.NewPostgresRepository", "binary.NewPostgresRepository", "newRetention", "notification.NewPostgresRepository",
+		"questionnaireresponse.NewPostgresRepository", "slot.NewPostgresRepository", "videosession.NewPostgresRepository"}; !slices.Equal(uses, want) {
+		t.Errorf("retentionPool is passed to %v, want only %v", uses, want)
+	}
+}
+
+// poolUses names every call in the package's non-test files that is passed the identifier pool, sorted.
+func poolUses(t *testing.T, pool string) []string {
+	t.Helper()
 	fset := token.NewFileSet()
 	files, err := filepath.Glob("*.go")
 	if err != nil {
@@ -290,7 +311,7 @@ func TestNew_HandsTheRetentionPoolToTheRetentionPurgersOnly(t *testing.T) {
 				return true
 			}
 			for _, arg := range call.Args {
-				if id, ok := arg.(*ast.Ident); ok && id.Name == "retentionPool" {
+				if id, ok := arg.(*ast.Ident); ok && id.Name == pool {
 					uses = append(uses, callee(call.Fun))
 				}
 			}
@@ -298,10 +319,7 @@ func TestNew_HandsTheRetentionPoolToTheRetentionPurgersOnly(t *testing.T) {
 		})
 	}
 	slices.Sort(uses)
-	if want := []string{"auth.NewPostgresRepository", "binary.NewPostgresRepository", "newRetention", "notification.NewPostgresRepository",
-		"questionnaireresponse.NewPostgresRepository", "slot.NewPostgresRepository", "videosession.NewPostgresRepository"}; !slices.Equal(uses, want) {
-		t.Errorf("retentionPool is passed to %v, want only %v", uses, want)
-	}
+	return uses
 }
 
 // callee names a called function: f or pkg.F.

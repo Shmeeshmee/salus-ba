@@ -65,7 +65,7 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 	}
 	t.f.mu.Lock()
 	events, templates, drafts := len(t.f.audit.events), maps.Clone(t.f.repo.templates), maps.Clone(t.f.repo.drafts)
-	jobs, conds := len(t.f.jobs.signed), len(t.f.conditions.recorded)
+	jobs, conds, refreshes := len(t.f.jobs.signed), len(t.f.conditions.recorded), len(t.f.jobs.refreshes)
 	t.f.mu.Unlock()
 	defer func() { t.f.repo.scope = "" }()
 	err := fn(context.WithValue(ctx, txKey{}, true))
@@ -73,6 +73,7 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 		t.f.mu.Lock()
 		t.f.audit.events, t.f.repo.templates, t.f.repo.drafts = t.f.audit.events[:events], templates, drafts
 		t.f.jobs.signed, t.f.conditions.recorded = t.f.jobs.signed[:jobs], t.f.conditions.recorded[:conds]
+		t.f.jobs.refreshes = t.f.jobs.refreshes[:refreshes]
 		t.f.mu.Unlock()
 	}
 	return err
@@ -392,10 +393,20 @@ func (p *fakePublisher) Publish(ctx context.Context, encounterID string, b []byt
 	return p.err
 }
 
-// fakeJobs records the e-mail jobs enqueued, each "<appointment> <clinic>", in the transaction.
+// fakeJobs records the e-mail jobs enqueued, each "<appointment> <clinic>", and the statistics' refreshes, each
+// "<clinic> <instant>", in the transaction.
 type fakeJobs struct {
-	err    error
-	signed []string
+	err       error
+	signed    []string
+	refreshes []string
+}
+
+func (j *fakeJobs) EnqueueStatsRefresh(ctx context.Context, org string, day time.Time) error {
+	if err := inTx(ctx); err != nil {
+		return err
+	}
+	j.refreshes = append(j.refreshes, org+" "+day.UTC().Format(time.RFC3339))
+	return nil
 }
 
 func (j *fakeJobs) EnqueueSigned(ctx context.Context, appointmentID, org string) error {
@@ -496,7 +507,7 @@ func newFixture(t *testing.T) *fixture {
 	}
 	f.svc = composition.NewService(composition.Ports{
 		Repo: f.repo, Encounters: f.encounters, Transcripts: f.transcripts, Drafter: f.drafter, Store: f.store,
-		Publisher: f.publisher, Jobs: f.jobs, Conditions: f.conditions, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now}, KEK: kek,
+		Publisher: f.publisher, Jobs: f.jobs, Stats: f.jobs, Conditions: f.conditions, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now}, KEK: kek,
 		Log: slog.New(slog.NewTextHandler(f.logs, nil)),
 	})
 	return f
