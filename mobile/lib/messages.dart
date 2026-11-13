@@ -67,6 +67,19 @@ String bookingMessage(AppLocalizations t, ApiFailure failure) {
   };
 }
 
+/// The fixed sentence for a refused write of an allergy or a medication (SAL-41), by its status: the API's codes
+/// for these say no more.
+String entryMessage(AppLocalizations t, ApiFailure failure) {
+  if (failure.unreachable) return t.unreachable;
+  return switch (failure.status) {
+    400 => t.entryInvalid,
+    403 => t.entryNotAllowed,
+    404 => t.entryNotFound,
+    412 => t.entryChanged,
+    _ => t.somethingWrong,
+  };
+}
+
 // Profile (docs/booking/SPEC.md "Profile"): the API's rules, checked here first.
 String? validateGivenName(AppLocalizations t, String? value) => _nameOk(value) ? null : t.invalidGivenName;
 

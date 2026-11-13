@@ -15,6 +15,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/riverqueue/river"
 
+	"github.com/Shmeeshmee/salus/internal/allergyintolerance"
 	"github.com/Shmeeshmee/salus/internal/api/router"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
@@ -25,6 +26,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
+	"github.com/Shmeeshmee/salus/internal/medicationstatement"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
@@ -122,7 +124,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	}, fhirBase, log)
 	chatAPI, chatStream, chatHub := newChat(chatPorts{db: pool, rdb: rdb, audit: audit, tx: tx, consents: consents, jobs: jobs, files: newChatFiles(pool, files, kek, jobs, tx), language: uiLanguage(accounts),
 		visits: appointment.NewFacts(appointmentRepo), roles: roles, encounters: encounters, caller: appointmentCaller(accounts, patients), active: authHandler.Active, summarizer: summarizer}, log)
-	chatNotifications := chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log)
+	entries := newProfileEntries(profilePorts{pool, audit, tx, consents, appointmentRepo, roles, encounters, accounts, patients}, fhirBase, log)
 	h := router.New(router.Config{
 		Logger:  log,
 		Checks:  readiness(pool, rdb),
@@ -144,11 +146,52 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, append(append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI), chatNotifications...)...),
+		}, append(append(append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI), entries.routes...), chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log)...)...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout,
 	})
 	return &App{Handler: h, pool: pool, redis: rdb, chat: chatHub}, nil
+}
+
+// profilePorts are what the allergies and the medications of the patient's profile are built on.
+type profilePorts struct {
+	pool         *pgxpool.Pool
+	audit        *auditevent.Service
+	tx           *postgres.Transactor
+	consents     *consent.Service
+	appointments appointment.Repository
+	roles        *practitionerrole.Service
+	encounters   *encounter.Service
+	accounts     *auth.Service
+	patients     *patient.Service
+}
+
+// profileEntries are the allergies and the current medications of the patient's profile (SAL-41,
+// docs/plans/patient-history.md), which the history reads through their Seen, and their routes.
+type profileEntries struct {
+	allergies   *allergyintolerance.Service
+	medications *medicationstatement.Service
+	routes      []func(*http.ServeMux)
+}
+
+// newProfileEntries builds the profileEntries.
+func newProfileEntries(p profilePorts, fhirBase string, log *slog.Logger) profileEntries {
+	visits, caller := appointment.NewFacts(p.appointments), appointmentCaller(p.accounts, p.patients)
+	terms := terminology.NewService(terminology.NewPostgresRepository(p.pool), uiLanguage(p.accounts))
+	allergies := allergyintolerance.NewService(allergyintolerance.Ports{
+		Repo: allergyintolerance.NewPostgresRepository(p.pool), Consents: p.consents, Visits: visits, Roles: p.roles,
+		Encounters: p.encounters, Terms: terms, Audit: p.audit, Tx: p.tx, Clock: clock.System{},
+	})
+	medications := medicationstatement.NewService(medicationstatement.Ports{
+		Repo: medicationstatement.NewPostgresRepository(p.pool), Consents: p.consents, Visits: visits, Roles: p.roles,
+		Encounters: p.encounters, Terms: terms, Audit: p.audit, Tx: p.tx, Clock: clock.System{},
+	})
+	return profileEntries{allergies: allergies, medications: medications, routes: []func(*http.ServeMux){
+		allergyintolerance.NewHTTPHandler(allergies, caller, log).Routes,
+		allergyintolerance.NewFHIRHandler(allergies, caller, fhirBase, log).Routes,
+		medicationstatement.NewHTTPHandler(medications, caller, log).Routes,
+		medicationstatement.NewFHIRHandler(medications, caller, fhirBase, log).Routes,
+	}}
 }
 
 // readiness are the dependencies /readyz pings.
