@@ -30,6 +30,23 @@ describe('BarChart', () => {
     expect(screen.getByRole('tooltip').textContent).toBe('Ear conditionsHiddenSmall or dominated groups are hidden to protect privacy. A hidden group can hold more patients than a group shown.')
   })
 
+  it('describes a hidden bar with the privacy explanation, for a screen reader', () => {
+    renderInLanguage(<BarChart title="Regions" bars={bars} />, 'en')
+    const hidden = screen.getByRole('img', { name: 'Ear conditions: Hidden' })
+    expect(document.getElementById(hidden.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Small or dominated groups are hidden to protect privacy. A hidden group can hold more patients than a group shown.')
+    expect(screen.getByRole('img', { name: 'Skin conditions: 4' }).getAttribute('aria-describedby')).toBeNull()
+  })
+
+  it('leaves a bar that has no breakdown unopenable', () => {
+    const onSelect = vi.fn()
+    renderInLanguage(<BarChart title="Subgroups" bars={[...bars, { key: '', label: 'No subgroup', count: 2, fixed: true }]} onSelect={onSelect} />, 'en')
+    const none = screen.getByRole('img', { name: 'No subgroup: 2' })
+    fireEvent.click(none)
+    fireEvent.keyDown(none, { key: 'Enter' })
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Skin conditions: 4. Open its breakdown' })).toBeTruthy()
+  })
+
   it('drills down with a click or the keyboard when a bar can be opened', () => {
     const onSelect = vi.fn()
     renderInLanguage(<BarChart title="Top diagnosis groups" bars={bars} onSelect={onSelect} />, 'en')

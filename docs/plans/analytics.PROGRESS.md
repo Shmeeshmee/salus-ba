@@ -237,7 +237,15 @@ Data: `data.ts` is the one way to the figures: `analyticsData(api, fhir, account
 specialties and staff and, through `apiStats`, the generated client of `/analytics/clinic/*` (SAL-20) and
 `/analytics/platform/*` (SAL-21), its types the schemas of `api/openapi.yaml`. The screens speak in months; the
 clinic's endpoints take days, so a range is sent as the first day of the first month to the last day of the last.
-The platform's quarters are the API's (`PlatformMonths.quarters`), newest first in the picker. A practitioner who is
+The platform's quarters are the API's (`PlatformMonths.quarters`), newest first in the picker.
+
+After the independent review: the clinic's months are counted in the clinic's time zone (the Organization's,
+the browser's when it cannot be read) and run to the next month, for the bookings ahead; a month the API leaves
+out of the appointments is drawn as 0 (exact counts); the platform's line has the published months of the range
+only; the heatmap and rises take a place only on a table with geography, the heatmap also an entity; the
+diagnoses outside every subgroup (key "") read "No subgroup" and do not open; a hidden mark is described
+(`aria-describedby`) by the privacy explanation; the heatmap legend names only the ends of its ramp. The e2e
+journey pins the page's clock to the middle of the booking's month. A practitioner who is
 not an admin is offered no specialty filter (the API answers 403 to it, as to another role). `fixtures.ts` stays,
 for the tests and the benchmark, in the API's shapes and with its refusals. The Vite proxy and Caddy route
 `/analytics/clinic` and `/analytics/platform` (`/analytics` itself is the screen). The e2e journey
@@ -264,7 +272,8 @@ Agent decisions, for the owner to review:
 - **"The clinic contributes"** is learnt from `GET /analytics/platform/months`: `analytics_not_contributing` hides the
   tab; with the feature off the call is never made.
 - **Vitest 5 has no bench mode**, so the benchmark is a test with a generous budget that logs its numbers.
-- **The clinic's range** is the 36 months up to the current month (UTC), default the last 12; the platform's is the
+- **The clinic's range** is the 36 months up to the current month in the clinic's zone and the next month, default the
+  last 12 up to the current one; the platform's is the
   published months, default the last 12. The platform heatmap offers the API's published quarters.
 - **Heatmap and rises** on All of Salus take the region (or the city's region); an entity or "All of BiH" asks for all.
 - **Labels of a bar** are cut to the label column; the full name is in the mark's accessible name, tooltip and table.

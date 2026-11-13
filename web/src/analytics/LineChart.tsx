@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { useFormat, useT } from '../i18n/useT'
-import { ChartFrame, HatchPattern, Tooltip } from './chart'
+import { ChartFrame, HatchPattern, HiddenNote, Tooltip } from './chart'
 import { niceMax, useRoving, useValue, useWidth } from './marks'
 import type { Count, Month } from './data'
 
@@ -17,6 +17,7 @@ export function LineChart({ title, periods, series }: { title: string; periods: 
   const { month } = useFormat()
   const value = useValue()
   const hatch = useId()
+  const note = useId()
   const { ref, width } = useWidth()
   const n = periods.length
   const { shown, markProps } = useRoving(n * series.length, Math.max(n, 1))
@@ -62,7 +63,7 @@ export function LineChart({ title, periods, series }: { title: string; periods: 
             const k = si * n + i
             const cy = v === null ? y(0) : y(v)
             return (
-              <g key={`${s.key}-${i}`} className={shown === k ? 'mark active' : 'mark'} role="img" aria-label={`${long[i]}, ${s.label}: ${value(v)}`} {...markProps(k)}>
+              <g key={`${s.key}-${i}`} className={shown === k ? 'mark active' : 'mark'} role="img" aria-label={`${long[i]}, ${s.label}: ${value(v)}`} aria-describedby={v === null ? note : undefined} {...markProps(k)}>
                 <circle cx={x(i)} cy={cy} r={12} className="hit" />
                 {v === null ? (
                   <rect x={x(i) - 5} y={cy - 5} width={10} height={10} rx={2} fill={`url(#${hatch})`} stroke="var(--color-text-muted)" />
@@ -74,6 +75,7 @@ export function LineChart({ title, periods, series }: { title: string; periods: 
           }),
         )}
       </svg>
+      <HiddenNote id={note} />
       {tip && (
         <Tooltip
           at={[x(tip.i), series[tip.s].values[tip.i] === null ? y(0) : y(series[tip.s].values[tip.i] ?? 0)]}

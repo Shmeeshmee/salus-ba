@@ -42,6 +42,13 @@ describe('Heatmap', () => {
     expect(within(screen.getByRole('list', { name: 'Legend' })).getByText('Hidden')).toBeTruthy()
   })
 
+  it('names only the ends of the ramp in the legend, and describes a hidden cell', () => {
+    renderInLanguage(<Heatmap title="Busiest hours" cells={cells} />, 'en')
+    expect(within(screen.getByRole('list', { name: 'Legend' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Fewer', 'More', 'Hidden'])
+    const hidden = screen.getByRole('img', { name: 'Sun 03:00–04:00: Hidden' })
+    expect(document.getElementById(hidden.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Small or dominated groups are hidden to protect privacy. A hidden group can hold more patients than a group shown.')
+  })
+
   it('says so when every cell is empty', () => {
     renderInLanguage(<Heatmap title="Busiest hours" cells={[]} />, 'en')
     expect(screen.getByRole('figure', { name: 'Busiest hours' }).textContent).toContain('No data for these filters.')

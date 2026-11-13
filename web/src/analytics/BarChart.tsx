@@ -1,11 +1,11 @@
 import { useId } from 'react'
 import { useT } from '../i18n/useT'
 import { TipTag } from '../ui'
-import { ChartFrame, HatchPattern, Tooltip } from './chart'
+import { ChartFrame, HatchPattern, HiddenNote, Tooltip } from './chart'
 import { niceMax, useRoving, useValue, useWidth } from './marks'
 import type { Count } from './data'
 
-export type Bar = { key: string; label: string; count: Count }
+export type Bar = { key: string; label: string; count: Count; fixed?: boolean } // fixed: has no breakdown to open
 
 type Props = {
   title: string
@@ -25,10 +25,12 @@ export function BarChart({ title, bars, unit, partial, onSelect }: Props) {
   const t = useT()
   const value = useValue()
   const hatch = useId()
+  const note = useId()
   const { ref, width } = useWidth()
   const labelW = Math.min(230, Math.round(width * 0.4)) // narrower on a phone
   const sorted = [...bars].sort((a, b) => (b.count ?? -1) - (a.count ?? -1) || a.label.localeCompare(b.label))
-  const { shown, markProps } = useRoving(sorted.length, 1, onSelect && ((i) => onSelect(sorted[i].key)))
+  const open = (b: Bar) => (onSelect && !b.fixed ? () => onSelect(b.key) : undefined)
+  const { shown, markProps } = useRoving(sorted.length, 1, onSelect && ((i) => open(sorted[i])?.()))
   const empty = bars.every((b) => b.count === 0)
 
   const height = top * 2 + sorted.length * row
@@ -36,7 +38,7 @@ export function BarChart({ title, bars, unit, partial, onSelect }: Props) {
   const plotW = width - labelW - valueW
   const len = (c: number) => Math.max(c > 0 ? 3 : 0, (c / max) * plotW)
 
-  const note = (unit || partial) && (
+  const unitNote = (unit || partial) && (
     <>
       {unit && <span className="muted small">{unit}</span>}
       {partial && <TipTag className="partial" label={t('analytics.partial')} tip={t('analytics.partialTip')} />}
@@ -45,19 +47,21 @@ export function BarChart({ title, bars, unit, partial, onSelect }: Props) {
   const table = { columns: [t('analytics.name'), unit ?? t('analytics.count')], rows: sorted.map((b) => [b.label, value(b.count)]) }
   const tip = shown === null || empty ? undefined : sorted[shown]
   return (
-    <ChartFrame plotRef={ref} title={title} empty={empty} note={note || undefined} table={table}>
+    <ChartFrame plotRef={ref} title={title} empty={empty} note={unitNote || undefined} table={table}>
       <svg viewBox={`0 0 ${width} ${height}`} className="chart-svg">
         <HatchPattern id={hatch} />
         {sorted.map((b, i) => {
           const y = top + i * row
           const name = `${b.label}: ${value(b.count)}`
+          const onClick = open(b)
           return (
             <g
               key={b.key}
-              className={[onSelect ? 'mark bar openable' : 'mark bar', shown === i ? 'active' : ''].join(' ')}
-              role={onSelect ? 'button' : 'img'}
-              aria-label={onSelect ? t('analytics.openBar', { name }) : name}
-              onClick={onSelect && (() => onSelect(b.key))}
+              className={[onClick ? 'mark bar openable' : 'mark bar', shown === i ? 'active' : ''].join(' ')}
+              role={onClick ? 'button' : 'img'}
+              aria-label={onClick ? t('analytics.openBar', { name }) : name}
+              aria-describedby={b.count === null ? note : undefined}
+              onClick={onClick}
               {...markProps(i)}
             >
               <rect className="hit" x={0} y={y} width={width} height={row} />
@@ -83,6 +87,7 @@ export function BarChart({ title, bars, unit, partial, onSelect }: Props) {
           )
         })}
       </svg>
+      <HiddenNote id={note} />
       {tip && (
         <Tooltip
           at={[labelW + (tip.count === null ? 56 : len(tip.count)), top + sorted.indexOf(tip) * row + row]}

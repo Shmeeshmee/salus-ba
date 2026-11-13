@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { useT } from '../i18n/useT'
 import { useLoad } from '../load'
 import { TipTag } from '../ui'
-import { BarChart } from './BarChart'
+import { BarChart, type Bar } from './BarChart'
 import { Loaded } from './chart'
-import { DrillPath, type ClinicReference } from './ClinicView'
-import { dimensionsOf, monthsBetween, type AnalyticsData, type Dimension, type Month, type Place, type PlatformCells, type PlatformTable } from './data'
+import { diagnosisBar, DrillPath, type ClinicReference } from './ClinicView'
+import { dimensionsOf, type AnalyticsData, type Dimension, type Month, type Place, type PlatformCells, type PlatformTable, type Row } from './data'
 import { drillInto, drillOf, geoFilter, type Diagnosis, type Geo } from './drill'
 import { Choice, DiagnosisFilter, MonthRange, PlaceFilter, SpecialtyFilter } from './Filters'
 import { Heatmap } from './Heatmap'
@@ -15,6 +15,9 @@ import { usePlaceName, useSpecialtyName } from './names'
 export type PlatformReference = ClinicReference & { places: Place[] }
 
 const tables: PlatformTable[] = ['gd', 'gs', 'sd']
+
+// named is a breakdown's row as a bar named by name.
+const named = (name: (key: string) => string) => (r: Row): Bar => ({ key: r.key, label: name(r.key), count: r.count })
 
 // PlatformView is All of Salus (SAL-21, plan §5 and §6): one table at a time, its two dimensions as the only
 // filters, so the view never asks for a combination the API refuses. Counts are distinct patients of closed months;
@@ -53,14 +56,17 @@ export function PlatformView({ data, reference, months, quarters }: { data: Anal
 
   const groupName = (code: string) => reference.groups.find((g) => g.code === code)?.name ?? code
   const unit = range.from === range.to ? t('analytics.patients') : t('analytics.patientMonths')
-  const region = filter.region ?? reference.places.find((p) => p.id === geo.city)?.parent
-  const periods = monthsBetween(range.from, range.to)
+  // The heatmap takes a leaf region or an entity, the rises a leaf region; neither is narrowed on a table without
+  // geography. A city asks for its region.
+  const region = hasGeo ? (filter.region ?? reference.places.find((p) => p.id === geo.city)?.parent) : undefined
+  const heatRegion = hasGeo ? (filter.entity ?? region) : undefined
+  const periods = months.filter((m) => m >= range.from && m <= range.to) // the published months only
 
-  function bars(state: typeof geoBars.state, title: string, label: (key: string) => string, onSelect?: (key: string) => void) {
+  function bars(state: typeof geoBars.state, title: string, toBar: (r: Row) => Bar, onSelect?: (key: string) => void) {
     return (
       <Loaded state={state}>
         {(c: PlatformCells | null) =>
-          c && <BarChart title={title} bars={c.rows.map((r) => ({ key: r.key, label: label(r.key), count: r.count }))} unit={unit} partial={c.partial} onSelect={onSelect} />
+          c && <BarChart title={title} bars={c.rows.map(toBar)} unit={unit} partial={c.partial} onSelect={onSelect} />
         }
       </Loaded>
     )
@@ -87,22 +93,22 @@ export function PlatformView({ data, reference, months, quarters }: { data: Anal
           )}
         </Loaded>
         {geoBy &&
-          bars(geoBars.state, geoBy === 'city' ? t('analytics.byCity', { name: placeName(filter.region!) }) : t('analytics.byRegion'), placeName, (k) =>
+          bars(geoBars.state, geoBy === 'city' ? t('analytics.byCity', { name: placeName(filter.region!) }) : t('analytics.byRegion'), named(placeName), (k) =>
             setGeo(geoBy === 'city' ? { place: geo.place, city: k } : { place: k }),
           )}
-        {specialtyBy && bars(specialtyBars.state, t('analytics.bySpecialty'), specialtyName, setSpecialty)}
+        {specialtyBy && bars(specialtyBars.state, t('analytics.bySpecialty'), named(specialtyName), setSpecialty)}
         {diagnosisBy && (
           <div className="analytics-wide">
             <DrillPath diagnosis={diagnosis} name={groupName} onChange={setDiagnosis} />
             {bars(
               diagnosisBars.state,
               diagnosisBy === 'group' ? t('analytics.topGroups') : diagnosisBy === 'subgroup' ? t('analytics.subgroupsOf', { name: groupName(diagnosis.group!) }) : t('analytics.codesIn', { name: groupName(diagnosis.subgroup ?? diagnosis.group!) }),
-              diagnosisBy === 'code' ? (k) => k : groupName,
+              (r) => diagnosisBar(r, diagnosisBy, groupName, t('analytics.noSubgroup')),
               diagnosisBy === 'code' ? undefined : (k) => setDiagnosis(drillInto(diagnosis, diagnosisBy, k)),
             )}
           </div>
         )}
-        <PlatformHeatmap data={data} quarters={quarters} region={region} />
+        <PlatformHeatmap data={data} quarters={quarters} region={heatRegion} />
         <Rises data={data} region={region} groupName={groupName} placeName={placeName} />
       </div>
     </div>

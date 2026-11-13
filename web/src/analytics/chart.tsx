@@ -21,6 +21,17 @@ export function Tooltip({ at, width, height, title, lines, hidden }: { at: [numb
   )
 }
 
+// HiddenNote is the privacy explanation of a hidden mark for a screen reader: a hidden mark is described by it
+// (aria-describedby), so the reason is heard without the tooltip. Not shown; the tooltip shows it.
+export function HiddenNote({ id }: { id: string }) {
+  const t = useT()
+  return (
+    <span id={id} hidden>
+      {t('analytics.hiddenTip')}
+    </span>
+  )
+}
+
 export type LegendItem = { key: string; label: string; color?: string; hatched?: boolean }
 
 type FrameProps = {
@@ -83,7 +94,7 @@ function Legend({ items }: { items: LegendItem[] }) {
   return (
     <ul className="chart-legend" aria-label={t('analytics.legend')}>
       {items.map((item) => (
-        <li key={item.key}>
+        <li key={item.key} aria-hidden={item.label ? undefined : true}>
           <span className={item.hatched ? 'swatch hatched' : 'swatch'} style={item.color ? { background: item.color } : undefined} aria-hidden="true" />
           {item.label}
         </li>

@@ -96,7 +96,7 @@ export function fixtureReference(): Reference {
     { roleId: 'f4000000-0000-4000-8000-0000000000a1', practitionerId: 'f3000000-0000-4000-8000-0000000000a1', name: 'Cy Example', active: true, version: '1' },
     { roleId: 'f4000000-0000-4000-8000-0000000000a2', practitionerId: 'f3000000-0000-4000-8000-0000000000a2', name: 'Dee Sample', active: true, version: '1' },
   ]
-  return { groups: async () => groups, places: async () => places, specialties: async () => specialties, staff: async () => staff }
+  return { groups: async () => groups, places: async () => places, specialties: async () => specialties, staff: async () => staff, timeZone: async () => 'Europe/Sarajevo' }
 }
 
 // role is the caller's own practitioner role, the only one a practitioner who is not an admin may narrow to.

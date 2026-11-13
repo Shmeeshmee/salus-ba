@@ -67,7 +67,7 @@ describe('My clinic', () => {
     expect(screen.queryByLabelText('Practitioner')).toBeNull()
     expect(screen.queryByLabelText('Specialty')).toBeNull()
     expect(screen.queryByRole('figure', { name: 'Attended appointments by practitioner' })).toBeNull()
-    expect(screen.getByText('Only the diagnoses of your own patients are shown.')).toBeTruthy()
+    expect(screen.getByText('Only the diagnoses you recorded are shown.')).toBeTruthy()
   })
 
   it('drills down from a group to its subgroups and codes, and back', async () => {
@@ -95,6 +95,42 @@ describe('My clinic', () => {
     await waitFor(() => expect(appointments).toHaveBeenLastCalledWith({ from: '2026-10', to: '2026-11' }))
     const chart = await screen.findByRole('figure', { name: 'Appointments per month' })
     await waitFor(() => expect(within(chart).getAllByRole('img')).toHaveLength(2 * 4))
+  })
+
+  it('draws every month of the range, a month the API leaves out as 0', async () => {
+    const series = [{ period: '2026-11', booked: 3, fulfilled: 2, noshow: 0, cancelled: 1 }]
+    show({ ...fixtureData(), clinicAppointments: async () => ({ series, heatmap: [] }) })
+    const chart = await screen.findByRole('figure', { name: 'Appointments per month' })
+    await waitFor(() => expect(within(chart).getAllByRole('img')).toHaveLength(12 * 4))
+    expect(within(chart).getByRole('img', { name: 'December 2025, Booked: 0' })).toBeTruthy()
+    expect(within(chart).getByRole('img', { name: 'November 2026, Booked: 3' })).toBeTruthy()
+  })
+
+  it("counts the months in the clinic's time zone, up to the next one for the bookings ahead", async () => {
+    renderInLanguage(<Analytics data={fixtureData()} account={admin} now={new Date('2026-11-30T23:30:00Z')} />, 'en')
+    await screen.findByRole('figure', { name: 'Appointments per month' })
+    const to = screen.getByLabelText('To') as HTMLSelectElement
+    expect(to.value).toBe('2026-12')
+    expect([...to.options].at(-1)?.value).toBe('2027-01')
+  })
+
+  it("falls back to the browser's time zone when the clinic's cannot be read", async () => {
+    const data = { ...fixtureData(), timeZone: () => Promise.reject(new Error('down')) }
+    renderInLanguage(<Analytics data={data} account={admin} now={new Date('2026-11-30T23:30:00Z')} />, 'en')
+    await screen.findByRole('figure', { name: 'Appointments per month' })
+    const browser = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit' }).format(new Date('2026-11-30T23:30:00Z')).slice(0, 7)
+    expect((screen.getByLabelText('To') as HTMLSelectElement).value).toBe(browser)
+  })
+
+  it('reads the diagnoses outside every subgroup as No subgroup, which does not open', async () => {
+    const data = fixtureData()
+    const diagnoses = data.clinicDiagnoses
+    data.clinicDiagnoses = async (q) => (q.by === 'subgroup' ? { rows: [{ key: 'flu', count: 5 }, { key: '', count: 2 }] } : diagnoses(q))
+    show(data)
+    fireEvent.click(await screen.findByRole('button', { name: /^Group respiratory-infections: .*Open its breakdown$/ }))
+    const subgroups = await screen.findByRole('figure', { name: 'Subgroups: Group respiratory-infections' })
+    expect(await within(subgroups).findByRole('img', { name: 'No subgroup: 2' })).toBeTruthy()
+    expect(within(subgroups).getByRole('button', { name: 'Group flu: 5. Open its breakdown' })).toBeTruthy()
   })
 
   it('says so when there are no diagnoses for the filters', async () => {
@@ -162,6 +198,28 @@ describe('All of Salus', () => {
     expect(within(rises).getByText('Group respiratory-infections, Kanton Sarajevo, week 44 of 2026')).toBeTruthy()
     expect(within(rises).getAllByRole('tooltip')[0].textContent).toBe('Compared with the previous weeks in this region. This is not a public-health alert.')
     expect(document.body.textContent?.toLowerCase()).not.toContain('outbreak')
+  })
+
+  it('asks the heatmap and rises for the place only on a table with geography, and the heatmap for an entity', async () => {
+    const data = fixtureData()
+    const heatmap = vi.spyOn(data, 'platformHeatmap')
+    const rises = vi.spyOn(data, 'platformRises')
+    await platform(data)
+    fireEvent.change(screen.getByLabelText('Region'), { target: { value: 'BA-BIH' } })
+    await waitFor(() => expect(heatmap).toHaveBeenLastCalledWith({ quarter: '2026-Q3', region: 'BA-BIH' }))
+    expect(rises).toHaveBeenLastCalledWith({ weeks: 8 })
+    fireEvent.change(screen.getByLabelText('Region'), { target: { value: 'BA-09' } })
+    await waitFor(() => expect(rises).toHaveBeenLastCalledWith({ region: 'BA-09', weeks: 8 }))
+    fireEvent.change(screen.getByLabelText('Table'), { target: { value: 'sd' } })
+    await waitFor(() => expect(heatmap).toHaveBeenLastCalledWith({ quarter: '2026-Q3' }))
+    expect(rises).toHaveBeenLastCalledWith({ weeks: 8 })
+  })
+
+  it('draws only the published months of the range', async () => {
+    const data = { ...fixtureData(), platformMonths: async () => ({ months: ['2026-08', '2026-10'], quarters: [], minCount: 10 }) }
+    await platform(data)
+    const chart = screen.getByRole('figure', { name: 'Patients per month' })
+    await waitFor(() => expect(within(chart).getAllByRole('img').map((m) => m.getAttribute('aria-label')?.split(',')[0])).toEqual(['August 2026', 'October 2026']))
   })
 
   it('shows the busiest hours of a published quarter', async () => {

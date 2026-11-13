@@ -3,11 +3,13 @@ import { required, signIn } from './signin'
 
 // The practitioner's side of TestAnalytics_ThePractitionerSeesTheBookingOnTheirClinicsChart
 // (test/e2e/analytics_web_test.go), which makes the synthetic clinic and a booking and passes the booking's month
-// (YYYY-MM) in E2E_BOOKED_MONTH (SAL-22). The texts are the catalogs' (web/src/i18n/analytics/en.json); a month reads
-// as the app formats it in English.
+// (YYYY-MM) in E2E_BOOKED_MONTH (SAL-22). The page's clock is pinned to the middle of that month, so the chart's
+// default range (up to the current month in the clinic's zone) holds it at any hour of a month's end. The texts are
+// the catalogs' (web/src/i18n/analytics/en.json); a month reads as the app formats it in English.
 test.use({ locale: 'en' })
 
 test("the practitioner sees the booking on My clinic's chart and the All of Salus tab", async ({ page }) => {
+  await page.clock.setFixedTime(new Date(`${required('E2E_BOOKED_MONTH')}-15T12:00:00Z`))
   await signIn(page)
   await page.getByRole('link', { name: 'Analytics' }).click()
   const main = page.getByRole('main')
@@ -16,7 +18,7 @@ test("the practitioner sees the booking on My clinic's chart and the All of Salu
   const month = new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${required('E2E_BOOKED_MONTH')}-01T00:00:00Z`))
   const chart = main.getByRole('figure', { name: 'Appointments per month' })
   await expect(chart.getByRole('img', { name: `${month}, Booked: 1` })).toBeAttached()
-  await expect(main.getByText('Only the diagnoses of your own patients are shown.')).toBeVisible()
+  await expect(main.getByText('Only the diagnoses you recorded are shown.')).toBeVisible()
   await expect(main.getByLabel('Specialty')).toHaveCount(0)
   await expect(main.getByLabel('Practitioner')).toHaveCount(0)
   await expect(main.getByRole('figure', { name: 'Top diagnosis groups' })).toBeVisible()

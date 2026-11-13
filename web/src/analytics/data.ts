@@ -3,7 +3,7 @@ import type { FhirClient } from '../api/fhir'
 import { attempt } from '../api/result'
 import type { components } from '../api/schema'
 import type { Language } from '../i18n/languages'
-import { loadStaff, type Member } from '../staff'
+import { loadStaff, loadTimeZone, type Member } from '../staff'
 
 // data.ts is the analytics screens' one way to their data (docs/plans/analytics.md §8, SAL-22): the generated client
 // of api/openapi.yaml (SAL-20's /analytics/clinic, SAL-21's /analytics/platform) behind one interface, which
@@ -54,6 +54,7 @@ export interface Reference {
   places(): Promise<Place[]>
   specialties(): Promise<Specialty[]>
   staff(): Promise<Member[]>
+  timeZone(): Promise<string> // the clinic's IANA zone, which its statistics' days and months are in
 }
 
 export interface Stats {
@@ -89,6 +90,7 @@ function apiReference(api: ApiClient, fhir: FhirClient, organizationId: string):
     places: async () => (await read(api.GET('/places'))).places,
     specialties: async () => (await read(api.GET('/specialties'))).specialties,
     staff: () => loadStaff(fhir, organizationId),
+    timeZone: () => loadTimeZone(fhir, organizationId),
   }
 }
 

@@ -2000,8 +2000,8 @@ read is audited by those endpoints. The tests use synthetic placeholder figures 
 
 **Minimisation.** The page asks only for counts and keys (codes, place ids, role ids); names come from the reference
 endpoints. Nothing is stored in the browser and nothing is logged. A practitioner who is not an admin is offered no
-practitioner or specialty filter (the API refuses both) and no practitioner breakdown, and is told the diagnoses are
-their own patients' (rule C2).
+practitioner or specialty filter (the API refuses both) and no practitioner breakdown, and is told the diagnoses shown are the
+ones they recorded (rule C2).
 
 **Risks and measures.**
 

@@ -56,3 +56,12 @@ describe('LineChart', () => {
     expect(screen.queryByRole('img')).toBeNull()
   })
 })
+
+describe('LineChart hidden months', () => {
+  it('describes a hidden month with the privacy explanation, for a screen reader', () => {
+    renderInLanguage(<LineChart title="Months" periods={['2026-01', '2026-02']} series={[{ key: 'p', label: 'Patients', color: 'red', values: [5, null] }]} />, 'en')
+    const hidden = screen.getByRole('img', { name: 'February 2026, Patients: Hidden' })
+    expect(document.getElementById(hidden.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Small or dominated groups are hidden to protect privacy. A hidden group can hold more patients than a group shown.')
+    expect(screen.getByRole('img', { name: 'January 2026, Patients: 5' }).getAttribute('aria-describedby')).toBeNull()
+  })
+})

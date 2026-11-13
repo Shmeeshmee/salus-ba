@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { useFormat, useT } from '../i18n/useT'
-import { ChartFrame, HatchPattern, Tooltip } from './chart'
+import { ChartFrame, HatchPattern, HiddenNote, Tooltip } from './chart'
 import { useRoving, useValue, useWidth } from './marks'
 import type { HeatCell } from './data'
 
@@ -22,6 +22,7 @@ export function Heatmap({ title, cells }: { title: string; cells: HeatCell[] }) 
   const { weekday } = useFormat()
   const value = useValue()
   const hatch = useId()
+  const note = useId()
   const { ref, width } = useWidth()
   const cellW = (width - labelW) / hours.length
   const { shown, markProps } = useRoving(days.length * hours.length, hours.length)
@@ -69,6 +70,7 @@ export function Heatmap({ title, cells }: { title: string; cells: HeatCell[] }) 
                 className={shown === k ? 'mark cell active' : 'mark cell'}
                 role="img"
                 aria-label={`${slot(d, h)}: ${value(c)}`}
+                aria-describedby={c === null ? note : undefined}
                 x={labelW + h * cellW + 1}
                 y={top + di * cellH + 1}
                 width={cellW - 2}
@@ -81,6 +83,7 @@ export function Heatmap({ title, cells }: { title: string; cells: HeatCell[] }) 
           }),
         )}
       </svg>
+      <HiddenNote id={note} />
       {tip && (
         <Tooltip
           at={[labelW + tip.h * cellW + cellW / 2, top + days.indexOf(tip.d) * cellH + cellH]}

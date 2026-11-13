@@ -23,8 +23,9 @@ export function Analytics({ data, account, now }: { data: AnalyticsData; account
   const refs = useRef<Record<Tab, HTMLButtonElement | null>>({ clinic: null, platform: null })
 
   const reference = useLoad(async () => {
-    const [groups, places, specialties, staff] = await Promise.all([data.groups(language), data.places(), data.specialties(), admin ? data.staff() : []])
-    return { groups, places, specialties, staff }
+    const zone = data.timeZone().catch(() => Intl.DateTimeFormat().resolvedOptions().timeZone) // the browser's when unread
+    const [groups, places, specialties, staff, timeZone] = await Promise.all([data.groups(language), data.places(), data.specialties(), admin ? data.staff() : [], zone])
+    return { groups, places, specialties, staff, timeZone }
   }, [data, language, admin])
   const platform = useLoad(() => (enabled ? data.platformMonths().catch(notContributing) : Promise.resolve(null)), [data, enabled])
 
