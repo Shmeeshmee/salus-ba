@@ -69,10 +69,33 @@ Decisions within the plan:
 Measurements: none taken; the plan asks no benchmark of SAL-41 (`Seen` is one indexed read by patient, then the
 consent state and the clinic's appointments).
 
-Open: Provenance for the clinical writes (`Record`, `Confirm`, a clinic's `Update` and `Remove`) is not written yet:
-how to store it (composition keeps one Provenance id on its row; an entry has several clinical writes, and
-`GET /fhir/R4/Provenance/{id}` is composition's route) was put to the owner, who decided (2026-11-13) that it comes in a follow-up PR after
-SAL-41 merges.
+Open item closed (follow-up PR, branch `fix-entry-provenance`, migration 00053, 2026-11-13): Provenance for the
+entries' writes. A practitioner's `Record` (CREATE; the agent its author and, as recording confirms with the same
+role, its verifier), `Update` (UPDATE, author), `Confirm` (UPDATE, verifier) and `Remove` (NULLIFY, author: kept as
+entered-in-error), and the patient's `AddToProfile` (UPDATE) and `Remove` of a clinic's entry (NULLIFY), the patient
+the agent, append one FHIR Provenance in the write's transaction, audited: target the entry's version written, a
+clinic's agent the PractitionerRole on behalf of its Organization, for a change the revised version as an entity
+(v3-DataOperation, provenance-participant-type). The patient's writes on their own entries write none (decided:
+patient-reported, the entry names the patient as its source and the AuditEvent records the write). Stored
+append-only in `allergy_intolerance_provenance` and `medication_statement_provenance`, owned by the entry's domain,
+retention `keep`, never deleted with the entry (decided): the foreign key has no action, and `Remove` deletes the
+patient's own entry only when it has no Provenance (`HasProvenance` in the patient's scope), else marks it
+entered-in-error; the entry's delete policy does not read the Provenances (it would recurse). Row-level security:
+the patient's scope those of their entries, a clinic's scope only its own Provenances of entries it sees, so another
+clinic never learns the recording or confirming clinic (ADR 0014, `access.Attributed`, also the service's rule);
+each insert is tied to the write it attests (the entry at that version; the recorder and confirmer for a recording,
+the confirmer for a confirmation, the entry's clinic for a change or removal, the entry's patient for theirs). A
+refused read is audited as a read of `Provenance/<id>`. `GET /fhir/R4/Provenance/{id}`: one route, several sources,
+declared in the router (`Config.Provenances`, asked in turn): the entries' sources answer only ids in their store
+(nothing audited otherwise), composition's signatures last (it audits any id); the answer's timing can tell which
+store holds an id (opaque, accepted). Composition's store is unchanged. No search or `_revinclude`. A removal's
+Provenance is read by no one (nobody sees an entered-in-error entry), so it has no golden file. Review fixes: one Provenance per entry version
+(unique), each insert checked against the state its write left (a confirmation needs a confirmed entry, a removal an
+entered-in-error one, the patient's addition an entry in the profile), a creation stored as its author (the
+verifier is rendered); the acting role within the clinic is bound by the service only. A delete that meets a
+Provenance since the read (a foreign key failure) is a version conflict (409). A removed entry and its Provenances
+stay out of every read, but the patient's Art. 15 export must include them (no export exists yet; recorded in the
+plan and the DPIA).
 
 Copy waiting for the owner:
 

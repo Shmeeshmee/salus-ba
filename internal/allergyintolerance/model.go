@@ -122,3 +122,21 @@ type EntryWritten struct {
 	ID        string `json:"id"`
 	VersionID string `json:"versionId"`
 }
+
+// Provenance is a write of an allergy by a practitioner, or by the patient on a clinic's entry: FHIR R4 Provenance,
+// its target the version the write produced, its agent the practitioner role on behalf of its clinic, or the patient.
+// Activity is a v3-DataOperation code (fhir.ActivityCreate, which also confirms; fhir.ActivityUpdate;
+// fhir.ActivityNullify for a removal) and AgentType a provenance-participant-type one (fhir.AgentAuthor,
+// fhir.AgentVerifier for a confirmation). The patient's writes on their own entries have none: the entry names the
+// patient as its asserter and the AuditEvent records the write.
+type Provenance struct {
+	Recorded       time.Time // Provenance.recorded: when the version was written
+	ID             string
+	EntryID        string // the AllergyIntolerance written
+	RoleID         string // agent.who: PractitionerRole
+	OrganizationID string // agent.onBehalfOf: Organization
+	PatientID      string // agent.who: Patient, when the patient wrote (no role, no clinic)
+	Activity       string
+	AgentType      string
+	Version        int32 // the target's version
+}

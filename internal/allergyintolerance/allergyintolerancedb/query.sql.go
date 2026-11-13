@@ -90,6 +90,41 @@ func (q *Queries) AllergyByID(ctx context.Context, id pgtype.UUID) (AllergyIntol
 	return i, err
 }
 
+const allergyHasProvenance = `-- name: AllergyHasProvenance :one
+SELECT EXISTS (SELECT 1 FROM allergy_intolerance_provenance WHERE allergy_intolerance_id = $1)
+`
+
+// Whether the entry has a Provenance the scope sees (a patient's entry: any; 00053).
+func (q *Queries) AllergyHasProvenance(ctx context.Context, id pgtype.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, allergyHasProvenance, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const allergyProvenanceByID = `-- name: AllergyProvenanceByID :one
+SELECT id, created_at, recorded, allergy_intolerance_id, practitioner_role_id, organization_id, patient_id, target_version, activity, agent_type FROM allergy_intolerance_provenance WHERE id = $1
+`
+
+// A Provenance as the transaction's scope (00053) shows it.
+func (q *Queries) AllergyProvenanceByID(ctx context.Context, id pgtype.UUID) (AllergyIntoleranceProvenance, error) {
+	row := q.db.QueryRow(ctx, allergyProvenanceByID, id)
+	var i AllergyIntoleranceProvenance
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Recorded,
+		&i.AllergyIntoleranceID,
+		&i.PractitionerRoleID,
+		&i.OrganizationID,
+		&i.PatientID,
+		&i.TargetVersion,
+		&i.Activity,
+		&i.AgentType,
+	)
+	return i, err
+}
+
 const deleteAllergy = `-- name: DeleteAllergy :execrows
 DELETE FROM allergy_intolerance WHERE id = $1 AND version_id = $2
 `
@@ -155,6 +190,40 @@ func (q *Queries) InsertAllergy(ctx context.Context, arg InsertAllergyParams) er
 		arg.Severity,
 		arg.ClinicalStatus,
 		arg.VerificationStatus,
+	)
+	return err
+}
+
+const insertAllergyProvenance = `-- name: InsertAllergyProvenance :exec
+INSERT INTO allergy_intolerance_provenance (id, recorded, allergy_intolerance_id, practitioner_role_id, organization_id,
+                                            patient_id, target_version, activity, agent_type)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        $8, $9)
+`
+
+type InsertAllergyProvenanceParams struct {
+	ID                   pgtype.UUID
+	Recorded             pgtype.Timestamptz
+	AllergyIntoleranceID pgtype.UUID
+	PractitionerRoleID   pgtype.UUID
+	OrganizationID       pgtype.UUID
+	PatientID            pgtype.UUID
+	TargetVersion        int32
+	Activity             string
+	AgentType            string
+}
+
+func (q *Queries) InsertAllergyProvenance(ctx context.Context, arg InsertAllergyProvenanceParams) error {
+	_, err := q.db.Exec(ctx, insertAllergyProvenance,
+		arg.ID,
+		arg.Recorded,
+		arg.AllergyIntoleranceID,
+		arg.PractitionerRoleID,
+		arg.OrganizationID,
+		arg.PatientID,
+		arg.TargetVersion,
+		arg.Activity,
+		arg.AgentType,
 	)
 	return err
 }
