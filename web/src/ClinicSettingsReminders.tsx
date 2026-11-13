@@ -16,7 +16,7 @@ const choices = [15, 30, 60, 120, 180, 360, 720, 1440, 2880, 4320, 10080]
 const maxReminders = 3
 
 // ClinicSettingsReminders is the admin's reminders section of the clinic settings: when reminders go out and the
-// paid SMS option, saved with PUT /clinic/appointment-settings (the other fields kept as read), and the clinic's
+// paid SMS option, saved with PUT /clinic/appointment-settings (the other fields as read again just before the save), and the clinic's
 // SMS usage over the last 12 months. now is when the 12 months end.
 export function ClinicSettingsReminders({ api, now = () => new Date() }: { api: ApiClient; now?: () => Date }) {
   const t = useT()
@@ -44,8 +44,12 @@ function RemindersForm({ settings, api, onSaved }: { settings: Settings; api: Ap
   const [saved, setSaved] = useState(false)
   const { busy, error, onSubmit } = useSubmit(async () => {
     setSaved(false)
+    // PUT replaces the whole row and the settings carry no version: read them again just before, so what another
+    // section or another admin saved since the page opened is kept and only this section's fields change.
+    const fresh = await attempt(api.GET('/clinic/appointment-settings'))
+    if (!fresh.ok) return t('common.somethingWrong')
     const res = await attempt(
-      api.PUT('/clinic/appointment-settings', { body: { ...settings, reminder_offsets_minutes: offsets, sms_reminders: sms } }),
+      api.PUT('/clinic/appointment-settings', { body: { ...fresh.data, reminder_offsets_minutes: offsets, sms_reminders: sms } }),
     )
     if (!res.ok) return saveMessage(t, res.code, res.response?.status)
     onSaved(res.data)
