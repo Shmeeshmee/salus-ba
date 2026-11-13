@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import App from './App'
@@ -234,5 +234,24 @@ describe('the language', () => {
     expect(await screen.findByRole('heading', { name: 'Term review' })).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Term review' })).toBeNull()
     expect(screen.getByText('Only reviewers can edit and approve terms.')).toBeTruthy()
+  })
+})
+
+describe('the analytics page', () => {
+  it('opens from the navigation', async () => {
+    renderAt('/', {
+      ...staff(admin),
+      'GET /terminology/diagnosis-groups': () => Response.json({ groups: [{ code: 'skin', name: 'Skin conditions', reviewStatus: 'unreviewed' }] }),
+      'GET /places': () => Response.json({ places: [] }),
+      'GET /analytics/clinic/appointments': () => Response.json({ series: [], heatmap: [] }),
+      'GET /analytics/clinic/diagnoses': () => Response.json({ rows: [{ key: 'skin', count: 4 }] }),
+    })
+    expect(await screen.findByRole('heading', { name: 'Calendar' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('link', { name: 'Analytics' }))
+    expect(await screen.findByRole('heading', { name: 'Analytics' })).toBeTruthy()
+    expect(location.pathname).toBe('/analytics')
+    const bars = await screen.findByRole('figure', { name: 'Top diagnosis groups' })
+    expect(await within(bars).findByRole('button', { name: /^Skin conditions: 4/ })).toBeTruthy()
+    expect(screen.queryByRole('tab', { name: 'All of Salus' })).toBeNull()
   })
 })
