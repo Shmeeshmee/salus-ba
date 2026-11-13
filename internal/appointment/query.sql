@@ -90,9 +90,9 @@ ORDER BY at, id;
 
 -- name: InsertActionToken :exec
 -- A notifier job's one-time link, in the clinic scope with the job's appointment set.
-INSERT INTO appointment_action_token (created_at, expires_at, appointment_id, organization_id, patient_id, account_id, reminder_id,
-                                      token_hash, channel, language)
-VALUES (@created_at, @expires_at, @appointment_id, @organization_id, @patient_id, @account_id, sqlc.narg(reminder_id),
+INSERT INTO appointment_action_token (created_at, expires_at, start_at, appointment_id, organization_id, patient_id, account_id,
+                                      reminder_id, token_hash, channel, language)
+VALUES (@created_at, @start_at, @start_at, @appointment_id, @organization_id, @patient_id, @account_id, sqlc.narg(reminder_id),
         @token_hash, @channel, @language);
 
 -- name: DeleteActionTokensExpiredBefore :execrows

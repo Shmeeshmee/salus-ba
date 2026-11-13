@@ -45,7 +45,22 @@ func (r *fakeAppointmentsRepository) PutAppointmentSettings(ctx context.Context,
 }
 
 func newAppointments(repo *fakeAppointmentsRepository, audit *fakeAuditor) *organization.Appointments {
-	return organization.NewAppointments(organization.AppointmentsPorts{Repo: repo, Audit: audit, Tx: fakeTransactor{}, Clock: clock.Fixed{T: now}})
+	return organization.NewAppointments(organization.AppointmentsPorts{Repo: repo, Audit: audit, Tx: fakeTransactor{}, Clock: clock.Fixed{T: now}, SMSAvailable: true})
+}
+
+// While the SMS engine is the fake, the paid option cannot be turned on: no usage for messages never sent (review,
+// finding 9).
+func TestAppointments_RefusesTheSMSOptionWhileNoProviderSends(t *testing.T) {
+	repo := newFakeAppointmentsRepository()
+	svc := organization.NewAppointments(organization.AppointmentsPorts{Repo: repo, Audit: &fakeAuditor{}, Tx: fakeTransactor{}, Clock: clock.Fixed{T: now}})
+	if _, err := svc.SetSettings(t.Context(), adminOfA, customSet); !errors.Is(err, organization.ErrSMSUnavailable) || len(repo.settings) != 0 {
+		t.Errorf("SetSettings(sms on) = %v, stored %v; want ErrSMSUnavailable and nothing", err, repo.settings)
+	}
+	off := customSet
+	off.SMSReminders = false
+	if _, err := svc.SetSettings(t.Context(), adminOfA, off); err != nil {
+		t.Errorf("SetSettings(sms off) = %v", err)
+	}
 }
 
 var (

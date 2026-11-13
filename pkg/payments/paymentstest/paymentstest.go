@@ -11,14 +11,16 @@ import (
 )
 
 // Provider keeps its receipts by key and what is refunded of each. A repeated key returns the first receipt (and a
-// repeated refund key does nothing more), as a provider's idempotency keys do. Decline makes every charge
+// repeated refund key does nothing more), as a provider's idempotency keys do; a key repeated with another amount,
+// currency or customer is payments.ErrInvalid, as a provider refuses a reused key with other parameters. Decline makes every charge
 // payments.ErrDeclined; Err, when set, fails every call.
 type Provider struct {
 	Err      error
 	byKey    map[string]payments.Receipt
 	byID     map[string]payments.Receipt
-	refunded map[string]int64 // by receipt id
-	refunds  map[string]bool  // by refund key
+	refunded map[string]int64  // by receipt id
+	refunds  map[string]bool   // by refund key
+	customer map[string]string // by charge key
 	n        int
 	mu       sync.Mutex
 	Decline  bool
@@ -38,11 +40,16 @@ func (p *Provider) Charge(_ context.Context, c payments.Charge) (payments.Receip
 		return payments.Receipt{}, payments.ErrDeclined
 	}
 	if r, ok := p.byKey[c.Key]; ok {
+		if r.AmountMinor != c.AmountMinor || r.Currency != c.Currency || p.customer[c.Key] != c.Customer {
+			return payments.Receipt{}, payments.ErrInvalid
+		}
 		return r, nil
 	}
 	if p.byKey == nil {
 		p.byKey, p.byID, p.refunded, p.refunds = map[string]payments.Receipt{}, map[string]payments.Receipt{}, map[string]int64{}, map[string]bool{}
+		p.customer = map[string]string{}
 	}
+	p.customer[c.Key] = c.Customer
 	p.n++
 	r := payments.Receipt{ID: "fake-receipt-" + strconv.Itoa(p.n), Key: c.Key, Currency: c.Currency, AmountMinor: c.AmountMinor}
 	p.byKey[c.Key], p.byID[r.ID] = r, r

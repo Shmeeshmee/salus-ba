@@ -87,6 +87,7 @@ var (
 func cancelledA() appointment.Seen {
 	s := fullA
 	s.Appointment.Status, s.Appointment.Reason, s.Appointment.CancelledAt, s.Appointment.VersionID = appointment.StatusCancelled, appointment.ReasonPatient, now, 2
+	s.Appointment.CancelledBy = accountA
 	return s
 }
 
@@ -221,6 +222,10 @@ func TestHandlerRead_ThePatientParticipantFollowsTheConfirmation(t *testing.T) {
 	confirmed.Appointment.ConfirmedAt, confirmed.Appointment.ConfirmedVia = now, appointment.ViaLink
 	byStaff := cancelledA()
 	byStaff.Appointment.Reason = appointment.ReasonProvider
+	byRevocation := cancelledA()
+	byRevocation.Appointment.CancelledBy = "" // the consent_revoked job: reason pat, by no account
+	confirmedThenRevoked := byRevocation
+	confirmedThenRevoked.Appointment.ConfirmedAt = now
 	for _, tt := range []struct {
 		name string
 		want string
@@ -230,6 +235,8 @@ func TestHandlerRead_ThePatientParticipantFollowsTheConfirmation(t *testing.T) {
 		{"confirmed", "accepted", confirmed},
 		{"cancelled by the patient", "declined", cancelledA()},
 		{"cancelled by staff", "tentative", byStaff},
+		{"cancelled by the revocation", "tentative", byRevocation},
+		{"confirmed, then cancelled by the revocation", "accepted", confirmedThenRevoked},
 	} {
 		var log bytes.Buffer
 		rec := getAppt(t, &stubReader{out: []appointment.Seen{tt.seen}}, as(pract), &log, "/fhir/R4/Appointment/"+apptA)

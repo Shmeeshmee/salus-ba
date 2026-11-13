@@ -35,15 +35,21 @@ func TestAddChangeAndChanges_KeepTheHistoryOfAnAppointmentTheScopeSees(t *testin
 		At: now.Add(time.Minute), AppointmentID: a.ID, Kind: appointment.ChangeStatusSet, Via: appointment.ViaSystem,
 		Agent: "consultation_window_close", FromStatus: appointment.StatusBooked, ToStatus: appointment.StatusNoShow,
 	}
+	// The patient's app writes in the patient's scope, a job in the clinic's (the policy ties via to the scope).
+	for _, w := range []struct {
+		scope func(ctx context.Context, r appointment.Repository) error
+		c     *appointment.Change
+	}{{asPatient(s.patientA), &moved}, {asClinic, &set}} {
+		if err := inScope(t, app, w.scope, func(ctx context.Context, r appointment.Repository) error {
+			var err error
+			w.c.ID, err = r.AddChange(ctx, *w.c)
+			return err
+		}); err != nil {
+			t.Fatalf("AddChange(%s) = %v", w.c.Kind, err)
+		}
+	}
 	var got []appointment.Change
 	err = inScope(t, app, asClinic, func(ctx context.Context, r appointment.Repository) error {
-		for _, c := range []*appointment.Change{&moved, &set} {
-			id, err := r.AddChange(ctx, *c)
-			if err != nil {
-				return err
-			}
-			c.ID = id
-		}
 		var err error
 		got, err = r.Changes(ctx, a.ID)
 		return err
@@ -91,7 +97,7 @@ func TestInsertTokenAndDeleteTokensExpiredBefore(t *testing.T) {
 	}
 	tokens := appointment.NewPostgresTokenRepository(app)
 	tok := appointment.Token{
-		CreatedAt: now, ExpiresAt: a.Start, AppointmentID: a.ID, OrganizationID: clinicA, PatientID: s.patientA, AccountID: s.accountA,
+		CreatedAt: now, StartAt: a.Start, AppointmentID: a.ID, OrganizationID: clinicA, PatientID: s.patientA, AccountID: s.accountA,
 		Language: "bs", Channel: appointment.ChannelEmail, Hash: sha256.Sum256([]byte("synthetic")),
 	}
 	err = inScope(t, app, func(ctx context.Context, r appointment.Repository) error {

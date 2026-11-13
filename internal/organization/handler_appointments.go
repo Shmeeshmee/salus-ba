@@ -112,6 +112,8 @@ func (h *AppointmentsHandler) write(w http.ResponseWriter, r *http.Request, v Ap
 		writeCode(w, http.StatusForbidden, "forbidden")
 	case errors.Is(err, ErrInvalidAppointmentSettings):
 		writeCode(w, http.StatusBadRequest, "invalid_request")
+	case errors.Is(err, ErrSMSUnavailable):
+		writeCode(w, http.StatusConflict, "sms_unavailable")
 	case err != nil:
 		httpx.InternalError(w, r, h.log, err)
 	default:

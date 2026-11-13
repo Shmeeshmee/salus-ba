@@ -1,7 +1,7 @@
 // Package sms is the port of text messages to a mobile number (docs/plans/appointments.md, ADR 0015): a Message to
 // one E.164 number, sent by a provider's adapter. smstest has the in-memory fake, the default of every binary until
-// the owner chooses an EU/EEA provider with a DPA (docs/privacy/processors.md) and adds its credentials; smshttp is a
-// generic HTTPS adapter, off and not wired. It knows nothing of appointments or patients: the caller writes the body,
+// the owner chooses an EU/EEA provider with a DPA (docs/privacy/processors.md); that provider's adapter comes with it.
+// It knows nothing of appointments or patients: the caller writes the body,
 // which never holds anything clinical. Nothing here logs; errors never carry a number or a body.
 package sms
 

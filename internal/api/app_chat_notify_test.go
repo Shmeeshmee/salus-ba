@@ -31,16 +31,6 @@ func TestNew_ServesTheChatsNotificationSettingsDevicesAndWebhooks(t *testing.T) 
 	if rec := c.d.practitioner.do(http.MethodPut, "/clinic/chat-settings", settings); rec.Code != http.StatusForbidden {
 		t.Errorf("the practitioner sets = %d, want 403", rec.Code)
 	}
-	rules := `{"reminder_offsets_minutes":[1440],"sms_reminders":false,"reschedule_notice_hours":12,"reschedule_max":1,` +
-		`"waitlist_enabled":true,"waitlist_hold_minutes":20,"noshow_flag_threshold":2,"noshow_flag_window_days":90}`
-	expectHTTP(t, c.d.admin, http.MethodGet, "/clinic/appointment-settings", http.StatusOK, `"reminder_offsets_minutes":[1440,60]`)
-	if rec := c.d.admin.do(http.MethodPut, "/clinic/appointment-settings", rules); rec.Code != http.StatusOK {
-		t.Errorf("PUT appointment settings = %d %s", rec.Code, rec.Body)
-	}
-	expectHTTP(t, c.d.admin, http.MethodGet, "/clinic/appointment-settings", http.StatusOK, `"reschedule_notice_hours":12`)
-	if rec := c.d.practitioner.do(http.MethodGet, "/clinic/appointment-settings", ""); rec.Code != http.StatusForbidden {
-		t.Errorf("the practitioner reads the appointment settings = %d, want 403", rec.Code)
-	}
 	hours := "/organizations/" + inviteClinic + "/chat-hours"
 	expectHTTP(t, c.d.patient, http.MethodGet, hours, http.StatusOK, `"response_time_hours":8`, `"time_zone":"Europe/Sarajevo"`, `"open_now":`)
 	expectHTTP(t, c.d.practitioner, http.MethodGet, hours, http.StatusOK, `"day":"mon"`)
@@ -88,5 +78,25 @@ func TestNew_ServesTheChatsNotificationSettingsDevicesAndWebhooks(t *testing.T) 
 		if strings.Contains(c.log.String(), never) {
 			t.Errorf("the log holds %q", never)
 		}
+	}
+}
+
+// The clinic's appointment settings through api.New (docs/plans/appointments.md, step 0): the admin reads the defaults
+// and replaces them, a practitioner may not, and the paid SMS option is refused while the SMS engine is the fake.
+func TestNew_ServesTheClinicsAppointmentSettings(t *testing.T) {
+	c := newConsultationApp(t)
+	rules := `{"reminder_offsets_minutes":[1440],"sms_reminders":false,"reschedule_notice_hours":12,"reschedule_max":1,` +
+		`"waitlist_enabled":true,"waitlist_hold_minutes":20,"noshow_flag_threshold":2,"noshow_flag_window_days":90}`
+	expectHTTP(t, c.d.admin, http.MethodGet, "/clinic/appointment-settings", http.StatusOK, `"reminder_offsets_minutes":[1440,60]`)
+	if rec := c.d.admin.do(http.MethodPut, "/clinic/appointment-settings", rules); rec.Code != http.StatusOK {
+		t.Errorf("PUT appointment settings = %d %s", rec.Code, rec.Body)
+	}
+	expectHTTP(t, c.d.admin, http.MethodGet, "/clinic/appointment-settings", http.StatusOK, `"reschedule_notice_hours":12`)
+	if rec := c.d.admin.do(http.MethodPut, "/clinic/appointment-settings", strings.Replace(rules, `"sms_reminders":false`, `"sms_reminders":true`, 1)); rec.Code != http.StatusConflict ||
+		!strings.Contains(rec.Body.String(), "sms_unavailable") {
+		t.Errorf("PUT with SMS on, the fake engine = %d %s, want 409 sms_unavailable", rec.Code, rec.Body)
+	}
+	if rec := c.d.practitioner.do(http.MethodGet, "/clinic/appointment-settings", ""); rec.Code != http.StatusForbidden {
+		t.Errorf("the practitioner reads the appointment settings = %d, want 403", rec.Code)
 	}
 }

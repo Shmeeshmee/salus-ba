@@ -171,14 +171,25 @@ func (s *Service) cancel(ctx context.Context, c Caller, id string) (out Appointm
 	if err != nil {
 		return Appointment{}, nil, err
 	}
-	return out, nil, s.cancelled(ctx, out)
+	via := ViaStaff
+	if c.patient() {
+		via = ViaApp
+	}
+	return out, nil, s.cancelled(ctx, out, Change{Via: via, ByAccountID: c.AccountID})
 }
 
 // cancelled frees the slot of the cancelled appointment a, hands it to the waitlist while it is ahead
 // (waitlist_slot_freed), cancels its reminders, and enqueues its e-mail, the end of its consultation's access
 // (consultation_access_end), the discard of its questionnaire responses (questionnaire_responses_discard) and the
-// refresh of the clinic's statistics, in its transaction. Every cancellation goes through it.
-func (s *Service) cancelled(ctx context.Context, a Appointment) error {
+// refresh of the clinic's statistics, and keeps it in its history (a status_set to cancelled, by who: its Via,
+// ByAccountID and Agent), in its transaction. Every cancellation goes through it.
+func (s *Service) cancelled(ctx context.Context, a Appointment, who Change) error {
+	if err := s.recordChange(ctx, Change{
+		At: a.CancelledAt, AppointmentID: a.ID, Kind: ChangeStatusSet, Via: who.Via, ByAccountID: who.ByAccountID, Agent: who.Agent,
+		FromStatus: StatusBooked, ToStatus: StatusCancelled,
+	}); err != nil {
+		return err
+	}
 	freed, err := s.Slots.Release(ctx, a.OrganizationID, a.SlotID)
 	if err != nil {
 		return err
@@ -300,7 +311,7 @@ func (s *Service) CancelForRevokedConsent(ctx context.Context, patientID, org st
 			if err != nil {
 				return err
 			}
-			if err := s.cancelled(ctx, out); err != nil {
+			if err := s.cancelled(ctx, out, Change{Via: ViaSystem, Agent: agentRevocation}); err != nil {
 				return err
 			}
 			if err := s.recordJob(ctx, agentRevocation, org, auditevent.CodeUpdate, "Appointment", out.ID, auditevent.OutcomeSuccess); err != nil {

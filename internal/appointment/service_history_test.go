@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 )
@@ -98,7 +99,7 @@ func TestIssueLink_StoresTheHashOfAOneTimeLinkForABookedAppointment(t *testing.T
 		t.Fatalf("token %q: %d bytes, %v; want 32", url, len(raw), err)
 	}
 	want := appointment.Token{
-		CreatedAt: now, ExpiresAt: start, AppointmentID: apptA, OrganizationID: clinicA, PatientID: patientA, AccountID: accountA,
+		CreatedAt: now, StartAt: start, AppointmentID: apptA, OrganizationID: clinicA, PatientID: patientA, AccountID: accountA,
 		Language: "bs", Channel: appointment.ChannelEmail, Hash: sha256.Sum256(raw),
 	}
 	if !slices.Equal(f.tokens.stored, []appointment.Token{want}) {
@@ -144,9 +145,47 @@ func TestIssueLink_NeedsAChannel(t *testing.T) {
 }
 
 func TestTokenPurger_DeletesTheLinksExpiredBefore(t *testing.T) {
-	tokens := &fakeTokens{stored: []appointment.Token{{ExpiresAt: now.Add(-time.Hour)}, {ExpiresAt: now.Add(time.Hour)}}}
+	tokens := &fakeTokens{stored: []appointment.Token{{StartAt: now.Add(-time.Hour)}, {StartAt: now.Add(time.Hour)}}}
 	n, err := appointment.NewTokenPurger(tokens).Purge(t.Context(), now)
 	if err != nil || n != 1 || len(tokens.stored) != 1 {
 		t.Errorf("Purge() = %d, %v with %d left; want 1 and 1", n, err, len(tokens.stored))
+	}
+}
+
+// Every cancellation is kept in the history, booked to cancelled, with who made it: the patient's app, the clinic's
+// staff, or the revocation's job (review, finding 3).
+func TestHistory_KeepsEveryCancellationAndWho(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		by     string
+		via    appointment.Via
+		caller appointment.Caller
+	}{
+		{"the patient", accountA, appointment.ViaApp, me},
+		{"the practitioner", practAcc, appointment.ViaStaff, pract},
+		{"the admin", adminAcc, appointment.ViaStaff, admin},
+	} {
+		f := cancelFixture(now.Add(48 * time.Hour))
+		if _, err := f.svc.Cancel(t.Context(), tt.caller, apptA); err != nil {
+			t.Fatalf("%s: %v", tt.name, err)
+		}
+		want := []appointment.Change{{ID: "c0000001-0000-4000-8000-000000000000", At: now, AppointmentID: apptA, Kind: appointment.ChangeStatusSet,
+			Via: tt.via, ByAccountID: tt.by, FromStatus: appointment.StatusBooked, ToStatus: appointment.StatusCancelled}}
+		if !slices.Equal(f.repo.changes, want) {
+			t.Errorf("%s: history %+v,\nwant %+v", tt.name, f.repo.changes, want)
+		}
+	}
+	f := cancelFixture(now.Add(48 * time.Hour))
+	f.consents.state[patientA+clinicA] = access.Consent{RevokedAt: now.Add(-time.Hour)}
+	if _, err := f.svc.CancelForRevokedConsent(t.Context(), patientA, clinicA); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.repo.changes) == 0 {
+		t.Fatal("the revocation's cancellations left no history")
+	}
+	for _, c := range f.repo.changes {
+		if c.Via != appointment.ViaSystem || c.Agent != "consent_revoked" || c.ByAccountID != "" || c.ToStatus != appointment.StatusCancelled {
+			t.Errorf("revocation's change %+v, want the job, to cancelled", c)
+		}
 	}
 }

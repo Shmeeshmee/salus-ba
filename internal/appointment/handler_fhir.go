@@ -63,10 +63,11 @@ type participant struct {
 }
 
 // patientStatus is the patient participant's ParticipationStatus (docs/plans/appointments.md Q3, ADR 0015): declined
-// once they cancelled, accepted once they confirmed, tentative until then.
+// once they cancelled it themselves (reason pat, by their account), accepted once they confirmed, tentative until then.
+// A cancellation by staff or by the revocation of the consent (reason pat, by no account) leaves it as it was.
 func patientStatus(a Appointment) string {
 	switch {
-	case a.Status == StatusCancelled && a.Reason == ReasonPatient:
+	case a.Status == StatusCancelled && a.Reason == ReasonPatient && a.CancelledBy != "":
 		return "declined"
 	case !a.ConfirmedAt.IsZero():
 		return "accepted"

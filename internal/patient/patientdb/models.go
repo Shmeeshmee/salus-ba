@@ -273,6 +273,7 @@ type AppointmentActionToken struct {
 	PatientID      pgtype.UUID
 	AccountID      pgtype.UUID
 	ReminderID     pgtype.UUID
+	StartAt        pgtype.Timestamptz
 	TokenHash      []byte
 	Channel        string
 	Language       Language

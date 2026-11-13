@@ -287,15 +287,15 @@ func (q *Queries) DeleteActionTokensExpiredBefore(ctx context.Context, before pg
 }
 
 const insertActionToken = `-- name: InsertActionToken :exec
-INSERT INTO appointment_action_token (created_at, expires_at, appointment_id, organization_id, patient_id, account_id, reminder_id,
-                                      token_hash, channel, language)
-VALUES ($1, $2, $3, $4, $5, $6, $7,
+INSERT INTO appointment_action_token (created_at, expires_at, start_at, appointment_id, organization_id, patient_id, account_id,
+                                      reminder_id, token_hash, channel, language)
+VALUES ($1, $2, $2, $3, $4, $5, $6, $7,
         $8, $9, $10)
 `
 
 type InsertActionTokenParams struct {
 	CreatedAt      pgtype.Timestamptz
-	ExpiresAt      pgtype.Timestamptz
+	StartAt        pgtype.Timestamptz
 	AppointmentID  pgtype.UUID
 	OrganizationID pgtype.UUID
 	PatientID      pgtype.UUID
@@ -310,7 +310,7 @@ type InsertActionTokenParams struct {
 func (q *Queries) InsertActionToken(ctx context.Context, arg InsertActionTokenParams) error {
 	_, err := q.db.Exec(ctx, insertActionToken,
 		arg.CreatedAt,
-		arg.ExpiresAt,
+		arg.StartAt,
 		arg.AppointmentID,
 		arg.OrganizationID,
 		arg.PatientID,

@@ -267,7 +267,7 @@ func (t *fakeTokens) InsertToken(ctx context.Context, tok appointment.Token) err
 func (t *fakeTokens) DeleteTokensExpiredBefore(_ context.Context, before time.Time) (int64, error) {
 	var n int64
 	t.stored = slices.DeleteFunc(t.stored, func(tok appointment.Token) bool {
-		if tok.ExpiresAt.Before(before) {
+		if tok.StartAt.Before(before) {
 			n++
 			return true
 		}

@@ -66,7 +66,8 @@ func TestAppointmentsHandler_ServesTheSettings(t *testing.T) {
 		code int
 	}{
 		{organization.ErrNotFound, http.StatusNotFound}, {organization.ErrForbidden, http.StatusForbidden},
-		{organization.ErrInvalidAppointmentSettings, http.StatusBadRequest}, {errors.New("down"), http.StatusInternalServerError},
+		{organization.ErrInvalidAppointmentSettings, http.StatusBadRequest}, {organization.ErrSMSUnavailable, http.StatusConflict},
+		{errors.New("down"), http.StatusInternalServerError},
 	} {
 		if rec := serveRules(t, &stubRules{err: tt.err}, true, http.MethodPut, customJSON); rec.Code != tt.code {
 			t.Errorf("%v: %d, want %d", tt.err, rec.Code, tt.code)

@@ -85,7 +85,7 @@ type ChangeKind string
 const (
 	ChangeConfirmed       ChangeKind = "confirmed"        // the patient confirmed (SAL-34)
 	ChangeRescheduled     ChangeKind = "rescheduled"      // the patient moved it to another slot of its role (SAL-34)
-	ChangeStatusSet       ChangeKind = "status_set"       // booked to fulfilled or noshow, by the practitioner or the system
+	ChangeStatusSet       ChangeKind = "status_set"       // booked to fulfilled, noshow or cancelled, by whoever did it
 	ChangeStatusCorrected ChangeKind = "status_corrected" // noshow and fulfilled corrected into each other (SAL-36)
 )
 
@@ -129,10 +129,13 @@ type Link struct {
 	Channel        Channel
 }
 
-// Token is a stored one-time link: only the SHA-256 of its token.
+// Token is a stored one-time link: only the SHA-256 of its token. StartAt is the appointment's start it was issued
+// for, and when it expires: a link whose StartAt is not the appointment's start now is refused (SAL-34), so a
+// reschedule leaves the earlier reminders' links useless. A link is used once, by a conditional UPDATE (WHERE used_at
+// IS NULL) in the transaction that confirms or cancels; the database refuses any change to a used one.
 type Token struct {
 	CreatedAt      time.Time
-	ExpiresAt      time.Time
+	StartAt        time.Time
 	AppointmentID  string
 	OrganizationID string
 	PatientID      string

@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/payments"
 )
 
 // patientCancelBefore is the patient's cancellation window: until 24 hours before the start.
@@ -95,6 +96,10 @@ type Ports struct {
 	Roles    Roles
 	Jobs     Jobs
 	Stats    StatsQueue // every write; not needed by a Service that only reads
+	// Prices gives a booking's price and Payments takes it (service_purchase.go): no price exists before the payments
+	// epic (SAL-23), so both are nil in every binary and nothing is charged.
+	Prices   Prices
+	Payments payments.Provider
 	// Tokens stores the one-time links of reminders and LinkURL is their base (the api's public origin): needed only
 	// by a Service that issues links (IssueLink, the notifier's reminders).
 	Tokens  TokenRepository
@@ -134,9 +139,30 @@ func (s *Service) Book(ctx context.Context, c Caller, slotID string) (Appointmen
 	case err != nil:
 		return Appointment{}, fmt.Errorf("appointment: book: %w", err)
 	}
+	// Paid before the booking's transaction, refunded when the booking then fails (ADR 0015 "pkg/payments"). The key
+	// is the patient's and the slot's until the payments epic gives a booking a request id of its own.
+	receipt, err := s.purchase(ctx, c, b, "booking:"+c.PatientID+":"+b.ID)
+	switch {
+	case errors.Is(err, payments.ErrDeclined):
+		return Appointment{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrPaymentDeclined)
+	case err != nil:
+		return Appointment{}, fmt.Errorf("appointment: book: %w", err)
+	}
+	out, err := s.bookSlot(ctx, c, b, now)
+	if err != nil {
+		if rerr := s.refund(ctx, receipt); rerr != nil {
+			return Appointment{}, errors.Join(err, fmt.Errorf("appointment: book: refund: %w", rerr))
+		}
+		return Appointment{}, err
+	}
+	return out, nil
+}
+
+// bookSlot books the slot b for c in one transaction, audited; each refusal is audited in a transaction of its own.
+func (s *Service) bookSlot(ctx context.Context, c Caller, b slot.Bookable, now time.Time) (Appointment, error) {
 	var out Appointment
 	var refused error
-	err = s.Tx.WithTx(ctx, func(ctx context.Context) error {
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
 		if out, refused, err = s.book(ctx, c, b, now); err != nil || refused != nil {
 			return err
@@ -180,9 +206,6 @@ func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.
 	if _, err := s.Slots.Hold(ctx, b.OrganizationID, b.ID); errors.Is(err, slot.ErrUnavailable) {
 		return Appointment{}, ErrSlotUnavailable, nil
 	} else if err != nil {
-		return Appointment{}, nil, err
-	}
-	if err := s.purchase(ctx, b); err != nil {
 		return Appointment{}, nil, err
 	}
 	out, err = s.Repo.Create(ctx, Appointment{

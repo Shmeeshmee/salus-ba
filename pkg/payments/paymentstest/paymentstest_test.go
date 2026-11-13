@@ -23,6 +23,15 @@ func TestProvider_ChargesOncePerKeyAndRefundsAtMostTheAmount(t *testing.T) {
 	if again, err := p.Charge(t.Context(), charge); err != nil || again != r || len(p.Charged()) != 1 {
 		t.Errorf("a repeat = %+v, %v with %d receipts; want the first receipt only", again, err, len(p.Charged()))
 	}
+	for name, c := range map[string]payments.Charge{
+		"another amount":   {Key: charge.Key, Currency: "BAM", Customer: "c1", AmountMinor: 4000},
+		"another currency": {Key: charge.Key, Currency: "EUR", Customer: "c1", AmountMinor: 5000},
+		"another customer": {Key: charge.Key, Currency: "BAM", Customer: "c2", AmountMinor: 5000},
+	} {
+		if _, err := p.Charge(t.Context(), c); !errors.Is(err, payments.ErrInvalid) {
+			t.Errorf("the key reused with %s = %v, want ErrInvalid", name, err)
+		}
+	}
 	if err := p.Refund(t.Context(), payments.Refund{Key: "rf-1", ReceiptID: r.ID, AmountMinor: 3000}); err != nil {
 		t.Fatal(err)
 	}

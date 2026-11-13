@@ -119,7 +119,7 @@ func (s *Service) issue(ctx context.Context, l Link, hash [32]byte) (refused, er
 		return nil, err
 	}
 	return nil, s.Tokens.InsertToken(ctx, Token{
-		CreatedAt: now, ExpiresAt: a.Start, AppointmentID: a.ID, OrganizationID: a.OrganizationID, PatientID: a.PatientID,
+		CreatedAt: now, StartAt: a.Start, AppointmentID: a.ID, OrganizationID: a.OrganizationID, PatientID: a.PatientID,
 		AccountID: p.AccountID, ReminderID: l.ReminderID, Language: l.Language, Channel: l.Channel, Hash: hash,
 	})
 }

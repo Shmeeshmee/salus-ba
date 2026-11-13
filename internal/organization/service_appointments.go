@@ -46,6 +46,9 @@ type AppointmentsPorts struct {
 	Audit Auditor
 	Tx    Transactor
 	Clock clock.Clock
+	// SMSAvailable: a real SMS provider sends (config.LoadSMS); while it is the fake, the paid SMS option cannot be
+	// turned on, so no usage is counted for messages never sent.
+	SMSAvailable bool
 }
 
 // Appointments holds the clinic's appointment settings: only its admin reads and changes them (a change is audited,
@@ -69,7 +72,8 @@ func (s *Appointments) Settings(ctx context.Context, c Caller) (AppointmentSetti
 }
 
 // SetSettings replaces the settings of the admin's clinic with in, audited as an update of the clinic; refusals as
-// Settings', audited too. ErrInvalidAppointmentSettings for settings out of their ranges.
+// Settings', audited too. ErrInvalidAppointmentSettings for settings out of their ranges, ErrSMSUnavailable for the
+// SMS option while no SMS provider sends.
 func (s *Appointments) SetSettings(ctx context.Context, c Caller, in AppointmentSettings) (AppointmentSettings, error) {
 	if err := adminOf(c); err != nil {
 		if aerr := s.Tx.WithTx(ctx, func(ctx context.Context) error {
@@ -81,6 +85,9 @@ func (s *Appointments) SetSettings(ctx context.Context, c Caller, in Appointment
 	}
 	if err := validAppointmentSettings(in); err != nil {
 		return AppointmentSettings{}, err
+	}
+	if in.SMSReminders && !s.SMSAvailable {
+		return AppointmentSettings{}, ErrSMSUnavailable
 	}
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		if err := s.Repo.SetOrganization(ctx, c.OrganizationID); err != nil {
@@ -98,7 +105,9 @@ func (s *Appointments) SetSettings(ctx context.Context, c Caller, in Appointment
 }
 
 // For returns the settings of the clinic org, the defaults when it has stored none, in the transaction in ctx (or one
-// of its own) with the clinic's scope set: for the other domains' rules. Unaudited: no personal data.
+// of its own): for the other domains' rules. It sets the clinic's scope (app.organization_id) on that transaction, so
+// a caller in another scope (a patient's) reads it first or sets its own scope again after it. Unaudited: no
+// personal data.
 func (s *Appointments) For(ctx context.Context, org string) (AppointmentSettings, error) {
 	var out AppointmentSettings
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {

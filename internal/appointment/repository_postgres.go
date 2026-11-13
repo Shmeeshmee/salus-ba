@@ -277,7 +277,7 @@ func NewPostgresTokenRepository(db postgres.Querier) TokenRepository {
 
 func (r *postgresRepository) InsertToken(ctx context.Context, t Token) error {
 	p := appointmentdb.InsertActionTokenParams{
-		CreatedAt: ts(t.CreatedAt), ExpiresAt: ts(t.ExpiresAt), TokenHash: t.Hash[:], Channel: string(t.Channel),
+		CreatedAt: ts(t.CreatedAt), StartAt: ts(t.StartAt), TokenHash: t.Hash[:], Channel: string(t.Channel),
 		Language: appointmentdb.Language(t.Language),
 	}
 	for _, u := range []struct {

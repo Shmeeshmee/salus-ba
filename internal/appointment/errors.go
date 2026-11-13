@@ -33,6 +33,8 @@ var (
 	// ErrNotReschedulable is returned for a reschedule the clinic's rules never allow: another role's slot, the
 	// consultation's join window open, or self-service rescheduling off (SAL-34).
 	ErrNotReschedulable = errors.New("appointment: not reschedulable")
+	// ErrPaymentDeclined is returned when the payment of a priced booking is declined: nothing was booked.
+	ErrPaymentDeclined = errors.New("appointment: payment declined")
 	// ErrLinkInvalid is returned for a one-time link that is unknown, used or expired, alike (SAL-34).
 	ErrLinkInvalid = errors.New("appointment: link invalid")
 )
